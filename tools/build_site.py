@@ -32,6 +32,8 @@ PAGES: list[tuple[Path, str, str]] = [
     (Path("docs/语言规格.md"), "语言规格", "参考"),
     (Path("docs/设计决策.md"), "设计决策", "参考"),
     (Path("docs/路线图.md"), "路线图（M7–M11）", "参考"),
+    (Path("docs/ai/system-prompt.md"), "AI 系统提示词", "AI"),
+    (Path("examples/ai/few-shot.md"), "few-shot 示例库", "AI"),
     (Path("docs/tutorial/01_你好基石.md"), "01 你好基石", "教程"),
     (Path("docs/tutorial/02_数与文本.md"), "02 数与文本", "教程"),
     (Path("docs/tutorial/03_判断与循环.md"), "03 判断与循环", "教程"),
@@ -305,6 +307,45 @@ def build_page(md_path: Path, title: str, group: str,
 </html>"""
 
 
+#: 各页面的一句话描述（llms.txt 索引用）
+PAGE_DESC = {
+    "README.md": "项目概览、能力清单、架构、环境与测试",
+    "docs/语言规格.md": "完整语法与语义规范（关键字/语句/表达式/标准库/报错）",
+    "docs/设计决策.md": "关键设计权衡与踩坑记录",
+    "docs/路线图.md": "M7–M11 后续规划",
+    "docs/ai/system-prompt.md": "教 LLM 写基石的官方系统提示词",
+    "examples/ai/few-shot.md": "20 个「任务描述 → 基石代码」few-shot 示例对",
+}
+
+
+def build_llms_txt() -> str:
+    """生成 llms.txt（索引），遵循 llmstxt.org 规范。"""
+    lines = [
+        "# 基石语言（jishi）",
+        "",
+        "> 一门像 Python 一样简单易用的中文编程语言：中文关键字、中文报错、"
+        "三执行器（树遍历 / Python VM / C VM）语义一致。",
+        "",
+        "## 文档",
+        "",
+    ]
+    for md_path, title, group in PAGES:
+        rel = md_path.relative_to(ROOT)
+        href = rel.with_suffix(".html").as_posix()
+        desc = PAGE_DESC.get(rel.as_posix(), "教程章节" if group == "教程" else group)
+        lines.append(f"- [{title}]({href})：{desc}")
+    return "\n".join(lines) + "\n"
+
+
+def build_llms_full() -> str:
+    """生成 llms-full.txt：所有页面 Markdown 原文拼接（LLM 全文语料）。"""
+    parts = ["# 基石语言（jishi）—— 完整文档\n"]
+    for md_path, title, _group in PAGES:
+        parts.append(f"\n\n---\n\n## {title}\n")
+        parts.append(md_path.read_text(encoding="utf-8"))
+    return "".join(parts)
+
+
 def main() -> int:
     if not DOCS.exists():
         print("没找到 docs/，请在项目根目录运行")
@@ -317,6 +358,11 @@ def main() -> int:
             build_page(md_path, title, group, i),
             encoding="utf-8")
         print(f"生成 {rel_html}")
+
+    # llms.txt（索引）+ llms-full.txt（全文），供 LLM 爬取结构化语料
+    (OUT / "llms.txt").write_text(build_llms_txt(), encoding="utf-8")
+    (OUT / "llms-full.txt").write_text(build_llms_full(), encoding="utf-8")
+    print("生成 site/llms.txt + site/llms-full.txt")
 
     print(f"\n完成：{len(PAGES)} 个页面 → {OUT}")
     if "--open" in sys.argv:

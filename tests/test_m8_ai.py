@@ -101,3 +101,20 @@ def test_cli_json_errors(tmp_path):
     payload = json.loads(err)
     assert payload["ok"] is False
     assert payload["errors"][0]["fix"]["old"] == "def"
+
+
+# -- M8.6 评测集自测 ---------------------------------------------------------
+
+def test_jiishi_eval_all_answers_pass():
+    """评测集标准答案必须 100% 通过（语法改动不得使通过率下降）。"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "jiishi_eval", "bench/ai-eval/eval.py")
+    jeval = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(jeval)
+    assert len(jeval.TASKS) >= 10
+    for t in jeval.TASKS:
+        out = jeval.run_code(t["answer"])
+        assert out == t["stdout"], (
+            f"{t['id']} 答案输出不匹配\n"
+            f"期望 {t['stdout']!r}\n实际 {out!r}")
