@@ -44,6 +44,16 @@ def _cvm_available() -> bool:
 
 HAS_CVM = _cvm_available()
 
+if not HAS_CVM:
+    # 对拍会降级为「树遍历 vs 字节码」双执行器（仍有效，但不是三重对拍）。
+    # 必须显式告知，避免误以为 C VM 也一起验证了。
+    import warnings
+
+    warnings.warn(
+        "C 虚拟机动态库不可用，三执行器对拍降级为双执行器"
+        "（先运行 python cvm/build.py 构建）",
+        stacklevel=2)
+
 #: 需要读输入的示例，用同一段脚本化输入喂给两个执行器（够跑完即可）
 SCRIPTED_INPUT = ["50", "25", "12", "6", "3", "1", "2", "7"]
 
