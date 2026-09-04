@@ -125,6 +125,7 @@ def build() -> Path:
 
     gcc = find_gcc()
     cmd = [gcc, "-O2", "-std=c11", "-Wall", "-Wextra",
+           "-DJSVM_BUILD",          # 导出 ABI 符号（M9.4）
            *extra, "-shared",
            "-I", str(INCLUDE),
            str(SRC / "jsvm.c"),

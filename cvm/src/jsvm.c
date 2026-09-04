@@ -18,26 +18,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "opcodes.h"
+#include "jsvm.h"
 
-/* ------------------------------------------------------------------ */
-/* 值表示                                                              */
-/* ------------------------------------------------------------------ */
-
-typedef struct JVal {
-    uint8_t tag;
-    uint8_t pad[7];
-    union {
-        int64_t i;
-        double  d;
-        uint64_t u;   /* HOST: 句柄号；CELL: JsCell*；FUNC: JsFunc* */
-    } v;
-} JVal;
-
-/* 前置声明：必须先在文件作用域声明，否则参数列表里的 struct 标签
- * 只在原型内可见，与后面 typedef 定义的类型不同（C11 规则）。 */
-struct JsCell;
-struct JsFunc;
+/* 值表示 JVal / 宿主回调 JsHost / 导出函数声明见 jsvm.h（M9.4 公开 ABI） */
 
 static JVal make_unset(void) {
     JVal x; memset(&x, 0, sizeof x); x.tag = JS_TAG_UNSET; return x;
@@ -102,63 +85,7 @@ static JVal make_iter(JsIterC *it) {
 /* 宿主回调表（全部返回 0 成功 / -1 出错；出错细节由宿主存 pending）      */
 /* ------------------------------------------------------------------ */
 
-typedef struct JsHost {
-    /* 语义回调都带 (line, col)：中文报错的行列号必须与树遍历一致 */
-    int (*binop)      (int op, JVal *a, JVal *b, JVal *out, int line, int col);
-    int (*unary)      (int op, JVal *a, JVal *out, int line, int col);
-    int (*compare)    (int op, JVal *a, JVal *b, JVal *out, int line, int col);
-    int (*truthy)     (JVal *a, int *out, int line, int col);
-    int (*call)       (JVal *fn, JVal *args, int nargs,
-                       const int *kwname_idx, JVal *kwvals, int nkw,
-                       JVal *out, int line, int col);
-    int (*getattr)    (JVal *obj, int name_idx, JVal *out, int line, int col);
-    int (*setattr)    (JVal *obj, int name_idx, JVal *val, int line, int col);
-    int (*getitem)    (JVal *a, JVal *b, JVal *out, int line, int col);
-    int (*setitem)    (JVal *a, JVal *b, JVal *val, int line, int col);
-    int (*build_list) (JVal *items, int n, JVal *out, int line, int col);
-    int (*build_dict) (JVal *flat_kv, int n, JVal *out, int line, int col);
-    int (*iter_new)   (JVal *obj, JVal *out, int *batchable,
-                       int line, int col);
-    int (*iter_next)  (JVal *it, JVal *out, int *done, int line, int col);
-    /* 批量预取：list/范围/文本等安全类型一次取一批，循环体零回调。
-     * 填 out[0..n-1]，n==0 表示耗尽。 */
-    int (*iter_next_batch)(JVal *it, JVal *out, int cap, int *n,
-                           int line, int col);
-    int (*do_import)  (int name_idx, int from_python, JVal *out,
-                       int line, int col);
-    int (*to_int)     (JVal *a, JVal *out, int line, int col);
-    int (*release_handle)(uint32_t handle);
-    /* 异常协议（M5a）：
-     *   error_handle：宿主把 pending 异常转成 HOST 句柄交给 C 侧
-     *   （C 侧持引用，分发时压栈；无人接住时由宿主重新抛出）。
-     *   make_error：把 `抛出` 的值规范化成异常对象（make_exception），
-     *   原值所有权转移给返回的异常句柄。
-     *   match_error：判断捕获条件 cond 是否接得住异常 exc（isinstance）。
-     *   is_signal：exc 是否「中断/继续」信号（需穿透到循环）。 */
-    int (*error_handle)(JVal *out);
-    int (*make_error)(JVal *value, int line, int col, JVal *out);
-    /* 类定义：name=类名，base=基类（UNSET 表示无），methods=方法函数数组 */
-    int (*make_class)(JVal *name, JVal *base, JVal *methods, int nmethods,
-                      JVal *out, int line, int col);
-    /* 解包（M7）：把栈顶可迭代解成 n 个元素（out 为预分配数组，所有权归 C） */
-    int (*unpack)(JVal *value, int n, JVal *out, int line, int col);
-    int (*match_error)(JVal *exc, JVal *cond, int *out, int line, int col);
-    int (*is_signal)(JVal *exc, int *out);
-    /* 报错族：宿主抛出与树遍历逐字一致的中文错误 */
-    int (*raise_name)       (int name_idx, int line, int col);
-    int (*raise_unbound_local)(int code_idx, int slot, int line, int col);
-    int (*raise_unbound_cell)(int code_idx, int cell_idx, int line, int col);
-    int (*raise_zero_div)   (int line, int col);
-    int (*raise_recursion)  (int line, int col);
-    int (*raise_not_iter)   (JVal *obj, int line, int col);
-    int (*raise_break)      (int line, int col);
-    int (*raise_continue)   (int line, int col);
-    int (*raise_argc)       (int code_idx, int got, int line, int col);
-    int (*raise_bad_kw)     (int code_idx, int name_idx, int line, int col);
-    int (*raise_missing)    (int code_idx, const int *missing, int nmissing,
-                             int line, int col);
-    int (*raise_internal)   (const char *msg);
-} JsHost;
+
 
 /* ------------------------------------------------------------------ */
 /* 代码对象（load 时从扁平数组构建）                                     */
@@ -254,7 +181,7 @@ static int ensure_hcap(JsVm *vm, uint32_t id) {
 }
 
 /* 新句柄登记（宿主刚创建对象，refcnt = 1，所有权即将交给 C 侧某个槽位） */
-int jsvm_track_handle(JsVm *vm, uint32_t id) {
+JSVM_API int jsvm_track_handle(JsVm *vm, uint32_t id) {
     if (ensure_hcap(vm, id) != 0) return -1;
     vm->hrefcnt[id] = 1;
     return 0;
@@ -342,7 +269,7 @@ JsVm *jsvm_create(void) {
     return vm;
 }
 
-void jsvm_set_host(JsVm *vm, JsHost *host) { vm->host = host; }
+JSVM_API void jsvm_set_host(JsVm *vm, JsHost *host) { vm->host = host; }
 
 /*
  * 装载模块。code_meta 每个代码对象 6 个 int32：
@@ -353,7 +280,7 @@ void jsvm_set_host(JsVm *vm, JsHost *host) { vm->host = host; }
  * consts 值所有权转移给 C；数组本身的内存仍归宿主持有，
  *   宿主必须保证这些数组在 jsvm_destroy 之前存活。
  */
-int jsvm_load_module(JsVm *vm,
+JSVM_API int jsvm_load_module(JsVm *vm,
                      JVal *consts, int nconsts,
                      int nnames,
                      JVal *globals_in,
@@ -405,7 +332,7 @@ static void frame_teardown(JsVm *vm, JsFrame *f) {
     }
 }
 
-void jsvm_destroy(JsVm *vm) {
+JSVM_API void jsvm_destroy(JsVm *vm) {
     if (!vm) return;
     for (int i = 0; i < vm->nframes; i++)
         frame_teardown(vm, &vm->frames[i]);
@@ -1577,7 +1504,7 @@ dispatch_err: {
 /* 对外 API                                                             */
 /* ------------------------------------------------------------------ */
 
-int jsvm_run(JsVm *vm) {
+JSVM_API int jsvm_run(JsVm *vm) {
     if (vm->halted) return 0;
     vm->stop_depth = 0;
     JsCode *main = &vm->codes[vm->main_idx];
@@ -1611,17 +1538,17 @@ int jsvm_run(JsVm *vm) {
     return run_loop(vm);
 }
 
-void jsvm_get_last(JsVm *vm, JVal *out) { *out = vm->last_value; }
+JSVM_API void jsvm_get_last(JsVm *vm, JVal *out) { *out = vm->last_value; }
 
 /* 基石函数回流：Python 侧持有/释放 */
-int jsvm_func_retain(JsVm *vm, JVal *fv) {
+JSVM_API int jsvm_func_retain(JsVm *vm, JVal *fv) {
     (void)vm;
     if (fv->tag != JS_TAG_FUNC) return -1;
     retain_func((JsFunc *)(uintptr_t)fv->v.u);
     return 0;
 }
 
-int jsvm_func_release(JsVm *vm, JVal *fv) {
+JSVM_API int jsvm_func_release(JsVm *vm, JVal *fv) {
     (void)vm;
     if (fv->tag != JS_TAG_FUNC) return -1;
     release_func(vm, (JsFunc *)(uintptr_t)fv->v.u);
@@ -1630,7 +1557,7 @@ int jsvm_func_release(JsVm *vm, JVal *fv) {
 
 /* Python 高阶函数回调基石函数（重入）。参数为借用；
  * 出错时宿主已存 pending。 */
-int jsvm_call_function(JsVm *vm, JVal *fv,
+JSVM_API int jsvm_call_function(JsVm *vm, JVal *fv,
                        JVal *args, int nargs,
                        const int *kwname_idx, JVal *kwvals, int nkw,
                        JVal *out) {
@@ -1722,7 +1649,7 @@ fail:
 }
 
 /* 宿主把 Python 侧的基石函数值重新包装成 FUNC（如列表里存着回调） */
-int jsvm_new_func_from(JsVm *vm, JVal *proto, JVal *out) {
+JSVM_API int jsvm_new_func_from(JsVm *vm, JVal *proto, JVal *out) {
     /* proto 必须是 FUNC（由宿主从 CvmFunction 还原） */
     if (proto->tag != JS_TAG_FUNC) return -1;
     JsFunc *src = (JsFunc *)(uintptr_t)proto->v.u;
@@ -1751,30 +1678,30 @@ int jsvm_new_func_from(JsVm *vm, JVal *proto, JVal *out) {
 }
 
 /* 宿主读取 FUNC 的原始 JVal（CvmFunction 保活用） */
-void jsvm_func_raw(JsVm *vm, JVal *fv, JVal *out) {
+JSVM_API void jsvm_func_raw(JsVm *vm, JVal *fv, JVal *out) {
     (void)vm;
     *out = *fv;
 }
 
 /* 供宿主在回调里对借用值做 retain/release（如转换后延长生命） */
-int jsvm_retain(JsVm *vm, JVal *v) { retain_val(vm, *v); return 0; }
-int jsvm_release(JsVm *vm, JVal *v) { release_val(vm, *v); return 0; }
+JSVM_API int jsvm_retain(JsVm *vm, JVal *v) { retain_val(vm, *v); return 0; }
+JSVM_API int jsvm_release(JsVm *vm, JVal *v) { release_val(vm, *v); return 0; }
 
 /* FUNC → 代码对象下标（宿主取名/报错用）；非 FUNC 返回 -1 */
-int jsvm_func_code(JsVm *vm, JVal *fv) {
+JSVM_API int jsvm_func_code(JsVm *vm, JVal *fv) {
     (void)vm;
     if (fv->tag != JS_TAG_FUNC) return -1;
     return ((JsFunc *)(uintptr_t)fv->v.u)->code_idx;
 }
 
 /* 全局槽是否已赋值（宿主报错时惰性构建建议池用） */
-int jsvm_global_set(JsVm *vm, int idx) {
+JSVM_API int jsvm_global_set(JsVm *vm, int idx) {
     if (idx < 0 || idx >= vm->nnames) return 0;
     return vm->globals[idx].tag != JS_TAG_UNSET;
 }
 
 /* 取回无人接住的异常对象（宿主重新抛出用）。取出后 C 侧不再持有。 */
-void jsvm_take_pending_err(JsVm *vm, JVal *out) {
+JSVM_API void jsvm_take_pending_err(JsVm *vm, JVal *out) {
     *out = vm->pending_err;
     vm->pending_err = make_unset();
 }
