@@ -161,6 +161,11 @@ def main() -> int:
             cells.append(f"{r:>9.1f}x " if r >= 1 else f"{r:>9.2f}x ")
         print(f"{name:<10}  " + " ".join(cells))
 
+    print("\n已知架构边界：")
+    print("  字符串拼接：字符串在 C VM 中是 HOST 句柄（C 侧无法直接操作 Python str，")
+    print("  每次拼接需回调 Python），而树遍历直接调 Python 的 C 级 str.__add__，")
+    print("  故该场景 C VM 无法超过树遍历，是透明记录的架构边界，而非待修缺陷。")
+
     return 0
 
 

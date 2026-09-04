@@ -98,9 +98,19 @@ jishi examples/01_猜数字.jsh --ast
 | M8 | AI 原生工具链（语言卡/JSON 报错/few-shot/评测集） | ✅ |
 | M9 | 安全沙箱 + 统一协议 + MCP Server + C VM 嵌入 | ✅ |
 | M10 | 生态扩展（json/日期/正则/网络标准库 + 本地包 + 浏览器试玩） | ✅ |
+| M11 | 性能与分发（C VM 热路径下沉 + wheel 内带预编译 DLL） | ✅ |
 
-**测试现状：495 项全部通过**（`python -m pytest tests/`），其中 107 项是
+**测试现状：499 项全部通过**（`python -m pytest tests/`），其中 107 项是
 三执行器对拍（树遍历 / Python VM / C VM 输出逐字节一致）。
+
+### M11 已交付：性能与分发
+
+- **C VM 热路径下沉**：新增 `LIST_APPEND` 指令，把「列表.追加」的两次回调
+  （getattr+call）合并为一次；列表场景基准 **0.58x → 1.7x**。7 场景中 6 场景
+  ≥1.5x（最高 47x）。字符串拼接是透明架构边界（HOST 句柄无法直接操作 Python
+  str，详见 `tools/benchmark.py` 输出说明）。
+- **wheel 内带预编译 DLL**：`tools/build_wheel.py` 编译 DLL 到包内并打包，
+  `pip install jishi` 即含 C VM，无需本机 gcc；干净 venv 实测三执行器全可用。
 
 ### M10 已交付：生态扩展（「拿到就能写」的覆盖）
 
@@ -276,7 +286,7 @@ cvm/             C 执行内核（M4b）
   bytecode.md    字节码设计文档（指令集/值表示/宿主协议/重入/异常协议）
   build.py       一键构建（生成 opcodes.h + gcc 出 DLL/SO）
   src/jsvm.c     C 虚拟机主循环
-tests/           495 项测试（含 107 项三执行器对拍）
+tests/           499 项测试（含 107 项三执行器对拍）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例）
 docs/            语言规格.md、设计决策.md、tutorial/ 教程 7 章
 tools/           run_tests.py 一键测试 / benchmark.py 性能基准
@@ -357,8 +367,9 @@ python tools/benchmark.py
 
 ## 路线图
 
-M0–M6 已完成（见「当前进度」）。后续规划见 **[docs/路线图.md](docs/路线图.md)**——
-北极星：**把基石做成「最容易被大模型正确生成、安全执行、自我修复」的中文编程语言**。
+M0–M11 已全部完成（见「当前进度」）。北极星：**把基石做成「最容易被大模型
+正确生成、安全执行、自我修复」的中文编程语言**。后续规划见
+[docs/路线图.md](docs/路线图.md)。
 
 | 阶段 | 主题 | 可演示成果 |
 |------|------|-----------|
