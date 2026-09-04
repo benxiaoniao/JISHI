@@ -295,3 +295,196 @@ def test_import_unknown_module():
     with pytest.raises(JishiError) as ei:
         run_source("导入 量子计算\n")
     assert "没有找到标准库模块" in str(ei.value)
+
+
+# -- json（M10） ------------------------------------------------------------
+
+def test_json_dumps_chinese_not_escaped():
+    out = run_capture('导入 json\n令 d = {"名字": "小明"}\n打印(json.转文本(d))\n')
+    assert "小明" in out and "\\u" not in out
+
+
+def test_json_dumps_and_parse_roundtrip():
+    out = run_capture(
+        '导入 json\n'
+        '令 d = {"a": 1, "b": [1, 2, 3]}\n'
+        '令 t = json.转文本(d)\n'
+        '令 r = json.解析(t)\n'
+        '打印(r["b"][2])\n')
+    assert out == "3\n"
+
+
+def test_json_parse_plain():
+    out = run_capture('导入 json\n令 r = json.解析(\'{"x": 10}\')\n打印(r["x"])\n')
+    assert out == "10\n"
+
+
+def test_json_parse_error():
+    with pytest.raises(JishiError) as ei:
+        run_source('导入 json\njson.解析("不是json")\n')
+    assert "JSON" in str(ei.value)
+
+
+def test_json_file_roundtrip(tmp_path):
+    p = _posix(tmp_path / "d.json")
+    out = run_capture(
+        f'导入 json\n'
+        f'json.写文件("{p}", {{"键": "值"}})\n'
+        f'令 r = json.读文件("{p}")\n'
+        f'打印(r["键"])\n')
+    assert out == "值\n"
+
+
+# -- 日期（M10） ------------------------------------------------------------
+
+def test_date_add_days():
+    out = run_capture('导入 日期\n打印(日期.加天数(5, "2026-09-01"))\n')
+    assert out == "2026-09-06\n"
+
+
+def test_date_sub_days():
+    out = run_capture('导入 日期\n打印(日期.减天数(1, "2026-01-01"))\n')
+    assert out == "2025-12-31\n"
+
+
+def test_date_diff_days():
+    out = run_capture(
+        '导入 日期\n打印(日期.相差天数("2026-09-06", "2026-09-01"))\n')
+    assert out == "5\n"
+
+
+def test_date_compare():
+    out = run_capture(
+        '导入 日期\n'
+        '打印(日期.早于("2026-01-01", "2026-06-01"))\n'
+        '打印(日期.晚于("2026-06-01", "2026-01-01"))\n'
+        '打印(日期.相等("2026-01-01", "2026-01-01"))\n')
+    assert out == "True\nTrue\nTrue\n"
+
+
+def test_date_weekday():
+    out = run_capture('导入 日期\n打印(日期.星期名("2026-09-05"))\n')
+    assert out == "六\n"
+
+
+def test_date_format():
+    out = run_capture(
+        '导入 日期\n打印(日期.格式化("2026-09-05", "%Y年%m月%d日"))\n')
+    assert out == "2026年09月05日\n"
+
+
+def test_date_parse_error():
+    with pytest.raises(JishiError) as ei:
+        run_source('导入 日期\n日期.加天数(1, "昨天")\n')
+    assert "日期" in str(ei.value)
+
+
+# -- 正则（M10） ------------------------------------------------------------
+
+def test_regex_findall():
+    out = run_capture('导入 正则\n打印(正则.查找全部("\\\\d+", "有3个45数字"))\n')
+    assert out == "['3', '45']\n"
+
+
+def test_regex_replace():
+    out = run_capture('导入 正则\n打印(正则.替换("\\\\d+", "#", "a1b22c333"))\n')
+    assert out == "a#b#c#\n"
+
+
+def test_regex_match():
+    out = run_capture('导入 正则\n打印(正则.匹配("^\\\\d+", "123abc"))\n')
+    assert out == "True\n"
+
+
+def test_regex_search():
+    out = run_capture('导入 正则\n打印(正则.搜索("\\\\d+", "abc123def"))\n')
+    assert out == "123\n"
+
+
+def test_regex_split():
+    out = run_capture('导入 正则\n打印(正则.拆分(",", "a,b,c"))\n')
+    assert out == "['a', 'b', 'c']\n"
+
+
+def test_regex_group():
+    out = run_capture(
+        '导入 正则\n打印(正则.分组("(\\\\d+)-(\\\\d+)", "电话 123-4567"))\n')
+    assert out == "['123', '4567']\n"
+
+
+def test_regex_bad_pattern():
+    with pytest.raises(JishiError) as ei:
+        run_source('导入 正则\n正则.查找全部("(", "abc")\n')
+    assert "正则" in str(ei.value)
+
+
+# -- 网络（M10，mock 避免真实网络） -----------------------------------------
+
+def test_network_get(monkeypatch):
+    import urllib.request as _ur
+    from jishi import runtime as _rt
+
+    class _Resp:
+        def read(self):
+            return "你好，世界".encode("utf-8")
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(_ur, "urlopen", lambda *a, **k: _Resp())
+    out = run_capture('导入 网络\n打印(网络.获取("http://example.com"))\n')
+    assert out == "你好，世界\n"
+
+
+def test_network_get_error(monkeypatch):
+    import urllib.error as _ue
+    import urllib.request as _ur
+
+    def _boom(*a, **k):
+        raise _ue.URLError("连接失败")
+    monkeypatch.setattr(_ur, "urlopen", _boom)
+    with pytest.raises(JishiError) as ei:
+        run_source('导入 网络\n网络.获取("http://example.com")\n')
+    assert "失败" in str(ei.value)
+
+
+def test_network_post(monkeypatch):
+    import urllib.request as _ur
+
+    class _Resp:
+        def read(self):
+            return "已提交".encode("utf-8")
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    captured = {}
+
+    def _fake_urlopen(req, *a, **k):
+        captured["data"] = req.data
+        return _Resp()
+
+    monkeypatch.setattr(_ur, "urlopen", _fake_urlopen)
+    out = run_capture(
+        '导入 网络\n打印(网络.提交("http://x.com", "a=1"))\n')
+    assert out == "已提交\n"
+    assert captured["data"] == b"a=1"
+
+
+def test_network_get_json(monkeypatch):
+    import urllib.request as _ur
+
+    class _Resp:
+        def read(self):
+            return '{"ok": true, "值": 42}'.encode("utf-8")
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(_ur, "urlopen", lambda *a, **k: _Resp())
+    out = run_capture(
+        '导入 网络\n令 r = 网络.获取JSON("http://x.com/api")\n打印(r["值"])\n')
+    assert out == "42\n"
