@@ -203,3 +203,41 @@ def test_fstring_unclosed():
     err = run_error("打印(`你好 {名字})")
     assert "插值字符串没有正常结束" in str(err) or \
         "插值表达式没有闭合" in str(err)
+
+
+# -- 7.5 容错解析：英文关键字/内建 → 中文建议 -----------------------------
+
+def test_en_keyword_def():
+    err = run_error("def f():\n    return 1")
+    assert "函数" in str(err) and "def" in str(err)
+
+
+def test_en_builtin_print():
+    err = run_error("print(1)")
+    assert "打印" in str(err)
+
+
+def test_en_value_true():
+    err = run_error("令 x = True")
+    assert "真" in str(err)
+
+
+def test_en_operator_and():
+    err = run_error("令 x = 1 and 2")
+    assert "与" in str(err)
+
+
+def test_en_unsupported_lambda():
+    err = run_error("lambda x: x")
+    assert "lambda" in str(err)
+
+
+def test_en_word_no_false_positive():
+    # 英文短变量名 / 中文变量不应被误伤
+    out = run_capture("令 a = 5\n令 b = 3\n打印(a + b)\n")
+    assert out == "8\n"
+
+
+def test_en_word_chinese_var_ok():
+    out = run_capture("令 名称 = \"测试\"\n打印(名称)\n")
+    assert out == "测试\n"

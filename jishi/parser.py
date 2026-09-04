@@ -33,6 +33,37 @@ _BIN_PREC = {
 _FUTURE_KEYWORDS = {
 }
 
+# M7.5 容错解析：LLM 写中文代码时 fallback 回英文的高频错误 → 中文建议。
+# 英文语句关键字 → 中文对应
+_EN_STMT_HINTS = {
+    "def": "函数", "if": "如果", "else": "否则", "elif": "否则如果",
+    "for": "遍历", "while": "当", "return": "返回", "import": "导入",
+    "from": "从", "class": "类", "try": "尝试", "except": "捕获",
+    "finally": "最终", "raise": "抛出", "break": "中断", "continue": "继续",
+}
+# 英文值/运算符关键字 → 中文对应
+_EN_VALUE_HINTS = {
+    "True": "真", "False": "假", "None": "空",
+    "and": "与", "or": "或", "not": "非", "in": "在", "is": "==",
+}
+# 英文内建函数 → 中文对应（基石已有这些内建）
+_EN_BUILTIN_HINTS = {
+    "print": "打印", "input": "输入", "len": "长度", "range": "范围",
+    "int": "整数", "float": "小数", "str": "文本", "type": "类型",
+    "min": "最小", "max": "最大", "sum": "总和", "reversed": "反转",
+}
+# 英文语法基石没有对应 → 直接给说明
+_EN_UNSUPPORTED = {
+    "pass": "空代码块直接写一个冒号「:」占位，不需要 pass",
+    "lambda": "基石没有匿名函数，请用「函数 名字(参数)：」定义",
+    "with": "基石暂不支持 with，可用「尝试/最终」管理资源",
+    "del": "基石没有 del，变量不需要手动删除",
+    "global": "基石没有 global，函数内可直接读写外层变量",
+    "yield": "基石暂不支持生成器 yield",
+    "async": "基石暂不支持异步 async",
+    "await": "基石暂不支持异步 await",
+}
+
 # 比较运算符（支持链式）
 _COMPARE_OPS = ("==", "!=", "<", ">", "<=", ">=")
 
@@ -72,6 +103,42 @@ class Parser:
         t = self._peek()
         return t.type == "KEYWORD" and t.value == kw
 
+    def _check_en_word(self, t: Token, *, mode: str = "stmt") -> None:
+        """容错解析（M7.5）：英文关键字/内建 → 给出中文建议。
+
+        mode 决定检查哪些类别：
+        - "stmt"    语句开头：英文语句关键字 / 无对应语法 / 值关键字
+        - "atom"    表达式原子：值关键字 + 内建函数（仅调用位置）
+        - "newline" 行尾残留：仅值/运算符关键字（and/or/not/in/is/True…）
+        """
+        w = t.value
+        if mode != "newline" and w in _EN_STMT_HINTS:
+            self._err(
+                ParseUnexpectedError,
+                f"「{w}」是英文关键字，基石用中文——你是不是想写「{_EN_STMT_HINTS[w]}」？",
+                hint="把英文关键字换成对应的中文关键字即可。\n"
+                     f"例如：{w} → {_EN_STMT_HINTS[w]}",
+                tok=t)
+        if w in _EN_VALUE_HINTS:
+            cn = _EN_VALUE_HINTS[w]
+            self._err(
+                ParseUnexpectedError,
+                f"「{w}」是英文写法，基石用中文——你是不是想写「{cn}」？",
+                hint=f"把「{w}」换成「{cn}」即可",
+                tok=t)
+        if mode != "newline" and w in _EN_UNSUPPORTED:
+            self._err(
+                ParseUnexpectedError,
+                f"「{w}」是 Python 的写法，基石里没有这个关键字",
+                hint=_EN_UNSUPPORTED[w],
+                tok=t)
+        if mode == "atom" and w in _EN_BUILTIN_HINTS and self._at_op("("):
+            self._err(
+                ParseUnexpectedError,
+                f"「{w}」是 Python 的内建函数，基石里叫「{_EN_BUILTIN_HINTS[w]}」",
+                hint=f"把 {w}(…) 改成 {_EN_BUILTIN_HINTS[w]}(…)",
+                tok=t)
+
     def _err(self, exc: type, msg: str = "", hint: Optional[str] = None,
              tok: Optional[Token] = None):
         t = tok or self._peek()
@@ -100,6 +167,10 @@ class Parser:
     def _expect_newline(self):
         if self._at("NEWLINE"):
             return self._next()
+        # 容错解析（M7.5）：行尾残留英文运算符（and/or/not/in/is）→ 中文建议
+        nxt = self._peek()
+        if nxt.type == "NAME" and nxt.value in _EN_VALUE_HINTS:
+            self._check_en_word(nxt, mode="newline")
         self._err(ParseUnexpectedError,
                   f"这一行没写完，但下一行已经开始了——是不是少了个符号？")
 
@@ -185,6 +256,8 @@ class Parser:
                       f"不能以关键字「{kw}」开头写这句话", tok=t)
 
         if t.type == "NAME":
+            # 容错解析（M7.5）：英文关键字/内建 → 中文建议
+            self._check_en_word(t, mode="stmt")
             # 赋值（含 a[0] = v、a.b = v） or 表达式语句
             if self._looks_like_assign():
                 return self._parse_assign(decl=False)
@@ -786,6 +859,8 @@ class Parser:
                       f"表达式里不能直接用关键字「{t.value}」", tok=t)
         if t.type == "NAME":
             self._next()
+            # 容错解析（M7.5）：值关键字（True/False/None）、内建函数、lambda 等
+            self._check_en_word(t, mode="atom")
             return A.Name(id=t.value, line=t.line, col=t.col)
         if t.type == "OP" and t.value == "[":
             self._next()
