@@ -46,19 +46,27 @@ def test_jsvm_dll_exports_symbols():
     lib.jsvm_destroy(vm)
 
 
+def _find_gcc():
+    """复用 cvm/build.py 的 gcc 候选表（唯一事实来源，不含个人路径）。"""
+    import importlib.util
+
+    build_py = ROOT / "cvm" / "build.py"
+    if not build_py.exists():
+        return shutil.which("gcc")
+    spec = importlib.util.spec_from_file_location("_jishi_cvm_build", build_py)
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+        return mod.find_gcc()
+    except SystemExit:          # find_gcc 找不到时抛 SystemExit
+        return None
+
+
 @pytest.mark.skipif(shutil.which("gcc") is None and
                     not (ROOT / "cvm").exists(),
                     reason="无 gcc，跳过嵌入编译测试")
 def test_embed_hello_compiles_and_runs(tmp_path):
-    gcc = shutil.which("gcc")
-    if gcc is None:
-        # 用 build.py 里的 GCC_CANDIDATES 找 MinGW gcc
-        for cand in (r"D:\CLion\CLion 2026.2.1\bin\mingw\bin\gcc.exe",
-                     r"C:\msys64\ucrt64\bin\gcc.exe",
-                     r"C:\msys64\mingw64\bin\gcc.exe"):
-            if os.path.exists(cand):
-                gcc = cand
-                break
+    gcc = _find_gcc()
     if gcc is None or not JSVM_DLL.exists():
         pytest.skip("无可用 gcc 或 jsvm.dll 未构建")
 
