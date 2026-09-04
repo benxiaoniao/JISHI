@@ -34,21 +34,31 @@ from .opcodes import BINOP_TO_SYMBOL, CMPOP_TO_SYMBOL, BinOp, CmpOp, UnOp
 
 _ROOT = Path(__file__).resolve().parents[1]
 _BIN = _ROOT / "cvm" / "bin"
+#: wheel 内预编译动态库的目录（M11：pip install 即含 C VM，无需本机 gcc）
+_NATIVE = Path(__file__).resolve().parent / "_native"
 
 
-def _lib_path() -> Path:
+def _lib_name() -> str:
     import sys
 
     if sys.platform == "win32":
-        p = _BIN / "jsvm.dll"
-    elif sys.platform == "darwin":
-        p = _BIN / "libjsvm.dylib"
-    else:
-        p = _BIN / "libjsvm.so"
-    if not p.exists():
-        raise FileNotFoundError(
-            f"找不到 C 虚拟机动态库 {p}，请先运行：python cvm/build.py")
-    return p
+        return "jsvm.dll"
+    if sys.platform == "darwin":
+        return "libjsvm.dylib"
+    return "libjsvm.so"
+
+
+def _lib_path() -> Path:
+    # 优先：包内预编译（wheel 安装后，pip install 即含 C VM）
+    pkg = _NATIVE / _lib_name()
+    if pkg.exists():
+        return pkg
+    # 回退：源码树开发模式（cvm/bin/，由 python cvm/build.py 构建）
+    dev = _BIN / _lib_name()
+    if dev.exists():
+        return dev
+    raise FileNotFoundError(
+        f"找不到 C 虚拟机动态库（{_lib_name()}），请先运行：python cvm/build.py")
 
 
 _LIB: Optional[ctypes.CDLL] = None

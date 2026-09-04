@@ -111,16 +111,19 @@ def find_gcc() -> str:
         "GCC_CANDIDATES 指向你的 gcc 路径）。")
 
 
-def build() -> Path:
+def build(out_dir: Path = BIN) -> Path:
     gen_header()
     SRC.mkdir(parents=True, exist_ok=True)
-    BIN.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     if sys.platform == "win32":
-        out = BIN / "jsvm.dll"
+        out = out_dir / "jsvm.dll"
         extra = []
+    elif sys.platform == "darwin":
+        out = out_dir / "libjsvm.dylib"
+        extra = ["-fPIC"]
     else:
-        out = BIN / "jsvm.so"
+        out = out_dir / "libjsvm.so"
         extra = ["-fPIC"]
 
     gcc = find_gcc()
@@ -139,5 +142,8 @@ def build() -> Path:
 if __name__ == "__main__":
     if "--gen-header" in sys.argv:
         print(f"已生成 {gen_header()}")
+    elif "--out" in sys.argv:
+        # 编译到指定目录（M11：python cvm/build.py --out jishi/_native）
+        build(Path(sys.argv[sys.argv.index("--out") + 1]))
     else:
         build()

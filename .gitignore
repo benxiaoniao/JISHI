@@ -29,5 +29,10 @@ site/
 # C VM 编译产物（cvm/build.py 会在需要时自动构建）
 cvm/bin/*.dll
 
+# wheel 内预编译动态库（tools/build_wheel.py 编译产物）
+jishi/_native/*.dll
+jishi/_native/*.so
+jishi/_native/*.dylib
+
 # 本地包缓存目录（.jishi/packages/）
 .jishi/
