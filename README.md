@@ -3,13 +3,16 @@
 一门像 Python 一样简单易用的**中文编程语言**。
 
 > **技术栈声明（公开透明）**
-> - 词法、语法、AST、中文报错等前端由 **Python 实现**
-> - 执行内核为 **C 实现的自研字节码虚拟机**（gcc 15.2.0）
+> - 前端（词法/语法/AST/中文报错）由 **Python 实现**
+> - 三个执行器：**树遍历解释器**（默认，Python）/ **Python 字节码 VM** /
+>   **C 字节码 VM**（`cvm/`，自研 C 栈式虚拟机，gcc 编成 DLL/SO，
+>   纯计算场景提速最高 47x，wheel 内自带无需本机 gcc）
 > - 通过桥接层**可调用任意 Python 库**，标准库为中文薄封装
-> - 本语言不 fork、不 patch CPython，也不宣称"完全自主"，以上技术栈如实标注
+> - 不 fork、不 patch CPython，也不宣称"完全自主"，以上技术栈如实标注
 >
-> 目标：完整的通用语言（模块系统、面向对象、包管理、性能优化），可长期维护的开源项目。
-> 定位不是教学玩具，但第一版优先保证「拿到就能照着写」。
+> 已是一条「拿到就能写」的完整通用语言：模块系统、面向对象、异常、包管理雏形、
+> AI 原生工具链（语言卡 / 结构化报错 / 评测集）、沙箱 + MCP 集成、wheel 内带 C VM。
+> 定位不是教学玩具，长期目标是可维护的开源项目。
 
 ## 快速上手
 
@@ -205,10 +208,10 @@ jishi examples/01_猜数字.jsh --ast
 - `cvm/src/jsvm.c` C 栈式 VM（数值/比较/跳转/调用/循环/闭包快路径），
   `cvm/build.py` 一条命令出 DLL，`jishi/cvm_bind.py` ctypes 绑定 + 宿主回调；
 - `tests/test_cvm.py` 三执行器对拍（黄金用例/错误快照/示例全覆盖）；
-- `tools/benchmark.py` 可复现基准：纯计算场景 C VM 提速 1.7-45.8x
-  （当循环 45.8x、递归 16.2x、函数调用 4.4x）；
-  Python 生态桥接密集场景（列表方法/字符串拼接）与树遍历持平略慢
-  （每步经 ctypes 回调，设计上 C 只保留热路径，详见 cvm/bytecode.md）。
+- `tools/benchmark.py` 可复现基准：C VM 提速 1.6x–47x
+  （当循环 47x、递归 17x、函数调用 4.3x、算术混合 5.1x、列表 1.6x）；
+  字符串拼接是透明架构边界（字符串是 HOST 句柄，C 侧无法直接操作 Python str，
+  详见 benchmark 输出说明）。
 
 ### M3 已交付：Python 生态桥接 + 关键字参数
 
@@ -220,6 +223,9 @@ jishi examples/01_猜数字.jsh --ast
 
 - **语法**：变量、算术/比较/逻辑、链式比较（`60 < 分数 <= 90`）、
   如果/否则如果/否则、遍历、循环 N 次、当、中断/继续、函数、导入、列表/字典
+- **表达力（M7）**：多赋值解包（`令 a, b = [1, 2]`、`a, b = b, a`）、
+  默认参数（`函数 f(a, b = 10)`）、列表/字典推导式
+  （`[x*2 遍历 x 在 列表 如果 x>2]`）、文本插值（`` `你好 {名字}，今年 {年龄} 岁` ``）
 - **异常处理（M5a）**：`尝试`/`捕获 类型 为 e`/`最终`/`抛出 值`；
   8 种内建错误类型（`值错误` 等）可抛可抓，基类抓子类，`e.消息`/`e.类型` 可读
 - **面向对象（M5b）**：`类` 定义方法、`继承` 复用与覆盖、`新建` 实例化、
@@ -231,13 +237,17 @@ jishi examples/01_猜数字.jsh --ast
   - 文本：拆分 / 替换 / 查找 / 大写 / 小写 / 去空白 / 开头是 / 结尾是 / 包含 / 转整数 / 转小数
 - **中文报错**：精确到行列 + "你是不是想写…"修正建议（错误快照护航）
 - **REPL**：表达式回显、多行块输入、帮助/清空命令
-- **标准库（M2）**：
+- **标准库（M2 + M10，共 10 个中文模块）**：
   - 随机：随机整数 / 随机小数 / 随机选择 / 洗牌
   - 数学：开方 / 幂 / 四舍五入 / 最大公约数 / 最小公倍数 / 阶乘 / 圆周率 / 三角 / 对数
   - 时间：现在 / 今天 / 此刻 / 时间戳 / 星期名 / 加天数 / 高精度计时 / 睡眠
   - 文件：写文本 / 读文本 / 追加 / 写行 / 按行读 / 目录操作 / 路径工具
   - 表格：读表格 / 挑选 / 筛选 / 排序按 / 汇总 / 追加——数据分析入门钥匙
   - 文本：拼接 / 对齐 / 补零 / 判断 / 去前缀后缀 / 格式化
+  - json（M10）：转文本 / 解析 / 读文件 / 写文件（中文不转义）
+  - 日期（M10）：今天 / 格式化 / 加天数 / 减天数 / 相差天数 / 早于 / 晚于 / 相等 / 星期名
+  - 正则（M10）：匹配 / 搜索 / 查找全部 / 替换 / 拆分 / 分组
+  - 网络（M10）：获取 / 提交 / 获取JSON（urllib 薄封装，零第三方依赖，默认 10s 超时）
 - **语法补充（M2）**：尾随逗号（`[1, 2, 3,]`）、括号内跨行书写列表/字典/参数
 - **Python 生态桥接（M3）**：
   - `导入 math 从 python`、`导入 pandas 从 python 为 数据框`——直接用整个 Python 生态
@@ -270,48 +280,61 @@ jishi examples/01_猜数字.jsh --ast
 ```
 jishi/           前端：词法/语法/AST/语义/报错/执行内核/标准库
   tokenizer.py   词法分析（缩进栈、全角归一化、中文分词消歧、中文引号）
-  parser.py      语法分析（递归下降+优先级爬升，链式比较、尾随逗号）
+  parser.py      语法分析（递归下降+优先级爬升，链式比较、尾随逗号、容错解析）
   ast_nodes.py   AST 节点（dataclass, kw_only=True）
   errors.py      中文错误体系（E01xx词法/E02xx语法/E03xx语义/E2xxx运行）
-  interpreter.py 树遍历解释器（作用域链/闭包/对象方法分派/内建函数）
+  interpreter.py 树遍历解释器（作用域链/闭包/对象方法分派/内建函数，默认执行器）
   runtime.py     共享运行时语义（方法表/内建/属性/调用/导入，三执行器共用）
   opcodes.py     指令集（唯一事实来源，C 头文件由此生成）
   compiler.py    字节码编译器（作用域分析/闭包单元/指令带行列）
   vm.py          Python 参考字节码虚拟机（M4a）
   cvm_bind.py    C VM 的 ctypes 绑定 + 宿主回调实现（M4b）
-  cli.py         CLI 入口（run/--ast/-i）
+  ai.py          AI 元数据统一数据源：语言卡 / 语言规格 / 错误序列化（M8）
+  protocol.py    统一执行结果协议（M9.2）
+  sandbox.py     沙箱运行器（超时/stdout 上限/模块白名单，M9.1）
+  mcp_server.py  MCP Server（stdio 传输，run_script/eval_expr，M9.3）
+  cli.py         CLI 入口（run/--ast/-i/--ai-card/--lang-spec/--sandbox…）
   repl.py        交互式 REPL（回显/多行块/帮助/清空）
-  stdlib/        标准库：随机/数学/时间/文件/表格/文本
+  stdlib/        标准库 10 模块：随机/数学/时间/文件/表格/文本/json/日期/正则/网络
 cvm/             C 执行内核（M4b）
   bytecode.md    字节码设计文档（指令集/值表示/宿主协议/重入/异常协议）
-  build.py       一键构建（生成 opcodes.h + gcc 出 DLL/SO）
+  build.py       一键构建（生成 opcodes.h + gcc 出 DLL/SO，支持 --out）
+  include/jsvm.h 公开 C ABI 头文件（M9.4，JSVM_ABI_VERSION=1）
+  include/opcodes.h 指令码头文件（由 opcodes.py 生成，两侧同步）
   src/jsvm.c     C 虚拟机主循环
 tests/           499 项测试（含 107 项三执行器对拍）
-examples/        示例脚本（含 tutorial/ 10 个教程配套示例）
-docs/            语言规格.md、设计决策.md、tutorial/ 教程 7 章
-tools/           run_tests.py 一键测试 / benchmark.py 性能基准
+examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例）
+docs/            语言规格.md、设计决策.md、路线图.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 7 章
+tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文档站 /
+                 build_playground.py 浏览器试玩 / build_wheel.py wheel 打包 /
+                 ci.py 一键全检 / publish_gitee.py 公开仓库同步
 ```
 
 ## 架构与数据流
 
 ```
-源码 → tokenizer → parser → AST → 编译器 → 字节码 → VM → 输出
-                                    └→ Interpreter(树遍历，对照实现)
+源码 → tokenizer → parser → AST ──┬─→ Interpreter（树遍历，默认执行器）
+                                  └─→ 编译器 → 字节码 ──┬─→ Python VM
+                                                        └─→ C VM（jsvm.dll）
 ```
 
 - 三个执行器（树遍历 / Python VM / C VM）共用 `jishi/runtime.py` 的语义，
   `tests/test_cvm.py` 对拍保证「换执行器不改变任何可观察行为」
   （stdout 与报错逐字节一致）。
 - 默认仍走树遍历；`jishi/vm.py` / `jishi/cvm_bind.run_source_c` 可切换。
-  性能：纯计算场景 C VM 提速最高 45.8x（见 tools/benchmark.py）。
+  性能：C VM 提速最高 47x（见 tools/benchmark.py，字符串拼接为架构边界）。
+- **AI 原生能力**（M8/M9）架在 AST 与报错之上：`jishi/ai.py` 从
+  tokenizer/parser/runtime/stdlib 动态收集元数据，产出语言卡、语言规格、
+  JSON 结构化报错；`jishi/mcp_server.py` 把执行能力暴露给任意 MCP 宿主。
 
 ## 环境要求
 
-- **Python 3.13**（当前项目零第三方依赖，仅测试用 pytest）
-  - 原环境受管路径：`C:\Users\17719\.workbuddy\binaries\python\envs\default\Scripts\python.exe`
-  - 新环境直接 `python -m venv .venv && .venv/Scripts/python -m pip install pytest` 即可
-- **C 编译器**（仅 M4+ 需要）：原环境用 CLion 自带的 MinGW gcc 15.2.0
-  （`D:\CLion\CLion 2026.2.1\bin\mingw\bin\gcc.exe`）。新环境装 MinGW-w64 或 zig 均可。
+- **Python ≥3.10**（当前项目零第三方依赖，仅测试用 pytest）
+- **使用（pip 安装）**：`pip install jishi` 即含预编译 C VM，无需 gcc
+  （`tools/build_wheel.py` 打出的 wheel 内带 DLL/SO）
+- **从源码开发**：需要 C 编译器构建 C VM（`python cvm/build.py`），
+  装 MinGW-w64（Windows）或 zig / gcc 均可；无编译器也能跑树遍历解释器，
+  C VM 自动降级、其余功能照常
 - Windows 注意：venv 可执行文件在 `Scripts/` 而非 `bin/`。
 
 ## 开发：运行与测试
@@ -368,16 +391,15 @@ python tools/benchmark.py
 ## 路线图
 
 M0–M11 已全部完成（见「当前进度」）。北极星：**把基石做成「最容易被大模型
-正确生成、安全执行、自我修复」的中文编程语言**。后续规划见
-[docs/路线图.md](docs/路线图.md)。
+正确生成、安全执行、自我修复」的中文编程语言**。后续规划（M12–M15，主线继续
+AI 友好纵深）详见 [docs/路线图.md](docs/路线图.md)：
 
 | 阶段 | 主题 | 可演示成果 |
 |------|------|-----------|
-| M7 | 表达力打磨 + 容错解析（解包/默认参数/推导式/插值/LLM 错误消化） | 语法糖示例 + 错误快照 + 评测集首批 |
-| M8 | AI 原生工具链：语言卡 / llms.txt / JSON 报错 / few-shot 库 / 基石评测集 | agent 全自动写基石并自修复 |
-| M9 | 安全沙箱 + MCP Server（agent 生态入口，C VM 为最强沙箱后端） | WorkBuddy 经 MCP 跑基石 |
-| M10 | 生态扩展：json/日期/正则/网络标准库 + 包管理雏形 + 浏览器试玩 | 新标准库 + Playground |
-| M11 | 性能与分发：C VM 热路径下沉 + wheel 内带预编译 DLL | 全场景提速 + 开箱即用 |
+| M12 | 评测驱动闭环：评测集扩到 50 题 + `--llm` 真实接入 + 自愈评测 | 一次通过率/自愈率报告 + CI 回归门槛 |
+| M13 | 跨语言字节码分发：字节码序列化 + Node/Rust 绑定 | Node/Rust 直嵌基石引擎 |
+| M14 | 包管理与生态：`安装` 命令 + 远端索引 + 依赖解析 | 一键装包即导入 |
+| M15 | 真实项目驱动 + 语言收敛 1.0 | 真实项目 + 语言规格 1.0 |
 
 每个阶段维持既有纪律：**可演示成果 + 测试护航 + git 提交**；
 每个新特性必须过「LLM 三问」：生成更准了吗 / 错了能自愈吗 / 能被安全调用吗。
