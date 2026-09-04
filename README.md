@@ -96,9 +96,21 @@ jishi examples/01_猜数字.jsh --ast
 | M6 | 工程化：CI/编辑器插件/文档站/打包 | ✅ |
 | M7 | 表达力打磨 + 容错解析 | ✅ |
 | M8 | AI 原生工具链（语言卡/JSON 报错/few-shot/评测集） | ✅ |
+| M9 | 安全沙箱 + 统一协议 + MCP Server（agent 生态入口） | ✅ |
 
-**测试现状：443 项全部通过**（`python -m pytest tests/`），其中 107 项是
+**测试现状：459 项全部通过**（`python -m pytest tests/`），其中 107 项是
 三执行器对拍（树遍历 / Python VM / C VM 输出逐字节一致）。
+
+### M9 已交付：安全执行与 MCP 集成（「被大模型调用」的落地形态）
+
+- **统一执行结果协议** `jishi/protocol.py`：`{ok,value,stdout,duration_ms}` /
+  `{ok:false,error:{code,line,col,message,hint,fix}}`，agent 程序化读取。
+- **沙箱运行器** `jishi/sandbox.py`：超时（默认 5s）、stdout 上限、禁文件写、
+  模块白名单（标准库默认只放行无副作用模块，Python 桥接默认禁并拦截网络/危险模块）。
+- **MCP Server** `jishi/mcp_server.py`（stdio 传输）：`run_script`（subprocess
+  隔离，真正超时 kill）/ `eval_expr` / `describe_language`；入口 `jishi-mcp`。
+  这是基石进入 WorkBuddy / 任意 MCP 宿主 agent 生态的入口。
+- CLI 加 `--sandbox` / `--json-result` / `--timeout` / `--stdin`。
 
 ### M8 已交付：AI 原生工具链（「被大模型调用」的差异化核心）
 
@@ -250,7 +262,7 @@ cvm/             C 执行内核（M4b）
   bytecode.md    字节码设计文档（指令集/值表示/宿主协议/重入/异常协议）
   build.py       一键构建（生成 opcodes.h + gcc 出 DLL/SO）
   src/jsvm.c     C 虚拟机主循环
-tests/           443 项测试（含 107 项三执行器对拍）
+tests/           459 项测试（含 107 项三执行器对拍）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例）
 docs/            语言规格.md、设计决策.md、tutorial/ 教程 7 章
 tools/           run_tests.py 一键测试 / benchmark.py 性能基准
