@@ -296,6 +296,29 @@ class Parser:
             elements.append(self._parse_expr())
         return A.List(elements=elements, line=start.line, col=start.col)
 
+    def _parse_comp_tail(self, *, kind: str, elt: Optional[A.Node],
+                         key: Optional[A.Node] = None,
+                         value: Optional[A.Node] = None,
+                         line: int, col: int) -> A.Node:
+        """解析推导式尾部：遍历 变量 在 可迭代 [如果 条件]（M7）。
+
+        调用时「遍历」关键字尚未消费，当前游标指向它。
+        """
+        self._expect_kw("遍历")
+        target_tok = self._expect_name("循环变量名")
+        self._expect_kw("在")
+        it = self._parse_expr()
+        target = A.Name(id=target_tok.value, line=target_tok.line,
+                        col=target_tok.col)
+        condition = None
+        if self._at_kw("如果"):
+            self._next()
+            condition = self._parse_expr()
+        return A.Comprehension(
+            kind=kind, elt=elt, key=key, value=value,
+            target=target, iter=it, condition=condition,
+            line=line, col=col)
+
     def _try_parse_tuple_assign(self) -> Optional[A.Node]:
         """探测「名字 , 名字 … = 表达式」；不匹配则返回 None 不消耗 token。"""
         i = 0
@@ -740,35 +763,52 @@ class Parser:
             return A.Name(id=t.value, line=t.line, col=t.col)
         if t.type == "OP" and t.value == "[":
             self._next()
-            elements: list[A.Node] = []
-            if not self._at_op("]"):
-                while True:
-                    elements.append(self._parse_expr())
-                    if self._at_op(","):
-                        self._next()
-                        if self._at_op("]"):  # 尾随逗号 [1, 2,]
-                            break
-                        continue
+            # 空列表 []
+            if self._at_op("]"):
+                self._next()
+                return A.List(elements=[], line=t.line, col=t.col)
+            first = self._parse_expr()
+            # 推导式：[elt 遍历 x 在 it 如果 cond]
+            if self._at_kw("遍历"):
+                comp = self._parse_comp_tail(
+                    kind="list", elt=first, line=t.line, col=t.col)
+                self._expect_op("]")
+                return comp
+            elements = [first]
+            while self._at_op(","):
+                self._next()
+                if self._at_op("]"):  # 尾随逗号 [1, 2,]
                     break
+                elements.append(self._parse_expr())
             self._expect_op("]")
             return A.List(elements=elements, line=t.line, col=t.col)
         if t.type == "OP" and t.value == "{":
             self._next()
-            keys: list[A.Node] = []
-            values: list[A.Node] = []
-            if not self._at_op("}"):
-                while True:
-                    k = self._parse_expr()
-                    self._expect_op(":")
-                    v = self._parse_expr()
-                    keys.append(k)
-                    values.append(v)
-                    if self._at_op(","):
-                        self._next()
-                        if self._at_op("}"):  # 尾随逗号
-                            break
-                        continue
+            # 空字典 {}
+            if self._at_op("}"):
+                self._next()
+                return A.Dict(keys=[], values=[], line=t.line, col=t.col)
+            k = self._parse_expr()
+            self._expect_op(":")
+            v = self._parse_expr()
+            # 字典推导式：{k: v 遍历 x 在 it 如果 cond}
+            if self._at_kw("遍历"):
+                comp = self._parse_comp_tail(
+                    kind="dict", elt=None, key=k, value=v,
+                    line=t.line, col=t.col)
+                self._expect_op("}")
+                return comp
+            keys = [k]
+            values = [v]
+            while self._at_op(","):
+                self._next()
+                if self._at_op("}"):  # 尾随逗号
                     break
+                kk = self._parse_expr()
+                self._expect_op(":")
+                vv = self._parse_expr()
+                keys.append(kk)
+                values.append(vv)
             self._expect_op("}")
             return A.Dict(keys=keys, values=values, line=t.line, col=t.col)
         if t.type == "OP" and t.value == "(":

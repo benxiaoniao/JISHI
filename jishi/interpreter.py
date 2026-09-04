@@ -273,6 +273,38 @@ class Interpreter:
         except StopIteration:
             pass
 
+    def _eval_comprehension(self, expr: A.Comprehension, env: Environment):
+        """推导式（M7）：[elt 遍历 x 在 it 如果 cond] / {k: v 遍历 ...}。
+
+        循环变量直接写入当前环境（与「遍历」语句一致，会覆盖同名外层变量）。
+        """
+        iterable = self.eval_expr(expr.iter, env)
+        try:
+            it = iter(iterable)
+        except TypeError:
+            raise RunTypeError(
+                f"「{iterable}」不能遍历，遍历需要列表、文本等",
+                line=expr.line, col=expr.col, filename=self.filename)
+        if expr.kind == "list":
+            result: list = []
+            for item in it:
+                env.set(expr.target.id, item)
+                if expr.condition is not None and not R.truthy(
+                        self.eval_expr(expr.condition, env)):
+                    continue
+                result.append(self.eval_expr(expr.elt, env))
+            return result
+        result_dict = {}
+        for item in it:
+            env.set(expr.target.id, item)
+            if expr.condition is not None and not R.truthy(
+                    self.eval_expr(expr.condition, env)):
+                continue
+            k = self.eval_expr(expr.key, env)
+            v = self.eval_expr(expr.value, env)
+            result_dict[k] = v
+        return result_dict
+
     def _do_loop(self, stmt: A.Loop, env: Environment) -> None:
         n = self.eval_expr(stmt.times, env)
         try:
@@ -407,6 +439,8 @@ class Interpreter:
                 [(self.eval_expr(k, env), self.eval_expr(v, env))
                  for k, v in zip(expr.keys, expr.values)],
                 line=expr.line, col=expr.col, filename=self.filename)
+        if isinstance(expr, A.Comprehension):
+            return self._eval_comprehension(expr, env)
         if isinstance(expr, A.BinOp):
             return R.apply_binop(
                 expr.op,

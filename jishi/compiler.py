@@ -161,6 +161,18 @@ def _collect_expr(e: A.Node, scope: _Scope, func_scopes: dict[int, _Scope]):
             _collect_expr(k, scope, func_scopes)
         for v in e.values:
             _collect_expr(v, scope, func_scopes)
+    elif isinstance(e, A.Comprehension):
+        _collect_expr(e.iter, scope, func_scopes)
+        if isinstance(e.target, A.Name):
+            scope.bound.add(e.target.id)     # 循环变量与「遍历」语句一致
+        if e.elt is not None:
+            _collect_expr(e.elt, scope, func_scopes)
+        if e.key is not None:
+            _collect_expr(e.key, scope, func_scopes)
+        if e.value is not None:
+            _collect_expr(e.value, scope, func_scopes)
+        if e.condition is not None:
+            _collect_expr(e.condition, scope, func_scopes)
 
 
 # ---------------------------------------------------------------------------
@@ -686,6 +698,8 @@ class _Emitter:
                 self.compile_expr(k)
                 self.compile_expr(v)
             self.emit(O.Op.BUILD_DICT, e, len(e.keys))
+        elif isinstance(e, A.Comprehension):
+            self._c_comprehension(e)
         elif isinstance(e, A.BinOp):
             self.compile_expr(e.left)
             self.compile_expr(e.right)
@@ -777,6 +791,54 @@ class _Emitter:
             for _name, v in e.keywords:
                 self.compile_expr(v)
         self.emit(O.Op.CALL, e, len(e.args), kw_i)
+
+    def _c_comprehension(self, e: A.Comprehension):
+        """推导式（M7）：编译为「临时结果 + 迭代 + 条件 + 追加」的指令序列。
+
+        循环变量与「遍历」语句一致（写入当前作用域），结果存隐藏临时槽。
+        """
+        tmp = self.new_tmp()
+        # 结果槽：空列表 / 空字典
+        if e.kind == "list":
+            self.emit(O.Op.BUILD_LIST, e, 0)
+        else:
+            self.emit(O.Op.BUILD_DICT, e, 0)
+        self.emit(O.Op.STORE_FAST, e, tmp)
+
+        # 迭代
+        self.compile_expr(e.iter)
+        self.emit(O.Op.GET_ITER, e)
+        top = self.here()
+        patch_exit = self.emit(O.Op.FOR_ITER, e)
+        self.store_name(e.target.id, e.target)
+
+        # 条件（可选）
+        skip = None
+        if e.condition is not None:
+            self.compile_expr(e.condition)
+            skip = self.emit(O.Op.POP_JUMP_IF_FALSE, e.condition)
+
+        # 追加元素
+        if e.kind == "list":
+            self.emit(O.Op.LOAD_FAST, e, tmp)
+            self.emit(O.Op.GET_ATTR, e, self.name_idx("追加"))
+            self.compile_expr(e.elt)
+            self.emit(O.Op.CALL, e, 1, -1)
+            self.emit(O.Op.POP_TOP, e)      # 追加返回 空，丢弃
+        else:
+            self.emit(O.Op.LOAD_FAST, e, tmp)
+            self.compile_expr(e.key)
+            self.compile_expr(e.value)
+            self.emit(O.Op.SET_ITEM, e)
+
+        cont = self.here()
+        if skip is not None:
+            self.patch(skip, cont)
+        self.emit(O.Op.JUMP, e, top)
+
+        exit_at = self.here()
+        self.patch(patch_exit, exit_at)
+        self.emit(O.Op.LOAD_FAST, e, tmp)   # 结果入栈
 
 
 # ---------------------------------------------------------------------------

@@ -118,3 +118,47 @@ def test_method_default_param():
         "令 m = 新建 面积()\n"
         "打印(m.算(), m.算(3))\n")
     assert out == "20 30\n"
+
+
+# -- 7.3 列表/字典推导式 ----------------------------------------------------
+
+def test_list_comprehension():
+    out = run_capture("打印([x * 2 遍历 x 在 [1, 2, 3]])")
+    assert out == "[2, 4, 6]\n"
+
+
+def test_list_comprehension_with_condition():
+    out = run_capture(
+        "打印([x * 2 遍历 x 在 [1, 2, 3, 4] 如果 x > 2])")
+    assert out == "[6, 8]\n"
+
+
+def test_dict_comprehension():
+    out = run_capture("打印({x: x * x 遍历 x 在 [1, 2, 3]})")
+    assert out == "{1: 1, 2: 4, 3: 9}\n"
+
+
+def test_dict_comprehension_with_condition():
+    out = run_capture(
+        "打印({x: x * x 遍历 x 在 [1, 2, 3, 4] 如果 x > 2})")
+    assert out == "{3: 9, 4: 16}\n"
+
+
+def test_comprehension_over_string():
+    out = run_capture("打印([x 遍历 x 在 \"你好\"])")
+    assert out == "['你', '好']\n"
+
+
+def test_comprehension_in_function():
+    out = run_capture(
+        "函数 f()：\n"
+        "    返回 [x 遍历 x 在 [1, 2, 3]]\n"
+        "打印(f())\n")
+    assert out == "[1, 2, 3]\n"
+
+
+def test_comprehension_nested_use():
+    out = run_capture(
+        "令 总和 = 总和([x 遍历 x 在 [1, 2, 3]])\n"
+        "打印(总和)\n")
+    assert out == "6\n"

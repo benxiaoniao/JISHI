@@ -194,6 +194,24 @@ class Dict(Node):
 
 
 @dataclass(kw_only=True)
+class Comprehension(Node):
+    """推导式（M7）：[elt 遍历 x 在 it] / [elt 遍历 x 在 it 如果 cond]
+    及字典推导 {k: v 遍历 x 在 it 如果 cond}。
+
+    kind: "list" 或 "dict"；dict 时用 key/value，list 时用 elt。
+    target/iter/condition 与 For/If 一致；condition 可为 None。
+    """
+
+    kind: str
+    elt: Node
+    key: Node
+    value: Node
+    target: Node
+    iter: Node
+    condition: Node
+
+
+@dataclass(kw_only=True)
 class BinOp(Node):
     left: Node
     op: str
