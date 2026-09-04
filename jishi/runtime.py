@@ -669,8 +669,19 @@ def build_dict(pairs, *, line=None, col=None, filename="<输入>"):
 # 导入
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# 导入守卫（M9.1 沙箱）：沙箱运行器设置此回调，do_import 在真正导入前先询问。
+# 回调签名 guard(name, from_python, line, col, filename) -> None；
+# 拒绝时自行 raise（JishiError）。
+# ---------------------------------------------------------------------------
+
+_IMPORT_GUARD = None
+
+
 def do_import(name: str, from_python: bool = False, *, line=None, col=None,
               filename="<输入>") -> Module:
+    if _IMPORT_GUARD is not None:
+        _IMPORT_GUARD(name, from_python, line, col, filename)
     if from_python:
         return _import_python(name, line=line, col=col, filename=filename)
     try:

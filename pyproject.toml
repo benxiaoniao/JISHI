@@ -12,6 +12,7 @@ authors = [{ name = "jishi contributors" }]
 
 [project.scripts]
 jishi = "jishi.cli:main"
+jishi-mcp = "jishi.mcp_server:main"
 
 [tool.setuptools]
 packages = ["jishi", "jishi.stdlib"]

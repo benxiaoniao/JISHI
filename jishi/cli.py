@@ -67,8 +67,25 @@ def dump_ast(program, indent: int = 0) -> str:
 
 
 def run_file(path: str, show_ast: bool = False,
-             json_errors: bool = False) -> int:
-    source, filename = _read_source(path)
+             json_errors: bool = False, sandbox: bool = False,
+             json_result: bool = False, timeout: float = 5.0,
+             stdin: bool = False) -> int:
+    if stdin:
+        source = sys.stdin.read()
+        filename = "<stdin>"
+    else:
+        source, filename = _read_source(path)
+
+    # 沙箱 / 统一协议结果：走 run_sandboxed，输出 protocol JSON
+    if sandbox or json_result:
+        from .protocol import dumps
+        from .sandbox import SandboxOpts, run_sandboxed
+        opts = SandboxOpts(timeout=timeout)
+        result = run_sandboxed(source, opts, filename)
+        sys.stdout.write(dumps(result) + "\n")
+        sys.stdout.flush()
+        return 0 if result["ok"] else 1
+
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     try:
         tokens = tokenize(source, filename)
@@ -134,6 +151,14 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="输出机器可读语言规格（配合 --format json）")
     parser.add_argument("--format", choices=("json",), default="json",
                         help="--lang-spec 的输出格式")
+    parser.add_argument("--sandbox", action="store_true",
+                        help="沙箱执行：超时/输出上限/禁文件写/模块白名单（M9.1）")
+    parser.add_argument("--json-result", action="store_true",
+                        help="以统一协议 JSON 输出结果（成功失败皆 JSON，M9.2）")
+    parser.add_argument("--timeout", type=float, default=5.0,
+                        help="沙箱超时秒数（默认 5）")
+    parser.add_argument("--stdin", action="store_true",
+                        help="从标准输入读取源码（配合 --sandbox 供 MCP 调用）")
     parser.add_argument("-v", "--version", action="version",
                         version=f"基石 jishi {VERSION}")
     args = parser.parse_args(argv)
@@ -147,9 +172,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(lang_spec_json())
         return 0
 
-    if args.file:
-        return run_file(args.file, show_ast=args.ast,
-                        json_errors=args.json_errors)
+    if args.file or args.stdin:
+        return run_file(
+            args.file, show_ast=args.ast, json_errors=args.json_errors,
+            sandbox=args.sandbox, json_result=args.json_result,
+            timeout=args.timeout, stdin=args.stdin)
 
     from .repl import repl
     return repl()
