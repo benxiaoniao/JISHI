@@ -290,8 +290,12 @@ class Tokenizer:
                     return tokens
                 break  # 单行注释到行尾
 
-            # 字符串
+            # 字符串 / 插值字符串
             if ch in "'\"“”‘’「」『』`":
+                if ch == "`":
+                    tok, i = self._scan_fstring(raw, i, line_no)
+                    tokens.append(tok)
+                    continue
                 tok, i = self._scan_string(raw, i, line_no)
                 if tok is not None:
                     tokens.append(tok)
@@ -343,6 +347,81 @@ class Tokenizer:
 
     # 中文引号配对表：起始引号 -> 结束引号
     _PAIRED_QUOTES = {"“": "”", "‘": "’", "「": "」", "『": "』"}
+
+    def _scan_fstring(self, raw: str, i: int, line_no: int):
+        """扫描反引号插值字符串（M7）：`你好 {名字}，今年 {年龄} 岁`。
+
+        产出 FSTRING token，value 为分段列表：
+        [("text", str), ("expr", str), ("text", str), ...]。
+        `{{` / `}}` 表示字面花括号。
+        """
+        start_col = i + 1
+        i += 1                      # 跳过反引号
+        n = len(raw)
+        parts: list[tuple[str, str]] = []
+        text_buf: list[str] = []
+
+        def flush_text():
+            if text_buf:
+                parts.append(("text", "".join(text_buf)))
+                text_buf.clear()
+
+        while i < n:
+            ch = raw[i]
+            if ch == "`":
+                flush_text()
+                i += 1
+                return (Token("FSTRING", parts, line_no, start_col, i, raw), i)
+            if ch == "\\":
+                text_buf.append(self._escape(raw, i, line_no))
+                i += 2
+                continue
+            if ch == "{":
+                # {{ → 字面 {；否则进入表达式段
+                if i + 1 < n and raw[i + 1] == "{":
+                    text_buf.append("{")
+                    i += 2
+                    continue
+                flush_text()
+                i += 1
+                # 扫描表达式源码，直到匹配的 }（支持嵌套花括号）
+                depth = 1
+                expr_start = i
+                while i < n:
+                    c = raw[i]
+                    if c == "{":
+                        depth += 1
+                    elif c == "}":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    i += 1
+                if i >= n or depth != 0:
+                    raise LexStringError(
+                        "插值表达式没有闭合，是不是漏了「}」？",
+                        line=line_no, col=start_col, source_line=raw,
+                        filename=self.filename).with_source(self.lines)
+                parts.append(("expr", raw[expr_start:i]))
+                i += 1
+                continue
+            if ch == "}":
+                # }} → 字面 }
+                if i + 1 < n and raw[i + 1] == "}":
+                    text_buf.append("}")
+                    i += 2
+                    continue
+                # 单独的 } 当作普通文本
+                text_buf.append(ch)
+                i += 1
+                continue
+            text_buf.append(ch)
+            i += 1
+
+        flush_text()
+        raise LexStringError(
+            "插值字符串没有正常结束，是不是漏了反引号？",
+            line=line_no, col=i + 1, source_line=raw,
+            filename=self.filename).with_source(self.lines)
 
     def _scan_string(self, raw: str, i: int, line_no: int):
         quote = raw[i]

@@ -18,8 +18,7 @@ from .errors import (
     ParseMissingNameError,
     ParseUnexpectedError,
 )
-from .tokenizer import Token
-
+from .tokenizer import Token, tokenize
 # 二元运算符优先级（数值越大越紧）
 _BIN_PREC = {
     "或": 1,
@@ -296,8 +295,32 @@ class Parser:
             elements.append(self._parse_expr())
         return A.List(elements=elements, line=start.line, col=start.col)
 
-    def _parse_comp_tail(self, *, kind: str, elt: Optional[A.Node],
-                         key: Optional[A.Node] = None,
+    def _parse_fstring(self, tok: Token) -> A.Node:
+        """把 FSTRING 分段组装成字符串拼接（M7 文本插值）。
+
+        「你好 {名字}」→ "你好 " + 文本(名字)（编译期脱糖为 + 链）。
+        """
+        parts: list = tok.value   # [("text", str), ("expr", str), ...]
+        nodes: list[A.Node] = []
+        for kind, val in parts:
+            if kind == "text":
+                nodes.append(A.Str(value=val, line=tok.line, col=tok.col))
+            else:
+                sub_tokens = tokenize(val, self.filename)
+                sub = Parser(sub_tokens, [val], self.filename)
+                expr = sub._parse_expr()
+                nodes.append(A.Call(
+                    func=A.Name(id="文本", line=tok.line, col=tok.col),
+                    args=[expr], line=tok.line, col=tok.col))
+        if not nodes:
+            return A.Str(value="", line=tok.line, col=tok.col)
+        result = nodes[0]
+        for n in nodes[1:]:
+            result = A.BinOp(left=result, op="+", right=n,
+                             line=tok.line, col=tok.col)
+        return result
+
+    def _parse_comp_tail(self, *, kind: str, elt: Optional[A.Node],                         key: Optional[A.Node] = None,
                          value: Optional[A.Node] = None,
                          line: int, col: int) -> A.Node:
         """解析推导式尾部：遍历 变量 在 可迭代 [如果 条件]（M7）。
@@ -741,6 +764,9 @@ class Parser:
         if t.type == "STRING":
             self._next()
             return A.Str(value=t.value, line=t.line, col=t.col)
+        if t.type == "FSTRING":
+            self._next()
+            return self._parse_fstring(t)
         if t.type == "KEYWORD":
             if t.value == "真":
                 self._next()

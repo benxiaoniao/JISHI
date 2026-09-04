@@ -162,3 +162,44 @@ def test_comprehension_nested_use():
         "令 总和 = 总和([x 遍历 x 在 [1, 2, 3]])\n"
         "打印(总和)\n")
     assert out == "6\n"
+
+
+# -- 7.4 文本插值 ------------------------------------------------------------
+
+def test_fstring_basic():
+    out = run_capture(
+        "令 名字 = \"小明\"\n"
+        "令 年龄 = 18\n"
+        "打印(`你好 {名字}，今年 {年龄} 岁`)\n")
+    assert out == "你好 小明，今年 18 岁\n"
+
+
+def test_fstring_expression():
+    out = run_capture(
+        "令 a = 3\n"
+        "令 b = 4\n"
+        "打印(`{a} + {b} = {a + b}`)\n")
+    assert out == "3 + 4 = 7\n"
+
+
+def test_fstring_literal_braces():
+    out = run_capture("打印(`使用 {{花括号}} 转义`)\n")
+    assert out == "使用 {花括号} 转义\n"
+
+
+def test_fstring_plain_text():
+    out = run_capture("打印(`无插值`)\n")
+    assert out == "无插值\n"
+
+
+def test_fstring_nested_call():
+    out = run_capture(
+        "令 数据 = [1, 2, 3]\n"
+        "打印(`长度 {长度(数据)}`)\n")
+    assert out == "长度 3\n"
+
+
+def test_fstring_unclosed():
+    err = run_error("打印(`你好 {名字})")
+    assert "插值字符串没有正常结束" in str(err) or \
+        "插值表达式没有闭合" in str(err)
