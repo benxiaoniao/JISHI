@@ -95,9 +95,25 @@ jishi examples/01_猜数字.jsh --ast
 | M5b | 面向对象（类/继承/新建） | ✅ |
 | M6 | 工程化：CI/编辑器插件/文档站/打包 | ✅ |
 | M7 | 表达力打磨 + 容错解析 | ✅ |
+| M8 | AI 原生工具链（语言卡/JSON 报错/few-shot/评测集） | ✅ |
 
-**测试现状：432 项全部通过**（`python -m pytest tests/`），其中 107 项是
+**测试现状：443 项全部通过**（`python -m pytest tests/`），其中 107 项是
 三执行器对拍（树遍历 / Python VM / C VM 输出逐字节一致）。
+
+### M8 已交付：AI 原生工具链（「被大模型调用」的差异化核心）
+
+- **机器可读语言规格**：`jishi --lang-spec --format json` 输出关键字表/运算符/
+  内建/标准库/异常的 JSON（版本+内容哈希），供 agent 校验代码。
+- **AI 语言卡**：`jishi --ai-card` 输出 ~2K token Markdown 速查卡（语法全表 +
+  API + 惯用法示例 + 英文错误对照），可直接贴进 LLM 系统提示词。
+- **结构化 JSON 报错**：`jishi run x.jsh --json-errors` 输出
+  `{"ok":false,"errors":[{code,line,col,message,hint,fix}]}`，`fix` 字段
+  （如 `{"old":"def","new":"函数"}`）让 agent 可程序化文本替换自愈。
+- **few-shot 示例库**：`examples/ai/few-shot.md` 20 个「任务→代码」对。
+- **官方系统提示词**：`docs/ai/system-prompt.md`。
+- **llms.txt**：文档站产出 `site/llms.txt` + `llms-full.txt`（遵循 llmstxt.org）。
+- **基石评测集 JishiEval**：`bench/ai-eval/` 12 题 + 自测脚本，作为
+  「语法改动不得使一次通过率下降」的回归基线。
 
 ### M7 已交付：表达力打磨（语法糖，三执行器同步）
 
@@ -234,7 +250,7 @@ cvm/             C 执行内核（M4b）
   bytecode.md    字节码设计文档（指令集/值表示/宿主协议/重入/异常协议）
   build.py       一键构建（生成 opcodes.h + gcc 出 DLL/SO）
   src/jsvm.c     C 虚拟机主循环
-tests/           432 项测试（含 107 项三执行器对拍）
+tests/           443 项测试（含 107 项三执行器对拍）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例）
 docs/            语言规格.md、设计决策.md、tutorial/ 教程 7 章
 tools/           run_tests.py 一键测试 / benchmark.py 性能基准
