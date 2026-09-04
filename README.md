@@ -97,9 +97,20 @@ jishi examples/01_猜数字.jsh --ast
 | M7 | 表达力打磨 + 容错解析 | ✅ |
 | M8 | AI 原生工具链（语言卡/JSON 报错/few-shot/评测集） | ✅ |
 | M9 | 安全沙箱 + 统一协议 + MCP Server + C VM 嵌入 | ✅ |
+| M10 | 生态扩展（json/日期/正则/网络标准库 + 本地包 + 浏览器试玩） | ✅ |
 
-**测试现状：463 项全部通过**（`python -m pytest tests/`），其中 107 项是
+**测试现状：495 项全部通过**（`python -m pytest tests/`），其中 107 项是
 三执行器对拍（树遍历 / Python VM / C VM 输出逐字节一致）。
+
+### M10 已交付：生态扩展（「拿到就能写」的覆盖）
+
+- **标准库扩充**（4 个中文模块）：`json`（中文不转义）、`日期`（格式化/加减/
+  比较/解析）、`正则`（匹配/查找/替换/分组）、`网络`（获取/提交，urllib 薄封装
+  零第三方依赖，默认 10s 超时）。
+- **包管理雏形**：`导入 名字 从 本地包`，包 = `.jishi/packages/名字/`（含
+  `包.json` + `.jsh` 模块），执行模块后导出顶层函数/变量。
+- **浏览器试玩**：`tools/build_playground.py` 把树遍历解释器内嵌成自包含 HTML，
+  pyodide（WASM Python）浏览器内直接跑基石；`docs/ai/prompt-guide.md` 教 LLM 写基石。
 
 ### M9 已交付：安全执行与 MCP 集成（「被大模型调用」的落地形态）
 
@@ -265,7 +276,7 @@ cvm/             C 执行内核（M4b）
   bytecode.md    字节码设计文档（指令集/值表示/宿主协议/重入/异常协议）
   build.py       一键构建（生成 opcodes.h + gcc 出 DLL/SO）
   src/jsvm.c     C 虚拟机主循环
-tests/           463 项测试（含 107 项三执行器对拍）
+tests/           495 项测试（含 107 项三执行器对拍）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例）
 docs/            语言规格.md、设计决策.md、tutorial/ 教程 7 章
 tools/           run_tests.py 一键测试 / benchmark.py 性能基准
