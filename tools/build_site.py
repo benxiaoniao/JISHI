@@ -124,6 +124,13 @@ def _link_repl(m: re.Match, page: Path) -> str:
 
 def inline(text: str, page: Path) -> str:
     text = html.escape(text)
+    # 图片（必须在链接之前处理：![alt](src) 也匹配链接模式）
+    text = re.sub(
+        r"!\[([^\]\n]*)\]\(([^)\s]+)\)",
+        lambda m: (f'<img src="{html.escape(m.group(2))}" '
+                   f'alt="{html.escape(m.group(1))}" '
+                   f'style="max-width:100%">'),
+        text)
     # 链接
     text = re.sub(r"\[([^\]\n]+)\]\(([^)\s]+)\)",
                   lambda m: _link_repl(m, page), text)
@@ -160,6 +167,15 @@ def render_md(text: str, page: Path) -> str:
     para: list[str] = []
     while i < n:
         line = lines[i]
+        # 块级 HTML 直通（如 README 顶部的 <div align="center"> / <img>）：
+        # 手写解析器不做完整 HTML 解析，但对这几个安全标签原样放行，
+        # 其余 HTML 仍走转义（防止注入）
+        stripped = line.strip()
+        if stripped.startswith(("<div", "</div", "<img ", "<br", "<p ", "<center")):
+            flush_para(para)
+            out.append(stripped)
+            i += 1
+            continue
         # 围栏代码块
         if line.startswith("```"):
             flush_para(para)
@@ -364,6 +380,16 @@ def main() -> int:
     (OUT / "llms.txt").write_text(build_llms_txt(), encoding="utf-8")
     (OUT / "llms-full.txt").write_text(build_llms_full(), encoding="utf-8")
     print("生成 site/llms.txt + site/llms-full.txt")
+
+    # 品牌资产：README 引用了 assets/ 下的图片，复制过去才能正常显示
+    assets_src = ROOT / "assets"
+    if assets_src.exists():
+        assets_dst = OUT / "assets"
+        assets_dst.mkdir(parents=True, exist_ok=True)
+        for f in assets_src.iterdir():
+            if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".svg", ".ico"):
+                (assets_dst / f.name).write_bytes(f.read_bytes())
+        print(f"复制品牌资产 → {assets_dst}")
 
     # Playground（M10.3）：浏览器试玩页
     try:

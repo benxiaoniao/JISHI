@@ -1,6 +1,12 @@
+<div align="center">
+
+<img src="assets/基石_logo.png" alt="基石 logo" width="200">
+
 # 基石（jishi）
 
 一门像 Python 一样简单易用的**中文编程语言**。
+
+</div>
 
 > **技术栈声明（公开透明）**
 > - 前端（词法/语法/AST/中文报错）由 **Python 实现**
@@ -305,6 +311,7 @@ cvm/             C 执行内核（M4b）
 tests/           499 项测试（含 107 项三执行器对拍）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例）
 docs/            语言规格.md、设计决策.md、路线图.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 7 章
+assets/          品牌资产（基石_logo.png，源图 基石_logo.jpeg）
 tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文档站 /
                  build_playground.py 浏览器试玩 / build_wheel.py wheel 打包 /
                  ci.py 一键全检 / publish_gitee.py 公开仓库同步
@@ -329,7 +336,8 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
 
 ## 环境要求
 
-- **Python ≥3.10**（当前项目零第三方依赖，仅测试用 pytest）
+- **Python ≥3.10**（运行时零第三方依赖；测试用 pytest，
+  `tools/make_logo.py` 图像处理用 pillow——均为开发期工具，与运行时无关）
 - **使用（pip 安装）**：`pip install jishi` 即含预编译 C VM，无需 gcc
   （`tools/build_wheel.py` 打出的 wheel 内带 DLL/SO）
 - **从源码开发**：需要 C 编译器构建 C VM（`python cvm/build.py`），
