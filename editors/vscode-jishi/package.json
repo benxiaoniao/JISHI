@@ -1,0 +1,53 @@
+{
+  "name": "vscode-jishi",
+  "displayName": "基石语言（jishi）",
+  "description": "基石 —— 一门像 Python 一样简单易用的中文编程语言：.jsh 语法高亮、代码片段与注释支持",
+  "version": "0.1.0",
+  "publisher": "jishi-lang",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "jishi",
+    "基石",
+    "chinese",
+    "programming language"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://example.invalid/jishi.git"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "jishi",
+        "aliases": [
+          "基石",
+          "基石语言",
+          "jishi"
+        ],
+        "extensions": [
+          ".jsh"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jishi",
+        "scopeName": "source.jishi",
+        "path": "./syntaxes/jishi.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "jishi",
+        "path": "./snippets/jishi.code-snippets"
+      }
+    ]
+  }
+}
