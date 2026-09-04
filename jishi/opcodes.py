@@ -93,6 +93,8 @@ class Op:
     BUILD_CLASS = 45       # 栈 [基类?, 方法...] → 类；a=方法数 b=是否有基类
     # -- M7 表达力 --
     UNPACK = 46            # 解包：弹出栈顶可迭代，压 a 个元素（第一个在栈顶）
+    # -- M11 性能 --
+    LIST_APPEND = 47       # 列表追加：[obj, val] → obj.追加(val)，弹 2 压 0
 
 
 #: 指令号 → 名字（按号排序，C 头生成依赖此顺序）
@@ -154,6 +156,7 @@ OP_ARITY = {
     Op.END_FINALLY: 0,
     Op.BUILD_CLASS: 2,
     Op.UNPACK: 1,
+    Op.LIST_APPEND: 0,
 }
 
 

@@ -142,6 +142,8 @@ typedef struct JsHost {
     int (*raise_missing)    (int code_idx, const int *missing, int nmissing,
                              int line, int col);
     int (*raise_internal)   (const char *msg);
+    /* 列表追加（M11）：obj.追加(val)，省一次 getattr 回调 */
+    int (*list_append)      (JVal *obj, JVal *val, int line, int col);
 } JsHost;
 
 /* ------------------------------------------------------------------ */

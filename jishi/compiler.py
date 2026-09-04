@@ -783,6 +783,14 @@ class _Emitter:
             self.patch(end_jump, end)
 
     def _c_call(self, e: A.Call):
+        # M11 优化：X.追加(单参数) → LIST_APPEND 指令，省一次 getattr 回调
+        if (not e.keywords and len(e.args) == 1
+                and isinstance(e.func, A.Attr)
+                and e.func.attr == "追加"):
+            self.compile_expr(e.func.obj)
+            self.compile_expr(e.args[0])
+            self.emit(O.Op.LIST_APPEND, e)
+            return
         self.compile_expr(e.func)
         for a in e.args:
             self.compile_expr(a)

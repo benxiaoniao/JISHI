@@ -1155,6 +1155,19 @@ static int run_loop(JsVm *vm) {
                 break;
             }
 
+            case JS_OP_LIST_APPEND: {
+                JVal val = POP(vm);
+                JVal obj = POP(vm);
+                SAVE_IP();
+                if (vm->host->list_append(&obj, &val, line, col) != 0) {
+                    release_val(vm, obj); release_val(vm, val);
+                    goto dispatch_err;
+                }
+                release_val(vm, obj); release_val(vm, val);
+                PUSH(vm, make_null());   /* 追加返回空，保持 CALL 栈语义 */
+                break;
+            }
+
             case JS_OP_BUILD_LIST: {
                 JVal out;
                 SAVE_IP();

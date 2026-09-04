@@ -187,6 +187,7 @@ CB_RAISE_ARGC = CFUNCTYPE(c_int, c_int, c_int, c_int, c_int)
 CB_RAISE_BAD_KW = CFUNCTYPE(c_int, c_int, c_int, c_int, c_int)
 CB_RAISE_MISSING = CFUNCTYPE(c_int, c_int, _IPV, c_int, c_int, c_int)
 CB_RAISE_INTERNAL = CFUNCTYPE(c_int, c_char_p)
+CB_LIST_APPEND = CFUNCTYPE(c_int, _JPV, _JPV, c_int, c_int)
 
 
 class JsHost(Structure):
@@ -228,6 +229,7 @@ class JsHost(Structure):
         ("raise_bad_kw", CB_RAISE_BAD_KW),
         ("raise_missing", CB_RAISE_MISSING),
         ("raise_internal", CB_RAISE_INTERNAL),
+        ("list_append", CB_LIST_APPEND),
     ]
 
 
@@ -365,6 +367,7 @@ class CvmHost:
             raise_bad_kw=CB_RAISE_BAD_KW(self._cb_raise_bad_kw),
             raise_missing=CB_RAISE_MISSING(self._cb_raise_missing),
             raise_internal=CB_RAISE_INTERNAL(self._cb_raise_internal),
+            list_append=CB_LIST_APPEND(self._cb_list_append),
         )
         self.lib.jsvm_set_host(self.vm, byref(self._cb))
 
@@ -716,6 +719,25 @@ class CvmHost:
                                     filename=self.filename)
             for i, item in enumerate(items):
                 out[i] = self.py2c(item)
+            return 0
+        except BaseException as e:
+            return self._fail(e)
+
+    def _cb_list_append(self, obj, val, line, col):
+        """列表追加（M11）：obj.追加(val)，语义与 get_attr+call 完全一致。
+
+        对非列表对象调用「追加」会走 get_attr 的通用报错，措辞不变。
+        """
+        try:
+            o = self.c2py(obj[0])
+            v = self.c2py(val[0])
+            if type(o) is list:      # 快路径：最常见场景，省 get_attr+call 分发
+                o.append(v)
+                return 0
+            m = R.get_attr(o, "追加", line=line, col=col,
+                           filename=self.filename)
+            R.call_value(m, [v], {}, line=line, col=col,
+                         filename=self.filename)
             return 0
         except BaseException as e:
             return self._fail(e)

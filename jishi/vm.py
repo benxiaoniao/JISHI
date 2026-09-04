@@ -474,6 +474,14 @@ class VM:
                         stack.append(R.get_attr(
                             stack.pop(), names[ins.a],
                             line=ins.line, col=ins.col, filename=filename))
+                    elif op == Op.LIST_APPEND:
+                        val = stack.pop()
+                        obj = stack.pop()
+                        m = R.get_attr(obj, "追加", line=ins.line,
+                                       col=ins.col, filename=filename)
+                        R.call_value(m, [val], {}, line=ins.line,
+                                     col=ins.col, filename=filename)
+                        stack.append(None)      # 追加返回空，保持 CALL 语义
                     elif op == Op.SET_ATTR:
                         val = stack.pop()
                         R.set_attr(stack.pop(), names[ins.a], val,
