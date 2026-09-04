@@ -553,8 +553,9 @@ class VM:
 
                     # === 模块 ===
                     elif op == Op.IMPORT:
+                        src = ins.b   # 0=标准库 1=python 2=本地包
                         stack.append(R.do_import(
-                            names[ins.a], bool(ins.b),
+                            names[ins.a], src == 1, src == 2,
                             line=ins.line, col=ins.col, filename=filename))
                     elif op == Op.STORE_LAST:
                         self.last_value = stack.pop()

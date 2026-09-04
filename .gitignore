@@ -28,3 +28,6 @@ site/
 
 # C VM 编译产物（cvm/build.py 会在需要时自动构建）
 cvm/bin/*.dll
+
+# 本地包缓存目录（.jishi/packages/）
+.jishi/

@@ -598,8 +598,9 @@ class _Emitter:
         alias_i = -1
         if st.alias:
             alias_i = self.name_idx(st.alias)
-        self.emit(O.Op.IMPORT, st, self.name_idx(st.name),
-                  1 if st.from_python else 0, alias_i)
+        # b 编码导入来源：0=标准库 1=python 2=本地包
+        src = 1 if st.from_python else (2 if st.from_local else 0)
+        self.emit(O.Op.IMPORT, st, self.name_idx(st.name), src, alias_i)
         self.store_name(st.alias or st.name, st)
 
     # 尝试 / 捕获 / 最终（M5a）

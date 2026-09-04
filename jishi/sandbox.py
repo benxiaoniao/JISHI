@@ -64,7 +64,15 @@ class _LimitedStringIO(io.StringIO):
 
 def _make_guard(opts: SandboxOpts):
     """构造导入守卫回调：按 opts 放行/拦截模块。"""
-    def guard(name, from_python, line, col, filename):
+    def guard(name, from_python, from_local, line, col, filename):
+        if from_local:
+            # 本地包导入涉及文件系统读取，沙箱默认拦截
+            if not opts.allow_write:
+                raise RunError(
+                    f"沙箱禁止「从 本地包」导入（涉及文件访问）",
+                    line=line, col=col, filename=filename,
+                    hint="如需本地包，请显式开启 allow_write")
+            return
         if from_python:
             if not opts.allow_python_import:
                 raise RunError(

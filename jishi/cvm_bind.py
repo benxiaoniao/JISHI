@@ -604,9 +604,10 @@ class CvmHost:
         except BaseException as e:
             return self._fail(e)
 
-    def _cb_do_import(self, name_idx, from_python, out, line, col):
+    def _cb_do_import(self, name_idx, src, out, line, col):
         try:
-            r = R.do_import(self.names[name_idx], bool(from_python),
+            # src 编码导入来源：0=标准库 1=python 2=本地包
+            r = R.do_import(self.names[name_idx], src == 1, src == 2,
                             line=line, col=col, filename=self.filename)
             out[0] = self.py2c(r)
             return 0

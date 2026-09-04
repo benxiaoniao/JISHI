@@ -678,10 +678,13 @@ def build_dict(pairs, *, line=None, col=None, filename="<输入>"):
 _IMPORT_GUARD = None
 
 
-def do_import(name: str, from_python: bool = False, *, line=None, col=None,
-              filename="<输入>") -> Module:
+def do_import(name: str, from_python: bool = False, from_local: bool = False,
+              *, line=None, col=None, filename="<输入>") -> Module:
     if _IMPORT_GUARD is not None:
-        _IMPORT_GUARD(name, from_python, line, col, filename)
+        _IMPORT_GUARD(name, from_python, from_local, line, col, filename)
+    if from_local:
+        return _import_local_package(name, line=line, col=col,
+                                     filename=filename)
     if from_python:
         return _import_python(name, line=line, col=col, filename=filename)
     try:
@@ -693,6 +696,89 @@ def do_import(name: str, from_python: bool = False, *, line=None, col=None,
             hint="试试：导入 随机 / 导入 数学 / 导入 时间 / 导入 文本")
     attrs = {k: v for k, v in vars(mod).items() if not k.startswith("_")}
     return Module(name, attrs)
+
+
+# ---------------------------------------------------------------------------
+# 本地包（M10.2）：`导入 名字 从 本地包`，从 .jishi/packages/ 加载
+# ---------------------------------------------------------------------------
+
+def _package_dirs() -> list[str]:
+    """本地包搜索目录（先项目后全局）。"""
+    import os
+    dirs = []
+    cwd = os.path.join(os.getcwd(), ".jishi", "packages")
+    home = os.path.join(os.path.expanduser("~"), ".jishi", "packages")
+    for d in (cwd, home):
+        if d not in dirs:
+            dirs.append(d)
+    return dirs
+
+
+def _import_local_package(name: str, *, line=None, col=None,
+                          filename="<输入>") -> Module:
+    """从本地包缓存目录加载一个基石包。
+
+    包结构：`.jishi/packages/名字/` 下含 `包.json`（名字/版本）与若干
+    `.jsh` 模块；执行所有模块后，把「顶层定义的名字」作为包成员导出。
+    """
+    import json
+    import os
+
+    pkg_dir = None
+    for base in _package_dirs():
+        cand = os.path.join(base, name)
+        if os.path.isdir(cand):
+            pkg_dir = cand
+            break
+    if pkg_dir is None:
+        raise SemanticFuncError(
+            f"没有找到本地包「{name}」", line=line, col=col,
+            filename=filename,
+            hint=f"请把包放到 .jishi/packages/{name}/ 目录（含 包.json 与 .jsh 模块）")
+
+    # 读包清单
+    meta_path = os.path.join(pkg_dir, "包.json")
+    meta = {}
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            raise SemanticFuncError(
+                f"本地包「{name}」的 包.json 读不了：{e}",
+                line=line, col=col, filename=filename)
+    if meta.get("名字") and meta["名字"] != name:
+        raise SemanticFuncError(
+            f"包目录「{name}」里的 包.json 声明名字为「{meta['名字']}」，不一致",
+            line=line, col=col, filename=filename)
+
+    # 执行所有 .jsh 模块，收集顶层定义的名字
+    from .interpreter import Interpreter
+    from .parser import parse
+    from .tokenizer import tokenize
+
+    builtin_names = set(new_builtins().keys())
+    exports: dict[str, Any] = {}
+    jsh_files = sorted(f for f in os.listdir(pkg_dir) if f.endswith(".jsh"))
+    if not jsh_files:
+        raise SemanticFuncError(
+            f"本地包「{name}」里没有 .jsh 模块文件",
+            line=line, col=col, filename=filename)
+
+    for fn in jsh_files:
+        path = os.path.join(pkg_dir, fn)
+        with open(path, encoding="utf-8") as f:
+            source = f.read()
+        interp = Interpreter(filename=path)
+        tokens = tokenize(source, path)
+        lines = source.replace("\r\n", "\n").split("\n")
+        program = parse(tokens, lines, path)
+        interp.run(program)
+        for k, v in interp.globals.vars.items():
+            if k not in builtin_names and not k.startswith("_"):
+                exports[k] = v
+
+    return Module(name, exports)
 
 
 def _import_python(name: str, *, line=None, col=None,

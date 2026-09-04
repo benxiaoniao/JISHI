@@ -148,6 +148,7 @@ class Try(Node):
 class Import(Node):
     name: str
     from_python: bool = False
+    from_local: bool = False
     alias: Optional[str] = None
 
 

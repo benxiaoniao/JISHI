@@ -330,7 +330,7 @@ class Interpreter:
                 break
 
     def _do_import(self, stmt: A.Import, env: Environment) -> None:
-        mod = do_import(stmt.name, stmt.from_python,
+        mod = do_import(stmt.name, stmt.from_python, stmt.from_local,
                         line=stmt.line, col=stmt.col, filename=self.filename)
         env.set(stmt.alias or stmt.name, mod)
 

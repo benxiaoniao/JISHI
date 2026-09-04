@@ -578,21 +578,26 @@ class Parser:
         start = self._next()
         name_tok = self._expect_name("模块名")
         from_python = False
+        from_local = False
         alias = None
         if self._at_kw("从"):
             self._next()
             src = self._expect_name("来源")
-            if src.value != "python":
+            if src.value == "python":
+                from_python = True
+            elif src.value == "本地包":
+                from_local = True
+            else:
                 self._err(ParseUnexpectedError,
-                          f"目前只能「从 python」导入，看到了「{src.value}」",
-                          tok=src)
-            from_python = True
+                          f"只能「从 python」或「从 本地包」导入，"
+                          f"看到了「{src.value}」", tok=src)
             if self._at_kw("为"):
                 self._next()
                 alias_tok = self._expect_name("别名")
                 alias = alias_tok.value
         return A.Import(name=name_tok.value, from_python=from_python,
-                        alias=alias, line=start.line, col=start.col)
+                        from_local=from_local, alias=alias,
+                        line=start.line, col=start.col)
 
     # 抛出
     def _parse_raise(self) -> A.Node:
