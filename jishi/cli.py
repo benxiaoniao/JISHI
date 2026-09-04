@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from typing import Optional
 
@@ -65,14 +66,18 @@ def dump_ast(program, indent: int = 0) -> str:
     return body
 
 
-def run_file(path: str, show_ast: bool = False) -> int:
+def run_file(path: str, show_ast: bool = False,
+             json_errors: bool = False) -> int:
     source, filename = _read_source(path)
+    lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     try:
         tokens = tokenize(source, filename)
-        lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
         program = parse(tokens, lines, filename)
     except JishiError as e:
-        print(e.render(), file=sys.stderr)
+        if json_errors:
+            _print_json_error(e)
+        else:
+            print(e.render(), file=sys.stderr)
         return 1
 
     if show_ast:
@@ -83,16 +88,34 @@ def run_file(path: str, show_ast: bool = False) -> int:
         Interpreter(filename=filename).run(program)
     except JishiError as e:
         e.with_source(lines)
-        print(e.render(), file=sys.stderr)
+        if json_errors:
+            _print_json_error(e)
+        else:
+            print(e.render(), file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         print("\n程序被中断", file=sys.stderr)
         return 130
     except Exception as e:  # 兜底：绝不让英文 traceback 直接冒出来
-        print(f"错误：程序内部出现未预料的问题（{type(e).__name__}）：{e}",
-              file=sys.stderr)
+        if json_errors:
+            print(json.dumps(
+                {"ok": False,
+                 "errors": [{"code": "E0000",
+                             "title": "内部错误",
+                             "message": f"{type(e).__name__}: {e}"}]},
+                ensure_ascii=False), file=sys.stderr)
+        else:
+            print(f"错误：程序内部出现未预料的问题（{type(e).__name__}）：{e}",
+                  file=sys.stderr)
         return 1
     return 0
+
+
+def _print_json_error(e: JishiError) -> None:
+    """`--json-errors`：输出 agent 可读的 JSON 错误（M8.3）。"""
+    from .ai import error_to_json
+    print(json.dumps({"ok": False, "errors": [error_to_json(e)]},
+                     ensure_ascii=False), file=sys.stderr)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -103,12 +126,30 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="进入交互式 REPL")
     parser.add_argument("--ast", action="store_true",
                         help="只显示语法树，不运行")
+    parser.add_argument("--json-errors", action="store_true",
+                        help="错误以 JSON 输出（供 agent 程序化读取，M8.3）")
+    parser.add_argument("--ai-card", action="store_true",
+                        help="输出 AI 语言卡（贴进 LLM 系统提示词，M8.1）")
+    parser.add_argument("--lang-spec", action="store_true",
+                        help="输出机器可读语言规格（配合 --format json）")
+    parser.add_argument("--format", choices=("json",), default="json",
+                        help="--lang-spec 的输出格式")
     parser.add_argument("-v", "--version", action="version",
                         version=f"基石 jishi {VERSION}")
     args = parser.parse_args(argv)
 
+    if args.ai_card:
+        from .ai import render_ai_card
+        print(render_ai_card())
+        return 0
+    if args.lang_spec:
+        from .ai import lang_spec_json
+        print(lang_spec_json())
+        return 0
+
     if args.file:
-        return run_file(args.file, show_ast=args.ast)
+        return run_file(args.file, show_ast=args.ast,
+                        json_errors=args.json_errors)
 
     from .repl import repl
     return repl()

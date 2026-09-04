@@ -35,6 +35,7 @@ class JishiError(Exception):
         filename: str = "<输入>",
         hint: Optional[str] = None,
         underline: Optional[tuple[int, int]] = None,  # (起, 止) 列区间（1 起）
+        fix: Optional[dict] = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -44,6 +45,9 @@ class JishiError(Exception):
         self.filename = filename
         self.hint = hint
         self.underline = underline
+        #: 机器可读的修复建议（M8.3）：{"old": str, "new": str}，
+        #: 配合 line/col 定位，agent 可直接做文本替换实现自愈。
+        self.fix = fix
 
     def render(self, *, color: bool = False) -> str:
         """把错误渲染成带源码行与 ^ 指示的多行文本。"""

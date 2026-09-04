@@ -118,14 +118,14 @@ class Parser:
                 f"「{w}」是英文关键字，基石用中文——你是不是想写「{_EN_STMT_HINTS[w]}」？",
                 hint="把英文关键字换成对应的中文关键字即可。\n"
                      f"例如：{w} → {_EN_STMT_HINTS[w]}",
-                tok=t)
+                tok=t, fix={"old": w, "new": _EN_STMT_HINTS[w]})
         if w in _EN_VALUE_HINTS:
             cn = _EN_VALUE_HINTS[w]
             self._err(
                 ParseUnexpectedError,
                 f"「{w}」是英文写法，基石用中文——你是不是想写「{cn}」？",
                 hint=f"把「{w}」换成「{cn}」即可",
-                tok=t)
+                tok=t, fix={"old": w, "new": cn})
         if mode != "newline" and w in _EN_UNSUPPORTED:
             self._err(
                 ParseUnexpectedError,
@@ -137,14 +137,14 @@ class Parser:
                 ParseUnexpectedError,
                 f"「{w}」是 Python 的内建函数，基石里叫「{_EN_BUILTIN_HINTS[w]}」",
                 hint=f"把 {w}(…) 改成 {_EN_BUILTIN_HINTS[w]}(…)",
-                tok=t)
+                tok=t, fix={"old": w, "new": _EN_BUILTIN_HINTS[w]})
 
     def _err(self, exc: type, msg: str = "", hint: Optional[str] = None,
-             tok: Optional[Token] = None):
+             tok: Optional[Token] = None, fix: Optional[dict] = None):
         t = tok or self._peek()
         raise exc(msg, line=t.line, col=t.col, source_line=t.source_line,
                   filename=self.filename,
-                  hint=hint, underline=(t.col, t.end_col)).with_source(
+                  hint=hint, underline=(t.col, t.end_col), fix=fix).with_source(
                       self.source_lines)
 
     def _expect_op(self, op: str):
