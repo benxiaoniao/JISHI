@@ -275,24 +275,11 @@ static void retain_func(JsFunc *f) { if (f) f->refcnt++; }
 
 static void release_func(JsVm *vm, JsFunc *f) {
     if (!f || --f->refcnt > 0) return;
-    if (f->defaults && f->ndefaults == 0) {
-        FILE *dbg = fopen("cvm_debug.log", "a");
-        if (dbg) { fprintf(dbg, "FUNC-FREE ndef=0 defaults-nonnull"); fclose(dbg); }
-    }
     for (int i = 0; i < f->ncells; i++) release_cell(vm, f->cells[i]);
     free(f->cells);
     for (int i = 0; i < f->ndefaults; i++)
         release_val(vm, f->defaults[i]);
-    if (f->defaults) {
-        JVal *raw = f->defaults - 1;   /* TEMP-DEBUG: 哨兵回读 */
-        if (raw[0].tag != 0x7C7C) {
-            FILE *dbg = fopen("cvm_debug.log", "a");
-            if (dbg) { fprintf(dbg, "SENTINEL-LEFT-BROKEN tag=%d\n", raw[0].tag); fclose(dbg); }
-        }
-        free(raw);
-    } else {
-        free(f->defaults);
-    }
+    free(f->defaults);
     free(f);
 }
 
@@ -487,8 +474,8 @@ static int bind_args(JsVm *vm, int code_idx,
                      JVal *args, int nargs,
                      const int *kwname_idx, JVal *kwvals, int nkw,
                      JVal *locals_out, JsCell **free_cells, int nfree,
-                     const JVal *defaults, int ndefaults, int line, int col) {
-    
+                     const JVal *defaults, int ndefaults,
+                     int line, int col) {
     JsCode *code = &vm->codes[code_idx];
     int nparams = code->nparams;
     const int32_t *pp = vm->code_params + code->params_off;
@@ -501,7 +488,6 @@ static int bind_args(JsVm *vm, int code_idx,
     /* 逐参数记录已绑定的值；先位置后关键字（与 vm._bind 一致） */
     /* bound_values[i] 的 UNSET 表示未绑定 */
 
-    
     JVal *bound = (JVal *)malloc(
         (size_t)(nparams > 0 ? nparams : 1) * sizeof(JVal));
     if (!bound) return -1;
@@ -799,8 +785,6 @@ static int run_loop(JsVm *vm) {
 
         for (;;) {
             int op = INSN(0);
-            { FILE *dbg = fopen("cvm_trace.log", "a");
-              if (dbg) { fprintf(dbg, "op=%d ip=%d f=%p", op, ip, (void*)f); fclose(dbg); } }
             int a = INSN(1), b = INSN(2), c = INSN(3);
             int line = INSN(4), col = INSN(5);
             ip++;
@@ -853,8 +837,6 @@ static int run_loop(JsVm *vm) {
             }
 
             case JS_OP_LOAD_DEREF: {
-                { FILE *dbg = fopen("cvm_debug.log", "a");
-                  if (dbg) { fprintf(dbg, "LOAD_DEREF a=%d ncells=%d\n", a, f->ncells); fclose(dbg); } }
                 JsCell *cell = f->cells[a];
                 if (cell->v.tag == JS_TAG_UNSET) {
                     SAVE_IP();
@@ -923,8 +905,6 @@ static int run_loop(JsVm *vm) {
             }
 
             case JS_OP_BIN_OP: {
-                { FILE *dbg = fopen("cvm_debug.log", "a");
-                  if (dbg) { fprintf(dbg, "BIN_OP"); fclose(dbg); } }
                 JVal r = POP(vm), l = POP(vm), out;
                 int fast = binop_fast(a, l, r, &out, vm, line, col);
                 if (fast < 0) { release_val(vm, l); release_val(vm, r); goto dispatch_err; }
@@ -1027,20 +1007,10 @@ static int run_loop(JsVm *vm) {
                 }
                 int fn_base = vm->sp - (1 + nargs + nkw);
                 JVal fn = vm->stack[fn_base];
-                
 
                 if (fn.tag == JS_TAG_FUNC) {
-                                        { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step read-jfn]\n"); fclose(d2); } }
-                    { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step read-jfn]\n"); fclose(d2); } }
-JsFunc *jfn = (JsFunc *)(uintptr_t)fn.v.u;
-                    
-                                        { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step read-code]\n"); fclose(d2); } }
-                    { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step read-code]\n"); fclose(d2); } }
-JsCode *sub = &vm->codes[jfn->code_idx];
+                    JsFunc *jfn = (JsFunc *)(uintptr_t)fn.v.u;
+                    JsCode *sub = &vm->codes[jfn->code_idx];
                     /* 参数从栈上取出（转移所有权） */
                     JVal *args = (JVal *)malloc(
                         (size_t)(nargs > 0 ? nargs : 1) * sizeof(JVal));
@@ -1053,11 +1023,7 @@ JsCode *sub = &vm->codes[jfn->code_idx];
                     for (int k = 0; k < nkw; k++)
                         kwv[k] = vm->stack[fn_base + 1 + nargs + k];
 
-                                        { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-locals]\n"); fclose(d2); } }
-                    { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-locals]\n"); fclose(d2); } }
-JVal *locals = (JVal *)malloc(
+                    JVal *locals = (JVal *)malloc(
                         (size_t)(sub->nlocals > 0 ? sub->nlocals : 1)
                         * sizeof(JVal));
                     if (!locals) { free(args); free(kwv);
@@ -1065,11 +1031,7 @@ JVal *locals = (JVal *)malloc(
                     for (int i = 0; i < sub->nlocals; i++)
                         locals[i] = make_unset();
 
-                                        { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step max-frames]\n"); fclose(d2); } }
-                    { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step max-frames]\n"); fclose(d2); } }
-if (vm->nframes >= JS_MAX_FRAMES) {
+                    if (vm->nframes >= JS_MAX_FRAMES) {
                         SAVE_IP();
                         vm->host->raise_recursion(line, col);
                         /* 栈上的 fn/args 已被取出，需释放（先释放值再释放数组） */
@@ -1083,11 +1045,7 @@ if (vm->nframes >= JS_MAX_FRAMES) {
                         return -1;
                     }
 
-                                        { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-cells]\n"); fclose(d2); } }
-                    { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-cells]\n"); fclose(d2); } }
-/* 帧单元：cellvars 新建；freevars 借用函数对象的 */
+                    /* 帧单元：cellvars 新建；freevars 借用函数对象的 */
                     int ncellvars = sub->ncellvars;
                     int nfreevars = jfn->ncells;
                     JsCell **cells = (JsCell **)malloc(
@@ -1102,21 +1060,12 @@ if (vm->nframes >= JS_MAX_FRAMES) {
                         cells[i]->v = make_unset();
                         cells[i]->refcnt = 1;   /* 帧持有 */
                     }
-                                        { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-freevars]\n"); fclose(d2); } }
-                    { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-freevars]\n"); fclose(d2); } }
-for (int i = 0; i < nfreevars; i++) {
+                    for (int i = 0; i < nfreevars; i++) {
                         cells[ncellvars + i] = jfn->cells[i];
                         retain_cell(jfn->cells[i]);
                     }
-                    
 
-                                        { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-bind]\n"); fclose(d2); } }
-                    { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-bind]\n"); fclose(d2); } }
-SAVE_IP();
+                    SAVE_IP();
                     if (bind_args(vm, jfn->code_idx, args, nargs,
                                   knames, kwv, nkw, locals,
                                   cells, ncellvars + nfreevars,
@@ -1127,8 +1076,7 @@ SAVE_IP();
                         for (int k = 0; k < nkw; k++)
                             release_val(vm, kwv[k]);
                         release_val(vm, fn);
-                        
-                    free(args); free(kwv); free(locals);
+                        free(args); free(kwv); free(locals);
                         for (int i = 0; i < ncellvars + nfreevars; i++)
                             release_cell(vm, cells[i]);
                         free(cells);
@@ -1136,24 +1084,16 @@ SAVE_IP();
                         return -1;
                     }
                     free(args); free(kwv);
-                    
 
-                                        { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step after-bind]\n"); fclose(d2); } }
-                    { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step after-bind]\n"); fclose(d2); } }
-/* 清掉栈上的 fn+args+kw（所有权已转移） */
+                    /* 清掉栈上的 fn+args+kw（所有权已转移）。
+                     * 注意：release_val(fn) 可能 free 掉函数对象（jfn），
+                     * 因此必须先保存 code_idx 再释放，避免 use-after-free。 */
+                    int fn_code_idx = jfn->code_idx;
                     vm->sp = fn_base;
                     release_val(vm, fn);
-                    
 
-                                        { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-push]\n"); fclose(d2); } }
-                    { FILE *d2 = fopen("cvm_trace.log", "a");
-                      if (d2) { fprintf(d2, "[CALL-step before-push]\n"); fclose(d2); } }
-push_frame(vm, jfn->code_idx, fn_base, locals,
+                    push_frame(vm, fn_code_idx, fn_base, locals,
                                sub->nlocals);
-                    
                     {
                         JsFrame *nf = &vm->frames[vm->nframes - 1];
                         nf->cells = cells;
@@ -1237,6 +1177,36 @@ push_frame(vm, jfn->code_idx, fn_base, locals,
                 break;
             }
 
+            case JS_OP_MAKE_FUNCTION: {
+                int ncells = b;
+                int ndefaults = c;
+                JsFunc *jfn = (JsFunc *)malloc(sizeof *jfn);
+                if (!jfn) { vm->host->raise_internal("内存不足"); return -1; }
+                jfn->code_idx = a;
+                jfn->ncells = ncells;
+                jfn->ndefaults = ndefaults;
+                /* 默认值在栈顶（后压），先弹出（所有权转移，M7） */
+                jfn->defaults = (JVal *)malloc(
+                    (size_t)(ndefaults > 0 ? ndefaults : 1) * sizeof(JVal));
+                if (!jfn->defaults) { free(jfn);
+                    vm->host->raise_internal("内存不足"); return -1; }
+                for (int i = 0; i < ndefaults; i++)
+                    jfn->defaults[i] = vm->stack[vm->sp - ndefaults + i];
+                vm->sp -= ndefaults;
+                jfn->cells = (JsCell **)malloc(
+                    (size_t)(ncells > 0 ? ncells : 1) * sizeof(JsCell *));
+                if (!jfn->cells) { free(jfn->defaults); free(jfn);
+                    vm->host->raise_internal("内存不足"); return -1; }
+                for (int i = 0; i < ncells; i++) {
+                    JVal cv = vm->stack[vm->sp - ncells + i];
+                    jfn->cells[i] = (JsCell *)(uintptr_t)cv.v.u;
+                }
+                vm->sp -= ncells;   /* 所有权转移（LOAD_CELL 时已 retain） */
+                jfn->refcnt = 1;
+                PUSH(vm, make_func(jfn));
+                break;
+            }
+
             case JS_OP_UNPACK: {
                 int n = a;
                 JVal v = POP(vm);
@@ -1250,48 +1220,11 @@ push_frame(vm, jfn->code_idx, fn_base, locals,
                     goto dispatch_err;
                 }
                 release_val(vm, v);
-                /* 第一个元素最后压 → 栈顶（与 vm.py 一致） */
+                /* 第一个元素最后压 -> 栈顶（与 vm.py 一致） */
                 for (int i = n - 1; i >= 0; i--) {
                     PUSH(vm, items[i]);
                 }
                 free(items);
-                break;
-            }
-
-            case JS_OP_MAKE_FUNCTION: {
-                int ncells = b;
-                int ndefaults = c;
-                JsFunc *jfn = (JsFunc *)malloc(sizeof *jfn);
-                if (!jfn) { vm->host->raise_internal("内存不足"); return -1; }
-                jfn->code_idx = a;
-                jfn->ncells = ncells;
-                jfn->ndefaults = 0;
-                jfn->defaults = NULL;      /* 先安全化：任何路径都可 free */
-                if (ndefaults) {
-                    /* TEMP-DEBUG: 多分配哨兵槽（前后各 1 个 JVal） */
-                    JVal *raw = (JVal *)malloc(
-                        (size_t)(ndefaults + 2) * sizeof(JVal));
-                    if (!raw) { free(jfn);
-                        vm->host->raise_internal("内存不足"); return -1; }
-                    raw[0].tag = 0x7C7C; raw[0].v.u = 0xDEAD0001;
-                    raw[ndefaults + 1].tag = 0x7C7C; raw[ndefaults + 1].v.u = 0xDEAD0002;
-                    jfn->defaults = raw + 1;
-                    for (int i = 0; i < ndefaults; i++)
-                        jfn->defaults[i] = vm->stack[vm->sp - ndefaults + i];
-                    vm->sp -= ndefaults;
-                    jfn->ndefaults = ndefaults;
-                }
-                jfn->cells = (JsCell **)malloc(
-                    (size_t)(ncells > 0 ? ncells : 1) * sizeof(JsCell *));
-                if (!jfn->cells) { free(jfn->defaults); free(jfn);
-                    vm->host->raise_internal("内存不足"); return -1; }
-                for (int i = 0; i < ncells; i++) {
-                    JVal cv = vm->stack[vm->sp - ncells + i];
-                    jfn->cells[i] = (JsCell *)(uintptr_t)cv.v.u;
-                }
-                vm->sp -= ncells;   /* 所有权转移（LOAD_CELL 时已 retain） */
-                jfn->refcnt = 1;
-                PUSH(vm, make_func(jfn));
                 break;
             }
 
