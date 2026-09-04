@@ -33,6 +33,7 @@ PAGES: list[tuple[Path, str, str]] = [
     (Path("docs/设计决策.md"), "设计决策", "参考"),
     (Path("docs/路线图.md"), "路线图（M7–M11）", "参考"),
     (Path("docs/ai/system-prompt.md"), "AI 系统提示词", "AI"),
+    (Path("docs/ai/prompt-guide.md"), "AI 提示词指南", "AI"),
     (Path("examples/ai/few-shot.md"), "few-shot 示例库", "AI"),
     (Path("docs/tutorial/01_你好基石.md"), "01 你好基石", "教程"),
     (Path("docs/tutorial/02_数与文本.md"), "02 数与文本", "教程"),
@@ -363,6 +364,13 @@ def main() -> int:
     (OUT / "llms.txt").write_text(build_llms_txt(), encoding="utf-8")
     (OUT / "llms-full.txt").write_text(build_llms_full(), encoding="utf-8")
     print("生成 site/llms.txt + site/llms-full.txt")
+
+    # Playground（M10.3）：浏览器试玩页
+    try:
+        from build_playground import build as build_pg
+        build_pg()
+    except Exception as e:  # noqa: BLE001
+        print(f"生成 Playground 失败（可忽略）：{e}")
 
     print(f"\n完成：{len(PAGES)} 个页面 → {OUT}")
     if "--open" in sys.argv:
