@@ -73,7 +73,7 @@ TASKS = [
     },
     {
         "id": "008_默认参数",
-        "task": "写带默认参数的函数打招呼(名字, 语气=\"你好\")，分别用默认和自定义语气各调一次。",
+        "task": "写带默认参数的函数打招呼(名字, 语气=\"你好\")，用「小明」这个名字分别用默认语气和自定义语气「欢迎」各调一次。",
         "answer": "函数 打招呼(名字, 语气 = \"你好\"):\n    打印(语气, 名字)\n打招呼(\"小明\")\n打招呼(\"小明\", \"欢迎\")",
         "stdout": "你好 小明\n欢迎 小明\n",
     },
@@ -85,7 +85,7 @@ TASKS = [
     },
     {
         "id": "010_异常处理",
-        "task": "用尝试/捕获处理除零：计算 1/0 并打印「除数不能是零」。",
+        "task": "用尝试/捕获处理除零：计算 1/0，捕获「除零错误」异常，打印「除数不能是零」。",
         "answer": "尝试:\n    令 结果 = 1 / 0\n捕获 除零错误 为 e:\n    打印(\"除数不能是零\")",
         "stdout": "除数不能是零\n",
     },
@@ -187,7 +187,7 @@ TASKS = [
     },
     {
         "id": "027_列表索引计数",
-        "task": "在列表 [1, 2, 1, 3] 里，打印 2 的位置索引和 1 出现的次数。",
+        "task": "在列表 [1, 2, 1, 3] 里，打印数字 2 的位置索引，再打印数字 1 出现的次数（只打印数字本身，不要加文字标签）。",
         "answer": "令 甲 = [1, 2, 1, 3]\n打印(甲.索引(2))\n打印(甲.计数(1))",
         "stdout": "1\n2\n",
     },
@@ -199,7 +199,7 @@ TASKS = [
     },
     {
         "id": "029_字典键值",
-        "task": "打印字典 {\"a\": 1, \"b\": 2} 的所有键和所有值，各一行。",
+        "task": "定义一个变量 d 存字典 {\"a\": 1, \"b\": 2}，分两行打印 d 的所有键、所有值（只打印键列表和值列表本身，不加文字标签）。",
         "answer": "令 d = {\"a\": 1, \"b\": 2}\n打印(d.键())\n打印(d.值())",
         "stdout": "['a', 'b']\n[1, 2]\n",
     },
@@ -223,13 +223,13 @@ TASKS = [
     },
     {
         "id": "033_循环中断",
-        "task": "从 1 开始累加，当累加数大于 5 时中断，打印累加和。",
+        "task": "用遍历从 1 循环到 100，累加到一个总和变量里；当循环变量 i 大于 5 时中断，打印累加和（只打印数字）。",
         "answer": "令 总和 = 0\n遍历 i 在 范围(1, 100):\n    如果 i > 5:\n        中断\n    总和 += i\n打印(总和)",
         "stdout": "15\n",
     },
     {
         "id": "034_循环继续",
-        "task": "累加 1 到 5 之间的奇数（跳过偶数），打印结果。",
+        "task": "用遍历累加 1 到 5 之间的所有奇数（跳过偶数，用「继续」跳过），打印结果（只打印数字）。",
         "answer": "令 总和 = 0\n遍历 i 在 范围(1, 6):\n    如果 i % 2 == 0:\n        继续\n    总和 += i\n打印(总和)",
         "stdout": "9\n",
     },
@@ -265,13 +265,13 @@ TASKS = [
     },
     {
         "id": "040_嵌套函数",
-        "task": "写外层函数，内层函数读外层的局部变量并加 1，调用外层并打印结果。",
+        "task": "写一个具名函数「外」，函数体里把局部变量「值」设为 5，再定义一个具名函数「内」读「值」并加 1；调用外并打印结果（只打印数字）。",
         "answer": "函数 外():\n    令 值 = 5\n    函数 内():\n        返回 值 + 1\n    返回 内()\n打印(外())",
         "stdout": "6\n",
     },
     {
         "id": "041_多值返回解包",
-        "task": "写函数返回两个数 3 和 4，解包到 a、b 后打印它们的和。",
+        "task": "写一个名为「两数」的函数，它同时返回 3 和 4 两个数；解包到 a、b 后打印它们的和。",
         "answer": "函数 两数():\n    返回 3, 4\n令 a, b = 两数()\n打印(a + b)",
         "stdout": "7\n",
     },
@@ -283,13 +283,13 @@ TASKS = [
     },
     {
         "id": "043_类多方法",
-        "task": "定义矩形类，初始化长宽，有面积和周长方法；建 3x4 矩形打印面积和周长。",
+        "task": "定义矩形类，初始化长宽，有面积和周长方法；建 3x4 矩形，分两行打印面积、周长两个数字（不要加文字标签）。",
         "answer": "类 矩形:\n    函数 初始化(自身, 长, 宽):\n        自身.长 = 长\n        自身.宽 = 宽\n    函数 面积(自身):\n        返回 自身.长 * 自身.宽\n    函数 周长(自身):\n        返回 (自身.长 + 自身.宽) * 2\n令 r = 新建 矩形(3, 4)\n打印(r.面积())\n打印(r.周长())",
         "stdout": "12\n14\n",
     },
     {
         "id": "044_抛出与捕获",
-        "task": "用抛出抛一个值错误，用捕获接住并打印异常的类型和消息。",
+        "task": "用抛出抛一个值错误（消息「出错了」），用捕获接住后，在同一行打印异常类型和消息（用逗号分隔，如「值错误 出错了」）。",
         "answer": "尝试:\n    抛出 值错误(\"出错了\")\n捕获 值错误 为 e:\n    打印(e.类型, e.消息)",
         "stdout": "值错误 出错了\n",
     },
@@ -307,7 +307,7 @@ TASKS = [
     },
     {
         "id": "047_数学开方与四舍五入",
-        "task": "导入数学，打印 144 的开方，以及 3.14159 保留两位小数的结果。",
+        "task": "导入数学，打印 144 的开方，再打印 3.14159 保留两位小数的结果（只打印两个数字）。",
         "answer": "导入 数学\n打印(数学.开方(144))\n打印(数学.四舍五入(3.14159, 2))",
         "stdout": "12.0\n3.14\n",
     },
@@ -319,13 +319,13 @@ TASKS = [
     },
     {
         "id": "049_json转文本解析",
-        "task": "导入 json，把字典 {\"键\": 42} 转成文本再解析回来，打印解析后的键值。",
+        "task": "先导入 json 模块，把字典 {\"键\": 42} 转成文本，再解析回对象，打印解析结果里「键」对应的值。",
         "answer": "导入 json\n令 t = json.转文本({\"键\": 42})\n令 r = json.解析(t)\n打印(r[\"键\"])",
         "stdout": "42\n",
     },
     {
         "id": "050_日期相差天数",
-        "task": "导入日期，打印 2026-09-06 与 2026-09-01 相差的天数。",
+        "task": "导入日期模块，用日期字符串 \"2026-09-06\" 和 \"2026-09-01\" 直接调用相差天数，打印结果。",
         "answer": "导入 日期\n打印(日期.相差天数(\"2026-09-06\", \"2026-09-01\"))",
         "stdout": "5\n",
     },
@@ -392,35 +392,67 @@ def _llm_config() -> dict | None:
     }
 
 
-def _chat(cfg: dict, system: str, user: str) -> str:
-    """调 OpenAI 兼容 /chat/completions，返回助手文本。零第三方依赖。"""
+def _chat(cfg: dict, system: str, user: str,
+          retries: int = 5, backoff: float = 2.0) -> str:
+    """调 OpenAI 兼容 /chat/completions，返回助手文本。零第三方依赖。
+
+    遇到 429（限流）按指数退避重试；其余 HTTP 错误也重试（网络抖动）。
+    """
+    import time
+    import urllib.error
     import urllib.request
 
+    # temperature=0：回归基线必须可复现（否则每次跑通过率漂移，无法做门槛）
+    temperature = float(os.environ.get("JISHI_EVAL_TEMPERATURE", "0"))
     body = json.dumps({
         "model": cfg["model"],
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        "temperature": 0.2,
+        "temperature": temperature,
     }).encode("utf-8")
-    req = urllib.request.Request(
-        f"{cfg['base_url']}/chat/completions",
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {cfg['api_key']}",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    return data["choices"][0]["message"]["content"]
+
+    last_err: Exception | None = None
+    for attempt in range(retries):
+        req = urllib.request.Request(
+            f"{cfg['base_url']}/chat/completions",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {cfg['api_key']}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return data["choices"][0]["message"]["content"]
+        except urllib.error.HTTPError as e:
+            last_err = e
+            if e.code == 429:
+                wait = backoff ** attempt
+                print(f"      （限流，{wait:.0f}s 后重试 {attempt + 1}/{retries - 1}）",
+                      file=sys.stderr)
+                time.sleep(wait)
+            elif e.code >= 500:
+                wait = backoff ** attempt
+                print(f"      （服务端错误 {e.code}，{wait:.0f}s 后重试）",
+                      file=sys.stderr)
+                time.sleep(wait)
+            else:
+                raise
+        except Exception as e:  # noqa: BLE001 —— 网络抖动重试
+            last_err = e
+            wait = backoff ** attempt
+            print(f"      （网络错误，{wait:.0f}s 后重试）", file=sys.stderr)
+            time.sleep(wait)
+    raise RuntimeError(f"LLM 调用失败（重试 {retries} 次）：{last_err}")
 
 
 def _extract_code(text: str) -> str:
-    """从 LLM 回复里提取代码块（```jsh 或 ``` 包裹），否则原样返回。"""
+    """从 LLM 回复里提取代码块（```jsh/```jishi/```基石/``` 包裹），否则原样返回。"""
     import re
-    m = re.search(r"```(?:jsh|基石)?\s*\n(.*?)```", text, re.S)
+    m = re.search(r"```(?:jsh|jishi|基石)?\s*\n(.*?)```", text, re.S)
     if m:
         return m.group(1).strip()
     return text.strip()
@@ -447,6 +479,8 @@ def _apply_fix(src: str, err: dict) -> str | None:
 
 def eval_llm(cfg: dict, heal: bool = False) -> None:
     """用 LLM 生成代码跑全部任务，统计一次通过率与自愈率。"""
+    import time
+
     system = (
         "你是一位精通「基石」（jishi）中文编程语言的专家。\n"
         "用户会用自然语言描述任务，你只输出基石代码，不要解释、不要多余文字。\n"
@@ -458,18 +492,24 @@ def eval_llm(cfg: dict, heal: bool = False) -> None:
     total = len(TASKS)
     first_pass = 0
     healed = 0
+    errored = 0
+    interval = float(os.environ.get("JISHI_EVAL_INTERVAL", "0"))
     print(f"JishiEval LLM 评测：共 {total} 题，模型 {cfg['model']}\n")
 
     for t in TASKS:
-        code = _extract_code(_chat(cfg, system, t["task"]))
+        try:
+            code = _extract_code(_chat(cfg, system, t["task"]))
+        except Exception as e:  # noqa: BLE001 —— 单题 LLM 失败不中断整体
+            errored += 1
+            print(f"  [调用失败] {t['id']}  {e}")
+            continue
+
         ok, out, err = run_code_result(code)
         if ok and out == t["stdout"]:
             first_pass += 1
             print(f"  [一次通过] {t['id']}")
-            continue
-
-        # 自愈闭环：读 fix 字段做文本替换，最多 2 轮
-        if heal:
+        elif heal:
+            # 自愈闭环：读 fix 字段做文本替换，最多 2 轮
             rounds = 0
             cur = code
             while rounds < 2 and err and "fix" in err:
@@ -482,12 +522,19 @@ def eval_llm(cfg: dict, heal: bool = False) -> None:
             if ok and out == t["stdout"]:
                 healed += 1
                 print(f"  [自愈通过] {t['id']}（{rounds} 轮）")
-                continue
+            else:
+                print(f"  [失败] {t['id']}"
+                      f"{'  ' + err.get('message','')[:40] if err else ''}")
+        else:
+            print(f"  [失败] {t['id']}"
+                  f"{'  ' + err.get('message','')[:40] if err else ''}")
 
-        print(f"  [失败] {t['id']}"
-              f"{'  ' + err.get('message','')[:40] if err else ''}")
+        if interval > 0:
+            time.sleep(interval)
 
     print(f"\n一次通过率：{first_pass}/{total} = {first_pass/total*100:.0f}%")
+    if errored:
+        print(f"调用失败：{errored} 题（不计入通过率分母）")
     if heal:
         print(f"自愈率：{healed}/{total-first_pass}"
               f" = {healed/(total-first_pass)*100 if total>first_pass else 0:.0f}%"
