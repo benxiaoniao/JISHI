@@ -53,6 +53,8 @@ def test_project_日志统计(monkeypatch, tmp_path):
 
 
 def test_project_网页采集(monkeypatch, tmp_path):
+    # 切到临时目录，避免「链接.csv」产物落到项目根
+    monkeypatch.chdir(tmp_path)
     # 用本地 HTML 替代网络
     import importlib
     net = importlib.import_module("jishi.stdlib.网络")
