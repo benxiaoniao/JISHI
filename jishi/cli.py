@@ -39,6 +39,45 @@ def _read_source(path: str) -> tuple[str, str]:
         sys.exit(1)
 
 
+def _dump_bytecode(path: Optional[str], stdin: bool = False) -> int:
+    """把源码编译成跨语言字节码 JSON 并输出（M13.1）。"""
+    from .compiler import compile_source
+    from .serialize import dumps
+
+    if stdin:
+        source = sys.stdin.read()
+        filename = "<stdin>"
+    else:
+        source, filename = _read_source(path)
+    cmod = compile_source(source, filename)
+    print(dumps(cmod))
+    return 0
+
+
+def _run_bytecode(path: Optional[str], stdin: bool = False) -> int:
+    """把字节码 JSON 反序列化后执行（M13.1，供跨语言宿主/调试用）。"""
+    from .serialize import loads
+    from .vm import VM
+
+    if stdin:
+        text = sys.stdin.read()
+        filename = "<stdin>"
+    else:
+        text, filename = _read_source(path)
+    try:
+        cmod = loads(text)
+    except ValueError as e:
+        print(f"字节码加载失败：{e}", file=sys.stderr)
+        return 1
+    try:
+        VM(cmod, filename).run()
+    except Exception as e:  # 兜底：绝不让英文 traceback 直接冒出
+        print(f"错误：程序内部出现未预料的问题（{type(e).__name__}）：{e}",
+              file=sys.stderr)
+        return 1
+    return 0
+
+
 def dump_ast(program, indent: int = 0) -> str:
     """把 AST 转成缩进文本（调试用）。"""
     pad = "  " * indent
@@ -159,6 +198,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="沙箱超时秒数（默认 5）")
     parser.add_argument("--stdin", action="store_true",
                         help="从标准输入读取源码（配合 --sandbox 供 MCP 调用）")
+    parser.add_argument("--dump-bytecode", action="store_true",
+                        help="把脚本编译成跨语言字节码并输出 JSON（M13.1）")
+    parser.add_argument("--load-bytecode", action="store_true",
+                        help="输入的是字节码 JSON 而非源码（配合文件/--stdin，M13.1）")
     parser.add_argument("-v", "--version", action="version",
                         version=f"基石 jishi {VERSION}")
     args = parser.parse_args(argv)
@@ -171,6 +214,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         from .ai import lang_spec_json
         print(lang_spec_json())
         return 0
+
+    # M13.1：跨语言字节码（编译 → JSON / JSON → 执行）
+    if args.dump_bytecode:
+        return _dump_bytecode(args.file, stdin=args.stdin)
+    if args.load_bytecode:
+        return _run_bytecode(args.file, stdin=args.stdin)
 
     if args.file or args.stdin:
         return run_file(
