@@ -36,3 +36,7 @@ jishi/_native/*.dylib
 
 # 本地包缓存目录（.jishi/packages/）
 .jishi/
+
+# Rust 编译产物
+rust/target/
+rust/Cargo.lock
