@@ -755,8 +755,12 @@ def _import_local_package(name: str, *, line=None, col=None,
                           filename="<输入>") -> Module:
     """从本地包缓存目录加载一个基石包（含依赖解析，M10.2）。
 
-    包结构：`.jishi/packages/名字/` 下含 `包.json`（名字/版本/依赖）与若干
-    `.jsh` 模块；执行所有模块后，把「顶层定义的名字」作为包成员导出。
+    包结构：`.jishi/packages/名字/` 下含 `包.json`（名字/版本/依赖/入口/描述/
+    许可）与若干 `.jsh` 模块。执行后把「顶层定义的名字」作为包成员导出。
+
+    入口（包.json 的「入口」字段，M14.1）：若声明了入口模块，则只执行该
+    模块（便于把「内部实现模块」与「对外主模块」分开）；否则向后兼容地
+    执行包内所有 .jsh 模块。
 
     依赖（包.json 的「依赖」字段，名字 → 版本约束）：先递归加载依赖包，
     校验其版本满足约束，再把依赖包对象注入到本包模块的全局命名空间，
@@ -800,19 +804,30 @@ def _import_local_package(name: str, *, line=None, col=None,
                 line=line, col=col, filename=filename)
         deps[dep_name] = dep_mod
 
-    # 执行所有 .jsh 模块，收集顶层定义的名字
+    # 决定要执行的模块：有「入口」只跑入口，否则跑全部 .jsh
     from .interpreter import Interpreter
     from .parser import parse
     from .tokenizer import tokenize
 
-    builtin_names = set(new_builtins().keys())
-    exports: dict[str, Any] = {}
+    entry = (meta.get("入口") or "").strip()
     jsh_files = sorted(f for f in os.listdir(pkg_dir) if f.endswith(".jsh"))
+    if entry:
+        # 入口可带或不带 .jsh 后缀
+        if not entry.endswith(".jsh"):
+            entry += ".jsh"
+        if entry not in jsh_files:
+            raise SemanticFuncError(
+                f"本地包「{name}」的 包.json 声明入口「{meta.get('入口')}」，"
+                f"但包里没有这个模块文件",
+                line=line, col=col, filename=filename)
+        jsh_files = [entry]
     if not jsh_files:
         raise SemanticFuncError(
             f"本地包「{name}」里没有 .jsh 模块文件",
             line=line, col=col, filename=filename)
 
+    builtin_names = set(new_builtins().keys())
+    exports: dict[str, Any] = {}
     for fn in jsh_files:
         path = os.path.join(pkg_dir, fn)
         with open(path, encoding="utf-8") as f:

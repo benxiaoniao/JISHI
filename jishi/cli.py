@@ -174,7 +174,148 @@ def _print_json_error(e: JishiError) -> None:
                      ensure_ascii=False), file=sys.stderr)
 
 
+def _cmd_install(args) -> int:
+    """`jishi 安装 包名`：从本地目录 / zip / URL 安装包到 .jishi/packages/。"""
+    from . import packages as PKG
+
+    try:
+        if args.local_dir:
+            PKG.install_package_dir(args.local_dir, args.package, force=args.force)
+            print(f"已安装包「{args.package}」（来自目录 {args.local_dir}）")
+            return 0
+        if args.local_zip:
+            PKG.install_package_zip(args.local_zip, args.package, force=args.force)
+            print(f"已安装包「{args.package}」（来自 {args.local_zip}）")
+            return 0
+        if args.from_index:
+            # 从远端索引 JSON 取下载地址并拉包
+            _install_from_index(args.package, args.from_index, force=args.force)
+            return 0
+        # 默认：本地包缓存目录直接按名字找，没有则报错提示
+        import os
+        from .runtime import _find_pkg_dir, _package_dirs
+        pdir = _find_pkg_dir(args.package)
+        if pdir:
+            print(f"包「{args.package}」已在本地缓存：{pdir}")
+            return 0
+        print(f"找不到包「{args.package}」", file=sys.stderr)
+        print("用法：jishi 安装 包名 --local-dir 目录  |  "
+              "--local-zip 包.zip  |  --from-index 索引.json", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(f"安装失败：{e}", file=sys.stderr)
+        return 1
+
+
+def _install_from_index(name: str, index_url: str, *, force: bool = False) -> None:
+    """从远端索引拉包：读索引 → 取下载地址 → 下载 zip → 解压安装。"""
+    import os
+    import tempfile
+    import urllib.request
+
+    from . import packages as PKG
+
+    if os.path.isfile(index_url):
+        with open(index_url, encoding="utf-8") as f:
+            text = f.read()
+    else:
+        try:
+            with urllib.request.urlopen(index_url, timeout=15) as resp:
+                text = resp.read().decode("utf-8")
+        except Exception as e:  # noqa: BLE001
+            raise ValueError(f"读远端索引「{index_url}」失败：{e}") from e
+
+    try:
+        index = PKG.parse_index(text)
+        meta = PKG.resolve_package(index, name)
+    except ValueError as e:
+        raise ValueError(str(e)) from e
+
+    url = meta.get("下载地址")
+    if not url:
+        raise ValueError(f"索引里包「{name}」没有「下载地址」字段")
+    # 下载地址含中文等非 ASCII 时做 URL 编码（urllib 不接受裸非 ASCII URL）
+    import urllib.parse
+    try:
+        url.encode("ascii")
+    except UnicodeEncodeError:
+        parts = urllib.parse.urlsplit(url)
+        url = urllib.parse.urlunsplit(
+            (parts.scheme, parts.netloc,
+             urllib.parse.quote(parts.path), parts.query, parts.fragment))
+    tmp = os.path.join(tempfile.gettempdir(), f"jishi-{name}.zip")
+    try:
+        with urllib.request.urlopen(url, timeout=60) as resp, \
+                open(tmp, "wb") as out:
+            out.write(resp.read())
+        PKG.install_package_zip(tmp, name, force=force)
+    except ValueError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise ValueError(f"下载或安装包「{name}」失败：{e}") from e
+    finally:
+        if os.path.isfile(tmp):
+            os.remove(tmp)
+    print(f"已安装包「{name}」（版本 {meta.get('版本', '未知')}，来自索引）")
+
+
+def _cmd_uninstall(args) -> int:
+    from . import packages as PKG
+    try:
+        if PKG.uninstall_package(args.package):
+            print(f"已卸载包「{args.package}」")
+            return 0
+        print(f"包「{args.package}」未安装", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(f"卸载失败：{e}", file=sys.stderr)
+        return 1
+
+
+def _cmd_list(args) -> int:
+    from . import packages as PKG
+    pkgs = PKG.list_packages()
+    if not pkgs:
+        print("（尚未安装任何本地包）")
+        return 0
+    for p in pkgs:
+        desc = f" — {p['描述']}" if p["描述"] else ""
+        print(f"{p['名字']} {p['版本']}{desc}")
+    return 0
+
+
+def _run_package_cmd(argv: list[str]) -> int:
+    """包管理子命令分发：jishi 安装/卸载/列表（M14.2）。"""
+    parser = argparse.ArgumentParser(
+        prog="jishi", description="基石包管理")
+    sub = parser.add_subparsers(dest="subcommand", metavar="命令", required=True)
+
+    p_install = sub.add_parser("安装", help="安装本地包到 .jishi/packages/")
+    p_install.add_argument("package", help="要安装的包名")
+    p_install.add_argument("--local-dir", help="从本地目录安装（含 包.json）")
+    p_install.add_argument("--local-zip", help="从本地 zip 安装（内含 包名/ 顶层目录）")
+    p_install.add_argument("--from-index", help="从远端索引 JSON（本地文件或 URL）拉包")
+    p_install.add_argument("--force", action="store_true", help="覆盖已安装的同名包")
+    p_install.set_defaults(func=_cmd_install)
+
+    p_uninstall = sub.add_parser("卸载", help="卸载本地包")
+    p_uninstall.add_argument("package", help="要卸载的包名")
+    p_uninstall.set_defaults(func=_cmd_uninstall)
+
+    p_list = sub.add_parser("列表", help="列出已安装的本地包")
+    p_list.set_defaults(func=_cmd_list)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    # 包管理子命令（安装/卸载/列表）走独立解析器，避免与「运行文件」位置参数冲突
+    if argv and argv[0] in ("安装", "卸载", "列表"):
+        return _run_package_cmd(argv)
+
     parser = argparse.ArgumentParser(
         prog="jishi", description="基石 —— 中文编程语言解释器")
     parser.add_argument("file", nargs="?", help="要运行的 .jsh 脚本文件")

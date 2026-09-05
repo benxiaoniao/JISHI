@@ -36,7 +36,7 @@ class SandboxOpts:
     allow_python_import: bool = False    # 允许 Python 桥接导入
     allow_modules: frozenset = field(    # 标准库白名单（无副作用模块恒允许）
         default_factory=lambda: frozenset(
-            {"随机", "数学", "文本", "时间", "json", "日期", "正则"}))
+            {"随机", "数学", "文本", "时间", "json", "日期", "正则", "加密"}))
     extra_stdlib: frozenset = field(default_factory=frozenset)
 
 
@@ -92,12 +92,26 @@ def _make_guard(opts: SandboxOpts):
                         line=line, col=col, filename=filename,
                         hint="如需文件读写，请显式开启 allow_write")
                 return   # 允许文件读写
+            if name in ("路径", "压缩"):
+                if not opts.allow_write:
+                    raise RunError(
+                        f"沙箱禁止导入「{name}」（涉及文件系统访问）",
+                        line=line, col=col, filename=filename,
+                        hint="如需文件系统访问，请显式开启 allow_write")
+                return
             if name == "网络":
                 if not opts.allow_network:
                     raise RunError(
                         "沙箱禁止导入「网络」（涉及网络访问）",
                         line=line, col=col, filename=filename,
                         hint="如需网络访问，请显式开启 allow_network")
+                return
+            if name == "系统":
+                if not opts.allow_network:
+                    raise RunError(
+                        "沙箱禁止导入「系统」（涉及执行外部命令/系统访问）",
+                        line=line, col=col, filename=filename,
+                        hint="如需系统访问，请显式开启 allow_network")
                 return
             if (name not in opts.allow_modules
                     and name not in opts.extra_stdlib):
