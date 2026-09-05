@@ -714,31 +714,24 @@ def _package_dirs() -> list[str]:
     return dirs
 
 
-def _import_local_package(name: str, *, line=None, col=None,
-                          filename="<输入>") -> Module:
-    """从本地包缓存目录加载一个基石包。
-
-    包结构：`.jishi/packages/名字/` 下含 `包.json`（名字/版本）与若干
-    `.jsh` 模块；执行所有模块后，把「顶层定义的名字」作为包成员导出。
-    """
-    import json
+def _find_pkg_dir(name: str) -> Optional[str]:
+    """在本地包搜索目录里找包目录，找不到返回 None。"""
     import os
-
-    pkg_dir = None
     for base in _package_dirs():
         cand = os.path.join(base, name)
         if os.path.isdir(cand):
-            pkg_dir = cand
-            break
-    if pkg_dir is None:
-        raise SemanticFuncError(
-            f"没有找到本地包「{name}」", line=line, col=col,
-            filename=filename,
-            hint=f"请把包放到 .jishi/packages/{name}/ 目录（含 包.json 与 .jsh 模块）")
+            return cand
+    return None
 
-    # 读包清单
-    meta_path = os.path.join(pkg_dir, "包.json")
+
+def _read_pkg_meta(pkg_dir: str, name: str, *, line=None, col=None,
+                   filename="<输入>") -> dict:
+    """读某包目录里的 包.json 并校验「名字」一致，返回元信息 dict。"""
+    import json
+    import os
+
     meta = {}
+    meta_path = os.path.join(pkg_dir, "包.json")
     if os.path.isfile(meta_path):
         try:
             with open(meta_path, encoding="utf-8") as f:
@@ -751,6 +744,61 @@ def _import_local_package(name: str, *, line=None, col=None,
         raise SemanticFuncError(
             f"包目录「{name}」里的 包.json 声明名字为「{meta['名字']}」，不一致",
             line=line, col=col, filename=filename)
+    return meta
+
+
+# 正在导入的包栈（检测循环依赖，如「甲 依赖 乙，乙 依赖 甲」）
+_IMPORT_STACK: list[str] = []
+
+
+def _import_local_package(name: str, *, line=None, col=None,
+                          filename="<输入>") -> Module:
+    """从本地包缓存目录加载一个基石包（含依赖解析，M10.2）。
+
+    包结构：`.jishi/packages/名字/` 下含 `包.json`（名字/版本/依赖）与若干
+    `.jsh` 模块；执行所有模块后，把「顶层定义的名字」作为包成员导出。
+
+    依赖（包.json 的「依赖」字段，名字 → 版本约束）：先递归加载依赖包，
+    校验其版本满足约束，再把依赖包对象注入到本包模块的全局命名空间，
+    本包的 .jsh 模块里可直接用 `依赖名.成员` 而无需重复导入。
+    """
+    import os
+
+    pkg_dir = _find_pkg_dir(name)
+    if pkg_dir is None:
+        raise SemanticFuncError(
+            f"没有找到本地包「{name}」", line=line, col=col,
+            filename=filename,
+            hint=f"请把包放到 .jishi/packages/{name}/ 目录（含 包.json 与 .jsh 模块）")
+
+    if name in _IMPORT_STACK:
+        chain = " → ".join(_IMPORT_STACK + [name])
+        raise SemanticFuncError(
+            f"检测到循环依赖：{chain}", line=line, col=col, filename=filename)
+
+    meta = _read_pkg_meta(pkg_dir, name, line=line, col=col, filename=filename)
+
+    # 递归解析依赖，并做版本约束校验
+    from .packages import version_satisfies
+
+    deps: dict[str, Any] = {}
+    for dep_name, constraint in (meta.get("依赖") or {}).items():
+        _IMPORT_STACK.append(name)
+        try:
+            dep_mod = _import_local_package(
+                dep_name, line=line, col=col, filename=filename)
+        finally:
+            _IMPORT_STACK.pop()
+        dep_dir = _find_pkg_dir(dep_name)
+        dep_meta = _read_pkg_meta(dep_dir, dep_name, line=line, col=col,
+                                  filename=filename) if dep_dir else {}
+        dep_version = dep_meta.get("版本") or "0.0.0"
+        if not version_satisfies(dep_version, constraint):
+            raise SemanticFuncError(
+                f"包「{name}」依赖「{dep_name}」的版本要满足 {constraint!r}，"
+                f"但装的是 {dep_version}",
+                line=line, col=col, filename=filename)
+        deps[dep_name] = dep_mod
 
     # 执行所有 .jsh 模块，收集顶层定义的名字
     from .interpreter import Interpreter
@@ -770,6 +818,9 @@ def _import_local_package(name: str, *, line=None, col=None,
         with open(path, encoding="utf-8") as f:
             source = f.read()
         interp = Interpreter(filename=path)
+        # 注入依赖包，供本包模块直接引用（`依赖名.成员`）
+        for dep_name, dep_mod in deps.items():
+            interp.globals.set(dep_name, dep_mod)
         tokens = tokenize(source, path)
         lines = source.replace("\r\n", "\n").split("\n")
         program = parse(tokens, lines, path)
