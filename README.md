@@ -212,7 +212,7 @@ jishi examples/01_猜数字.jsh --ast
 - **编辑器插件**：`editors/vscode-jishi/` —— .jsh 语法高亮（含中文引号/中文
   关键字）、11 个代码片段、括号/注释/缩进配置；vsce 打包 vsix 已端到端验证。
 - **文档站**：`tools/build_site.py` 零依赖 Markdown→HTML 生成器，把 README +
-  语言规格 + 设计决策 + 教程 7 章渲染成带侧边栏的静态站（`site/`，已 gitignore）。
+  语言规格 + 设计决策 + 教程 10 章渲染成带侧边栏的静态站（`site/`，已 gitignore）。
 - **打包发布**：pyproject 已验证 pip 可编辑安装 + wheel 构建，干净 venv 里
   CLI/REPL/脚本全可用；无 C DLL 时 C VM 优雅降级、树遍历照常。
 
@@ -300,8 +300,8 @@ jishi examples/01_猜数字.jsh --ast
     打印(json.dumps({"姓名"： "小明"}, ensure_ascii=假))   # {"姓名": "小明"}
     ```
     基石函数同样支持：`介绍(姓名 = "小红", 年龄 = 8)`
-- **教程**：`docs/tutorial/` **全 7 章**已完成（从你好世界到记账程序综合实战），
-  配套示例在 `examples/tutorial/`，示例全可运行
+- **教程**：`docs/tutorial/` **全 10 章**已完成（从你好世界到记账程序综合实战，
+  再到语法糖/沙箱 MCP/包管理），配套示例在 `examples/tutorial/`，示例全可运行
 
 ## 教程目录
 
@@ -314,6 +314,9 @@ jishi examples/01_猜数字.jsh --ast
 | [05 字典与结构化数据](docs/tutorial/05_字典与结构化数据.md) | 键值对、嵌套、计数器 |
 | [06 文件与标准库](docs/tutorial/06_文件与标准库.md) | 文件读写、数学/时间/表格模块 |
 | [07 综合实战](docs/tutorial/07_综合实战.md) | 记账程序：需求→设计→实现 |
+| [08 语法糖](docs/tutorial/08_语法糖.md) | 多赋值解包/默认参数/推导式/文本插值 |
+| [09 沙箱与 MCP](docs/tutorial/09_沙箱与MCP.md) | 沙箱三道保险/统一协议/MCP Server |
+| [10 包管理](docs/tutorial/10_包管理.md) | 安装/卸载/列表/依赖解析 |
 
 ## 项目结构
 
@@ -348,7 +351,7 @@ node/            Node.js 纯 JS 解释器（M13.2，零依赖，消费 JSON 字�
 rust/            Rust 绑定（M13.3，jishi-ffi crate + 自研零依赖 JSON 解析器）
 tests/           549 项测试（含 107 项三执行器对拍）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例、packages/ 包管理示例）
-docs/            语言规格.md、设计决策.md、路线图.md、embed.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 7 章
+docs/            语言规格.md、设计决策.md、路线图.md、embed.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 10 章
 assets/          品牌资产（基石_logo.png，源图 基石_logo.jpeg）
 tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文档站 /
                  build_playground.py 浏览器试玩 / build_wheel.py wheel 打包 /
