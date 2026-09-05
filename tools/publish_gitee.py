@@ -15,11 +15,16 @@
 """
 
 import io
+import json
 import os
 import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +33,81 @@ BRANCH = "master"
 AUTHOR_NAME = "陈柏林"
 AUTHOR_EMAIL = "benxiaoniao@outlook.com"
 
-COMMIT_MSG = """基石（jishi）：中文编程语言——M0-M11 全部里程碑
+#: Gitee API（v5）仓库坐标
+OWNER = "stupid-bird123"
+REPO = "jishi"
+API_BASE = f"https://gitee.com/api/v5/repos/{OWNER}/{REPO}"
+
+
+# ---------------------------------------------------------------------------
+# Gitee Release（M16.4）：创建 release + 上传发行包附件
+# ---------------------------------------------------------------------------
+
+def _http_post_json(url: str, fields: dict) -> dict:
+    """POST 表单字段，返回解析后的 JSON。"""
+    data = urllib.parse.urlencode(fields).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")
+        raise SystemExit(f"Gitee API 返回 {e.code}：{body[:600]}")
+
+
+def _http_post_file(url: str, fields: dict, file_field: str,
+                    file_path: Path) -> dict:
+    """multipart/form-data POST：若干普通字段 + 一个文件字段。"""
+    boundary = f"----jishi{uuid.uuid4().hex}"
+    buf = io.BytesIO()
+    for k, v in fields.items():
+        buf.write(f"--{boundary}\r\n".encode())
+        buf.write(f'Content-Disposition: form-data; name="{k}"\r\n\r\n'.encode())
+        buf.write(f"{v}\r\n".encode())
+    fname = file_path.name.encode("utf-8")
+    buf.write(f"--{boundary}\r\n".encode())
+    buf.write(
+        f'Content-Disposition: form-data; name="{file_field}"; '
+        f'filename="{fname.decode("utf-8")}"\r\n'.encode())
+    buf.write(b"Content-Type: application/octet-stream\r\n\r\n")
+    with open(file_path, "rb") as f:
+        buf.write(f.read())
+    buf.write(f"\r\n--{boundary}--\r\n".encode())
+
+    req = urllib.request.Request(url, data=buf.getvalue(), method="POST")
+    req.add_header(
+        "Content-Type", f"multipart/form-data; boundary={boundary}")
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")
+        raise SystemExit(f"上传附件失败（{e.code}）：{body[:600]}")
+
+
+def create_release(token: str, tag: str, name: str, body: str) -> dict:
+    """在 Gitee 创建一个 release（tag 不存在时由 API 基于分支创建）。"""
+    print(f"[release] 创建 {tag} ...")
+    rel = _http_post_json(
+        f"{API_BASE}/releases",
+        {"access_token": token, "tag_name": tag, "name": name,
+         "body": body, "target_commitish": BRANCH})
+    print(f"[release] 已创建 id={rel.get('id')} tag={rel.get('tag_name')}")
+    return rel
+
+
+def upload_release_assets(token: str, release_id: int,
+                          files: list) -> None:
+    """往 release 上传发行包附件（zip + SHA256SUMS）。"""
+    for p in files:
+        print(f"[release] 上传附件 {p.name}（{p.stat().st_size / 1048576:.1f} MB）")
+        _http_post_file(
+            f"{API_BASE}/releases/{release_id}/attach_files",
+            {"access_token": token}, "file", p)
+        print(f"[release]   ✓ {p.name} 上传完成")
+
+COMMIT_MSG = """基石（jishi）：中文编程语言——M0-M16 全部里程碑
 
 语言核心
 - 中文词法/语法/AST，中文报错精确到行列 +「你是不是想写…」修正建议
@@ -44,15 +123,19 @@ AI 原生（北极星：最容易被大模型正确生成、安全执行、自�
 - jishi --ai-card 语言卡 / --lang-spec 机器可读语言规格 / --json-errors 结构化报错
 - 报错带 fix 字段，agent 可程序化文本替换自愈
 - 沙箱运行器（超时/输出上限/模块白名单）+ MCP Server（run_script/eval_expr）
-- llms.txt + few-shot 示例库 + 官方系统提示词 + JishiEval 评测集
+- llms.txt + few-shot 示例库 45 对 + 官方系统提示词 + JishiEval 评测集 50 题
 
 生态与工程
 - Python 生态桥接：导入任意 Python 库，关键字参数保中文，异常中文化
-- 标准库 10 模块（随机/数学/时间/文件/表格/文本/json/日期/正则/网络）+ 教程 7 章
-- 本地包管理雏形、浏览器 Playground（pyodide）、VSCode 扩展、零依赖文档站
+- 标准库 14 模块（随机/数学/时间/文件/表格/文本/json/日期/正则/网络/
+  路径/加密/压缩/系统）+ 教程 10 章
+- 包管理：jishi 安装/卸载/列表，依赖递归解析 + 版本约束 + 循环检测
+- 跨语言字节码分发：JSON 字节码 + Node/Rust 宿主直嵌引擎
 - C VM 公开 ABI（cvm/include/jsvm.h）+ wheel 内带预编译 DLL，pip 装即含 C VM
+- 发行版：PyInstaller 独立可执行文件（免 Python 环境）+ 安装/卸载脚本
+  + jishi 医生 环境自检 + jishi 新项目 脚手架
 
-499 项测试全部通过"""
+559 项测试全部通过"""
 
 
 def _git(*args: str, cwd: Path | None = None) -> str:
@@ -104,7 +187,7 @@ def _sanitize(snapshot: Path) -> None:
         _, _s2, tail = rest.partition("## 设计原则")
         src = head + (
             "## 路线图\n\n"
-            "M0–M11 已全部完成（见「当前进度」）。后续版本将持续打磨语法表达力、\n"
+            "M0–M16 已全部完成（见「当前进度」）。后续版本将持续打磨语法表达力、\n"
             "扩充标准库生态、优化执行性能，并加强对 AI 编程助手场景的支持——\n"
             "让基石更容易被大模型正确生成、安全执行、自我修复。\n\n"
         ) + "## 设计原则" + tail
@@ -176,11 +259,96 @@ def main() -> int:
         encoding="utf-8", errors="replace")
     if r.returncode != 0:
         raise SystemExit(f"推送失败：\n{r.stderr}")
+    print("    ✓ 代码已同步")
 
     import shutil
     shutil.rmtree(snapshot, ignore_errors=True)
+
+    # 可选：创建 Gitee Release 并上传发行包（M16.4）
+    if "--release" in sys.argv:
+        _do_release(token)
+
     print("✓ 已同步（含屏蔽）并清理临时快照")
     return 0
+
+
+def _do_release(token: str) -> None:
+    """创建 Gitee Release + 上传 dist/release 下的发行包。"""
+    sys.path.insert(0, str(ROOT))
+    from jishi.version import VERSION
+
+    tag = f"v{VERSION}"
+    name = f"基石 jishi {VERSION}"
+    body = _release_body(VERSION)
+
+    rel = create_release(token, tag, name, body)
+
+    # 上传发行包：zip（或 tar.gz）+ SHA256SUMS
+    dist = ROOT / "dist" / "release"
+    files = sorted(
+        [p for p in dist.glob(f"jishi-{VERSION}-*")
+         if p.suffix in (".zip", ".gz")]
+        + ([dist / "SHA256SUMS"] if (dist / "SHA256SUMS").exists() else []))
+    if not files:
+        print(f"[release] 警告：dist/release 下没有 jishi-{VERSION}-* 发行包，"
+              f"跳过附件上传（先跑 python tools/build_release.py）")
+        return
+    upload_release_assets(token, rel["id"], files)
+    print(f"[release] ✅ Release 完成：{tag}")
+
+
+def _release_body(version: str) -> str:
+    """Release 说明（从 CHANGELOG 摘取 + 下载安装指引）。"""
+    return f"""# 基石 jishi {version}
+
+一门**像 Python 一样简单易用的中文编程语言**：报错全中文、
+能直用 Python 生态、能被大模型安全调用。
+
+这是首个对外发行版，M0–M16 全部里程碑完成。
+
+## 下载与安装
+
+| 平台 | 文件 |
+|------|------|
+| Windows x64 | `jishi-{version}-windows-x64.zip` |
+
+1. 下载上面的 zip 与 `SHA256SUMS`（校验完整性）
+2. 解压后运行安装脚本：
+   ```
+   powershell -ExecutionPolicy Bypass -File install.ps1
+   ```
+   （默认装到 `~/.jishi`，自动把 `bin` 加入用户 PATH）
+3. **新开终端**，验证：`jishi --version`
+4. 写第一个程序：
+   ```
+   令 名字 = "世界"
+   打印("你好，" + 名字)
+   ```
+   保存为 `hello.jsh`，运行 `jishi hello.jsh`
+
+开发者也可走 pip：`pip install jishi`
+
+## 主要特性
+
+- **中文语法**：缩进分块，报错精确到行列 +「你是不是想写…」修正建议
+- **三执行器**：树遍历 / Python 字节码 VM / C 字节码 VM（107 项对拍护航）
+- **Python 生态桥接**：`导入 x 从 python` 直用整个 Python 生态，关键字参数保中文
+- **14 个标准库**：随机/数学/时间/文件/表格/文本/json/日期/正则/网络/路径/加密/压缩/系统
+- **AI 原生（北极星）**：语言卡（`--ai-card`）/ 机器可读语言规格（`--lang-spec`）/
+  结构化报错（`--json-errors`，带 fix 自愈）/ 沙箱 / MCP Server
+- **包管理**：`jishi 安装/卸载/列表`，依赖递归解析 + 版本约束 + 循环检测
+- **跨语言分发**：`--dump-bytecode` 产出 JSON 字节码，Node/Rust 宿主直嵌
+- **首次体验**：`jishi 新项目 名字` 脚手架 / `jishi 教程` / `jishi 医生` 环境自检
+
+## 已知限制（诚实声明）
+
+- 发行包体积约 16MB（内含 Python 运行时），大于 Go/Rust 编写的语言
+- PyInstaller 产物可能被部分杀软误报，故同时提供 wheel / 源码两条途径
+- 无切片语法（`[::-1]` 请用 `反转()`）、`最小`/`最大` 只收单列表、无 argv
+- Rust 宿主为「最小可运行」；Linux/macOS 发行包依赖 CI，本次仅提供 Windows x64
+
+559 项测试全部通过。详见仓库 README.md 与 CHANGELOG.md。
+"""
 
 
 if __name__ == "__main__":
