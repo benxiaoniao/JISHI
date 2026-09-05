@@ -17,7 +17,8 @@ import subprocess
 import sys
 from typing import Any, Optional
 
-VERSION = "0.1.0"
+from .version import VERSION
+
 PROTOCOL_VERSION = "2024-11-05"
 
 # ---------------------------------------------------------------------------

@@ -23,7 +23,7 @@ from .runtime import (
     new_builtins,
 )
 
-VERSION = "0.1.0"
+from .version import VERSION
 
 # 关键字身份 → 中文说明（语言卡 / 语言规格共用）
 KEYWORD_DESC = {
@@ -47,12 +47,24 @@ OP_NAME = {
 }
 
 
+def _stdlib_dir() -> str:
+    """stdlib 源码目录。打包后（PyInstaller）源文件在 _MEIPASS，源码树在包内。"""
+    import os
+    from . import stdlib as _stdlib_pkg
+    # PyInstaller 单文件：解压到 sys._MEIPASS
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        cand = os.path.join(meipass, "jishi", "stdlib")
+        if os.path.isdir(cand):
+            return cand
+    return os.path.dirname(_stdlib_pkg.__file__)
+
+
 def _stdlib_api() -> list[dict]:
     """扫描 jishi/stdlib/*.py，提取每个模块导出的函数签名与说明。"""
     import os
-    from . import stdlib as _stdlib_pkg
 
-    pkg_dir = os.path.dirname(_stdlib_pkg.__file__)
+    pkg_dir = _stdlib_dir()
     mods = []
     for fn in sorted(os.listdir(pkg_dir)):
         if not fn.endswith(".py") or fn.startswith("_"):

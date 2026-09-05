@@ -49,11 +49,19 @@ def _lib_name() -> str:
 
 
 def _lib_path() -> Path:
-    # 优先：包内预编译（wheel 安装后，pip install 即含 C VM）
+    import sys
+
+    # 1. PyInstaller 打包后：DLL 解压到 _MEIPASS
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        cand = Path(meipass) / _lib_name()
+        if cand.exists():
+            return cand
+    # 2. 包内预编译（wheel 安装后，pip install 即含 C VM）
     pkg = _NATIVE / _lib_name()
     if pkg.exists():
         return pkg
-    # 回退：源码树开发模式（cvm/bin/，由 python cvm/build.py 构建）
+    # 3. 回退：源码树开发模式（cvm/bin/，由 python cvm/build.py 构建）
     dev = _BIN / _lib_name()
     if dev.exists():
         return dev

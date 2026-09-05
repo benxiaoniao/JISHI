@@ -19,8 +19,7 @@ from .errors import JishiError
 from .interpreter import Interpreter, run_source
 from .parser import parse
 from .tokenizer import tokenize
-
-VERSION = "0.1.0"
+from .version import VERSION
 
 BANNER = f"""基石 jishi {VERSION} —— 一门像 Python 一样简单易用的中文编程语言
 输入「退出」离开；冒号结尾的行会继续输入（多行代码块）。
@@ -284,6 +283,109 @@ def _cmd_list(args) -> int:
     return 0
 
 
+def _cmd_doctor(args) -> int:
+    """`jishi 医生`：环境自检，异常给中文修复建议（M16.3）。"""
+    import os
+    import sys as _sys
+
+    ok = True
+    print("== 基石环境自检 ==")
+
+    # 1. 版本
+    print(f"  版本：{VERSION}")
+
+    # 2. Python 版本
+    py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}"
+    print(f"  Python：{py_ver}")
+
+    # 3. 安装位置
+    try:
+        import jishi as _jishi
+        print(f"  安装位置：{os.path.dirname(os.path.abspath(_jishi.__file__))}")
+    except Exception:  # noqa: BLE001
+        print("  安装位置：未知")
+
+    # 4. C VM 是否加载成功
+    try:
+        from . import cvm_bind as _cvm
+        _cvm.load_lib()
+        print("  C VM：已加载 [OK]")
+    except Exception as e:  # noqa: BLE001
+        ok = False
+        print(f"  C VM：加载失败 [异常]（{e}）")
+        print("    建议：运行 python cvm/build.py 重新构建动态库")
+
+    # 5. 终端编码
+    enc = getattr(_sys.stdout, "encoding", None) or "未知"
+    print(f"  终端编码：{enc}")
+    if enc and enc.lower() not in ("utf-8", "utf8", "cp65001"):
+        print("    提示：建议使用 UTF-8 编码终端（Windows 可执行 chcp 65001）")
+
+    # 6. MCP 可用性
+    try:
+        from . import mcp_server
+        print("  MCP Server：可用 [OK]")
+    except Exception as e:  # noqa: BLE001
+        ok = False
+        print(f"  MCP Server：异常 [异常]（{e}）")
+
+    print()
+    if ok:
+        print("[OK] 环境正常，可以开始写基石代码了。")
+        return 0
+    print("[警告] 发现环境问题，请按上方建议修复。")
+    return 1
+
+
+def _cmd_new_project(args) -> int:
+    """`jishi 新项目 名字`：生成脚手架（M16.5）。"""
+    import os
+    name = args.name
+    target = os.path.join(os.getcwd(), name)
+    if os.path.exists(target):
+        print(f"目录「{name}」已存在，换个名字吧", file=sys.stderr)
+        return 1
+    os.makedirs(target)
+    hello = f"""# {name} —— 你的第一个基石项目
+
+令 名字 = "世界"
+打印("你好，" + 名字)
+打印(`这是 {name} 项目的第一行代码`)
+"""
+    with open(os.path.join(target, "hello.jsh"), "w", encoding="utf-8") as f:
+        f.write(hello)
+    with open(os.path.join(target, "说明.md"), "w", encoding="utf-8") as f:
+        f.write(f"# {name}\n\n运行 `jishi hello.jsh` 查看效果。\n")
+    print(f"已创建项目「{name}」：")
+    print(f"  {target}/hello.jsh")
+    print(f"  {target}/说明.md")
+    print()
+    print(f"下一步：cd {name} && jishi hello.jsh")
+    return 0
+
+
+def _cmd_tutorial(args) -> int:
+    """`jishi 教程`：打印本地教程索引（M16.5）。"""
+    print("== 基石教程（10 章）==")
+    chapters = [
+        ("01", "你好基石", "运行基石、打印、变量、注释"),
+        ("02", "数与文本", "运算、字符串方法、输入、列表"),
+        ("03", "判断与循环", "如果/否则、遍历/循环/当、链式比较"),
+        ("04", "函数", "定义函数、作用域、递归"),
+        ("05", "字典与结构化数据", "键值对、嵌套、计数器"),
+        ("06", "文件与标准库", "文件读写、数学/时间/表格模块"),
+        ("07", "综合实战", "记账程序：需求→设计→实现"),
+        ("08", "语法糖", "多赋值解包/默认参数/推导式/文本插值"),
+        ("09", "沙箱与 MCP", "沙箱三道保险/统一协议/MCP Server"),
+        ("10", "包管理", "安装/卸载/列表/依赖解析"),
+    ]
+    for num, title, desc in chapters:
+        print(f"  第{num}章 {title}：{desc}")
+    print()
+    print("完整教程见 docs/tutorial/ 目录，或访问项目 README 的教程索引。")
+    return 0
+
+
 def _run_package_cmd(argv: list[str]) -> int:
     """包管理子命令分发：jishi 安装/卸载/列表（M14.2）。"""
     parser = argparse.ArgumentParser(
@@ -309,12 +411,35 @@ def _run_package_cmd(argv: list[str]) -> int:
     return args.func(args)
 
 
+def _run_tool_cmd(argv: list[str]) -> int:
+    """工具子命令分发：jishi 医生/新项目/教程（M16）。"""
+    parser = argparse.ArgumentParser(
+        prog="jishi", description="基石工具")
+    sub = parser.add_subparsers(dest="subcommand", metavar="命令", required=True)
+
+    sub.add_parser("医生", help="环境自检（安装位置/版本/C VM/编码/MCP）").set_defaults(
+        func=_cmd_doctor)
+
+    p_new = sub.add_parser("新项目", help="生成脚手架项目")
+    p_new.add_argument("name", help="项目名")
+    p_new.set_defaults(func=_cmd_new_project)
+
+    sub.add_parser("教程", help="打印本地教程索引").set_defaults(
+        func=_cmd_tutorial)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
     # 包管理子命令（安装/卸载/列表）走独立解析器，避免与「运行文件」位置参数冲突
     if argv and argv[0] in ("安装", "卸载", "列表"):
         return _run_package_cmd(argv)
+    # 工具子命令（医生/新项目/教程，M16）
+    if argv and argv[0] in ("医生", "新项目", "教程"):
+        return _run_tool_cmd(argv)
 
     parser = argparse.ArgumentParser(
         prog="jishi", description="基石 —— 中文编程语言解释器")
