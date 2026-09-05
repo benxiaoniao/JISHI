@@ -10,7 +10,8 @@
                                  Windows 下已加载的 DLL 无法被覆盖写入）
   2. 单元/黄金/错误快照测试      pytest tests/
   3. C VM 对拍可用性确认         tests/test_cvm.py 里的 C 用例是否真正在跑
-  4. 基准冒烟                    tools/benchmark.py --quick
+  4. 评测集标准答案自测          bench/ai-eval/eval.py --self-test（50 题）
+  5. 基准冒烟                    tools/benchmark.py --quick
 """
 
 import subprocess
@@ -49,7 +50,12 @@ def main() -> int:
     if not _run([PYTHON, "-c", probe], "C VM 对拍可用性确认"):
         return 1
 
-    # 4) 基准冒烟（可选跳过）
+    # 4) 评测集标准答案自测（语法改动不得使通过率下降）
+    if not _run([PYTHON, str(ROOT / "bench" / "ai-eval" / "eval.py"),
+                 "--self-test"], "评测集 JishiEval 标准答案自测"):
+        return 1
+
+    # 5) 基准冒烟（可选跳过）
     if not skip_bench:
         if not _run([PYTHON, str(ROOT / "tools" / "benchmark.py"), "--quick"],
                     "基准冒烟（--quick）"):

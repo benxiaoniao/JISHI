@@ -112,9 +112,60 @@ def test_jiishi_eval_all_answers_pass():
         "jiishi_eval", "bench/ai-eval/eval.py")
     jeval = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(jeval)
-    assert len(jeval.TASKS) >= 10
+    assert len(jeval.TASKS) >= 50
     for t in jeval.TASKS:
         out = jeval.run_code(t["answer"])
         assert out == t["stdout"], (
             f"{t['id']} 答案输出不匹配\n"
             f"期望 {t['stdout']!r}\n实际 {out!r}")
+
+
+# -- M12 评测驱动闭环：fix 提取 + 自愈 ---------------------------------------
+
+def _load_jeval():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "jiishi_eval_m12", "bench/ai-eval/eval.py")
+    jeval = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(jeval)
+    return jeval
+
+
+def test_eval_run_code_result_extracts_fix():
+    jeval = _load_jeval()
+    ok, _out, err = jeval.run_code_result("def 计算(x):\n    返回 x * 2")
+    assert ok is False
+    assert err["code"] == "E0201"
+    assert err["fix"] == {"old": "def", "new": "函数"}
+
+
+def test_eval_apply_fix_replaces_keyword():
+    jeval = _load_jeval()
+    src = "def 计算(x):\n    返回 x * 2"
+    _ok, _out, err = jeval.run_code_result(src)
+    fixed = jeval._apply_fix(src, err)
+    assert fixed == "函数 计算(x):\n    返回 x * 2"
+
+
+def test_eval_heal_loop_two_rounds():
+    """def + return 两个英文关键字，两轮自愈后通过。"""
+    jeval = _load_jeval()
+    src = "def 计算(x):\n    return x * 2\n打印(计算(21))"
+    cur = src
+    for _ in range(3):
+        ok, out, err = jeval.run_code_result(cur)
+        if ok:
+            break
+        nxt = jeval._apply_fix(cur, err)
+        if nxt is None or nxt == cur:
+            break
+        cur = nxt
+    assert jeval.run_code_result(cur)[1] == "42\n"
+
+
+def test_eval_apply_fix_no_false_positive():
+    """无 fix 的错误不应触发替换。"""
+    jeval = _load_jeval()
+    ok, _out, err = jeval.run_code_result("令 x = 1 / 0")
+    assert ok is False
+    assert jeval._apply_fix("令 x = 1 / 0", err) is None
