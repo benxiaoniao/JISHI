@@ -348,7 +348,8 @@ class Interpreter:
 
     def _do_import(self, stmt: A.Import, env: Environment) -> None:
         mod = do_import(stmt.name, stmt.from_python, stmt.from_local,
-                        line=stmt.line, col=stmt.col, filename=self.filename)
+                        line=stmt.line, col=stmt.col, filename=self.filename,
+                        alias=stmt.alias)
         env.set(stmt.alias or stmt.name, mod)
 
     # 类定义：把方法（函数）收集进 JishiClass；继承时复制基类方法表。
@@ -477,8 +478,18 @@ class Interpreter:
             return get_attr(self.eval_expr(expr.obj, env), expr.attr,
                             line=expr.line, col=expr.col, filename=self.filename)
         if isinstance(expr, A.Subscript):
-            return get_item(self.eval_expr(expr.obj, env),
-                            self.eval_expr(expr.index, env),
+            obj = self.eval_expr(expr.obj, env)
+            idx = expr.index
+            if isinstance(idx, A.Slice):
+                # M18.1 切片：三个分量分别求值（省略为 None），再取切片
+                s = R.make_slice(
+                    self.eval_expr(idx.start, env) if idx.start is not None else None,
+                    self.eval_expr(idx.stop, env) if idx.stop is not None else None,
+                    self.eval_expr(idx.step, env) if idx.step is not None else None,
+                    line=expr.line, col=expr.col, filename=self.filename)
+                return get_item(obj, s, line=expr.line, col=expr.col,
+                                filename=self.filename)
+            return get_item(obj, self.eval_expr(idx, env),
                             line=expr.line, col=expr.col, filename=self.filename)
         raise RunError(f"还不支持的表达式：{type(expr).__name__}",
                        line=getattr(expr, "line", 1),

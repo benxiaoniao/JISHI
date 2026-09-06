@@ -206,6 +206,7 @@ CB_RAISE_BAD_KW = CFUNCTYPE(c_int, c_int, c_int, c_int, c_int)
 CB_RAISE_MISSING = CFUNCTYPE(c_int, c_int, _IPV, c_int, c_int, c_int)
 CB_RAISE_INTERNAL = CFUNCTYPE(c_int, c_char_p)
 CB_LIST_APPEND = CFUNCTYPE(c_int, _JPV, _JPV, c_int, c_int)
+CB_MAKE_SLICE = CFUNCTYPE(c_int, _JPV, _JPV, _JPV, _JPV, c_int, c_int)
 
 
 class JsHost(Structure):
@@ -248,6 +249,7 @@ class JsHost(Structure):
         ("raise_missing", CB_RAISE_MISSING),
         ("raise_internal", CB_RAISE_INTERNAL),
         ("list_append", CB_LIST_APPEND),
+        ("make_slice", CB_MAKE_SLICE),
     ]
 
 
@@ -386,6 +388,7 @@ class CvmHost:
             raise_missing=CB_RAISE_MISSING(self._cb_raise_missing),
             raise_internal=CB_RAISE_INTERNAL(self._cb_raise_internal),
             list_append=CB_LIST_APPEND(self._cb_list_append),
+            make_slice=CB_MAKE_SLICE(self._cb_make_slice),
         )
         self.lib.jsvm_set_host(self.vm, byref(self._cb))
 
@@ -756,6 +759,21 @@ class CvmHost:
                            filename=self.filename)
             R.call_value(m, [v], {}, line=line, col=col,
                          filename=self.filename)
+            return 0
+        except BaseException as e:
+            return self._fail(e)
+
+    def _cb_make_slice(self, start, stop, step, out, line, col):
+        """切片（M18）：start/stop/step 三个分量（UNSET 表省略）→ slice HOST 句柄。"""
+        try:
+            def conv(v):
+                # UNSET 标签表示「省略」→ None
+                if v.tag == O.T_UNSET:
+                    return None
+                return self.c2py(v)
+            s = R.make_slice(conv(start[0]), conv(stop[0]), conv(step[0]),
+                             line=line, col=col, filename=self.filename)
+            out[0] = self.py2c(s)
             return 0
         except BaseException as e:
             return self._fail(e)

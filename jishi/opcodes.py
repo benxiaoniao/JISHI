@@ -95,6 +95,8 @@ class Op:
     UNPACK = 46            # 解包：弹出栈顶可迭代，压 a 个元素（第一个在栈顶）
     # -- M11 性能 --
     LIST_APPEND = 47       # 列表追加：[obj, val] → obj.追加(val)，弹 2 压 0
+    # -- M18 表达力 --
+    BUILD_SLICE = 48       # 切片：按 a 的位标志从栈上取分量构造 slice，压 1
 
 
 #: 指令号 → 名字（按号排序，C 头生成依赖此顺序）
@@ -157,6 +159,7 @@ OP_ARITY = {
     Op.BUILD_CLASS: 2,
     Op.UNPACK: 1,
     Op.LIST_APPEND: 0,
+    Op.BUILD_SLICE: 1,
 }
 
 

@@ -492,6 +492,15 @@ class VM:
                         stack.append(R.get_item(
                             stack.pop(), idx,
                             line=ins.line, col=ins.col, filename=filename))
+                    elif op == Op.BUILD_SLICE:
+                        # M18.1：按位标志从栈上取 start/stop/step 构造 slice
+                        flags = ins.a
+                        step = stack.pop() if (flags & 4) else None
+                        stop = stack.pop() if (flags & 2) else None
+                        start = stack.pop() if (flags & 1) else None
+                        stack.append(R.make_slice(
+                            start, stop, step,
+                            line=ins.line, col=ins.col, filename=filename))
                     elif op == Op.SET_ITEM:
                         val = stack.pop()
                         idx = stack.pop()
@@ -562,9 +571,11 @@ class VM:
                     # === 模块 ===
                     elif op == Op.IMPORT:
                         src = ins.b   # 0=标准库 1=python 2=本地包
+                        alias_name = names[ins.c] if ins.c >= 0 else None
                         stack.append(R.do_import(
                             names[ins.a], src == 1, src == 2,
-                            line=ins.line, col=ins.col, filename=filename))
+                            line=ins.line, col=ins.col, filename=filename,
+                            alias=alias_name))
                     elif op == Op.STORE_LAST:
                         self.last_value = stack.pop()
 

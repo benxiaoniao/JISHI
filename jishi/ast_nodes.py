@@ -259,3 +259,11 @@ class Attr(Node):
 class Subscript(Node):
     obj: Node
     index: Node
+
+
+@dataclass(kw_only=True)
+class Slice(Node):
+    """切片（M18.1）：`列表[起:止:步长]`，三个分量均可为 None（省略）。"""
+    start: Optional["Node"] = None
+    stop: Optional["Node"] = None
+    step: Optional["Node"] = None

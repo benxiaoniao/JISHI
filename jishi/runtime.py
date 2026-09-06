@@ -190,18 +190,24 @@ def _b_range(*args):
     raise RunTypeError("「范围」最多接受 3 个参数")
 
 
-def _b_max(v):
+def _b_max(*args):
+    # M18.3：单参数且是列表/元组 → max(序列)；多参数 → max(参数们)。
+    # 兼容 最大([a,b]) 与 最大(a,b)、最大(a,b,c)。
     try:
-        return max(v)
+        if len(args) == 1 and isinstance(args[0], (list, tuple)):
+            return max(args[0])
+        return max(args)
     except (TypeError, ValueError):
-        raise RunTypeError(f"「{v}」不能求最大值，需要一个非空列表")
+        raise RunTypeError(f"「{args}」不能求最大值，需要一个非空列表或若干数字")
 
 
-def _b_min(v):
+def _b_min(*args):
     try:
-        return min(v)
+        if len(args) == 1 and isinstance(args[0], (list, tuple)):
+            return min(args[0])
+        return min(args)
     except (TypeError, ValueError):
-        raise RunTypeError(f"「{v}」不能求最小值，需要一个非空列表")
+        raise RunTypeError(f"「{args}」不能求最小值，需要一个非空列表或若干数字")
 
 
 def _b_sum(v):
@@ -542,6 +548,20 @@ def get_item(obj, index, *, line=None, col=None, filename="<输入>"):
                                          filename=filename)
 
 
+def make_slice(start, stop, step, *, line=None, col=None,
+               filename="<输入>"):
+    """构造切片（M18.1）：`列表[起:止:步长]` 的三个分量转成 Python slice。
+
+    分量可以是 None（省略），也可以是整数或空（表示不指定）。
+    """
+    def _norm(v):
+        # 空/None → None；其它值原样（整数、表达式结果）
+        if v is None:
+            return None
+        return v
+    return slice(_norm(start), _norm(stop), _norm(step))
+
+
 def set_item(obj, index, value, *, line=None, col=None,
              filename="<输入>"):
     try:
@@ -679,7 +699,8 @@ _IMPORT_GUARD = None
 
 
 def do_import(name: str, from_python: bool = False, from_local: bool = False,
-              *, line=None, col=None, filename="<输入>") -> Module:
+              *, line=None, col=None, filename="<输入>",
+              alias: Optional[str] = None) -> Module:
     if _IMPORT_GUARD is not None:
         _IMPORT_GUARD(name, from_python, from_local, line, col, filename)
     if from_local:
@@ -695,7 +716,33 @@ def do_import(name: str, from_python: bool = False, from_local: bool = False,
             filename=filename,
             hint="试试：导入 随机 / 导入 数学 / 导入 时间 / 导入 文本")
     attrs = {k: v for k, v in vars(mod).items() if not k.startswith("_")}
+    # 用了别名就不会遮蔽内建，不提示（M18.4）
+    if alias is None:
+        _warn_shadow_builtin(name)
     return Module(name, attrs)
+
+
+#: 已提示过「模块名遮蔽内建」的名字（M18.4，避免重复刷屏）
+_warned_shadow: set = set()
+
+
+def _warn_shadow_builtin(name: str) -> None:
+    """标准库模块名与内建函数同名时，打印一次中文提示（M18.4）。
+
+    例如 `导入 文本` 会遮蔽内建转换函数 `文本(...)`——模块「文本」被绑定到
+    名字「文本」，之后 `文本(123)` 会报「模块不能直接调用」。
+    """
+    if name in _warned_shadow:
+        return
+    builtin_names = set(new_builtins().keys())
+    if name in builtin_names:
+        _warned_shadow.add(name)
+        import sys as _sys
+        print(
+            f"提示：「{name}」既是标准库模块名，又是内建函数名。"
+            f"导入后，内建的 {name}(...) 会被模块「{name}」遮蔽。"
+            f"如需两者都用，建议用别名导入：导入 {name} 为 别的名字",
+            file=_sys.stderr)
 
 
 # ---------------------------------------------------------------------------

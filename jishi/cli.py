@@ -107,7 +107,11 @@ def dump_ast(program, indent: int = 0) -> str:
 def run_file(path: str, show_ast: bool = False,
              json_errors: bool = False, sandbox: bool = False,
              json_result: bool = False, timeout: float = 5.0,
-             stdin: bool = False) -> int:
+             stdin: bool = False, argv: Optional[list[str]] = None) -> int:
+    if argv is not None:
+        # M18.2：把命令行参数注入「系统.参数()」
+        from .stdlib import 系统 as _sys_mod
+        _sys_mod._设参数(argv)
     if stdin:
         source = sys.stdin.read()
         filename = "<stdin>"
@@ -470,7 +474,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="输入的是字节码 JSON 而非源码（配合文件/--stdin，M13.1）")
     parser.add_argument("-v", "--version", action="version",
                         version=f"基石 jishi {VERSION}")
-    args = parser.parse_args(argv)
+    # M18.2：用 parse_known_args 捕获脚本名之后的额外参数（传给 系统.参数()）
+    args, rest = parser.parse_known_args(argv)
 
     if args.ai_card:
         from .ai import render_ai_card
@@ -491,7 +496,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         return run_file(
             args.file, show_ast=args.ast, json_errors=args.json_errors,
             sandbox=args.sandbox, json_result=args.json_result,
-            timeout=args.timeout, stdin=args.stdin)
+            timeout=args.timeout, stdin=args.stdin, argv=rest)
 
     from .repl import repl
     return repl()

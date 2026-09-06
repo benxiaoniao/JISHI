@@ -1168,6 +1168,28 @@ static int run_loop(JsVm *vm) {
                 break;
             }
 
+            case JS_OP_BUILD_SLICE: {
+                /* M18：按 a 的位标志（bit0=start,bit1=stop,bit2=step）从栈上
+                 * 取分量，缺省位置补 UNSET，交给宿主 make_slice 构造 slice。 */
+                JVal start = jsvm_unset(), stop = jsvm_unset(),
+                     step = jsvm_unset(), out;
+                if (a & 4) step = POP(vm);
+                if (a & 2) stop = POP(vm);
+                if (a & 1) start = POP(vm);
+                SAVE_IP();
+                if (vm->host->make_slice(&start, &stop, &step, &out,
+                                         line, col) != 0) {
+                    /* 出错：释放已取出的分量（UNSET 的 release 是 no-op） */
+                    release_val(vm, start); release_val(vm, stop);
+                    release_val(vm, step);
+                    goto dispatch_err;
+                }
+                release_val(vm, start); release_val(vm, stop);
+                release_val(vm, step);
+                PUSH(vm, out);
+                break;
+            }
+
             case JS_OP_BUILD_LIST: {
                 JVal out;
                 SAVE_IP();

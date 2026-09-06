@@ -595,6 +595,11 @@ class Parser:
                 self._next()
                 alias_tok = self._expect_name("别名")
                 alias = alias_tok.value
+        elif self._at_kw("为"):
+            # M18.4：普通标准库导入也支持别名（导入 文本 为 t），避免遮蔽内建
+            self._next()
+            alias_tok = self._expect_name("别名")
+            alias = alias_tok.value
         return A.Import(name=name_tok.value, from_python=from_python,
                         from_local=from_local, alias=alias,
                         line=start.line, col=start.col)
@@ -826,13 +831,67 @@ class Parser:
                               line=t.line, col=t.col)
             elif t.type == "OP" and t.value == "[":
                 self._next()
-                index = self._parse_expr()
-                self._expect_op("]")
-                node = A.Subscript(obj=node, index=index,
-                                   line=t.line, col=t.col)
+                # M18.1 切片：看是否含冒号（列表[1:3] / [::-1] / [:] / [::2]）
+                if self._looks_like_slice():
+                    node = self._parse_slice(node, t)
+                else:
+                    index = self._parse_expr()
+                    self._expect_op("]")
+                    node = A.Subscript(obj=node, index=index,
+                                       line=t.line, col=t.col)
             else:
                 break
         return node
+
+    def _looks_like_slice(self) -> bool:
+        """向前看：当前下标位置是否是一个切片（含冒号）。
+
+        判断依据：在匹配的 `]` 之前出现一个 `:`（且不在字符串/嵌套括号里）。
+        普通下标也可能含冒号吗？字典值/表达式里没有 `:` 运算符，所以
+        下标表达式里出现 `:` 只能是切片。
+        """
+        depth = 0
+        i = 0
+        while True:
+            t = self._peek(i)
+            if t.type == "EOF":
+                return False
+            if t.type == "OP":
+                if t.value in ("[", "(", "{"):
+                    depth += 1
+                elif t.value in ("]", ")", "}"):
+                    if t.value == "]" and depth == 0:
+                        return False  # 到 ] 了还没见到冒号 → 普通下标
+                    depth -= 1
+                elif t.value == ":" and depth == 0:
+                    return True
+            i += 1
+
+    def _parse_slice(self, node: A.Node, open_tok) -> A.Node:
+        """解析 `[起:止:步长]`，各分量可省略，产出一个 A.Slice 节点。"""
+        start: Optional[A.Node] = None
+        stop: Optional[A.Node] = None
+        step: Optional[A.Node] = None
+
+        # 第一个分量（可能为空，即 [:...]）
+        if not self._at_op(":"):
+            start = self._parse_expr()
+
+        if self._at_op(":"):
+            self._next()  # 消费第一个 :
+            # 第二个分量（可能为空，即 [a:...] 或 [a::step]）
+            if not self._at_op(":") and not self._at_op("]"):
+                stop = self._parse_expr()
+            if self._at_op(":"):
+                self._next()  # 消费第二个 :
+                if not self._at_op("]"):
+                    step = self._parse_expr()
+
+        self._expect_op("]")
+        return A.Subscript(obj=node, index=A.Slice(
+            start=start, stop=stop, step=step,
+            line=open_tok.line, col=open_tok.col),
+            line=open_tok.line, col=open_tok.col)
 
     def _parse_atom(self) -> A.Node:
         t = self._peek()

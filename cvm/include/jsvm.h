@@ -144,6 +144,9 @@ typedef struct JsHost {
     int (*raise_internal)   (const char *msg);
     /* 列表追加（M11）：obj.追加(val)，省一次 getattr 回调 */
     int (*list_append)      (JVal *obj, JVal *val, int line, int col);
+    /* 切片（M18）：start/stop/step 三个分量（UNSET 表示省略）→ slice HOST 句柄 */
+    int (*make_slice)       (JVal *start, JVal *stop, JVal *step, JVal *out,
+                             int line, int col);
 } JsHost;
 
 /* ------------------------------------------------------------------ */

@@ -719,12 +719,30 @@ class _Emitter:
             self.emit(O.Op.GET_ATTR, e, self.name_idx(e.attr))
         elif isinstance(e, A.Subscript):
             self.compile_expr(e.obj)
-            self.compile_expr(e.index)
+            if isinstance(e.index, A.Slice):
+                self._c_slice(e.index, e)
+            else:
+                self.compile_expr(e.index)
             self.emit(O.Op.GET_ITEM, e)
         else:
             raise JishiError(f"还不支持的表达式：{type(e).__name__}",
                              line=getattr(e, "line", 1),
                              col=getattr(e, "col", 1))
+
+    def _c_slice(self, s: A.Slice, host: A.Node):
+        """编译切片：按 start/stop/step 是否存在，依次压栈，用位标志标记（M18.1）。"""
+        flags = 0
+        # 压栈顺序：start, stop, step（存在才压），flags 位标记哪些存在
+        if s.start is not None:
+            self.compile_expr(s.start)
+            flags |= 1
+        if s.stop is not None:
+            self.compile_expr(s.stop)
+            flags |= 2
+        if s.step is not None:
+            self.compile_expr(s.step)
+            flags |= 4
+        self.emit(O.Op.BUILD_SLICE, host, flags)
 
     def _c_boolop(self, e: A.BoolOp):
         # 与树遍历一致：结果一定是真/假，不是短路值本身

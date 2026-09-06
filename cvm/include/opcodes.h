@@ -54,6 +54,7 @@ enum {
     JS_OP_BUILD_CLASS = 45,
     JS_OP_UNPACK = 46,
     JS_OP_LIST_APPEND = 47,
+    JS_OP_BUILD_SLICE = 48,
 };
 
 enum {
