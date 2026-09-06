@@ -16,6 +16,19 @@ from typing import Optional
 
 
 # ---------------------------------------------------------------------------
+# 调用帧（M17.2 调用栈回溯）
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Frame:
+    """调用栈里的一帧：当前正在执行的函数，以及「它在第几行被调用」。"""
+
+    func: str                 # 函数名
+    line: Optional[int] = None   # 调用点行号（1 起）
+    col: Optional[int] = None    # 调用点列号（1 起）
+
+
+# ---------------------------------------------------------------------------
 # 基础错误类
 # ---------------------------------------------------------------------------
 
@@ -36,6 +49,7 @@ class JishiError(Exception):
         hint: Optional[str] = None,
         underline: Optional[tuple[int, int]] = None,  # (起, 止) 列区间（1 起）
         fix: Optional[dict] = None,
+        trace: Optional[list["Frame"]] = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -48,6 +62,8 @@ class JishiError(Exception):
         #: 机器可读的修复建议（M8.3）：{"old": str, "new": str}，
         #: 配合 line/col 定位，agent 可直接做文本替换实现自愈。
         self.fix = fix
+        #: 调用栈回溯（M17.2）：从外到内的调用帧列表；None 表示无回溯。
+        self.trace = trace
 
     def render(self, *, color: bool = False) -> str:
         """把错误渲染成带源码行与 ^ 指示的多行文本。"""
@@ -55,27 +71,45 @@ class JishiError(Exception):
         if self.message:
             head += f"（{self.message}）"
         if self.line is None:
-            return head + (f"\n  提示：{self.hint}" if self.hint else "")
-
-        loc = f"  ┌─ {self.filename}:{self.line}:{self.col or 1}"
-        lines = [head, loc, "  │"]
-        if self.source_line:
-            src = self.source_line.rstrip("\n").rstrip("\r")
-            lines.append(f"{self.line:>3} │ {src}")
-            # 构造 ^ 指示行
-            start, end = self.underline or (self.col, self.col)
-            if start is None:
-                start = self.col
-            if end is None:
-                end = start
-            caret_col = max(1, start)
-            width = max(1, end - start + 1)
-            pad = " " * (caret_col - 1)
-            marker = "~" * max(0, width - 1) + "^"
-            lines.append(f"    │ {pad}{marker}")
-        lines.append("  │")
+            body = head
+        else:
+            loc = f"  ┌─ {self.filename}:{self.line}:{self.col or 1}"
+            lines = [head, loc, "  │"]
+            if self.source_line:
+                src = self.source_line.rstrip("\n").rstrip("\r")
+                lines.append(f"{self.line:>3} │ {src}")
+                # 构造 ^ 指示行
+                start, end = self.underline or (self.col, self.col)
+                if start is None:
+                    start = self.col
+                if end is None:
+                    end = start
+                caret_col = max(1, start)
+                width = max(1, end - start + 1)
+                pad = " " * (caret_col - 1)
+                marker = "~" * max(0, width - 1) + "^"
+                lines.append(f"    │ {pad}{marker}")
+            lines.append("  │")
+            body = "\n".join(lines)
+        # 调用栈回溯（M17.2）
+        trace_block = self._render_trace()
+        parts = [body]
+        if trace_block:
+            parts.append(trace_block)
         if self.hint:
-            lines.append(f"  提示：{self.hint}")
+            parts.append(f"  提示：{self.hint}")
+        return "\n".join(parts)
+
+    def _render_trace(self) -> str:
+        """把调用链渲染成「从外到内」的文本块；无回溯返回空串。"""
+        if not self.trace:
+            return ""
+        # 取最近若干帧（从外到内，限制长度防刷屏）
+        frames = self.trace[-20:] if len(self.trace) > 20 else self.trace
+        lines = ["调用链（从外到内）："]
+        for fr in frames:
+            where = f"第 {fr.line} 行" if fr.line is not None else "未知位置"
+            lines.append(f"  {fr.func} ← {where}")
         return "\n".join(lines)
 
     def __str__(self) -> str:
@@ -335,7 +369,10 @@ def translate_python_exception(
     if isinstance(exc, OSError):
         return wrap(RunFileError, f"文件或系统操作出错（{exc}）")
     if isinstance(exc, RecursionError):
-        return wrap(RunError, "递归层数太深了，是不是函数忘了写结束条件？")
+        return RunError(
+            "递归层数太深了",
+            line=line, col=col, filename=filename,
+            hint="函数反复调用自己没有停下来——是不是忘了写结束条件（比如 如果 n <= 0：返回 …）？")
     if isinstance(exc, OverflowError):
         return wrap(RunValueError, f"数字太大，超出可表示范围（{exc}）")
     if isinstance(exc, (TypeError, AttributeError)):

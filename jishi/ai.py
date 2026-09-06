@@ -150,6 +150,12 @@ def error_to_json(err: JishiError) -> dict:
         "col": err.col,
         "hint": err.hint,
     }
+    # 调用栈回溯（M17.2）：把调用链一并给 agent，便于定位
+    if getattr(err, "trace", None):
+        out["trace"] = [
+            {"func": f.func, "line": f.line, "col": f.col}
+            for f in err.trace
+        ]
     if err.fix:
         out["fix"] = {**err.fix, "line": err.line, "col": err.col}
     return out

@@ -122,11 +122,14 @@ def _exec_source(interp: Interpreter, source: str,
         lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
         program = parse(tokenize(source, filename), lines, filename)
     except JishiError as e:
+        # M17.4：补源码行上下文，让 REPL 报错也能显示源码行 + ^ 指示
+        e.with_source(source.replace("\r\n", "\n").replace("\r", "\n").split("\n"))
         print(e.render(), file=sys.stderr)
         return False
     try:
         interp.run(program)
     except JishiError as e:
+        e.with_source(source.replace("\r\n", "\n").replace("\r", "\n").split("\n"))
         print(e.render(), file=sys.stderr)
         return False
     except KeyboardInterrupt:

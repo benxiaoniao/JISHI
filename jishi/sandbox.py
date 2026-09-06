@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from . import runtime
-from .errors import JishiError, RunError
+from .errors import JishiError, RunError, translate_python_exception
 from .protocol import failure, success
 
 
@@ -153,14 +153,18 @@ def run_sandboxed(source: str, opts: Optional[SandboxOpts] = None,
         if t.is_alive():
             # 超时：线程仍在跑（无法强制终止），放弃结果，靠进程回收线程
             return failure(
-                RunError(f"执行超时（{opts.timeout} 秒）"), duration)
+                RunError(
+                    f"执行超时（{opts.timeout} 秒）",
+                    hint="可能是有死循环，检查循环条件或递归结束条件"),
+                duration)
 
         if "error" in outcome:
             err = outcome["error"]
             if isinstance(err, JishiError):
                 return failure(err, duration)
-            # 非基石错误（如 RecursionError）→ 包装成运行期错误
-            return failure(RunError(f"{type(err).__name__}: {err}"), duration)
+            # 非基石错误（如 RecursionError）→ 走中文翻译（M17.1）
+            return failure(translate_python_exception(err, filename=filename),
+                           duration)
 
         return success(stdout=outcome.get("stdout", ""),
                        duration_ms=duration)
@@ -205,12 +209,16 @@ def eval_sandboxed(expr: str, opts: Optional[SandboxOpts] = None,
         duration = (time.perf_counter() - start) * 1000.0
 
         if t.is_alive():
-            return failure(RunError(f"执行超时（{opts.timeout} 秒）"), duration)
+            return failure(
+                RunError(f"执行超时（{opts.timeout} 秒）",
+                         hint="可能是有死循环，检查循环条件或递归结束条件"),
+                duration)
         if "error" in outcome:
             err = outcome["error"]
             if isinstance(err, JishiError):
                 return failure(err, duration)
-            return failure(RunError(f"{type(err).__name__}: {err}"), duration)
+            return failure(translate_python_exception(err, filename=filename),
+                           duration)
 
         return success(stdout=outcome.get("stdout", ""),
                        value=outcome.get("value"),

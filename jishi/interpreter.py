@@ -17,6 +17,7 @@ from typing import Any, Optional
 from . import ast_nodes as A
 from . import runtime as R
 from .errors import (
+    Frame,
     JishiError,
     RunBreak,
     RunContinue,
@@ -127,6 +128,8 @@ class Interpreter:
         self.globals = Environment()
         self.filename = filename      # 出错时渲染「文件:行:列」用
         self._last_value = None  # 最近一次顶层表达式语句的值（REPL 回显用）
+        #: 调用帧栈（M17.2）：从外到内，出错时挂到 JishiError.trace
+        self._call_stack: list = []
         self._register_builtins()
 
     # -- 内建函数 -----------------------------------------------------------
@@ -142,7 +145,21 @@ class Interpreter:
     # -- 顶层执行 -----------------------------------------------------------
 
     def run(self, program: A.Program) -> None:
-        self.exec_block(program.body, self.globals)
+        try:
+            self.exec_block(program.body, self.globals)
+        except JishiError as e:
+            # 挂上调用栈回溯（M17.2）：错误对象没有显式 trace 时才补
+            if e.trace is None and self._call_stack:
+                e.trace = list(self._call_stack)
+            raise
+        except RecursionError:
+            # M17.1：递归超限在解释器递归调用 exec_block 时直接冒出，
+            # 绕过 _as_jishi_error，这里兜住翻译成中文，并带上当前调用链
+            err = translate_python_exception(
+                RecursionError("递归层数太深了"),
+                filename=self.filename)
+            err.trace = list(self._call_stack) if self._call_stack else None
+            raise err
 
     def exec_block(self, stmts: list[A.Node], env: Environment) -> Any:
         """顺序执行语句块；返回 Return 信号值（函数体用）。"""
@@ -546,9 +563,25 @@ class Interpreter:
                     f"函数「{fn.name}」缺少参数：{'、'.join(missing)}",
                     line=expr.line, col=expr.col, filename=self.filename)
             try:
+                self._call_stack.append(Frame(fn.name, expr.line, expr.col))
                 self.exec_block(fn.body, call_env)
             except _ReturnSignal as r:
                 return r.value
+            except JishiError as e:
+                # 异常在函数体内冒出：此刻快照调用栈（M17.2），
+                # 之后 finally 弹栈、异常继续上抛，栈里的帧不能丢
+                if e.trace is None:
+                    e.trace = list(self._call_stack)
+                raise
+            except RecursionError:
+                # 递归超限：同样在函数体内冒出，快照调用栈后翻译（M17.1+M17.2）
+                err = translate_python_exception(
+                    RecursionError("递归层数太深了"),
+                    filename=self.filename)
+                err.trace = list(self._call_stack)
+                raise err
+            finally:
+                self._call_stack.pop()
             return None
         return call_value(fn, args, kwargs, line=expr.line, col=expr.col, filename=self.filename)
 
