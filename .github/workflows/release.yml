@@ -36,34 +36,34 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e . pyinstaller pytest
 
-      # Windows 编译 C 虚拟机：优先用 runner 预装的 MSYS2 gcc
+      # Windows 编译 C 虚拟机：用 MSYS2 工具链（runner 预装 MSYS2 但无 gcc）
       - name: 准备 gcc（Windows）
         if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+          path-type: inherit
+
+      - name: 确认 gcc（Windows）
+        if: runner.os == 'Windows'
         shell: bash
-        run: |
-          echo "=== 探测可用 gcc ==="
-          which gcc 2>/dev/null && echo "PATH 中已有 gcc" || echo "(PATH 中无 gcc)"
-          for d in "/c/msys64/mingw64/bin" "/c/msys64/ucrt64/bin"; do
-            if [ -x "$d/gcc.exe" ]; then
-              echo "使用 MSYS2 gcc：$d"
-              echo "$d" >> "$GITHUB_PATH"
-              exit 0
-            fi
-          done
-          echo "未找到预装 gcc，改用 Chocolatey 安装 MinGW..."
-          choco install mingw -y --no-progress
-          GCC_EXE=$(find /c/ProgramData/chocolatey -name gcc.exe 2>/dev/null | head -1)
-          if [ -n "$GCC_EXE" ]; then
-            echo "使用 choco gcc：$GCC_EXE"
-            dirname "$GCC_EXE" >> "$GITHUB_PATH"
-          else
-            echo "错误：仍未找到 gcc"; exit 1
-          fi
+        run: gcc --version | head -1
 
       # Inno Setup 生成真正的 Windows 安装程序（M19.1）
       - name: 安装 Inno Setup（Windows）
         if: runner.os == 'Windows'
-        run: choco install innosetup -y --no-progress
+        shell: bash
+        run: |
+          curl -sL --max-time 300 -o /tmp/innosetup.exe \
+            "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
+          /tmp/innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+          for p in "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+                   "/c/Program Files/Inno Setup 6/ISCC.exe"; do
+            [ -x "$p" ] && echo "ISCC 就位：$p" && exit 0
+          done
+          echo "错误：未找到 ISCC.exe"; exit 1
 
       - name: 构建 C 虚拟机
         run: python cvm/build.py

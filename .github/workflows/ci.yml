@@ -30,29 +30,20 @@ jobs:
       - name: 安装项目（可编辑）
         run: python -m pip install -e .
 
-      # 编译 C 虚拟机所需 gcc：Ubuntu 自带；Windows 优先用 runner 预装的 MSYS2
+      # 编译 C 虚拟机所需 gcc：Ubuntu 自带；Windows 用 MSYS2 工具链
       - name: 准备 gcc（Windows）
         if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+          path-type: inherit
+
+      - name: 确认 gcc（Windows）
+        if: runner.os == 'Windows'
         shell: bash
-        run: |
-          echo "=== 探测可用 gcc ==="
-          which gcc 2>/dev/null && echo "PATH 中已有 gcc" || echo "(PATH 中无 gcc)"
-          for d in "/c/msys64/mingw64/bin" "/c/msys64/ucrt64/bin"; do
-            if [ -x "$d/gcc.exe" ]; then
-              echo "使用 MSYS2 gcc：$d"
-              echo "$d" >> "$GITHUB_PATH"
-              exit 0
-            fi
-          done
-          echo "未找到预装 gcc，改用 Chocolatey 安装 MinGW..."
-          choco install mingw -y --no-progress
-          GCC_EXE=$(find /c/ProgramData/chocolatey -name gcc.exe 2>/dev/null | head -1)
-          if [ -n "$GCC_EXE" ]; then
-            echo "使用 choco gcc：$GCC_EXE"
-            dirname "$GCC_EXE" >> "$GITHUB_PATH"
-          else
-            echo "错误：仍未找到 gcc"; exit 1
-          fi
+        run: gcc --version | head -1
 
       - name: 构建 C 虚拟机
         run: python cvm/build.py
