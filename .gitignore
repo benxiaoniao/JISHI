@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# 构建产物
+cvm/build/
+cvm/*.exe
+dist/
+build/
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+
+# 打包产物
+*.whl
+
+# 文档站产物（tools/build_site.py 生成）
+site/
+
+# 本地工作区记忆（不进仓库）
+.workbuddy/
+
+# C VM 编译产物（cvm/build.py 会在需要时自动构建）
+cvm/bin/*.dll
+
+# wheel 内预编译动态库（tools/build_wheel.py 编译产物）
+jishi/_native/*.dll
+jishi/_native/*.so
+jishi/_native/*.dylib
+
+# 本地包缓存目录（.jishi/packages/）
+.jishi/
+
+# Rust 编译产物
+rust/target/
+rust/Cargo.lock
