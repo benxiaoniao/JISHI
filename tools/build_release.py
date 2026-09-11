@@ -47,6 +47,60 @@ def _dll_name() -> str:
     return "libjsvm.so"
 
 
+def _find_iscc() -> "Path | None":
+    """定位 Inno Setup 编译器 ISCC.exe（Windows 安装程序用）。
+
+    覆盖三种常见安装位置：系统级 Program Files（Inno Setup 6/7）、
+    用户级 %LOCALAPPDATA%\Programs（`/CURRENTUSER` 安装）、以及 PATH。
+    """
+    if sys.platform != "win32":
+        return None
+    cands: list[Path] = []
+    for pf in (os.environ.get("ProgramFiles(x86)"),
+               os.environ.get("ProgramFiles")):
+        if pf:
+            for ver in ("Inno Setup 7", "Inno Setup 6"):
+                cands.append(Path(pf) / ver / "ISCC.exe")
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        for ver in ("Inno Setup 7", "Inno Setup 6"):
+            cands.append(Path(local) / "Programs" / ver / "ISCC.exe")
+    for c in cands:
+        if c.exists():
+            return c
+    exe = shutil.which("ISCC") or shutil.which("iscc")
+    return Path(exe) if exe else None
+
+
+def _build_installer(out: Path, dist: Path) -> "Path | None":
+    """用 Inno Setup 编译 Windows 安装程序；找不到 ISCC 则跳过并提示。
+
+    M19.1：把「压缩包」升级为真正的安装程序（开始菜单 / PATH / 卸载）。
+    """
+    if sys.platform != "win32":
+        return None
+    iscc = _find_iscc()
+    if iscc is None:
+        print("  跳过 Windows 安装程序：未找到 Inno Setup（ISCC.exe）。\n"
+              "    安装后可自动启用：winget install -e --id JRSoftware.InnoSetup")
+        return None
+    iss = ROOT / "tools" / "installer.iss"
+    print("  编译 Windows 安装程序（Inno Setup）...")
+    subprocess.run(
+        [str(iscc),
+         f"/DSourceDir={out}",
+         f"/DAppVersion={VERSION}",
+         f"/DOutputDir={dist}",
+         str(iss)],
+        cwd=str(ROOT), check=True)
+    inst = dist / f"jishi-{VERSION}-windows-x64-setup.exe"
+    if inst.exists():
+        print(f"  已生成安装程序：{inst.name}")
+        return inst
+    print("  警告：安装程序似乎未生成，请检查 Inno Setup 输出")
+    return None
+
+
 def _find_cvm_dll() -> Path:
     """定位 C VM 动态库（优先 wheel 预编译目录，其次源码树 cvm/bin）。"""
     for cand in (
@@ -88,6 +142,8 @@ def _add_data_args() -> list[str]:
 def build(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="构建基石发行包")
     p.add_argument("--no-zip", action="store_true", help="只产 onedir 不打包 zip")
+    p.add_argument("--no-installer", action="store_true",
+                   help="不生成 Windows 安装程序（默认在 Windows 上自动尝试）")
     p.add_argument("--clean", action="store_true", help="清理构建缓存")
     args = p.parse_args(argv)
 
@@ -183,21 +239,28 @@ def build(argv: list[str]) -> int:
     # 打包 zip / tar.gz
     if not args.no_zip:
         _make_archive(out, pkg_name)
-        # SHA256SUMS
-        _write_checksums(dist, pkg_name, tag)
+        # Windows 安装程序（M19.1）：把压缩包升级为双击可装的 setup.exe
+        installer = None
+        if not args.no_installer:
+            installer = _build_installer(out, dist)
+        # SHA256SUMS（发行包 + 安装程序）
+        _write_checksums(dist, pkg_name, tag, installer)
 
     print(f"\n✅ 发行包生成完成：{out}")
     return 0
 
 
 def _write_install_scripts(out: Path) -> None:
-    """写入安装/卸载脚本（详见 16.3，完整版在 tools 目录）。"""
-    # 这里由 tools 目录的脚本模板复制，若无则生成最小版本
+    """写入安装/卸载脚本，并把版本占位符替换为实际版本（M16.3 / M19）。"""
     src_scripts = ROOT / "tools"
     for name in ("install.sh", "install.ps1", "uninstall.sh", "uninstall.ps1"):
         src = src_scripts / name
-        if src.exists():
-            shutil.copy2(src, out / name)
+        if not src.exists():
+            continue
+        text = src.read_text(encoding="utf-8")
+        # 模板里的 __VERSION__ 占位符 → 当前版本
+        text = text.replace("__VERSION__", VERSION)
+        (out / name).write_text(text, encoding="utf-8")
 
 
 def _make_archive(out: Path, pkg_name: str) -> None:
@@ -218,9 +281,12 @@ def _make_archive(out: Path, pkg_name: str) -> None:
         print(f"  已打包：{arc}")
 
 
-def _write_checksums(dist: Path, pkg_name: str, tag: str) -> None:
+def _write_checksums(dist: Path, pkg_name: str, tag: str,
+                     installer: "Path | None" = None) -> None:
     import hashlib
     arcs = sorted(dist.glob(f"{pkg_name}.*"))
+    if installer is not None and installer.exists():
+        arcs.append(installer)
     lines = []
     for a in arcs:
         h = hashlib.sha256(a.read_bytes()).hexdigest()

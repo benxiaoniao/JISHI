@@ -16,7 +16,7 @@ from jishi.interpreter import run_source
 
 def test_lang_spec_structure():
     spec = ai.build_lang_spec()
-    assert spec["version"] == "0.1.0"
+    assert spec["version"] == ai.VERSION
     assert "令" in spec["keywords"]
     assert "函数" in spec["keywords"]
     assert spec["operators"]["binary"]      # 非空
@@ -28,7 +28,7 @@ def test_lang_spec_structure():
 def test_lang_spec_json_valid():
     raw = ai.lang_spec_json()
     spec = json.loads(raw)
-    assert spec["version"] == "0.1.0"
+    assert spec["version"] == ai.VERSION
     assert len(spec["content_hash"]) == 8
 
 

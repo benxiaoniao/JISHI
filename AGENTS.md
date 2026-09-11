@@ -29,7 +29,7 @@
    架构边界（如字符串是 HOST 句柄）如实标注。
 4. **README.md 是唯一对外主文档**：里程碑推进后，必须同步更新它的
    「技术栈声明 / 性能数据 / 能力清单 / 项目结构」四块，否则会「总结偏差」。
-5. **README 不写个人路径**（用户名 / CLion 安装路径 / 受管 Python 路径），
+5. **README 不写个人路径**（用户名 / 本机 IDE 安装路径 / 受管 Python 路径），
    保持本地与公开版一致，发布时无需反复屏蔽。
 6. **新特性准入三关**：真实需求驱动 / 可度量验收 / 投入产出比。
    说不出「怎么算完成」就不开工。
@@ -53,13 +53,13 @@
 
 ## 3. 当前任务与状态（各工具协作更新这一段）
 
-- ✅ **M0–M18 全部完成**（语言核心 → AI 工具链 → 沙箱/MCP → 生态 →
+- ✅ **M0–M19 全部完成**（语言核心 → AI 工具链 → 沙箱/MCP → 生态 →
   性能分发 → 评测闭环 → 跨语言分发 → 包管理 → 语言收敛 1.0 → 发行版 →
-  排错体验补全 → 表达便利）。
-- 📌 **下一里程碑 M19：三平台发行 + 自动化**（详见 `docs/技术路线_v1.0之后.md`）：
-  GitHub Actions 构建矩阵（windows/ubuntu/macOS，x64 + arm64），
-  打 tag 即触发：构建 → 冒烟 → 上传 Release。
-- 后续：M20 性能 → M21 开发者工具 → M22 生态（按需）。
+  排错体验补全 → 表达便利 → 发行改进）。
+- 📌 **下一里程碑 M20：性能**（详见 `docs/技术路线_v1.0之后.md`）：
+  短字符串内联原型（ROI 不达标则明确放弃）、热路径下沉 C VM、
+  Rust 宿主可变容器语义（Rc<RefCell>）、JS VM 性能补测。
+- 后续：M21 开发者工具（LSP 优先）→ M22 生态（按需）。
 
 ---
 
@@ -82,12 +82,19 @@ python tools/benchmark.py
 # 一键全检
 python tools/ci.py
 
-# 打发行包（PyInstaller）
+# 打发行包（PyInstaller；Windows 上会自动调 Inno Setup 出 setup.exe）
 python tools/build_release.py
 
 # 发布到 Gitee（令牌走环境变量，见 tools/publish_gitee.py 顶部说明）
 python tools/publish_gitee.py            # 同步代码
 python tools/publish_gitee.py --release  # 同步代码 + 建 Release + 传发行包
+
+# 发布到 GitHub（用本机 Git Credential Manager 认证，无需令牌参数）
+python tools/publish_github.py           # 同步代码（屏蔽版快照）
+python tools/publish_github.py --dry-run # 只导出+屏蔽+本地提交，不推送
+
+# 打 tag 触发三平台自动构建 + Release（GitHub Actions）
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 ---

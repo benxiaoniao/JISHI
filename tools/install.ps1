@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$version = "0.1.0"
+$version = "__VERSION__"   # 构建发行包时由 tools/build_release.py 注入实际版本
 $installDir = Join-Path $env:USERPROFILE ".jishi"
 $binDir = Join-Path $installDir "bin"
 

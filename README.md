@@ -20,6 +20,28 @@
 > AI 原生工具链（语言卡 / 结构化报错 / 评测集）、沙箱 + MCP 集成、wheel 内带 C VM。
 > 定位不是教学玩具，长期目标是可维护的开源项目。
 
+## 安装
+
+**Windows**：下载 `jishi-<版本>-windows-x64-setup.exe`，双击安装即可
+（用户级安装、免管理员；简体中文向导，含开始菜单快捷方式、可选加入 PATH、
+标准卸载程序）。
+
+**Linux / macOS**：下载对应压缩包，解压后运行 `install.sh`：
+
+```bash
+tar -xzf jishi-<版本>-linux-x64.tar.gz
+cd jishi-<版本>-linux-x64 && bash install.sh
+```
+
+**pip 安装**（需本机 Python 3.10+）：
+
+```bash
+pip install jishi
+```
+
+发行包下载见 [GitHub Releases](https://github.com/benxiaoniao/JISHI/releases)，
+每个版本附 `SHA256SUMS` 便于校验完整性。
+
 ## 快速上手
 
 ```bash
@@ -114,9 +136,22 @@ jishi examples/01_猜数字.jsh --ast
 | M15 | 真实项目驱动 + 语言收敛 1.0 | ✅ |
 | M16 | 发行版与安装体验（PyInstaller + 安装脚本 + 首次体验） | ✅ |
 | M17 | 排错体验补全（递归翻译 + 调用栈回溯 + 协议补全 + REPL 源码行） | ✅ |
+| M18 | 表达便利（切片 / 命令行参数 / 最小最大多参数 / 遮蔽治理） | ✅ |
+| M19 | 发行改进（Windows 安装程序 + 三平台自动构建） | ✅ |
 
 **测试现状：595 项全部通过**（`python -m pytest tests/`），其中 107 项是
 三执行器对拍（树遍历 / Python VM / C VM 输出逐字节一致）。
+
+### M19 已交付：发行改进（Windows 安装程序 + 三平台自动构建）
+
+- **Windows 安装程序**：`tools/installer.iss`（Inno Setup）+ `build_release.py`
+  集成，产出 `jishi-{版本}-windows-x64-setup.exe`——用户级安装（免管理员）、
+  简体中文向导、开始菜单快捷方式、可选写入 PATH、注册标准卸载程序；
+  不再只提供压缩包。
+- **三平台自动构建**：`.github/workflows/release.yml`，打 tag（`v*`）触发
+  windows / linux / macOS 矩阵构建，自动创建 Release 并附统一 SHA256SUMS。
+- **发布脚本**：`tools/publish_github.py`（GitHub，复用 Gitee 的隐私屏蔽逻辑）、
+  `tools/publish_gitee.py`（路线图恢复上传）。
 
 ### M18 已交付：表达便利（切片 / 命令行参数 / 最小最大多参数 / 遮蔽治理）
 
@@ -491,7 +526,7 @@ M0–M16 已全部完成（见「当前进度」）。
 |------|------|-----------|------|
 | M17 | 排错体验补全：修递归翻译 bug + 调用栈回溯 + 协议补全 + REPL 源码行 | 报错可定位率 100% + 调用链可见 | ✅ 已完成 |
 | M18 | 表达便利：切片 / argv / 最小二参 / 遮蔽治理 | 三个真实项目代码变短 | ✅ 已完成 |
-| M19 | 三平台发行 + 自动化 | 一次 tag 出三平台包 | 待启动 |
+| M19 | 三平台发行 + 自动化 | 一次 tag 出三平台包 | ✅ 已完成 |
 | M20–M22 | 性能 / 开发者工具 / 生态 | 按需推进 | 待启动 |
 
 每个阶段维持既有纪律：**可演示成果 + 测试护航 + git 提交**；

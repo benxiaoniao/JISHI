@@ -18,12 +18,15 @@ def test_version_single_source():
     """版本号单一来源：version.py / ai / mcp_server / cli 一致。"""
     from jishi import ai, mcp_server
     assert _ver.VERSION == ai.VERSION == mcp_server.VERSION == cli.VERSION
-    assert _ver.VERSION == "0.1.0"
+    # 版本号应是非空的语义化版本串（不写死具体数字，避免每次发版改测试）
+    assert _ver.VERSION.count(".") == 2
 
 
 def test_version_fallback():
     """打包后无包元数据时回退到内置常量。"""
-    assert _ver.__FALLBACK__ == "0.1.0"
+    # 兜底常量与当前版本都应是语义化版本串（不写死具体数字，避免每次发版改测试）
+    assert _ver.__FALLBACK__.count(".") == 2
+    assert _ver.VERSION.count(".") == 2
 
 
 def _run_cli(argv):
@@ -39,7 +42,7 @@ def _run_cli(argv):
 def test_cmd_doctor():
     code, out = _run_cli(["医生"])
     assert code == 0
-    assert "版本：0.1.0" in out
+    assert f"版本：{_ver.VERSION}" in out
     assert "C VM" in out
 
 

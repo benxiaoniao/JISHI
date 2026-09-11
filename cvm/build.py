@@ -103,6 +103,9 @@ def find_gcc() -> str:
         if cand == "gcc":
             if shutil.which("gcc"):
                 return "gcc"
+            # macOS 常只有 clang（gcc 可能不存在）；Linux CI 也可能如此
+            if shutil.which("clang"):
+                return "clang"
             continue
         if Path(cand).exists():
             return cand

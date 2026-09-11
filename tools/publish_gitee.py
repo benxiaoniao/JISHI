@@ -7,11 +7,10 @@
 用法（令牌从环境变量读，绝不写入任何文件）：
     GITEE_TOKEN=你的令牌 python tools/publish_gitee.py
 
-自动屏蔽项（隐私界定，2026-09-04 与作者确认）：
-- docs/路线图.md 不上传（内部规划）；
-- README：个人机器路径行删除、CLion 行通用化、「路线图」节泛化防断链；
-- cvm/build.py：个人 CLion gcc 路径条目移除；
-- docs/设计决策.md：CLion 表述通用化。
+自动屏蔽项（隐私界定，2026-09-04 与作者确认；2026-09-12 更新）：
+- README / cvm/build.py / docs/设计决策.md：个人机器路径（CLion 等）屏蔽；
+- 令牌等敏感串绝不入库；
+- docs/路线图.md 已恢复上传（2026-09-12 作者确认）。
 """
 
 import io
@@ -147,26 +146,25 @@ def _git(*args: str, cwd: Path | None = None) -> str:
 
 
 def _sanitize(snapshot: Path) -> None:
-    """隐私屏蔽（每步幂等，重复运行安全）。"""
-    # 1. 路线图不上传
-    roadmap = snapshot / "docs" / "路线图.md"
-    if roadmap.exists():
-        roadmap.unlink()
+    """隐私屏蔽（每步幂等，重复运行安全）。
 
-    # 2. build.py：移除个人机器的 CLion gcc 路径条目
+    2026-09-12 调整：路线图恢复上传（用户确认），不再屏蔽 docs/路线图.md；
+    仍保留个人机器路径 / CLion / 令牌等真正的隐私项屏蔽。
+    """
+    # 1. build.py：移除个人机器的 CLion gcc 路径条目
     p = snapshot / "cvm" / "build.py"
     lines = io.open(p, encoding="utf-8").read().split("\n")
     lines = [l for l in lines if "CLion" not in l]
     io.open(p, "w", encoding="utf-8", newline="\n").write("\n".join(lines))
 
-    # 3. 设计决策.md：CLion 表述通用化
+    # 2. 设计决策.md：CLion 表述通用化
     p = snapshot / "docs" / "设计决策.md"
     src = io.open(p, encoding="utf-8").read()
     src = src.replace("C 内核（gcc 15.2.0，CLion 自带 MinGW）是为了长期性能",
                       "C 内核（MinGW-w64 gcc）是为了长期性能")
     io.open(p, "w", encoding="utf-8", newline="\n").write(src)
 
-    # 4. README：行级过滤个人路径 + 路线图节泛化 + 去除路线图文件引用
+    # 3. README：行级过滤个人路径（CLion / 本机受管路径）
     p = snapshot / "README.md"
     out = []
     for l in io.open(p, encoding="utf-8").read().split("\n"):
@@ -178,35 +176,16 @@ def _sanitize(snapshot: Path) -> None:
             continue
         if "CLion" in l:                          # 其余 CLion 路径行 → 删
             continue
-        if "路线图.md" in l:                      # 内部规划文件引用 → 删
-            continue
         out.append(l)
-    src = "\n".join(out)
-    head, sep, rest = src.partition("## 路线图")
-    if sep:
-        _, _s2, tail = rest.partition("## 设计原则")
-        src = head + (
-            "## 路线图\n\n"
-            "M0–M16 已全部完成（见「当前进度」）。后续版本将持续打磨语法表达力、\n"
-            "扩充标准库生态、优化执行性能，并加强对 AI 编程助手场景的支持——\n"
-            "让基石更容易被大模型正确生成、安全执行、自我修复。\n\n"
-        ) + "## 设计原则" + tail
-    io.open(p, "w", encoding="utf-8", newline="\n").write(src)
+    io.open(p, "w", encoding="utf-8", newline="\n").write("\n".join(out))
 
-    # 5. 文档站生成器：移除路线图页（文件不上传，否则 build_site.py 会缺文件报错）
-    p = snapshot / "tools" / "build_site.py"
-    if p.exists():
-        s = io.open(p, encoding="utf-8").read()
-        s = s.replace('    (Path("docs/路线图.md"), "路线图（M7–M11）", "参考"),\n', "")
-        s = s.replace('    "docs/路线图.md": "M7–M11 后续规划",\n', "")
-        io.open(p, "w", encoding="utf-8", newline="\n").write(s)
-
-    # 6. 终检：快照里不允许再出现任何隐私模式 / 失效引用
+    # 4. 终检：快照里不允许再出现任何隐私模式（路线图已恢复上传，不检查死链）
     bad = []
     for f in snapshot.rglob("*"):
         if not f.is_file():
             continue
-        if f.name == "publish_gitee.py":      # 发布工具自身会提到这些名字
+        # 发布工具自身会提到这些名字（publish_gitee.py / publish_github.py）
+        if f.name.startswith("publish_"):
             continue
         try:
             text = io.open(f, encoding="utf-8").read()
@@ -215,10 +194,8 @@ def _sanitize(snapshot: Path) -> None:
         for pat in ("17719", "CLion", "GITEE_TOKEN"):
             if pat in text:
                 bad.append(f"{f} 含 {pat!r}")
-        if f.suffix in (".md", ".py") and "路线图.md" in text:
-            bad.append(f"{f} 引用了未发布的 docs/路线图.md（会成死链）")
     if bad:
-        raise SystemExit("隐私/引用终检未通过：\n" + "\n".join(bad))
+        raise SystemExit("隐私终检未通过：\n" + "\n".join(bad))
 
 
 def main() -> int:

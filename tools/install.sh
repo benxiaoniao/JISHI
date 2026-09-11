@@ -5,7 +5,7 @@
 
 set -e
 
-VERSION="0.1.0"
+VERSION="__VERSION__"   # 构建发行包时由 tools/build_release.py 注入实际版本
 INSTALL_DIR="$HOME/.jishi"
 BIN_DIR="$INSTALL_DIR/bin"
 # 脚本所在目录（发行包根目录）
