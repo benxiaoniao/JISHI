@@ -30,18 +30,29 @@ jobs:
       - name: 安装项目（可编辑）
         run: python -m pip install -e .
 
-      # 编译 C 虚拟机所需 gcc：Ubuntu 自带；Windows 用 choco 装 MinGW-w64
-      - name: 安装 MinGW（Windows）
+      # 编译 C 虚拟机所需 gcc：Ubuntu 自带；Windows 优先用 runner 预装的 MSYS2
+      - name: 准备 gcc（Windows）
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          choco install mingw -y --no-progress
-          # choco 装完不刷新当前 shell 的 PATH，显式把 gcc 目录加入后续步骤
-          for d in "/c/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/bin" \
-                   "/c/ProgramData/chocolatey/bin"; do
-            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          echo "=== 探测可用 gcc ==="
+          which gcc 2>/dev/null && echo "PATH 中已有 gcc" || echo "(PATH 中无 gcc)"
+          for d in "/c/msys64/mingw64/bin" "/c/msys64/ucrt64/bin"; do
+            if [ -x "$d/gcc.exe" ]; then
+              echo "使用 MSYS2 gcc：$d"
+              echo "$d" >> "$GITHUB_PATH"
+              exit 0
+            fi
           done
-          find /c/ProgramData/chocolatey -maxdepth 7 -name gcc.exe 2>/dev/null | head -3
+          echo "未找到预装 gcc，改用 Chocolatey 安装 MinGW..."
+          choco install mingw -y --no-progress
+          GCC_EXE=$(find /c/ProgramData/chocolatey -name gcc.exe 2>/dev/null | head -1)
+          if [ -n "$GCC_EXE" ]; then
+            echo "使用 choco gcc：$GCC_EXE"
+            dirname "$GCC_EXE" >> "$GITHUB_PATH"
+          else
+            echo "错误：仍未找到 gcc"; exit 1
+          fi
 
       - name: 构建 C 虚拟机
         run: python cvm/build.py

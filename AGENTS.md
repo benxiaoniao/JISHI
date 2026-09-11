@@ -47,6 +47,13 @@
 - **改 C 代码后必须同步 DLL**：重新编译 `python cvm/build.py` 后，还要
   `cp cvm/bin/jsvm.dll jishi/_native/jsvm.dll`——运行时优先加载 `_native/`
   里的 DLL，否则跑的是旧 DLL（曾因此报「未知指令」）。
+- **CI 的 Windows 上装 MinGW**：choco 装完**不刷新当前 shell 的 PATH**，
+  必须把 gcc 目录写入 `$GITHUB_PATH`（否则「构建 C 虚拟机」步骤失败；
+  cvm/build.py 的 GCC_CANDIDATES 也已补 chocolatey 路径兜底）。
+- **Windows 安装程序**：由 Inno Setup 编译（`tools/installer.iss`）；
+  ISCC 查找覆盖 Program Files / %LOCALAPPDATA%\Programs（`/CURRENTUSER` 装法）。
+- **推 tag 不要推本地仓库**：本地 git 历史含旧版个人路径，用
+  `python tools/publish_github.py --tag vX.Y.Z` 在屏蔽版快照上打 tag。
 - 更多见 README「已踩过的坑」一节。
 
 ---
