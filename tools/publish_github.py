@@ -9,6 +9,11 @@
 用法：
     python tools/publish_github.py             # 导出 + 屏蔽 + 推送
     python tools/publish_github.py --dry-run   # 只导出 + 屏蔽 + 本地提交，不推送
+    python tools/publish_github.py --tag v0.1.1
+                                               # 同步并打 tag（触发 Release 工作流）
+
+说明：tag 打在**屏蔽版快照的孤儿提交**上（不是本地仓库历史），
+因此不会把本地 git 历史里可能残留的个人路径一并推上公开仓库。
 
 屏蔽项与 Gitee 一致：个人机器路径（CLion 等）、令牌等敏感串；
 docs/路线图.md 已恢复上传（2026-09-12 作者确认）。
@@ -45,6 +50,13 @@ def _git(*args: str, cwd: Path | None = None) -> str:
 
 def main() -> int:
     dry_run = "--dry-run" in sys.argv
+    tag = None
+    if "--tag" in sys.argv:
+        i = sys.argv.index("--tag")
+        if i + 1 < len(sys.argv):
+            tag = sys.argv[i + 1].strip()
+        if not tag:
+            raise SystemExit("--tag 后面要跟版本号，例如：--tag v0.1.1")
 
     snapshot = Path(tempfile.mkdtemp(prefix="jishi-github-"))
     print(f"[1/4] 导出快照 → {snapshot}")
@@ -65,6 +77,9 @@ def main() -> int:
          "commit", "-q", "-m", "sync: 公开快照（屏蔽版）", cwd=snapshot)
 
     if dry_run:
+        if tag:
+            _git("tag", "-f", tag, cwd=snapshot)
+            print(f"   （dry-run 也已在快照内打 tag {tag}，但未推送）")
         print(f"\n--dry-run：快照保留在 {snapshot}")
         print("   已做：导出 + 屏蔽 + 终检 + 本地提交（未推送）")
         return 0
@@ -77,6 +92,17 @@ def main() -> int:
     if r.returncode != 0:
         raise SystemExit(f"推送失败：\n{r.stderr}")
     print("    ✓ 代码已同步")
+
+    # 可选：在屏蔽版快照的孤儿提交上打 tag，触发 Release 工作流
+    if tag:
+        _git("tag", "-f", tag, cwd=snapshot)
+        r = subprocess.run(
+            ["git", "push", "-f", REPO_HTTPS, f"refs/tags/{tag}"],
+            cwd=snapshot, capture_output=True, text=True,
+            encoding="utf-8", errors="replace")
+        if r.returncode != 0:
+            raise SystemExit(f"推送 tag 失败：\n{r.stderr}")
+        print(f"    ✓ 已打 tag {tag}（将触发 GitHub Actions 构建三平台发行包）")
 
     import shutil
     shutil.rmtree(snapshot, ignore_errors=True)
