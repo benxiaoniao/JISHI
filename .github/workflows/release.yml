@@ -58,16 +58,7 @@ jobs:
       # Inno Setup 生成真正的 Windows 安装程序（M19.1）
       - name: 安装 Inno Setup（Windows）
         if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          curl -sL --max-time 300 -o /tmp/innosetup.exe \
-            "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
-          /tmp/innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
-          for p in "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
-                   "/c/Program Files/Inno Setup 6/ISCC.exe"; do
-            [ -x "$p" ] && echo "ISCC 就位：$p" && exit 0
-          done
-          echo "错误：未找到 ISCC.exe"; exit 1
+        run: choco install innosetup -y --no-progress --timeout 600
 
       - name: 构建 C 虚拟机
         run: python cvm/build.py
