@@ -10,6 +10,10 @@ jobs:
   test:
     name: pytest（Python ${{ matrix.python }} · ${{ matrix.os }}）
     runs-on: ${{ matrix.os }}
+    env:
+      # Windows 上 Python stdout 默认非 UTF-8，打印中文会 UnicodeEncodeError
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     strategy:
       fail-fast: false
       matrix:

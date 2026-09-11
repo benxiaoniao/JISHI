@@ -16,6 +16,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Windows 控制台/CI 的 stdout 默认可能是 cp1252 等非 UTF-8 编码，
+# 打印中文（如「构建完成」）会抛 UnicodeEncodeError（GitHub Windows CI 踩过）。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):
+        pass
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 

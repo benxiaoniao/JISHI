@@ -26,6 +26,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# Windows 控制台/CI 的 stdout 默认可能是非 UTF-8，打印中文会 UnicodeEncodeError
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):
+        pass
+
 from jishi.version import VERSION  # noqa: E402
 
 
