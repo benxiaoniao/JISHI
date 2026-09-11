@@ -34,7 +34,14 @@ jobs:
       - name: 安装 MinGW（Windows）
         if: runner.os == 'Windows'
         shell: bash
-        run: choco install mingw -y --no-progress
+        run: |
+          choco install mingw -y --no-progress
+          # choco 装完不刷新当前 shell 的 PATH，显式把 gcc 目录加入后续步骤
+          for d in "/c/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/bin" \
+                   "/c/ProgramData/chocolatey/bin"; do
+            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          done
+          find /c/ProgramData/chocolatey -maxdepth 7 -name gcc.exe 2>/dev/null | head -3
 
       - name: 构建 C 虚拟机
         run: python cvm/build.py

@@ -34,6 +34,9 @@ GCC_CANDIDATES = [
     r"C:\msys64\ucrt64\bin\gcc.exe",
     r"C:\msys64\mingw64\bin\gcc.exe",
     r"C:\mingw64\bin\gcc.exe",
+    # Chocolatey 的 mingw 包（GitHub Actions 常用，装完不一定在 PATH）
+    r"C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\gcc.exe",
+    r"C:\ProgramData\chocolatey\bin\gcc.exe",
 ]
 
 

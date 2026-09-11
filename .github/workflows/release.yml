@@ -39,7 +39,15 @@ jobs:
       # Windows 编译 C 虚拟机需要 MinGW-w64
       - name: 安装 MinGW（Windows）
         if: runner.os == 'Windows'
-        run: choco install mingw -y --no-progress
+        shell: bash
+        run: |
+          choco install mingw -y --no-progress
+          # choco 装完不刷新当前 shell 的 PATH，显式把 gcc 目录加入后续步骤
+          for d in "/c/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/bin" \
+                   "/c/ProgramData/chocolatey/bin"; do
+            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          done
+          find /c/ProgramData/chocolatey -maxdepth 7 -name gcc.exe 2>/dev/null | head -3
 
       # Inno Setup 生成真正的 Windows 安装程序（M19.1）
       - name: 安装 Inno Setup（Windows）
