@@ -47,6 +47,7 @@ _EN_STMT_HINTS = {
     "for": "遍历", "while": "当", "return": "返回", "import": "导入",
     "from": "从", "class": "类", "try": "尝试", "except": "捕获",
     "finally": "最终", "raise": "抛出", "break": "中断", "continue": "继续",
+    "with": "用",
 }
 # 英文值/运算符关键字 → 中文对应
 _EN_VALUE_HINTS = {
@@ -178,6 +179,8 @@ class Parser:
         self.source_lines = source_lines
         self.filename = filename
         self.pos = 0
+        #: 「用 … 为」脱糖时给保存上下文对象的临时变量编号（M26.2）
+        self._with_seq = 0
 
     # -- 基础工具 ----------------------------------------------------------
 
@@ -318,6 +321,11 @@ class Parser:
                     break
                 self._err(ParseUnexpectedError, "这里多了一个退格缩进", tok=t)
             stmt = self._parse_statement()
+            # 解析期脱糖的语句（如 M26.2 的「用 … 为」）会返回多条语句，
+            # 在这里一次性展平：后面的编译器/解释器只看到普通语句。
+            if isinstance(stmt, list):
+                stmts.extend(stmt)
+                continue
             stmts.append(stmt)
             # 块语句（如果/遍历/循环/当/函数/尝试）自带结构，以 DEDENT 结束，
             # 不需要（也没有）行尾 NEWLINE
@@ -365,6 +373,8 @@ class Parser:
                 return self._parse_import()
             if kw == "尝试":
                 return self._parse_try()
+            if kw == "用":
+                return self._parse_with()
             if kw == "抛出":
                 return self._parse_raise()
             if kw in ("捕获", "最终"):
@@ -884,46 +894,64 @@ class Parser:
         value = self._parse_expr()
         return A.Raise(value=value, line=start.line, col=start.col)
 
-    # 尝试 / 捕获 / 最终
-    def _parse_try(self) -> A.Node:
-        start = self._next()
-        self._expect_colon("尝试")
-        body = self._parse_block()
+    # 上下文管理器（M26.2）
+    def _parse_with(self):
+        """`用 <表达式> 为 <名字>：` —— **解析期脱糖**，不新增 AST 节点。
 
-        handlers: list[A.ExceptHandler] = []
-        while self._at_kw("捕获"):
-            h = self._parse_except_handler()
-            handlers.append(h)
+        脱糖成：
 
-        finalbody = None
-        if self._at_kw("最终"):
-            self._next()
-            self._expect_colon("最终")
-            finalbody = self._parse_block()
+            __用_N__ = <表达式>
+            名字 = 进入上下文(__用_N__)
+            尝试：
+                <原来的代码块>
+            最终：
+                退出上下文(__用_N__)
 
-        if not handlers and finalbody is None:
-            self._err(ParseBlockError,
-                      "「尝试」后面至少要有「捕获」或「最终」",
-                      hint="写法是：\n尝试：\n    …\n捕获 值错误 为 e：\n    …",
+        好处是三个执行器一行都不用改（`尝试/最终` 的语义早就对齐了，
+        `返回`/`中断` 穿透 finally 也早就处理过），行为必然一致。
+        `进入上下文`/`退出上下文` 只是普通内建，而 C VM 调内建本来就走
+        宿主 —— 与 M23 的 `超()`、M24 的集合字面量同一手法。
+
+        为什么留一个临时变量：**退出要作用在原来的上下文对象上**，不能
+        用绑定后的名字。`进入(自身)` 完全可以返回另一个东西（Python 的
+        `__enter__` 也允许），拿返回值去 `退出` 就会找错对象。临时变量名
+        带双下划线，用户不会撞上。
+        """
+        start = self._next()                    # 用
+        context = self._parse_expr()
+        if not self._at_kw("为"):
+            self._err(ParseUnexpectedError,
+                      "「用」后面要用「为」接一个名字",
+                      hint="写法是：\n用 打开(\"数据.txt\") 为 f：\n    内容 = f.读()",
                       tok=self._peek())
-
-        return A.Try(body=body, handlers=handlers, finalbody=finalbody,
-                     line=start.line, col=start.col)
-
-    def _parse_except_handler(self) -> A.ExceptHandler:
-        start = self._next()  # 捕获
-        typ = None
-        name = None
-        # 可选类型：捕获 值错误 为 e / 捕获 为 e / 捕获:
-        if not self._at_op(":") and not self._at_kw("为"):
-            typ = self._parse_expr()
-        if self._at_kw("为"):
-            self._next()
-            name = self._expect_name("捕获到的异常变量名").value
-        self._expect_colon("捕获")
+        self._next()                            # 为
+        name_tok = self._expect_name("名字")
+        self._expect_colon("用")
         body = self._parse_block()
-        return A.ExceptHandler(type=typ, name=name, body=body,
-                               line=start.line, col=start.col)
+
+        self._with_seq += 1
+        tmp = f"__用_{self._with_seq}__"
+        pos = {"line": start.line, "col": start.col}
+        hold = A.Assign(
+            target=A.Name(id=tmp, **pos), op="=", value=context, **pos)
+        bind = A.Assign(
+            target=A.Name(id=name_tok.value,
+                          line=name_tok.line, col=name_tok.col),
+            op="=",
+            value=A.Call(func=A.Name(id="进入上下文", **pos),
+                         args=[A.Name(id=tmp, **pos)], **pos),
+            **pos)
+        cleanup = A.Try(
+            body=body,
+            handlers=[],
+            finalbody=[A.ExprStmt(
+                expr=A.Call(func=A.Name(id="退出上下文", **pos),
+                            args=[A.Name(id=tmp, **pos)],
+                            **pos),
+                **pos)],
+            **pos)
+        # 返回三条语句；_parse_statements 会把 list 展平
+        return [hold, bind, cleanup]
 
     # -- 块 ----------------------------------------------------------------
 

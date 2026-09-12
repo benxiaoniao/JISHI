@@ -390,9 +390,13 @@ def translate_python_exception(
     if isinstance(exc, ZeroDivisionError):
         return wrap(RunZeroDivisionError, "")
     if isinstance(exc, FileNotFoundError):
-        return wrap(RunFileError, f"找不到文件或目录（{exc.strerror or exc}）")
+        # 只留路径，不带 Python 的英文 strerror（中英混排读起来更费劲，
+        # 而路径本身才是排错要的信息）
+        target = f"：{exc.filename}" if exc.filename else ""
+        return wrap(RunFileError, f"找不到文件或目录{target}")
     if isinstance(exc, PermissionError):
-        return wrap(RunFileError, f"没有权限，访问被拒绝（{exc.strerror or exc}）")
+        target = f"：{exc.filename}" if exc.filename else ""
+        return wrap(RunFileError, f"没有权限，访问被拒绝{target}")
     if isinstance(exc, OSError):
         return wrap(RunFileError, f"文件或系统操作出错（{exc}）")
     if isinstance(exc, RecursionError):

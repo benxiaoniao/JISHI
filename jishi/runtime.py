@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import decimal
 import importlib
 from typing import Any, Optional
 
@@ -115,6 +116,10 @@ def type_name(v) -> str:
         return "字典"
     if isinstance(v, JishiSet):
         return "集合"
+    if isinstance(v, JishiDecimal):
+        return "精确小数"
+    if isinstance(v, JishiFile):
+        return "文件"
     if isinstance(v, Module):
         return "模块"
     if isinstance(v, _Builtin):
@@ -144,6 +149,152 @@ def truthy(v) -> bool:
 # ---------------------------------------------------------------------------
 # 集合（M24.1）
 # ---------------------------------------------------------------------------
+
+class JishiDecimal:
+    """精确十进制小数（M26.3）：`精确("19.99")` 的返回值。
+
+    存在的理由只有一个：二进制浮点表示不了 0.1，于是 `0.1 + 0.2 == 0.3`
+    是假——金额、对账场景里这种「差一分钱」最让人头大。十进制的 0.1
+    就是 0.1，能算准。
+
+    实现借用 Python 的 `decimal`（默认 28 位有效数字），但**只**在用户
+    显式写 `精确(…)` 时才启用：普通 `0.1` 仍是二进制浮点，与 Python
+    一致。不偷偷改小数的语义——对教学语言来说「可预期」比「聪明」重要。
+    """
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: decimal.Decimal):
+        self.value = value
+
+    def __bool__(self):
+        return bool(self.value)
+
+    def __int__(self):
+        return int(self.value)
+
+    def __float__(self):
+        return float(self.value)
+
+    def __eq__(self, other):
+        # 与普通数字比较时按「十进制写法」对齐，否则 `精确("0.3") == 0.3`
+        # 会是假（0.3 的二进制真值并非 0.3）——那正是用户最想不通的地方。
+        if isinstance(other, JishiDecimal):
+            return self.value == other.value
+        if isinstance(other, (int, float)) and not isinstance(other, bool):
+            try:
+                return self.value == _to_decimal(other)
+            except JishiError:
+                return NotImplemented
+        return NotImplemented
+
+    #: 定义了 __eq__ 就没有默认 __hash__ 了（和集合元素不可哈希一致）
+    __hash__ = None
+
+    # 下面几个 Python 侧比较运算符，是给「基石自己的工具」用的：
+    # 最大/最小/列表.排序 都走 Python 的 max/sorted，没有它们会直接 TypeError。
+    # 基石语言里的比较仍走宿主 apply_compare（三个执行器同一套），不受影响。
+    def _other(self, other):
+        """把对面的数转成 Decimal；不是数字则返回 None。"""
+        if isinstance(other, JishiDecimal):
+            return other.value
+        if isinstance(other, (int, float)) and not isinstance(other, bool):
+            try:
+                return _to_decimal(other)
+            except JishiError:
+                return None
+        return None
+
+    def __lt__(self, other):
+        o = self._other(other)
+        return NotImplemented if o is None else self.value < o
+
+    def __le__(self, other):
+        o = self._other(other)
+        return NotImplemented if o is None else self.value <= o
+
+    def __gt__(self, other):
+        o = self._other(other)
+        return NotImplemented if o is None else self.value > o
+
+    def __ge__(self, other):
+        o = self._other(other)
+        return NotImplemented if o is None else self.value >= o
+
+    # 算术运算符同理：基石的 `+` 走宿主 apply_binop，这几个是给 Python 侧
+    # 用的（总和/归约 内部会用 Python 的 `+`）。两边语义一致：都是十进制算。
+    def _op(self, other, fn):
+        o = self._other(other)
+        if o is None:
+            return NotImplemented
+        return JishiDecimal(fn(self.value, o))
+
+    def __add__(self, other):
+        return self._op(other, lambda a, b: a + b)
+
+    def __radd__(self, other):
+        return self._op(other, lambda a, b: b + a)
+
+    def __sub__(self, other):
+        return self._op(other, lambda a, b: a - b)
+
+    def __rsub__(self, other):
+        return self._op(other, lambda a, b: b - a)
+
+    def __mul__(self, other):
+        return self._op(other, lambda a, b: a * b)
+
+    def __rmul__(self, other):
+        return self._op(other, lambda a, b: b * a)
+
+    def __truediv__(self, other):
+        return self._op(other, lambda a, b: a / b)
+
+    def __rtruediv__(self, other):
+        return self._op(other, lambda a, b: b / a)
+
+    def __neg__(self):
+        return JishiDecimal(-self.value)
+
+    def __abs__(self):
+        return JishiDecimal(abs(self.value))
+
+    def __repr__(self):
+        return str(self.value)
+
+
+def _to_decimal(v, *, line=None, col=None, filename="<输入>"):
+    """把值转成 ``decimal.Decimal``（精确小数的内部表示）。
+
+    小数（float）**先转 str 再转**：`Decimal(0.1)` 会把二进制尾巴原样带进来
+    （0.1000000000000000055511151231257827…），`Decimal(str(0.1))` 才是用户
+    眼里的 0.1——这一步是「精确」能不能名副其实的关键。
+    """
+    if isinstance(v, JishiDecimal):
+        return v.value
+    if isinstance(v, bool):
+        raise RunTypeError(
+            f"布尔值「{'真' if v else '假'}」不能当精确小数",
+            line=line, col=col, filename=filename)
+    if isinstance(v, int):
+        return decimal.Decimal(v)
+    if isinstance(v, float):
+        if v != v or v in (float("inf"), float("-inf")):
+            raise RunTypeError(f"「{v}」不能变成精确小数（不是有限数）",
+                               line=line, col=col, filename=filename)
+        return decimal.Decimal(str(v))
+    if isinstance(v, str):
+        try:
+            return decimal.Decimal(v.strip())
+        except decimal.InvalidOperation:
+            raise RunTypeError(
+                f"不能把「{v}」当作精确小数",
+                line=line, col=col, filename=filename,
+                hint="要写数字，例如 精确(\"19.99\")；"
+                     "要和文本拼一起就写 文本(精确值) + \"元\"")
+    raise RunTypeError(f"不能把「{type_name(v)}」转成精确小数",
+                       line=line, col=col, filename=filename)
+
 
 class JishiSet:
     """基石集合：**按插入顺序**去重的集合。
@@ -249,6 +400,117 @@ def _b_str(v):
     return str(v)
 
 
+def _b_exact(v):
+    """`精确(值)`（M26.3）：把数字或数字文本变成精确小数。
+
+    金额/统计场景用它避开浮点误差：`精确(0.1) + 精确(0.2) == 精确(0.3)`
+    为真，而 `0.1 + 0.2 == 0.3` 为假。
+    """
+    return JishiDecimal(_to_decimal(v))
+
+
+# -- 上下文管理器（M26.2）--------------------------------------------------
+
+def _ctx_lookup(obj, name: str):
+    """找对象上名为 ``name`` 的方法，返回「无参可调用」；没有则返回 None。
+
+    自定义对象的方法存在类的方法表里（调用时把实例塞进首参），内建类型的
+    方法存在各自的 ``*_METHODS`` 表里（调用约定是 ``impl(obj, args, node)``）。
+    这里把两种约定统一成一种，「进入上下文 / 退出上下文」就不必关心对象
+    到底是什么类型。
+    """
+    if isinstance(obj, JishiInstance):
+        fn = obj.cls.methods.get(name)
+        if fn is not None:
+            return lambda: fn(obj)
+        return None
+    table = method_table(obj)
+    if table is not None and name in table:
+        impl = table[name]
+        return lambda: _BoundMethod(impl, obj, name, None, None, "<输入>")()
+    return None
+
+
+def _b_enter_context(obj):
+    """`用 <表达式> 为 名字：` 脱糖后的第一步（M26.2）。
+
+    有 `进入` 方法就调用它、用返回值绑定名字（对应 Python 的 ``__enter__``）；
+    否则若对象能自己收拾（有 `退出` 或 `关闭`），就绑定对象本身——文件、
+    锁这类「进入即自身」的写法不必硬写一个 `进入`。
+    两样都没有就在**这里**报错：比等到 finally 里才报，位置准得多。
+    """
+    enter = _ctx_lookup(obj, "进入")
+    if enter is not None:
+        return enter()
+    if (_ctx_lookup(obj, "退出") is not None
+            or _ctx_lookup(obj, "关闭") is not None):
+        return obj
+    name = type_name(obj)
+    if isinstance(obj, (list, dict)):
+        hint = (f"「{name}」用完不需要收拾，所以不能这样写；"
+                f"只是想在块里用一下的话，直接写普通语句就行")
+    else:
+        hint = ("上下文管理器要有「退出」或「关闭」方法（离开时自动调用），"
+                "也可以再定义「进入」来决定绑定什么值。"
+                "最常见的用法：用 打开(\"数据.txt\") 为 f：")
+    raise RunTypeError(f"「{name}」不能当上下文管理器用", hint=hint)
+
+
+def _b_exit_context(obj):
+    """离开 `用 … 为` 代码块时调用（M26.2）：优先 `退出`，其次 `关闭`。
+
+    调用时机由脱糖后的 `尝试/最终` 保证——正常结束、`返回`、`中断`、
+    `抛出` 都会走到这里。返回值忽略（不像 Python 那样能吞异常：
+    吞异常会让「出问题快速找到」变难，有意不做）。
+    """
+    for name in ("退出", "关闭"):
+        fn = _ctx_lookup(obj, name)
+        if fn is not None:
+            fn()
+            return None
+    return None
+
+
+# -- 文件（M26.2）----------------------------------------------------------
+
+#: 「打开」的中文模式名 → Python 模式串
+_FILE_MODES = {
+    "读": "r",
+    "写": "w",
+    "追加": "a",
+    "读写": "r+",
+}
+#: 也认英文模式，照顾从别的语言过来的习惯
+_FILE_MODES_EN = ("r", "w", "a", "r+", "w+", "a+")
+
+
+def _b_open(path, mode="读"):
+    """打开文件，返回文件对象（M26.2）。
+
+    模式用中文：读 / 写 / 追加 / 读写（也认 r/w/a/r+/w+/a+）。
+    一律按 UTF-8 读写——Windows 上默认编码是 GBK，中文会乱码。
+    """
+    if not isinstance(path, str):
+        raise RunTypeError(
+            f"「打开」的第一个参数要是文件路径，得到了「{type_name(path)}」",
+            hint="例如：打开(\"数据.txt\")")
+    if not isinstance(mode, str):
+        raise RunTypeError(
+            f"「打开」的第二个参数（模式）要是文本，得到了「{type_name(mode)}」")
+    py_mode = _FILE_MODES.get(mode)
+    if py_mode is None and mode in _FILE_MODES_EN:
+        py_mode = mode
+    if py_mode is None:
+        raise RunTypeError(
+            f"不认识的打开模式「{mode}」",
+            hint="可用的模式：读、写、追加、读写（也认 r/w/a/r+/w+/a+）")
+    try:
+        handle = open(path, py_mode, encoding="utf-8")
+    except Exception as e:
+        raise translate_python_exception(e)
+    return JishiFile(handle, path, mode)
+
+
 def _b_len(v):
     try:
         return len(v)
@@ -314,8 +576,22 @@ def _b_min(*args):
 
 
 def _b_sum(v):
+    """求列表所有元素的和。
+
+    精确小数列表要显式给十进制起点：Python 的 `sum` 默认从整数 0 开始，
+    而 `0 + Decimal` 会 TypeError——`总和([精确("0.1"), …])` 不该因此失败。
+    """
     try:
-        return sum(v)
+        items = list(v)
+    except TypeError:
+        raise RunTypeError(f"「{v}」不能求和，需要一个全是数字的列表")
+    start = 0
+    for it in items:
+        if isinstance(it, JishiDecimal):
+            start = JishiDecimal(decimal.Decimal(0))
+            break
+    try:
+        return sum(items, start)
     except (TypeError, ValueError):
         raise RunTypeError(f"「{v}」不能求和，需要一个全是数字的列表")
 
@@ -473,6 +749,18 @@ def new_builtins() -> dict[str, Any]:
         "整数": _Builtin("整数", _b_int, "把值转成整数"),
         "小数": _Builtin("小数", _b_float, "把值转成小数"),
         "文本": _Builtin("文本", _b_str, "把值转成文本"),
+        "精确": _Builtin(
+            "精确", _b_exact,
+            "精确(\"19.99\")：转成精确小数，金额/对账用它避开浮点误差"),
+        "打开": _Builtin(
+            "打开", _b_open,
+            "打开(路径, 模式=读)：返回文件对象，常配「用 … 为 f：」自动关闭"),
+        "进入上下文": _Builtin(
+            "进入上下文", _b_enter_context,
+            "供「用 … 为」脱糖使用：有 进入 就调用，否则返回对象自身"),
+        "退出上下文": _Builtin(
+            "退出上下文", _b_exit_context,
+            "供「用 … 为」脱糖使用：离开代码块时调用 退出 或 关闭"),
         "长度": _Builtin("长度", _b_len, "取列表、文本等的长度"),
         "范围": _Builtin(
             "范围", _b_range,
@@ -591,9 +879,69 @@ def lookup_name(name: str, pool, *, line=None, col=None,
 # 运算
 # ---------------------------------------------------------------------------
 
+#: 精确小数支持的二元运算（与普通数字一致）
+_DECIMAL_OPS = ("+", "-", "*", "/", "//", "%", "**")
+
+
+def _decimal_binop(op, left, right, *, line=None, col=None, filename="<输入>"):
+    """至少一边是精确小数的二元运算：两边先转 Decimal，算完还是精确小数。"""
+    if op not in _DECIMAL_OPS:
+        raise RunTypeError(f"精确小数不支持「{op}」运算",
+                           line=line, col=col, filename=filename)
+    a = _to_decimal(left, line=line, col=col, filename=filename)
+    b = _to_decimal(right, line=line, col=col, filename=filename)
+    try:
+        if op == "/" and b == 0:
+            raise RunZeroDivisionError("", line=line, col=col,
+                                       filename=filename)
+        if op in ("//", "%") and b == 0:
+            raise RunZeroDivisionError("", line=line, col=col,
+                                       filename=filename)
+        return JishiDecimal({
+            "+": lambda: a + b,
+            "-": lambda: a - b,
+            "*": lambda: a * b,
+            "/": lambda: a / b,
+            "//": lambda: a // b,
+            "%": lambda: a % b,
+            "**": lambda: a ** b,
+        }[op]())
+    except JishiError:
+        raise
+    except Exception as e:
+        raise translate_python_exception(e, line=line, col=col,
+                                         filename=filename)
+
+
+def _decimal_compare(op, left, right, *, line=None, col=None,
+                     filename="<输入>"):
+    """精确小数参与的比较：两边转 Decimal 再比（0.3 就是 0.3）。"""
+    a = _to_decimal(left, line=line, col=col, filename=filename)
+    b = _to_decimal(right, line=line, col=col, filename=filename)
+    if op == "==":
+        return a == b
+    if op == "!=":
+        return a != b
+    if op == "<":
+        return a < b
+    if op == ">":
+        return a > b
+    if op == "<=":
+        return a <= b
+    if op == ">=":
+        return a >= b
+    raise RunTypeError(f"精确小数不能做「{op}」比较",
+                       line=line, col=col, filename=filename)
+
+
 def apply_binop(op: str, left, right, *, line=None, col=None,
                 filename="<输入>"):
     """二元运算（+ - * / // % **）。"""
+    # 精确小数（M26.3）：任一边是它就走十进制运算。C VM 的整数/浮点快路径
+    # 不认识这个宿主类型，会自动回落到这里，所以三执行器仍然一致。
+    if isinstance(left, JishiDecimal) or isinstance(right, JishiDecimal):
+        return _decimal_binop(op, left, right, line=line, col=col,
+                              filename=filename)
     try:
         if op == "+":
             return left + right
@@ -629,6 +977,8 @@ def apply_binop(op: str, left, right, *, line=None, col=None,
 
 def apply_unary(op: str, v, *, line=None, col=None, filename="<输入>"):
     if op == "-":
+        if isinstance(v, JishiDecimal):
+            return JishiDecimal(-v.value)
         try:
             return -v
         except TypeError:
@@ -674,6 +1024,14 @@ def _identity_snapshot(value):
 
 def apply_compare(op: str, left, right, *, line=None, col=None,
                   filename="<输入>"):
+    # 精确小数（M26.3）：算术比较交给十进制做（混合 0.3 也能相等）。
+    # 成员测试/同一性（在·不在·是·不是）不走这里——`精确("1") 在 [1]`
+    # 应该按元素比较，而不是让「精确」拒绝参加。
+    if op in ("==", "!=", "<", ">", "<=", ">=") and (
+            isinstance(left, JishiDecimal) or isinstance(right,
+                                                         JishiDecimal)):
+        return _decimal_compare(op, left, right, line=line, col=col,
+                                filename=filename)
     try:
         if op == "==":
             return left == right
@@ -777,7 +1135,24 @@ class JishiInstance:
         self.fields: dict[str, Any] = {}
 
     def __repr__(self):
-        return f"<{self.cls.name} 实例>"
+        """自定义打印（M26.1）：类里定义了 ``文本(自身)`` 就用它的返回值。
+
+        `打印(对象)` 与 `文本(对象)` 在三个执行器里都是走宿主的 `str()`，
+        C VM 调内建也落在同一个 Python 内建上，所以只改这一处就三处一致。
+
+        没定义 ``文本`` 时回落到 ``<类名 实例>``（保持既有行为）。
+        """
+        fn = self.cls.methods.get("文本")
+        if fn is None:
+            return f"<{self.cls.name} 实例>"
+        result = fn(self)
+        if not isinstance(result, str):
+            raise RunTypeError(
+                f"类「{self.cls.name}」的「文本」方法返回了"
+                f"「{type_name(result)}」，要返回文本",
+                hint="「文本」方法的返回值会被 打印/文本() 直接使用，"
+                     "所以必须是文本，例如 返回 \"甲(\" + 文本(自身.x) + \")\"")
+        return result
 
     def __iter__(self):
         """迭代协议（M24.1）：让自定义对象能直接用于 `遍历`。
@@ -1656,6 +2031,172 @@ SET_METHODS = {
     "复制": _m_set_copy,
 }
 
+
+# -- 文件（M26.2）----------------------------------------------------------
+
+class JishiFile:
+    """文件对象：`打开(路径, 模式)` 的返回值。
+
+    刻意做成「真句柄」而不是一次读进内存：大文件能按行遍历、不必整个装进
+    列表，而且「用完要关」这件事才有意义——这正是上下文管理器存在的理由。
+
+    它自带 `关闭`（所以能当上下文管理器）与迭代器协议
+    （所以能 `遍历 行 在 f`）。打印时显示路径与状态，便于排错。
+    """
+
+    __slots__ = ("handle", "path", "mode", "closed")
+
+    def __init__(self, handle, path: str, mode: str):
+        self.handle = handle
+        self.path = path
+        self.mode = mode
+        self.closed = False
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        line = self.handle.readline()
+        if line == "":
+            raise StopIteration
+        return line.rstrip("\r\n")
+
+    def __repr__(self):
+        state = "已关闭" if self.closed else self.mode
+        return f"<文件 {self.path}（{state}）>"
+
+
+def _file_handle(obj, node, name: str):
+    """取底层句柄；文件已关闭时给中文报错（而不是漏出 Python 的 ValueError）。"""
+    if obj.closed:
+        raise RunValueError(
+            f"文件「{obj.path}」已经关闭了，不能再「{name}」",
+            line=node.line, col=node.col,
+            hint="「用 打开(…) 为 f：」的块一结束，文件就自动关了；"
+                 "该读该写的要在块里做完")
+    return obj.handle
+
+
+def _m_file_read(obj, args, node):
+    _need_args("读", args, node, 0, 1)
+    h = _file_handle(obj, node, "读")
+    return h.read(args[0] if args else -1)
+
+
+def _m_file_read_line(obj, args, node):
+    _need_args("读行", args, node, 0, 0)
+    h = _file_handle(obj, node, "读行")
+    line = h.readline()
+    if line == "":
+        return None                     # 读到末尾：给「空」，便于判断
+    return line.rstrip("\r\n")
+
+
+def _m_file_read_lines(obj, args, node):
+    _need_args("读所有行", args, node, 0, 0)
+    h = _file_handle(obj, node, "读所有行")
+    return [ln.rstrip("\r\n") for ln in h]
+
+
+def _m_file_write(obj, args, node):
+    _need_args("写", args, node, 1, 1)
+    h = _file_handle(obj, node, "写")
+    text = args[0]
+    if not isinstance(text, str):
+        raise RunTypeError(
+            f"「写」需要文本，得到了「{type_name(text)}」",
+            line=node.line, col=node.col,
+            hint="先用 文本(…) 转一下，例如 f.写(文本(42))")
+    h.write(text)
+    return None
+
+
+def _m_file_write_line(obj, args, node):
+    _need_args("写行", args, node, 1, 1)
+    h = _file_handle(obj, node, "写行")
+    text = args[0]
+    if not isinstance(text, str):
+        raise RunTypeError(
+            f"「写行」需要文本，得到了「{type_name(text)}」",
+            line=node.line, col=node.col,
+            hint="先用 文本(…) 转一下")
+    h.write(text + "\n")
+    return None
+
+
+def _m_file_close(obj, args, node):
+    _need_args("关闭", args, node, 0, 0)
+    if not obj.closed:                  # 重复关闭不报错，幂等更省心
+        obj.handle.close()
+        obj.closed = True
+    return None
+
+
+def _m_file_flush(obj, args, node):
+    _need_args("刷新", args, node, 0, 0)
+    _file_handle(obj, node, "刷新").flush()
+    return None
+
+
+def _m_file_tell(obj, args, node):
+    _need_args("位置", args, node, 0, 0)
+    return _file_handle(obj, node, "位置").tell()
+
+
+def _m_file_seek(obj, args, node):
+    _need_args("定位", args, node, 1, 1)
+    _file_handle(obj, node, "定位").seek(args[0])
+    return None
+
+
+FILE_METHODS = {
+    "读": _m_file_read,
+    "读行": _m_file_read_line,
+    "读所有行": _m_file_read_lines,
+    "写": _m_file_write,
+    "写行": _m_file_write_line,
+    "关闭": _m_file_close,
+    "刷新": _m_file_flush,
+    "位置": _m_file_tell,
+    "定位": _m_file_seek,
+}
+
+
+# -- 精确小数方法（M26.3）--------------------------------------------------
+
+def _m_dec_round(obj, args, node):
+    _need_args("舍入", args, node, 0, 1)
+    digits = args[0] if args else 2
+    if isinstance(digits, bool) or not isinstance(digits, int):
+        raise RunTypeError(
+            f"「舍入」的位数要是整数，得到了「{type_name(digits)}」",
+            line=node.line, col=node.col,
+            hint="例如 钱.舍入(2) 保留两位；负数表示舍到十位、百位")
+    # 金额场景用「四舍五入」（ROUND_HALF_UP），而不是 Python 默认的
+    # 银行家舍入（0.5 舍到偶数）——后者更「标准」但不合用户直觉
+    q = decimal.Decimal(1).scaleb(-digits)
+    rounded = obj.value.quantize(q, rounding=decimal.ROUND_HALF_UP)
+    # 舍到十位/百位（digits 为负）时 Decimal 会写成 1.2E+3，
+    # 换回普通写法（1200）——科学计数法在金额场景里没人想看
+    return JishiDecimal(decimal.Decimal(format(rounded, "f")))
+
+
+def _m_dec_abs(obj, args, node):
+    _need_args("绝对值", args, node, 0, 0)
+    return JishiDecimal(abs(obj.value))
+
+
+def _m_dec_str(obj, args, node):
+    _need_args("转文本", args, node, 0, 0)
+    return str(obj.value)
+
+
+DECIMAL_METHODS = {
+    "舍入": _m_dec_round,
+    "绝对值": _m_dec_abs,
+    "转文本": _m_dec_str,
+}
+
 DICT_METHODS = {
     "获取": _m_dict_get,
     "键": _m_dict_keys,
@@ -1686,6 +2227,10 @@ def method_table(obj) -> Optional[dict]:
         return LIST_METHODS
     if isinstance(obj, JishiSet):
         return SET_METHODS
+    if isinstance(obj, JishiFile):
+        return FILE_METHODS
+    if isinstance(obj, JishiDecimal):
+        return DECIMAL_METHODS
     if isinstance(obj, dict):
         return DICT_METHODS
     if isinstance(obj, str):
