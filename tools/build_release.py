@@ -55,10 +55,11 @@ def _dll_name() -> str:
 
 
 def _find_iscc() -> "Path | None":
-    """定位 Inno Setup 编译器 ISCC.exe（Windows 安装程序用）。
+    r"""定位 Inno Setup 编译器 ISCC.exe（Windows 安装程序用）。
 
     覆盖三种常见安装位置：系统级 Program Files（Inno Setup 6/7）、
     用户级 %LOCALAPPDATA%\Programs（`/CURRENTUSER` 安装）、以及 PATH。
+    优先用较新版本（7 优于 6）。
     """
     if sys.platform != "win32":
         return None

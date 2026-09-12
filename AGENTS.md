@@ -51,7 +51,12 @@
   用 `msys2/setup-msys2@v2`（`msystem: MINGW64` + `install: mingw-w64-x86_64-gcc`
   + `path-type: inherit`）。GitHub runner 预装 MSYS2 但不在 PATH、且不含 gcc 包。
 - **Windows 安装程序**：由 Inno Setup 编译（`tools/installer.iss`）；
-  ISCC 查找覆盖 Program Files / %LOCALAPPDATA%\Programs（`/CURRENTUSER` 装法）。
+  ISCC 查找覆盖 Program Files / %LOCALAPPDATA%\Programs（`/CURRENTUSER` 装法），
+  优先用较新版本（7 优于 6）。
+- **Windows 上打印中文**：CI/Cmd 的 Python stdout 默认非 UTF-8，会
+  `UnicodeEncodeError`；脚本入口 `sys.stdout.reconfigure(encoding="utf-8")`，
+  workflow 另设 `PYTHONUTF8=1`。同理 `strftime` 传含中文的格式串在 Windows
+  Python 3.10 上会崩（见 `jishi/stdlib/日期.py` 的摘出/放回处理）。
 - **推 tag 不要推本地仓库**：本地 git 历史含旧版个人路径，用
   `python tools/publish_github.py --tag vX.Y.Z` 在屏蔽版快照上打 tag。
 - 更多见 README「已踩过的坑」一节。
