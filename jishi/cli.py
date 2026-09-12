@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Optional
 
@@ -178,7 +179,7 @@ def _print_json_error(e: JishiError) -> None:
 
 
 def _cmd_install(args) -> int:
-    """`jishi 安装 包名`：从本地目录 / zip / URL 安装包到 .jishi/packages/。"""
+    """`jishi 安装 包名`：从本地目录 / zip / 索引 安装包到 .jishi/packages/。"""
     from . import packages as PKG
 
     try:
@@ -194,17 +195,27 @@ def _cmd_install(args) -> int:
             # 从远端索引 JSON 取下载地址并拉包
             _install_from_index(args.package, args.from_index, force=args.force)
             return 0
-        # 默认：本地包缓存目录直接按名字找，没有则报错提示
+        if args.index:
+            # 显式 --index（M22.1）
+            _install_from_index(args.package, args.index, force=args.force)
+            return 0
+        # 默认：本地包缓存目录直接按名字找
         import os
-        from .runtime import _find_pkg_dir, _package_dirs
+        from .runtime import _find_pkg_dir
         pdir = _find_pkg_dir(args.package)
         if pdir:
             print(f"包「{args.package}」已在本地缓存：{pdir}")
             return 0
-        print(f"找不到包「{args.package}」", file=sys.stderr)
-        print("用法：jishi 安装 包名 --local-dir 目录  |  "
-              "--local-zip 包.zip  |  --from-index 索引.json", file=sys.stderr)
-        return 1
+        # 本地没有 → 走默认远端索引（M22.1）；加 --no-index 可关掉
+        if getattr(args, "no_index", False):
+            print(f"找不到包「{args.package}」", file=sys.stderr)
+            print("用法：jishi 安装 包名 [--local-dir 目录 | --local-zip 包.zip | "
+                  "--index 索引.json]", file=sys.stderr)
+            return 1
+        url = PKG.default_index_url()
+        print(f"本地没有，尝试默认索引：{url}")
+        _install_from_index(args.package, url, force=args.force)
+        return 0
     except ValueError as e:
         print(f"安装失败：{e}", file=sys.stderr)
         return 1
@@ -251,6 +262,15 @@ def _install_from_index(name: str, index_url: str, *, force: bool = False) -> No
         with urllib.request.urlopen(url, timeout=60) as resp, \
                 open(tmp, "wb") as out:
             out.write(resp.read())
+        # 校验和（M22.2）：索引里有「校验和」就必须对得上，防止下载被篡改
+        want = str(meta.get("校验和") or "").strip()
+        if want:
+            want = want.split(":", 1)[1] if want.startswith("sha256:") else want
+            got = PKG._sha256_file(tmp)
+            if got.lower() != want.lower():
+                raise ValueError(
+                    f"包「{name}」的校验和对不上（索引写 {want[:16]}…，"
+                    f"实际 {got[:16]}…），文件可能被改动过，已放弃安装")
         PKG.install_package_zip(tmp, name, force=force)
     except ValueError:
         raise
@@ -436,6 +456,125 @@ def _cmd_format(args) -> int:
     return 0
 
 
+def _cmd_publish(args) -> int:
+    """`jishi 发布 <包目录>`：打包 + 生成索引条目（M22.2）。
+
+    只做「本地产物 + 给出条目」：真正的托管是静态文件（推仓库 / 传 CDN），
+    不做账号体系与上传接口——与项目「零依赖、静态托管」的取向一致。
+    """
+    import json as _json
+
+    from . import packages as PKG
+
+    pkg_dir = args.path
+    out_dir = args.out
+    try:
+        zip_path, name = PKG.build_package_zip(pkg_dir, out_dir)
+        checksum = PKG._sha256_file(zip_path)
+        entry = PKG.index_entry(
+            pkg_dir, base_url=args.base_url,
+            zip_name=os.path.basename(zip_path))
+        if args.base_url:
+            entry["校验和"] = f"sha256:{checksum}"
+    except ValueError as e:
+        print(f"发布失败：{e}", file=sys.stderr)
+        return 1
+
+    size_kb = os.path.getsize(zip_path) / 1024
+    print(f"已打包：{zip_path}（{size_kb:.1f} KB）")
+    print(f"校验和：sha256:{checksum}")
+
+    if not args.base_url:
+        print("未指定 --base-url，索引条目里不含下载地址；"
+              "发布时请用 --base-url https://…/下载 指定托管前缀")
+
+    print("索引条目：")
+    print(_json.dumps({name: entry}, ensure_ascii=False, indent=2))
+
+    if args.index:
+        try:
+            if os.path.isfile(args.index):
+                with open(args.index, encoding="utf-8") as f:
+                    old = PKG.parse_index(f.read())
+            else:
+                old = PKG.make_index({})
+            merged = PKG.merge_index(old, name, entry)
+            with open(args.index, "w", encoding="utf-8", newline="\n") as f:
+                f.write(PKG.index_to_text(merged))
+        except (ValueError, OSError) as e:
+            print(f"写入索引「{args.index}」失败：{e}", file=sys.stderr)
+            return 1
+        print(f"已更新索引：{args.index}")
+    return 0
+
+
+def _cmd_index(args) -> int:
+    """`jishi 索引 <目录>`：扫描目录下的包，批量重建索引（M22.2）。"""
+    import json as _json
+
+    from . import packages as PKG
+
+    try:
+        dirs = PKG.scan_packages(args.path)
+    except ValueError as e:
+        print(f"生成索引失败：{e}", file=sys.stderr)
+        return 1
+    if not dirs:
+        print(f"「{args.path}」下没找到任何包（子目录需含 包.json）", file=sys.stderr)
+        return 1
+
+    if args.zip_dir:
+        os.makedirs(args.zip_dir, exist_ok=True)
+
+    packages: dict[str, dict] = {}
+    for d in dirs:
+        try:
+            meta = PKG.read_package_meta(d)
+            name = meta["名字"]
+            zip_name = f"{name}-{meta['版本']}.zip"
+            entry = PKG.index_entry(d, base_url=args.base_url, zip_name=zip_name)
+            if args.zip_dir or args.checksum:
+                zip_path, _ = PKG.build_package_zip(d, args.zip_dir or args.out)
+                entry["校验和"] = f"sha256:{PKG._sha256_file(zip_path)}"
+            packages[name] = entry
+        except ValueError as e:
+            print(f"跳过「{d}」：{e}", file=sys.stderr)
+
+    if not packages:
+        print("没有可打包的包", file=sys.stderr)
+        return 1
+
+    text = PKG.index_to_text(PKG.make_index(packages))
+    if args.out_index:
+        with open(args.out_index, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        print(f"已生成索引：{args.out_index}（含 {len(packages)} 个包）")
+    else:
+        print(text)
+    return 0
+
+
+def _cmd_check(args) -> int:
+    """`jishi 检查`：检测已装包的依赖冲突（钻石依赖，M22.3）。"""
+    from . import packages as PKG
+    from .runtime import _find_pkg_dir
+
+    installed = [p["名字"] for p in PKG.list_packages()]
+    roots = args.packages or installed
+    if not roots:
+        print("（尚未安装任何本地包）")
+        return 0
+
+    conflicts = PKG.detect_conflicts(roots, find_dir=_find_pkg_dir)
+    if not conflicts:
+        print(f"检查了 {len(roots)} 个包，未发现依赖冲突")
+        return 0
+    for c in conflicts:
+        print(PKG.format_conflict(c))
+    print(f"\n共发现 {len(conflicts)} 处依赖冲突")
+    return 1
+
+
 def _cmd_lsp(args) -> int:
     """启动语言服务器（M21.2，stdio 上的 LSP）。
 
@@ -447,16 +586,19 @@ def _cmd_lsp(args) -> int:
 
 
 def _run_package_cmd(argv: list[str]) -> int:
-    """包管理子命令分发：jishi 安装/卸载/列表（M14.2）。"""
+    """包管理子命令分发：安装/卸载/列表/发布/索引/检查（M14.2 / M22）。"""
     parser = argparse.ArgumentParser(
         prog="jishi", description="基石包管理")
     sub = parser.add_subparsers(dest="subcommand", metavar="命令", required=True)
 
-    p_install = sub.add_parser("安装", help="安装本地包到 .jishi/packages/")
+    p_install = sub.add_parser("安装", help="安装包到 .jishi/packages/")
     p_install.add_argument("package", help="要安装的包名")
     p_install.add_argument("--local-dir", help="从本地目录安装（含 包.json）")
     p_install.add_argument("--local-zip", help="从本地 zip 安装（内含 包名/ 顶层目录）")
-    p_install.add_argument("--from-index", help="从远端索引 JSON（本地文件或 URL）拉包")
+    p_install.add_argument("--from-index", help="从指定索引 JSON（本地文件或 URL）拉包")
+    p_install.add_argument("--index", help="同 --from-index（M22.1）")
+    p_install.add_argument("--no-index", action="store_true",
+                           help="不联网：本地找不到就直接报错")
     p_install.add_argument("--force", action="store_true", help="覆盖已安装的同名包")
     p_install.set_defaults(func=_cmd_install)
 
@@ -466,6 +608,35 @@ def _run_package_cmd(argv: list[str]) -> int:
 
     p_list = sub.add_parser("列表", help="列出已安装的本地包")
     p_list.set_defaults(func=_cmd_list)
+
+    p_pub = sub.add_parser("发布", help="打包并生成索引条目（M22.2）")
+    p_pub.add_argument("path", help="包目录（含 包.json）")
+    p_pub.add_argument("--out", default="dist/packages",
+                       help="zip 输出目录（默认 dist/packages）")
+    p_pub.add_argument("--base-url", default="",
+                       help="下载地址前缀，如 https://…/packages/下载")
+    p_pub.add_argument("--index", default="",
+                       help="把条目合并进这个索引文件（不存在则新建）")
+    p_pub.set_defaults(func=_cmd_publish)
+
+    p_idx = sub.add_parser("索引", help="扫描目录批量重建索引（M22.2）")
+    p_idx.add_argument("path", help="包目录的父目录（或单个包目录）")
+    p_idx.add_argument("--base-url", default="",
+                       help="下载地址前缀，如 https://…/packages/下载")
+    p_idx.add_argument("--out-index", default="",
+                       help="索引输出路径（默认打印到标准输出）")
+    p_idx.add_argument("--zip-dir", default="",
+                       help="同时在此目录生成 zip（顺带算校验和）")
+    p_idx.add_argument("--out", default="dist/packages",
+                       help="--zip-dir 未给时的临时打包目录")
+    p_idx.add_argument("--checksum", action="store_true",
+                       help="为每个包算 sha256 写进索引（需打包）")
+    p_idx.set_defaults(func=_cmd_index)
+
+    p_check = sub.add_parser("检查", help="检测依赖冲突（钻石依赖，M22.3）")
+    p_check.add_argument("packages", nargs="*",
+                         help="要检查的包名（默认检查已装的全部）")
+    p_check.set_defaults(func=_cmd_check)
 
     args = parser.parse_args(argv)
     return args.func(args)
@@ -509,8 +680,9 @@ def _run_tool_cmd(argv: list[str]) -> int:
 def main(argv: Optional[list[str]] = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
-    # 包管理子命令（安装/卸载/列表）走独立解析器，避免与「运行文件」位置参数冲突
-    if argv and argv[0] in ("安装", "卸载", "列表"):
+    # 包管理子命令（安装/卸载/列表/发布/索引/检查）走独立解析器，
+    # 避免与「运行文件」位置参数冲突
+    if argv and argv[0] in ("安装", "卸载", "列表", "发布", "索引", "检查"):
         return _run_package_cmd(argv)
     # 工具子命令（医生/新项目/教程/格式化/lsp，M16 / M21）
     if argv and argv[0] in ("医生", "新项目", "教程", "格式化", "lsp"):
