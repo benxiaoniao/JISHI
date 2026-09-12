@@ -516,7 +516,7 @@ class VM:
                         except TypeError:
                             frame.ip = ip
                             raise RunTypeError(
-                                f"「{obj}」不能遍历，遍历需要列表、文本等",
+                                f"「{obj}」不能遍历，遍历需要列表、文本、集合或字典；自定义对象可以定义「迭代()」方法",
                                 line=ins.line, col=ins.col,
                                 filename=filename)
                     elif op == Op.FOR_ITER:

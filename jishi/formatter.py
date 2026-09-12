@@ -193,6 +193,10 @@ def _respacify(code: str, tk: Tokenizer) -> str:
             need_space = False
         elif norm in ("(", "[") and prev_value:
             need_space = False         # 调用/下标：f(x)、甲[0] 紧贴
+        elif norm == "(" and prev_norm == "函数":
+            # 匿名函数（M24.4）：`函数(x)：x * 2` 的括号紧贴关键字，
+            # 别写成 `函数 (x)`（具名函数是 `函数 名字(`，不受这条影响）
+            need_space = False
         elif prev_norm in _NO_SPACE_AFTER:
             need_space = False
         elif prev_unary:

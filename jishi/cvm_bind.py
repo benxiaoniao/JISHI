@@ -619,7 +619,7 @@ class CvmHost:
                     iter(wrapper.it)      # 触发「不能遍历」检查
             except TypeError:
                 raise RunTypeError(
-                    f"「{o}」不能遍历，遍历需要列表、文本等",
+                    f"「{o}」不能遍历，遍历需要列表、文本、集合或字典；自定义对象可以定义「迭代()」方法",
                     line=line, col=col, filename=self.filename)
             batchable[0] = 1 if wrapper.batchable else 0
             out[0] = self.py2c(wrapper)
@@ -885,7 +885,7 @@ class CvmHost:
     def _cb_raise_not_iter(self, obj, line, col):
         o = self.c2py(obj[0])
         self.pending = RunTypeError(
-            f"「{o}」不能遍历，遍历需要列表、文本等",
+            f"「{o}」不能遍历，遍历需要列表、文本、集合或字典；自定义对象可以定义「迭代()」方法",
             line=line, col=col, filename=self.filename)
         return -1
 

@@ -76,10 +76,11 @@ class Environment:
 # ---------------------------------------------------------------------------
 
 class UserFunction:
-    __slots__ = ("name", "params", "defaults", "body", "closure", "interp")
+    __slots__ = ("name", "params", "defaults", "body", "closure", "interp",
+                 "annotations")
 
     def __init__(self, name, params, body, closure, interp,
-                 defaults=None):
+                 defaults=None, annotations=None):
         self.name = name
         self.params = params
         #: 与 params 对齐；None 表示无默认。值已在定义处求好（M7）
@@ -87,6 +88,8 @@ class UserFunction:
         self.body = body
         self.closure = closure
         self.interp = interp
+        #: 类型标注文本（M24.3），与 params 对齐，None 表示没写
+        self.annotations = annotations or []
 
     def __repr__(self):
         return f"<函数 {self.name}>"
@@ -190,7 +193,8 @@ class Interpreter:
             fn = UserFunction(
                 stmt.name, stmt.params, stmt.body, env, self,
                 defaults=[self.eval_expr(d, env) if d is not None else None
-                          for d in stmt.defaults])
+                          for d in stmt.defaults],
+                annotations=list(getattr(stmt, "annotations", []) or []))
             env.set(stmt.name, fn)
         elif isinstance(stmt, A.ClassDef):
             self._do_classdef(stmt, env)
@@ -275,7 +279,7 @@ class Interpreter:
             it = iter(iterable)
         except TypeError:
             raise RunTypeError(
-                f"「{iterable}」不能遍历，遍历需要列表、文本等",
+                f"「{iterable}」不能遍历，遍历需要列表、文本、集合或字典；自定义对象可以定义「迭代()」方法",
                 line=stmt.line, col=stmt.col, filename=self.filename)
         try:
             while True:
@@ -300,7 +304,7 @@ class Interpreter:
             it = iter(iterable)
         except TypeError:
             raise RunTypeError(
-                f"「{iterable}」不能遍历，遍历需要列表、文本等",
+                f"「{iterable}」不能遍历，遍历需要列表、文本、集合或字典；自定义对象可以定义「迭代()」方法",
                 line=expr.line, col=expr.col, filename=self.filename)
         if expr.kind == "list":
             result: list = []
@@ -460,6 +464,14 @@ class Interpreter:
             if expr.id == "空":
                 return None
             return self._lookup(expr.id, env, expr)
+        if isinstance(expr, A.Lambda):
+            # 匿名函数（M24.4）：造一个与具名函数完全同构的 UserFunction
+            # （闭包 = 当前环境），这样调用、报错、类型标注校验全都复用既有逻辑。
+            return UserFunction(
+                expr.name, expr.params, expr.body, env, self,
+                defaults=[self.eval_expr(d, env) if d is not None else None
+                          for d in (expr.defaults or [])],
+                annotations=list(getattr(expr, "annotations", []) or []))
         if isinstance(expr, A.List):
             return [self.eval_expr(e, env) for e in expr.elements]
         if isinstance(expr, A.Dict):
@@ -487,20 +499,19 @@ class Interpreter:
         if isinstance(expr, A.Attr):
             return get_attr(self.eval_expr(expr.obj, env), expr.attr,
                             line=expr.line, col=expr.col, filename=self.filename)
+        if isinstance(expr, A.Slice):
+            # 把切片本身当值求值（M24.2）：这样读 `a[1:3]` 和写 `a[1:3] = …`
+            # 走同一条求值路径，赋值切片不需要另写一套逻辑。
+            return R.make_slice(
+                self.eval_expr(expr.start, env) if expr.start is not None else None,
+                self.eval_expr(expr.stop, env) if expr.stop is not None else None,
+                self.eval_expr(expr.step, env) if expr.step is not None else None,
+                line=expr.line, col=expr.col, filename=self.filename)
         if isinstance(expr, A.Subscript):
             obj = self.eval_expr(expr.obj, env)
-            idx = expr.index
-            if isinstance(idx, A.Slice):
-                # M18.1 切片：三个分量分别求值（省略为 None），再取切片
-                s = R.make_slice(
-                    self.eval_expr(idx.start, env) if idx.start is not None else None,
-                    self.eval_expr(idx.stop, env) if idx.stop is not None else None,
-                    self.eval_expr(idx.step, env) if idx.step is not None else None,
-                    line=expr.line, col=expr.col, filename=self.filename)
-                return get_item(obj, s, line=expr.line, col=expr.col,
-                                filename=self.filename)
-            return get_item(obj, self.eval_expr(idx, env),
-                            line=expr.line, col=expr.col, filename=self.filename)
+            return get_item(obj, self.eval_expr(expr.index, env),
+                            line=expr.line, col=expr.col,
+                            filename=self.filename)
         raise RunError(f"还不支持的表达式：{type(expr).__name__}",
                        line=getattr(expr, "line", 1),
                        col=getattr(expr, "col", 1), filename=self.filename)
@@ -583,6 +594,18 @@ class Interpreter:
                 raise RunTypeError(
                     f"函数「{fn.name}」缺少参数：{'、'.join(missing)}",
                     line=expr.line, col=expr.col, filename=self.filename)
+            # 类型标注校验（M24.3）：与字节码 VM 的前导调用同一套语义，
+            # 保证树遍历 / Python VM / C VM 三执行器行为一致。
+            anns = getattr(fn, "annotations", None)
+            if anns:
+                desc: list = []
+                vals: list = []
+                for p, a in zip(fn.params, anns):
+                    if a:
+                        desc += [p, a]
+                        vals.append(call_env.vars.get(p))
+                if desc:
+                    R._b_check_args(desc, vals, fn.name)
             try:
                 self._call_stack.append(Frame(fn.name, expr.line, expr.col))
                 self.exec_block(fn.body, call_env)

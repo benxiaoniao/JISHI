@@ -632,10 +632,14 @@ class Parser:
         self._expect_op("(")
         params: list[str] = []
         defaults: list = []
+        annotations: list = []
         if not self._at_op(")"):
             while True:
                 p = self._expect_name("参数名")
                 params.append(p.value)
+                # 类型标注（M24.3）：名字 : 类型名。
+                # 存文本，不求值——标注是文档与可选校验的键，不是表达式。
+                annotations.append(self._parse_annotation_opt())
                 # 默认参数：名字 = 表达式（M7）
                 if self._at_op("="):
                     self._next()
@@ -659,11 +663,37 @@ class Parser:
                           f"但它排在有默认值的参数后面——"
                           f"有默认值的参数要放在最后", tok=name_tok)
         self._expect_op(")")
+        # 返回类型标注（M24.3）：-> 类型名
+        returns = None
+        if self._at_op("->"):
+            self._next()
+            returns = self._parse_annotation_name("返回类型")
         self._expect_colon("函数")
         body = self._parse_block()
         return A.FuncDef(name=name_tok.value, params=params, body=body,
-                         defaults=defaults,
+                         defaults=defaults, annotations=annotations,
+                         returns=returns,
                          line=start.line, col=start.col)
+
+    def _parse_annotation_name(self, what: str) -> str:
+        """读取一个类型标注名（支持 `模块.名字` 这种带点的写法）。
+
+        限定成「名字[.名字]*」而不是任意表达式：标注是给人看的类型名，
+        写成表达式只会让人困惑，尽早报错更友好。
+        """
+        tok = self._expect_name(what)
+        text = tok.value
+        while self._at_op("."):
+            self._next()
+            text += "." + self._expect_name(what).value
+        return text
+
+    def _parse_annotation_opt(self) -> Optional[str]:
+        """可选的 `: 类型名` 参数标注；没写返回 None。"""
+        if not self._at_op(":"):
+            return None
+        self._next()
+        return self._parse_annotation_name("类型名")
 
     # 类
     def _parse_classdef(self) -> A.Node:
@@ -1057,6 +1087,84 @@ class Parser:
             line=open_tok.line, col=open_tok.col),
             line=open_tok.line, col=open_tok.col)
 
+    def _parse_set_literal(self, first: A.Node, open_tok) -> A.Node:
+        """解析集合字面量 `{a, b, c}`（M24.1）。
+
+        调用前已消费第一个元素（``first``），且已确认它后面不是「:」。
+
+        **实现方式是解析期脱糖**成 `集合([元素…])`（与 M23 的 `超()` 同一手法）：
+        这样树遍历 / Python VM / C VM 都走同一条既有指令路径，三执行器行为
+        必然一致，也不需要新增字节码或改 C。集合推导式 `{x 遍历 x 在 it}`
+        同样脱糖成 `集合([x 遍历 x 在 it])`。
+
+        注意 `{}` 仍是空字典（与 Python 一致），空集合写 `集合()`。
+        """
+        line, col = open_tok.line, open_tok.col
+
+        def wrap(inner: A.Node) -> A.Node:
+            return A.Call(func=A.Name(id="集合", line=line, col=col),
+                          args=[inner], keywords=[], line=line, col=col)
+
+        if self._at_kw("遍历"):
+            comp = self._parse_comp_tail(
+                kind="list", elt=first, key=None, value=None,
+                line=line, col=col)
+            self._expect_op("}")
+            return wrap(comp)
+
+        elements = [first]
+        while self._at_op(","):
+            self._next()
+            if self._at_op("}"):        # 尾随逗号
+                break
+            elements.append(self._parse_expr())
+        self._expect_op("}")
+        return wrap(A.List(elements=elements, line=line, col=col))
+
+    def _parse_lambda(self) -> A.Node:
+        """匿名函数（M24.4）：`函数(x)：x * 2`。
+
+        函数体只允许**一个表达式**（自动成为返回值）——需要多行逻辑就写具名
+        函数，这样语法保持简单，也避免和「缩进块」纠缠。参数部分与具名函数
+        完全一致（默认值、类型标注都支持）。
+        """
+        start = self._next()                    # 消费「函数」
+        self._expect_op("(")
+        params: list[str] = []
+        defaults: list = []
+        annotations: list = []
+        if not self._at_op(")"):
+            while True:
+                p = self._expect_name("参数名")
+                params.append(p.value)
+                annotations.append(self._parse_annotation_opt())
+                if self._at_op("="):
+                    self._next()
+                    defaults.append(self._parse_expr())
+                else:
+                    defaults.append(None)
+                if self._at_op(","):
+                    self._next()
+                    if self._at_op(")"):
+                        break
+                    continue
+                break
+        self._expect_op(")")
+        self._expect_op(":")
+        if self._at("NEWLINE") or self._at("EOF") or self._at("DEDENT"):
+            # 冒号后面直接换行：匿名函数要求写在同一行
+            self._err(ParseUnexpectedError,
+                      "匿名函数要写成一行：「函数(参数)：表达式」",
+                      tok=start,
+                      hint="需要多行代码块请用「函数 名字(参数)：」定义具名函数")
+        body_expr = self._parse_expr()
+        return A.Lambda(
+            params=params,
+            body=[A.Return(value=body_expr, line=body_expr.line,
+                           col=body_expr.col)],
+            defaults=defaults, annotations=annotations,
+            line=start.line, col=start.col)
+
     def _parse_atom(self) -> A.Node:
         t = self._peek()
         if t.type == "NUMBER":
@@ -1083,6 +1191,9 @@ class Parser:
                 self._next()
                 name_tok = self._expect_name("类名")
                 return A.Name(id=name_tok.value, line=t.line, col=t.col)
+            if t.value == "函数":
+                # 匿名函数表达式（M24.4）：函数(x)：x * 2
+                return self._parse_lambda()
             self._err(ParseUnexpectedError,
                       f"表达式里不能直接用关键字「{t.value}」", tok=t)
         if t.type == "NAME":
@@ -1118,6 +1229,10 @@ class Parser:
                 self._next()
                 return A.Dict(keys=[], values=[], line=t.line, col=t.col)
             k = self._parse_expr()
+            if not self._at_op(":"):
+                # 集合字面量（M24.1）：第一个元素后面不是「:」就是集合，
+                # 例如 {1, 2, 3}。`{}` 仍按空字典处理（与 Python 一致）。
+                return self._parse_set_literal(k, t)
             self._expect_op(":")
             v = self._parse_expr()
             # 字典推导式：{k: v 遍历 x 在 it 如果 cond}

@@ -410,7 +410,14 @@ def translate_python_exception(
     if isinstance(exc, KeyError):
         return wrap(RunKeyError, str(exc) or "")
     if isinstance(exc, ValueError):
-        return wrap(RunValueError, str(exc) or "")
+        msg = str(exc) or ""
+        # 切片赋值长度不匹配：Python 的原文是英文，这里翻成人话（M24.2）
+        if "extended slice" in msg:
+            return wrap(
+                RunValueError,
+                "切片赋值时两边的长度对不上（带步长的切片要求个数正好相等）",
+                )
+        return wrap(RunValueError, msg)
     if isinstance(exc, EOFError):
         e = JishiError(
             "输入已经结束，程序没有更多内容可读了",

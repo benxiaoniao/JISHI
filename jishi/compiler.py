@@ -142,6 +142,17 @@ def _collect_expr(e: A.Node, scope: _Scope, func_scopes: dict[int, _Scope]):
     elif isinstance(e, A.BoolOp):
         for v in e.values:
             _collect_expr(v, scope, func_scopes)
+    elif isinstance(e, A.Lambda):
+        # 匿名函数（M24.4）在表达式位置出现，也是一个嵌套函数作用域，
+        # 收集方式与 FuncDef 一致（这样闭包捕获、freevars 都对）。
+        sub = _Scope(FUNC_SCOPE, e.name, scope)
+        sub.bound.update(e.params)
+        scope.children.append(sub)
+        func_scopes[id(e)] = sub
+        for d in e.defaults or []:
+            if d is not None:
+                _collect_expr(d, scope, func_scopes)
+        _collect_stmts(e.body, sub, func_scopes)
     elif isinstance(e, A.Compare):
         _collect_expr(e.left, scope, func_scopes)
         for c in e.comparators:
@@ -481,7 +492,14 @@ class _Emitter:
         self.patch(setup, top, "a")
         self.patch(setup, exit_at, "b")
 
-    def _c_funcdef(self, st: A.FuncDef):
+    def _emit_function_object(self, st) -> None:
+        """把 FuncDef / Lambda 编译成**一个留在栈上的函数对象**。
+
+        闭包单元、默认值求值、MAKE_FUNCTION 三件事对具名函数和匿名函数
+        完全一样，因此共用这一处（M24.4 抽出来的）。调用方负责决定这个
+        函数对象接下来怎么用：具名函数 `store_name` 存起来，匿名函数直接
+        当着表达式的结果用。
+        """
         sub_scope = self.func_scopes[id(st)]
         code = self._make_code(st, sub_scope)
         code_idx = len(self.cmod.codes)
@@ -499,17 +517,21 @@ class _Emitter:
                 ndefaults += 1
         self.emit(O.Op.MAKE_FUNCTION, st, code_idx, len(code.freevars),
                   ndefaults)
-        self.store_name(st.name, st)
 
         # 进入函数体继续发射
         saved_code, saved_scope = self.code, self.scope
         self.code, self.scope = code, sub_scope
+        self._c_check_annotations(st)
         self.compile_body(st.body)
         # 隐式「返回 空」：与树遍历一致（exec_block 跑完返回 None）。
         # 函数体末尾已有 RETURN 时这两条不可达，但能兜住所有提前跳出的路径。
         self.emit(O.Op.LOAD_CONST, st, self.const_idx(None))
         self.emit(O.Op.RETURN, st)
         self.code, self.scope = saved_code, saved_scope
+
+    def _c_funcdef(self, st: A.FuncDef):
+        self._emit_function_object(st)
+        self.store_name(st.name, st)
 
     # 类定义：压基类（若有）+ 逐个方法 + 类名，最后 BUILD_CLASS 组装
     def _c_classdef(self, st: A.ClassDef):
@@ -559,6 +581,38 @@ class _Emitter:
             self.emit(O.Op.SET_ATTR, node, self.name_idx(node.target.id))
 
         self.store_name(st.name, st)
+
+    def _c_check_annotations(self, st: A.FuncDef):
+        """在函数体最前面发射「按类型标注校验实参」（M24.3）。
+
+        为什么要发射成字节码、而不是在调用方（Python 侧）校验：
+        三个执行器里，参数绑定分别在 Python（树遍历/参考 VM）和 C（C VM）
+        完成，只有「把校验放进函数自己的代码」才能让三者走**同一条**路径，
+        不必改 C，也不会出现「某个执行器不检查」的语义偏差。
+
+        只有写了标注的参数才产生指令；没写标注的函数一个字节都不多。
+        不认识类型名由 `检查实参` 内部跳过（标注释义为文档）。
+        """
+        anns = list(getattr(st, "annotations", []) or [])
+        if not anns:
+            return
+        checked = [(i, name) for i, name in enumerate(anns) if name]
+        if not checked:
+            return
+
+        self.load_name("检查实参", st)
+        # 扁平描述：[参数名, 类型名, …]
+        for i, name in checked:
+            self.emit(O.Op.LOAD_CONST, st, self.const_idx(st.params[i]))
+            self.emit(O.Op.LOAD_CONST, st, self.const_idx(name))
+        self.emit(O.Op.BUILD_LIST, st, len(checked) * 2)
+        # 实参值列表（顺序与描述一致）
+        for i, _name in checked:
+            self.load_name(st.params[i], st)
+        self.emit(O.Op.BUILD_LIST, st, len(checked))
+        self.emit(O.Op.LOAD_CONST, st, self.const_idx(st.name))
+        self.emit(O.Op.CALL, st, 3, -1)
+        self.emit(O.Op.POP_TOP, st)
 
     def _make_code(self, st: A.FuncDef, scope: _Scope) -> O.Code:
         cellnames = sorted(scope.cellvars)
@@ -725,6 +779,9 @@ class _Emitter:
             self.emit(O.Op.UNARY_OP, e, O.SYMBOL_TO_UNOP[e.op])
         elif isinstance(e, A.BoolOp):
             self._c_boolop(e)
+        elif isinstance(e, A.Lambda):
+            # 匿名函数（M24.4）：函数对象直接留在栈上当表达式结果
+            self._emit_function_object(e)
         elif isinstance(e, A.Compare):
             self._c_compare(e)
         elif isinstance(e, A.Call):
@@ -732,12 +789,12 @@ class _Emitter:
         elif isinstance(e, A.Attr):
             self.compile_expr(e.obj)
             self.emit(O.Op.GET_ATTR, e, self.name_idx(e.attr))
+        elif isinstance(e, A.Slice):
+            # 切片本身也是值（M24.2）：读 a[1:3] 与写 a[1:3] = … 共用这条路径
+            self._c_slice(e, e)
         elif isinstance(e, A.Subscript):
             self.compile_expr(e.obj)
-            if isinstance(e.index, A.Slice):
-                self._c_slice(e.index, e)
-            else:
-                self.compile_expr(e.index)
+            self.compile_expr(e.index)
             self.emit(O.Op.GET_ITEM, e)
         else:
             raise JishiError(f"还不支持的表达式：{type(e).__name__}",

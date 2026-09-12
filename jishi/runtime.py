@@ -113,6 +113,8 @@ def type_name(v) -> str:
         return "列表"
     if isinstance(v, dict):
         return "字典"
+    if isinstance(v, JishiSet):
+        return "集合"
     if isinstance(v, Module):
         return "模块"
     if isinstance(v, _Builtin):
@@ -137,6 +139,83 @@ def truthy(v) -> bool:
     if v is None:
         return False
     return bool(v)
+
+
+# ---------------------------------------------------------------------------
+# 集合（M24.1）
+# ---------------------------------------------------------------------------
+
+class JishiSet:
+    """基石集合：**按插入顺序**去重的集合。
+
+    内部用 dict 当有序哈希表，而不是内建 `set`。原因：内建 set 的迭代顺序
+    依赖字符串哈希种子（每个进程不同），会让同一个程序两次运行输出不同，
+    也会破坏三执行器的逐字节对拍。有序还有一个好处：打印结果稳定可读。
+
+    代价与 Python 一致：元素必须是不可变的（数字、文本、元组…），
+    列表/字典/集合本身不能放进来。
+    """
+
+    __slots__ = ("_d",)
+
+    def __init__(self, items=None):
+        self._d: dict[Any, None] = {}
+        if items is not None:
+            for it in items:
+                self._add(it)
+
+    def _add(self, v) -> None:
+        try:
+            self._d[v] = None
+        except TypeError:
+            raise RunTypeError(
+                f"「{v}」不能放进集合",
+                hint="集合的元素要是不可变的（数字、文本…）；"
+                     "列表和字典放不进去")
+
+    def __contains__(self, v) -> bool:
+        try:
+            return v in self._d
+        except TypeError:
+            return False
+
+    def __len__(self) -> int:
+        return len(self._d)
+
+    def __iter__(self):
+        return iter(self._d)
+
+    def __eq__(self, other):
+        if isinstance(other, JishiSet):
+            # 集合相等与顺序无关（与 Python 一致）
+            return len(self._d) == len(other._d) and all(
+                k in other._d for k in self._d)
+        return NotImplemented
+
+    #: 定义了 __eq__ 就没有默认 __hash__ 了，这与 Python 的 set 不可哈希一致
+    __hash__ = None
+
+    def __repr__(self):
+        if not self._d:
+            return "集合()"          # 空集合不用 {}，那是空字典
+        return "{" + ", ".join(jishi_repr(k) for k in self._d) + "}"
+
+
+def _as_iterable(v, what: str, *, line=None, col=None, filename="<输入>"):
+    """把一个值当成可迭代对象取元素；不行就给中文错。"""
+    if isinstance(v, (list, tuple, JishiSet)):
+        return list(v)
+    if isinstance(v, str):
+        return list(v)
+    if isinstance(v, dict):
+        return list(v.keys())
+    try:
+        return list(v)
+    except TypeError:
+        raise RunTypeError(
+            f"「{v}」不能当{what}用",
+            line=line, col=col, filename=filename,
+            hint="需要列表、文本、集合或字典")
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +253,10 @@ def _b_len(v):
     try:
         return len(v)
     except TypeError:
+        # 定义了「迭代」的自定义对象也能求长度（M24.1）：既然能遍历，
+        # 数一数有几个元素是自然的事，不必再要求作者额外写一个方法。
+        if isinstance(v, JishiInstance) and "迭代" in v.cls.methods:
+            return sum(1 for _ in v)
         raise RunTypeError(f"「{v}」没有长度")
 
 
@@ -191,12 +274,29 @@ def _b_range(*args):
     raise RunTypeError("「范围」最多接受 3 个参数")
 
 
+def _single_iterable_arg(v):
+    """单参数调用 最大/最小 时，判断这个参数是不是「一整个序列」。
+
+    是序列就按元素求最值；不是（数字、文本、布尔…）就当成「唯一的一个值」，
+    与 Python 的 max(序列) / max(a) 语义一致。文本刻意当标量处理，保持既有行为。
+    """
+    if isinstance(v, (list, tuple, JishiSet)):
+        return v
+    if isinstance(v, dict):
+        return v.keys()
+    if isinstance(v, JishiInstance) and "迭代" in v.cls.methods:
+        return v
+    return None
+
+
 def _b_max(*args):
     # M18.3：单参数且是列表/元组 → max(序列)；多参数 → max(参数们)。
-    # 兼容 最大([a,b]) 与 最大(a,b)、最大(a,b,c)。
+    # M24.1 扩展：集合、字典（按键）、定义了「迭代」的自定义对象同样按序列处理。
     try:
-        if len(args) == 1 and isinstance(args[0], (list, tuple)):
-            return max(args[0])
+        if len(args) == 1:
+            seq = _single_iterable_arg(args[0])
+            if seq is not None:
+                return max(seq)
         return max(args)
     except (TypeError, ValueError):
         raise RunTypeError(f"「{args}」不能求最大值，需要一个非空列表或若干数字")
@@ -204,8 +304,10 @@ def _b_max(*args):
 
 def _b_min(*args):
     try:
-        if len(args) == 1 and isinstance(args[0], (list, tuple)):
-            return min(args[0])
+        if len(args) == 1:
+            seq = _single_iterable_arg(args[0])
+            if seq is not None:
+                return min(seq)
         return min(args)
     except (TypeError, ValueError):
         raise RunTypeError(f"「{args}」不能求最小值，需要一个非空列表或若干数字")
@@ -276,6 +378,65 @@ def _b_super(instance, class_name):
     return JishiSuper(instance, defining)
 
 
+def _b_set_ctor(*args):
+    """集合（M24.1）：`集合()` 造空集合，`集合(可迭代)` 去重造集合。
+
+    去重后保持**首次出现**的顺序，例如 `集合([3, 1, 3, 2])` → `{3, 1, 2}`。
+    """
+    if len(args) > 1:
+        raise RunTypeError(
+            f"「集合」最多接受 1 个参数，但传了 {len(args)} 个",
+            hint="用法：集合() 造空集合，集合([1, 2, 2]) 去重")
+    if not args:
+        return JishiSet()
+    return JishiSet(_as_iterable(args[0], "集合的初始内容"))
+
+
+#: 类型标注里认识的类型名 → 判定函数（M24.3）。
+#: **只检查认识的名字**：不认识的一律跳过（例如作者自定义的 `商品`、`订单`），
+#: 这样标注既能当文档用，又不会因为名字不在表里就误报。
+_TYPE_PREDICATES = {
+    "整数": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "小数": lambda v: isinstance(v, float),
+    "文本": lambda v: isinstance(v, str),
+    "列表": lambda v: isinstance(v, list),
+    "字典": lambda v: isinstance(v, dict),
+    "集合": lambda v: isinstance(v, JishiSet),
+    "布尔": lambda v: isinstance(v, bool),
+    "空": lambda v: v is None,
+    "函数": callable,
+    "任意": lambda v: True,
+    "值": lambda v: True,
+}
+
+
+def _b_check_args(desc, values, func_name):
+    """按类型标注校验实参（M24.3，给编译器发射的函数前导调用）。
+
+    参数：
+      desc      扁平描述 `[参数名, 类型名, 参数名, 类型名, …]`
+      values    实参值列表（与 desc 里的参数一一对应）
+      func_name 函数名（只为拼出好读的报错）
+
+    只在类型名**认识**时校验；不认识的当作纯文档跳过。
+    """
+    for i in range(0, len(desc) - 1, 2):
+        pname = desc[i]
+        tname = desc[i + 1]
+        pred = _TYPE_PREDICATES.get(tname)
+        if pred is None:
+            continue                        # 不认识的标注：只作文档
+        if i // 2 >= len(values):
+            continue
+        value = values[i // 2]
+        if not pred(value):
+            raise RunTypeError(
+                f"函数「{func_name}」的参数「{pname}」要求是「{tname}」，"
+                f"但传进来的是「{type_name(value)}」",
+                hint=f"检查一下调用处传的第 {i // 2 + 1} 个参数，"
+                     f"或者把标注改成实际要传的类型")
+
+
 def _instance_of(actual: "JishiClass", target: "JishiClass") -> bool:
     """沿基类链判断 actual 是不是 target 的（子）类。"""
     seen = 0
@@ -330,6 +491,12 @@ def new_builtins() -> dict[str, Any]:
         "超": _Builtin(
             "超", _b_super,
             "超()：在方法里调基类的同名方法，例如 超().初始化(名字)"),
+        "集合": _Builtin(
+            "集合", _b_set_ctor,
+            "集合(可迭代)：去重造集合（保持首次出现的顺序）；集合() 造空集合"),
+        "检查实参": _Builtin(
+            "检查实参", _b_check_args,
+            "内部用：按类型标注校验函数实参（由编译器在函数前导发射）"),
         "空": None,
         # 异常类型：既可 `抛出 值错误("…")`，也可 `捕获 值错误 为 e`
         **{name: ExcType(name, cls) for name, cls in EXCEPTION_TYPES.items()},
@@ -612,6 +779,27 @@ class JishiInstance:
     def __repr__(self):
         return f"<{self.cls.name} 实例>"
 
+    def __iter__(self):
+        """迭代协议（M24.1）：让自定义对象能直接用于 `遍历`。
+
+        约定：类里定义 ``迭代(自身)``，返回一个可遍历的东西（列表、文本、
+        集合、字典…）。三个执行器都走 Python 的 ``iter()``（C VM 的迭代
+        封装 `_Iter` 也是 `iter(obj)`），所以只在这里实现一处即可。
+
+        取不到迭代器时抛 ``TypeError``，由外层翻译成中文报错并提示
+        「可以定义 迭代() 方法」；返回自身会无限递归，单独拦下。
+        """
+        fn = self.cls.methods.get("迭代")
+        if fn is None:
+            raise TypeError("not iterable")
+        result = fn(self)
+        if result is self:
+            raise RunTypeError(
+                f"类「{self.cls.name}」的「迭代」方法返回了实例自己，"
+                f"这样会无限循环",
+                hint="「迭代」应返回一个列表、文本或集合，不是自身")
+        return iter(result)
+
 
 class _BoundUserMethod:
     """绑定到实例的方法：调用时把实例塞进第一个参数（「自身」）。"""
@@ -751,7 +939,9 @@ def set_item(obj, index, value, *, line=None, col=None,
              filename="<输入>"):
     try:
         obj[index] = value
-    except (IndexError, KeyError, TypeError) as e:
+    except (IndexError, KeyError, TypeError, ValueError) as e:
+        # ValueError：切片赋值长度不匹配（`d[::2] = [1,2]` 而目标有 3 个位置），
+        # 不接住的话会漏成英文报错。
         raise translate_python_exception(e, line=line, col=col,
                                          filename=filename)
 
@@ -1182,6 +1372,57 @@ def _m_list_count(obj, args, node):
     return obj.count(args[0])
 
 
+def _as_func(fn, name, node):
+    """检查一个参数确实是可调用的，并返回它（报错说清是哪个方法的参数）。"""
+    if not callable(fn):
+        raise RunTypeError(
+            f"「{name}」需要一个函数作为参数，但给的是「{type_name(fn)}」",
+            line=node.line, col=node.col,
+            hint="可以传具名函数（函数 加倍(x)：…），"
+                 "或匿名函数（函数(x)：x * 2）")
+    return fn
+
+
+def _m_list_map(obj, args, node):
+    """映射（M24.4）：把每个元素过一遍函数，返回新列表。"""
+    _need_args("映射", args, node, 1, 1)
+    f = _as_func(args[0], "映射", node)
+    return [call_value(f, [x], line=node.line, col=node.col)
+            for x in obj]
+
+
+def _m_list_filter(obj, args, node):
+    """过滤（M24.4）：保留函数返回「真」的元素，返回新列表。"""
+    _need_args("过滤", args, node, 1, 1)
+    f = _as_func(args[0], "过滤", node)
+    return [x for x in obj
+            if truthy(call_value(f, [x], line=node.line, col=node.col))]
+
+
+def _m_list_sort_by(obj, args, node):
+    """排序按（M24.4）：按函数算出的「排序键」从小到大排，返回新列表。"""
+    _need_args("排序按", args, node, 1, 1)
+    f = _as_func(args[0], "排序按", node)
+    try:
+        return sorted(obj, key=lambda x: call_value(
+            f, [x], line=node.line, col=node.col))
+    except TypeError:
+        raise RunTypeError(
+            "「排序按」算出来的排序键没法互相比较",
+            line=node.line, col=node.col,
+            hint="排序键要都是数字，或都是文本，不能混着来")
+
+
+def _m_list_reduce(obj, args, node):
+    """归约（M24.4）：把列表收敛成一个值。归约(函数(累计, 元素)：…, 初值)。"""
+    _need_args("归约", args, node, 2, 2)
+    f = _as_func(args[0], "归约", node)
+    acc = args[1]
+    for x in obj:
+        acc = call_value(f, [acc, x], line=node.line, col=node.col)
+    return acc
+
+
 def _m_list_contains(obj, args, node):
     _need_args("包含", args, node, 1, 1)
     return args[0] in obj
@@ -1311,6 +1552,81 @@ LIST_METHODS = {
     "索引": _m_list_index,
     "计数": _m_list_count,
     "包含": _m_list_contains,
+    "映射": _m_list_map,
+    "过滤": _m_list_filter,
+    "排序按": _m_list_sort_by,
+    "归约": _m_list_reduce,
+}
+
+# -- 集合方法（M24.1）-----------------------------------------------------
+
+def _m_set_add(obj, args, node):
+    _need_args("添加", args, node, 1, 1)
+    obj._add(args[0])
+
+
+def _m_set_remove(obj, args, node):
+    _need_args("移除", args, node, 1, 1)
+    if args[0] not in obj:
+        raise RunValueError(f"集合里没有「{args[0]}」，没法移除",
+                            line=node.line, col=node.col,
+                            hint="不确定有没有时用「丢弃」，它不会报错")
+    obj._d.pop(args[0], None)
+
+
+def _m_set_discard(obj, args, node):
+    _need_args("丢弃", args, node, 1, 1)
+    try:
+        obj._d.pop(args[0], None)
+    except TypeError:
+        pass
+
+
+def _m_set_contains(obj, args, node):
+    _need_args("包含", args, node, 1, 1)
+    return args[0] in obj
+
+
+def _set_pair(op_name, fn):
+    """生成「并集/交集/差集/对称差」四个方法的实现（参数接受任意可迭代）。"""
+    def impl(obj, args, node):
+        _need_args(op_name, args, node, 1, 1)
+        other = _as_iterable(args[0], f"「{op_name}」的另一个集合",
+                             line=node.line, col=node.col)
+        return fn(obj, other)
+    return impl
+
+
+def _m_set_clear(obj, args, node):
+    _need_args("清空", args, node, 0, 0)
+    obj._d.clear()
+
+
+def _m_set_to_list(obj, args, node):
+    _need_args("转列表", args, node, 0, 0)
+    return list(obj)
+
+
+def _m_set_copy(obj, args, node):
+    _need_args("复制", args, node, 0, 0)
+    return JishiSet(obj)
+
+
+SET_METHODS = {
+    "添加": _m_set_add,
+    "移除": _m_set_remove,
+    "丢弃": _m_set_discard,
+    "包含": _m_set_contains,
+    "并集": _set_pair("并集", lambda a, b: JishiSet(list(a) + list(b))),
+    "交集": _set_pair("交集", lambda a, b: JishiSet([x for x in a if x in b])),
+    "差集": _set_pair("差集", lambda a, b: JishiSet([x for x in a if x not in b])),
+    "对称差": _set_pair(
+        "对称差",
+        lambda a, b: JishiSet([x for x in a if x not in b]
+                              + [x for x in b if x not in a])),
+    "清空": _m_set_clear,
+    "转列表": _m_set_to_list,
+    "复制": _m_set_copy,
 }
 
 DICT_METHODS = {
@@ -1341,6 +1657,8 @@ STR_METHODS = {
 def method_table(obj) -> Optional[dict]:
     if isinstance(obj, list):
         return LIST_METHODS
+    if isinstance(obj, JishiSet):
+        return SET_METHODS
     if isinstance(obj, dict):
         return DICT_METHODS
     if isinstance(obj, str):

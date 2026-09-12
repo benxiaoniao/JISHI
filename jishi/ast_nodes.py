@@ -97,6 +97,28 @@ class FuncDef(Node):
     body: list[Node]
     #: 与 params 等长；None 表示该参数无默认值（M7 默认参数）
     defaults: list = field(default_factory=list)
+    #: 与 params 等长；类型标注的**文本**（M24.3），None 表示没写（M24.3）。
+    #: 存文本而不是 AST 是有意的：标注不参与求值，只作文档与可选校验的键，
+    #: 这样也不会因为标注里写了表达式而产生副作用或作用域问题。
+    annotations: list = field(default_factory=list)
+    #: 返回类型标注的文本（M24.3），None 表示没写
+    returns: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class Lambda(Node):
+    """匿名函数表达式（M24.4）：`函数(x)：x * 2`。
+
+    只能写**单个表达式**作函数体（需要多行就写具名函数）。
+    字段与 FuncDef 对齐，好让编译器复用 `_make_code` 那套逻辑
+    （闭包单元、默认值、MAKE_FUNCTION 全都一致）。
+    """
+
+    params: list[str]
+    body: list[Node]
+    defaults: list = field(default_factory=list)
+    annotations: list = field(default_factory=list)
+    name: str = "匿名函数"
 
 
 @dataclass(kw_only=True)
