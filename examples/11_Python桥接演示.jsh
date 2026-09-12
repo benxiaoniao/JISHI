@@ -7,7 +7,7 @@
 打印("math.sqrt(2) =", math.sqrt(2))
 
 # 2. 关键字参数：ensure_ascii=假 保住中文
-打印(json.dumps({"姓名"： "小明", "分数"： 95}, ensure_ascii=假))
+打印(json.dumps({"姓名"："小明", "分数"：95}, ensure_ascii = 假))
 
 # 3. Python 对象链式访问
 导入 datetime 从 python

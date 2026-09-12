@@ -390,6 +390,62 @@ def _cmd_tutorial(args) -> int:
     return 0
 
 
+def _cmd_format(args) -> int:
+    """统一缩进与词间间距（M21.1）。
+
+    保留注释与字符串原样，只调整排版；公式化的输出可重复格式化而不变。
+    """
+    from .formatter import format_source
+
+    if args.stdin:
+        src = sys.stdin.read()
+        name = "<stdin>"
+    else:
+        if not args.file:
+            print("请给出要格式化的文件，或用 --stdin 从标准输入读取",
+                  file=sys.stderr)
+            return 2
+        src, name = _read_source(args.file)
+
+    if args.write and args.stdin:
+        print("--write 不能和 --stdin 一起用", file=sys.stderr)
+        return 2
+
+    try:
+        out = format_source(src, name, indent=args.indent)
+    except JishiError as e:
+        e.with_source(src.replace("\r\n", "\n").split("\n"))
+        print(e.render(), file=sys.stderr)
+        return 1
+
+    if args.check:
+        if src == out:
+            return 0
+        print(f"{name} 没有按统一风格书写"
+              f"（跑 jishi 格式化 {args.file or '-'} --write 可自动修）",
+              file=sys.stderr)
+        return 1
+
+    if args.write:
+        with open(args.file, "w", encoding="utf-8", newline="\n") as f:
+            f.write(out)
+        print(f"已格式化 {args.file}")
+        return 0
+
+    sys.stdout.write(out)
+    return 0
+
+
+def _cmd_lsp(args) -> int:
+    """启动语言服务器（M21.2，stdio 上的 LSP）。
+
+    编辑器通过 stdio 与本进程通信：实时诊断、补全、悬停、跳转定义。
+    """
+    from .lsp import main as lsp_main
+
+    return lsp_main(None)
+
+
 def _run_package_cmd(argv: list[str]) -> int:
     """包管理子命令分发：jishi 安装/卸载/列表（M14.2）。"""
     parser = argparse.ArgumentParser(
@@ -431,6 +487,21 @@ def _run_tool_cmd(argv: list[str]) -> int:
     sub.add_parser("教程", help="打印本地教程索引").set_defaults(
         func=_cmd_tutorial)
 
+    p_fmt = sub.add_parser("格式化", help="统一缩进与间距（M21.1）")
+    p_fmt.add_argument("file", nargs="?", help="要格式化的 .jsh 文件")
+    p_fmt.add_argument("-w", "--write", action="store_true",
+                       help="原地写回文件（默认输出到标准输出）")
+    p_fmt.add_argument("--check", action="store_true",
+                       help="只检查是否已格式化（未格式化时退出码 1，供 CI 用）")
+    p_fmt.add_argument("--stdin", action="store_true",
+                       help="从标准输入读取源码")
+    p_fmt.add_argument("--indent", type=int, default=4,
+                       help="每级缩进的空格数（默认 4）")
+    p_fmt.set_defaults(func=_cmd_format)
+
+    sub.add_parser("lsp", help="启动语言服务器（stdio，M21.2）").set_defaults(
+        func=_cmd_lsp)
+
     args = parser.parse_args(argv)
     return args.func(args)
 
@@ -441,8 +512,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     # 包管理子命令（安装/卸载/列表）走独立解析器，避免与「运行文件」位置参数冲突
     if argv and argv[0] in ("安装", "卸载", "列表"):
         return _run_package_cmd(argv)
-    # 工具子命令（医生/新项目/教程，M16）
-    if argv and argv[0] in ("医生", "新项目", "教程"):
+    # 工具子命令（医生/新项目/教程/格式化/lsp，M16 / M21）
+    if argv and argv[0] in ("医生", "新项目", "教程", "格式化", "lsp"):
         return _run_tool_cmd(argv)
 
     parser = argparse.ArgumentParser(
