@@ -120,6 +120,10 @@ def _collect_stmt(st: A.Node, scope: _Scope,
                 scope.children.append(sub)
                 func_scopes[id(node)] = sub
                 _collect_stmts(node.body, sub, func_scopes)
+            elif isinstance(node, A.Assign):
+                # 类变量（M23.3）：值在「定义类的外层作用域」里求值，
+                # 所以里面用到的名字算外层的作用域引用。
+                _collect_expr(node.value, scope, func_scopes)
     elif isinstance(st, A.Return):
         if st.value is not None:
             _collect_expr(st.value, scope, func_scopes)
@@ -543,6 +547,17 @@ class _Emitter:
         # 栈 [基类?, 方法..., 类名] → 类
         self.emit(O.Op.LOAD_CONST, st, self.const_idx(st.name))
         self.emit(O.Op.BUILD_CLASS, st, n_methods, 1 if st.base else 0)
+
+        # 类变量（M23.3）：类造好后逐个挂上。栈上此时是 [类]，
+        # 每次 DUP_TOP 出一份「目标」，再压入值，SET_ATTR 吃掉值和那份目标，
+        # 原类仍留在栈上留给下一次——这样连续多个类变量也对。
+        for node in st.body:
+            if not isinstance(node, A.Assign):
+                continue
+            self.emit(O.Op.DUP_TOP, node)
+            self.compile_expr(node.value)
+            self.emit(O.Op.SET_ATTR, node, self.name_idx(node.target.id))
+
         self.store_name(st.name, st)
 
     def _make_code(self, st: A.FuncDef, scope: _Scope) -> O.Code:

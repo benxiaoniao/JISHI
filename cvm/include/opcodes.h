@@ -74,6 +74,10 @@ enum {
     JS_CMP_GT = 3,
     JS_CMP_LE = 4,
     JS_CMP_GE = 5,
+    /* 6-9 是 M23.2 新增的语义比较（在/不在/是/不是），定义在 Python 侧
+       jishi/opcodes.py 的 CmpOp。compare_fast 只处理 0-5，其余自动回落
+       host->compare，因此这里不需要（也刻意没有）对应实现。
+       若将来要在 C 里加速它们，请在此补 JS_CMP_IN = 6 等并同步 CmpOp。 */
 };
 
 enum {

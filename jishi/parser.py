@@ -9,6 +9,7 @@ M0 支持语法：
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Optional
 
 from . import ast_nodes as A
@@ -20,10 +21,13 @@ from .errors import (
 )
 from .tokenizer import Token, tokenize
 # 二元运算符优先级（数值越大越紧）
+# 注意：关键字形式的运算符（与/或/在/不在/是/不是）也登记在这里，
+# 让需要优先级的代码统一走 _BIN_PREC[op]。
 _BIN_PREC = {
     "或": 1,
     "与": 2,
     "==": 3, "!=": 3, "<": 3, ">": 3, "<=": 3, ">=": 3,
+    "在": 3, "不在": 3, "是": 3, "不是": 3,
     "+": 4, "-": 4,
     "*": 5, "/": 5, "//": 5, "%": 5,
     "**": 6,
@@ -44,7 +48,8 @@ _EN_STMT_HINTS = {
 # 英文值/运算符关键字 → 中文对应
 _EN_VALUE_HINTS = {
     "True": "真", "False": "假", "None": "空",
-    "and": "与", "or": "或", "not": "非", "in": "在", "is": "==",
+    "and": "与", "or": "或", "not": "非",
+    "in": "在", "not in": "不在", "is": "是", "is not": "不是",
 }
 # 英文内建函数 → 中文对应（基石已有这些内建）
 _EN_BUILTIN_HINTS = {
@@ -66,6 +71,98 @@ _EN_UNSUPPORTED = {
 
 # 比较运算符（支持链式）
 _COMPARE_OPS = ("==", "!=", "<", ">", "<=", ">=")
+#: 关键字形式的比较运算符（M23.2）：`x 在 列表`、`x 不在 列表`、
+#: `x 是 空`、`x 不是 空`。与符号比较同级，同样支持链式。
+_KEYWORD_CMP_OPS = ("在", "不在", "是", "不是")
+#: 全部比较运算符（符号 + 关键字）
+_ALL_CMP_OPS = _COMPARE_OPS + _KEYWORD_CMP_OPS
+
+#: 「非」的优先级（M23 修正）：与比较同级 → 它能吃掉右边的比较表达式，
+#: 但吃不掉「与/或」。这样 `非 a == b` = `非 (a == b)`（Python 的 not 语义），
+#: `非 a 与 b` = `(非 a) 与 b`。
+_NOT_PREC = 3
+
+#: `超()` 在 AST 里的名字（M23.4，非关键字，靠解析期脱糖识别）
+SUPER_NAME = "超"
+
+
+# ---------------------------------------------------------------------------
+# `超()` 脱糖（M23.4）
+# ---------------------------------------------------------------------------
+
+def _child_nodes(node: A.Node):
+    """产出一个 AST 节点的直接子节点（含嵌套在列表/元组里的）。"""
+    if not dataclasses.is_dataclass(node):
+        return
+    for f in dataclasses.fields(node):
+        try:
+            value = getattr(node, f.name)
+        except AttributeError:
+            continue
+        if isinstance(value, A.Node):
+            yield value
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                if isinstance(item, A.Node):
+                    yield item
+                elif isinstance(item, (list, tuple)):
+                    for sub in item:
+                        if isinstance(sub, A.Node):
+                            yield sub
+
+
+def _desugar_super(root: A.Node, defining: str, self_param: Optional[str],
+                   filename: str) -> None:
+    """把类方法体里的 `超()` 就地改写成 `超(自身, "定义类名")`（M23.4）。
+
+    为什么要脱糖而不是在运行时靠 `实例.类.基类` 去猜：**多级继承会猜错**。
+    若 `狗` 继承 `动物`、`动物` 继承 `生物`，在 `狗` 的方法里写 `超()`，
+    运行时拿到的 `实例.类` 是 `狗`，基类恰好是 `动物`，看着对；但若 `动物`
+    的方法里也写 `超()`，同一套逻辑又会拿到 `狗` 的基类 `动物`——自递归。
+    解析期我们知道「这段代码写在哪个类里」，直接写死定义类名，语义就准确了，
+    与 Python 的零参数 `super()` 一致（Python 靠编译器塞 `__class__` 单元）。
+    """
+    stack: list[A.Node] = list(_child_nodes(root))
+    while stack:
+        node = stack.pop()
+
+        if isinstance(node, A.ClassDef):
+            # 嵌套类由它自己的 _parse_classdef 处理，跳过
+            continue
+
+        if (isinstance(node, A.Call) and isinstance(node.func, A.Name)
+                and node.func.id == SUPER_NAME
+                and not node.args and not node.keywords):
+            fn = node.func
+            if not self_param:
+                raise ParseUnexpectedError(
+                    f"「{SUPER_NAME}()」要写在方法里（方法的第一个参数是"
+                    f"「自身」），现在这个方法没有参数，取不到实例",
+                    line=fn.line, col=fn.col, filename=filename)
+            node.args = [
+                A.Name(id=self_param, line=fn.line, col=fn.col),
+                A.Str(value=defining, line=fn.line, col=fn.col),
+            ]
+            # 打标记：让收尾的「漏用检查」知道这个 `超` 是合法的
+            setattr(fn, "_super_ok", True)
+
+        stack.extend(_child_nodes(node))
+
+
+def _check_no_stray_super(program: A.Program, filename: str) -> None:
+    """检查有没有漏在类方法外的 `超`，给一句能照着改的提示。"""
+    stack: list[A.Node] = [program]
+    while stack:
+        node = stack.pop()
+        if (isinstance(node, A.Name) and node.id == SUPER_NAME
+                and not getattr(node, "_super_ok", False)):
+            raise ParseUnexpectedError(
+                f"「{SUPER_NAME}()」只能在类的方法里用（用它调基类的同名方法）",
+                line=node.line, col=node.col, filename=filename,
+                hint="写法：在方法里写 超().方法名(参数)"
+                     "——例如 超().初始化(名字)")
+        stack.extend(_child_nodes(node))
+
 
 # 赋值运算符
 _ASSIGN_OPS = {"=", "+=", "-=", "*=", "/=", "//=", "%=", "**="}
@@ -150,8 +247,32 @@ class Parser:
     def _expect_op(self, op: str):
         if self._at_op(op):
             return self._next()
+        t = self._peek()
+        # 容错解析（M7.5 扩展）：表达式里冒出英文运算符要先说清（M23 补）。
+        # 典型：`1 not in [1]` —— 报「需要「)」」对用户毫无帮助，
+        # 直接告诉他中文该写「不在」。
+        if t.type == "NAME" and t.value in _EN_VALUE_HINTS:
+            # 两词组合（`not in`、`is not`）要整体替换成「不在」「不是」，
+            # 只提示「非」是错的——用户照着改还是错的。
+            nxt = self._peek(1)
+            pair = f"{t.value} {nxt.value}" if nxt.type == "NAME" else None
+            if pair in _EN_VALUE_HINTS:
+                cn = _EN_VALUE_HINTS[pair]
+                self._err(
+                    ParseUnexpectedError,
+                    f"「{pair}」是英文写法，基石用中文——"
+                    f"你是不是想写「{cn}」？",
+                    hint=f"把「{pair}」换成「{cn}」即可",
+                    tok=t, fix={"old": pair, "new": cn})
+            cn = _EN_VALUE_HINTS[t.value]
+            self._err(
+                ParseUnexpectedError,
+                f"「{t.value}」是英文运算符，基石用中文——"
+                f"你是不是想写「{cn}」？",
+                hint=f"把「{t.value}」换成「{cn}」即可",
+                tok=t, fix={"old": t.value, "new": cn})
         self._err(ParseUnexpectedError,
-                  f"这里需要「{op}」，但看到了「{self._peek().value}」")
+                  f"这里需要「{op}」，但看到了「{t.value}」")
 
     def _expect_kw(self, kw: str):
         if self._at_kw(kw):
@@ -554,6 +675,15 @@ class Parser:
             base = self._expect_name("基类名").value
         self._expect_colon("类")
         body = self._parse_block()
+
+        # M23.4：方法体里的 `超()` → `超(自身, "定义类名")`。
+        # 解析期就知道「写在哪个类里」，比运行时猜实例的类更准
+        #（多级继承时运行时猜会错，见 _desugar_super 的说明）。
+        for node in body:
+            if isinstance(node, A.FuncDef):
+                self_param = node.params[0] if node.params else None
+                _desugar_super(node, name_tok.value, self_param, self.filename)
+
         return A.ClassDef(name=name_tok.value, base=base, body=body,
                           line=start.line, col=start.col)
 
@@ -727,10 +857,41 @@ class Parser:
                      line=start.line, col=start.col)
 
     # 抛出
+    def _binop_of(self, t: Token) -> Optional[str]:
+        """把 token 识别成二元运算符名；不是运算符返回 None。
+
+        运算符有两类写法（M23.2 起）：
+        - 符号：``+ - * / // % ** == != < > <= >=``（token 类型 OP）
+        - 关键字：``与 或 在 不在 是 不是``（token 类型 KEYWORD）
+
+        统一成同一个字符串，让优先级表 ``_BIN_PREC`` 一处生效。
+        注意「与/或」不在这里返回——它们由 _parse_expr 里更靠前的分支
+        单独处理（要合并同优先级链，形态与 BinOp 不同）。
+        """
+        if t.type == "OP" and t.value in _BIN_PREC:
+            return t.value
+        if t.type == "KEYWORD" and t.value in _KEYWORD_CMP_OPS:
+            return t.value
+        return None
+
     # -- 表达式：优先级爬升 --------------------------------------------------
 
     def _parse_expr(self, min_prec: int = 0) -> A.Node:
-        left = self._parse_unary()
+        # 「非」是**前缀**运算符，但优先级不是「最紧」，而是比比较运算松、
+        # 比「与/或」紧 —— 与 Python 的 ``not`` 一致（M23 修正）。
+        #
+        # 为什么必须这样：`非 年龄 >= 18` 若按「非最紧」解析会变成
+        # `(非 年龄) >= 18`，结果是「假 >= 18」恒为假，**静默给出错误答案**
+        # （官方教程 docs/tutorial/03 就踩过这个坑，「未成年人」分支永不触发）。
+        # 按 Python 语义解析成 `非 (年龄 >= 18)`，才符合所有人的阅读直觉。
+        t0 = self._peek()
+        if t0.type == "KEYWORD" and t0.value == "非":
+            self._next()
+            operand = self._parse_expr(_NOT_PREC)
+            left: A.Node = A.UnaryOp(op="非", operand=operand,
+                                     line=t0.line, col=t0.col)
+        else:
+            left = self._parse_unary()
         while True:
             t = self._peek()
             if t.type == "KEYWORD" and t.value in ("与", "或"):
@@ -747,8 +908,8 @@ class Parser:
                     left = A.BoolOp(op=op, values=[left, right],
                                     line=t.line, col=t.col)
                 continue
-            if t.type == "OP" and t.value in _BIN_PREC:
-                op = t.value
+            op = self._binop_of(t)
+            if op is not None:
                 prec = _BIN_PREC[op]
                 if prec < min_prec:
                     break
@@ -758,20 +919,21 @@ class Parser:
                     right = self._parse_expr(prec)
                 else:
                     right = self._parse_expr(prec + 1)
-                if op in _COMPARE_OPS:
+                if op in _ALL_CMP_OPS:
                     # 链式比较：1 < x < 5，收集连续的比较运算，中间表达式只求值一次
                     ops = [op]
                     comparators = [right]
                     while True:
                         nxt = self._peek()
-                        if (nxt.type != "OP" or nxt.value not in _COMPARE_OPS):
+                        nxt_op = self._binop_of(nxt)
+                        if nxt_op is None or nxt_op not in _ALL_CMP_OPS:
                             break
-                        prec2 = _BIN_PREC[nxt.value]
+                        prec2 = _BIN_PREC[nxt_op]
                         if prec2 < min_prec:
                             break
                         self._next()
                         comparators.append(self._parse_expr(prec2 + 1))
-                        ops.append(nxt.value)
+                        ops.append(nxt_op)
                     left = A.Compare(left=left, ops=ops,
                                      comparators=comparators,
                                      line=t.line, col=t.col)
@@ -789,8 +951,10 @@ class Parser:
             operand = self._parse_unary()
             return A.UnaryOp(op="-", operand=operand, line=t.line, col=t.col)
         if t.type == "KEYWORD" and t.value == "非":
+            # 走到这里说明「非」出现在不该出现的位置（正常路径由
+            # _parse_expr 的前缀分支处理）。保留兜底以免直接崩。
             self._next()
-            operand = self._parse_unary()
+            operand = self._parse_expr(_NOT_PREC)
             return A.UnaryOp(op="非", operand=operand, line=t.line, col=t.col)
         return self._parse_postfix()
 
@@ -987,4 +1151,8 @@ class Parser:
 
 def parse(tokens: list[Token], source_lines: list[str],
           filename: str = "<输入>") -> A.Program:
-    return Parser(tokens, source_lines, filename).parse()
+    program = Parser(tokens, source_lines, filename).parse()
+    # 类方法里的 `超()` 已在 _parse_classdef 里脱糖；剩下还叫 `超` 的
+    # 就是写在类外用错了，给一句能照着改的提示（M23.4）。
+    _check_no_stray_super(program, filename)
+    return program

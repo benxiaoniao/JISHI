@@ -361,6 +361,11 @@ class CvmHost:
         #: 句柄表：句柄号 → Python 对象（C 侧引用计数归零时删除）
         self._handles: dict[int, Any] = {}
         self._next_handle = 1
+        #: 函数包装缓存（M23 发现）：JVal.v.u（JsFunc* 指针）→ CvmFunction。
+        #: 不在缓存里复用一个包装，会让同一个函数每次跨界都变成新对象，
+        #: `f 是 g` 在 C VM 下判不等、与另外两个执行器不一致。
+        #: 缓存持强引用 ⇒ 底层 JsFunc 不会被释放 ⇒ 指针不会被复用，键安全。
+        self._func_cache: dict[int, "CvmFunction"] = {}
         #: 影子全局表（报错建议 / do_import 用），初始为内建
         self.globals = R.new_builtins()
         self.pending: Optional[JishiError] = None
@@ -461,7 +466,15 @@ class CvmHost:
         if t == O.T_HOST:
             return self._handles[int(v.v.u)]
         if t == O.T_FUNC:
-            return CvmFunction(self, v)
+            # 同一函数对象必须映射到同一包装（见 _func_cache 的说明）。
+            # `v.v.u` 是 C 侧 struct JsFunc* 指针，函数活着期间唯一且稳定。
+            key = int(v.v.u)
+            cached = self._func_cache.get(key)
+            if cached is not None:
+                return cached
+            wrapper = CvmFunction(self, v)
+            self._func_cache[key] = wrapper
+            return wrapper
         raise RunError(f"内部错误：C 侧传来不可转换的值（标签 {t}）")
 
     def _take(self, v: JVal) -> Any:

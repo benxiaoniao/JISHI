@@ -316,6 +316,14 @@ class RunFileError(RunError):
     title = "文件错误"
 
 
+class RunAssertionError(RunError):
+    """`断言` 没通过（M23.1）。可被 `捕获 断言错误 为 e` 接住。"""
+
+    code = "E2008"
+    exc_name = "断言错误"
+    title = "断言没通过"
+
+
 class RunStopIteration(RunError):
     """内部信号：循环耗尽，不应直接展示给用户。"""
 
@@ -359,6 +367,7 @@ EXCEPTION_TYPES: dict[str, type] = {
     "键错误": RunKeyError,
     "除零错误": RunZeroDivisionError,
     "文件错误": RunFileError,
+    "断言错误": RunAssertionError,
 }
 
 

@@ -191,17 +191,33 @@ SYMBOL_TO_UNOP = {"-": UnOp.NEG, "非": UnOp.NOT}
 
 
 class CmpOp:
+    """比较运算码。
+
+    0–5 是 **C VM 认识的快路径**（见 cvm/include/opcodes.h 的 JS_CMP_*），
+    6–9 是 M23.2 新增的语义比较：C 侧 ``compare_fast`` 只处理 0–5，
+    其余一律回落宿主回调 ``host->compare``，因此新增它们**不需要改 C 代码**。
+    若将来要在 C 里加速这几个码，必须同步 cvm/include/opcodes.h。
+    """
+
     EQ = 0
     NE = 1
     LT = 2
     GT = 3
     LE = 4
     GE = 5
+    #: 成员测试（M23.2）：`x 在 列表` / `x 不在 列表`
+    IN = 6
+    NOT_IN = 7
+    #: 同一性判断（M23.2）：`x 是 空` / `x 不是 空`
+    IS = 8
+    IS_NOT = 9
 
 
 SYMBOL_TO_CMPOP = {
     "==": CmpOp.EQ, "!=": CmpOp.NE, "<": CmpOp.LT,
     ">": CmpOp.GT, "<=": CmpOp.LE, ">=": CmpOp.GE,
+    "在": CmpOp.IN, "不在": CmpOp.NOT_IN,
+    "是": CmpOp.IS, "不是": CmpOp.IS_NOT,
 }
 CMPOP_TO_SYMBOL = {v: k for k, v in SYMBOL_TO_CMPOP.items()}
 

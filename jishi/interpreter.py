@@ -364,6 +364,7 @@ class Interpreter:
             base = base_obj
 
         methods: dict[str, Any] = {}
+        class_vars: dict[str, Any] = {}
         for node in stmt.body:
             if isinstance(node, A.FuncDef):
                 fn = UserFunction(
@@ -371,12 +372,21 @@ class Interpreter:
                     defaults=[self.eval_expr(d, env) if d is not None
                               else None for d in node.defaults])
                 methods[node.name] = fn
+            elif (isinstance(node, A.Assign)
+                  and isinstance(node.target, A.Name)
+                  and node.op == "="):
+                # 类变量（M23.3）。值在「定义类的外层作用域」里求值——
+                # 这样 `计数 = 某个外部常量` 能用外层名字；写进类变量表，
+                # 也不污染外层作用域。
+                class_vars[node.target.id] = self.eval_expr(node.value, env)
             else:
                 raise RunError(
-                    f"类体里只能定义方法（函数），不支持「{type(node).__name__}」",
+                    f"类体里只能写方法（函数）和类变量（名字 = 值），"
+                    f"不支持「{type(node).__name__}」",
                     line=node.line, col=node.col, filename=self.filename)
         # JishiClass 构造时自动合并基类方法（继承），子类同名覆盖
-        cls = R.JishiClass(stmt.name, methods, base=base)
+        cls = R.JishiClass(stmt.name, methods, base=base,
+                           class_vars=class_vars)
         env.set(stmt.name, cls)
 
     # 尝试 / 捕获 / 最终：借 Python 原生 try/except/finally 的传播语义。

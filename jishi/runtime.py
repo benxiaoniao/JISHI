@@ -19,6 +19,7 @@ from typing import Any, Optional
 from .errors import (
     EXCEPTION_TYPES,
     JishiError,
+    RunAssertionError,
     RunCustomError,
     RunError,
     RunFileError,
@@ -230,6 +231,79 @@ def _b_reverse(v):
         raise RunTypeError(f"「{v}」不能反转，需要列表或文本")
 
 
+def _b_assert(condition, message=None):
+    """断言（M23.1）：条件为假就抛「断言错误」。
+
+    故意用 `RunAssertionError` 而不是 `SemanticFuncError`，这样它能被
+    `捕获 断言错误 为 e` 接住，也能被 `捕获 运行期错误` 兜住。
+    """
+    if truthy(condition):
+        return None
+    # 标题（「断言没通过」）由 RunAssertionError 提供，这里只放用户的消息，
+    # 否则渲染出来会是「断言没通过（断言没通过：…）」。
+    raise RunAssertionError(str(message) if message is not None else "条件不成立")
+
+
+#: 内建类型名（用于 `类型(值)` 比较，也用于「是实例」误用时给提示）
+_TYPE_NAMES = frozenset(
+    {"整数", "小数", "文本", "列表", "字典", "布尔", "空", "函数"})
+
+
+def _b_super(instance, class_name):
+    """超（M23.4）：解析期被脱糖成 `超(自身, "定义类名")`，这里实现语义。
+
+    普通用户不需要直接调用它，写 `超().方法(...)` 即可。
+    """
+    if not isinstance(instance, JishiInstance):
+        raise RunTypeError(
+            f"「超()」只能用在自己的方法里（第一参数该是实例，"
+            f"现在拿到的是「{type_name(instance)}」）",
+            hint="在方法里写 超().方法名(参数)，例如 超().初始化(名字)")
+    defining = None
+    cls = instance.cls
+    seen = 0
+    while cls is not None and seen < 64:
+        if cls.name == class_name:
+            defining = cls
+            break
+        cls = cls.base
+        seen += 1
+    if defining is None:
+        raise RunTypeError(
+            f"「超()」找不到定义类「{class_name}」——"
+            f"它不在「{instance.cls.name}」的继承链上",
+            hint="这通常说明类的继承关系被改过，检查一下「继承」写的基类")
+    return JishiSuper(instance, defining)
+
+
+def _instance_of(actual: "JishiClass", target: "JishiClass") -> bool:
+    """沿基类链判断 actual 是不是 target 的（子）类。"""
+    seen = 0
+    while actual is not None and seen < 64:
+        if actual is target:
+            return True
+        actual = actual.base
+        seen += 1
+    return False
+
+
+def _b_isinstance(value, cls):
+    """是实例（M23.1）：判断值是不是某个类（或其子类）的实例。"""
+    if not isinstance(cls, JishiClass):
+        hint = "用法：是实例(对象, 类名)"
+        # 常见误用：第二参数写成内建转换函数（整数/文本…），想判断内建类型。
+        # 基线语言里内建类型用 `类型(值) == "整数"` 判断，直接给出来省得试错。
+        if isinstance(cls, _Builtin) and cls.name in _TYPE_NAMES:
+            hint = (f"「{cls.name}」是转换函数，不是类。"
+                    f"判断内建类型请写：类型(值) == \"{cls.name}\"")
+        raise RunTypeError(
+            f"「是实例」的第二个参数要是一个类，但给的是「{type_name(cls)}」",
+            hint=hint)
+    if not isinstance(value, JishiInstance):
+        return False
+    return _instance_of(value.cls, cls)
+
+
 def new_builtins() -> dict[str, Any]:
     """返回一份全新的内建函数表（每个执行器实例一份）。"""
     return {
@@ -247,6 +321,15 @@ def new_builtins() -> dict[str, Any]:
         "总和": _Builtin("总和", _b_sum, "求列表中所有数的和"),
         "类型": _Builtin("类型", _b_type, "查看值的类型"),
         "反转": _Builtin("反转", _b_reverse, "反转列表或文本"),
+        "断言": _Builtin(
+            "断言", _b_assert,
+            "断言(条件, 消息?)：条件不成立就报错，用来尽早发现「不该发生」"),
+        "是实例": _Builtin(
+            "是实例", _b_isinstance,
+            "是实例(值, 类)：判断值是不是这个类（或其子类）造出来的"),
+        "超": _Builtin(
+            "超", _b_super,
+            "超()：在方法里调基类的同名方法，例如 超().初始化(名字)"),
         "空": None,
         # 异常类型：既可 `抛出 值错误("…")`，也可 `捕获 值错误 为 e`
         **{name: ExcType(name, cls) for name, cls in EXCEPTION_TYPES.items()},
@@ -390,6 +473,38 @@ def apply_unary(op: str, v, *, line=None, col=None, filename="<输入>"):
                    filename=filename)
 
 
+def contains(container, item, *, line=None, col=None, filename="<输入>"):
+    """成员测试（M23.2）：``item 在 container`` 的语义。
+
+    支持列表（按值）、字典（按键）、文本（找子串），与 `列表.包含()`、
+    `字典.包含()`、`文本.包含()` 完全一致——三者本来就是同一个 ``in``。
+    其他类型给中文报错，并说清「什么才能做成员测试」。
+    """
+    try:
+        return item in container
+    except TypeError:
+        raise RunTypeError(
+            f"「{item}」不能在「{type_name(container)}」里找",
+            line=line, col=col, filename=filename,
+            hint="「在」只能用于列表、字典（按「键」找）、文本（找子串）")
+
+
+def _identity_snapshot(value):
+    """给「是/不是」用的同一性指纹。
+
+    基石里 `是` 的语义定为**同一性判断**，与 Python 的 ``is`` 一致：
+    - 空、真、假 是单例，只和自己同一；
+    - 数字/文本按值比较（Python 对 int/str 有小整数缓存与驻留，
+      若严格按 ``is`` 会给用户「有时真有时假」的随机感，故按值统一）；
+    - 列表/字典/实例按对象身份（两个内容相同的列表不是同一个东西）。
+    """
+    if value is None or type(value) is bool:
+        return ("单例", value)
+    if isinstance(value, (int, float, str)):
+        return ("值", type(value).__name__, value)
+    return ("身份", id(value))
+
+
 def apply_compare(op: str, left, right, *, line=None, col=None,
                   filename="<输入>"):
     try:
@@ -405,6 +520,17 @@ def apply_compare(op: str, left, right, *, line=None, col=None,
             return left <= right
         if op == ">=":
             return left >= right
+        # 成员测试（M23.2）
+        if op == "在":
+            return contains(right, left, line=line, col=col, filename=filename)
+        if op == "不在":
+            return not contains(right, left, line=line, col=col,
+                                filename=filename)
+        # 同一性（M23.2）
+        if op == "是":
+            return _identity_snapshot(left) == _identity_snapshot(right)
+        if op == "不是":
+            return _identity_snapshot(left) != _identity_snapshot(right)
     except TypeError:
         raise RunTypeError(f"不能比较「{left}」和「{right}」",
                            line=line, col=col, filename=filename)
@@ -420,12 +546,14 @@ class JishiClass:
     """基石类（`类 狗:` 定义产生的对象）。
 
     methods 是「方法名 → 函数」；继承时复制基类方法表，子类可覆盖。
+    class_vars 是类变量（M23.3）：写在类体里、所有实例共享的名字。
     """
 
-    __slots__ = ("name", "methods", "base")
+    __slots__ = ("name", "methods", "base", "class_vars")
 
     def __init__(self, name: str, methods: dict[str, Any],
-                 base: Optional["JishiClass"] = None):
+                 base: Optional["JishiClass"] = None,
+                 class_vars: Optional[dict[str, Any]] = None):
         self.name = name
         self.base = base
         # 继承：合并基类方法表，子类同名方法覆盖
@@ -435,8 +563,38 @@ class JishiClass:
         merged.update(methods)
         self.methods = merged
 
+        # 类变量同样合并基类的（浅拷贝，与方法的处理保持一致）。
+        # 查找顺序与 Python 一致：实例字段 → 类变量（含基类）→ 方法。
+        merged_vars: dict[str, Any] = {}
+        if base is not None:
+            merged_vars.update(base.class_vars)
+        merged_vars.update(class_vars or {})
+        self.class_vars = merged_vars
+
     def __repr__(self):
         return f"<类 {self.name}>"
+
+
+class JishiSuper:
+    """`超()` 的返回值（M23.4）：从**定义类**的基类起查方法，并绑定实例。
+
+    查找从「定义类的基类」开始，而不是从实例的类开始——这是 Python
+    `super()` 的关键语义：在 `狗` 的方法里写 `超()`，只会往 `动物` 及更上层
+    找，不会又回到 `狗` 自己（否则就是自递归）。
+    """
+
+    __slots__ = ("instance", "defining", "line", "col", "filename")
+
+    def __init__(self, instance: "JishiInstance", defining: "JishiClass",
+                 line=None, col=None, filename="<输入>"):
+        self.instance = instance
+        self.defining = defining
+        self.line = line
+        self.col = col
+        self.filename = filename
+
+    def __repr__(self):
+        return f"<超 {self.defining.name}>"
 
 
 class JishiInstance:
@@ -487,6 +645,24 @@ class _BoundUserMethod:
 
 def get_attr(obj, attr, *, line=None, col=None, filename="<输入>"):
     """属性/方法访问：模块 → 基石中文方法 → Python 公开属性。"""
+    if isinstance(obj, JishiSuper):
+        # 超()（M23.4）：从定义类的**基类**起找，方法绑定实例。
+        base = obj.defining.base
+        if base is None:
+            raise RunTypeError(
+                f"类「{obj.defining.name}」没有基类，"
+                f"用不了「超()」——它用来调基类的方法",
+                line=line or obj.line, col=col or obj.col,
+                filename=filename)
+        if attr in base.methods:
+            return _BoundUserMethod(base.methods[attr], obj.instance, attr,
+                                    line or obj.line, col or obj.col, filename)
+        if attr in base.class_vars:
+            return base.class_vars[attr]
+        raise RunTypeError(
+            f"基类「{base.name}」里没有「{attr}」",
+            line=line or obj.line, col=col or obj.col, filename=filename,
+            hint=f"基类「{base.name}」的方法：{'、'.join(sorted(base.methods))}")
     if isinstance(obj, Module):
         if attr in obj.attrs:
             return obj.attrs[attr]
@@ -495,9 +671,11 @@ def get_attr(obj, attr, *, line=None, col=None, filename="<输入>"):
             filename=filename,
             hint="可以看看模块里有哪些函数，例如：打印(dir(模块名)) 在后续版本可用")
     if isinstance(obj, JishiInstance):
-        # 实例字段优先，其次类方法（绑定实例）
+        # 实例字段优先，其次类变量（含基类），最后类方法（绑定实例）
         if attr in obj.fields:
             return obj.fields[attr]
+        if attr in obj.cls.class_vars:
+            return obj.cls.class_vars[attr]
         if attr in obj.cls.methods:
             return _BoundUserMethod(obj.cls.methods[attr], obj, attr,
                                     line, col, filename)
@@ -505,6 +683,8 @@ def get_attr(obj, attr, *, line=None, col=None, filename="<输入>"):
         raise RunTypeError(f"「{type_name(obj)}」没有属性「{attr}」",
                            line=line, col=col, filename=filename, hint=hint)
     if isinstance(obj, JishiClass):
+        if attr in obj.class_vars:
+            return obj.class_vars[attr]        # 类变量（M23.3）
         if attr in obj.methods:
             return obj.methods[attr]   # 类上的方法（未绑定，调用时需传实例）
         hint = f"类「{obj.name}」的方法：{'、'.join(sorted(obj.methods))}"
@@ -535,6 +715,11 @@ def set_attr(obj, attr, value, *, line=None, col=None,
         return
     if isinstance(obj, JishiInstance):
         obj.fields[attr] = value
+        return
+    if isinstance(obj, JishiClass):
+        # 类变量（M23.3）：`类名.计数 = 5`。写在类自己的类变量表里，
+        # 不影响已造出来的实例字段。
+        obj.class_vars[attr] = value
         return
     raise RunTypeError(f"不能给「{obj}」的属性「{attr}」赋值",
                        line=line, col=col, filename=filename)
@@ -628,7 +813,14 @@ def call_value(fn, args, kwargs=None, *, line=None, col=None,
     if callable(fn):
         try:
             return fn(*args, **(kwargs or {}))
-        except JishiError:
+        except JishiError as e:
+            # 内建/标准库抛的中文错误常常不带行列（它们不知道调用点在哪），
+            # 这里补上调用位置，报错才能指回用户写的那一行（M23.1）。
+            if e.line is None and line is not None:
+                e.line = line
+                e.col = col
+                if not e.filename or e.filename == "<输入>":
+                    e.filename = filename
             raise
         except Exception as e:
             raise translate_python_exception(e, line=line, col=col,

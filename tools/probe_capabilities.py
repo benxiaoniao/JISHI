@@ -26,6 +26,7 @@ CASES: list[tuple[str, str, str]] = [
     ("表达式", "成员测试 不在", "如果 9 不在 [1, 2, 3]：\n    打印(\"不在\")\n"),
     ("表达式", "恒等 是 / 不是", "如果 空 是 空：\n    打印(\"是\")\n"),
     ("表达式", "链式比较", "如果 1 < 2 < 3：\n    打印(\"链\")\n"),
+    ("表达式", "非 与比较配合", "如果 非 1 == 2：\n    打印(\"非比较\")\n"),
     ("表达式", "位运算 & | ^", "打印(6 & 3)\n打印(6 | 1)\n打印(6 ^ 1)\n"),
     ("表达式", "位移 << >>", "打印(1 << 4)\n"),
     ("表达式", "幂 **", "打印(2 ** 10)\n"),
@@ -48,8 +49,8 @@ CASES: list[tuple[str, str, str]] = [
     ("函数", "多返回值", "函数 f()：\n    返回 1, 2\n令 a, b = f()\n打印(a, b)\n"),
 
     # -- 类 --------------------------------------------------------------
-    ("类", "调用父类 超()", "类 甲：\n    函数 叫(自身)：\n        返回 \"甲\"\n类 乙 继承 甲：\n    函数 叫(自身)：\n        返回 超().叫() + \"乙\"\n打印(新建 乙().叫())\n"),
-    ("类", "是实例判断", "类 甲：\n    函数 初始化(自身)：\n        自身.x = 1\n打印(是实例(新建 甲(), 甲))\n"),
+    ("类", "调用父类 超()", "类 甲：\n    函数 叫(自身)：\n        返回 \"甲\"\n类 乙 继承 甲：\n    函数 叫(自身)：\n        返回 超().叫() + \"乙\"\n令 x = 新建 乙()\n打印(x.叫())\n"),
+    ("类", "是实例判断", "类 甲：\n    函数 初始化(自身)：\n        自身.x = 1\n令 a = 新建 甲()\n打印(是实例(a, 甲))\n"),
     ("类", "属性 getter", "类 甲：\n    函数 初始化(自身)：\n        自身._x = 1\n    函数 取x(自身)：\n        返回 自身._x\n打印(新建 甲().取x())\n"),
     ("类", "类变量", "类 甲：\n    计数 = 0\n打印(甲.计数)\n"),
     ("类", "多继承", "类 甲：\n    函数 a(自身)：\n        返回 1\n类 乙：\n    函数 b(自身)：\n        返回 2\n类 丙 继承 甲, 乙：\n    函数 初始化(自身)：\n        空\n打印(1)\n"),
@@ -57,7 +58,7 @@ CASES: list[tuple[str, str, str]] = [
     ("类", "自定义打印", "类 甲：\n    函数 初始化(自身)：\n        自身.x = 1\n    函数 文本(自身)：\n        返回 \"甲(\" + 文本(自身.x) + \")\"\n打印(新建 甲())\n"),
 
     # -- 语句 ------------------------------------------------------------
-    ("语句", "断言", "断言 1 == 1, \"应相等\"\n打印(\"过\")\n"),
+    ("语句", "断言", "断言(1 == 1, \"应相等\")\n打印(\"过\")\n"),
     ("语句", "模式匹配", "令 x = 2\n匹配 x：\n    情形 1：\n        打印(\"一\")\n    情形 2：\n        打印(\"二\")\n"),
     ("语句", "上下文管理器 用", "用 打开(\"无此文件\") 为 f：\n    打印(f)\n"),
     ("语句", "全局声明", "x = 1\n函数 f()：\n    全局 x\n    x = 2\nf()\n打印(x)\n"),
@@ -72,22 +73,41 @@ CASES: list[tuple[str, str, str]] = [
 ]
 
 
-def probe(src: str) -> tuple[bool, str]:
+#: 光「跑通不报错」不足以说明特性真的支持的情况，在这里写明期望输出片段。
+#: 例如「自定义打印」：老代码 `打印(自定义对象)` 不会报错，但只会打印
+#: `<甲 实例>`，并没有用上用户定义的文本方法——只看「没报错」会误判为 ✅。
+#: 这是探针的「防自嗨」开关：能跑 ≠ 做对了。
+EXPECTED: dict[str, str] = {
+    "自定义打印": "甲(1)",
+    "类型判断": "True",
+    "浮点精度 0.1+0.2": "False",
+}
+
+
+def probe(src: str, expected: "str | None" = None) -> tuple[bool, str]:
+    """跑一段源码，返回 (是否可用, 说明)。
+
+    ``expected`` 非空时，输出里必须包含它才算通过——避免「能跑但没做对」
+    被算成已支持。
+    """
     buf = io.StringIO()
     try:
         with redirect_stdout(buf):
             run_source(src, "<探针>")
-        return True, buf.getvalue().strip().replace("\n", " | ")
     except JishiError as e:
         return False, f"{e.code} {e.title}"
     except Exception as e:                              # noqa: BLE001
         return False, f"{type(e).__name__}: {e}"
+    out = buf.getvalue().strip().replace("\n", " | ")
+    if expected is not None and expected not in out:
+        return False, f"能跑但结果不对（期望含 {expected!r}，实际 {out[:34]!r}）"
+    return True, out
 
 
 def main() -> int:
     groups: dict[str, list] = {}
     for group, name, src in CASES:
-        ok, detail = probe(src)
+        ok, detail = probe(src, EXPECTED.get(name))
         groups.setdefault(group, []).append((name, ok, detail))
 
     total = sum(len(v) for v in groups.values())

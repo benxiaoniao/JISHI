@@ -62,6 +62,9 @@ KEYWORDS: dict[str, str] = {
     "与": "AND",
     "或": "OR",
     "非": "NOT",
+    "是": "IS",             # 是实例判断（M23.2）：甲 是 空
+    "不是": "IS_NOT",       # M23.2
+    "不在": "NOT_IN",       # M23.2：x 不在 列表
     "次": "CI",             # 循环 N 次 中的助词
     # 预留给后续阶段，M0 解析到会提示"该功能将在后续版本支持"
     "类": "CLASS",
@@ -72,6 +75,15 @@ KEYWORDS: dict[str, str] = {
     "最终": "FINALLY",
     "抛出": "RAISE",
 }
+
+#: 不做「关键字粘连」检查的关键字。
+#:
+#: 粘连检查（`如果分数` → 提示「你是不是想写 如果 分数」）对多数关键字很有用，
+#: 但对以下这些是**净损失**：它们本身就是常用词的前缀，正常标识符会大面积误报。
+#: 例如 `不在列表`、`不是我`、`是实例`（内建名）——这些是合理变量名，
+#: 不该被当成「关键字粘连」而报错。宁可不提示，也不能拦下正确代码。
+_GLUE_CHECK_SKIP = frozenset({"不是", "不在", "是"})
+
 
 # 多字符运算符（按长度降序匹配）
 OPERATORS = [
@@ -560,6 +572,8 @@ class Tokenizer:
             # 空间/命令…），不能做前缀检查；只有多字关键字（如果/循环/导入…）
             # 的粘连才是用户真正常犯的错，误报率低、提示价值高。
             for kw in sorted(KEYWORDS, key=len, reverse=True):
+                if kw in _GLUE_CHECK_SKIP:
+                    continue
                 if len(kw) >= 2 and word.startswith(kw) and len(word) > len(kw):
                     raise LexKeywordGlueError(
                         f"「{word}」被当成了一个名字，但它的开头是关键字「{kw}」",
