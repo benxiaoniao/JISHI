@@ -848,7 +848,9 @@ def _import_local_package(name: str, *, line=None, col=None,
             raise SemanticFuncError(
                 f"包「{name}」依赖「{dep_name}」的版本要满足 {constraint!r}，"
                 f"但装的是 {dep_version}",
-                line=line, col=col, filename=filename)
+                line=line, col=col, filename=filename,
+                hint=(f"装个符合要求的版本重新试试；如果多个包对「{dep_name}」"
+                      f"的要求互相打架（钻石依赖），跑 `jishi 检查` 能看到完整链条"))
         deps[dep_name] = dep_mod
 
     # 决定要执行的模块：有「入口」只跑入口，否则跑全部 .jsh

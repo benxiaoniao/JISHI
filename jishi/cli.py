@@ -233,8 +233,10 @@ def _install_from_index(name: str, index_url: str, *, force: bool = False) -> No
         with open(index_url, encoding="utf-8") as f:
             text = f.read()
     else:
+        # 索引地址本身也可能含中文（如 --index https://…/索引.json）
+        url = PKG.encode_url(index_url)
         try:
-            with urllib.request.urlopen(index_url, timeout=15) as resp:
+            with urllib.request.urlopen(url, timeout=15) as resp:
                 text = resp.read().decode("utf-8")
         except Exception as e:  # noqa: BLE001
             raise ValueError(f"读远端索引「{index_url}」失败：{e}") from e
@@ -248,15 +250,9 @@ def _install_from_index(name: str, index_url: str, *, force: bool = False) -> No
     url = meta.get("下载地址")
     if not url:
         raise ValueError(f"索引里包「{name}」没有「下载地址」字段")
-    # 下载地址含中文等非 ASCII 时做 URL 编码（urllib 不接受裸非 ASCII URL）
-    import urllib.parse
-    try:
-        url.encode("ascii")
-    except UnicodeEncodeError:
-        parts = urllib.parse.urlsplit(url)
-        url = urllib.parse.urlunsplit(
-            (parts.scheme, parts.netloc,
-             urllib.parse.quote(parts.path), parts.query, parts.fragment))
+    # 地址里含中文等非 ASCII 时统一编码（urllib 不接受裸非 ASCII URL）；
+    # 手写的索引可能没编码，这里兜住。
+    url = PKG.encode_url(url)
     tmp = os.path.join(tempfile.gettempdir(), f"jishi-{name}.zip")
     try:
         with urllib.request.urlopen(url, timeout=60) as resp, \

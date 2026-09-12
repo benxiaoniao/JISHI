@@ -223,8 +223,10 @@ def build_package_zip(pkg_dir: str, out_dir: str) -> tuple[str, str]:
                 full = os.path.join(base, fn)
                 rel = os.path.relpath(full, pkg_dir)
                 files.append((full, rel))
-    if not files:
-        raise ValueError(f"包「{name}」里没有可发布的文件（包.json / *.jsh）")
+    modules = [rel for _, rel in files if rel.endswith(".jsh")]
+    if not modules:
+        raise ValueError(
+            f"包「{name}」里没有可发布的模块（需要至少一个 .jsh 文件）")
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for full, rel in files:
@@ -233,11 +235,12 @@ def build_package_zip(pkg_dir: str, out_dir: str) -> tuple[str, str]:
     return zip_path, name
 
 
-def _url_quote_path(url: str) -> str:
-    """把 URL 路径里的非 ASCII 字符做百分号编码（保留 ``/``）。
+def encode_url(url: str) -> str:
+    """把 URL 里非 ASCII 的部分编码好（域名走 IDNA，路径走百分号编码）。
 
     包名是中文，文件名形如 ``基础库-1.0.0.zip``；直接写进索引对 curl、
     浏览器、各语言 HTTP 客户端都不友好，因此在**生成索引时**就编码好。
+    安装端也复用本函数，兜住「索引是手写、没编码」的情况。
     """
     from urllib.parse import quote, urlsplit, urlunsplit
 
@@ -246,9 +249,23 @@ def _url_quote_path(url: str) -> str:
         return url                                  # 纯 ASCII，无需处理
     except UnicodeEncodeError:
         pass
+
     parts = urlsplit(url)
-    return urlunsplit((parts.scheme, parts.netloc, quote(parts.path),
-                       parts.query, parts.fragment))
+    netloc = parts.netloc
+    if netloc:
+        try:
+            netloc.encode("ascii")
+        except UnicodeEncodeError:
+            host, _, port = netloc.partition(":")
+            try:
+                host = host.encode("idna").decode("ascii")
+            except (UnicodeError, ValueError):
+                pass                                # 编不了就原样保留
+            netloc = f"{host}:{port}" if port else host
+    # safe 里保留 "%"：调用方给的 base_url 可能已部分编码（如 file:// 的
+    # as_uri()），再编一次会变成 %25 双重编码。
+    return urlunsplit((parts.scheme, netloc, quote(parts.path, safe="/%"),
+                       quote(parts.query, safe="%=&"), parts.fragment))
 
 
 def index_entry(pkg_dir: str, *, base_url: str = "",
@@ -261,7 +278,7 @@ def index_entry(pkg_dir: str, *, base_url: str = "",
     entry: dict[str, Any] = {"版本": version}
     if base_url:
         prefix = base_url.rstrip("/")
-        entry["下载地址"] = _url_quote_path(
+        entry["下载地址"] = encode_url(
             f"{prefix}/{zip_name or f'{name}-{version}.zip'}")
     if meta.get("依赖"):
         entry["依赖"] = dict(meta["依赖"])
@@ -354,13 +371,14 @@ def detect_conflicts(
 
     # 包名 → {版本, 要求: [(来自, 约束, 链条)]}
     seen: dict[str, dict] = {}
-    visited_chain: set[tuple] = set()
 
     def walk(name: str, chain: list[str]) -> None:
-        key = (name, tuple(chain))
-        if key in visited_chain:
-            return                                  # 已访问过这条链，防环
-        visited_chain.add(key)
+        # 环检测：只看「这条链上是否已经出现过」——用包名判断，不能用
+        # (名字, 整条链) 当键，否则 甲→乙→甲→乙… 每条链都不同，永不重复。
+        if name in chain:
+            return
+        if len(chain) > 64:                     # 兜底，防病态深图
+            return
 
         pkg_dir = find_dir(name)
         meta = _dep_meta_of(pkg_dir)
