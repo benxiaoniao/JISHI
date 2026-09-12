@@ -12,7 +12,7 @@
 > - 前端（词法/语法/AST/中文报错）由 **Python 实现**
 > - 三个执行器：**树遍历解释器**（默认，Python）/ **Python 字节码 VM** /
 >   **C 字节码 VM**（`cvm/`，自研 C 栈式虚拟机，gcc 编成 DLL/SO，
->   纯计算场景提速最高 47x，wheel 内自带无需本机 gcc）
+>   纯计算场景提速最高 46x，wheel 内自带无需本机 gcc）
 > - 通过桥接层**可调用任意 Python 库**，标准库为中文薄封装
 > - 不 fork、不 patch CPython，也不宣称"完全自主"，以上技术栈如实标注
 >
@@ -138,9 +138,30 @@ jishi examples/01_猜数字.jsh --ast
 | M17 | 排错体验补全（递归翻译 + 调用栈回溯 + 协议补全 + REPL 源码行） | ✅ |
 | M18 | 表达便利（切片 / 命令行参数 / 最小最大多参数 / 遮蔽治理） | ✅ |
 | M19 | 发行改进（Windows 安装程序 + 三平台自动构建） | ✅ |
+| M20 | 性能：批量 JVal 转换优化（C VM 迭代/函数调用大幅提速） | ✅ |
 
 **测试现状：595 项全部通过**（`python -m pytest tests/`），其中 107 项是
 三执行器对拍（树遍历 / Python VM / C VM 输出逐字节一致）。
+
+### M20 已交付：性能优化（批量 JVal 转换）
+
+用 benchmark + cProfile 定位到 C VM 的真正瓶颈：**每次迭代/调用的返回值都要
+逐个跨 ctypes 边界构造 `JVal`**（`_jint` 0.55µs + `py2c` 0.4µs ≈ 1µs/值）。
+
+优化：`iter_next_batch` 中整批为整数时，用一次 `struct.pack` + `memmove`
+写入 C 侧数组，省掉逐个构造（实测转换快 ~9x，混合类型/大端自动回退逐个）。
+
+| 场景 | 优化前 | 优化后 |
+|------|--------|--------|
+| 整数循环累加 | 1.9x | **8.4x** |
+| 函数调用密集 | 4.5x | **10.7x** |
+| 算术混合运算 | 5.2x | **18.1x** |
+| 列表构建与遍历 | 1.6x | **2.6x** |
+| 递归斐波那契 | 18.3x | 18.1x |
+| 当循环倒计数 | 44.4x | **45.9x** |
+| 字符串拼接 | 0.30x | 0.34x（架构边界） |
+
+独立验证：`遍历 范围(20000)` 从 16.5ms → **3.8ms**（4.4x）。
 
 ### M19 已交付：发行改进（Windows 安装程序 + 三平台自动构建）
 
@@ -319,8 +340,8 @@ jishi examples/01_猜数字.jsh --ast
 - `cvm/src/jsvm.c` C 栈式 VM（数值/比较/跳转/调用/循环/闭包快路径），
   `cvm/build.py` 一条命令出 DLL，`jishi/cvm_bind.py` ctypes 绑定 + 宿主回调；
 - `tests/test_cvm.py` 三执行器对拍（黄金用例/错误快照/示例全覆盖）；
-- `tools/benchmark.py` 可复现基准：C VM 提速 1.6x–47x
-  （当循环 47x、递归 17x、函数调用 4.3x、算术混合 5.1x、列表 1.6x）；
+- `tools/benchmark.py` 可复现基准：C VM 提速 2.6x–46x
+  （当循环 46x、递归 18x、算术混合 18x、函数调用 11x、列表 2.6x）；
   字符串拼接是透明架构边界（字符串是 HOST 句柄，C 侧无法直接操作 Python str，
   详见 benchmark 输出说明）。
 
@@ -445,7 +466,7 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
   `tests/test_cvm.py` 对拍保证「换执行器不改变任何可观察行为」
   （stdout 与报错逐字节一致）。
 - 默认仍走树遍历；`jishi/vm.py` / `jishi/cvm_bind.run_source_c` 可切换。
-  性能：C VM 提速最高 47x（见 tools/benchmark.py，字符串拼接为架构边界）。
+  性能：C VM 提速最高 46x（见 tools/benchmark.py，字符串拼接为架构边界）。
 - **AI 原生能力**（M8/M9）架在 AST 与报错之上：`jishi/ai.py` 从
   tokenizer/parser/runtime/stdlib 动态收集元数据，产出语言卡、语言规格、
   JSON 结构化报错；`jishi/mcp_server.py` 把执行能力暴露给任意 MCP 宿主。

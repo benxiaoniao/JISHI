@@ -17,6 +17,8 @@ C 主循环立即停止；``run_source_c`` 统一把 ``pending`` 重新抛出。
 from __future__ import annotations
 
 import ctypes
+import struct as _struct
+import sys as _sys
 from ctypes import (CFUNCTYPE, POINTER, Structure, Union, byref, c_char_p,
                     c_double, c_int, c_int32, c_int64, c_uint8, c_uint32,
                     c_uint64, c_void_p)
@@ -151,6 +153,23 @@ def _jfloat(d: float) -> JVal:
 
 def _jhost(h: int) -> JVal:
     x = JVal(); x.tag = O.T_HOST; x.v.u = h; return x
+
+
+#: JVal 的字节大小（批量转换用）
+_JVAL_SIZE = ctypes.sizeof(JVal)
+
+#: 批量构造「全整数」JVal 数组的 struct.Struct 缓存（M20 热路径优化）。
+#: 布局：uint8 tag + 7 字节填充 + int64 值，与 JVal 内存布局一致（仅小端）。
+_INT_BATCH_FMT: dict[int, _struct.Struct] = {}
+_LITTLE_ENDIAN = _sys.byteorder == "little"
+
+
+def _int_batch_fmt(n: int) -> _struct.Struct:
+    st = _INT_BATCH_FMT.get(n)
+    if st is None:
+        st = _struct.Struct("<" + "B7xq" * n)
+        _INT_BATCH_FMT[n] = st
+    return st
 
 
 def _jfunc_copy(src: JVal) -> JVal:
@@ -621,6 +640,22 @@ class CvmHost:
                         chunk.append(next(wrapper.it))
                     except StopIteration:
                         break
+            # 快路径（M20）：整批都是整数时，一次 pack + memmove 写入 C 侧
+            # 数组，省掉逐个构造 JVal 的 ctypes 开销（实测约快 9 倍）。
+            # 混合类型 / 大端平台 / 溢出时回退到逐个 py2c，语义不变。
+            if chunk and _LITTLE_ENDIAN and all(type(v) is int for v in chunk):
+                try:
+                    fmt = _int_batch_fmt(len(chunk))
+                    flat: list = []
+                    for v in chunk:
+                        flat.append(O.T_INT)
+                        flat.append(v)
+                    ctypes.memmove(out, fmt.pack(*flat),
+                                   len(chunk) * _JVAL_SIZE)
+                    n[0] = len(chunk)
+                    return 0
+                except (_struct.error, OverflowError):
+                    pass          # 回退逐个
             for i, v in enumerate(chunk):
                 out[i] = self.py2c(v)
             n[0] = len(chunk)
