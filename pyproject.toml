@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jishi"
+version = "0.1.4"
+description = "基石 —— 一门像 Python 一样简单易用的中文编程语言"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "jishi contributors" }]
+
+[project.scripts]
+jishi = "jishi.cli:main"
+jishi-mcp = "jishi.mcp_server:main"
+
+[tool.setuptools]
+packages = ["jishi", "jishi.stdlib"]
+
+# M11：wheel 内带预编译 C VM 动态库（pip install 即含三执行器，无需本机 gcc）
+[tool.setuptools.package-data]
+jishi = ["_native/*.dll", "_native/*.so", "_native/*.dylib"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "网络: 需要联网的用例（离线可用 -m \"not 网络\" 跳过）",
+]
