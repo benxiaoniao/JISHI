@@ -371,8 +371,10 @@ class _Emitter:
         target = st.target
         if isinstance(target, A.TargetList):
             # 解包赋值：令 a, b = ...（复合赋值已在 parser 报错）
+            star = getattr(target, "star_index", None)
             self.compile_expr(st.value)
-            self.emit(O.Op.UNPACK, st, len(target.names))
+            self.emit(O.Op.UNPACK, st, len(target.names),
+                      -1 if star is None else star)
             for name_node in target.names:
                 self.store_name(name_node.id, st)
             return
@@ -561,6 +563,11 @@ class _Emitter:
                 # 进入方法体继续发射
                 saved_code, saved_scope = self.code, self.scope
                 self.code, self.scope = code, sub_scope
+                # 方法的类型标注校验（M24.3/M25）：方法与普通函数走的是两条
+                # 发射路径（这里为了把方法函数对象留在栈上待 BUILD_CLASS），
+                # 所以这行不能漏——否则「写在方法上的标注」在字节码执行器里
+                # 等于没写，只有树遍历会查。
+                self._c_check_annotations(node)
                 self.compile_body(node.body)
                 self.emit(O.Op.LOAD_CONST, node, self.const_idx(None))
                 self.emit(O.Op.RETURN, node)
@@ -655,6 +662,9 @@ class _Emitter:
             param_idx=[self.name_idx(p) for p in st.params],
             param_local=param_local,
             param_cell=param_cell,
+            # 形参种类（M25）：与 params 对齐；缺省（老 AST / 匿名函数未填）当普通
+            param_kind=list(getattr(st, "param_kind", []) or [])
+                       or [O.ParamKind.NORMAL] * len(st.params),
             nlocals=len(locals_ordered),
             local_names=locals_ordered,
             cellvars=cellnames,

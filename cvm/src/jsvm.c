@@ -394,7 +394,13 @@ static int push_frame(JsVm *vm, int code_idx, int base,
 
 /*
  * 绑定实参到局部槽与单元，返回 0；出错时宿主已抛错，返回 -1。
- * values 中的值所有权转移给 locals/units（调用者已从栈上取出）。
+ *
+ * 所有权（M25 调整为**借用**语义）：args/kwvals 由调用者持有并负责释放，
+ * 本函数把值写进 locals/units 时会 retain 一次。这么改是为了让
+ * `*参数` 走通——同一个实参可能「既被打包进列表、又留在数组里等待统一
+ * 释放」，借用语义下不需要再区分「这个值到底进没进槽位」，不会双释或漏释。
+ *
+ * 调用点必须已 SAVE_IP()（本函数内会调用宿主回调，可能抛错）。
  * nfree_cells：函数对象的单元（freevars 部分）。
  */
 static int bind_args(JsVm *vm, int code_idx,
@@ -408,37 +414,93 @@ static int bind_args(JsVm *vm, int code_idx,
     const int32_t *pp = vm->code_params + code->params_off;
     (void)nfree;
 
-    if (nargs > nparams) {
-        vm->host->raise_argc(code_idx, nargs + nkw, line, col);
-        return -1;
-    }
-    /* 逐参数记录已绑定的值；先位置后关键字（与 vm._bind 一致） */
-    /* bound_values[i] 的 UNSET 表示未绑定 */
-
+    /* bound[i] 的 UNSET 表示未绑定 */
     JVal *bound = (JVal *)malloc(
         (size_t)(nparams > 0 ? nparams : 1) * sizeof(JVal));
     if (!bound) return -1;
     for (int i = 0; i < nparams; i++) bound[i] = make_unset();
 
-    for (int i = 0; i < nargs; i++) bound[i] = args[i];
+    /* 形参种类（M25）：code_params 每个参数的第 4 个 int32。 */
+    int star_pos = -1, dstar_pos = -1;
+    for (int i = 0; i < nparams; i++) {
+        int kind = pp[i * 4 + 3];
+        if (kind == JS_PARAM_VARARGS) star_pos = i;
+        else if (kind == JS_PARAM_VARKW) dstar_pos = i;
+    }
+    /* 能吃「普通位置实参」的参数个数 = *参数 之前的那些；
+       没有 *参数 时，**选项 之前的也是普通的。 */
+    int npos = nparams;
+    if (star_pos >= 0) npos = star_pos;
+    else if (dstar_pos >= 0) npos = dstar_pos;
 
-    for (int k = 0; k < nkw; k++) {
-        int name = kwname_idx[k];
-        int found = -1;
-        for (int i = 0; i < nparams; i++)
-            if (pp[i * 3 + 0] == name) { found = i; break; }
-        if (found < 0) {
-            free(bound);
-            vm->host->raise_bad_kw(code_idx, name, line, col);
-            return -1;
-        }
-        bound[found] = kwvals[k];
+    /* 1) 位置实参：前 npos 个进普通参数（借用 → retain） */
+    int ntake = nargs < npos ? nargs : npos;
+    for (int i = 0; i < ntake; i++) {
+        bound[i] = args[i];
+        retain_val(vm, args[i]);
     }
 
-    /* 缺省参数补默认值（defaults 为紧凑尾部数组，borrow + retain，M7） */
+    /* 2) 多出来的位置实参：有 *参数 就打包成列表，否则报参数过多 */
+    if (nargs > npos) {
+        if (star_pos < 0) {
+            goto fail_argc;
+        }
+        JVal lst;
+        if (vm->host->build_list(args + npos, nargs - npos, &lst,
+                                 line, col) != 0)
+            goto fail;
+        bound[star_pos] = lst;      /* 新构造值，本体已持引用 */
+    }
+
+    /* 3) 关键字实参：先匹配普通参数名，剩下的进 **选项 */
     {
-        int first_def = nparams - ndefaults;
-        for (int i = 0; i < nparams; i++) {
+        int *extra_names = (int *)malloc(
+            (size_t)(nkw > 0 ? nkw : 1) * sizeof(int));
+        JVal *extra_vals = (JVal *)malloc(
+            (size_t)(nkw > 0 ? nkw : 1) * sizeof(JVal));
+        if (!extra_names || !extra_vals) {
+            free(extra_names); free(extra_vals);
+            goto fail;
+        }
+        int nextra = 0;
+
+        for (int k = 0; k < nkw; k++) {
+            int name = kwname_idx[k];
+            int found = -1;
+            for (int i = 0; i < npos; i++)
+                if (pp[i * 4 + 0] == name) { found = i; break; }
+            if (found >= 0) {
+                bound[found] = kwvals[k];
+                retain_val(vm, kwvals[k]);
+            } else if (dstar_pos >= 0) {
+                extra_names[nextra] = name;
+                extra_vals[nextra] = kwvals[k];
+                nextra++;
+            } else {
+                free(extra_names); free(extra_vals);
+                vm->host->raise_bad_kw(code_idx, name, line, col);
+                goto fail;
+            }
+        }
+
+        if (dstar_pos >= 0) {
+            JVal dct;
+            if (vm->host->pack_kwargs(extra_names, extra_vals, nextra,
+                                      &dct, line, col) != 0) {
+                free(extra_names); free(extra_vals);
+                goto fail;
+            }
+            bound[dstar_pos] = dct;
+        }
+        free(extra_names);
+        free(extra_vals);
+    }
+
+    /* 4) 缺省参数补默认值（defaults 为紧凑尾部数组，借用 → retain，M7）。
+       默认值只属于「普通参数」，*参数 / **选项 不参与。 */
+    if (ndefaults > 0 && npos > 0) {
+        int first_def = npos - ndefaults;
+        for (int i = 0; i < npos; i++) {
             if (bound[i].tag == JS_TAG_UNSET && i >= first_def
                     && defaults[i - first_def].tag != JS_TAG_UNSET) {
                 bound[i] = defaults[i - first_def];
@@ -447,25 +509,34 @@ static int bind_args(JsVm *vm, int code_idx,
         }
     }
 
-    /* 缺参检查 */
+    /* 5) *参数 / **选项 没拿到东西时给空容器（Python 语义：0 个也成立） */
+    if (star_pos >= 0 && bound[star_pos].tag == JS_TAG_UNSET) {
+        JVal lst;
+        if (vm->host->build_list(args, 0, &lst, line, col) != 0) goto fail;
+        bound[star_pos] = lst;
+    }
+    if (dstar_pos >= 0 && bound[dstar_pos].tag == JS_TAG_UNSET) {
+        JVal dct;
+        if (vm->host->pack_kwargs(NULL, NULL, 0, &dct, line, col) != 0)
+            goto fail;
+        bound[dstar_pos] = dct;
+    }
+
+    /* 6) 缺参检查（只看普通参数；*参数 / **选项 已保证有值） */
     {
         int miss[64]; int nmiss = 0;
-        for (int i = 0; i < nparams && nmiss < 64; i++)
+        for (int i = 0; i < npos && nmiss < 64; i++)
             if (bound[i].tag == JS_TAG_UNSET) miss[nmiss++] = i;
-        if (nmiss > 0 || nparams == 0) {
-            /* nparams==0 且无缺参则不报；正常统计 */
-        }
         if (nmiss > 0) {
-            free(bound);
             vm->host->raise_missing(code_idx, miss, nmiss, line, col);
-            return -1;
+            goto fail;
         }
     }
 
-    /* 写局部槽与单元 */
+    /* 7) 写局部槽与单元 */
     for (int i = 0; i < nparams; i++) {
-        int local = pp[i * 3 + 1];
-        int cell = pp[i * 3 + 2];
+        int local = pp[i * 4 + 1];
+        int cell = pp[i * 4 + 2];
         if (local >= 0) {
             locals_out[local] = bound[i];
         } else if (cell >= 0) {
@@ -475,6 +546,17 @@ static int bind_args(JsVm *vm, int code_idx,
     }
     free(bound);
     return 0;
+
+fail_argc:
+    vm->host->raise_argc(code_idx, nargs + nkw, line, col);
+    /* fall through */
+fail:
+    /* 统一清理：已 retain 的（借用来源）在这里撤销，
+       新构造的（列表/字典）在这里还回本体那一份。两类都只需 release 一次。 */
+    for (int i = 0; i < nparams; i++)
+        if (bound[i].tag != JS_TAG_UNSET) release_val(vm, bound[i]);
+    free(bound);
+    return -1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1010,9 +1092,15 @@ static int run_loop(JsVm *vm) {
                         vm->sp = fn_base;
                         return -1;
                     }
+                    /* bind_args 采用**借用**语义（M25）：槽位里那份已由它
+                       retain，这里释放实参自身的引用，再清栈。 */
+                    for (int i = 0; i < nargs; i++)
+                        release_val(vm, args[i]);
+                    for (int k = 0; k < nkw; k++)
+                        release_val(vm, kwv[k]);
                     free(args); free(kwv);
 
-                    /* 清掉栈上的 fn+args+kw（所有权已转移）。
+                    /* 清掉栈上的 fn+args+kw（它们的引用已在上一步释放）。
                      * 注意：release_val(fn) 可能 free 掉函数对象（jfn），
                      * 因此必须先保存 code_idx 再释放，避免 use-after-free。 */
                     int fn_code_idx = jfn->code_idx;
@@ -1136,13 +1224,14 @@ static int run_loop(JsVm *vm) {
 
             case JS_OP_UNPACK: {
                 int n = a;
+                int star = b;   /* 带星号解包的元素位置（M25）；-1 = 无 */
                 JVal v = POP(vm);
                 JVal *items = (JVal *)malloc(
                     (size_t)(n > 0 ? n : 1) * sizeof(JVal));
                 if (!items) { release_val(vm, v);
                     vm->host->raise_internal("内存不足"); return -1; }
                 SAVE_IP();
-                if (vm->host->unpack(&v, n, items, line, col) != 0) {
+                if (vm->host->unpack(&v, n, star, items, line, col) != 0) {
                     release_val(vm, v); free(items);
                     goto dispatch_err;
                 }

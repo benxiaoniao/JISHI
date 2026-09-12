@@ -1038,20 +1038,47 @@ def make_instance(cls: JishiClass, args: list, kwargs: dict, *,
 # 容器构造
 # ---------------------------------------------------------------------------
 
-def unpack_values(value, n: int, *, line=None, col=None, filename="<输入>"):
+def unpack_values(value, n: int, star_index=None, *, line=None, col=None,
+                  filename="<输入>"):
     """解包赋值的共享语义（树遍历 / 字节码 VM / C 宿主回调三处共用）。
 
-    右值必须是列表或元组（含 Python 桥接返回的 tuple），长度必须精确匹配。
+    右值必须是列表、元组、集合或文本（含 Python 桥接返回的 tuple）。
+
+    - 无星号（`star_index is None`）：长度必须**精确匹配** n；
+    - 有星号（M25，`令 甲, *余 = …`）：位置 ``star_index`` 收集「其余」成
+      列表（可以为空），其余 n-1 个位置取首尾对应的单个元素，
+      因此要求长度 >= n - 1。
+
+    返回长度为 n 的列表，第 ``star_index`` 项是列表。
     """
-    if not isinstance(value, (list, tuple)):
+    if not isinstance(value, (list, tuple, str, JishiSet)):
         raise RunTypeError(
             f"解包赋值需要列表，得到了「{type_name(value)}」",
-            line=line, col=col, filename=filename)
-    if len(value) != n:
+            line=line, col=col, filename=filename,
+            hint="列表、文本、集合都能解包（字典解出来的是键）")
+    if isinstance(value, dict):
+        seq = list(value.keys())
+    else:
+        seq = list(value)
+    if star_index is None:
+        if len(seq) != n:
+            raise RunValueError(
+                f"解包需要 {n} 个值，实际有 {len(seq)} 个",
+                line=line, col=col, filename=filename,
+                hint="想「收剩下的」可以写「*余」，例如 令 甲, *余 = 列表")
+        return seq
+
+    # 带星号：星号前有 star_index 个固定元素，星号后有 n-1-star_index 个
+    nhead = star_index
+    ntail = n - 1 - star_index
+    if len(seq) < nhead + ntail:
         raise RunValueError(
-            f"解包需要 {n} 个值，实际有 {len(value)} 个",
+            f"解包至少需要 {nhead + ntail} 个值，实际有 {len(seq)} 个",
             line=line, col=col, filename=filename)
-    return list(value)
+    head = seq[:nhead]
+    tail = seq[len(seq) - ntail:] if ntail > 0 else []
+    middle = seq[nhead:len(seq) - ntail] if ntail > 0 else seq[nhead:]
+    return head + [middle] + tail
 
 
 def build_dict(pairs, *, line=None, col=None, filename="<输入>"):

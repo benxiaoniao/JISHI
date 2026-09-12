@@ -31,7 +31,9 @@ function decodePayload(payload) {
     for (let i = 0; i < flat.length; i += 6) {
       instrs.push({ op: flat[i], a: flat[i + 1], b: flat[i + 2], c: flat[i + 3], line: flat[i + 4], col: flat[i + 5] });
     }
-    return { ...cd, instrs };
+    // param_kind（M25）：形参种类 0=普通 1=*参数 2=**选项；
+    // 旧产物没这个字段时按「全普通」处理
+    return { ...cd, paramKind: cd.param_kind ?? [], instrs };
   });
   return { ...payload, consts, codes };
 }
@@ -41,8 +43,8 @@ function loadPayload(text) {
   if (body.format !== 'jishi-bytecode') {
     throw new Error('不是基石字节码格式');
   }
-  if (body.version !== 1) {
-    throw new Error(`字节码版本 ${body.version} 与 JS 引擎 1 不兼容`);
+  if (body.version !== 2) {
+    throw new Error(`字节码版本 ${body.version} 与 JS 引擎 2 不兼容`);
   }
   return decodePayload(body.payload);
 }

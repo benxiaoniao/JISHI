@@ -445,14 +445,30 @@ function makeInstance(cls, args, line, col) {
 // ---------------------------------------------------------------------------
 // 容器构造
 // ---------------------------------------------------------------------------
-function unpackValues(value, n, line, col) {
-  if (!Array.isArray(value)) {
+function unpackValues(value, n, star, line, col) {
+  // star >= 0 时是星号解包（M25）：该位置收「其余」成列表
+  let seq;
+  if (Array.isArray(value)) seq = value;
+  else if (typeof value === 'string') seq = [...value];
+  else if (value instanceof Map) seq = [...value.keys()];
+  else {
     throw typeErr(`解包赋值需要列表，得到了「${typeName(value)}」`, line, col);
   }
-  if (value.length !== n) {
-    throw valueErr(`解包需要 ${n} 个值，实际有 ${value.length} 个`, line, col);
+  if (star == null || star < 0) {
+    if (seq.length !== n) {
+      throw valueErr(`解包需要 ${n} 个值，实际有 ${seq.length} 个`, line, col);
+    }
+    return [...seq];
   }
-  return [...value];
+  const nhead = star;
+  const ntail = n - 1 - star;
+  if (seq.length < nhead + ntail) {
+    throw valueErr(`解包至少需要 ${nhead + ntail} 个值，实际有 ${seq.length} 个`, line, col);
+  }
+  const head = seq.slice(0, nhead);
+  const tail = ntail > 0 ? seq.slice(seq.length - ntail) : [];
+  const mid = ntail > 0 ? seq.slice(nhead, seq.length - ntail) : seq.slice(nhead);
+  return [...head, mid, ...tail];
 }
 
 function buildDict(pairs, line, col) {

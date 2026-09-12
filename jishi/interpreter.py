@@ -16,6 +16,7 @@ from typing import Any, Optional
 
 from . import ast_nodes as A
 from . import runtime as R
+from .opcodes import ParamKind
 from .errors import (
     Frame,
     JishiError,
@@ -77,10 +78,10 @@ class Environment:
 
 class UserFunction:
     __slots__ = ("name", "params", "defaults", "body", "closure", "interp",
-                 "annotations")
+                 "annotations", "param_kind")
 
     def __init__(self, name, params, body, closure, interp,
-                 defaults=None, annotations=None):
+                 defaults=None, annotations=None, param_kind=None):
         self.name = name
         self.params = params
         #: 与 params 对齐；None 表示无默认。值已在定义处求好（M7）
@@ -90,26 +91,89 @@ class UserFunction:
         self.interp = interp
         #: 类型标注文本（M24.3），与 params 对齐，None 表示没写
         self.annotations = annotations or []
+        #: 形参种类（M25）：ParamKind.*，与 params 对齐
+        self.param_kind = param_kind or []
 
     def __repr__(self):
         return f"<函数 {self.name}>"
 
-    def __call__(self, *args):
-        """让基石函数可以被 Python 侧调用（M3 桥接：map/sorted 等高阶函数回调）。"""
-        if len(args) > len(self.params):
+    def _bind_args(self, args, kwargs, *, line=None, col=None,
+                   filename="<输入>"):
+        """把实参绑到形参上，返回新的调用环境。
+
+        抽出来给两处共用（M25）：树遍历的普通调用（`_eval_call`）与
+        Python 侧回调（`__call__`，例如 `列表.映射(基石函数)`）。
+        两条路的绑定语义必须完全一致，否则会出现「直接调对、通过高阶函数调错」
+        这种很难查的偏差。支持 `*参数` / `**选项` 与默认值。
+        """
+        kinds = self.param_kind or []
+        nparams = len(self.params)
+        star_pos = next((i for i, k in enumerate(kinds)
+                         if k == ParamKind.VARARGS), -1)
+        dstar_pos = next((i for i, k in enumerate(kinds)
+                          if k == ParamKind.VARKW), -1)
+        # 能吃普通位置实参的个数 = *参数 之前的那些
+        npos = nparams
+        if star_pos >= 0:
+            npos = star_pos
+        elif dstar_pos >= 0:
+            npos = dstar_pos
+
+        if len(args) > npos and star_pos < 0:
             raise RunTypeError(
-                f"函数「{self.name}」需要 {len(self.params)} 个参数，"
-                f"但传了 {len(args)} 个")
+                f"函数「{self.name}」需要 {npos} 个参数，"
+                f"但传了 {len(args) + len(kwargs)} 个",
+                line=line, col=col, filename=filename)
+
         call_env = Environment(parent=self.closure)
-        for p, a in zip(self.params, args):
-            call_env.set(p, a)
-        for p, d in zip(self.params, self.defaults):
+        for i in range(min(len(args), npos)):
+            call_env.set(self.params[i], args[i])
+        if star_pos >= 0:
+            call_env.set(self.params[star_pos], list(args[npos:]))
+        extra: dict = {}
+        for name, value in kwargs.items():
+            if name in self.params[:npos]:
+                call_env.set(name, value)
+            elif dstar_pos >= 0:
+                extra[name] = value
+            else:
+                raise RunTypeError(
+                    f"函数「{self.name}」没有叫「{name}」的参数",
+                    line=line, col=col, filename=filename,
+                    hint=f"它的参数是：{'、'.join(self.params[:npos])}")
+        if dstar_pos >= 0:
+            call_env.set(self.params[dstar_pos], extra)
+        for i, p in enumerate(self.params[:npos]):
+            d = self.defaults[i] if i < len(self.defaults) else None
             if p not in call_env.vars and d is not None:
                 call_env.set(p, d)
-        missing = [p for p in self.params if p not in call_env.vars]
+        # 只查本层（call_env.vars），避免闭包里的同名变量造成误判
+        missing = [p for p in self.params[:npos] if p not in call_env.vars]
         if missing:
             raise RunTypeError(
-                f"函数「{self.name}」缺少参数：{'、'.join(missing)}")
+                f"函数「{self.name}」缺少参数：{'、'.join(missing)}",
+                line=line, col=col, filename=filename)
+
+        # 类型标注校验（M24.3）：放在绑定之后、进入函数体之前。
+        # 与字节码 VM 的「前导调用」同一套语义，保证三执行器一致；
+        # 放在 _bind_args 里是为了让 Python 侧回调（__call__）也校验——
+        # 否则「直接调用会查、传给高阶函数不查」，方法调用更会整条漏掉
+        #（方法就是走 __call__ 的）。
+        anns = self.annotations
+        if anns:
+            desc: list = []
+            vals: list = []
+            for p, a in zip(self.params, anns):
+                if a:
+                    desc += [p, a]
+                    vals.append(call_env.vars.get(p))
+            if desc:
+                R._b_check_args(desc, vals, self.name)
+        return call_env
+
+    def __call__(self, *args, **kwargs):
+        """让基石函数可以被 Python 侧调用（M3 桥接：map/sorted 等高阶函数回调）。"""
+        call_env = self._bind_args(args, kwargs)
         try:
             self.interp.exec_block(self.body, call_env)
         except _ReturnSignal as r:
@@ -194,7 +258,8 @@ class Interpreter:
                 stmt.name, stmt.params, stmt.body, env, self,
                 defaults=[self.eval_expr(d, env) if d is not None else None
                           for d in stmt.defaults],
-                annotations=list(getattr(stmt, "annotations", []) or []))
+                annotations=list(getattr(stmt, "annotations", []) or []),
+                param_kind=list(getattr(stmt, "param_kind", []) or []))
             env.set(stmt.name, fn)
         elif isinstance(stmt, A.ClassDef):
             self._do_classdef(stmt, env)
@@ -223,9 +288,10 @@ class Interpreter:
                 raise RunTypeError("多赋值（解包）只能用「=」",
                                    line=stmt.line, col=stmt.col,
                                    filename=self.filename)
-            values = R.unpack_values(value, len(target.names),
-                                     line=stmt.line, col=stmt.col,
-                                     filename=self.filename)
+            values = R.unpack_values(
+                value, len(target.names),
+                getattr(target, "star_index", None),
+                line=stmt.line, col=stmt.col, filename=self.filename)
             for name_node, v in zip(target.names, values):
                 env.set(name_node.id, v)
             return
@@ -374,7 +440,9 @@ class Interpreter:
                 fn = UserFunction(
                     node.name, node.params, node.body, env, self,
                     defaults=[self.eval_expr(d, env) if d is not None
-                              else None for d in node.defaults])
+                              else None for d in node.defaults],
+                    annotations=list(getattr(node, "annotations", []) or []),
+                    param_kind=list(getattr(node, "param_kind", []) or []))
                 methods[node.name] = fn
             elif (isinstance(node, A.Assign)
                   and isinstance(node.target, A.Name)
@@ -471,7 +539,8 @@ class Interpreter:
                 expr.name, expr.params, expr.body, env, self,
                 defaults=[self.eval_expr(d, env) if d is not None else None
                           for d in (expr.defaults or [])],
-                annotations=list(getattr(expr, "annotations", []) or []))
+                annotations=list(getattr(expr, "annotations", []) or []),
+                param_kind=list(getattr(expr, "param_kind", []) or []))
         if isinstance(expr, A.List):
             return [self.eval_expr(e, env) for e in expr.elements]
         if isinstance(expr, A.Dict):
@@ -568,44 +637,10 @@ class Interpreter:
         args = [self.eval_expr(a, env) for a in expr.args]
         kwargs = {name: self.eval_expr(v, env) for name, v in expr.keywords}
         if isinstance(fn, UserFunction):
-            call_env = Environment(parent=fn.closure)
-            if len(args) > len(fn.params):
-                raise RunTypeError(
-                    f"函数「{fn.name}」需要 {len(fn.params)} 个参数，"
-                    f"但传了 {len(args) + len(kwargs)} 个",
-                    line=expr.line, col=expr.col, filename=self.filename)
-            for p, a in zip(fn.params, args):
-                call_env.set(p, a)
-            # 关键字参数按名字绑定
-            for name, value in kwargs.items():
-                if name not in fn.params:
-                    raise RunTypeError(
-                        f"函数「{fn.name}」没有叫「{name}」的参数",
-                        line=expr.line, col=expr.col, filename=self.filename,
-                        hint=f"它的参数是：{'、'.join(fn.params)}")
-                call_env.set(name, value)
-            # 缺省参数补默认值（定义处求好的值）
-            for p, d in zip(fn.params, fn.defaults):
-                if p not in call_env.vars and d is not None:
-                    call_env.set(p, d)
-            # 只查本层（call_env.vars），避免闭包里的同名变量造成误判
-            missing = [p for p in fn.params if p not in call_env.vars]
-            if missing:
-                raise RunTypeError(
-                    f"函数「{fn.name}」缺少参数：{'、'.join(missing)}",
-                    line=expr.line, col=expr.col, filename=self.filename)
-            # 类型标注校验（M24.3）：与字节码 VM 的前导调用同一套语义，
-            # 保证树遍历 / Python VM / C VM 三执行器行为一致。
-            anns = getattr(fn, "annotations", None)
-            if anns:
-                desc: list = []
-                vals: list = []
-                for p, a in zip(fn.params, anns):
-                    if a:
-                        desc += [p, a]
-                        vals.append(call_env.vars.get(p))
-                if desc:
-                    R._b_check_args(desc, vals, fn.name)
+            # 绑定实参（含 *参数 / **选项）统一走 UserFunction._bind_args，
+            # 与 Python 侧回调 __call__ 共用一份逻辑，避免两处漂移（M25）
+            call_env = fn._bind_args(args, kwargs, line=expr.line,
+                                     col=expr.col, filename=self.filename)
             try:
                 self._call_stack.append(Frame(fn.name, expr.line, expr.col))
                 self.exec_block(fn.body, call_env)

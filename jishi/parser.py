@@ -19,6 +19,9 @@ from .errors import (
     ParseMissingNameError,
     ParseUnexpectedError,
 )
+#: 形参种类常量（M25）。从 opcodes 取，保证与 C 侧 JS_PARAM_* 同源；
+#: opcodes 是纯数据定义、不反向依赖 parser，没有循环导入风险。
+from .opcodes import ParamKind
 from .tokenizer import Token, tokenize
 # 二元运算符优先级（数值越大越紧）
 # 注意：关键字形式的运算符（与/或/在/不在/是/不是）也登记在这里，
@@ -438,19 +441,41 @@ class Parser:
     def _parse_assign(self, decl: bool) -> A.Node:
         if decl:
             start = self._next()  # 「令」
+            if self._at_op("*"):
+                # `令 *余 = …`：Python 也要求写成 `*余, = …`。
+                # 与其让用户对着「这里需要一个变量名」猜，不如直接说清。
+                star_tok = self._peek()
+                self._err(
+                    ParseUnexpectedError,
+                    "「令」后面不能直接写「*」——星号解包至少要有一个固定名字",
+                    tok=star_tok,
+                    hint="写成 令 甲, *余 = 列表（星号放中间或末尾），"
+                         "或只收集全部：令 余 = 列表")
             target_tok = self._expect_name("变量名")
             target: A.Node = A.Name(id=target_tok.value, line=target_tok.line,
                                     col=target_tok.col)
-            # 多赋值：令 a, b = ...
+            # 多赋值：令 a, b = ...；M25 起支持星号：令 a, *余 = ...
             if self._at_op(","):
                 names = [target]
+                star_index: Optional[int] = None
                 while self._at_op(","):
                     self._next()
+                    if self._at_op("*"):
+                        star_tok = self._next()
+                        if star_index is not None:
+                            self._err(ParseUnexpectedError,
+                                      "解包赋值里只能有一个「*」", tok=star_tok)
+                        star_index = len(names)
+                    elif self._at_op("**"):
+                        self._err(ParseUnexpectedError,
+                                  "解包赋值里只能用「*」收集剩下的，"
+                                  "「**」是收集关键字用的",
+                                  tok=self._peek())
                     tok = self._expect_name("变量名")
                     names.append(A.Name(id=tok.value, line=tok.line,
                                         col=tok.col))
-                target = A.TargetList(names=names, line=start.line,
-                                      col=start.col)
+                target = A.TargetList(names=names, star_index=star_index,
+                                      line=start.line, col=start.col)
         else:
             start = self._peek()
             target = self._parse_postfix()  # 支持 名字[下标] = v、名字.属性 = v
@@ -537,37 +562,53 @@ class Parser:
             line=line, col=col)
 
     def _try_parse_tuple_assign(self) -> Optional[A.Node]:
-        """探测「名字 , 名字 … = 表达式」；不匹配则返回 None 不消耗 token。"""
+        """探测「名字 , 名字 … = 表达式」；不匹配则返回 None 不消耗 token。
+
+        M25 起支持星号解包：`令 甲, *余 = [1, 2, 3]`、`令 *头, 尾 = …`。
+        """
         i = 0
-        t = self._peek(i)
-        if t.type != "NAME":
-            return None
-        names = []
+        specs: list[tuple[bool, Token]] = []      # (是否带星号, 名字 token)
         while True:
             t = self._peek(i)
+            is_star = False
+            if t.type == "OP" and t.value == "*":
+                is_star = True
+                t = self._peek(i + 1)
+                i += 1
+            if t.type != "NAME":
+                return None
             nxt = self._peek(i + 1)
-            if t.type == "NAME" and nxt.type == "OP" and nxt.value == ",":
-                names.append(t)
+            if nxt.type == "OP" and nxt.value == ",":
+                specs.append((is_star, t))
                 i += 2
                 continue
-            if (t.type == "NAME" and nxt.type == "OP" and nxt.value == "="
-                    and len(names) >= 1):
-                names.append(t)   # 最后一个名字
+            if nxt.type == "OP" and nxt.value == "=" and len(specs) >= 1:
+                specs.append((is_star, t))     # 最后一个名字
                 break
             return None
+
         # 确认是解包赋值：真正消耗这些 token
-        start = self._next()  # 第一个名字
-        nodes = [A.Name(id=start.value, line=start.line, col=start.col)]
-        for tok in names[1:]:
-            self._next()      # 逗号
-            tok2 = self._next()  # 名字
-            nodes.append(A.Name(id=tok2.value, line=tok2.line, col=tok2.col))
-        self._next()          # =
+        first = specs[0][1]
+        nodes: list[A.Name] = []
+        star_index: Optional[int] = None
+        for k, (is_star, tok) in enumerate(specs):
+            if is_star:
+                self._next()                   # 消费「*」
+                if star_index is not None:
+                    self._err(ParseUnexpectedError,
+                              "解包赋值里只能有一个「*」", tok=tok)
+                star_index = k
+            name_tok = self._next()            # 消费名字
+            nodes.append(A.Name(id=name_tok.value, line=name_tok.line,
+                                col=name_tok.col))
+            if k < len(specs) - 1:
+                self._next()                   # 消费逗号
+        self._next()                           # 消费「=」
         value = self._parse_value_tuple()
-        return A.Assign(target=A.TargetList(names=nodes, line=start.line,
-                                            col=start.col),
-                        op="=", value=value,
-                        line=start.line, col=start.col)
+        return A.Assign(
+            target=A.TargetList(names=nodes, star_index=star_index,
+                                line=first.line, col=first.col),
+            op="=", value=value, line=first.line, col=first.col)
 
     # 如果 / 否则如果 / 否则
     def _parse_if(self) -> A.Node:
@@ -626,43 +667,112 @@ class Parser:
         return A.While(test=test, body=body, line=start.line, col=start.col)
 
     # 函数
-    def _parse_funcdef(self) -> A.Node:
-        start = self._next()
-        name_tok = self._expect_name("函数名")
+    def _parse_params(self) -> tuple[list[str], list, list, list]:
+        """解析 `( … )` 里的形参表，返回 (params, defaults, annotations, kinds)。
+
+        支持（M25）：普通参数、默认值 `y = 1`、类型标注 `x: 整数`、
+        `*参数`（收集多余的位置实参成列表）、`**选项`（收集未匹配的关键字成字典）。
+
+        顺序用一个三态标记约束（与 Python 对齐，都尽早报中文错）：
+        ``普通… → *参数? → **选项?``。简化点：`*参数` 之后不允许再有普通参数
+        （那属于「只能关键字传参」的进阶写法，暂不开放，直接给中文提示）。
+        """
         self._expect_op("(")
         params: list[str] = []
         defaults: list = []
         annotations: list = []
+        kinds: list[int] = []
+        #: "normal" → 还能接普通参数；"starred" → 只接 **选项；"done" → 收尾
+        state = "normal"
+        star_tok = None
+
         if not self._at_op(")"):
             while True:
+                kind = ParamKind.NORMAL
+                if self._at_op("**") or self._at_op("*"):
+                    is_dstar = self._peek().value == "**"
+                    tok = self._next()
+                    if is_dstar:
+                        if state == "done":
+                            self._err(ParseUnexpectedError,
+                                      "「**选项」只能有一个", tok=tok)
+                        state = "done"
+                        kind = ParamKind.VARKW
+                    else:
+                        if state != "normal":
+                            self._err(
+                                ParseUnexpectedError,
+                                "「*参数」只能有一个，而且要写在「**选项」前面",
+                                tok=tok)
+                        state = "starred"
+                        star_tok = tok
+                        kind = ParamKind.VARARGS
+                else:
+                    if state == "starred":
+                        self._err(
+                            ParseUnexpectedError,
+                            "「*参数」后面不能再有普通参数——"
+                            "多余的位置实参都归它收了",
+                            tok=star_tok,
+                            hint="要传更多参数请用关键字，"
+                                 "或把普通参数写在「*参数」前面")
+                    if state == "done":
+                        self._err(ParseUnexpectedError,
+                                  "「**选项」必须是最后一个参数",
+                                  tok=self._peek())
+
                 p = self._expect_name("参数名")
                 params.append(p.value)
-                # 类型标注（M24.3）：名字 : 类型名。
-                # 存文本，不求值——标注是文档与可选校验的键，不是表达式。
-                annotations.append(self._parse_annotation_opt())
-                # 默认参数：名字 = 表达式（M7）
+                kinds.append(kind)
+
+                ann = self._parse_annotation_opt()
+                if kind != ParamKind.NORMAL and ann is not None:
+                    self._err(
+                        ParseUnexpectedError,
+                        f"「{'**' if kind == ParamKind.VARKW else '*'}"
+                        f"{p.value}」是收集参数，不能写类型标注",
+                        tok=p,
+                        hint="它收进来的元素类型不固定；"
+                             "要检查请在函数体里用 断言")
+                annotations.append(ann)
+
                 if self._at_op("="):
+                    if kind != ParamKind.NORMAL:
+                        self._err(
+                            ParseUnexpectedError,
+                            f"「{'**' if kind == ParamKind.VARKW else '*'}"
+                            f"{p.value}」是收集参数，不能有默认值",
+                            tok=p,
+                            hint="它没收到东西时自然是空列表/空字典")
                     self._next()
                     defaults.append(self._parse_expr())
                 else:
                     defaults.append(None)
+
                 if self._at_op(","):
                     self._next()
-                    if self._at_op(")"):  # 尾随逗号
+                    if self._at_op(")"):     # 尾随逗号
                         break
                     continue
                 break
+
         # 有默认值的参数必须排在最后（与 Python 一致）
         seen_default = False
-        for d in defaults:
+        for i, d in enumerate(defaults):
             if d is not None:
                 seen_default = True
-            elif seen_default:
+            elif seen_default and kinds[i] == ParamKind.NORMAL:
                 self._err(ParseUnexpectedError,
-                          f"参数「{params[defaults.index(None)]}」没有默认值，"
+                          f"参数「{params[i]}」没有默认值，"
                           f"但它排在有默认值的参数后面——"
-                          f"有默认值的参数要放在最后", tok=name_tok)
+                          f"有默认值的参数要放在最后")
         self._expect_op(")")
+        return params, defaults, annotations, kinds
+
+    def _parse_funcdef(self) -> A.Node:
+        start = self._next()
+        name_tok = self._expect_name("函数名")
+        params, defaults, annotations, kinds = self._parse_params()
         # 返回类型标注（M24.3）：-> 类型名
         returns = None
         if self._at_op("->"):
@@ -672,7 +782,7 @@ class Parser:
         body = self._parse_block()
         return A.FuncDef(name=name_tok.value, params=params, body=body,
                          defaults=defaults, annotations=annotations,
-                         returns=returns,
+                         param_kind=kinds, returns=returns,
                          line=start.line, col=start.col)
 
     def _parse_annotation_name(self, what: str) -> str:
@@ -1129,27 +1239,7 @@ class Parser:
         完全一致（默认值、类型标注都支持）。
         """
         start = self._next()                    # 消费「函数」
-        self._expect_op("(")
-        params: list[str] = []
-        defaults: list = []
-        annotations: list = []
-        if not self._at_op(")"):
-            while True:
-                p = self._expect_name("参数名")
-                params.append(p.value)
-                annotations.append(self._parse_annotation_opt())
-                if self._at_op("="):
-                    self._next()
-                    defaults.append(self._parse_expr())
-                else:
-                    defaults.append(None)
-                if self._at_op(","):
-                    self._next()
-                    if self._at_op(")"):
-                        break
-                    continue
-                break
-        self._expect_op(")")
+        params, defaults, annotations, kinds = self._parse_params()
         self._expect_op(":")
         if self._at("NEWLINE") or self._at("EOF") or self._at("DEDENT"):
             # 冒号后面直接换行：匿名函数要求写在同一行
@@ -1162,7 +1252,7 @@ class Parser:
             params=params,
             body=[A.Return(value=body_expr, line=body_expr.line,
                            col=body_expr.col)],
-            defaults=defaults, annotations=annotations,
+            defaults=defaults, annotations=annotations, param_kind=kinds,
             line=start.line, col=start.col)
 
     def _parse_atom(self) -> A.Node:

@@ -104,21 +104,34 @@ class VM {
 
   _bind(code, args, kwargs, line, col, defaults) {
     const params = code.params;
-    if (args.length > params.length) {
-      throw R.typeErr(`函数「${code.name}」需要 ${params.length} 个参数，但传了 ${args.length + Object.keys(kwargs).length} 个`, line, col);
+    const kinds = code.paramKind || [];
+    // 形参种类（M25）：0=普通 1=*参数 2=**选项
+    const starPos = kinds.indexOf(1);
+    const dstarPos = kinds.indexOf(2);
+    // 能吃普通位置实参的个数 = *参数 之前的那些
+    let npos = params.length;
+    if (starPos >= 0) npos = starPos;
+    else if (dstarPos >= 0) npos = dstarPos;
+
+    if (args.length > npos && starPos < 0) {
+      throw R.typeErr(`函数「${code.name}」需要 ${npos} 个参数，但传了 ${args.length + Object.keys(kwargs).length} 个`, line, col);
     }
     const bound = new Map();
-    params.forEach((p, i) => { if (i < args.length) bound.set(p, args[i]); });
+    for (let i = 0; i < Math.min(args.length, npos); i++) bound.set(params[i], args[i]);
+    if (starPos >= 0) bound.set(params[starPos], args.slice(npos));
+    const extra = new Map();
     for (const [k, v] of Object.entries(kwargs)) {
-      if (!params.includes(k)) throw R.typeErr(`函数「${code.name}」没有叫「${k}」的参数`, line, col);
-      bound.set(k, v);
+      if (params.slice(0, npos).includes(k)) bound.set(k, v);
+      else if (dstarPos >= 0) extra.set(k, v);
+      else throw R.typeErr(`函数「${code.name}」没有叫「${k}」的参数`, line, col);
     }
+    if (dstarPos >= 0) bound.set(params[dstarPos], extra);
     if (defaults) {
       params.forEach((p, i) => {
-        if (!bound.has(p) && defaults[i] != null) bound.set(p, defaults[i]);
+        if (i < npos && !bound.has(p) && defaults[i] != null) bound.set(p, defaults[i]);
       });
     }
-    const missing = params.filter(p => !bound.has(p));
+    const missing = params.slice(0, npos).filter(p => !bound.has(p));
     if (missing.length) throw R.typeErr(`函数「${code.name}」缺少参数：${missing.join('、')}`, line, col);
 
     const locals = new Array(code.nlocals).fill(R.UNSET);
@@ -249,7 +262,14 @@ class VM {
             let defaults = null;
             if (ndefaults) {
               const tailValues = stack.splice(stack.length - ndefaults, ndefaults);
-              const pad = codes[ins.a].params.length - ndefaults;
+              // 默认值只在「普通参数」尾部，*参数/**选项 不参与（M25）
+              const sub = codes[ins.a];
+              const subKinds = sub.paramKind || [];
+              let subNpos = sub.params.length;
+              for (let i = 0; i < subKinds.length; i++) {
+                if (subKinds[i] !== 0) { subNpos = i; break; }
+              }
+              const pad = subNpos - ndefaults;
               defaults = new Array(pad).fill(null).concat(tailValues);
             }
             const cells = ncells ? stack.splice(stack.length - ncells, ncells) : [];
@@ -268,7 +288,7 @@ class VM {
           } else if (op === Op.UNPACK) {
             const n = ins.a;
             const v = stack.pop();
-            const items = R.unpackValues(v, n, ins.line, ins.col);
+            const items = R.unpackValues(v, n, ins.b, ins.line, ins.col);
             for (let i = items.length - 1; i >= 0; i--) stack.push(items[i]);
           } else if (op === Op.BUILD_LIST) {
             const n = ins.a;

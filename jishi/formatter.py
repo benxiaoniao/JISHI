@@ -35,6 +35,9 @@ _BINARY_OPS = frozenset([
 #: 可能是「正负号」的符号（按上下文判定是一元还是二元）
 _SIGN_OPS = frozenset(["-", "+"])
 
+#: 赋值运算符：后面跟的 `*` 是解包星号（`令 a, *余 = …`）而不是乘号（M25）
+_ASSIGN_OPS = frozenset(["=", "+=", "-=", "*=", "/=", "//=", "%=", "**="])
+
 #: 这些关键字后面跟的是表达式，所以紧随的 `-`/`+` 是一元号
 _VALUE_KEYWORDS = frozenset(["真", "假", "空"])
 
@@ -166,6 +169,7 @@ def _respacify(code: str, tk: Tokenizer) -> str:
     prev_norm = None
     prev_type = None
     prev_unary = False
+    prev_unpack_star = False
     prev_value = False
     prev_wide_colon = False
     brackets: list[str] = []
@@ -201,6 +205,10 @@ def _respacify(code: str, tk: Tokenizer) -> str:
             need_space = False
         elif prev_unary:
             need_space = False
+        elif prev_unpack_star:
+            # 星号解包（M25）：*参数 / **选项 / 令 甲, *余 —— 星号紧贴名字，
+            # 写成 `* 参数` 虽仍合法，但不是惯例写法
+            need_space = False
         elif prev_wide_colon:
             need_space = False         # 全角冒号自带间距，后面不再补空格
         elif prev_norm == ":" and brackets and brackets[-1] == "[":
@@ -231,8 +239,17 @@ def _respacify(code: str, tk: Tokenizer) -> str:
             elif prev_type == "KEYWORD" and prev_norm not in _VALUE_KEYWORDS:
                 is_unary = True
 
+        # 判定当前 token 是否是「解包星号」（M25）：`f(*参数)`、`令 a, *余 = …`
+        is_unpack_star = False
+        if norm in ("*", "**"):
+            if first or prev_norm in ("(", "[", "{", ",", "=", "->"):
+                is_unpack_star = True
+            elif prev_norm in _ASSIGN_OPS:
+                is_unpack_star = True
+
         prev_wide_colon = (norm == ":" and text == "：")
         prev_norm, prev_type, prev_unary = norm, t.type, is_unary
+        prev_unpack_star = is_unpack_star
         prev_value = (
             t.type in ("NAME", "NUMBER", "STRING", "FSTRING")
             or norm in (")", "]", "}")

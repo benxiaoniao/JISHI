@@ -124,8 +124,11 @@ typedef struct JsHost {
     /* 类定义：name=类名，base=基类（UNSET 表示无），methods=方法函数数组 */
     int (*make_class)(JVal *name, JVal *base, JVal *methods, int nmethods,
                       JVal *out, int line, int col);
-    /* 解包（M7）：把栈顶可迭代解成 n 个元素（out 为预分配数组，所有权归 C） */
-    int (*unpack)(JVal *value, int n, JVal *out, int line, int col);
+    /* 解包（M7）：把栈顶可迭代解成 n 个元素（out 为预分配数组，所有权归 C）。
+       star >= 0 时是带星号解包（M25）：位置 star 的元素收集「其余」成列表，
+       其余 n-1 个位置取首尾对应的单个元素。 */
+    int (*unpack)(JVal *value, int n, int star, JVal *out,
+                  int line, int col);
     int (*match_error)(JVal *exc, JVal *cond, int *out, int line, int col);
     int (*is_signal)(JVal *exc, int *out);
     /* 报错族：宿主抛出与树遍历逐字一致的中文错误 */
@@ -147,6 +150,11 @@ typedef struct JsHost {
     /* 切片（M18）：start/stop/step 三个分量（UNSET 表示省略）→ slice HOST 句柄 */
     int (*make_slice)       (JVal *start, JVal *stop, JVal *step, JVal *out,
                              int line, int col);
+    /* 变长关键字参数（M25）：把未匹配的关键字收成字典。
+       name_idxs/vals 各 n 个（并行数组），所有权归调用方；
+       out 是新字典，C 侧持有其引用。 */
+    int (*pack_kwargs)      (const int *name_idxs, JVal *vals, int n,
+                             JVal *out, int line, int col);
 } JsHost;
 
 /* ------------------------------------------------------------------ */

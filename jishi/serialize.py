@@ -20,7 +20,7 @@ from typing import Any
 from . import opcodes as O
 
 #: 序列化格式版本号。格式变更（增删字段、改编码）时 +1，宿主据此拒绝不兼容产物。
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2   # 2: M25 起 Code 增加 param_kind（形参种类），且 UNPACK 的 b 表示星号位置
 
 
 def _const_to_json(c: Any) -> dict:
@@ -70,6 +70,7 @@ def _payload_json(cmod: O.CompiledModule) -> dict:
             "param_idx": code.param_idx,
             "param_local": code.param_local,
             "param_cell": code.param_cell,
+            "param_kind": code.param_kind,
             "nlocals": code.nlocals,
             "local_names": code.local_names,
             "cellvars": code.cellvars,
@@ -137,6 +138,7 @@ def payload_to_cmod(payload: dict) -> O.CompiledModule:
             name=cd["name"], params=cd["params"],
             param_idx=cd["param_idx"], param_local=cd["param_local"],
             param_cell=cd["param_cell"], instrs=instrs,
+            param_kind=cd.get("param_kind", []),
             nlocals=cd["nlocals"], local_names=cd["local_names"],
             cellvars=cd["cellvars"], freevars=cd["freevars"],
             firstlineno=cd["firstlineno"],

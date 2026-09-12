@@ -84,7 +84,14 @@ def gen_header() -> Path:
 
     emit_enum("JsBin", "JS_BIN_", enum_pairs(O.BinOp))
     emit_enum("JsCmp", "JS_CMP_", enum_pairs(O.CmpOp))
+    lines += [
+        "/* 注意：JS_CMP_IN/NOT_IN/IS/IS_NOT（6-9）没有 C 侧快路径实现。",
+        " * compare_fast 只处理 0-5，其余自动回落 host->compare —— 这是",
+        " * 「加语义比较运算符零 C 改动」的前提，见 jishi/opcodes.py 的 CmpOp。 */",
+        "",
+    ]
     emit_enum("JsUn", "JS_UN_", enum_pairs(O.UnOp))
+    emit_enum("JsParam", "JS_PARAM_", enum_pairs(O.ParamKind))
 
     emit_enum("JsTag", "JS_TAG_", [
         ("UNSET", O.T_UNSET), ("NULL", O.T_NULL), ("FALSE", O.T_FALSE),

@@ -208,7 +208,7 @@ CB_MATCH_ERROR = CFUNCTYPE(c_int, _JPV, _JPV, POINTER(c_int), c_int, c_int)
 CB_IS_SIGNAL = CFUNCTYPE(c_int, _JPV, POINTER(c_int))
 CB_MAKE_CLASS = CFUNCTYPE(c_int, _JPV, _JPV, _JPV, c_int, _JPV,
                           c_int, c_int)
-CB_UNPACK = CFUNCTYPE(c_int, _JPV, c_int, _JPV, c_int, c_int)
+CB_UNPACK = CFUNCTYPE(c_int, _JPV, c_int, c_int, _JPV, c_int, c_int)
 CB_DO_IMPORT = CFUNCTYPE(c_int, c_int, c_int, _JPV, c_int, c_int)
 CB_TO_INT = CFUNCTYPE(c_int, _JPV, _JPV, c_int, c_int)
 CB_RELEASE_HANDLE = CFUNCTYPE(c_int, c_uint32)
@@ -226,6 +226,9 @@ CB_RAISE_MISSING = CFUNCTYPE(c_int, c_int, _IPV, c_int, c_int, c_int)
 CB_RAISE_INTERNAL = CFUNCTYPE(c_int, c_char_p)
 CB_LIST_APPEND = CFUNCTYPE(c_int, _JPV, _JPV, c_int, c_int)
 CB_MAKE_SLICE = CFUNCTYPE(c_int, _JPV, _JPV, _JPV, _JPV, c_int, c_int)
+# 变长关键字参数（M25）：名字下标数组 + 值数组 → 字典
+CB_PACK_KWARGS = CFUNCTYPE(c_int, POINTER(c_int32), _JPV, c_int, _JPV,
+                           c_int, c_int)
 
 
 class JsHost(Structure):
@@ -269,6 +272,8 @@ class JsHost(Structure):
         ("raise_internal", CB_RAISE_INTERNAL),
         ("list_append", CB_LIST_APPEND),
         ("make_slice", CB_MAKE_SLICE),
+        # M25 追加：必须与 cvm/include/jsvm.h 的 JsHost 逐字段对齐
+        ("pack_kwargs", CB_PACK_KWARGS),
     ]
 
 
@@ -413,6 +418,7 @@ class CvmHost:
             raise_internal=CB_RAISE_INTERNAL(self._cb_raise_internal),
             list_append=CB_LIST_APPEND(self._cb_list_append),
             make_slice=CB_MAKE_SLICE(self._cb_make_slice),
+            pack_kwargs=CB_PACK_KWARGS(self._cb_pack_kwargs),
         )
         self.lib.jsvm_set_host(self.vm, byref(self._cb))
 
@@ -780,14 +786,34 @@ class CvmHost:
         except BaseException as e:
             return self._fail(e)
 
-    def _cb_unpack(self, value, n, out, line, col):
-        """把可迭代（列表/元组）解成 n 个元素写入 out（所有权归 C）。"""
+    def _cb_unpack(self, value, n, star, out, line, col):
+        """把可迭代解成 n 个元素写入 out（所有权归 C）。
+
+        ``star >= 0`` 时是带星号解包（M25），该位置的元素是「其余」的列表。
+        """
         try:
             obj = self.c2py(value[0])
-            items = R.unpack_values(obj, n, line=line, col=col,
+            items = R.unpack_values(obj, n, None if star < 0 else star,
+                                    line=line, col=col,
                                     filename=self.filename)
             for i, item in enumerate(items):
                 out[i] = self.py2c(item)
+            return 0
+        except BaseException as e:
+            return self._fail(e)
+
+    def _cb_pack_kwargs(self, name_idxs, vals, n, out, line, col):
+        """把未匹配的关键字收成字典（M25，`**选项` 用）。
+
+        name_idxs 是名字表下标（C 侧没有「下标 → 字符串」的能力，所以由
+        宿主来翻译）。n 为 0 时两个指针都可能为空。
+        """
+        try:
+            pairs = []
+            for i in range(n):
+                pairs.append((self.names[name_idxs[i]], self.c2py(vals[i])))
+            out[0] = self.py2c(R.build_dict(
+                pairs, line=line, col=col, filename=self.filename))
             return 0
         except BaseException as e:
             return self._fail(e)
@@ -1014,7 +1040,8 @@ class CvmRunner:
         code_params: list[int] = []
         for code in cmod.codes:
             # 注意：params_off 以 int32 为单位（C 侧按字节指针推进），
-            # 每个参数占 3 个 int32，因此直接取 len(code_params)。
+            # 每个参数占 4 个 int32（M25 起加了一个 kind），因此直接取
+            # len(code_params)。
             code_meta.extend([
                 len(instrs) // 6, len(code.instrs), code.nlocals,
                 len(code.cellvars), len(code.params),
@@ -1023,9 +1050,12 @@ class CvmRunner:
             for ins in code.instrs:
                 instrs.extend(ins.as_tuple())
             for i in range(len(code.params)):
+                # 每个形参 4 个 int32：idx / local / cell / kind（M25）
+                kinds = code.param_kind or [0] * len(code.params)
                 code_params.extend([
                     code.param_idx[i], code.param_local[i],
                     code.param_cell[i],
+                    kinds[i] if i < len(kinds) else 0,
                 ])
 
         # 关键字参数名表（按调用点展开成名字下标）

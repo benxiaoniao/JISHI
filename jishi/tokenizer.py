@@ -93,6 +93,11 @@ OPERATORS = [
     ":", "^",
 ]
 
+#: 按长度降序的运算符表，供最长匹配使用（M25 修正）。
+#: 用 sorted 而不是手排列表：以后往 OPERATORS 里加运算符时不必再操心顺序，
+#: 也不会因为「短运算符写在前面」把长运算符吃掉。
+_OPERATORS_LONGEST_FIRST = sorted(OPERATORS, key=len, reverse=True)
+
 # ---------------------------------------------------------------------------
 # Token 定义
 # ---------------------------------------------------------------------------
@@ -336,9 +341,13 @@ class Tokenizer:
                 i += 1
                 continue
 
-            # 半角运算符：多字符优先
+            # 半角运算符：多字符优先。
+            # 必须按**长度降序**尝试（M25 修正）：按 OPERATORS 列表顺序会
+            # 让 `**=` 先匹配到 `**` 再匹配 `=`，`//=` 同理会拆成 `//` + `=`
+            # —— 于是「幂赋值 / 整除赋值」这两个运算符实际上一直不可用，
+            # 而且格式化器会把 `甲 **= 3` 重写成 `甲 ** = 3`。
             matched = None
-            for op in OPERATORS:
+            for op in _OPERATORS_LONGEST_FIRST:
                 if raw.startswith(op, i):
                     matched = op
                     break

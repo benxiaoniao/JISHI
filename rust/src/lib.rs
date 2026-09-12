@@ -139,6 +139,8 @@ struct Code {
     name: String,
     params: Vec<String>,
     param_local: Vec<i64>,
+    /// 形参种类（M25）：0=普通 1=*参数 2=**选项
+    param_kind: Vec<i64>,
     param_cell: Vec<i64>,
     instrs: Vec<Instr>,
     nlocals: usize,
@@ -523,7 +525,7 @@ impl VM {
                 op::UNPACK => {
                     let n = ins.a as usize;
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    let items = unpack_values(v, n)?;
+                    let items = unpack_values(v, n, ins.b)?;
                     for item in items.into_iter().rev() {
                         self.stack.push(item);
                     }
@@ -1081,13 +1083,38 @@ fn make_instance(class: Class, args: &[Val]) -> Result<Instance, JishiError> {
     Ok(inst)
 }
 
-fn unpack_values(v: Val, n: usize) -> Result<Vec<Val>, JishiError> {
-    if let Val::List(l) = v {
-        if l.len() != n { return Err(err("值错误", format!("解包需要 {n} 个值，实际有 {} 个", l.len()))); }
-        Ok(l)
-    } else {
-        Err(err("类型错误", "解包赋值需要列表"))
+fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, JishiError> {
+    // star >= 0 时是星号解包（M25）：该位置收「其余」成列表
+    let seq: Vec<Val> = match v {
+        Val::List(l) => l,
+        Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string())).collect(),
+        // 字典解出来的是键（与 Python 侧一致）
+        Val::Dict(d) => d.iter().map(|(k, _)| k.clone()).collect(),
+        _ => return Err(err("类型错误", "解包赋值需要列表")),
+    };
+    if star < 0 {
+        if seq.len() != n {
+            return Err(err("值错误",
+                format!("解包需要 {n} 个值，实际有 {} 个", seq.len())));
+        }
+        return Ok(seq);
     }
+    let star_pos = star as usize;
+    let nhead = star_pos;
+    let ntail = n - 1 - star_pos;
+    if seq.len() < nhead + ntail {
+        return Err(err("值错误",
+            format!("解包至少需要 {} 个值，实际有 {} 个",
+                    nhead + ntail, seq.len())));
+    }
+    let mut out: Vec<Val> = Vec::with_capacity(n);
+    out.extend_from_slice(&seq[..nhead]);
+    let mid_end = seq.len() - ntail;
+    out.push(Val::List(seq[nhead..mid_end].to_vec()));
+    if ntail > 0 {
+        out.extend_from_slice(&seq[mid_end..]);
+    }
+    Ok(out)
 }
 
 fn make_exception(v: Val) -> JishiError {
@@ -1146,21 +1173,48 @@ fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
 
 fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defaults: Option<&[Val]>) -> Result<(Vec<Val>, Vec<Val>), JishiError> {
     let nparams = code.params.len();
+    // 形参种类（M25）：0=普通 1=*参数 2=**选项
+    let star_pos = code.param_kind.iter().position(|k| *k == 1);
+    let dstar_pos = code.param_kind.iter().position(|k| *k == 2);
+    // 能吃普通位置实参的个数 = *参数 之前的那些
+    let npos = star_pos.or(dstar_pos).unwrap_or(nparams);
+
+    if args.len() > npos && star_pos.is_none() {
+        return Err(err("类型错误",
+            format!("函数「{}」需要 {} 个参数，但传了 {} 个",
+                    code.name, npos, args.len() + knames.len())));
+    }
+
     let mut bound: HashMap<usize, Val> = HashMap::new();
-    for (i, a) in args.iter().enumerate() { if i < nparams { bound.insert(i, a.clone()); } }
+    for (i, a) in args.iter().enumerate() {
+        if i < npos { bound.insert(i, a.clone()); }
+    }
+    if let Some(sp) = star_pos {
+        bound.insert(sp, Val::List(args[npos.min(args.len())..].to_vec()));
+    }
+    // 未匹配的关键字收进 **选项
+    let mut extra: Vec<(Val, Val)> = Vec::new();
     for (k, v) in knames.iter().zip(kwvals.iter()) {
-        if let Some(pi) = code.params.iter().position(|p| p == k) {
+        if let Some(pi) = code.params[..npos].iter().position(|p| p == k) {
             bound.insert(pi, v.clone());
+        } else if let Some(dp) = dstar_pos {
+            extra.push((Val::Str(k.clone()), v.clone()));
         } else {
             return Err(err("类型错误", format!("函数没有参数「{k}」")));
         }
     }
+    if let Some(dp) = dstar_pos {
+        bound.insert(dp, Val::Dict(extra));
+    }
     if let Some(d) = defaults {
         for (i, dv) in d.iter().enumerate() {
-            if !bound.contains_key(&i) && !matches!(dv, Val::None_) { bound.insert(i, dv.clone()); }
+            if i < npos && !bound.contains_key(&i) && !matches!(dv, Val::None_) {
+                bound.insert(i, dv.clone());
+            }
         }
     }
-    let missing: Vec<&str> = code.params.iter().enumerate().filter(|(i, _)| !bound.contains_key(i)).map(|(_, p)| p.as_str()).collect();
+    let missing: Vec<&str> = code.params[..npos].iter().enumerate()
+        .filter(|(i, _)| !bound.contains_key(i)).map(|(_, p)| p.as_str()).collect();
     if !missing.is_empty() {
         return Err(err("类型错误", format!("函数「{}」缺少参数：{}", code.name, missing.join("、"))));
     }
@@ -1241,6 +1295,7 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
             name: cd.get("name").and_then(|v| v.as_str()).unwrap_or("<模块>").to_string(),
             params: cd.get("params").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
             param_local: cd.get("param_local").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_i64()).collect()).unwrap_or_default(),
+            param_kind: cd.get("param_kind").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_i64()).collect()).unwrap_or_default(),
             param_cell: cd.get("param_cell").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_i64()).collect()).unwrap_or_default(),
             instrs,
             nlocals: cd.get("nlocals").and_then(|v| v.as_i64()).unwrap_or(0) as usize,

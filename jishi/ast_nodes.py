@@ -101,6 +101,9 @@ class FuncDef(Node):
     #: 存文本而不是 AST 是有意的：标注不参与求值，只作文档与可选校验的键，
     #: 这样也不会因为标注里写了表达式而产生副作用或作用域问题。
     annotations: list = field(default_factory=list)
+    #: 形参种类（M25）：ParamKind.NORMAL / VARARGS(`*参数`) / VARKW(`**选项`)。
+    #: 与 params 对齐；只记整数（不引 opcodes，保持 AST 层无依赖）。
+    param_kind: list = field(default_factory=list)
     #: 返回类型标注的文本（M24.3），None 表示没写
     returns: Optional[str] = None
 
@@ -118,6 +121,8 @@ class Lambda(Node):
     body: list[Node]
     defaults: list = field(default_factory=list)
     annotations: list = field(default_factory=list)
+    #: 形参种类（M25），与 params 对齐；与 FuncDef 同义
+    param_kind: list = field(default_factory=list)
     name: str = "匿名函数"
 
 
@@ -200,9 +205,14 @@ class Name(Node):
 
 @dataclass(kw_only=True)
 class TargetList(Node):
-    """解包赋值目标：令 a, b = ... 中的「a, b」（仅简单名字）。"""
+    """解包赋值目标：令 a, b = ... 中的「a, b」（仅简单名字）。
+
+    `star_index`（M25）不为 None 时表示带星号：`令 a, *余 = …`，
+    该位置的元素收集「其余」成列表，其余位置取首尾对应的单个元素。
+    """
 
     names: list[Name]
+    star_index: Optional[int] = None
 
 
 @dataclass(kw_only=True)

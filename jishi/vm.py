@@ -200,28 +200,51 @@ class VM:
 
         报错措辞与树遍历 ``_eval_call`` 逐字一致。
         defaults 与形参对齐（None 无默认），缺实参时补默认值（M7）。
+        M25 起支持 `*参数`（收多余位置实参成列表）与 `**选项`（收未匹配关键字成字典）。
         """
         params = code.params
         nparams = len(params)
-        if len(args) > nparams:
+        kinds = code.param_kind or [O.ParamKind.NORMAL] * nparams
+        star_pos = next((i for i, k in enumerate(kinds)
+                         if k == O.ParamKind.VARARGS), -1)
+        dstar_pos = next((i for i, k in enumerate(kinds)
+                          if k == O.ParamKind.VARKW), -1)
+        # 能吃普通位置实参的个数 = *参数 之前的那些
+        npos = nparams
+        if star_pos >= 0:
+            npos = star_pos
+        elif dstar_pos >= 0:
+            npos = dstar_pos
+
+        if len(args) > npos and star_pos < 0:
             raise RunTypeError(
-                f"函数「{code.name}」需要 {nparams} 个参数，"
+                f"函数「{code.name}」需要 {npos} 个参数，"
                 f"但传了 {len(args) + len(kwargs)} 个",
                 line=line, col=col, filename=self.filename)
+
         bound: dict[str, Any] = {}
-        for p, a in zip(params, args):
-            bound[p] = a
+        for i in range(min(len(args), npos)):
+            bound[params[i]] = args[i]
+        if star_pos >= 0:
+            bound[params[star_pos]] = list(args[npos:])
         for k, v in kwargs.items():
-            if k not in params:
+            if k in params[:npos]:
+                bound[k] = v
+            elif dstar_pos >= 0:
+                extra = bound.setdefault(params[dstar_pos], {})
+                extra[k] = v
+            else:
                 raise RunTypeError(
                     f"函数「{code.name}」没有叫「{k}」的参数",
                     line=line, col=col, filename=self.filename,
-                    hint=f"它的参数是：{'、'.join(params)}")
-            bound[k] = v
-        for p, d in zip(params, defaults or []):
+                    hint=f"它的参数是：{'、'.join(params[:npos])}")
+        if dstar_pos >= 0:
+            bound.setdefault(params[dstar_pos], {})
+        for i, p in enumerate(params[:npos]):
+            d = (defaults or [])[i] if i < len(defaults or []) else None
             if p not in bound and d is not None:
                 bound[p] = d
-        missing = [p for p in params if p not in bound]
+        missing = [p for p in params[:npos] if p not in bound]
         if missing:
             raise RunTypeError(
                 f"函数「{code.name}」缺少参数：{'、'.join(missing)}",
@@ -411,9 +434,20 @@ class VM:
                         if ndefaults:
                             tail_values = stack[-ndefaults:]
                             del stack[-ndefaults:]
-                            # 扩展成与形参等长（None 占位）：默认参数必在最后
-                            pad = len(codes[ins.a].params) - ndefaults
-                            defaults = [None] * pad + tail_values
+                            # 扩成与形参表等长（None 占位）。
+                            # M25：默认值只在「普通参数」的尾部，`*参数` /
+                            # `**选项` 不参与，所以前缀长度按 npos 算——
+                            # 用 len(params) 会在 `f(a, b=10, *余)` 这种
+                            # 「默认值后面还有收集参数」的写法上错位。
+                            sub = codes[ins.a]
+                            kinds = sub.param_kind or [0] * len(sub.params)
+                            npos = next(
+                                (i for i, k in enumerate(kinds)
+                                 if k != O.ParamKind.NORMAL),
+                                len(sub.params))
+                            pad = npos - ndefaults
+                            defaults = ([None] * pad + tail_values
+                                        + [None] * (len(sub.params) - npos))
                         else:
                             defaults = None
                         if ncells:
@@ -444,9 +478,12 @@ class VM:
                     # === 解包（M7）===
                     elif op == Op.UNPACK:
                         n = ins.a
+                        # 编译器恒定发射：-1 表示无星号，>=0 是星号位置（M25）
+                        star = ins.b
                         v = stack.pop()
-                        items = R.unpack_values(v, n, line=ins.line,
-                                                col=ins.col, filename=filename)
+                        items = R.unpack_values(
+                            v, n, None if star < 0 else star,
+                            line=ins.line, col=ins.col, filename=filename)
                         for item in reversed(items):
                             stack.append(item)
 

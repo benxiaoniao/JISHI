@@ -219,6 +219,20 @@ SYMBOL_TO_CMPOP = {
     "在": CmpOp.IN, "不在": CmpOp.NOT_IN,
     "是": CmpOp.IS, "不是": CmpOp.IS_NOT,
 }
+
+
+class ParamKind:
+    """形参种类（M25）：决定 C 侧 `bind_args` 谁负责收集多余实参。
+
+    生成到 `cvm/include/opcodes.h` 的 `JS_PARAM_*`。
+    """
+
+    #: 普通参数：位置与关键字都能绑
+    NORMAL = 0
+    #: `*参数`：多余的位置实参打包成列表
+    VARARGS = 1
+    #: `**选项`：未匹配的关键字打包成字典
+    VARKW = 2
 CMPOP_TO_SYMBOL = {v: k for k, v in SYMBOL_TO_CMPOP.items()}
 
 
@@ -250,7 +264,10 @@ class Code:
     #: 被内层函数捕获的参数（单元变量）不在局部槽里，
     #: 因此「第 i 个参数 → 第 i 个局部槽」并不成立，必须显式记录。
     param_local: list[int] = field(default_factory=list)
+    #: 每个参数分到哪个单元（freevars/cellvars 部分）；非单元参数为 -1。
     param_cell: list[int] = field(default_factory=list)
+    #: 形参种类（M25）：ParamKind.NORMAL / VARARGS / VARKW，与 params 对齐
+    param_kind: list[int] = field(default_factory=list)
     instrs: list[Instr] = field(default_factory=list)
     nlocals: int = 0
     local_names: list[str] = field(default_factory=list)
