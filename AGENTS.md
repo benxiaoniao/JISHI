@@ -74,6 +74,14 @@
   `%`，否则已编码的前缀（如 `Path.as_uri()` 的产出）会被再编成 `%25`。
 - **`detect_conflicts` 判环只能看「链上是否出现过包名」**：用
   `(名字, 整条链)` 当访问键在环里永不重复，会无限递归（写 M22.3 时踩到）。
+- **Windows 下读 stdin 必须按字节 + UTF-8**：打包版不继承 `PYTHONUTF8`，
+  `sys.stdin.read()` 会按 GBK 解码，中文源码变乱码（`打印`→`鎵撳嵃`）。
+  统一用 `cli._read_stdin()`（字节层读 + 显式 UTF-8 解码），MCP 的
+  JSON-RPC 读取与子进程传参同理；入口脚本三个流都要 `reconfigure`。
+- **打包版找同级可执行文件**：PyInstaller 冻结后 `sys.executable` 是自己，
+  `-m jishi.cli` 会失败；MCP 需改调发行目录同级的 `jishi`（见
+  `mcp_server._cli_command`）。发行版布局是 `bin/jishi/` 与 `bin/jishi-mcp/`
+  互为兄弟目录。
 - 更多见 README「已踩过的坑」一节。
 
 ---

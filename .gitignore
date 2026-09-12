@@ -11,6 +11,8 @@ cvm/build/
 cvm/*.exe
 dist/
 build/
+# 独立打包构建环境（tools 里跑 PyInstaller 用的隔离 venv）
+build-env/
 
 # 编辑器
 .idea/

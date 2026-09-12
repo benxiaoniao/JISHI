@@ -39,13 +39,38 @@ def _read_source(path: str) -> tuple[str, str]:
         sys.exit(1)
 
 
+def _read_stdin() -> str:
+    """从标准输入读源码（按「字节 → UTF-8」读）。
+
+    不能用 ``sys.stdin.read()``：Windows 下标准输入默认按本地代码页
+    （中文机器是 GBK）解码，中文源码经管道/子进程传入会变乱码
+    （实测 ``打印`` 会变成 ``鎵撳嵃``）。走字节层再显式 UTF-8 解码，
+    结果不受环境编码与 ``PYTHONUTF8`` 是否设置影响。
+
+    测试里 ``sys.stdin`` 可能被替换成 ``StringIO``（没有 ``buffer``），
+    此时回退到文本层读取。
+    """
+    buf = getattr(sys.stdin, "buffer", None)
+    if buf is None:
+        return sys.stdin.read()
+    data = buf.read()
+    if isinstance(data, str):           # 已是文本（被包装过）
+        return data
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        # 非 UTF-8 字节：替换成 U+FFFD，让词法器给出「无法识别的字符」
+        # 的中文报错，而不是在解码处直接崩掉。
+        return data.decode("utf-8", "replace")
+
+
 def _dump_bytecode(path: Optional[str], stdin: bool = False) -> int:
     """把源码编译成跨语言字节码 JSON 并输出（M13.1）。"""
     from .compiler import compile_source
     from .serialize import dumps
 
     if stdin:
-        source = sys.stdin.read()
+        source = _read_stdin()
         filename = "<stdin>"
     else:
         source, filename = _read_source(path)
@@ -60,7 +85,7 @@ def _run_bytecode(path: Optional[str], stdin: bool = False) -> int:
     from .vm import VM
 
     if stdin:
-        text = sys.stdin.read()
+        text = _read_stdin()
         filename = "<stdin>"
     else:
         text, filename = _read_source(path)
@@ -114,7 +139,7 @@ def run_file(path: str, show_ast: bool = False,
         from .stdlib import 系统 as _sys_mod
         _sys_mod._设参数(argv)
     if stdin:
-        source = sys.stdin.read()
+        source = _read_stdin()
         filename = "<stdin>"
     else:
         source, filename = _read_source(path)
@@ -414,7 +439,7 @@ def _cmd_format(args) -> int:
     from .formatter import format_source
 
     if args.stdin:
-        src = sys.stdin.read()
+        src = _read_stdin()
         name = "<stdin>"
     else:
         if not args.file:

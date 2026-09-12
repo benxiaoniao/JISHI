@@ -13,9 +13,36 @@ stdio 传输（换行分隔的 JSON-RPC 2.0），暴露三个工具：
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any, Optional
+
+
+def _cli_command() -> list[str]:
+    """构造「调用基石 CLI」的命令前缀。
+
+    源码运行时是 ``[python, -m, jishi.cli]``；但 PyInstaller 打包后
+    ``sys.executable`` 指向 ``jishi-mcp.exe`` **自己**，不是 Python 解释器，
+    照原样调用会得到「子进程异常退出（code=0）」。此时改用发行目录里同级的
+    ``jishi`` 可执行文件（布局为 ``bin/jishi/jishi.exe`` 与
+    ``bin/jishi-mcp/jishi-mcp.exe``，互为兄弟目录）。
+    """
+    if not getattr(sys, "frozen", False):
+        return [sys.executable, "-m", "jishi.cli"]
+
+    exe = Path(sys.executable)
+    suffix = ".exe" if os.name == "nt" else ""
+    candidates = [
+        exe.parent / f"jishi{suffix}",                  # 同目录
+        exe.parent.parent / "jishi" / f"jishi{suffix}",  # 发行版 bin/ 布局
+    ]
+    for cand in candidates:
+        if cand.is_file():
+            return [str(cand)]
+    # 找不到同级 jishi：退回自己（至少能让上层给出可读的错误信息）
+    return [str(exe)]
 
 from .version import VERSION
 
@@ -66,17 +93,20 @@ TOOLS = [
 def _run_subprocess(script: str, timeout: float,
                     allow_write: bool, allow_python: bool) -> str:
     """用 subprocess 隔离执行（真正 kill 超时子进程），返回 protocol JSON 字符串。"""
-    args = [sys.executable, "-m", "jishi.cli", "--stdin",
+    args = [*_cli_command(), "--stdin",
             "--sandbox", "--json-result", "--timeout", str(timeout)]
     # 通过环境变量传递沙箱选项（CLI 层面未展开的 allow_write/allow_python）
-    env = dict(__import__("os").environ)
+    env = dict(os.environ)
     if allow_write:
         env["JISHI_SANDBOX_ALLOW_WRITE"] = "1"
     if allow_python:
         env["JISHI_SANDBOX_ALLOW_PYTHON"] = "1"
     try:
         proc = subprocess.run(
-            args, input=script, capture_output=True, text=True,
+            args, input=script, capture_output=True,
+            # 显式 UTF-8：只给 text 模式而不指定编码时，Python 会用本地代码页
+            # （Windows 中文机是 GBK）编码子进程输入，中文源码在管道里就坏了。
+            encoding="utf-8", errors="replace",
             timeout=timeout + 2.0, env=env,
         )
     except subprocess.TimeoutExpired:
@@ -180,8 +210,29 @@ def _handle(msg: dict) -> None:
         _respond_error(msg, -32601, f"方法未实现：{method}")
 
 
+def _iter_stdin_lines():
+    """逐行读标准输入（按字节读 + UTF-8 解码）。
+
+    同 cli._read_stdin 的理由：Windows 上文本层默认按 GBK 解码，JSON-RPC
+    里夹带的中文源码会变乱码。字节层读取不受环境编码影响。
+    """
+    buf = getattr(sys.stdin, "buffer", None)
+    if buf is None:
+        for line in sys.stdin:
+            yield line
+        return
+    for raw in buf:
+        if isinstance(raw, str):
+            yield raw
+            continue
+        try:
+            yield raw.decode("utf-8")
+        except UnicodeDecodeError:
+            yield raw.decode("utf-8", "replace")
+
+
 def main() -> int:
-    for line in sys.stdin:
+    for line in _iter_stdin_lines():
         line = line.strip()
         if not line:
             continue

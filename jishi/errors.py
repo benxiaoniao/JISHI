@@ -28,13 +28,28 @@ class Frame:
     col: Optional[int] = None    # 调用点列号（1 起）
 
 
+def _safe_text(s: str) -> str:
+    """把文本里无法编码的码位（如孤立代理字符）换成 U+FFFD。
+
+    源码含非法字节时（例如按错误编码读进来的内容），错误信息本身不该再
+    抛 ``UnicodeEncodeError``——那会让用户看到英文堆栈，与我们「中文报错」
+    的承诺相悖。宁可把那个字显示成 ``?``（U+FFFD），也要把中文解释送出来。
+    """
+    if not isinstance(s, str):
+        return str(s)
+    try:
+        s.encode("utf-8")
+        return s
+    except UnicodeEncodeError:
+        return s.encode("utf-8", "replace").decode("utf-8")
+
+
 # ---------------------------------------------------------------------------
 # 基础错误类
 # ---------------------------------------------------------------------------
 
 class JishiError(Exception):
     """所有基石错误的基类。携带错误码、中文标题、行列位置与修正建议。"""
-
     code = "E0000"
     title = "未知错误"
 
@@ -76,7 +91,8 @@ class JishiError(Exception):
             loc = f"  ┌─ {self.filename}:{self.line}:{self.col or 1}"
             lines = [head, loc, "  │"]
             if self.source_line:
-                src = self.source_line.rstrip("\n").rstrip("\r")
+                src = _safe_text(
+                    self.source_line.rstrip("\n").rstrip("\r"))
                 lines.append(f"{self.line:>3} │ {src}")
                 # 构造 ^ 指示行
                 start, end = self.underline or (self.col, self.col)
@@ -98,7 +114,9 @@ class JishiError(Exception):
             parts.append(trace_block)
         if self.hint:
             parts.append(f"  提示：{self.hint}")
-        return "\n".join(parts)
+        # 统一兜底：标题/消息/提示/回溯里任何一段混进非法码位，都不能让
+        # 渲染本身抛异常（见 _safe_text 说明）。
+        return _safe_text("\n".join(parts))
 
     def _render_trace(self) -> str:
         """把调用链渲染成「从外到内」的文本块；无回溯返回空串。"""
