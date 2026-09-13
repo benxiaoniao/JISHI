@@ -80,8 +80,9 @@ cargo build --manifest-path rust/Cargo.toml --release
 rust/target/release/jishi-rs.exe 字节码.json   # 由 jishi --dump-bytecode 产出
 ```
 
-工具链是 `stable-x86_64-pc-windows-gnu`，链接器用 gcc（本机由 CLion 自带的
-MinGW 提供，构建时把它加进 PATH 即可）。
+工具链是 `stable-x86_64-pc-windows-gnu`，链接器用 gcc。把提供 gcc 的目录
+加进 PATH 即可（IDE 自带的 MinGW 也行，或用环境变量 `JISHI_MINGW` 指定
+——`tests/test_m27_rust_host.py` 认这个变量，不写死任何本机路径）。
 
 > **踩过的坑（2026-09-13）**：`cargo` 命令一直「执行成功但什么都不做」。
 > 原因是 `~/.cargo/bin/` 下 13 个文件（`cargo.exe` / `rustc.exe` …）

@@ -52,7 +52,8 @@ Rust 从来没有运行验证——第 1 个 bug 说明它连函数调用都跑�
 
 ```bash
 cargo build --manifest-path rust/Cargo.toml --release
-# windows-gnu target 用 gcc 当链接器；本机 gcc 来自 CLion 自带的 MinGW
+# windows-gnu target 用 gcc 当链接器：把提供 gcc 的目录加进 PATH
+# （或用 JISHI_MINGW 环境变量指定，测试认这个变量、不写死本机路径）
 ```
 
 ### 测试与度量

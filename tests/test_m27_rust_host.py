@@ -40,14 +40,18 @@ ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "rust" / "target" / "release" / "jishi-rs.exe"
 CARGO = shutil.which("cargo")
 
-#: 链接器（windows-gnu target 用 gcc；本机由 CLion 自带 MinGW 提供）
-_MINGW = Path("D:/CLion/CLion 2026.2.1/bin/mingw/bin")
-
 
 def _build_env() -> dict:
+    """构建环境：`windows-gnu` 目标用 gcc 当链接器。
+
+    不写死任何本机路径——需要时用环境变量 `JISHI_MINGW` 指向提供 gcc 的目录
+    （IDE 自带的 MinGW 也行）。没设就交给 PATH 上的 gcc；
+    两者都没有时 `cargo build` 会失败，测试按「跳过并说明原因」处理。
+    """
     env = dict(os.environ)
-    if _MINGW.is_dir():
-        env["PATH"] = str(_MINGW) + os.pathsep + env.get("PATH", "")
+    mingw = env.get("JISHI_MINGW")
+    if mingw and Path(mingw).is_dir():
+        env["PATH"] = mingw + os.pathsep + env.get("PATH", "")
     return env
 
 

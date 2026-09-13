@@ -114,9 +114,10 @@
   另外 `cargo build` 的产物时间戳是判断「到底编没编」的硬依据：
   `touch` 源文件后重新 build，exe 时间戳不变就说明根本没编译。
 - **Rust 宿主（`rust/`）的验证方式**：`windows-gnu` target 用 gcc 当链接器，
-  本机 gcc 由 CLion 自带（`D:\CLion\CLion 2026.2.1\bin\mingw\bin`），
-  构建前把它加进 PATH。跑 `tests/test_m27_rust_host.py` 做跨宿主对拍
-  （无 cargo 时自动跳过）。
+  构建前把提供 gcc 的目录加进 PATH（或用 `JISHI_MINGW` 指定）。
+  跑 `tests/test_m27_rust_host.py` 做跨宿主对拍（无 cargo 时自动跳过）。
+  **不写死本机路径**——沿用「README/文档不写个人路径」的约定，
+  否则 `tools/publish_github.py` 的隐私终检会拦下发布。
 - **Rust 侧有个「静默算错」的已知缺口**：`Val` 是值类型，`get_attr` 对列表
   会拷一份再改，所以 `列表.追加` 改的是副本、原变量不变（推导式因此返回空）。
   要修得把 `List`/`Dict` 换成 `Rc<RefCell<…>>`。**改动渲染前先看
