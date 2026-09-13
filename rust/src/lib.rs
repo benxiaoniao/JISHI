@@ -10,6 +10,9 @@ use std::rc::Rc;
 mod json;
 use json::Json;
 
+mod decimal;
+use decimal::{BigInt, Dec, Round};
+
 // ---------------------------------------------------------------------------
 // 值表示
 // ---------------------------------------------------------------------------
@@ -29,6 +32,12 @@ use json::Json;
 type JList = Rc<RefCell<Vec<Val>>>;
 /// 基石字典（共享可变，保持插入顺序）
 type JDict = Rc<RefCell<Vec<(Val, Val)>>>;
+/// 基石集合（共享可变，**按插入顺序**去重——对齐 Python 侧 JishiSet：
+/// 刻意不用哈希集合，迭代顺序依赖哈希种子会让同一程序两次运行输出不同）
+type JSet = Rc<RefCell<Vec<Val>>>;
+/// 基石实例（共享可变）。必须是共享的：`自身.字段 = 值` 走 SET_ATTR，
+/// 拿到的是 `Val` 的一份拷贝——不共享的话就等于改副本，**不报错、静默失效**。
+type JInst = Rc<RefCell<Instance>>;
 
 #[derive(Clone)]
 enum Val {
@@ -37,14 +46,24 @@ enum Val {
     Int(i64),
     Float(f64),
     Str(String),
+    /// 精确小数（M29）。`Rc` 只是为了让 `Val::clone` 便宜；内容不可变。
+    Dec(Rc<Dec>),
     List(JList),
     Dict(JDict),
+    Set(JSet),
+    File(Rc<RefCell<FileHandle>>),
     Func(Func),
     Class(Class),
-    Instance(Instance),
+    Instance(JInst),
     Module(String, HashMap<String, Val>),
     Builtin(&'static str, fn(&[Val], &mut VM) -> Result<Val, JishiError>),
     ExcType(String),
+    /// 循环信号（`中断`/`继续`）在「穿过 finally」时的临时载体。
+    ///
+    /// 与 Python 侧把 `RunBreak`/`RunContinue` 当异常对象在块栈里传递同一手法：
+    /// 循环信号要先经过 finally 代码，再到外层循环，中间得能放在值栈上。
+    /// 1 = 中断，2 = 继续。
+    LoopSignal(i64),
     BoundMethod(Box<BoundMethod>),
     Cell(Box<Cell>),
 }
@@ -57,6 +76,41 @@ fn list_new(items: Vec<Val>) -> Val {
 /// 造一个字典值。
 fn dict_new(pairs: Vec<(Val, Val)>) -> Val {
     Val::Dict(Rc::new(RefCell::new(pairs)))
+}
+
+/// 造一个集合值（按插入顺序去重，元素重复就丢掉后来的）。
+fn set_new(items: Vec<Val>) -> Result<Val, JishiError> {
+    let mut out: Vec<Val> = Vec::new();
+    for it in items {
+        set_push(&mut out, it)?;
+    }
+    Ok(Val::Set(Rc::new(RefCell::new(out))))
+}
+
+/// 往集合里放一个元素（已存在就忽略）。
+///
+/// 哪些东西能进集合，对齐 Python 侧 `JishiSet._add`：内建 `set` 靠哈希，
+/// 所以**列表/字典/集合放不进去**；精确小数也放不进去（Python 侧
+/// `__hash__ = None`）。函数/类在 Rust 里是值类型、没有稳定身份，
+/// 同样明确拒绝——静默塞进去会让 `2 在 集合` 出现「有时查得到有时查不到」。
+fn set_push(items: &mut Vec<Val>, v: Val) -> Result<(), JishiError> {
+    match &v {
+        Val::List(_) | Val::Dict(_) | Val::Set(_) | Val::Dec(_) => {
+            return Err(err("类型错误",
+                format!("「{}」不能放进集合，集合的元素要是不可变的（数字、文本…）",
+                        display(&v))))
+        }
+        Val::Func(_) | Val::Class(_) | Val::Builtin(_, _)
+        | Val::BoundMethod(_) | Val::Cell(_) => {
+            return Err(err("类型错误",
+                format!("「{}」不能放进集合（Rust 宿主没有可用的身份）", display(&v))))
+        }
+        _ => {}
+    }
+    if !items.iter().any(|x| *x == v) {
+        items.push(v);
+    }
+    Ok(())
 }
 
 /// 列表内容的只读借用（不是列表则给中文错误）。
@@ -93,10 +147,298 @@ struct Instance {
     fields: HashMap<String, Val>,
 }
 
+// ---------------------------------------------------------------------------
+// 文件对象（M29）
+// ---------------------------------------------------------------------------
+
+/// `打开(路径, 模式)` 的返回值。
+///
+/// 刻意做成**真句柄**而不是一次读进内存：大文件能按行遍历、不必整个装进
+/// 列表，而且「用完要关」这件事才有意义——这正是上下文管理器存在的理由。
+///
+/// 自带 `关闭` 方法（所以能当上下文管理器），也支持 `遍历 行 在 f`。
+struct FileHandle {
+    file: std::fs::File,
+    path: String,
+    /// 中文模式名（打印显示用）
+    mode: String,
+    closed: bool,
+    /// 读缓冲：按行遍历不必逐字节去要系统调用
+    rbuf: Vec<u8>,
+    rpos: usize,
+    readable: bool,
+    writable: bool,
+}
+
+impl FileHandle {
+    fn state(&self) -> String {
+        if self.closed { "已关闭".to_string() } else { self.mode.clone() }
+    }
+
+    fn check(&self, name: &str) -> Result<(), JishiError> {
+        if self.closed {
+            return Err(err("值错误", format!(
+                "文件「{}」已经关闭了，不能再「{name}」", self.path)));
+        }
+        Ok(())
+    }
+
+    fn check_read(&self, name: &str) -> Result<(), JishiError> {
+        self.check(name)?;
+        if !self.readable {
+            return Err(err("值错误", format!(
+                "文件「{}」是以「{}」模式打开的，不能读", self.path, self.mode)));
+        }
+        Ok(())
+    }
+
+    fn check_write(&self, name: &str) -> Result<(), JishiError> {
+        self.check(name)?;
+        if !self.writable {
+            return Err(err("值错误", format!(
+                "文件「{}」是以「{}」模式打开的，不能写", self.path, self.mode)));
+        }
+        Ok(())
+    }
+
+    /// 再读一批进缓冲（顺手把已消费的前缀丢掉）。返回读到的字节数。
+    fn fill(&mut self) -> Result<usize, JishiError> {
+        if self.rpos > 0 {
+            self.rbuf.drain(..self.rpos);
+            self.rpos = 0;
+        }
+        let mut chunk = [0u8; 8192];
+        let n = std::io::Read::read(&mut self.file, &mut chunk)
+            .map_err(|e| io_fail(&e, &self.path))?;
+        self.rbuf.extend_from_slice(&chunk[..n]);
+        Ok(n)
+    }
+
+    /// 读一「行」（不含行尾换行）。到末尾给 None。
+    fn read_line(&mut self) -> Result<Option<String>, JishiError> {
+        loop {
+            if let Some(i) = self.rbuf[self.rpos..].iter().position(|b| *b == b'\n') {
+                let end = self.rpos + i;
+                let line = self.rbuf[self.rpos..end].to_vec();
+                self.rpos = end + 1;
+                return Ok(Some(strip_cr(decode_utf8(&line)?)));
+            }
+            if self.fill()? == 0 {
+                if self.rpos < self.rbuf.len() {
+                    let rest = self.rbuf[self.rpos..].to_vec();
+                    self.rpos = self.rbuf.len();
+                    return Ok(Some(strip_cr(decode_utf8(&rest)?)));
+                }
+                return Ok(None);
+            }
+        }
+    }
+
+    fn read_all(&mut self) -> Result<String, JishiError> {
+        let mut out = self.rbuf[self.rpos..].to_vec();
+        self.rbuf.clear();
+        self.rpos = 0;
+        std::io::Read::read_to_end(&mut self.file, &mut out)
+            .map_err(|e| io_fail(&e, &self.path))?;
+        decode_utf8(&out)
+    }
+
+    fn read_n(&mut self, n: i64) -> Result<String, JishiError> {
+        if n < 0 { return self.read_all(); }
+        let mut out: Vec<u8> = Vec::new();
+        while (out.len() as i64) < n {
+            let avail = self.rbuf.len() - self.rpos;
+            if avail > 0 {
+                let take = std::cmp::min(avail, (n - out.len() as i64) as usize);
+                out.extend_from_slice(&self.rbuf[self.rpos..self.rpos + take]);
+                self.rpos += take;
+            } else if self.fill()? == 0 {
+                break;
+            }
+        }
+        decode_utf8(&out)
+    }
+
+    fn write_text(&mut self, s: &str) -> Result<(), JishiError> {
+        std::io::Write::write_all(&mut self.file, s.as_bytes())
+            .map_err(|e| io_fail(&e, &self.path))
+    }
+
+    fn flush(&mut self) -> Result<(), JishiError> {
+        std::io::Write::flush(&mut self.file).map_err(|e| io_fail(&e, &self.path))
+    }
+
+    /// 当前位置（把「已预读但还没消费」的部分减掉）。
+    fn tell(&mut self) -> Result<i64, JishiError> {
+        let pos = std::io::Seek::stream_position(&mut self.file)
+            .map_err(|e| io_fail(&e, &self.path))?;
+        Ok(pos as i64 - (self.rbuf.len() - self.rpos) as i64)
+    }
+
+    fn seek(&mut self, pos: i64) -> Result<(), JishiError> {
+        // 定位会作废预读缓冲，否则读出来的东西对不上位置
+        self.rbuf.clear();
+        self.rpos = 0;
+        std::io::Seek::seek(&mut self.file, std::io::SeekFrom::Start(pos.max(0) as u64))
+            .map_err(|e| io_fail(&e, &self.path))?;
+        Ok(())
+    }
+}
+
+/// 打开文件（模式用中文：读 / 写 / 追加 / 读写，也认 r/w/a/r+/w+/a+）。
+/// 一律 UTF-8——Windows 的默认编码是 GBK，中文会乱。
+fn open_file(path: &str, mode: &str) -> Result<Rc<RefCell<FileHandle>>, JishiError> {
+    let py = match mode { "读" => "r", "写" => "w", "追加" => "a", "读写" => "r+", o => o };
+    let mut o = std::fs::OpenOptions::new();
+    let (readable, writable) = match py {
+        "r" => { o.read(true); (true, false) }
+        "w" => { o.write(true).create(true).truncate(true); (false, true) }
+        "a" => { o.append(true).create(true); (false, true) }
+        "r+" => { o.read(true).write(true); (true, true) }
+        "w+" => { o.read(true).write(true).create(true).truncate(true); (true, true) }
+        "a+" => { o.read(true).append(true).create(true); (true, true) }
+        _ => return Err(err("类型错误", format!(
+            "不认识的打开模式「{mode}」，可用：读、写、追加、读写（也认 r/w/a/r+/w+/a+）"))),
+    };
+    let file = o.open(path).map_err(|e| io_fail(&e, path))?;
+    Ok(Rc::new(RefCell::new(FileHandle {
+        file,
+        path: path.to_string(),
+        mode: mode.to_string(),
+        closed: false,
+        rbuf: Vec::new(),
+        rpos: 0,
+        readable,
+        writable,
+    })))
+}
+
+/// IO 错误 → 中文（对齐 Python 侧 errors.py 的翻译：
+/// 找不到文件不带英文原文，路径本身才是排错要的信息）。
+fn io_fail(e: &std::io::Error, path: &str) -> JishiError {
+    use std::io::ErrorKind::*;
+    match e.kind() {
+        NotFound => err("文件错误", format!("找不到文件或目录：{path}")),
+        PermissionDenied => err("文件错误", format!("没有权限，访问被拒绝：{path}")),
+        _ => err("文件错误", format!("读写文件出错（{path}）：{e}")),
+    }
+}
+
+fn decode_utf8(bytes: &[u8]) -> Result<String, JishiError> {
+    String::from_utf8(bytes.to_vec())
+        .map_err(|_| err("文件错误", "文件内容不是 UTF-8 文本，读不出来"))
+}
+
+fn strip_cr(s: String) -> String {
+    s.strip_suffix('\r').map(|x| x.to_string()).unwrap_or(s)
+}
+
+/// 文件方法分派（放进 `call_builtin_method` 的 `(Val::File, name)` 分支）。
+fn file_call(name: &str, f: Rc<RefCell<FileHandle>>,
+             args: &[Val]) -> Result<Val, JishiError> {
+    match name {
+        "读" => {
+            need_args(name, args, 0, 1)?;
+            let n = match args.first() {
+                Some(v) => as_int(v)?,
+                None => -1,
+            };
+            let mut h = f.borrow_mut();
+            h.check_read(name)?;
+            Ok(Val::Str(h.read_n(n)?))
+        }
+        "读行" => {
+            need_args(name, args, 0, 0)?;
+            let mut h = f.borrow_mut();
+            h.check_read(name)?;
+            Ok(match h.read_line()? {
+                Some(l) => Val::Str(l),
+                None => Val::None_,      // 读到末尾给「空」，便于判断
+            })
+        }
+        "读所有行" => {
+            need_args(name, args, 0, 0)?;
+            let mut h = f.borrow_mut();
+            h.check_read(name)?;
+            let mut out = Vec::new();
+            while let Some(l) = h.read_line()? {
+                out.push(Val::Str(l));
+            }
+            Ok(list_new(out))
+        }
+        "写" | "写行" => {
+            need_args(name, args, 1, 1)?;
+            let text = match &args[0] {
+                Val::Str(s) => s.clone(),
+                other => return Err(err("类型错误", format!(
+                    "「{name}」需要文本，得到了「{}」", type_label(other)))),
+            };
+            let mut h = f.borrow_mut();
+            h.check_write(name)?;
+            let payload = if name == "写行" { format!("{text}\n") } else { text };
+            h.write_text(&payload)?;
+            Ok(Val::None_)
+        }
+        "关闭" => {
+            need_args(name, args, 0, 0)?;
+            let mut h = f.borrow_mut();
+            if !h.closed {                 // 重复关闭不报错，幂等更省心
+                let _ = h.flush();
+                h.closed = true;
+                h.rbuf.clear();
+                h.rpos = 0;
+            }
+            Ok(Val::None_)
+        }
+        "刷新" => {
+            need_args(name, args, 0, 0)?;
+            let mut h = f.borrow_mut();
+            h.check(name)?;
+            h.flush()?;
+            Ok(Val::None_)
+        }
+        "位置" => {
+            need_args(name, args, 0, 0)?;
+            let mut h = f.borrow_mut();
+            h.check(name)?;
+            Ok(Val::Int(h.tell()?))
+        }
+        "定位" => {
+            need_args(name, args, 1, 1)?;
+            let pos = as_int(&args[0])?;
+            let mut h = f.borrow_mut();
+            h.check(name)?;
+            h.seek(pos)?;
+            Ok(Val::None_)
+        }
+        _ => Err(err("类型错误", format!("「{name}」方法调用未实现"))),
+    }
+}
+
+/// 值的类型名（中文），与内建「类型」一致。
+fn type_label(v: &Val) -> String {
+    match v {
+        Val::None_ => "空".to_string(),
+        Val::Bool(_) => "布尔".to_string(),
+        Val::Int(_) => "整数".to_string(),
+        Val::Float(_) => "小数".to_string(),
+        Val::Str(_) => "文本".to_string(),
+        Val::Dec(_) => "精确小数".to_string(),
+        Val::List(_) => "列表".to_string(),
+        Val::Dict(_) => "字典".to_string(),
+        Val::Set(_) => "集合".to_string(),
+        Val::File(_) => "文件".to_string(),
+        Val::Func(_) => "函数".to_string(),
+        Val::Class(_) => "类".to_string(),
+        Val::Instance(_) => "对象".to_string(),
+        _ => "其他".to_string(),
+    }
+}
+
 #[derive(Clone)]
 enum BoundMethod {
     Builtin { name: String, receiver: Box<Val> },
-    User { func: Func, instance: Instance, name: String },
+    User { func: Func, instance: JInst, name: String },
 }
 
 // ---------------------------------------------------------------------------
@@ -223,8 +565,15 @@ struct Frame {
     base: usize,
     locals: Vec<Val>,
     cells: Vec<Cell>,
-    loops: Vec<(usize, i64, i64)>,      // (depth, cont, brk)
+    /// (记录时的栈深, 继续目标, 中断目标, 登记序号)
+    loops: Vec<(usize, i64, i64, i64)>,
     handlers: Vec<Handler>,
+    /// 被 finally 挂起的返回值（`返回` 落在 try 块里时用）。
+    /// 对齐 Python 侧 `_Frame.pending_return`。
+    pending_return: Option<Val>,
+    /// 块栈登记序号：越大越内层。信号分发时用来判断
+    /// 「最近的循环」和「最近的 try」谁更深。
+    block_seq: i64,
 }
 
 #[derive(Clone)]
@@ -232,6 +581,7 @@ struct Handler {
     catch_ip: i64,
     finally_ip: i64,
     sp: usize,
+    seq: i64,
 }
 
 // ---------------------------------------------------------------------------
@@ -272,6 +622,8 @@ impl VM {
             cells: vec![Cell { value: Val::None_, set: false }; ncells],
             loops: Vec::new(),
             handlers: Vec::new(),
+            pending_return: None,
+            block_seq: 0,
         };
         self.frames.push(frame);
         self.execute(None)
@@ -311,8 +663,12 @@ impl VM {
                     }
                 }
                 Err(e) => {
-                    // 内部错误直接抛出
-                    return Err(e);
+                    // 出错（除零、类型不符、`抛出`…）也要走异常分发去找捕获/最终。
+                    // 以前这里直接 `return Err(e)`，于是 try/捕获/最终 对「内置错误»
+                    // 完全失效——只有 Flow::Error 才分发，而那个变体根本没人构造。
+                    if !self.dispatch_exception(&e, stop_at)? {
+                        return Err(e);
+                    }
                 }
             }
         }
@@ -438,24 +794,8 @@ impl VM {
                     self.stack.truncate(fn_base);
                     match fn_val {
                         Val::Func(f) => {
-                            // 压新帧
-                            let sub_idx = f.code_idx;
-                            let sub = &self.module.codes[sub_idx];
-                            let (locals, values) = bind_args(sub, &args, &knames, &kwvals, f.defaults.as_deref())?;
-                            let mut cells = sub.cellvars.iter().map(|_| Cell { value: Val::None_, set: false }).collect::<Vec<_>>();
-                            cells.extend(f.cells.clone());
-                            store_cells(sub, &mut cells, &values);
-                            let nf = Frame {
-                                code_idx: sub_idx,
-                                ip: 0,
-                                base: fn_base,
-                                locals,
-                                cells,
-                                loops: Vec::new(),
-                                handlers: Vec::new(),
-                            };
-                            self.frames[fi].ip = ip;
-                            self.frames.push(nf);
+                            self.push_func_frame(Some((fi, ip)), f, args, &knames,
+                                                 &kwvals, fn_base)?;
                             return Ok(Flow::Call);
                         }
                         Val::Builtin(name, bfn) => {
@@ -463,12 +803,27 @@ impl VM {
                             self.stack.push(out);
                         }
                         Val::Class(c) => {
-                            let inst = make_instance(c, &args)?;
+                            let inst = self.make_instance(c, &args)?;
                             self.stack.push(Val::Instance(inst));
                         }
                         Val::BoundMethod(bm) => {
-                            let out = call_bound(*bm, &args)?;
-                            self.stack.push(out);
+                            match *bm {
+                                BoundMethod::User { func, instance, .. } => {
+                                    // 用户方法：把实例放进第一个形参（自身），再压新帧。
+                                    // 与「函数」调用共用一条压帧路径——方法不过是个
+                                    // 首参被预先绑定的函数。
+                                    let mut all = Vec::with_capacity(args.len() + 1);
+                                    all.push(Val::Instance(instance));
+                                    all.extend(args.into_iter());
+                                    self.push_func_frame(Some((fi, ip)), func, all,
+                                                         &[], &[], fn_base)?;
+                                    return Ok(Flow::Call);
+                                }
+                                builtin => {
+                                    let out = self.call_bound(builtin, &args)?;
+                                    self.stack.push(out);
+                                }
+                            }
                         }
                         Val::ExcType(t) => {
                             let msg = args.first().map(display).unwrap_or_default();
@@ -479,9 +834,16 @@ impl VM {
                 }
                 op::RETURN => {
                     let value = self.stack.pop().unwrap_or(Val::None_);
-                    self.stack.truncate(base);
-                    self.stack.push(value);
-                    return Ok(Flow::Return);
+                    // `返回` 落在 try 块里时，先去跑最近的 finally（返回值挂起），
+                    // 跑完在 END_FINALLY 处收尾。对齐 Python 侧 `_return_via_finally`。
+                    match self.step_return(fi, value) {
+                        ReturnStep::Jump(target) => { ip = target; }
+                        ReturnStep::Done(v) => {
+                            self.stack.truncate(base);
+                            self.stack.push(v);
+                            return Ok(Flow::Return);
+                        }
+                    }
                 }
                 op::MAKE_FUNCTION => {
                     let code_idx = ins.a as usize;
@@ -561,7 +923,7 @@ impl VM {
                 }
                 op::GET_ITER => {
                     let obj = self.stack.pop().unwrap_or(Val::None_);
-                    let it = make_iterator(obj)?;
+                    let it = self.make_iter(obj)?;
                     self.stack.push(it);
                 }
                 op::FOR_ITER => {
@@ -584,7 +946,7 @@ impl VM {
                     let obj = self.stack.pop().unwrap_or(Val::None_);
                     let bm = get_attr(obj, "追加")?;
                     if let Val::BoundMethod(bm) = bm {
-                        call_bound(*bm, &[val])?;
+                        self.call_bound(*bm, &[val])?;
                     }
                     self.stack.push(Val::None_);
                 }
@@ -621,7 +983,9 @@ impl VM {
                     self.last_value = self.stack.pop().unwrap_or(Val::None_);
                 }
                 op::SETUP_LOOP => {
-                    self.frames[fi].loops.push((self.stack.len(), ins.a, ins.b));
+                    let seq = self.frames[fi].block_seq;
+                    self.frames[fi].block_seq += 1;
+                    self.frames[fi].loops.push((self.stack.len(), ins.a, ins.b, seq));
                 }
                 op::POP_BLOCK => { self.frames[fi].loops.pop(); }
                 op::BREAK_LOOP => {
@@ -636,11 +1000,32 @@ impl VM {
                     self.frames[fi].locals[ins.a as usize] = Val::Int(n);
                 }
                 op::SETUP_TRY => {
-                    self.frames[fi].handlers.push(Handler { catch_ip: ins.a, finally_ip: ins.b, sp: self.stack.len() });
+                    let seq = self.frames[fi].block_seq;
+                    self.frames[fi].block_seq += 1;
+                    self.frames[fi].handlers.push(Handler {
+                        catch_ip: ins.a, finally_ip: ins.b,
+                        sp: self.stack.len(), seq,
+                    });
                 }
                 op::POP_TRY => { self.frames[fi].handlers.pop(); }
+                // 只查看不弹出：栈顶是循环信号就跳到「未匹配路径」
+                // （先跑 finally，末尾的 THROW 再把信号重新抛出）
+                op::CHECK_SIGNAL => {
+                    if let Some(Val::LoopSignal(_)) = self.stack.last() {
+                        ip = ins.a as usize;
+                    }
+                }
                 op::THROW => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
+                    // 循环信号借道 finally：CHECK_SIGNAL 后的 THROW 会重新抛出它，
+                    // 这时要还原成「信号」而不是错误（对齐 Python 侧的块栈语义）
+                    if let Val::LoopSignal(code) = v {
+                        return Ok(Flow::Signal(if code == 1 {
+                            Signal::Break
+                        } else {
+                            Signal::Continue
+                        }));
+                    }
                     return Err(make_exception(v));
                 }
                 op::MATCH_EXC => {
@@ -649,7 +1034,19 @@ impl VM {
                     let m = exception_matches(&exc, &cond);
                     self.stack.push(Val::Bool(m));
                 }
-                op::END_FINALLY => {}
+                op::END_FINALLY => {
+                    // finally 跑完了：如果有挂起的返回，继续走「返回」流程
+                    if let Some(pr) = self.frames[fi].pending_return.take() {
+                        match self.step_return(fi, pr) {
+                            ReturnStep::Jump(target) => { ip = target; }
+                            ReturnStep::Done(v) => {
+                                self.stack.truncate(base);
+                                self.stack.push(v);
+                                return Ok(Flow::Return);
+                            }
+                        }
+                    }
+                }
                 op::HALT => return Ok(Flow::Halt),
                 _ => return Err(err("运行期错误", format!("未知指令 {}", ins.op))),
             }
@@ -681,15 +1078,38 @@ impl VM {
         Ok(false)
     }
 
+    /// 分发循环信号（`中断`/`继续`）：最近的循环和最近的 try 谁更内层谁先接。
+    ///
+    /// 与 Python 侧 `_dispatch_exception` 同一套「就近原则」：
+    /// - try 内的循环里「中断」→ 循环接住，try 正常结束后才走最终；
+    /// - 循环内的 try 里「中断」→ 先穿最终、再被外层循环接住。
+    /// 后者靠把信号当作一个值压栈、跳到 handler 的 catch_ip（CHECK_SIGNAL
+    /// 之后的 finally → THROW 重新抛出）来兑现。
     fn dispatch_signal(&mut self, s: Signal, stop_at: Option<usize>) -> Result<bool, JishiError> {
+        let code = match s { Signal::Break => 1i64, Signal::Continue => 2i64 };
         while !self.frames.is_empty() {
             let fi = self.frames.len() - 1;
             if Some(fi) == stop_at { return Ok(false); }
-            if let Some(lp) = self.frames[fi].loops.last().cloned() {
-                let (depth, cont, brk) = lp;
+            let lp = self.frames[fi].loops.last().cloned();
+            let h = self.frames[fi].handlers.last().cloned();
+            let loop_wins = match (&lp, &h) {
+                (None, _) => false,
+                (Some(_), None) => true,
+                (Some(l), Some(hh)) => l.3 > hh.seq,
+            };
+            if loop_wins {
+                let (depth, cont, brk, _) = lp.unwrap();
                 self.frames[fi].loops.pop();
                 self.stack.truncate(depth);
                 self.frames[fi].ip = (match s { Signal::Break => brk, Signal::Continue => cont }) as usize;
+                return Ok(true);
+            }
+            if h.is_some() {
+                let h = h.unwrap();
+                self.frames[fi].handlers.pop();
+                self.stack.truncate(h.sp);
+                self.stack.push(Val::LoopSignal(code));
+                self.frames[fi].ip = h.catch_ip as usize;
                 return Ok(true);
             }
             let base = self.frames[fi].base;
@@ -697,6 +1117,401 @@ impl VM {
             self.stack.truncate(base);
         }
         Ok(false)
+    }
+
+    /// `返回` 的收尾一步：如果当前帧还有带 finally 的处理器，就去跑它（返回值挂起）；
+    /// 否则直接完成返回。
+    fn step_return(&mut self, fi: usize, value: Val) -> ReturnStep {
+        let mut value = value;
+        loop {
+            match self.frames[fi].handlers.pop() {
+                None => return ReturnStep::Done(value),
+                Some(h) if h.finally_ip >= 0 => {
+                    self.stack.truncate(h.sp);
+                    self.frames[fi].pending_return = Some(value);
+                    return ReturnStep::Jump(h.finally_ip as usize);
+                }
+                // 纯捕获块：返回不走它，弹掉继续往外找
+                Some(_) => {}
+            }
+        }
+    }
+
+    /// 压入一个函数帧（`CALL` 到用户函数/方法、内建回调用户函数，两条路共用）。
+    ///
+    /// `set_ip` 给 `Some((帧号, 新 ip))` 时会把调用者的 ip 写回帧里——只有从
+    /// `CALL` 指令进来才需要（`execute` 靠帧里的 ip 回到调用点）。从内建里
+    /// 回调（见 `call_value`）不需要：调用者的 `execute_frame` 还在 Rust 栈上、
+    /// 用它自己的局部 ip 继续跑。
+    fn push_func_frame(&mut self, set_ip: Option<(usize, usize)>, func: Func,
+                       args: Vec<Val>, knames: &[String], kwvals: &[Val],
+                       base: usize) -> Result<(), JishiError> {
+        let sub_idx = func.code_idx;
+        let (locals, values) = {
+            let sub = &self.module.codes[sub_idx];
+            bind_args(sub, &args, knames, kwvals, func.defaults.as_deref())?
+        };
+        let mut cells = {
+            let sub = &self.module.codes[sub_idx];
+            sub.cellvars.iter()
+                .map(|_| Cell { value: Val::None_, set: false })
+                .collect::<Vec<_>>()
+        };
+        cells.extend(func.cells.clone());
+        {
+            let sub = &self.module.codes[sub_idx];
+            store_cells(sub, &mut cells, &values);
+        }
+        let nf = Frame {
+            code_idx: sub_idx,
+            ip: 0,
+            base,
+            locals,
+            cells,
+            loops: Vec::new(),
+            handlers: Vec::new(),
+            pending_return: None,
+            block_seq: 0,
+        };
+        if let Some((fi, ip)) = set_ip {
+            self.frames[fi].ip = ip;
+        }
+        self.frames.push(nf);
+        Ok(())
+    }
+
+    /// 从内建/方法里**同步**调用一个基石可调用对象，拿到返回值。
+    ///
+    /// 这是「数据流水线」（映射/过滤/归约/排序按）、`初始化`、自定义对象打印
+    /// 这些东西得以存在的前提——在这之前，内建没有任何办法回过头去跑用户函数。
+    ///
+    /// 实现要点：压一个帧，然后在**自己的帧深**上停下来（`stop_at`），
+    /// 返回值就留在栈顶。异常不会漏到外层帧：`dispatch_exception` 见到
+    /// `stop_at` 就返回，错误顺着 `?` 传回调用方。
+    fn call_value(&mut self, callee: Val, args: Vec<Val>) -> Result<Val, JishiError> {
+        match callee {
+            Val::Builtin(_, f) => f(&args, self),
+            Val::Func(func) => self.call_frame(func, args, None),
+            Val::BoundMethod(bm) => match *bm {
+                BoundMethod::User { func, instance, .. } =>
+                    self.call_frame(func, args, Some(Val::Instance(instance))),
+                builtin => self.call_bound(builtin, &args),
+            },
+            other => Err(err("类型错误",
+                format!("「{}」不能当函数调用", display(&other)))),
+        }
+    }
+
+    /// 压帧跑到底，取回返回值（`self_arg` 为 Some 时插在实参最前面）。
+    fn call_frame(&mut self, func: Func, args: Vec<Val>,
+                  self_arg: Option<Val>) -> Result<Val, JishiError> {
+        let mut all = Vec::with_capacity(args.len() + 1);
+        if let Some(s) = self_arg { all.push(s); }
+        all.extend(args);
+        let depth = self.frames.len();
+        let base = self.stack.len();
+        self.push_func_frame(None, func, all, &[], &[], base)?;
+        self.execute(Some(depth))?;
+        Ok(if self.stack.len() > base {
+            self.stack.pop().unwrap_or(Val::None_)
+        } else {
+            Val::None_
+        })
+    }
+
+    /// 造实例：先建空对象，再调它的 `初始化`（首参是实例自己）。
+    fn make_instance(&mut self, class: Class, args: &[Val]) -> Result<JInst, JishiError> {
+        let inst = Rc::new(RefCell::new(Instance {
+            class: class.clone(), fields: HashMap::new(),
+        }));
+        if let Some(Val::Func(f)) = class.methods.get("初始化").cloned() {
+            let mut all = Vec::with_capacity(args.len() + 1);
+            all.push(Val::Instance(inst.clone()));
+            all.extend(args.iter().cloned());
+            self.call_value(Val::Func(f), all)?;
+        } else if !args.is_empty() {
+            return Err(err("类型错误", format!("类「{}」没有构造方法", class.name)));
+        }
+        Ok(inst)
+    }
+
+    /// 取迭代器（`GET_ITER`）。
+    ///
+    /// 自定义对象定义了 `迭代()` 就调它，把结果当可迭代对象（对齐 Python 侧
+    /// `JishiInstance.__iter__`）；其余类型转给自由函数 `make_iterator`。
+    fn make_iter(&mut self, obj: Val) -> Result<Val, JishiError> {
+        if let Val::Instance(inst_rc) = &obj {
+            let has = inst_rc.borrow().class.methods.contains_key("迭代");
+            if has {
+                let got = self.get_attr_on(obj.clone(), "迭代")?;
+                let out = self.call_value(got, Vec::new())?;
+                // 返回自身会无限循环——Python 侧也拦（见 M24 的迭代协议）
+                if let (Val::Instance(a), Val::Instance(b)) = (&out, &obj) {
+                    if Rc::ptr_eq(a, b) {
+                        return Err(err("运行期错误",
+                            "「迭代()」返回了对象自身，这样遍历会无限循环"));
+                    }
+                }
+                return make_iterator(out);
+            }
+        }
+        make_iterator(obj)
+    }
+
+    /// 取属性（`get_attr` 的方法版：`self` 仅为将来可能需要的 VM 相关属性留位）。
+    fn get_attr_on(&mut self, obj: Val, attr: &str) -> Result<Val, JishiError> {
+        get_attr(obj, attr)
+    }
+
+    /// 调用一个「已绑定」的方法（内建方法 + 用户函数回调）。
+    ///
+    /// 表里的方法都先 `borrow_mut()` 改**共享容器本身**，改完原变量能看见；
+    /// 需要回调用户函数的那几个（映射/过滤/排序按/归约）先**快照**再回调，
+    /// 否则「拿着 RefCell 的借用去回调」会撞上运行时借用冲突。
+    fn call_bound(&mut self, bm: BoundMethod, args: &[Val]) -> Result<Val, JishiError> {
+        match bm {
+            BoundMethod::User { func, instance, .. } =>
+                self.call_frame(func, args.to_vec(), Some(Val::Instance(instance))),
+            BoundMethod::Builtin { name, receiver } => {
+                self.call_builtin_method(name, *receiver, args)
+            }
+        }
+    }
+    /// 内建方法分发表（列表 / 字典 / 文本 / 集合 / 文件）。
+    ///
+    /// `映射`/`过滤`/`排序按`/`归约` 需要回调用户函数，所以先**快照**容器内容
+    /// 再回调——拿着 `RefCell` 的借用去回调，回调里又改同一个容器就会撞上
+    /// 运行时借用冲突。
+    fn call_builtin_method(&mut self, name: String, receiver: Val,
+                           args: &[Val]) -> Result<Val, JishiError> {
+        match (receiver, name.as_str()) {
+            // -- 列表方法 --
+            // 这里全部走 `borrow_mut()`：改的是共享容器本身，
+            // 所以 `a.追加(3)` 之后原变量 `a` 也会变（M28 修的就是这个）。
+            (Val::List(l), "追加") => { need_args(&name, args, 1, 1)?; l.borrow_mut().push(args[0].clone()); Ok(Val::None_) }
+            (Val::List(l), "插入") => {
+                need_args(&name, args, 2, 2)?;
+                let i = as_int(&args[0])? as usize;
+                let mut l = l.borrow_mut();
+                let at = i.min(l.len());      // 先算好下标，再插入（避免同时可变+不可变借用）
+                l.insert(at, args[1].clone());
+                Ok(Val::None_)
+            }
+            (Val::List(l), "弹出") => {
+                need_args(&name, args, 0, 1)?;
+                let mut l = l.borrow_mut();
+                if l.is_empty() { return Err(err("值错误", "列表是空的")); }
+                let v = if args.is_empty() { l.pop() } else { let i = as_int(&args[0])? as usize; if i < l.len() { Some(l.remove(i)) } else { None } };
+                v.ok_or_else(|| err("索引错误", "越界"))
+            }
+            (Val::List(l), "排序") => { need_args(&name, args, 0, 0)?; l.borrow_mut().sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
+            (Val::List(l), "反转") => { need_args(&name, args, 0, 0)?; l.borrow_mut().reverse(); Ok(Val::None_) }
+            (Val::List(l), "清空") => { need_args(&name, args, 0, 0)?; l.borrow_mut().clear(); Ok(Val::None_) }
+            (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.borrow().iter().position(|x| *x == args[0]).map(|i| Val::Int(i as i64)).ok_or_else(|| err("值错误", "找不到元素")) }
+            (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(l.borrow().iter().filter(|x| **x == args[0]).count() as i64)) }
+            (Val::List(l), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(l.borrow().contains(&args[0]))) }
+            (Val::List(l), "移除") => {
+                need_args(&name, args, 1, 1)?;
+                let mut l = l.borrow_mut();
+                if let Some(pos) = l.iter().position(|x| *x == args[0]) { l.remove(pos); Ok(Val::None_) }
+                else { Err(err("值错误", "列表里没有这个元素")) }
+            }
+            // -- 字典方法 --
+            (Val::Dict(d), "获取") => {
+                need_args(&name, args, 1, 2)?;
+                let dflt = if args.len() == 2 { args[1].clone() } else { Val::None_ };
+                Ok(d.borrow().iter().find(|(k, _)| *k == args[0]).map(|(_, v)| v.clone()).unwrap_or(dflt))
+            }
+            (Val::Dict(d), "键") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())) }
+            (Val::Dict(d), "值") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(_, v)| v.clone()).collect())) }
+            (Val::Dict(d), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(d.borrow().iter().any(|(k, _)| *k == args[0]))) }
+            (Val::Dict(d), "清空") => { need_args(&name, args, 0, 0)?; d.borrow_mut().clear(); Ok(Val::None_) }
+            // -- 字符串方法 --
+            (Val::Str(s), "大写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_uppercase())) }
+            (Val::Str(s), "小写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_lowercase())) }
+            (Val::Str(s), "去空白") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.trim().to_string())) }
+            (Val::Str(s), "拆分") => {
+                need_args(&name, args, 0, 1)?;
+                let sep = args.first().map(display).unwrap_or_default();
+                Ok(list_new(s.split(&sep).map(|p| Val::Str(p.to_string())).collect()))
+            }
+            (Val::Str(s), "替换") => { need_args(&name, args, 2, 2)?; let a = display(&args[0]); let b = display(&args[1]); Ok(Val::Str(s.replace(&a, &b))) }
+            (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
+            (Val::Str(s), "开头是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.starts_with(&display(&args[0])))) }
+            (Val::Str(s), "结尾是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.ends_with(&display(&args[0])))) }
+            (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i64>().map(Val::Int).map_err(|_| err("值错误", "不能转成整数")) }
+            (Val::Str(s), "转小数") => { need_args(&name, args, 0, 0)?; s.parse::<f64>().map(Val::Float).map_err(|_| err("值错误", "不能转成小数")) }
+            // -- 列表高阶方法（数据流水线，M29）--
+            (Val::List(l), "映射") => {
+                need_args(&name, args, 1, 1)?;
+                let f = ensure_callable(&args[0], "映射")?;
+                let snapshot: Vec<Val> = l.borrow().clone();
+                let mut out = Vec::with_capacity(snapshot.len());
+                for x in snapshot {
+                    out.push(self.call_value(f.clone(), vec![x])?);
+                }
+                Ok(list_new(out))
+            }
+            (Val::List(l), "过滤") => {
+                need_args(&name, args, 1, 1)?;
+                let f = ensure_callable(&args[0], "过滤")?;
+                let snapshot: Vec<Val> = l.borrow().clone();
+                let mut out = Vec::new();
+                for x in snapshot {
+                    let keep = self.call_value(f.clone(), vec![x.clone()])?;
+                    if truthy(keep) { out.push(x); }
+                }
+                Ok(list_new(out))
+            }
+            (Val::List(l), "排序按") => {
+                need_args(&name, args, 1, 1)?;
+                let f = ensure_callable(&args[0], "排序按")?;
+                let snapshot: Vec<Val> = l.borrow().clone();
+                let mut keyed: Vec<(Val, Val)> = Vec::with_capacity(snapshot.len());
+                for x in snapshot {
+                    let k = self.call_value(f.clone(), vec![x.clone()])?;
+                    keyed.push((k, x));
+                }
+                // 键之间必须两两可比：混着数字和文本时 Python 会 TypeError，
+                // 我们在这儿先报中文错，别用「相等」糊过去（那会悄悄给出错顺序）。
+                // 只和第一个键比一遍即可（同类型键彼此可比，这是传递的）。
+                if let Some(first) = keyed.first().map(|p| p.0.clone()) {
+                    for (k, _) in &keyed {
+                        if k.partial_cmp(&first).is_none() {
+                            return Err(err("类型错误",
+                                "「排序按」算出来的排序键没法互相比较"));
+                        }
+                    }
+                }
+                keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+                Ok(list_new(keyed.into_iter().map(|(_, x)| x).collect()))
+            }
+            (Val::List(l), "归约") => {
+                need_args(&name, args, 2, 2)?;
+                let f = ensure_callable(&args[0], "归约")?;
+                let mut acc = args[1].clone();
+                let snapshot: Vec<Val> = l.borrow().clone();
+                for x in snapshot {
+                    acc = self.call_value(f.clone(), vec![acc, x])?;
+                }
+                Ok(acc)
+            }
+            // -- 集合方法（M29）--
+            // 与列表一样，改的是共享容器本身；`并集` 等返回**新**集合。
+            (Val::Set(s), "添加") => { need_args(&name, args, 1, 1)?; set_push(&mut s.borrow_mut(), args[0].clone())?; Ok(Val::None_) }
+            (Val::Set(s), "移除") => {
+                need_args(&name, args, 1, 1)?;
+                let mut s = s.borrow_mut();
+                match s.iter().position(|x| *x == args[0]) {
+                    Some(i) => { s.remove(i); Ok(Val::None_) }
+                    None => Err(err("值错误",
+                        format!("集合里没有「{}」，没法移除", display(&args[0])))),
+                }
+            }
+            (Val::Set(s), "丢弃") => {
+                need_args(&name, args, 1, 1)?;
+                let mut s = s.borrow_mut();
+                if let Some(i) = s.iter().position(|x| *x == args[0]) { s.remove(i); }
+                Ok(Val::None_)
+            }
+            (Val::Set(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.borrow().iter().any(|x| *x == args[0]))) }
+            (Val::Set(s), "并集") => { need_args(&name, args, 1, 1)?; let other = as_iterable(&args[0], "「并集」的另一个集合")?; let mut v = s.borrow().clone(); v.extend(other); set_new(v) }
+            (Val::Set(s), "交集") => { need_args(&name, args, 1, 1)?; let other = as_iterable(&args[0], "「交集」的另一个集合")?; let v: Vec<Val> = s.borrow().iter().filter(|x| other.iter().any(|y| y == *x)).cloned().collect(); set_new(v) }
+            (Val::Set(s), "差集") => { need_args(&name, args, 1, 1)?; let other = as_iterable(&args[0], "「差集」的另一个集合")?; let v: Vec<Val> = s.borrow().iter().filter(|x| !other.iter().any(|y| y == *x)).cloned().collect(); set_new(v) }
+            (Val::Set(s), "对称差") => {
+                need_args(&name, args, 1, 1)?;
+                let other = as_iterable(&args[0], "「对称差」的另一个集合")?;
+                let a: Vec<Val> = s.borrow().iter().filter(|x| !other.iter().any(|y| y == *x)).cloned().collect();
+                let b: Vec<Val> = other.iter().filter(|x| !s.borrow().iter().any(|y| y == *x)).cloned().collect();
+                let mut v = a; v.extend(b); set_new(v)
+            }
+            (Val::Set(s), "清空") => { need_args(&name, args, 0, 0)?; s.borrow_mut().clear(); Ok(Val::None_) }
+            (Val::Set(s), "转列表") => { need_args(&name, args, 0, 0)?; Ok(list_new(s.borrow().clone())) }
+            (Val::Set(s), "复制") => { need_args(&name, args, 0, 0)?; set_new(s.borrow().clone()) }
+            // -- 文件方法（M29）--
+            (Val::File(f), _) => file_call(&name, f, args),
+            // -- 精确小数方法（M29）--
+            (Val::Dec(d), _) => dec_call(&name, &d, args),
+            _ => Err(err("类型错误", format!("「{name}」方法调用未实现"))),
+        }
+    }
+
+    /// 值 → 文本（**唯一实现**，对齐 Python 侧 `jishi_repr`，M27/M29）。
+    ///
+    /// `top=true`：直接展示这个值（`打印(值)`、`文本(值)`）——文本不加引号，
+    /// 用户要的就是那串字。`top=false`：嵌套在容器里——文本加引号，这样
+    /// `打印(["甲", 变量])` 能看出哪个是文本。
+    ///
+    /// 比自由函数 `display` 强的地方是**有 VM**：自定义对象的「文本()」方法
+    /// 要跑用户代码，`display` 拿不到 VM。容器里的对象也因此不再掉回
+    /// `<甲 实例>`。
+    fn format_value(&mut self, v: &Val, top: bool) -> Result<String, JishiError> {
+        match v {
+            Val::Instance(inst_rc) => {
+                let has_text = inst_rc.borrow().class.methods.contains_key("文本");
+                if !has_text {
+                    return Ok(display(v));
+                }
+                let m = self.get_attr_on(v.clone(), "文本")?;
+                let got = self.call_value(m, Vec::new())?;
+                match got {
+                    Val::Str(s) => Ok(s),
+                    other => {
+                        let cls = inst_rc.borrow().class.name.clone();
+                        Err(err("类型错误", format!(
+                            "类「{cls}」的「文本」方法返回了「{}」，要返回文本",
+                            type_label(&other))))
+                    }
+                }
+            }
+            Val::List(l) => {
+                let items = l.borrow().clone();
+                let mut parts = Vec::with_capacity(items.len());
+                for x in &items { parts.push(self.format_value(x, false)?); }
+                Ok(format!("[{}]", parts.join(", ")))
+            }
+            Val::Dict(d) => {
+                let pairs = d.borrow().clone();
+                let mut parts = Vec::with_capacity(pairs.len());
+                for (k, val) in &pairs {
+                    parts.push(format!("{}: {}",
+                        self.format_value(k, false)?, self.format_value(val, false)?));
+                }
+                Ok(format!("{{{}}}", parts.join(", ")))
+            }
+            Val::Set(s) => {
+                let items = s.borrow().clone();
+                let mut parts = Vec::with_capacity(items.len());
+                for x in &items { parts.push(self.format_value(x, false)?); }
+                if parts.is_empty() { Ok("集合()".to_string()) }
+                else { Ok(format!("{{{}}}", parts.join(", "))) }
+            }
+            other => Ok(if top { display(other) } else { py_repr(other) }),
+        }
+    }
+
+    /// 找对象上名为 `name` 的「无参可调用」；没有则 None。
+    ///
+    /// 供 `进入上下文` / `退出上下文` 用（对齐 Python 侧 `_ctx_lookup`）。
+    /// 只认**明确的**方法名，不做「任何名字都包一个绑定方法」那种宽松处理——
+    /// 否则 `用 [1, 2] 为 x：` 会先被当成可以清理、再在调用时才报错。
+    fn lookup_method(&mut self, obj: &Val, name: &str) -> Option<Val> {
+        match obj {
+            Val::Instance(inst_rc) => {
+                if inst_rc.borrow().class.methods.contains_key(name) {
+                    self.get_attr_on(obj.clone(), name).ok()
+                } else {
+                    None
+                }
+            }
+            _ => match name {
+                "退出" | "关闭" => match get_attr(obj.clone(), name) {
+                    Ok(v @ Val::BoundMethod(_)) => Some(v),
+                    _ => None,
+                },
+                _ => None,
+            },
+        }
     }
 }
 
@@ -706,8 +1521,7 @@ impl VM {
 
 enum Flow {
     /// 本帧执行完毕（跑到指令末尾或 RETURN），**调用方应弹掉它**。
-    Return,
-    /// 刚压入一个新帧（CALL 到用户函数），**调用方绝不能弹帧**，直接继续循环。
+    Return,    /// 刚压入一个新帧（CALL 到用户函数），**调用方绝不能弹帧**，直接继续循环。
     ///
     /// 以前这里复用 `Return`，于是 `execute` 每次函数调用后都把新帧弹掉，
     /// 外层接着执行那个还没拿到实参的 CALL → `fn_base` 下溢 → panic。
@@ -716,6 +1530,14 @@ enum Flow {
     Halt,
     Error(JishiError),
     Signal(Signal),
+}
+
+/// `返回` 的下一步（见 `VM::step_return`）。
+enum ReturnStep {
+    /// 还有 finally 要跑，跳到这个 ip（返回值已挂进 `frame.pending_return`）。
+    Jump(usize),
+    /// 没有 finally 了，可以完成返回。
+    Done(Val),
 }
 
 // ---------------------------------------------------------------------------
@@ -729,8 +1551,10 @@ fn truthy(v: Val) -> bool {
         Val::Int(i) => i != 0,
         Val::Float(f) => f != 0.0,
         Val::Str(s) => !s.is_empty(),
+        Val::Dec(d) => !d.is_zero(),
         Val::List(l) => !l.borrow().is_empty(),
         Val::Dict(d) => !d.borrow().is_empty(),
+        Val::Set(s) => !s.borrow().is_empty(),
         _ => true,
     }
 }
@@ -743,6 +1567,7 @@ fn display(v: &Val) -> String {
         Val::Int(i) => i.to_string(),
         Val::Float(f) => format_float(*f),
         Val::Str(s) => s.clone(),
+        Val::Dec(d) => d.to_string(),
         Val::List(l) => {
             let items: Vec<String> = l.borrow().iter().map(py_repr).collect();
             format!("[{}]", items.join(", "))
@@ -752,14 +1577,30 @@ fn display(v: &Val) -> String {
                 .map(|(k, v)| format!("{}: {}", py_repr(k), py_repr(v))).collect();
             format!("{{{}}}", items.join(", "))
         }
+        // 空集合不写成 `{}`——那是空字典（与 Python 侧 `JishiSet.__repr__` 一致）
+        Val::Set(s) => {
+            let items: Vec<String> = s.borrow().iter().map(py_repr).collect();
+            if items.is_empty() { "集合()".to_string() }
+            else { format!("{{{}}}", items.join(", ")) }
+        }
         Val::Func(f) => format!("<函数 {}>", f.name),
         Val::Class(c) => format!("<类 {}>", c.name),
-        // 与 Python/JS 侧一致的落回写法（自定义的「文本」方法需要 VM 才能调用，
-        // 而 display 拿不到；见下面 docs/embed.md 的支持程度表）
-        Val::Instance(i) => format!("<{} 实例>", i.class.name),
+        // 自定义的「文本」方法需要 VM 才能调用，而 display 拿不到 VM——
+        // 所以这里仍是落回写法；`打印`/`文本` 在**有 VM** 的地方先问「文本()」
+        // （见内建「打印」与 `format_value`）。
+        Val::Instance(i) => {
+            let cls = i.borrow().class.name.clone();
+            format!("<{} 实例>", cls)
+        }
+        Val::File(f) => {
+            let h = f.borrow();
+            format!("<文件 {}（{}）>", h.path, h.state())
+        }
         Val::Module(n, _) => format!("<模块 {n}>"),
         Val::Builtin(n, _) => format!("<内建函数 {n}>"),
         Val::ExcType(t) => t.clone(),
+        // 只在「信号穿过 finally」的内部流程里短暂出现，用户看不到
+        Val::LoopSignal(c) => if *c == 1 { "中断".to_string() } else { "继续".to_string() },
         Val::BoundMethod(_) => "<方法>".to_string(),
         Val::Cell(_) => "<单元>".to_string(),
     }
@@ -782,6 +1623,10 @@ fn format_float(f: f64) -> String {
 
 fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
     use Val::*;
+    // 至少一边是精确小数 → 走十进制（0.1 + 0.2 才等于 0.3）
+    if matches!(op, 0..=6) && has_dec(&l, &r) {
+        return dec_binop(op, &l, &r);
+    }
     let result = match op {
         0 => match (l, r) { (Int(a), Int(b)) => Int(a + b), (a, b) => numeric_add(a, b)? },
         1 => match (l, r) { (Int(a), Int(b)) => Int(a - b), (a, b) => numeric_sub(a, b)? },
@@ -841,7 +1686,104 @@ fn to_num_pair(a: Val, b: Val) -> Result<(f64, f64), JishiError> {
     Ok((x, y))
 }
 
+// ---------------------------------------------------------------------------
+// 精确小数（M29）
+// ---------------------------------------------------------------------------
+
+/// 把值转成精确小数（对齐 Python 侧 `_to_decimal`）。
+///
+/// 文本也认（`精确("1") + "2"` 在 Python 侧就是 3）；布尔不认——
+/// 布尔不是数字，放进来只会让 `精确(真)` 这种写法悄悄成立。
+fn to_dec(v: &Val) -> Result<Dec, JishiError> {
+    match v {
+        Val::Dec(d) => Ok((**d).clone()),
+        Val::Bool(b) => Err(err("类型错误", format!(
+            "布尔值「{}」不能当精确小数", if *b { "真" } else { "假" }))),
+        Val::Int(i) => Ok(Dec { coef: BigInt::from_i64(*i), exp: 0 }),
+        Val::Float(f) => Dec::from_f64(*f).ok_or_else(|| err("类型错误",
+            format!("「{f}」不能变成精确小数（不是有限数）"))),
+        Val::Str(s) => Dec::parse(s).ok_or_else(|| err("类型错误",
+            format!("不能把「{s}」当作精确小数"))),
+        other => Err(err("类型错误", format!(
+            "不能把「{}」转成精确小数", type_label(other)))),
+    }
+}
+
+fn has_dec(l: &Val, r: &Val) -> bool {
+    matches!(l, Val::Dec(_)) || matches!(r, Val::Dec(_))
+}
+
+/// 至少一边是精确小数的二元运算（+ - * / // % **）。
+fn dec_binop(op: i64, l: &Val, r: &Val) -> Result<Val, JishiError> {
+    let a = to_dec(l)?;
+    let b = to_dec(r)?;
+    let zero = b.is_zero();
+    let out = match op {
+        0 => a.add(&b),
+        1 => a.sub(&b),
+        2 => a.mul(&b),
+        3 | 4 | 5 => {
+            if zero { return Err(err("除零错误", "不能除以零")); }
+            let (q, rem) = a.divmod_floor(&b).unwrap();
+            if op == 4 { q } else if op == 5 { rem } else { a.div(&b).unwrap() }
+        }
+        6 => {
+            // 只支持整数次幂。非整数指数是**近似**运算，各执行器实现细节
+            // 一定会漂移，宁可不支持也不要「看起来能跑、结果对不上」。
+            let n = b.to_i64().ok_or_else(|| err("类型错误",
+                format!("「**」的指数要整数，但给的是 {}", b.to_string())))?;
+            a.powi(n).ok_or_else(|| err("值错误", "精确小数的幂算不出来（结果太极端）"))?
+        }
+        _ => return Err(err("类型错误", "精确小数不支持这个运算")),
+    };
+    Ok(Val::Dec(Rc::new(out)))
+}
+
+/// 至少一边是精确小数的比较（== != < > <= >=）。
+fn dec_compare(op: i64, l: &Val, r: &Val) -> Result<Val, JishiError> {
+    let a = to_dec(l)?;
+    let b = to_dec(r)?;
+    let ord = a.cmp(&b);
+    let out = match op {
+        0 => ord == std::cmp::Ordering::Equal,
+        1 => ord != std::cmp::Ordering::Equal,
+        2 => ord == std::cmp::Ordering::Less,
+        3 => ord == std::cmp::Ordering::Greater,
+        4 => ord != std::cmp::Ordering::Greater,
+        5 => ord != std::cmp::Ordering::Less,
+        _ => return Err(err("运行期错误", "不支持的比较")),
+    };
+    Ok(Val::Bool(out))
+}
+
+/// 方法：舍入 / 绝对值 / 转文本（对齐 Python 侧 DECIMAL_METHODS）。
+fn dec_call(name: &str, d: &Dec, args: &[Val]) -> Result<Val, JishiError> {
+    match name {
+        "舍入" => {
+            need_args(name, args, 0, 1)?;
+            let digits = match args.first() {
+                None => 2i64,
+                Some(v) => match v { Val::Int(i) => *i, _ => return Err(err("类型错误",
+                    "「舍入」的位数要是整数")) },
+            };
+            // 金额场景用「四舍五入」（HalfUp），而不是默认的银行家舍入——
+            // 后者更「标准」但不合用户直觉
+            Ok(Val::Dec(Rc::new(d.quantize10(-(digits as i32), Round::HalfUp))))
+        }
+        "绝对值" => { need_args(name, args, 0, 0)?; Ok(Val::Dec(Rc::new(d.abs()))) }
+        "转文本" => { need_args(name, args, 0, 0)?; Ok(Val::Str(d.to_string())) }
+        _ => Err(err("类型错误", format!("「{name}」方法调用未实现"))),
+    }
+}
+
+
 fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
+    // 算术比较里只要有一边是精确小数就走十进制（`精确("0.3") == 0.3` 为真）。
+    // 成员测试/同一性（6–9）**不走**：`精确("1") 在 [1]` 该按元素比，
+    // 而不是让「精确」拒绝参加（对齐 Python 侧 apply_compare 的分工）。
+    if matches!(op, 0..=5) && has_dec(&l, &r) {
+        return dec_compare(op, &l, &r);
+    }
     let out = match op {
         0 => l == r,
         1 => l != r,
@@ -875,6 +1817,7 @@ fn contains(container: &Val, item: &Val) -> Result<bool, JishiError> {
             let needle = match item { Val::Str(t) => t.clone(), other => display(other) };
             Ok(s.contains(&needle))
         }
+        Val::Set(s) => Ok(s.borrow().iter().any(|x| x == item)),
         _ => Err(err("类型错误",
             format!("「{}」不能在「{}」里找", display(item), display(container)))),
     }
@@ -907,8 +1850,13 @@ fn identity_key(v: &Val) -> Result<IdKey, JishiError> {
         Val::Int(i) => Ok(IdKey::Value("整数".into(), i.to_string())),
         Val::Float(f) => Ok(IdKey::Value("小数".into(), f.to_string())),
         Val::Str(s) => Ok(IdKey::Value("文本".into(), s.clone())),
+        Val::Dec(d) => Ok(IdKey::Value("精确小数".into(), d.to_string())),
         Val::List(l) => Ok(IdKey::Identity(Rc::as_ptr(l) as usize)),
         Val::Dict(d) => Ok(IdKey::Identity(Rc::as_ptr(d) as usize)),
+        Val::Set(s) => Ok(IdKey::Identity(Rc::as_ptr(s) as usize)),
+        // 实例有了 `Rc` 身份——与 Python 侧 `_identity_snapshot` 对实例
+        // 用 `id(value)` 一致（`a 是 a` 真，两个 `新建` 出来的互不相同）
+        Val::Instance(i) => Ok(IdKey::Identity(Rc::as_ptr(i) as usize)),
         other => Err(err("运行期错误",
             format!("Rust 宿主暂不支持对「{}」用「是 / 不是」", display(other)))),
     }
@@ -923,10 +1871,23 @@ impl PartialEq for Val {
             (Val::Int(a), Val::Float(b)) | (Val::Float(b), Val::Int(a)) => *a as f64 == *b,
             (Val::Float(a), Val::Float(b)) => a == b,
             (Val::Str(a), Val::Str(b)) => a == b,
+            // 精确小数按**数值**比（`精确("1.0") == 1` 为真，对齐 Python）
+            (Val::Dec(a), Val::Dec(b)) => a.cmp(b) == std::cmp::Ordering::Equal,
+            (Val::Dec(a), b) => to_dec(b)
+                .map(|d| a.cmp(&d) == std::cmp::Ordering::Equal).unwrap_or(false),
+            (a, Val::Dec(b)) => to_dec(a)
+                .map(|d| d.cmp(b) == std::cmp::Ordering::Equal).unwrap_or(false),
             // 容器的 `==` 是**按值**比较（Python 语义：`[1,2] == [1,2]` 为真）。
             // `Rc<RefCell<Vec<Val>>>` 的 PartialEq 正好逐元素比，递归到 `Val::eq`。
             (Val::List(a), Val::List(b)) => a == b,
             (Val::Dict(a), Val::Dict(b)) => a == b,
+            // 集合相等与**顺序无关**（对齐 Python 侧 `JishiSet.__eq__`）
+            (Val::Set(a), Val::Set(b)) => {
+                let (x, y) = (a.borrow(), b.borrow());
+                x.len() == y.len() && x.iter().all(|v| y.iter().any(|w| w == v))
+            }
+            // 实例没有自定义 `==`，按身份比（Python 同）
+            (Val::Instance(a), Val::Instance(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -936,6 +1897,7 @@ fn unary_neg(v: Val) -> Val {
     match v {
         Val::Int(i) => Val::Int(-i),
         Val::Float(f) => Val::Float(-f),
+        Val::Dec(d) => Val::Dec(Rc::new(d.neg())),
         _ => Val::None_,
     }
 }
@@ -947,10 +1909,12 @@ fn unary_neg(v: Val) -> Val {
 fn new_builtins() -> HashMap<String, Val> {
     let mut m = HashMap::new();
     m.insert("打印".to_string(), Val::Builtin("打印", |args, vm| {
-        // 用 display 而不是 py_repr：顶层文本**不带引号**（`打印("甲")` 输出 甲），
-        // 与 Python 侧的 jishi_repr(top=True)、JS 侧的 pyStr 一致（M27）。
-        // 容器内部的元素仍由 display 递归调 py_repr 加引号。
-        let parts: Vec<String> = args.iter().map(display).collect();
+        // 走 format_value（不是 display）：顶层文本**不带引号**、空/真/假中文，
+        // 而且自定义对象的「文本()」方法在这儿才跑得起来（需要 VM）。
+        let mut parts = Vec::with_capacity(args.len());
+        for a in args {
+            parts.push(vm.format_value(a, true)?);
+        }
         vm.output.push_str(&parts.join(" "));
         vm.output.push('\n');
         Ok(Val::None_)
@@ -971,15 +1935,33 @@ fn new_builtins() -> HashMap<String, Val> {
             _ => Err(err("值错误", "不能转成小数")),
         }
     }));
-    m.insert("文本".to_string(), Val::Builtin("文本", |args, _vm| {
-        // 同样走 display：`文本(空)` 给「空」而不是 `None`
-        Ok(Val::Str(args.iter().map(display).collect::<Vec<_>>().join("")))
+    m.insert("文本".to_string(), Val::Builtin("文本", |args, vm| {
+        // 同样走 format_value：`文本(空)` 给「空」，`文本(对象)` 用「文本()」方法
+        let mut out = String::new();
+        for a in args {
+            out.push_str(&vm.format_value(a, true)?);
+        }
+        Ok(Val::Str(out))
     }));
-    m.insert("长度".to_string(), Val::Builtin("长度", |args, _vm| {
+    m.insert("长度".to_string(), Val::Builtin("长度", |args, vm| {
         match &args[0] {
             Val::Str(s) => Ok(Val::Int(s.chars().count() as i64)),
             Val::List(l) => Ok(Val::Int(l.borrow().len() as i64)),
             Val::Dict(d) => Ok(Val::Int(d.borrow().len() as i64)),
+            Val::Set(s) => Ok(Val::Int(s.borrow().len() as i64)),
+            // 定义了「迭代」的自定义对象也能求长度（M24.1）：既然能遍历，
+            // 数一数有几个元素是自然的事，不必再要求作者额外写一个方法。
+            Val::Instance(i) => {
+                if i.borrow().class.methods.contains_key("迭代") {
+                    let mut n = 0i64;
+                    let it = vm.make_iter(args[0].clone())?;
+                    let mut cur = it;
+                    while iter_next(&mut cur)?.is_some() { n += 1; }
+                    Ok(Val::Int(n))
+                } else {
+                    Err(err("类型错误", "没有长度"))
+                }
+            }
             _ => Err(err("类型错误", "没有长度")),
         }
     }));
@@ -995,38 +1977,86 @@ fn new_builtins() -> HashMap<String, Val> {
         else if step < 0 { let mut i = a; while i > b { out.push(Val::Int(i)); i += step; } }
         Ok(list_new(out))
     }));
-    m.insert("最大".to_string(), Val::Builtin("最大", |args, _vm| {
-        if let Val::List(l) = &args[0] {
-            l.borrow().iter().cloned().max_by(|a, b| a.partial_cmp(b).unwrap()).ok_or_else(|| err("值错误", "空列表"))
-        } else { Err(err("类型错误", "需要列表")) }
-    }));
-    m.insert("最小".to_string(), Val::Builtin("最小", |args, _vm| {
-        if let Val::List(l) = &args[0] {
-            l.borrow().iter().cloned().min_by(|a, b| a.partial_cmp(b).unwrap()).ok_or_else(|| err("值错误", "空列表"))
-        } else { Err(err("类型错误", "需要列表")) }
-    }));
-    m.insert("总和".to_string(), Val::Builtin("总和", |args, _vm| {
-        if let Val::List(l) = &args[0] {
-            let mut s = 0.0;
-            let mut is_int = true;
-            for v in l.borrow().iter() {
-                match v { Val::Int(i) => s += *i as f64, Val::Float(f) => { s += f; is_int = false; }, _ => return Err(err("类型错误", "需要数字列表")) }
-            }
-            Ok(if is_int { Val::Int(s as i64) } else { Val::Float(s) })
-        } else { Err(err("类型错误", "需要列表")) }
-    }));
+    m.insert("最大".to_string(), Val::Builtin("最大", b_max));
+    m.insert("最小".to_string(), Val::Builtin("最小", b_min));
+    m.insert("总和".to_string(), Val::Builtin("总和", b_sum));
     m.insert("类型".to_string(), Val::Builtin("类型", |args, _vm| {
-        Ok(Val::Str(match &args[0] {
-            Val::None_ => "空", Val::Bool(_) => "布尔", Val::Int(_) => "整数", Val::Float(_) => "小数",
-            Val::Str(_) => "文本", Val::List(_) => "列表", Val::Dict(_) => "字典", _ => "其他",
-        }.to_string()))
+        Ok(Val::Str(type_label(&args[0])))
     }));
     m.insert("反转".to_string(), Val::Builtin("反转", |args, _vm| {
         match &args[0] {
             Val::Str(s) => Ok(Val::Str(s.chars().rev().collect())),
             Val::List(l) => { let mut x = l.borrow().clone(); x.reverse(); Ok(list_new(x)) }
-            _ => Err(err("类型错误", "需要列表或文本")),
+            _ => Err(err("类型错误", "「反转」需要列表或文本")),
         }
+    }));
+    // -- 精确小数（M29）--
+    m.insert("精确".to_string(), Val::Builtin("精确", |args, _vm| {
+        if args.len() != 1 {
+            return Err(err("类型错误", "「精确」需要 1 个参数"));
+        }
+        Ok(Val::Dec(Rc::new(to_dec(&args[0])?)))
+    }));
+    // -- 集合 / 文件 / 上下文（M29）--
+    m.insert("集合".to_string(), Val::Builtin("集合", |args, _vm| {
+        if args.len() > 1 {
+            return Err(err("类型错误", format!(
+                "「集合」最多接受 1 个参数，但传了 {} 个", args.len())));
+        }
+        if args.is_empty() { return set_new(Vec::new()); }
+        let items = as_iterable(&args[0], "集合的初始内容")?;
+        set_new(items)
+    }));
+    m.insert("打开".to_string(), Val::Builtin("打开", |args, _vm| {
+        if args.is_empty() || args.len() > 2 {
+            return Err(err("类型错误", "「打开」需要 1 到 2 个参数"));
+        }
+        let path = match &args[0] {
+            Val::Str(s) => s.clone(),
+            other => return Err(err("类型错误", format!(
+                "「打开」的第一个参数要是文件路径，得到了「{}」", type_label(other)))),
+        };
+        let mode = match args.get(1) {
+            None => "读".to_string(),
+            Some(Val::Str(s)) => s.clone(),
+            Some(other) => return Err(err("类型错误", format!(
+                "「打开」的第二个参数（模式）要是文本，得到了「{}」", type_label(other)))),
+        };
+        Ok(Val::File(open_file(&path, &mode)?))
+    }));
+    m.insert("进入上下文".to_string(), Val::Builtin("进入上下文", |args, vm| {
+        if args.len() != 1 {
+            return Err(err("类型错误", "进入上下文 需要 1 个参数"));
+        }
+        let obj = args[0].clone();
+        // 有「进入」就用它的返回值绑定名字（对应 Python 的 __enter__）；
+        // 否则只要它能自己收拾（有「退出」或「关闭」）就绑定对象本身。
+        if let Some(enter) = vm.lookup_method(&obj, "进入") {
+            return vm.call_value(enter, Vec::new());
+        }
+        if vm.lookup_method(&obj, "退出").is_some()
+            || vm.lookup_method(&obj, "关闭").is_some()
+        {
+            return Ok(obj);
+        }
+        Err(err("类型错误", format!(
+            "「{}」不能当上下文管理器用；它既没有「进入」也没有「退出/关闭」方法",
+            type_label(&obj))))
+    }));
+    m.insert("退出上下文".to_string(), Val::Builtin("退出上下文", |args, vm| {
+        if args.len() != 1 {
+            return Err(err("类型错误", "退出上下文 需要 1 个参数"));
+        }
+        let obj = args[0].clone();
+        // 优先「退出」，其次「关闭」。返回值忽略——不像 Python 那样能吞异常
+        // （吞了会让「出问题快速找到」变难，有意不做）。
+        for name in ["退出", "关闭"] {
+            if let Some(f) = vm.lookup_method(&obj, name) {
+                vm.call_value(f, Vec::new())?;
+                return Ok(Val::None_);
+            }
+        }
+        Ok(Val::None_)
     }));
     // 异常类型
     for t in ["异常", "运行期错误", "类型错误", "值错误", "索引错误", "键错误", "除零错误", "文件错误"] {
@@ -1037,6 +2067,82 @@ fn new_builtins() -> HashMap<String, Val> {
 
 fn as_int(v: &Val) -> Result<i64, JishiError> {
     match v { Val::Int(i) => Ok(*i), _ => Err(err("类型错误", "需要整数")) }
+}
+
+/// 排序/最值时用的比较（没法比的键给「相等」，让调用方自己判可比性）。
+fn cmp_vals(a: &Val, b: &Val) -> std::cmp::Ordering {
+    a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+}
+
+/// 单参数时，把这个参数当成「一整个序列」取出来；不是序列则 None。
+///
+/// 与 Python 侧 `_single_iterable_arg` 一致：文本刻意当**标量**处理
+/// （`最大("abc")` 是那一个文本，不是三个字符）。
+fn seq_of(args: &[Val], vm: &mut VM) -> Result<Option<Vec<Val>>, JishiError> {
+    if args.len() != 1 { return Ok(None); }
+    match &args[0] {
+        Val::List(l) => Ok(Some(l.borrow().clone())),
+        Val::Set(s) => Ok(Some(s.borrow().clone())),
+        Val::Dict(d) => Ok(Some(d.borrow().iter().map(|(k, _)| k.clone()).collect())),
+        Val::Instance(i) => {
+            if i.borrow().class.methods.contains_key("迭代") {
+                let mut cur = vm.make_iter(args[0].clone())?;
+                let mut out = Vec::new();
+                while let Some(x) = iter_next(&mut cur)? { out.push(x); }
+                Ok(Some(out))
+            } else {
+                Ok(None)
+            }
+        }
+        _ => Ok(None),
+    }
+}
+
+fn b_max(args: &[Val], vm: &mut VM) -> Result<Val, JishiError> {
+    if let Some(seq) = seq_of(args, vm)? {
+        return seq.into_iter().max_by(cmp_vals)
+            .ok_or_else(|| err("值错误", "空序列求不了最大值"));
+    }
+    args.iter().cloned().max_by(cmp_vals)
+        .ok_or_else(|| err("类型错误", "「最大」至少要有一个参数"))
+}
+
+fn b_min(args: &[Val], vm: &mut VM) -> Result<Val, JishiError> {
+    if let Some(seq) = seq_of(args, vm)? {
+        return seq.into_iter().min_by(cmp_vals)
+            .ok_or_else(|| err("值错误", "空序列求不了最小值"));
+    }
+    args.iter().cloned().min_by(cmp_vals)
+        .ok_or_else(|| err("类型错误", "「最小」至少要有一个参数"))
+}
+
+/// 求和：全是整数就给整数，沾了小数就给小数，沾了精确小数就走十进制。
+///
+/// 精确小数那条要单独起算：`0 + Decimal` 在 Python 侧会 TypeError，
+/// 而 `总和([精确("0.1"), …])` 不该因此失败（对齐 Python 侧 `_b_sum`）。
+fn b_sum(args: &[Val], _vm: &mut VM) -> Result<Val, JishiError> {
+    let v = args.first().ok_or_else(|| err("类型错误", "「总和」需要一个列表"))?;
+    let items = as_iterable(v, "总和的参数")?;
+    let has_dec = items.iter().any(|x| matches!(x, Val::Dec(_)));
+    if has_dec {
+        let mut acc = Dec::zero();
+        for it in &items {
+            acc = acc.add(&to_dec(it)?);
+        }
+        return Ok(Val::Dec(Rc::new(acc)));
+    }
+    let mut acc_int: i64 = 0;
+    let mut acc_f: f64 = 0.0;
+    let mut is_float = false;
+    for it in &items {
+        match it {
+            Val::Int(i) => { if is_float { acc_f += *i as f64; } else { acc_int += *i; } }
+            Val::Float(f) => { if !is_float { acc_f = acc_int as f64; is_float = true; } acc_f += *f; }
+            other => return Err(err("类型错误", format!(
+                "「{}」不能求和，需要一个全是数字的列表", display(other)))),
+        }
+    }
+    Ok(if is_float { Val::Float(acc_f) } else { Val::Int(acc_int) })
 }
 
 fn stdlib_module(name: &str) -> Result<Val, JishiError> {
@@ -1083,19 +2189,27 @@ fn stdlib_module(name: &str) -> Result<Val, JishiError> {
 fn get_attr(obj: Val, attr: &str) -> Result<Val, JishiError> {
     match obj {
         Val::Module(_, attrs) => attrs.get(attr).cloned().ok_or_else(|| err("异常", format!("模块里没有「{attr}」"))),
-        Val::Instance(inst) => {
+        Val::Instance(inst_rc) => {
+            let inst = inst_rc.borrow();
             if let Some(v) = inst.fields.get(attr) { return Ok(v.clone()); }
             if let Some(f) = inst.class.methods.get(attr) {
                 if let Val::Func(fu) = f {
-                    return Ok(Val::BoundMethod(Box::new(BoundMethod::User { func: fu.clone(), instance: inst.clone(), name: attr.to_string() })));
+                    // 绑定时把实例一起带上——调用时它会被放进第一个形参（自身）
+                    return Ok(Val::BoundMethod(Box::new(BoundMethod::User {
+                        func: fu.clone(), instance: inst_rc.clone(),
+                        name: attr.to_string() })));
                 }
             }
-            Err(err("类型错误", format!("「{}」没有属性「{attr}」", inst.class.name)))
+            let cls = inst.class.name.clone();
+            Err(err("类型错误", format!("「{cls}」没有属性「{attr}」")))
         }
         Val::Class(c) => c.methods.get(attr).cloned().ok_or_else(|| err("类型错误", format!("类没有方法「{attr}」"))),
         Val::Str(s) => str_method(attr, Val::Str(s)),
         Val::List(l) => list_method(attr, Val::List(l)),
         Val::Dict(d) => dict_method(attr, Val::Dict(d)),
+        Val::Set(s) => set_method(attr, Val::Set(s)),
+        Val::Dec(d) => dec_method(attr, d),
+        Val::File(f) => file_method(attr, Val::File(f)),
         _ => Err(err("类型错误", format!("「{}」没有属性「{attr}」", display(&obj)))),
     }
 }
@@ -1103,7 +2217,9 @@ fn get_attr(obj: Val, attr: &str) -> Result<Val, JishiError> {
 fn set_attr(obj: Val, attr: &str, val: Val) -> Result<(), JishiError> {
     match obj {
         Val::Module(_, mut attrs) => { attrs.insert(attr.to_string(), val); Ok(()) }
-        Val::Instance(mut inst) => { inst.fields.insert(attr.to_string(), val); Ok(()) }
+        // 改的是**共享**的字段表（`Rc<RefCell<…>>`），
+        // 否则 `自身.字段 = 值` 只改到一份拷贝，调用方看不见（M29）
+        Val::Instance(inst) => { inst.borrow_mut().fields.insert(attr.to_string(), val); Ok(()) }
         _ => Err(err("类型错误", "不能给这个对象赋值属性")),
     }
 }
@@ -1134,76 +2250,6 @@ fn set_item(obj: Val, idx: Val, val: Val) -> Result<(), JishiError> {
     }
 }
 
-fn call_bound(bm: BoundMethod, args: &[Val]) -> Result<Val, JishiError> {
-    match bm {
-        BoundMethod::Builtin { name, receiver } => {
-            match (*receiver, name.as_str()) {
-                // -- 列表方法 --
-                // 这里全部走 `borrow_mut()`：改的是共享容器本身，
-                // 所以 `a.追加(3)` 之后原变量 `a` 也会变（M28 修的就是这个）。
-                (Val::List(l), "追加") => { need_args(&name, args, 1, 1)?; l.borrow_mut().push(args[0].clone()); Ok(Val::None_) }
-                (Val::List(l), "插入") => {
-                    need_args(&name, args, 2, 2)?;
-                    let i = as_int(&args[0])? as usize;
-                    let mut l = l.borrow_mut();
-                    let at = i.min(l.len());      // 先算好下标，再插入（避免同时可变+不可变借用）
-                    l.insert(at, args[1].clone());
-                    Ok(Val::None_)
-                }
-                (Val::List(l), "弹出") => {
-                    need_args(&name, args, 0, 1)?;
-                    let mut l = l.borrow_mut();
-                    if l.is_empty() { return Err(err("值错误", "列表是空的")); }
-                    let v = if args.is_empty() { l.pop() } else { let i = as_int(&args[0])? as usize; if i < l.len() { Some(l.remove(i)) } else { None } };
-                    v.ok_or_else(|| err("索引错误", "越界"))
-                }
-                (Val::List(l), "排序") => { need_args(&name, args, 0, 0)?; l.borrow_mut().sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
-                (Val::List(l), "反转") => { need_args(&name, args, 0, 0)?; l.borrow_mut().reverse(); Ok(Val::None_) }
-                (Val::List(l), "清空") => { need_args(&name, args, 0, 0)?; l.borrow_mut().clear(); Ok(Val::None_) }
-                (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.borrow().iter().position(|x| *x == args[0]).map(|i| Val::Int(i as i64)).ok_or_else(|| err("值错误", "找不到元素")) }
-                (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(l.borrow().iter().filter(|x| **x == args[0]).count() as i64)) }
-                (Val::List(l), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(l.borrow().contains(&args[0]))) }
-                (Val::List(l), "移除") => {
-                    need_args(&name, args, 1, 1)?;
-                    let mut l = l.borrow_mut();
-                    if let Some(pos) = l.iter().position(|x| *x == args[0]) { l.remove(pos); Ok(Val::None_) }
-                    else { Err(err("值错误", "列表里没有这个元素")) }
-                }
-                // -- 字典方法 --
-                (Val::Dict(d), "获取") => {
-                    need_args(&name, args, 1, 2)?;
-                    let dflt = if args.len() == 2 { args[1].clone() } else { Val::None_ };
-                    Ok(d.borrow().iter().find(|(k, _)| *k == args[0]).map(|(_, v)| v.clone()).unwrap_or(dflt))
-                }
-                (Val::Dict(d), "键") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())) }
-                (Val::Dict(d), "值") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(_, v)| v.clone()).collect())) }
-                (Val::Dict(d), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(d.borrow().iter().any(|(k, _)| *k == args[0]))) }
-                (Val::Dict(d), "清空") => { need_args(&name, args, 0, 0)?; d.borrow_mut().clear(); Ok(Val::None_) }
-                // -- 字符串方法 --
-                (Val::Str(s), "大写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_uppercase())) }
-                (Val::Str(s), "小写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_lowercase())) }
-                (Val::Str(s), "去空白") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.trim().to_string())) }
-                (Val::Str(s), "拆分") => {
-                    need_args(&name, args, 0, 1)?;
-                    let sep = args.first().map(display).unwrap_or_default();
-                    Ok(list_new(s.split(&sep).map(|p| Val::Str(p.to_string())).collect()))
-                }
-                (Val::Str(s), "替换") => { need_args(&name, args, 2, 2)?; let a = display(&args[0]); let b = display(&args[1]); Ok(Val::Str(s.replace(&a, &b))) }
-                (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
-                (Val::Str(s), "开头是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.starts_with(&display(&args[0])))) }
-                (Val::Str(s), "结尾是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.ends_with(&display(&args[0])))) }
-                (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i64>().map(Val::Int).map_err(|_| err("值错误", "不能转成整数")) }
-                (Val::Str(s), "转小数") => { need_args(&name, args, 0, 0)?; s.parse::<f64>().map(Val::Float).map_err(|_| err("值错误", "不能转成小数")) }
-                _ => Err(err("类型错误", format!("「{name}」方法调用未实现"))),
-            }
-        }
-        BoundMethod::User { func, instance, .. } => {
-            let _ = func;
-            let _ = instance;
-            Err(err("运行期错误", "用户方法调用需经 VM 帧（Rust 版暂未完整实现）"))
-        }
-    }
-}
 
 fn need_args(name: &str, args: &[Val], lo: usize, hi: usize) -> Result<(), JishiError> {
     if args.len() < lo || args.len() > hi {
@@ -1224,15 +2270,56 @@ fn dict_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
     let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
     Ok(Val::BoundMethod(Box::new(bm)))
 }
-
-fn make_instance(class: Class, args: &[Val]) -> Result<Instance, JishiError> {
-    let mut inst = Instance { class: class.clone(), fields: HashMap::new() };
-    if let Some(Val::Func(_)) = class.methods.get("初始化") {
-        // 构造方法简化：不真正执行（Rust 版聚焦核心链路）
-    } else if !args.is_empty() {
-        return Err(err("类型错误", format!("类「{}」没有构造方法", class.name)));
+fn set_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
+    // 只认自己有的方法名，其余交给 get_attr 报「没有属性」——
+    // 直接把任何名字包成 BoundMethod 会让 `集合.不存在的方法()` 变成
+    // 运行到调用时才报错，位置和措辞都差
+    const NAMES: &[&str] = &["添加", "移除", "丢弃", "包含", "并集", "交集",
+                             "差集", "对称差", "清空", "转列表", "复制"];
+    if !NAMES.contains(&name) {
+        return Err(err("类型错误", format!("集合没有方法「{name}」")));
     }
-    Ok(inst)
+    let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
+    Ok(Val::BoundMethod(Box::new(bm)))
+}
+fn file_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
+    const NAMES: &[&str] = &["读", "读行", "读所有行", "写", "写行",
+                             "关闭", "刷新", "位置", "定位"];
+    if !NAMES.contains(&name) {
+        return Err(err("类型错误", format!("文件没有方法「{name}」")));
+    }
+    let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
+    Ok(Val::BoundMethod(Box::new(bm)))
+}
+fn dec_method(name: &str, d: Rc<Dec>) -> Result<Val, JishiError> {
+    const NAMES: &[&str] = &["舍入", "绝对值", "转文本"];
+    if !NAMES.contains(&name) {
+        return Err(err("类型错误", format!("精确小数没有方法「{name}」")));
+    }
+    let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(Val::Dec(d)) };
+    Ok(Val::BoundMethod(Box::new(bm)))
+}
+
+/// 检查一个参数确实可调用（`映射`/`过滤`/`排序按`/`归约` 的报错要说清是哪个方法）。
+fn ensure_callable(v: &Val, name: &str) -> Result<Val, JishiError> {
+    let ok = matches!(v, Val::Func(_) | Val::Builtin(_, _) | Val::BoundMethod(_));
+    if !ok {
+        return Err(err("类型错误", format!(
+            "「{name}」需要一个函数作为参数，但给的是「{}」", type_label(v))));
+    }
+    Ok(v.clone())
+}
+
+/// 把一个值当成可迭代对象取元素（对齐 Python 侧 `_as_iterable`）。
+fn as_iterable(v: &Val, what: &str) -> Result<Vec<Val>, JishiError> {
+    match v {
+        Val::List(l) => Ok(l.borrow().clone()),
+        Val::Set(s) => Ok(s.borrow().clone()),
+        Val::Str(s) => Ok(s.chars().map(|c| Val::Str(c.to_string())).collect()),
+        Val::Dict(d) => Ok(d.borrow().iter().map(|(k, _)| k.clone()).collect()),
+        other => Err(err("类型错误", format!(
+            "「{}」不能当{what}用，需要列表、文本、集合或字典", display(other)))),
+    }
 }
 
 fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, JishiError> {
@@ -1309,19 +2396,31 @@ fn make_iterator(obj: Val) -> Result<Val, JishiError> {
     // `l` 递出去，`遍历 x 在 a` 会把 `a` 逐元素搬空——那是错的。
     match obj {
         Val::List(l) => Ok(list_new(l.borrow().clone())),
+        Val::Set(s) => Ok(list_new(s.borrow().clone())),
         Val::Str(s) => Ok(list_new(s.chars().map(|c| Val::Str(c.to_string())).collect())),
         Val::Dict(d) => Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())),
-        _ => Err(err("类型错误", "不能遍历")),
+        // 文件是**惰性**迭代：真句柄不能快照（那等于整读进内存），
+        // 所以迭代器就是文件自己，每次 next 读一行。
+        Val::File(_) => Ok(obj),
+        other => Err(err("类型错误",
+            format!("「{}」不能遍历，遍历需要列表、文本、集合、字典或文件",
+                    display(&other)))),
     }
 }
 
-// 简化迭代：FOR_ITER 直接弹 List 头
+/// 取下一个元素：列表迭代器弹头，文件迭代器读一行。
 fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
-    if let Val::List(l) = it {
-        let mut l = l.borrow_mut();
-        if l.is_empty() { Ok(None) } else { Ok(Some(l.remove(0))) }
-    } else {
-        Err(err("类型错误", "迭代器错误"))
+    match it {
+        Val::List(l) => {
+            let mut l = l.borrow_mut();
+            if l.is_empty() { Ok(None) } else { Ok(Some(l.remove(0))) }
+        }
+        Val::File(f) => {
+            let mut h = f.borrow_mut();
+            h.check_read("遍历")?;
+            Ok(h.read_line()?.map(Val::Str))
+        }
+        _ => Err(err("类型错误", "迭代器错误"))
     }
 }
 
@@ -1401,6 +2500,11 @@ impl PartialOrd for Val {
             (Val::Int(a), Val::Float(b)) => (*a as f64).partial_cmp(b),
             (Val::Float(a), Val::Int(b)) => a.partial_cmp(&(*b as f64)),
             (Val::Float(a), Val::Float(b)) => a.partial_cmp(b),
+            // 精确小数参加排序/最值：先转十进制再比（对齐 Python 侧
+            // `JishiDecimal.__lt__` 等，让 `最大`/`列表.排序` 能用）
+            (Val::Dec(a), Val::Dec(b)) => Some(a.cmp(b)),
+            (Val::Dec(a), b) => to_dec(b).ok().map(|d| a.cmp(&d)),
+            (a, Val::Dec(b)) => to_dec(a).ok().map(|d| d.cmp(b)),
             _ => None,
         }
     }
