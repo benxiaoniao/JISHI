@@ -78,14 +78,22 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          if [ -f pytest.log ]; then
-            SUMMARY=$(grep -E '^(FAILED|ERROR)' pytest.log | head -25 | tr -d '\r' | tr '\n' ' ')
-            if [ -z "$SUMMARY" ]; then
-              SUMMARY=$(tail -c 500 pytest.log | tr -d '\r' | tr '\n' ' ')
-            fi
-            CLEAN=$(printf '%s' "$SUMMARY" | sed 's/[%]//g')
-            echo "::error title=pytest 失败摘要::${CLEAN}"
+          # 必须 set +e：pytest 被**中断**时（退出码 2）日志里没有 FAILED 行，
+          # grep 返回 1，在 -e 下会把这一步本身弄挂、注解反而写不出来
+          # （M35 实测踩到，白等一轮 CI）。
+          set +e
+          if [ ! -f pytest.log ]; then
+            echo "::error file=.github/workflows/ci.yml,line=1::pytest.log 不存在（测试步骤可能没执行到 tee）"
+            exit 0
           fi
+          SUMMARY=$(grep -aE '^(FAILED|ERROR)' pytest.log | head -20 | tr -d '\r' | tr '\n' ' ')
+          if [ -z "$SUMMARY" ]; then
+            # 没有 FAILED 行 —— 多半是进程被中断/崩溃，退回日志末尾
+            SUMMARY="【无 FAILED 行，退回日志末尾】(exit=$(tail -c 200 pytest.log | tr -d '\r\n' | tail -c 60)) $(tail -c 700 pytest.log | tr -d '\r' | tr '\n' ' ')"
+          fi
+          SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/%/%25/g')
+          echo "::error file=.github/workflows/ci.yml,line=1::${SUMMARY}"
+          exit 0
 
       # Windows 上会自动尝试调用 ISCC 生成 setup.exe
       - name: 构建发行包
