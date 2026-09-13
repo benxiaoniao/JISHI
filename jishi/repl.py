@@ -12,8 +12,9 @@ import sys
 
 from .cli import BANNER
 from .errors import JishiError
-from .interpreter import Interpreter
+from .interpreter import Interpreter, _NO_VALUE
 from .parser import parse
+from .runtime import jishi_repr
 from .tokenizer import tokenize
 
 _EXIT_WORDS = {"退出", "quit", "exit", "q"}
@@ -40,21 +41,15 @@ HELP_TEXT = """可用命令：
 
 
 def _repr_jishi(v) -> str:
-    """把基石的值格式化为可读文本（真/假/空 中文化）。"""
-    if v is None:
-        return "空"
-    if v is True:
-        return "真"
-    if v is False:
-        return "假"
-    if isinstance(v, str):
-        return repr(v)
-    if isinstance(v, list):
-        return "[" + ", ".join(_repr_jishi(x) for x in v) + "]"
-    if isinstance(v, dict):
-        return "{" + ", ".join(
-            f"{_repr_jishi(k)}：{_repr_jishi(val)}" for k, val in v.items()) + "}"
-    return str(v)
+    """把基石的值格式化为可读文本（REPL 回显用）。
+
+    委托给 `runtime.jishi_repr(top=False)`——**不要在这里另抄一份**。
+    以前这里抄了一份，结果与 `打印` 漂移：REPL 回显「空/真/假」，
+    而 `打印` 给出 `None`/`True`/`False`（M27 统一）。
+    回显用 top=False（文本带引号），与 Python REPL 的分工一致：
+    `>>> "甲"` 回显 `'甲'`，而 `打印("甲")` 输出 `甲`。
+    """
+    return jishi_repr(v)
 
 
 def _unclosed_parens(text: str) -> bool:
@@ -117,7 +112,7 @@ def _needs_more(buffer: list[str]) -> bool:
 def _exec_source(interp: Interpreter, source: str,
                  filename: str = "<交互>") -> bool:
     """执行一段输入；成功且顶层表达式有值时返回 True（用于回显）。"""
-    interp._last_value = None
+    interp._last_value = _NO_VALUE
     try:
         lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
         program = parse(tokenize(source, filename), lines, filename)
@@ -135,7 +130,7 @@ def _exec_source(interp: Interpreter, source: str,
     except KeyboardInterrupt:
         print("\n（已中断）", file=sys.stderr)
         return False
-    if interp._last_value is not None:
+    if interp._last_value is not _NO_VALUE:
         print(_repr_jishi(interp._last_value))
     return True
 

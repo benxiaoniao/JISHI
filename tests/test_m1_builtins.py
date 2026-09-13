@@ -18,28 +18,28 @@ def run_capture(src: str) -> str:
 
 def test_chained_compare_true():
     out = run_capture("令 x = 5\n打印(1 < x < 10)\n")
-    assert out.strip() == "True"
+    assert out.strip() == "真"
 
 
 def test_chained_compare_false():
     out = run_capture("令 x = 15\n打印(1 < x < 10)\n")
-    assert out.strip() == "False"
+    assert out.strip() == "假"
 
 
 def test_chained_compare_mixed_ops():
     out = run_capture("令 x = 5\n打印(1 < x <= 5)\n")
-    assert out.strip() == "True"
+    assert out.strip() == "真"
 
 
 def test_chained_compare_short_circuit():
     # 第一对 1 < 0 为假 → 短路，不再求值 (1 / 0)；若没短路会抛除零错误
     out = run_capture("打印(1 < 0 < (1 / 0))\n")
-    assert out.strip() == "False"
+    assert out.strip() == "假"
 
 
 def test_chained_compare_chain_of_three():
     out = run_capture("令 x = 5\n打印(1 < x < 10 < 20)\n")
-    assert out.strip() == "True"
+    assert out.strip() == "真"
 
 
 def test_builtin_range_one():

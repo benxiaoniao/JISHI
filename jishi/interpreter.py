@@ -190,11 +190,17 @@ class _ReturnSignal(Exception):
 # 解释器
 # ---------------------------------------------------------------------------
 
+#: 「还没有过顶层表达式语句」的哨兵（M27）。
+#: 不能用 None —— `空` 本身就是合法的表达式值，否则 REPL 里输入 `空` 回车
+#: 什么都不显示（而 `真` 会显示 `真`），两种写法看起来像不一致。
+_NO_VALUE = object()
+
+
 class Interpreter:
     def __init__(self, filename: str = "<输入>"):
         self.globals = Environment()
         self.filename = filename      # 出错时渲染「文件:行:列」用
-        self._last_value = None  # 最近一次顶层表达式语句的值（REPL 回显用）
+        self._last_value = _NO_VALUE  # 最近一次顶层表达式语句的值（REPL 回显用）
         #: 调用帧栈（M17.2）：从外到内，出错时挂到 JishiError.trace
         self._call_stack: list = []
         self._register_builtins()

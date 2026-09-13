@@ -164,7 +164,7 @@ def test_with_closes_on_exception():
            '捕获 为 e：\n'
            '    打印("接住了")\n'
            '打印(对象.关)\n')
-    assert _all_agree(src) == "接住了\nTrue\n"
+    assert _all_agree(src) == "接住了\n真\n"
 
 
 def test_with_closes_on_return():
@@ -179,7 +179,7 @@ def test_with_closes_on_return():
         '    用 对象 为 句柄：\n'
         '        返回 对象.关\n'
         '    返回 "没走到"\n'
-        '打印(试())\n') == "False\n"
+        '打印(试())\n') == "假\n"
 
 
 def test_with_closes_on_break():
@@ -193,7 +193,7 @@ def test_with_closes_on_break():
         '遍历 i 在 [1, 2, 3]：\n'
         '    用 对象 为 句柄：\n'
         '        中断\n'
-        '打印(对象.关)\n') == "True\n"
+        '打印(对象.关)\n') == "真\n"
 
 
 def test_with_custom_enter_and_exit():
@@ -234,7 +234,7 @@ def test_with_exit_targets_original_object_not_entered_value():
         '令 包 = 新建 包装()\n'
         '用 包 为 数据：\n'
         '    打印(数据["内容"])\n'
-        '打印(包.退出过)\n') == "1\nTrue\n"
+        '打印(包.退出过)\n') == "1\n真\n"
 
 
 def test_with_only_close_method_uses_itself():
@@ -247,7 +247,7 @@ def test_with_only_close_method_uses_itself():
         '令 门1 = 新建 门()\n'
         '用 门1 为 g：\n'
         '    打印(g.关)\n'
-        '打印(门1.关)\n') == "False\nTrue\n"
+        '打印(门1.关)\n') == "假\n真\n"
 
 
 def test_with_nested(tmp_path):
@@ -294,7 +294,7 @@ def test_open_read_all_and_readline(tmp_path):
         f'用 打开("{f}") 为 文件：\n'
         '    打印(文件.读行())\n'
         '    打印(文件.读行())\n'
-        '    打印(文件.读行())\n') == "甲\n乙\n\n甲\n乙\nNone\n"
+        '    打印(文件.读行())\n') == "甲\n乙\n\n甲\n乙\n空\n"
 
 
 def test_open_read_all_lines(tmp_path):
@@ -348,14 +348,14 @@ def test_file_position_and_seek(tmp_path):
         '    打印(文件.读(1))\n') == "2\na\n"
 
 
-def test_print_of_none_and_bool_is_python_style_for_now():
-    """已知不一致（**不是 M26 引入的**）：`打印(空)` 显示 None、布尔显示
-    True/False，而 REPL 回显与 `类型()` 用的是中文「空/真/假」。
+def test_print_of_none_and_bool_is_chinese():
+    """`打印(空)` 显示「空」、布尔显示「真/假」，与 `类型()` 一致（M27）。
 
-    这里先如实锁住现状：统一成中文会改掉所有既有输出（golden 快照、
-    示例、教程里的对照结果），属于需要单独确认的变更，不在这批里顺手做。
+    这条曾经是「如实锁住不一致」：M26 时 `打印` 给的是 `None`/`True`/`False`，
+    而 REPL 回显与 `类型()` 给中文。M27 把值→文本收敛到 `jishi_repr` 一处，
+    不一致消除，这条测试改成正面断言。
     """
-    assert _all_agree('打印(空, 真, 假)\n') == "None True False\n"
+    assert _all_agree('打印(空, 真, 假)\n') == "空 真 假\n"
     assert _all_agree('打印(类型(空), 类型(真))\n') == "空 布尔\n"
 
 
@@ -411,7 +411,7 @@ def test_decimal_fixes_the_float_gap():
     """同一句比较，普通小数是假、精确小数是真——这就是它存在的理由。"""
     assert _all_agree(
         '打印(0.1 + 0.2 == 0.3)\n'
-        '打印(精确("0.1") + 精确("0.2") == 精确("0.3"))\n') == "False\nTrue\n"
+        '打印(精确("0.1") + 精确("0.2") == 精确("0.3"))\n') == "假\n真\n"
 
 
 def test_decimal_converts_float_without_binary_tail():
@@ -439,7 +439,7 @@ def test_decimal_compare_with_plain_number():
     assert _all_agree(
         '打印(精确("0.3") == 0.3)\n'
         '打印(精确("1") < 2)\n'
-        '打印(精确("2") >= 精确("2"))\n') == "True\nTrue\nTrue\n"
+        '打印(精确("2") >= 精确("2"))\n') == "真\n真\n真\n"
 
 
 def test_decimal_accumulation_is_exact():
@@ -494,7 +494,7 @@ def test_decimal_works_with_builtins():
 def test_decimal_membership():
     assert _all_agree(
         '打印(精确("1") 在 [精确("1"), 精确("2")])\n'
-        '打印(精确("3") 在 [精确("1")])\n') == "True\nFalse\n"
+        '打印(精确("3") 在 [精确("1")])\n') == "真\n假\n"
 
 
 def test_decimal_bad_text_is_chinese():

@@ -175,7 +175,7 @@ def run_sandboxed(source: str, opts: Optional[SandboxOpts] = None,
 def eval_sandboxed(expr: str, opts: Optional[SandboxOpts] = None,
                    filename: str = "<输入>") -> dict:
     """在沙箱里求值一个表达式，返回 protocol 结果（value 为表达式结果）。"""
-    from .interpreter import Interpreter
+    from .interpreter import Interpreter, _NO_VALUE
     from .parser import parse
     from .tokenizer import tokenize
 
@@ -194,8 +194,11 @@ def eval_sandboxed(expr: str, opts: Optional[SandboxOpts] = None,
                 value = None
                 for stmt in program.body:
                     value = interp.exec_stmt(stmt, interp.globals)
-                # 表达式语句的值在 _last_value；这里取最后一个表达式值
-                outcome["value"] = getattr(interp, "_last_value", value)
+                # 表达式语句的值在 _last_value；这里取最后一个表达式值。
+                # `_NO_VALUE` 表示「没出现过表达式语句」——不能拿 None 判断，
+                # 因为表达式的值本身可能就是「空」（M27）
+                lv = getattr(interp, "_last_value", _NO_VALUE)
+                outcome["value"] = value if lv is _NO_VALUE else lv
             outcome["stdout"] = buf.getvalue()
         except BaseException as e:
             outcome["error"] = e

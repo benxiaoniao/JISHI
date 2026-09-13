@@ -36,7 +36,7 @@ def test_tutorial_list():
     assert "共 3 样东西" in out
     assert "牛奶还在" in out
     assert "基石语言真好学" in out
-    assert "True" in out
+    assert "真" in out
 
 
 def test_tutorial_multiplication_table():

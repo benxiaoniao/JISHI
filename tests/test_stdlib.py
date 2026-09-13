@@ -77,13 +77,13 @@ def test_time_now_and_today():
 def test_time_moment_dict():
     out = run_capture("导入 时间\n令 d = 时间.此刻()\n打印(d[\"年\"] > 2020)\n"
                       '打印(长度(d))\n')
-    assert out.strip().splitlines() == ["True", "7"]
+    assert out.strip().splitlines() == ["真", "7"]
 
 
 def test_time_timestamp_and_sleep():
     out = run_capture("导入 时间\n打印(时间.时间戳() > 1700000000)\n"
                       "时间.睡眠(0.01)\n打印(\"醒了\")\n")
-    assert out.strip().splitlines() == ["True", "醒了"]
+    assert out.strip().splitlines() == ["真", "醒了"]
 
 
 def test_time_weekday():
@@ -99,7 +99,7 @@ def test_time_add_days():
 def test_time_high_precision():
     out = run_capture("导入 时间\n令 a = 时间.高精度时间()\n时间.睡眠(0.01)\n"
                       "令 b = 时间.高精度时间()\n打印(b > a)\n")
-    assert out.strip() == "True"
+    assert out.strip() == "真"
 
 
 # -- 文本 -------------------------------------------------------------------
@@ -118,7 +118,7 @@ def test_text_align_and_zfill():
 def test_text_predicates():
     out = run_capture('导入 文本\n打印(文本.是数字("123"))\n打印(文本.是数字("12a"))\n'
                       '打印(文本.是字母("基石"))\n打印(文本.是空白("  "))\n')
-    assert out.strip().splitlines() == ["True", "False", "True", "True"]
+    assert out.strip().splitlines() == ["真", "假", "真", "真"]
 
 
 def test_text_count_repeat_capitalize():
@@ -150,7 +150,7 @@ def test_file_write_read(tmp_path):
     out = run_capture(
         f'导入 文件\n文件.写文本("{_posix(p)}", "你好，基石")\n'
         f'打印(文件.读文本("{_posix(p)}"))\n打印(文件.文件存在("{_posix(p)}"))\n')
-    assert out.strip().splitlines() == ["你好，基石", "True"]
+    assert out.strip().splitlines() == ["你好，基石", "真"]
 
 
 def test_file_append_and_lines(tmp_path):
@@ -160,7 +160,7 @@ def test_file_append_and_lines(tmp_path):
         f'文件.追加文本("{_posix(p)}", "第三行\\n")\n'
         f'打印(文件.按行读("{_posix(p)}"))\n打印(文件.文件大小("{_posix(p)}") > 0)\n')
     assert out.strip().splitlines() == [
-        "['第一行', '第二行', '第三行']", "True"]
+        "['第一行', '第二行', '第三行']", "真"]
 
 
 def test_file_dir_operations(tmp_path):
@@ -169,7 +169,7 @@ def test_file_dir_operations(tmp_path):
         f'导入 文件\n文件.创建目录("{_posix(d)}")\n打印(文件.是目录("{_posix(d)}"))\n'
         f'文件.写文本("{_posix(d)}/a.txt", "x")\n打印(文件.列出目录("{_posix(d)}"))\n'
         f'文件.删除文件("{_posix(d)}/a.txt")\n打印(文件.文件存在("{_posix(d)}/a.txt"))\n')
-    assert out.strip().splitlines() == ["True", "['a.txt']", "False"]
+    assert out.strip().splitlines() == ["真", "['a.txt']", "假"]
 
 
 def test_file_path_helpers(tmp_path):
@@ -359,7 +359,7 @@ def test_date_compare():
         '打印(日期.早于("2026-01-01", "2026-06-01"))\n'
         '打印(日期.晚于("2026-06-01", "2026-01-01"))\n'
         '打印(日期.相等("2026-01-01", "2026-01-01"))\n')
-    assert out == "True\nTrue\nTrue\n"
+    assert out == "真\n真\n真\n"
 
 
 def test_date_weekday():
@@ -393,7 +393,7 @@ def test_regex_replace():
 
 def test_regex_match():
     out = run_capture('导入 正则\n打印(正则.匹配("^\\\\d+", "123abc"))\n')
-    assert out == "True\n"
+    assert out == "真\n"
 
 
 def test_regex_search():

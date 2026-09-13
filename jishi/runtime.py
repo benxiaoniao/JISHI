@@ -374,7 +374,10 @@ def _as_iterable(v, what: str, *, line=None, col=None, filename="<输入>"):
 # ---------------------------------------------------------------------------
 
 def _b_print(*args):
-    print(*args)
+    """输出到屏幕。走 `jishi_repr(top=True)`，所以 空/真/假 显示为中文，
+    与 REPL 回显、`文本()`、字符串插值用的是同一套规则（M27）。
+    """
+    print(*[jishi_repr(a, top=True) for a in args])
     return None
 
 
@@ -397,7 +400,10 @@ def _b_float(v):
 
 
 def _b_str(v):
-    return str(v)
+    """`文本(值)`：转成文本。与 `打印` 同一套规则（M27），所以
+    `文本(空)` 给「空」而不是 `None`；插值 `` `值：{空}` `` 也因此一致。
+    """
+    return jishi_repr(v, top=True)
 
 
 def _b_exact(v):
@@ -2242,18 +2248,41 @@ def method_table(obj) -> Optional[dict]:
 # 值的中文显示（REPL 回显用）
 # ---------------------------------------------------------------------------
 
-def jishi_repr(v) -> str:
+def jishi_repr(v, *, top: bool = False) -> str:
+    """把基石的值格式化成可读文本 —— **值→文本的唯一实现**（M27）。
+
+    以前这件事有两份几乎一样的代码（这里的 `jishi_repr` 与 REPL 里的
+    `_repr_jishi`），于是慢慢漂移：`打印(空)` 走 Python 的 `str()` 给出
+    `None`、布尔给出 `True`/`False`，而 REPL 回显与 `类型()` 用的是中文
+    「空/真/假」。同一个值有两种写法，用户得猜哪个算数。
+
+    现在只有一个函数、一个语义：
+
+    - ``top=True``：直接展示这个值（`打印(值)`、`文本(值)`、插值 `{值}`）。
+      文本**不加引号**，因为用户要的就是那串字。
+    - ``top=False``：嵌套在容器里或 REPL 回显。文本**加引号**，这样
+      `打印(["甲", 甲变量])` 能看出哪个是文本；与 Python 的 `print` /
+      `repr` 分工一致。
+    - 空 / 真 / 假 一律中文化，与源码里的写法一致。
+    - 字典用半角 `: ` 分隔：打印出来的形式要能**直接抄回源码**
+      （基石源码写 `{"甲": 1}`），对教学语言这点比好看更重要。
+    """
     if v is None:
         return "空"
-    if v is True:
+    if v is True:                       # 必须用 is：True == 1，先判布尔
         return "真"
     if v is False:
         return "假"
     if isinstance(v, str):
-        return repr(v)
+        return v if top else repr(v)
     if isinstance(v, list):
         return "[" + ", ".join(jishi_repr(x) for x in v) + "]"
+    if isinstance(v, tuple):
+        # 元组只可能来自 Python 桥接的返回值（基石源码没有元组字面量）
+        return "(" + ", ".join(jishi_repr(x) for x in v) + ")"
     if isinstance(v, dict):
         return "{" + ", ".join(
-            f"{jishi_repr(k)}：{jishi_repr(val)}" for k, val in v.items()) + "}"
+            f"{jishi_repr(k)}: {jishi_repr(x)}" for k, x in v.items()) + "}"
+    # 其余（自定义对象、文件、精确小数、函数、类、模块…）都有自己的
+    # __repr__/__str__：自定义对象在这里会走到用户定义的「文本」方法。
     return str(v)

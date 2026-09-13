@@ -151,7 +151,7 @@ _ISINSTANCE_SRC = (
 
 
 def test_isinstance_including_inheritance_chain():
-    assert _all_agree(_ISINSTANCE_SRC) == "True True False False\n"
+    assert _all_agree(_ISINSTANCE_SRC) == "真 真 假 假\n"
 
 
 def test_isinstance_three_level_inheritance():
@@ -161,13 +161,13 @@ def test_isinstance_three_level_inheritance():
         '类 丙 继承 乙：\n    函数 c(自身)：\n        返回 3\n'
         '令 x = 新建 丙()\n'
         '打印(是实例(x, 甲), 是实例(x, 乙), 是实例(x, 丙))\n')
-    assert out == "True True True\n"
+    assert out == "真 真 真\n"
 
 
 def test_isinstance_non_instance_is_false():
     assert _all_agree('类 甲：\n    函数 a(自身)：\n        返回 1\n'
                       '打印(是实例(1, 甲), 是实例("文本", 甲), 是实例(空, 甲))\n'
-                      ) == "False False False\n"
+                      ) == "假 假 假\n"
 
 
 def test_isinstance_rejects_non_class_with_type_hint():
@@ -192,30 +192,30 @@ def test_membership_in_list():
     assert _all_agree(
         '令 名单 = ["小明", "小红"]\n'
         '打印("小明" 在 名单, "小刚" 在 名单, "小刚" 不在 名单)\n'
-    ) == "True False True\n"
+    ) == "真 假 真\n"
 
 
 def test_membership_in_dict_uses_keys():
     assert _all_agree(
         '令 电话 = {"小明": "138"}\n'
         '打印("小明" 在 电话, "138" 在 电话, "小红" 不在 电话)\n'
-    ) == "True False True\n"
+    ) == "真 假 真\n"
 
 
 def test_membership_in_text_is_substring():
     assert _all_agree(
         '打印("明" 在 "小明", "小明" 在 "小明", "大" 不在 "小明")\n'
-    ) == "True True True\n"
+    ) == "真 真 真\n"
 
 
 def test_membership_in_range():
-    assert _all_agree("打印(1 在 范围(5), 9 在 范围(5))\n") == "True False\n"
+    assert _all_agree("打印(1 在 范围(5), 9 在 范围(5))\n") == "真 假\n"
 
 
 def test_membership_in_comprehension_result():
     assert _all_agree(
         '令 偶 = [x 遍历 x 在 范围(10) 如果 x % 2 == 0]\n'
-        '打印(4 在 偶, 5 不在 偶)\n') == "True True\n"
+        '打印(4 在 偶, 5 不在 偶)\n') == "真 真\n"
 
 
 def test_membership_bad_container_gives_chinese_error():
@@ -244,19 +244,19 @@ def test_membership_in_condition_and_loop():
 def test_identity_with_none():
     assert _all_agree(
         '令 x = 空\n打印(x 是 空, x 不是 空, 1 是 空, 0 不是 空)\n'
-    ) == "True False False True\n"
+    ) == "真 假 假 真\n"
 
 
 def test_identity_with_bool_literals():
     assert _all_agree("打印(真 是 真, 真 不是 假, 0 是 假)\n"
-                      ) == "True True False\n"
+                      ) == "真 真 假\n"
 
 
 def test_identity_compares_numbers_by_value():
     """数字/文本按值比较 —— 避免 Python 的 `is` 给出「时真时假」的随机感。"""
     assert _all_agree(
         '打印(1 是 1, 300 是 300, 1.5 是 1.5, "甲" 是 "甲")\n'
-    ) == "True True True True\n"
+    ) == "真 真 真 真\n"
 
 
 def test_identity_of_containers_is_by_object():
@@ -266,7 +266,7 @@ def test_identity_of_containers_is_by_object():
         '令 乙 = [1, 2]\n'
         '令 丙 = 甲\n'
         '打印(甲 是 乙, 甲 是 丙, 甲 不是 乙)\n'
-    ) == "False True True\n"
+    ) == "假 真 真\n"
 
 
 def test_identity_of_instances():
@@ -275,14 +275,14 @@ def test_identity_of_instances():
         '令 x = 新建 甲()\n'
         '令 y = 新建 甲()\n'
         '令 z = x\n'
-        '打印(x 是 y, x 是 z)\n') == "False True\n"
+        '打印(x 是 y, x 是 z)\n') == "假 真\n"
 
 
 def test_identity_functions_by_position():
     assert _all_agree(
         '函数 f()：\n    返回 1\n'
         '令 g = f\n'
-        '打印(f 是 g, f 不是 g)\n') == "True False\n"
+        '打印(f 是 g, f 不是 g)\n') == "真 假\n"
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +298,7 @@ def test_chain_with_keyword_comparators():
 
 def test_membership_has_comparison_precedence():
     """`1 + 1 在 [2]` 应解析成 `(1+1) 在 [2]`（算术比比较紧）。"""
-    assert _all_agree("打印(1 + 1 在 [2])\n") == "True\n"
+    assert _all_agree("打印(1 + 1 在 [2])\n") == "真\n"
 
 
 def test_not_precedence_is_python_like():
@@ -319,20 +319,20 @@ def test_not_precedence_is_python_like():
 
 
 def test_not_binds_looser_than_comparison():
-    assert _all_agree("打印(非 1 == 2, 非 1 == 1)\n") == "True False\n"
+    assert _all_agree("打印(非 1 == 2, 非 1 == 1)\n") == "真 假\n"
 
 
 def test_not_binds_tighter_than_and_or():
     assert _all_agree(
         '令 甲 = 真\n'
         '打印(非 甲 与 假, 非 假 与 真, 非 (假 与 真))\n'
-    ) == "False True True\n"
+    ) == "假 真 真\n"
 
 
 def test_not_works_with_membership():
     assert _all_agree(
         '令 名单 = [1, 2]\n'
-        '打印(非 9 在 名单, 非 1 在 名单)\n') == "True False\n"
+        '打印(非 9 在 名单, 非 1 在 名单)\n') == "真 假\n"
 
 
 def test_english_not_in_hint_suggests_bu_zai():
@@ -568,12 +568,12 @@ def test_keywords_do_not_break_common_identifiers():
         '令 不是我 = 假\n'
         '令 是实例化的 = 1\n'
         '打印(不在列表, 不是我, 是实例化的)\n')
-    assert out == "True False 1\n"
+    assert out == "真 假 1\n"
 
 
 def test_existing_builtin_name_still_works():
     """`是实例` 是内建名，不能被分词器切坏。"""
-    assert _all_agree(_ISINSTANCE_SRC) == "True True False False\n"
+    assert _all_agree(_ISINSTANCE_SRC) == "真 真 假 假\n"
 
 
 def test_roundtrip_features_together():
@@ -599,4 +599,4 @@ def test_roundtrip_features_together():
         '打印(是实例(s, 库存), 是实例(s, 特价库存))\n'
         '打印(库存.上限, 特价库存.上限)\n'
         '打印(5 在 范围(10), 11 不在 范围(10))\n')
-    assert _all_agree(src) == "15\nTrue True\n100 50\nTrue True\n"
+    assert _all_agree(src) == "15\n真 真\n100 50\n真 真\n"

@@ -45,12 +45,12 @@ def test_python_object_chain():
         "导入 datetime 从 python\n"
         "令 现在 = datetime.datetime.now()\n"
         "打印(现在.year > 2000)\n")
-    assert out.strip() == "True"
+    assert out.strip() == "真"
 
 
 def test_python_module_variable():
     out = run_capture("导入 math 从 python\n打印(math.pi > 3.14)\n")
-    assert out.strip() == "True"
+    assert out.strip() == "真"
 
 
 def test_string_module():

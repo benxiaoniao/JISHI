@@ -31,11 +31,23 @@ def test_repl_bool_chinese():
     assert "False" not in out
 
 
-def test_repl_none_no_echo():
+def test_repl_none_echoes_chinese():
+    """「空」也是合法的表达式值，与「真」一样要回显中文。
+
+    以前这里断言「不回显」——根因是 `_last_value` 用 `None` 同时表示
+    「没有表达式语句」和「表达式的值是空」，两种含义撞在一个值上。
+    M27 换成哨兵后，输入 `空` 回显 `空`，与 `真` 回显 `真` 一致。
+    """
     out = run_repl("空\n1 + 2\n退出\n")
-    # 空 求值为 None，不应产生任何回显（输出里不该出现「空」字）
-    assert "空" not in out
+    assert "空" in out
+    assert "None" not in out
     assert "3" in out
+
+
+def test_repl_statement_without_value_no_echo():
+    """没有表达式语句的输入（如 `令 甲 = 42`）不该回显值。"""
+    out = run_repl("令 甲 = 42\n退出\n")
+    assert "\n42\n" not in out
 
 
 def test_repl_multiline_block():

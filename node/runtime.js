@@ -48,6 +48,7 @@ function zeroDiv(line, col) { return new JishiError('除零错误', '不能除�
 function keyErr(msg, line, col) { return new JishiError('键错误', '找不到这个键', msg, line, col); }
 function indexErr(msg, line, col) { return new JishiError('索引错误', '索引越界', msg, line, col); }
 function runErr(msg, line, col) { return new JishiError('运行期错误', '运行期错误', msg, line, col); }
+function fileErr(msg, line, col) { return new JishiError('文件错误', '文件错误', msg, line, col); }
 
 // 循环信号集合
 function isLoopSignal(e) { return e instanceof RunBreak || e instanceof RunContinue; }
@@ -65,6 +66,8 @@ function typeName(v) {
   if (typeof v === 'string') return '文本';
   if (Array.isArray(v)) return '列表';
   if (v instanceof Map) return '字典';
+  if (isDecimal(v)) return '精确小数';
+  if (isFile(v)) return '文件';
   if (v instanceof Module) return '模块';
   if (v instanceof Builtin) return '内建函数';
   if (v instanceof ExcType) return '异常类型';
@@ -77,6 +80,7 @@ function typeName(v) {
 
 function truthy(v) {
   if (v === null || v === undefined) return false;
+  if (isDecimal(v)) return v.coef !== 0n;    // 精确小数的「零」是假（M26）
   return Boolean(v);
 }
 
@@ -94,6 +98,296 @@ class FloatBox {
 function isFloatBox(v) { return v instanceof FloatBox; }
 function unwrap(v) { return v instanceof FloatBox ? v.value : v; }
 
+// ---------------------------------------------------------------------------
+// 精确小数（M26，JS 侧实现）
+// ---------------------------------------------------------------------------
+// 有它是因为二进制浮点表示不了 0.1：`0.1 + 0.2 == 0.3` 是假，金额场景最烦人。
+//
+// 内部用「系数(BigInt) × 10^exp」，加减乘都算得准；除法算到 28 位有效数字
+// （与 Python 的 decimal 默认上下文一致），舍入用「四舍六入五成双」
+// （ROUND_HALF_EVEN，也是 Python Decimal 的默认）——这样两边逐字节对得上。
+const DEC_PRECISION = 28;
+
+class JishiDecimal {
+  constructor(coef, exp) {
+    this.coef = coef;      // BigInt
+    this.exp = exp;        // number：值 = coef × 10^exp
+    // 刻意**不**去掉尾随零：Python 的 Decimal 保留标度，
+    // `精确("1.50")` 显示就是 1.50、`精确("1.50") * 2` 是 3.00。
+    // 归一化会让两边对不上，所以标度如实保留。
+  }
+
+  static fromString(s) {
+    s = String(s).trim();
+    const m = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(s);
+    if (!m || (m[2] === '' && (m[3] === undefined || m[3] === ''))) {
+      throw valueErr(`不能把「${s}」当作精确小数`);
+    }
+    const sign = m[1] === '-' ? -1n : 1n;
+    const intPart = m[2] || '0';
+    const fracPart = m[3] || '';
+    const e = m[4] ? parseInt(m[4], 10) : 0;
+    const digits = (intPart + fracPart) || '0';
+    const coef = sign * BigInt(digits);
+    return new JishiDecimal(coef, e - fracPart.length);
+  }
+
+  static fromNumber(n) {
+    if (!Number.isFinite(n)) throw typeErr(`「${n}」不能变成精确小数（不是有限数）`);
+    // 先转字符串再解析：Number(0.1) 的二进制真值不是 0.1，
+    // 但 String(0.1) 是 "0.1"——这一步是「精确」能不能名副其实的关键
+    return JishiDecimal.fromString(String(n));
+  }
+
+  /** 有效数字个数（用于按 28 位精度舍入）。 */
+  _digits() {
+    const s = (this.coef < 0n ? -this.coef : this.coef).toString();
+    return s.length;
+  }
+
+  /**
+   * 把系数放大到 targetExp（target 必须 ≤ 本值 exp）。
+   * 值 = coef × 10^exp，把 exp 从 0 降到 -2 需要 coef × 10^(0-(-2)) = ×100，
+   * 所以是「exp 逐次减一、系数逐次乘十」——方向弄反的话
+   * `精确("19.99") - 精确("20")` 会算成 20.19 而不是 -0.01。
+   */
+  _alignTo(targetExp) {
+    let c = this.coef;
+    let e = this.exp;
+    while (e > targetExp) { c *= 10n; e -= 1; }
+    return { c, e };
+  }
+
+  add(o) {
+    const e = Math.min(this.exp, o.exp);
+    const a = this._alignTo(e), b = o._alignTo(e);
+    return new JishiDecimal(a.c + b.c, e);
+  }
+
+  sub(o) {
+    const e = Math.min(this.exp, o.exp);
+    const a = this._alignTo(e), b = o._alignTo(e);
+    return new JishiDecimal(a.c - b.c, e);
+  }
+
+  mul(o) {
+    return new JishiDecimal(this.coef * o.coef, this.exp + o.exp);
+  }
+
+  /** 除法：算到 28 位有效数字，ROUND_HALF_EVEN（与 Python Decimal 一致）。 */
+  div(o) {
+    if (o.coef === 0n) throw new JishiError('除零错误', '不能除以零', '不能除以零');
+    // 目标：商的有效数字达到 28 位。被除数放大后做整数除法，再按余数决定进位。
+    const extra = DEC_PRECISION + 2;
+    const shift = BigInt(10) ** BigInt(extra);
+    // a / b = (a.coef × 10^shift) / b.coef × 10^(a.exp - b.exp - shift)
+    const num = this.coef * shift;
+    let q = num / o.coef;
+    const rem = num % o.coef;
+    // ROUND_HALF_EVEN：余数刚好一半时，让商变成偶数
+    const twice = (rem < 0n ? -rem : rem) * 2n;
+    const absDen = o.coef < 0n ? -o.coef : o.coef;
+    if (twice > absDen || (twice === absDen && (q % 2n !== 0n))) {
+      q += (this.coef < 0n) === (o.coef < 0n) ? 1n : -1n;
+    }
+    let res = new JishiDecimal(q, this.exp - o.exp - extra);
+    // 若商的有效数字超过 28 位，按 10 的幂截断（同样 half-even）
+    res = res._roundToSignificant(DEC_PRECISION);
+    // 除法结果去掉尾随零：Python 的 `Decimal("10")/Decimal("4")` 是 `2.5`
+    // 而不是 `2.500000000000000000000000000`（加减乘则保留标度）
+    return res._stripZeros();
+  }
+
+  /** 去掉尾随零（只在小数位上做，不改变值的形态如 25 → 25.0）。 */
+  _stripZeros() {
+    if (this.coef === 0n) return new JishiDecimal(0n, 0);
+    let c = this.coef, e = this.exp;
+    while (e < 0 && c % 10n === 0n) { c /= 10n; e += 1; }
+    return new JishiDecimal(c, e);
+  }
+
+  /** 舍入到 n 位有效数字（half-even）。 */
+  _roundToSignificant(n) {
+    const d = this._digits();
+    if (d <= n) return new JishiDecimal(this.coef, this.exp);
+    return this.quantize10(this.exp + (d - n), 'half-even');
+  }
+
+  /**
+   * 舍到某个 10 的幂位：targetExp=0 → 个位，-2 → 百分位，2 → 百位。
+   * mode: 'half-even'（Python 默认）或 'half-up'（金额场景的「四舍五入」）
+   */
+  quantize10(targetExp, mode) {
+    if (this.exp >= targetExp) return new JishiDecimal(this.coef, this.exp);
+    const drop = targetExp - this.exp;
+    const p = BigInt(10) ** BigInt(drop);
+    const abs = this.coef < 0n ? -this.coef : this.coef;
+    let q = abs / p;
+    const rem = abs % p;
+    if (mode === 'half-up') {
+      if (rem * 2n >= p) q += 1n;
+    } else {                                   // half-even
+      const twice = rem * 2n;
+      if (twice > p || (twice === p && q % 2n !== 0n)) q += 1n;
+    }
+    const signed = this.coef < 0n ? -q : q;
+    return new JishiDecimal(signed, targetExp);
+  }
+
+  neg() { return new JishiDecimal(-this.coef, this.exp); }
+  abs() { return new JishiDecimal(this.coef < 0n ? -this.coef : this.coef, this.exp); }
+
+  /** 普通（非科学计数法）写法。 */
+  toString() {
+    let c = this.coef < 0n ? -this.coef : this.coef;
+    const sign = this.coef < 0n ? '-' : '';
+    let digits = c.toString();
+    if (this.exp >= 0) {
+      return sign + digits + '0'.repeat(this.exp);
+    }
+    const point = digits.length + this.exp;
+    if (point > 0) {
+      return sign + digits.slice(0, point) + '.' + digits.slice(point);
+    }
+    return sign + '0.' + '0'.repeat(-point) + digits;
+  }
+
+  valueOf() { return Number(this.toString()); }
+}
+
+function isDecimal(v) { return v instanceof JishiDecimal; }
+
+/** 把值转成 JishiDecimal；不是数字/数字文本就抛中文错（对齐 _to_decimal）。 */
+function toDecimal(v, line, col) {
+  if (isDecimal(v)) return v;
+  if (typeof v === 'boolean') {
+    throw typeErr(`布尔值「${v ? '真' : '假'}」不能当精确小数`, line, col);
+  }
+  if (typeof v === 'number') return JishiDecimal.fromNumber(v);
+  if (isFloatBox(v)) return JishiDecimal.fromNumber(v.value);
+  if (typeof v === 'string') {
+    try { return JishiDecimal.fromString(v); }
+    catch (e) { throw typeErr(`不能把「${v}」当作精确小数`, line, col); }
+  }
+  throw typeErr(`不能把「${typeName(v)}」转成精确小数`, line, col);
+}
+
+/** 比较两个精确小数：-1 / 0 / 1（对齐指数后比系数）。 */
+function compareDecimals(a, b) {
+  const e = Math.min(a.exp, b.exp);
+  const x = a._alignTo(e).c, y = b._alignTo(e).c;
+  return x < y ? -1 : (x > y ? 1 : 0);
+}
+
+// ---------------------------------------------------------------------------
+// 文件对象（M26，JS 侧实现）
+// ---------------------------------------------------------------------------
+// 真句柄（不是整读进内存），所以大文件能按行遍历，「用完要关」也才有意义。
+const fs = require('fs');
+
+const FILE_MODES = { '读': 'r', '写': 'w', '追加': 'a', '读写': 'r+' };
+const FILE_MODES_EN = ['r', 'w', 'a', 'r+', 'w+', 'a+'];
+
+class JishiFile {
+  constructor(fd, path, mode) {
+    this.fd = fd;           // 打开的 fd；关闭后置 -1
+    this.path = path;
+    this.mode = mode;
+    this.closed = false;
+    this._buf = '';         // 按行读的缓冲
+    this._eof = false;
+  }
+
+  toString() {
+    return `<文件 ${this.path}（${this.closed ? '已关闭' : this.mode}）>`;
+  }
+
+  _check(what) {
+    if (this.closed) {
+      throw valueErr(`文件「${this.path}」已经关闭了，不能再「${what}」`);
+    }
+  }
+
+  /** 读全部剩余内容（或前 n 个字符） */
+  readAll(n) {
+    this._check('读');
+    if (this._eof && this._buf === '') return '';
+    let data;
+    if (this._buf !== '' || this._eof) {
+      data = this._buf;
+      this._buf = '';
+    } else {
+      const size = n === undefined || n === -1 ? 65536 : n;
+      data = fs.readFileSync(this.fd, { encoding: 'utf-8' });
+      this._eof = true;
+    }
+    if (n === undefined || n === -1) return data;
+    return data.slice(0, n);
+  }
+
+  readLine() {
+    this._check('读行');
+    if (this._buf === '' && !this._eof) {
+      this._buf = fs.readFileSync(this.fd, { encoding: 'utf-8' });
+      this._eof = true;
+    }
+    const idx = this._buf.indexOf('\n');
+    if (idx < 0) {
+      if (this._buf === '') return null;
+      const rest = this._buf;
+      this._buf = '';
+      return rest.replace(/\r$/, '');
+    }
+    const line = this._buf.slice(0, idx);
+    this._buf = this._buf.slice(idx + 1);
+    return line.replace(/\r$/, '');
+  }
+
+  readAllLines() {
+    const out = [];
+    for (;;) {
+      const ln = this.readLine();
+      if (ln === null) break;
+      out.push(ln);
+    }
+    return out;
+  }
+
+  write(text) {
+    this._check('写');
+    if (typeof text !== 'string') {
+      throw typeErr(`「写」需要文本，得到了「${typeName(text)}」`);
+    }
+    fs.writeSync(this.fd, text);
+  }
+
+  writeLine(text) {
+    this._check('写行');
+    if (typeof text !== 'string') {
+      throw typeErr(`「写行」需要文本，得到了「${typeName(text)}」`);
+    }
+    fs.writeSync(this.fd, text + '\n');
+  }
+
+  close() {
+    if (!this.closed) { fs.closeSync(this.fd); this.closed = true; }
+  }
+
+  /** 按行迭代（`遍历 行 在 f`） */
+  [Symbol.iterator]() {
+    const self = this;
+    return {
+      next() {
+        if (self.closed) throw valueErr(`文件「${self.path}」已经关闭了，不能再遍历`);
+        const line = self.readLine();
+        return line === null ? { done: true } : { value: line, done: false };
+      },
+    };
+  }
+}
+
+function isFile(v) { return v instanceof JishiFile; }
+
 function display(v) {
   if (v === null || v === undefined) return '空';
   if (v === true) return '真';
@@ -106,13 +400,14 @@ function display(v) {
   return String(v);
 }
 
-// 打印用的 str()：字符串不带引号，列表/字典用 Python repr 风格（单引号）
+// 打印用的 str()：字符串不带引号，列表/字典用 repr 风格（字符串带引号）。
+// 空/真/假 用中文——与 Python 侧 jishi_repr(top=True) 逐字对齐（M27）。
 function pyStr(v) {
-  if (v === null || v === undefined) return 'None';
-  if (v === true) return 'True';
-  if (v === false) return 'False';
+  if (v === null || v === undefined) return '空';
+  if (v === true) return '真';
+  if (v === false) return '假';
   if (typeof v === 'string') return v;
-  // 列表/字典内部元素用 repr（字符串带单引号，与 Python 一致）
+  // 列表/字典内部元素用 repr（字符串带引号，与 Python 一致）
   if (Array.isArray(v)) return '[' + v.map(pyRepr).join(', ') + ']';
   if (v instanceof Map) return dictPyRepr(v);
   if (isFloatBox(v)) {
@@ -127,9 +422,9 @@ function pyRepr(v) {
     // Python repr：单引号 + 转义
     return "'" + v.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n') + "'";
   }
-  if (v === true) return 'True';
-  if (v === false) return 'False';
-  if (v === null || v === undefined) return 'None';
+  if (v === true) return '真';
+  if (v === false) return '假';
+  if (v === null || v === undefined) return '空';
   if (Array.isArray(v)) return '[' + v.map(pyRepr).join(', ') + ']';
   if (v instanceof Map) return dictPyRepr(v);
   if (isFloatBox(v)) {
@@ -141,7 +436,7 @@ function pyRepr(v) {
 
 function dictRepr(m) {
   const parts = [];
-  for (const [k, val] of m) parts.push(display(k) + '：' + display(val));
+  for (const [k, val] of m) parts.push(display(k) + ': ' + display(val));
   return '{' + parts.join(', ') + '}';
 }
 
@@ -208,6 +503,29 @@ function newBuiltins() {
       return new FloatBox(n);
     }),
     '文本': new Builtin('文本', (v) => pyStr(v)),
+    '精确': new Builtin('精确', (v) => toDecimal(v)),
+    '打开': new Builtin('打开', (path, mode = '读') => {
+      if (typeof path !== 'string') {
+        throw typeErr(`「打开」的第一个参数要是文件路径，得到了「${typeName(path)}」`);
+      }
+      if (typeof mode !== 'string') {
+        throw typeErr(`「打开」的第二个参数（模式）要是文本，得到了「${typeName(mode)}」`);
+      }
+      let pyMode = FILE_MODES[mode];
+      if (pyMode === undefined && FILE_MODES_EN.includes(mode)) pyMode = mode;
+      if (pyMode === undefined) {
+        throw typeErr(`不认识的打开模式「${mode}」`);
+      }
+      let fd;
+      try {
+        fd = fs.openSync(path, pyMode);
+      } catch (e) {
+        throw fileErr(`找不到文件或目录：${path}`);
+      }
+      return new JishiFile(fd, path, mode);
+    }),
+    '进入上下文': new Builtin('进入上下文', (obj) => enterContext(obj)),
+    '退出上下文': new Builtin('退出上下文', (obj) => exitContext(obj)),
     '长度': new Builtin('长度', (v) => {
       if (typeof v === 'string' || Array.isArray(v)) return v.length;
       if (v instanceof Map) return v.size;
@@ -221,14 +539,36 @@ function newBuiltins() {
     }),
     '最大': new Builtin('最大', (v) => {
       if (!Array.isArray(v) || v.length === 0) throw typeErr(`「${display(v)}」不能求最大值`);
+      if (v.some(isDecimal)) {
+        let best = toDecimal(v[0]);
+        for (const x of v.slice(1)) {
+          const d = toDecimal(x);
+          if (compareDecimals(d, best) > 0) best = d;
+        }
+        return best;
+      }
       return Math.max(...v);
     }),
     '最小': new Builtin('最小', (v) => {
       if (!Array.isArray(v) || v.length === 0) throw typeErr(`「${display(v)}」不能求最小值`);
+      if (v.some(isDecimal)) {
+        let best = toDecimal(v[0]);
+        for (const x of v.slice(1)) {
+          const d = toDecimal(x);
+          if (compareDecimals(d, best) < 0) best = d;
+        }
+        return best;
+      }
       return Math.min(...v);
     }),
     '总和': new Builtin('总和', (v) => {
       if (!Array.isArray(v)) throw typeErr(`「${display(v)}」不能求和`);
+      // 精确小数要走十进制起点（与 Python 侧一致：sum 从整数 0 起算会出错）
+      if (v.some(isDecimal)) {
+        let acc = new JishiDecimal(0n, 0);
+        for (const x of v) acc = acc.add(toDecimal(x));
+        return acc;
+      }
       const s = v.reduce((a, b) => a + unwrap(b), 0);
       // 含小数则返回 FloatBox
       return v.some(isFloatBox) ? new FloatBox(s) : s;
@@ -275,6 +615,30 @@ class JishiClass {
 
 class JishiInstance {
   constructor(cls) { this.cls = cls; this.fields = new Map(); }
+
+  /**
+   * 自定义对象打印（M26）：类里定义了 `文本(自身)` 就用它的返回值。
+   *
+   * 放在 `toString()` 里，`String(实例)`、`pyStr`、`display`、容器嵌套
+   * 就全都自动走同一条路——与 Python 侧把逻辑放进 `__repr__` 是同一个手法。
+   * 没定义时回落到 `<类名 实例>`。
+   */
+  toString() {
+    const fn = this.cls.methods.get('文本');
+    if (!fn) return `<${this.cls.name} 实例>`;
+    let result;
+    try {
+      result = fn.vm.callFunction(fn, [this], null, undefined, undefined);
+    } catch (e) {
+      if (e instanceof JishiError) throw e;
+      return `<${this.cls.name} 实例>`;
+    }
+    if (typeof result !== 'string') {
+      throw typeErr(`类「${this.cls.name}」的「文本」方法返回了`
+        + `「${typeName(result)}」，要返回文本`);
+    }
+    return result;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -299,6 +663,35 @@ class Cell {
 // 运算
 // ---------------------------------------------------------------------------
 function applyBinop(op, l, r, line, col) {
+  // 精确小数优先：任一边是它就整个走十进制（与 Python 侧一致）
+  if (isDecimal(l) || isDecimal(r)) {
+    const a = toDecimal(l, line, col), b = toDecimal(r, line, col);
+    switch (op) {
+      case '+': return a.add(b);
+      case '-': return a.sub(b);
+      case '*': return a.mul(b);
+      case '/': return a.div(b);
+      case '//': {
+        const q = a.div(b);
+        return q.quantize10(q.exp, 'half-even');   // 向下取整到整数位
+      }
+      case '%': {
+        const q = a.div(b);
+        const intPart = q.quantize10(q.exp, 'half-even');
+        return a.sub(b.mul(new JishiDecimal(BigInt(Math.trunc(Number(intPart.toString()))), 0)));
+      }
+      case '**': {
+        const n = Number(b.toString());
+        if (!Number.isInteger(n) || n < 0) {
+          throw typeErr(`精确小数的幂要是非负整数，得到了「${b.toString()}」`, line, col);
+        }
+        let acc = new JishiDecimal(1n, 0);
+        for (let i = 0; i < n; i++) acc = acc.mul(a);
+        return acc;
+      }
+      default: throw runErr(`不支持的运算符「${op}」`, line, col);
+    }
+  }
   // 先把 FloatBox 拆开，算出结果后再按 Python 语义决定是否包回 FloatBox
   const fl = isFloatBox(l), fr = isFloatBox(r);
   const lv = unwrap(l), rv = unwrap(r);
@@ -325,12 +718,29 @@ function applyBinop(op, l, r, line, col) {
 }
 
 function applyUnary(op, v, line, col) {
-  if (op === '-') return -v;
+  if (op === '-') {
+    if (isDecimal(v)) return v.neg();
+    return -v;
+  }
   if (op === '非') return !truthy(v);
   throw runErr(`不支持的一元运算符「${op}」`, line, col);
 }
 
 function applyCompare(op, l, r, line, col) {
+  // 精确小数：算术比较走十进制（混合 0.3 也能相等）；成员测试/同一性
+  // （在·不在·是·不是）在更上层处理，不走这里——与 Python 侧一致
+  if ((isDecimal(l) || isDecimal(r)) && ['==', '!=', '<', '>', '<=', '>='].includes(op)) {
+    const a = toDecimal(l, line, col), b = toDecimal(r, line, col);
+    const cmp = compareDecimals(a, b);
+    switch (op) {
+      case '==': return cmp === 0;
+      case '!=': return cmp !== 0;
+      case '<': return cmp < 0;
+      case '>': return cmp > 0;
+      case '<=': return cmp <= 0;
+      case '>=': return cmp >= 0;
+    }
+  }
   const lv = unwrap(l), rv = unwrap(r);
   switch (op) {
     case '==': return lv === rv;
@@ -350,6 +760,8 @@ function methodTable(obj) {
   if (Array.isArray(obj)) return LIST_METHODS;
   if (obj instanceof Map) return DICT_METHODS;
   if (typeof obj === 'string') return STR_METHODS;
+  if (isFile(obj)) return FILE_METHODS;
+  if (isDecimal(obj)) return DECIMAL_METHODS;
   return null;
 }
 
@@ -431,6 +843,41 @@ class BoundUserMethod {
 // ---------------------------------------------------------------------------
 // 调用
 // ---------------------------------------------------------------------------
+// 上下文管理器协议（M26）：`用 X 为 f：` 脱糖成
+//   __用_N__ = X；f = 进入上下文(__用_N__)；尝试…最终 退出上下文(__用_N__)
+// 所以这里只需要「找方法并调用」——与 Python 侧 _b_enter_context 同一套规则。
+function ctxMethod(obj, name, line, col) {
+  if (obj instanceof JishiInstance) {
+    const fn = obj.cls.methods.get(name);
+    if (fn) return () => fn.vm.callFunction(fn, [obj], null, line, col);
+    return null;
+  }
+  const table = methodTable(obj);
+  if (table && name in table) return () => table[name](obj, [], line, col);
+  return null;
+}
+
+function enterContext(obj, line, col) {
+  const enter = ctxMethod(obj, '进入', line, col);
+  if (enter) return enter();
+  if (ctxMethod(obj, '退出', line, col) || ctxMethod(obj, '关闭', line, col)) {
+    return obj;          // 文件/锁这类「进入即自身」的写法不必硬写「进入」
+  }
+  const name = typeName(obj);
+  const extra = (Array.isArray(obj) || obj instanceof Map)
+    ? `「${name}」用完不需要收拾，所以不能这样写；只是想在块里用一下的话，直接写普通语句就行`
+    : '上下文管理器要有「退出」或「关闭」方法（离开时自动调用），也可以再定义「进入」来决定绑定什么值。最常见的用法：用 打开("数据.txt") 为 f：';
+  throw typeErr(`「${name}」不能当上下文管理器用（${extra}）`, line, col);
+}
+
+function exitContext(obj, line, col) {
+  for (const name of ['退出', '关闭']) {
+    const fn = ctxMethod(obj, name, line, col);
+    if (fn) { fn(); return null; }
+  }
+  return null;
+}
+
 function makeInstance(cls, args, line, col) {
   const inst = new JishiInstance(cls);
   const init = cls.methods.get('初始化');
@@ -580,6 +1027,60 @@ const STR_METHODS = {
   },
 };
 
+// -- 文件方法（M26）--------------------------------------------------------
+// 方法签名统一为 (obj, args, line, col)，与上面的列表/字典/文本一致。
+const FILE_METHODS = {
+  '读': (obj, args, line, col) => {
+    needArgs('读', args, 0, 1, line, col);
+    const n = args.length ? (isFloatBox(args[0]) ? args[0].value : args[0]) : -1;
+    return obj.readAll(n);
+  },
+  '读行': (obj, args, line, col) => {
+    needArgs('读行', args, 0, 0, line, col);
+    return obj.readLine();
+  },
+  '读所有行': (obj, args, line, col) => {
+    needArgs('读所有行', args, 0, 0, line, col);
+    return obj.readAllLines();
+  },
+  '写': (obj, args, line, col) => {
+    needArgs('写', args, 1, 1, line, col);
+    obj.write(args[0]);
+    return null;
+  },
+  '写行': (obj, args, line, col) => {
+    needArgs('写行', args, 1, 1, line, col);
+    obj.writeLine(args[0]);
+    return null;
+  },
+  '关闭': (obj, args, line, col) => {
+    needArgs('关闭', args, 0, 0, line, col);
+    obj.close();              // 重复关闭不报错，与 Python 侧一致
+    return null;
+  },
+};
+
+// -- 精确小数方法（M26）----------------------------------------------------
+const DECIMAL_METHODS = {
+  '舍入': (obj, args, line, col) => {
+    needArgs('舍入', args, 0, 1, line, col);
+    const digits = args.length ? args[0] : 2;
+    if (typeof digits !== 'number' || !Number.isInteger(digits)) {
+      throw typeErr(`「舍入」的位数要是整数，得到了「${typeName(digits)}」`, line, col);
+    }
+    // 金额场景按「四舍五入」（half-up），不是 Python 默认的银行家舍入
+    return obj.quantize10(-digits, 'half-up');
+  },
+  '绝对值': (obj, args, line, col) => {
+    needArgs('绝对值', args, 0, 0, line, col);
+    return obj.abs();
+  },
+  '转文本': (obj, args, line, col) => {
+    needArgs('转文本', args, 0, 0, line, col);
+    return obj.toString();
+  },
+};
+
 // ---------------------------------------------------------------------------
 // 异常匹配（`捕获 值错误`）
 // ---------------------------------------------------------------------------
@@ -625,6 +1126,8 @@ module.exports = {
   JishiError, RunBreak, RunContinue,
   typeName, truthy, display, pyStr, pyRepr,
   FloatBox, isFloatBox, unwrap,
+  JishiDecimal, isDecimal, toDecimal, compareDecimals,
+  JishiFile, isFile, enterContext, exitContext,
   Builtin, ExcType, EXCEPTION_TYPES, newBuiltins,
   Module, JishiClass, JishiInstance, VmFunction, Cell,
   applyBinop, applyUnary, applyCompare,
@@ -632,5 +1135,5 @@ module.exports = {
   BoundMethod, BoundUserMethod, makeInstance,
   unpackValues, buildDict, lookupName,
   isLoopSignal, exceptionMatches, makeException,
-  nameErr, typeErr, valueErr, runErr,
+  nameErr, typeErr, valueErr, runErr, fileErr,
 };

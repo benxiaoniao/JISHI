@@ -85,12 +85,12 @@ def test_set_ctor_from_text():
 def test_set_membership_and_len():
     assert _all_agree(
         '令 s = {1, 2, 3}\n打印(2 在 s, 9 在 s, 9 不在 s, 长度(s))\n'
-    ) == "True False True 3\n"
+    ) == "真 假 真 3\n"
 
 
 def test_set_equality_ignores_order():
     assert _all_agree('打印({1, 2} == {2, 1}, {1, 2} == {1, 3})\n'
-                      ) == "True False\n"
+                      ) == "真 假\n"
 
 
 def test_set_add_remove_clear():

@@ -146,7 +146,7 @@ def test_stdlib_path_exists(tmp_path):
                f'打印(路径.是文件("{fp}"))\n'
                f'打印(路径.父目录("{fp}"))\n')
     # 标准库薄封装返回 Python bool，显示为 True/False（与 日期.早于 一致）
-    assert "True" in out
+    assert "真" in out
 
 
 def test_stdlib_crypto():

@@ -534,6 +534,9 @@ function makeIterator(obj, line, col) {
     const chars = [...obj];
     let i = 0;
     it = { next: () => i < chars.length ? { value: chars[i++], done: false } : { done: true } };
+  } else if (R.isFile(obj)) {
+    // 文件对象按行迭代（M26）：真句柄，大文件不必整个读进内存
+    it = obj[Symbol.iterator]();
   } else {
     throw R.typeErr(`「${R.display(obj)}」不能遍历，遍历需要列表、文本等`, line, col);
   }

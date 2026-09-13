@@ -59,7 +59,7 @@ def test_list_index_count_contains():
     out = run_capture(
         "令 a = [5, 5, 6]\n打印(a.索引(6))\n打印(a.计数(5))\n打印(a.包含(5))\n"
         "打印(a.包含(9))\n")
-    assert out.strip().splitlines() == ["2", "2", "True", "False"]
+    assert out.strip().splitlines() == ["2", "2", "真", "假"]
 
 
 def test_list_clear():
@@ -72,7 +72,7 @@ def test_list_clear():
 def test_dict_get():
     out = run_capture('令 d = {"a"：1}\n打印(d.获取("a"))\n打印(d.获取("b", 0))\n'
                       '打印(d.获取("b"))\n')
-    assert out.strip().splitlines() == ["1", "0", "None"]
+    assert out.strip().splitlines() == ["1", "0", "空"]
 
 
 def test_dict_keys_values():
@@ -85,7 +85,7 @@ def test_dict_contains_update_pop():
         '令 d = {"a"：1}\n打印(d.包含("a"))\n'
         'd.更新({"b"：2})\n打印(d)\n'
         '令 x = d.弹出("a")\n打印(x)\n打印(d)\n')
-    assert out.strip().splitlines() == ["True", "{'a': 1, 'b': 2}", "1",
+    assert out.strip().splitlines() == ["真", "{'a': 1, 'b': 2}", "1",
                                         "{'b': 2}"]
 
 
@@ -117,7 +117,7 @@ def test_str_startswith_endswith_contains():
     out = run_capture('令 s = "基石语言"\n打印(s.开头是("基石"))\n'
                       '打印(s.结尾是("语言"))\n打印(s.包含("石"))\n'
                       '打印(s.包含("xx"))\n')
-    assert out.strip().splitlines() == ["True", "True", "True", "False"]
+    assert out.strip().splitlines() == ["真", "真", "真", "假"]
 
 
 def test_str_to_int_float():

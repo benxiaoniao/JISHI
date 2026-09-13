@@ -697,7 +697,9 @@ fn display(v: &Val) -> String {
         }
         Val::Func(f) => format!("<函数 {}>", f.name),
         Val::Class(c) => format!("<类 {}>", c.name),
-        Val::Instance(_) => "<实例>".to_string(),
+        // 与 Python/JS 侧一致的落回写法（自定义的「文本」方法需要 VM 才能调用，
+        // 而 display 拿不到；见下面 docs/embed.md 的支持程度表）
+        Val::Instance(i) => format!("<{} 实例>", i.class.name),
         Val::Module(n, _) => format!("<模块 {n}>"),
         Val::Builtin(n, _) => format!("<内建函数 {n}>"),
         Val::ExcType(t) => t.clone(),
@@ -709,9 +711,10 @@ fn display(v: &Val) -> String {
 fn py_repr(v: &Val) -> String {
     match v {
         Val::Str(s) => format!("'{s}'"),
-        Val::Bool(true) => "True".to_string(),
-        Val::Bool(false) => "False".to_string(),
-        Val::None_ => "None".to_string(),
+        // 空/真/假 用中文——与 Python 侧 jishi_repr、JS 侧 pyRepr 一致（M27）
+        Val::Bool(true) => "真".to_string(),
+        Val::Bool(false) => "假".to_string(),
+        Val::None_ => "空".to_string(),
         _ => display(v),
     }
 }
@@ -818,7 +821,10 @@ fn unary_neg(v: Val) -> Val {
 fn new_builtins() -> HashMap<String, Val> {
     let mut m = HashMap::new();
     m.insert("打印".to_string(), Val::Builtin("打印", |args, vm| {
-        let parts: Vec<String> = args.iter().map(py_repr).collect();
+        // 用 display 而不是 py_repr：顶层文本**不带引号**（`打印("甲")` 输出 甲），
+        // 与 Python 侧的 jishi_repr(top=True)、JS 侧的 pyStr 一致（M27）。
+        // 容器内部的元素仍由 display 递归调 py_repr 加引号。
+        let parts: Vec<String> = args.iter().map(display).collect();
         vm.output.push_str(&parts.join(" "));
         vm.output.push('\n');
         Ok(Val::None_)
@@ -840,7 +846,8 @@ fn new_builtins() -> HashMap<String, Val> {
         }
     }));
     m.insert("文本".to_string(), Val::Builtin("文本", |args, _vm| {
-        Ok(Val::Str(args.iter().map(py_repr).collect::<Vec<_>>().join("")))
+        // 同样走 display：`文本(空)` 给「空」而不是 `None`
+        Ok(Val::Str(args.iter().map(display).collect::<Vec<_>>().join("")))
     }));
     m.insert("长度".to_string(), Val::Builtin("长度", |args, _vm| {
         match &args[0] {
