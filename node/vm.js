@@ -731,6 +731,8 @@ function jsonEncode(v, indent) {
     if (x === null || x === undefined) return 'null';
     if (typeof x === 'boolean') return x ? 'true' : 'false';
     if (typeof x === 'number') return String(x);
+    // 大整数按数字字面量写（`String(1n)` 就是 `"1"`，不带那个 `n`）（M32）
+    if (typeof x === 'bigint') return x.toString();
     if (typeof x === 'string') return JSON.stringify(x);
     if (R.isDecimal(x)) return x.toString();
     // 有缩进时：元素前换行缩进一层、收尾换行回到本层（Python 的 indent 规则）；

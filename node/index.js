@@ -16,7 +16,13 @@ function decodeConst(c) {
   if (c.t === 'none') return null;
   if (c.t === 'true') return true;
   if (c.t === 'false') return false;
-  if (c.t === 'int') return c.v;
+  if (c.t === 'int') {
+    // M32：超出 JS 安全整数范围的整数在字节码里是**十进制字符串**
+    // （`9223372036854775807` 直接写数字会被 JSON.parse 静默变成
+    // `9223372036854776000`），用 BigInt 还原成任意精度整数。
+    // 旧产物（v 是数字）走原路，仍然兼容。
+    return typeof c.v === 'string' ? BigInt(c.v) : c.v;
+  }
   if (c.t === 'float') return new (require('./runtime').FloatBox)(c.v);
   if (c.t === 'str') return c.v;
   throw new Error('未知常量类型 ' + c.t);

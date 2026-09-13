@@ -27,7 +27,8 @@ from typing import Any, Optional
 
 from . import opcodes as O
 from . import runtime as R
-from .errors import JishiError, RunBreak, RunContinue, RunError, RunTypeError
+from .errors import (JishiError, RunBreak, RunContinue, RunError, RunTypeError,
+                     RunValueError)
 from .opcodes import BINOP_TO_SYMBOL, CMPOP_TO_SYMBOL, BinOp, CmpOp, UnOp
 
 # ---------------------------------------------------------------------------
@@ -143,7 +144,27 @@ def _jbool(b: bool) -> JVal:
     x = JVal(); x.tag = O.T_TRUE if b else O.T_FALSE; return x
 
 
+#: C 虚拟机的整数是 64 位（`JVal` 刻意保持 16 字节布局：扩宽到 i128 会破坏
+#: ctypes 边界与 M20 的批量转换快路径）。
+_I64_MAX = (1 << 63) - 1
+_I64_MIN = -(1 << 63)
+
+
 def _jint(i: int) -> JVal:
+    """Python 整数 → JVal 整数。
+
+    **必须自己检查范围**：ctypes 赋给 `c_int64` 时是**静默截断**——
+    `2 ** 64` 会变成 0、`i64_MAX + 1` 会变成负数。这是最危险的一类错
+    （不报错但结果错），所以在这里拦下报中文错（M32）。
+
+    注意这是 C 虚拟机特有的边界：Python 虚拟机的 int 是任意精度；
+    Node 宿主用 BigInt、Rust 宿主到 i128。C 侧扩大范围要先改 `JVal` 布局，
+    那会动到 ctypes 边界与批量转换的性能路径，不在本轮范围内。
+    """
+    if not (_I64_MIN <= i <= _I64_MAX):
+        raise RunValueError(
+            f"整数「{i}」超出 C 虚拟机的 64 位整数范围（约 ±9.2e18）"
+            f"——Python 虚拟机的整数是任意精度，可以换那个执行器")
     x = JVal(); x.tag = O.T_INT; x.v.i = i; return x
 
 

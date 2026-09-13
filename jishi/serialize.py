@@ -22,6 +22,11 @@ from . import opcodes as O
 #: 序列化格式版本号。格式变更（增删字段、改编码）时 +1，宿主据此拒绝不兼容产物。
 FORMAT_VERSION = 2   # 2: M25 起 Code 增加 param_kind（形参种类），且 UNPACK 的 b 表示星号位置
 
+#: JavaScript 的安全整数上界（2^53 - 1）。宿主侧的 JSON 解析只能精确表示到这个数，
+#: 再大就会**静默丢精度**（`9223372036854775807` 变 `9223372036854776000`）。
+#: 所以超出它的整数要按十进制字符串编码，让宿主用 BigInt/大整数还原（M32）。
+_JS_MAX_SAFE_INT = 9007199254740991
+
 
 def _const_to_json(c: Any) -> dict:
     """把常量池里的一个标量编码成 JSON 可表达的结构。"""
@@ -32,7 +37,12 @@ def _const_to_json(c: Any) -> dict:
     if c is False:
         return {"t": "false"}
     if isinstance(c, int):
-        return {"t": "int", "v": c}
+        # 超出宿主安全整数范围时写成字符串：JSON 的数字在 JS/Rust 的解析器里
+        # 都是双精度，直接写数字会丢精度（`2 ** 62` 这种常见写法就会中招）。
+        # 宿主按「v 是字符串就用大整数」读，旧产物（v 是数字）也照样能读。
+        if -_JS_MAX_SAFE_INT <= c <= _JS_MAX_SAFE_INT:
+            return {"t": "int", "v": c}
+        return {"t": "int", "v": str(c)}
     if isinstance(c, float):
         return {"t": "float", "v": c}
     if isinstance(c, str):
@@ -52,7 +62,8 @@ def _const_from_json(d: dict) -> Any:
     if t == "false":
         return False
     if t == "int":
-        return d["v"]
+        # M32 起超范围的整数按十进制字符串编码（见 `_const_to_json`）
+        return int(d["v"]) if isinstance(d["v"], str) else d["v"]
     if t == "float":
         return d["v"]
     if t == "str":

@@ -59,6 +59,7 @@ function isLoopSignal(e) { return e instanceof RunBreak || e instanceof RunConti
 function typeName(v) {
   if (v === null || v === undefined) return '空';
   if (typeof v === 'boolean') return '布尔';
+  if (typeof v === 'bigint') return '整数';    // 大整数也是「整数」（M32）
   if (typeof v === 'number') {
     return Number.isInteger(v) ? '整数' : '小数';
   }
@@ -85,8 +86,87 @@ function typeName(v) {
   return v === Object(v) ? v.constructor.name : '未知';
 }
 
+// ---------------------------------------------------------------------------
+// 大整数（M32）
+// ---------------------------------------------------------------------------
+// JS 的 number 是双精度：`9223372036854775807` 会变成 `9223372036854776000`、
+// `2 ** 64` 给 `18446744073709552000`——**不报错但结果错**。
+// 这些小整数仍是 number（性能不变），只在必要时切到 BigInt：
+//   ① 任一边已经是 BigInt；② number 算出来的整数结果超出安全范围。
+// BigInt 是任意精度，与 Python 的 int 完全对齐。
+
+/** 是不是大整数。 */
+function isBig(v) { return typeof v === 'bigint'; }
+
+/** 整数类值：整数 number / 大整数 / 布尔（Python 里布尔也是整数）。 */
+function isIntLike(v) {
+  return typeof v === 'bigint' || typeof v === 'boolean'
+    || (typeof v === 'number' && Number.isInteger(v));
+}
+
+/** 转成 BigInt（布尔按 0/1）。 */
+function asBig(v) {
+  if (typeof v === 'bigint') return v;
+  if (typeof v === 'boolean') return v ? 1n : 0n;
+  return BigInt(v);
+}
+
+/**
+ * 大整数 → number（下标、范围步长、重复次数这类「要个小整数」的地方用）。
+ *
+ * 超出安全范围时不走 `Number()`（那会**静默丢精度**给出一个看似合法的数），
+ * 而是给一个「必然越界」的值，让调用方的边界检查照常报错——对齐
+ * Python 那边 `a[2 ** 62]` 的 IndexError。
+ */
+function toIndexNum(v) {
+  if (typeof v !== 'bigint') return v;
+  const MAX = BigInt(Number.MAX_SAFE_INTEGER);
+  if (v > MAX) return Number.MAX_SAFE_INTEGER + 1;
+  if (v < -MAX) return -(Number.MAX_SAFE_INTEGER + 1);
+  return Number(v);
+}
+
+/**
+ * 整数运算的任意精度路径。
+ *
+ * 返回 `null` 表示「这次不该用 BigInt」（`**` 的指数是负数或非整数——
+ * Python 那边给的是小数；除零留给调用方报错），调用方照旧走双精度。
+ */
+function bigIntArith(op, lv, rv) {
+  const a = asBig(lv); const b = asBig(rv);
+  let r;
+  switch (op) {
+    case '+': r = a + b; break;
+    case '-': r = a - b; break;
+    case '*': r = a * b; break;
+    case '//':
+      if (b === 0n) return null;
+      r = a / b;
+      // BigInt 的 `/` 是向零截断，Python 的 `//` 是向下取整
+      if (a % b !== 0n && (a % b < 0n) !== (b < 0n)) r -= 1n;
+      break;
+    case '%': {
+      if (b === 0n) return null;
+      r = a % b;
+      if (r !== 0n && (r < 0n) !== (b < 0n)) r += b;   // 符号跟除数（Python 语义）
+      break;
+    }
+    case '**':
+      if (b < 0n) return null;              // `2 ** -1` 在 Python 里是 0.5
+      r = a ** b;
+      break;
+    default: return null;
+  }
+  // 结果回到安全范围就还原成 number：`(2 ** 62) // (2 ** 62)` 该给 `1` 而不是 `1`，
+  // 更不能因为「中间碰巧走了一次大数」就让 `类型()` 变样。
+  const MAX = BigInt(Number.MAX_SAFE_INTEGER);
+  if (r >= -MAX && r <= MAX) return Number(r);
+  return r;
+}
+
 function truthy(v) {
   if (v === null || v === undefined) return false;
+  if (typeof v === 'bigint') return v !== 0n;
   if (isDecimal(v)) return v.coef !== 0n;    // 精确小数的「零」是假（M26）
   // 空容器为假——与 Python 的 bool([])/bool({})/bool(set()) 一致（M30）。
   // JS 的 Boolean([]) 是 true，不特判就会让 `如果 列表：` 判断反掉。
@@ -124,9 +204,17 @@ class JishiDecimal {
   constructor(coef, exp) {
     this.coef = coef;      // BigInt
     this.exp = exp;        // number：值 = coef × 10^exp
-    // 刻意**不**去掉尾随零：Python 的 Decimal 保留标度，
-    // `精确("1.50")` 显示就是 1.50、`精确("1.50") * 2` 是 3.00。
-    // 归一化会让两边对不上，所以标度如实保留。
+  // 刻意**不**去掉尾随零：Python 的 Decimal 保留标度，
+  // `精确("1.50")` 显示就是 1.50、`精确("1.50") * 2` 是 3.00。
+  // 归一化会让两边对不上，所以标度如实保留。
+  //
+  // 但**加减乘的结果要按 28 位有效数字舍入**（M32）：Python 的 Decimal
+  // 每次运算都走 context（prec=28, ROUND_HALF_EVEN），
+  // `Decimal("9999999999999999999999999999") + 1` 给的是
+  // `1.000000000000000000000000000E+28` 而不是 29 位的精确值。
+  // 以前只给 div 加了舍入，于是「加减乘超 28 位」时三个宿主给不同的数
+  // ——那属于「静默算错」，比报错更糟。
+  // 注意：构造（`精确("…")`）**不**舍入，与 Python 一样（Decimal(str) 是精确构造）。
   }
 
   static fromString(s) {
@@ -173,17 +261,18 @@ class JishiDecimal {
   add(o) {
     const e = Math.min(this.exp, o.exp);
     const a = this._alignTo(e), b = o._alignTo(e);
-    return new JishiDecimal(a.c + b.c, e);
+    return new JishiDecimal(a.c + b.c, e)._roundToSignificant(DEC_PRECISION);
   }
 
   sub(o) {
     const e = Math.min(this.exp, o.exp);
     const a = this._alignTo(e), b = o._alignTo(e);
-    return new JishiDecimal(a.c - b.c, e);
+    return new JishiDecimal(a.c - b.c, e)._roundToSignificant(DEC_PRECISION);
   }
 
   mul(o) {
-    return new JishiDecimal(this.coef * o.coef, this.exp + o.exp);
+    return new JishiDecimal(this.coef * o.coef, this.exp + o.exp)
+      ._roundToSignificant(DEC_PRECISION);
   }
 
   /** 除法：算到 28 位有效数字，ROUND_HALF_EVEN（与 Python Decimal 一致）。 */
@@ -230,7 +319,14 @@ class JishiDecimal {
    * mode: 'half-even'（Python 默认）或 'half-up'（金额场景的「四舍五入」）
    */
   quantize10(targetExp, mode) {
-    if (this.exp >= targetExp) return new JishiDecimal(this.coef, this.exp);
+    if (this.exp > targetExp) {
+      // 系数要「补零」到自己更粗的标度上：Python 的 `quantize` 是**精确**
+      // 调整到给定指数，不只是舍入（`Decimal("1234").quantize(Decimal("0.01"))`
+      // 给 `1234.00`）。少了这一步，`舍入(2)` 会原地返回 `1234`（M32）。
+      return new JishiDecimal(this.coef * 10n ** BigInt(this.exp - targetExp),
+                              targetExp);
+    }
+    if (this.exp === targetExp) return new JishiDecimal(this.coef, this.exp);
     const drop = targetExp - this.exp;
     const p = BigInt(10) ** BigInt(drop);
     const abs = this.coef < 0n ? -this.coef : this.coef;
@@ -249,19 +345,67 @@ class JishiDecimal {
   neg() { return new JishiDecimal(-this.coef, this.exp); }
   abs() { return new JishiDecimal(this.coef < 0n ? -this.coef : this.coef, this.exp); }
 
-  /** 普通（非科学计数法）写法。 */
-  toString() {
-    let c = this.coef < 0n ? -this.coef : this.coef;
+  /**
+   * 定点写法 —— 对应 Python 的 `format(v, "f")`：`1.2E+3` → `1200`。
+   *
+   * `舍入` 的最后一步要用它：Python 侧是
+   * `Decimal(format(rounded, "f"))`，把科学计数法换回普通写法
+   * （金额场景没人想看 `1.2E+3`）。
+   */
+  toFixedString() {
+    const abs = this.coef < 0n ? -this.coef : this.coef;
     const sign = this.coef < 0n ? '-' : '';
-    let digits = c.toString();
-    if (this.exp >= 0) {
-      return sign + digits + '0'.repeat(this.exp);
-    }
+    const digits = abs === 0n
+      ? '0'.repeat(Math.max(1, -this.exp))
+      : abs.toString();
+    if (this.exp >= 0) return sign + digits + '0'.repeat(this.exp);
     const point = digits.length + this.exp;
     if (point > 0) {
       return sign + digits.slice(0, point) + '.' + digits.slice(point);
     }
     return sign + '0.' + '0'.repeat(-point) + digits;
+  }
+
+  /**
+   * `str(Decimal)` 的写法（对齐 CPython 的 `decimal._pydecimal.__str__`）。
+   *
+   * 规则是：`leftdigits = exp + 系数位数`；**只有 `exp <= 0` 且
+   * `leftdigits > -6` 时才用定点**，否则用科学计数法（点前留 1 位、
+   * 指数带正负号、大写 `E`）。
+   *
+   * M32 才补上科学计数法分支——以前无条件补零，于是
+   * `精确("9999999999999999999999999999") + 1` 打出 29 位数字串，
+   * 而 Python 给 `1.000000000000000000000000000E+28`。
+   */
+  toString() {
+    const neg = this.coef < 0n;
+    const abs = neg ? -this.coef : this.coef;
+    // 系数为 0 时按标度补足位数：Python 的 `_int` 对 `Decimal("0.00")` 是 '000'
+    const digits = abs === 0n
+      ? '0'.repeat(Math.max(1, -this.exp))
+      : abs.toString();
+    const leftdigits = this.exp + digits.length;
+    let dotplace;
+    if (this.exp <= 0 && leftdigits > -6) dotplace = leftdigits;
+    else dotplace = 1;                          // 科学计数法：点前 1 位
+    let intpart;
+    let fracpart;
+    if (dotplace <= 0) {
+      intpart = '0';
+      fracpart = '.' + '0'.repeat(-dotplace) + digits;
+    } else if (dotplace >= digits.length) {
+      intpart = digits + '0'.repeat(dotplace - digits.length);
+      fracpart = '';
+    } else {
+      intpart = digits.slice(0, dotplace);
+      fracpart = '.' + digits.slice(dotplace);
+    }
+    let expPart = '';
+    if (leftdigits !== dotplace) {
+      const e = leftdigits - dotplace;
+      expPart = 'E' + (e >= 0 ? '+' : '') + e;
+    }
+    return (neg ? '-' : '') + intpart + fracpart + expPart;
   }
 
   valueOf() { return Number(this.toString()); }
@@ -468,6 +612,8 @@ function setKey(v) {
   // Python 里 True == 1、False == 0，所以布尔按数字归键
   if (typeof v === 'boolean') return 'd:' + (v ? '1' : '0');
   if (typeof v === 'number') return 'd:' + numKey(v);
+  // 大整数与同值的整数要归到同一个键（`String(1n)` 就是 `'1'`）
+  if (typeof v === 'bigint') return 'd:' + v.toString();
   if (isFloatBox(v)) return 'd:' + numKey(v.value);
   if (typeof v === 'string') return 's:' + v;
   return 'o:' + objId(v);
@@ -686,7 +832,12 @@ function extremum(args, wantMax) {
   // 数字与布尔在 Python 里可互相比较（True == 1）
   const an = typeof av === 'boolean' ? (av ? 1 : 0) : av;
   const bn = typeof bv === 'boolean' ? (bv ? 1 : 0) : bv;
-  if (typeof an === 'number' && typeof bn === 'number') return an === bn;
+  const anNum = typeof an === 'number' || typeof an === 'bigint';
+  const bnNum = typeof bn === 'number' || typeof bn === 'bigint';
+  // 用 `==` 而不是 `===`：BigInt 与 number 的宽松相等在 JS 里是**精确**
+  // 比较（`1n == 1` 为真、`9007199254740993n == 9007199254740993` 也为真），
+  // 正好对上 Python 的 `int == float` 语义
+  if (anNum && bnNum) return an == bn;      // eslint-disable-line eqeqeq
   return av === bv;
 }
 
@@ -719,6 +870,7 @@ function identityKey(v) {
   if (v === null || v === undefined) return 'n';
   if (typeof v === 'boolean') return 'b:' + (v ? '1' : '0');
   if (typeof v === 'number') return 'v:' + typeName(v) + ':' + numKey(v);
+  if (typeof v === 'bigint') return 'v:整数:' + v.toString();   // 大整数按值（M32）
   if (isFloatBox(v)) return 'v:小数:' + numKey(v.value);
   if (typeof v === 'string') return 'v:文本:' + v;
   // 其余（列表/字典/集合/实例/函数/精确小数…）按对象身份
@@ -841,6 +993,10 @@ function dictPyRepr(m) {
 // ---------------------------------------------------------------------------
 class Builtin {
   constructor(name, fn) { this.name = name; this.fn = fn; }
+
+  // 与 Python 侧的包装器 `__repr__` 对齐（M32）：以前这里没有 toString，
+  // 于是 `打印(打印)` 会走 `String(内建)` 给 `[object Object]`。
+  toString() { return `<内建 ${this.name}>`; }
 }
 
 //: 类型标注里认识的类型名 → 判定函数（对齐 Python 侧 `_TYPE_PREDICATES`）。
@@ -889,6 +1045,8 @@ function checkArgs(desc, values, funcName) {
 // ---------------------------------------------------------------------------
 class ExcType {
   constructor(name) { this.name = name; }
+
+  toString() { return `<异常类型 ${this.name}>`; }
   // 构造异常实例
   make(message, line, col) {
     if (this.name === '除零错误') return new JishiError('除零错误', '不能除以零', '不能除以零', line, col);
@@ -998,7 +1156,16 @@ function newBuiltins() {
         for (const x of seq) acc = acc.add(toDecimal(x));
         return acc;
       }
-      const s = seq.reduce((a, b) => a + unwrap(b), 0);
+      // 大整数（M32）：整段走 BigInt 累加，避免双精度在第二个元素起就失真
+      // （`总和([2 ** 62, 2 ** 62])` 该给 18446744073709551616）。
+      // 混了小数就退回双精度——Python 那边 `sum([2**62, 0.5])` 也是 float。
+      if (!seq.some(isFloatBox) && seq.some((x) => typeof unwrap(x) === 'bigint')) {
+        let acc = 0n;
+        for (const x of seq) acc += asBig(unwrap(x));
+        const MAX = BigInt(Number.MAX_SAFE_INTEGER);
+        return (acc >= -MAX && acc <= MAX) ? Number(acc) : acc;
+      }
+      const s = seq.reduce((a, b) => a + Number(unwrap(b)), 0);
       // 含小数则返回 FloatBox
       return seq.some(isFloatBox) ? new FloatBox(s) : s;
     }),
@@ -1018,6 +1185,9 @@ function newBuiltins() {
 }
 
 function range(a, b, step) {
+  // 大整数参数收敛成 number（M32）：`范围(2 ** 62)` 这种写法在 Python 那边
+  // 也会因为内存而失败，这里按「大到必然超出实际需要」处理，不会静默算错
+  a = toIndexNum(a); b = toIndexNum(b); step = toIndexNum(step);
   const out = [];
   if (step > 0) { for (let i = a; i < b; i += step) out.push(i); }
   else if (step < 0) { for (let i = a; i > b; i += step) out.push(i); }
@@ -1029,6 +1199,8 @@ function range(a, b, step) {
 // ---------------------------------------------------------------------------
 class Module {
   constructor(name, attrs) { this.name = name; this.attrs = attrs; }
+
+  toString() { return `<模块 ${this.name}>`; }
 }
 
 // ---------------------------------------------------------------------------
@@ -1044,6 +1216,8 @@ class JishiClass {
     for (const [k, v] of methods) merged.set(k, v);
     this.methods = merged;
   }
+
+  toString() { return `<类 ${this.name}>`; }
 }
 
 class JishiInstance {
@@ -1085,6 +1259,8 @@ class VmFunction {
     this.vm = vm;
     this.defaults = defaults; // 与 code.params 对齐，null 表示无默认
   }
+
+  toString() { return `<函数 ${this.name}>`; }
 }
 
 // 闭包单元
@@ -1106,10 +1282,10 @@ function repeatSeq(seq, n) {
 
 /** 序列的乘数必须是整数（FloatBox 说明它是运算得到的小数，Python 会报错）。 */
 function intMulOf(v, line, col) {
-  if (isFloatBox(v) || typeof v !== 'number' || !Number.isInteger(v)) {
+  if (isFloatBox(v) || !isIntLike(v)) {
     throw typeErr(`序列只能乘整数，不能乘「${typeName(v)}」`, line, col);
   }
-  return v;
+  return toIndexNum(v);      // 大整数乘数由 toIndexNum 收敛（M32）
 }
 
 function applyBinop(op, l, r, line, col) {
@@ -1179,13 +1355,22 @@ function applyBinop(op, l, r, line, col) {
     throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
   }
   // -- 数字（布尔在 Python 里也算数字：`真 + 1` 是 2）--
-  const numOk = (x) => typeof x === 'number' || typeof x === 'boolean';
+  const numOk = (x) => typeof x === 'number' || typeof x === 'boolean'
+    || typeof x === 'bigint';
   if (!numOk(lv) || !numOk(rv)) {
     throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
   }
 
   let result;
   let isFloat = fl || fr;   // 参与运算的是小数 → Python 结果一般是 float
+  const intPair = isIntLike(lv) && isIntLike(rv);
+  // 任一边已经是大整数就必须走 BigInt：JS 不允许 BigInt 与 number 混做
+  // `/` 和 `**`（会直接抛 TypeError），而 `+`/`*` 混算虽合法，
+  // 结果也不该再退回双精度（M32）
+  if (intPair && (typeof lv === 'bigint' || typeof rv === 'bigint')) {
+    const r = bigIntArith(op, lv, rv);
+    if (r !== null) return r;
+  }
   switch (op) {
     case '+': result = lv + rv; break;
     case '-': result = lv - rv; break;
@@ -1213,6 +1398,14 @@ function applyBinop(op, l, r, line, col) {
       break;
     }
     default: throw runErr(`不支持的运算符「${op}」`, line, col);
+  }
+  // 双精度的整数结果一旦超出安全范围就不再精确（`2 ** 64` 会变成
+  // 18446744073709552000），这时用 BigInt 重算一遍（M32）。
+  // 放在这里而不是 switch 前面，是为了让普通小整数走原本的快路径。
+  if (intPair && !isFloat && typeof result === 'number'
+      && !Number.isSafeInteger(result)) {
+    const r = bigIntArith(op, lv, rv);
+    if (r !== null) return r;
   }
   // 若 result 是 NaN/Infinity（溢出/无效），Python 会抛或得 inf，这里简单放行
   return isFloat ? new FloatBox(result) : result;
@@ -1250,6 +1443,8 @@ function applyCompare(op, l, r, line, col) {
   if (op === '是') return identityKey(l) === identityKey(r);
   if (op === '不是') return identityKey(l) !== identityKey(r);
   const lv = unwrap(l), rv = unwrap(r);
+  // 大整数与 number 的大小比较在 JS 里是**精确**的（`2n ** 62n > 1` 不会因
+  // 双精度而失真），直接用就行；`==`/`!=` 走 valueEq（M32）
   switch (op) {
     // `==` 走值相等：列表/字典/集合按内容递归比，数字与布尔按数值比
     // （`[1, 2] == [1, 2]` 为真、`1 == 真` 为真，与 Python 一致）
@@ -1311,6 +1506,8 @@ function setAttr(obj, attr, value, line, col) {
 }
 
 function getItem(obj, index, line, col) {
+  // 大整数下标（`a[2 ** 62]`）先收敛成 number，越界由下面的检查照常报错（M32）
+  if (typeof index === 'bigint') index = toIndexNum(index);
   if (isSlice(index)) {
     // 切片（M30）：列表按元素切、文本按字符切（与 Python 的 str 索引一致）
     if (Array.isArray(obj)) {
@@ -1346,6 +1543,7 @@ function getItem(obj, index, line, col) {
 }
 
 function setItem(obj, index, value, line, col) {
+  if (typeof index === 'bigint') index = toIndexNum(index);   // M32
   if (isSlice(index)) {
     // 切片赋值（M24/M30）：步长为 1 时可以变长（替换整个区间），
     // 步长不为 1 时长度必须精确匹配——与 Python 一致。
@@ -1377,11 +1575,15 @@ function setItem(obj, index, value, line, col) {
 // 绑定方法（列表/字典/字符串的中文方法）
 class BoundMethod {
   constructor(impl, obj, name, line, col) { this.impl = impl; this.obj = obj; this.name = name; this.line = line; this.col = col; }
+
+  toString() { return `<方法 ${this.name}>`; }
 }
 
 // 绑定到实例的用户方法（自身 首参）
 class BoundUserMethod {
   constructor(fn, instance, name, line, col) { this.fn = fn; this.instance = instance; this.name = name; this.line = line; this.col = col; }
+
+  toString() { return `<方法 ${this.name}>`; }
 }
 
 // ---------------------------------------------------------------------------
@@ -1723,7 +1925,11 @@ const DECIMAL_METHODS = {
       throw typeErr(`「舍入」的位数要是整数，得到了「${typeName(digits)}」`, line, col);
     }
     // 金额场景按「四舍五入」（half-up），不是 Python 默认的银行家舍入
-    return obj.quantize10(-digits, 'half-up');
+    const r = obj.quantize10(-digits, 'half-up');
+    // 再按定点写法重新构造一遍：Python 侧最后一步是
+    // `Decimal(format(rounded, "f"))`，舍到十位/百位时会得到 `1.2E+3`，
+    // 那在金额场景里没人想看——换回 `1200`（M32）
+    return JishiDecimal.fromString(r.toFixedString());
   },
   '绝对值': (obj, args, line, col) => {
     needArgs('绝对值', args, 0, 0, line, col);

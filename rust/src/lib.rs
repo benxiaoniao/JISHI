@@ -6,6 +6,7 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 
 mod json;
 use json::Json;
@@ -43,7 +44,11 @@ type JInst = Rc<RefCell<Instance>>;
 enum Val {
     None_,
     Bool(bool),
-    Int(i64),
+    // i128 而不是 i64（M32）：i64 装不下 `2 ** 62`、`2 ** 64` 这些常见写法，
+    // 而且溢出会**静默回绕**（`9223372036854775807 + 1` 变成负数）——那是最
+    // 危险的一类错。i128 覆盖到约 1.7e38，超出时明确报错而不是给错值。
+    // 真正的任意精度整数留待需要时再做（Python/JS 侧是任意精度的）。
+    Int(i128),
     Float(f64),
     Str(String),
     /// 精确小数（M29）。`Rc` 只是为了让 `Val::clone` 便宜；内容不可变。
@@ -127,18 +132,34 @@ struct Cell {
     set: bool,
 }
 
+/// 类与函数的身份序号（M32）。
+///
+/// 它们在 Rust 里是值类型、`Clone` 是深拷贝，**没有指针身份**；但
+/// `A 是 A` 该为真、`A 是 B` 该为假。所以创建时分配一个递增序号，Clone 时
+/// 跟着复制——内容相同且**源自同一次创建**的两个值就有了同一个身份，
+/// 正好等价于 Python 的对象身份（`id()`）。
+static NEXT_OBJ_ID: AtomicUsize = AtomicUsize::new(1);
+
+fn next_obj_id() -> usize {
+    NEXT_OBJ_ID.fetch_add(1, AtomicOrdering::Relaxed)
+}
+
 #[derive(Clone)]
 struct Func {
     name: String,
     code_idx: usize,
     cells: Vec<Cell>,
     defaults: Option<Vec<Val>>,
+    /// 身份序号（M32）：见 `NEXT_OBJ_ID`
+    id: usize,
 }
 
 #[derive(Clone)]
 struct Class {
     name: String,
     methods: HashMap<String, Val>,
+    /// 身份序号（M32）：见 `NEXT_OBJ_ID`
+    id: usize,
 }
 
 #[derive(Clone)]
@@ -340,7 +361,7 @@ fn file_call(name: &str, f: Rc<RefCell<FileHandle>>,
         "读" => {
             need_args(name, args, 0, 1)?;
             let n = match args.first() {
-                Some(v) => as_int(v)?,
+                Some(v) => as_int(v)? as i64,     // 读几个字节，不会超过 i64
                 None => -1,
             };
             let mut h = f.borrow_mut();
@@ -401,11 +422,11 @@ fn file_call(name: &str, f: Rc<RefCell<FileHandle>>,
             need_args(name, args, 0, 0)?;
             let mut h = f.borrow_mut();
             h.check(name)?;
-            Ok(Val::Int(h.tell()?))
+            Ok(Val::Int(h.tell()? as i128))
         }
         "定位" => {
             need_args(name, args, 1, 1)?;
-            let pos = as_int(&args[0])?;
+            let pos = as_int(&args[0])? as i64;   // 定位偏移不会超过 i64
             let mut h = f.borrow_mut();
             h.check(name)?;
             h.seek(pos)?;
@@ -875,7 +896,9 @@ impl VM {
                         }).collect()
                     } else { Vec::new() };
                     let name = self.module.codes[code_idx].name.clone();
-                    self.stack.push(Val::Func(Func { name, code_idx, cells, defaults }));
+                    self.stack.push(Val::Func(Func {
+                        name, code_idx, cells, defaults, id: next_obj_id(),
+                    }));
                 }
                 op::BUILD_LIST => {
                     let n = ins.a as usize;
@@ -968,7 +991,7 @@ impl VM {
                             for (k, v) in base.methods { methods.entry(k).or_insert(v); }
                         }
                     }
-                    self.stack.push(Val::Class(Class { name, methods }));
+                    self.stack.push(Val::Class(Class { name, methods, id: next_obj_id() }));
                 }
                 op::IMPORT => {
                     let name = self.module.names[ins.a as usize].clone();
@@ -996,7 +1019,7 @@ impl VM {
                 }
                 op::LOOP_SETUP => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    let n = match v { Val::Int(i) => i, Val::Float(f) => f as i64, _ => return Err(err("类型错误", format!("「{}」不是有效的循环次数", display(&v)))) };
+                    let n = match v { Val::Int(i) => i, Val::Float(f) => f as i128, _ => return Err(err("类型错误", format!("「{}」不是有效的循环次数", display(&v)))) };
                     self.frames[fi].locals[ins.a as usize] = Val::Int(n);
                 }
                 op::SETUP_TRY => {
@@ -1307,8 +1330,8 @@ impl VM {
             (Val::List(l), "排序") => { need_args(&name, args, 0, 0)?; l.borrow_mut().sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
             (Val::List(l), "反转") => { need_args(&name, args, 0, 0)?; l.borrow_mut().reverse(); Ok(Val::None_) }
             (Val::List(l), "清空") => { need_args(&name, args, 0, 0)?; l.borrow_mut().clear(); Ok(Val::None_) }
-            (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.borrow().iter().position(|x| *x == args[0]).map(|i| Val::Int(i as i64)).ok_or_else(|| err("值错误", "找不到元素")) }
-            (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(l.borrow().iter().filter(|x| **x == args[0]).count() as i64)) }
+            (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.borrow().iter().position(|x| *x == args[0]).map(|i| Val::Int(i as i128)).ok_or_else(|| err("值错误", "找不到元素")) }
+            (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(l.borrow().iter().filter(|x| **x == args[0]).count() as i128)) }
             (Val::List(l), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(l.borrow().contains(&args[0]))) }
             (Val::List(l), "移除") => {
                 need_args(&name, args, 1, 1)?;
@@ -1339,7 +1362,7 @@ impl VM {
             (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
             (Val::Str(s), "开头是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.starts_with(&display(&args[0])))) }
             (Val::Str(s), "结尾是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.ends_with(&display(&args[0])))) }
-            (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i64>().map(Val::Int).map_err(|_| err("值错误", "不能转成整数")) }
+            (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i128>().map(Val::Int).map_err(|_| err("值错误", "不能转成整数")) }
             (Val::Str(s), "转小数") => { need_args(&name, args, 0, 0)?; s.parse::<f64>().map(Val::Float).map_err(|_| err("值错误", "不能转成小数")) }
             // -- 列表高阶方法（数据流水线，M29）--
             (Val::List(l), "映射") => {
@@ -1628,13 +1651,35 @@ fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
         return dec_binop(op, &l, &r);
     }
     let result = match op {
-        0 => match (l, r) { (Int(a), Int(b)) => Int(a + b), (a, b) => numeric_add(a, b)? },
-        1 => match (l, r) { (Int(a), Int(b)) => Int(a - b), (a, b) => numeric_sub(a, b)? },
-        2 => match (l, r) { (Int(a), Int(b)) => Int(a * b), (a, b) => numeric_mul(a, b)? },
+        // 整数加减乘用 checked：i128 也会到边界，release 模式下溢出是
+        // **静默回绕**（给一个错的数）。到边界就报错——本宿主不做任意精度，
+        // 但也绝不悄悄给错值（M32）。
+        0 => match (l, r) { (Int(a), Int(b)) => Int(big_ok(a.checked_add(b))?), (a, b) => numeric_add(a, b)? },
+        1 => match (l, r) { (Int(a), Int(b)) => Int(big_ok(a.checked_sub(b))?), (a, b) => numeric_sub(a, b)? },
+        2 => match (l, r) { (Int(a), Int(b)) => Int(big_ok(a.checked_mul(b))?), (a, b) => numeric_mul(a, b)? },
         3 => { let (a, b) = to_num_pair(l, r)?; if b == 0.0 { return Err(err("除零错误", "不能除以零")); } Float(a / b) }
-        4 => { let (a, b) = to_num_pair(l, r)?; if b == 0.0 { return Err(err("除零错误", "不能除以零")); } Int((a / b).floor() as i64) }
-        5 => { let (a, b) = to_num_pair(l, r)?; if b == 0.0 { return Err(err("除零错误", "不能除以零")); } Int(a as i64 % b as i64) }
-        6 => { let (a, b) = to_num_pair(l, r)?; Float(a.powf(b)) }
+        4 => { let (a, b) = to_num_pair(l, r)?; if b == 0.0 { return Err(err("除零错误", "不能除以零")); } Int((a / b).floor() as i128) }
+        5 => { let (a, b) = to_num_pair(l, r)?; if b == 0.0 { return Err(err("除零错误", "不能除以零")); } Int(a as i128 % b as i128) }
+        6 => {
+            // 整数底数 + 非负整数指数 → 走整数幂：Python 里 `2 ** 64` 是 int
+            // 而不是 float（M32）。用快速幂，免得 `1 ** 1000000000` 这类
+            // 退化成十亿次循环；真溢出时由 big_ok 报错。
+            if let (Int(a), Int(b)) = (l.clone(), r.clone()) {
+                if b >= 0 {
+                    let mut base = a;
+                    let mut e = b as u128;
+                    let mut acc: i128 = 1;
+                    while e > 0 {
+                        if e & 1 == 1 { acc = big_ok(acc.checked_mul(base))?; }
+                        e >>= 1;
+                        if e > 0 { base = big_ok(base.checked_mul(base))?; }
+                    }
+                    return Ok(Int(acc));
+                }
+            }
+            let (a, b) = to_num_pair(l, r)?;
+            Float(a.powf(b))
+        }
         _ => return Err(err("运行期错误", "不支持的运算符")),
     };
     Ok(result)
@@ -1699,7 +1744,7 @@ fn to_dec(v: &Val) -> Result<Dec, JishiError> {
         Val::Dec(d) => Ok((**d).clone()),
         Val::Bool(b) => Err(err("类型错误", format!(
             "布尔值「{}」不能当精确小数", if *b { "真" } else { "假" }))),
-        Val::Int(i) => Ok(Dec { coef: BigInt::from_i64(*i), exp: 0 }),
+        Val::Int(i) => Ok(Dec { coef: BigInt::from_i128(*i), exp: 0 }),
         Val::Float(f) => Dec::from_f64(*f).ok_or_else(|| err("类型错误",
             format!("「{f}」不能变成精确小数（不是有限数）"))),
         Val::Str(s) => Dec::parse(s).ok_or_else(|| err("类型错误",
@@ -1762,13 +1807,18 @@ fn dec_call(name: &str, d: &Dec, args: &[Val]) -> Result<Val, JishiError> {
         "舍入" => {
             need_args(name, args, 0, 1)?;
             let digits = match args.first() {
-                None => 2i64,
+                None => 2i128,
                 Some(v) => match v { Val::Int(i) => *i, _ => return Err(err("类型错误",
                     "「舍入」的位数要是整数")) },
             };
             // 金额场景用「四舍五入」（HalfUp），而不是默认的银行家舍入——
             // 后者更「标准」但不合用户直觉
-            Ok(Val::Dec(Rc::new(d.quantize10(-(digits as i32), Round::HalfUp))))
+            // 再按定点写法重新构造一遍：Python 侧最后一步是
+            // `Decimal(format(rounded, "f"))`，舍到十位/百位时会得到
+            // `1.2E+3`，那在金额场景里没人想看——换回 `1200`（M32）
+            let r = d.quantize10(-(digits as i32), Round::HalfUp);
+            let back = Dec::parse(&r.to_fixed_string()).unwrap_or(r);
+            Ok(Val::Dec(Rc::new(back)))
         }
         "绝对值" => { need_args(name, args, 0, 0)?; Ok(Val::Dec(Rc::new(d.abs()))) }
         "转文本" => { need_args(name, args, 0, 0)?; Ok(Val::Str(d.to_string())) }
@@ -1840,11 +1890,19 @@ enum IdKey {
 /// 否则会有「有时真有时假」的随机感）；列表/字典按**对象身份**——
 /// `Rc::as_ptr` 正好就是身份，两个内容相同的列表不是同一个东西。
 ///
-/// 类/实例/函数在 Rust 里是值类型、**没有身份可谈**。这条宁可直接报错也不
-/// 猜：真要按「同内容即同一」算，`甲 是 甲` 会给出和 Python 相反的答案，
-/// 而「静默算错」比「明确不支持」糟得多。
+/// 绑定方法（`a.方法`）仍**明确报错**：Python 里每次取属性都是一个新对象
+/// （`a.方法 是 a.方法` 为假），而 Rust 侧要用「实例指针 + 方法名」判会得到
+/// 真——那会给出与 Python 相反且反直觉的答案，宁可明确不支持。
 fn identity_key(v: &Val) -> Result<IdKey, JishiError> {
     match v {
+        // 类 / 函数 / 内建 / 异常类型 / 模块：以前一律「明确报错」，因为它们在
+        // Rust 里是值类型。M32 给类与函数分配了创建序号，内建用函数指针、
+        // 异常类型与模块用唯一名字——于是这几个也能像 Python 那样判同一性了。
+        Val::Class(c) => Ok(IdKey::Identity(c.id)),
+        Val::Func(f) => Ok(IdKey::Identity(f.id)),
+        Val::Builtin(_, fp) => Ok(IdKey::Identity(*fp as usize)),
+        Val::ExcType(n) => Ok(IdKey::Value("异常类型".into(), n.clone())),
+        Val::Module(n, _) => Ok(IdKey::Value("模块".into(), n.clone())),
         Val::None_ => Ok(IdKey::Singleton(true, false)),
         Val::Bool(b) => Ok(IdKey::Singleton(false, *b)),
         Val::Int(i) => Ok(IdKey::Value("整数".into(), i.to_string())),
@@ -1922,8 +1980,8 @@ fn new_builtins() -> HashMap<String, Val> {
     m.insert("整数".to_string(), Val::Builtin("整数", |args, _vm| {
         match &args[0] {
             Val::Int(i) => Ok(Val::Int(*i)),
-            Val::Float(f) => Ok(Val::Int(*f as i64)),
-            Val::Str(s) => s.parse::<i64>().map(Val::Int).map_err(|_| err("值错误", format!("「{s}」不能转成整数"))),
+            Val::Float(f) => Ok(Val::Int(*f as i128)),
+            Val::Str(s) => s.parse::<i128>().map(Val::Int).map_err(|_| err("值错误", format!("「{s}」不能转成整数"))),
             _ => Err(err("值错误", "不能转成整数")),
         }
     }));
@@ -1945,15 +2003,15 @@ fn new_builtins() -> HashMap<String, Val> {
     }));
     m.insert("长度".to_string(), Val::Builtin("长度", |args, vm| {
         match &args[0] {
-            Val::Str(s) => Ok(Val::Int(s.chars().count() as i64)),
-            Val::List(l) => Ok(Val::Int(l.borrow().len() as i64)),
-            Val::Dict(d) => Ok(Val::Int(d.borrow().len() as i64)),
-            Val::Set(s) => Ok(Val::Int(s.borrow().len() as i64)),
+            Val::Str(s) => Ok(Val::Int(s.chars().count() as i128)),
+            Val::List(l) => Ok(Val::Int(l.borrow().len() as i128)),
+            Val::Dict(d) => Ok(Val::Int(d.borrow().len() as i128)),
+            Val::Set(s) => Ok(Val::Int(s.borrow().len() as i128)),
             // 定义了「迭代」的自定义对象也能求长度（M24.1）：既然能遍历，
             // 数一数有几个元素是自然的事，不必再要求作者额外写一个方法。
             Val::Instance(i) => {
                 if i.borrow().class.methods.contains_key("迭代") {
-                    let mut n = 0i64;
+                    let mut n = 0i128;
                     let it = vm.make_iter(args[0].clone())?;
                     let mut cur = it;
                     while iter_next(&mut cur)?.is_some() { n += 1; }
@@ -1967,8 +2025,8 @@ fn new_builtins() -> HashMap<String, Val> {
     }));
     m.insert("范围".to_string(), Val::Builtin("范围", |args, _vm| {
         let (a, b, step) = match args.len() {
-            1 => (0, as_int(&args[0])?, 1i64),
-            2 => (as_int(&args[0])?, as_int(&args[1])?, 1i64),
+            1 => (0, as_int(&args[0])?, 1i128),
+            2 => (as_int(&args[0])?, as_int(&args[1])?, 1i128),
             3 => (as_int(&args[0])?, as_int(&args[1])?, as_int(&args[2])?),
             _ => return Err(err("类型错误", "范围需要 1 到 3 个参数")),
         };
@@ -1982,6 +2040,11 @@ fn new_builtins() -> HashMap<String, Val> {
     m.insert("总和".to_string(), Val::Builtin("总和", b_sum));
     m.insert("类型".to_string(), Val::Builtin("类型", |args, _vm| {
         Ok(Val::Str(type_label(&args[0])))
+    }));
+    // 类型标注的参数校验（M24.3）：编译器把校验发射成函数自己的前导字节码，
+    // 宿主实现这个内建就自动获得这项能力（M32 补齐，JS 侧是 M30 补的）。
+    m.insert("检查实参".to_string(), Val::Builtin("检查实参", |args, _vm| {
+        check_args(&args[0], &args[1], &args[2])
     }));
     m.insert("反转".to_string(), Val::Builtin("反转", |args, _vm| {
         match &args[0] {
@@ -2065,7 +2128,69 @@ fn new_builtins() -> HashMap<String, Val> {
     m
 }
 
-fn as_int(v: &Val) -> Result<i64, JishiError> {
+/// 整数溢出的统一出口（M32）。
+///
+/// `i128` 的边界约 1.7e38。超出时**明确报错**，而不是让 release 构建回绕成
+/// 一个看似合法的数——那是最危险的静默算错。Python / JS 宿主是任意精度的，
+/// 所以这条边界只属于本宿主。
+fn big_ok(r: Option<i128>) -> Result<i128, JishiError> {
+    r.ok_or_else(|| err("值错误",
+        "整数运算结果太大，超出了 Rust 宿主能表示的范围（约 1.7e38）"))
+}
+
+/// 类型标注里认识的类型名 → 判定（对齐 Python 侧 `_TYPE_PREDICATES`）。
+///
+/// 返回 `None` 表示**不认识这个名字**——调用方应当跳过：作者自定义的标注
+/// （`商品`、`订单`）只作文档，不该因为名字不在表里就误报。
+fn matches_annotation(tname: &str, v: &Val) -> Option<bool> {
+    Some(match tname {
+        "整数" => matches!(v, Val::Int(_)),
+        // 精确小数也是数字（Python 侧 `float` / `Decimal` 走同一条）
+        "小数" => matches!(v, Val::Float(_) | Val::Dec(_)),
+        "文本" => matches!(v, Val::Str(_)),
+        "列表" => matches!(v, Val::List(_)),
+        "字典" => matches!(v, Val::Dict(_)),
+        "集合" => matches!(v, Val::Set(_)),
+        "布尔" => matches!(v, Val::Bool(_)),
+        "空" => matches!(v, Val::None_),
+        "函数" => matches!(v, Val::Func(_) | Val::Class(_) | Val::Builtin(..)
+                                | Val::ExcType(_) | Val::BoundMethod(_)),
+        "任意" | "值" => true,
+        _ => return None,               // 不认识的标注：只作文档
+    })
+}
+
+/// 按类型标注校验实参。
+///
+/// `desc` 是扁平描述 `[参数名, 类型名, 参数名, 类型名, …]`，`values` 是实参
+/// 列表（与 desc 里的参数一一对应）。报错文案与 Python / JS 侧逐字对齐。
+fn check_args(desc: &Val, values: &Val, func_name: &Val) -> Result<Val, JishiError> {
+    let (Val::List(d), Val::List(vs)) = (desc, values) else {
+        return Ok(Val::None_);          // 形状不对就别拦（例如旧产物）
+    };
+    let d = d.borrow();
+    let vs = vs.borrow();
+    let fname = display(func_name);
+    let mut i = 0;
+    while i + 1 < d.len() {
+        let idx = i / 2;
+        if idx < vs.len() {
+            let pname = display(&d[i]);
+            let tname = display(&d[i + 1]);
+            if let Some(ok) = matches_annotation(&tname, &vs[idx]) {
+                if !ok {
+                    return Err(err("类型错误", format!(
+                        "函数「{fname}」的参数「{pname}」要求是「{tname}」，\
+                         但传进来的是「{}」", type_label(&vs[idx]))));
+                }
+            }
+        }
+        i += 2;
+    }
+    Ok(Val::None_)
+}
+
+fn as_int(v: &Val) -> Result<i128, JishiError> {
     match v { Val::Int(i) => Ok(*i), _ => Err(err("类型错误", "需要整数")) }
 }
 
@@ -2131,12 +2256,15 @@ fn b_sum(args: &[Val], _vm: &mut VM) -> Result<Val, JishiError> {
         }
         return Ok(Val::Dec(Rc::new(acc)));
     }
-    let mut acc_int: i64 = 0;
+    let mut acc_int: i128 = 0;      // 大整数（M32）：整数求和不再回绕
     let mut acc_f: f64 = 0.0;
     let mut is_float = false;
     for it in &items {
         match it {
-            Val::Int(i) => { if is_float { acc_f += *i as f64; } else { acc_int += *i; } }
+            Val::Int(i) => {
+                if is_float { acc_f += *i as f64; }
+                else { acc_int = big_ok(acc_int.checked_add(*i))?; }
+            }
             Val::Float(f) => { if !is_float { acc_f = acc_int as f64; is_float = true; } acc_f += *f; }
             other => return Err(err("类型错误", format!(
                 "「{}」不能求和，需要一个全是数字的列表", display(other)))),
@@ -2159,7 +2287,8 @@ fn stdlib_module(name: &str) -> Result<Val, JishiError> {
             }));
             m.insert("阶乘".to_string(), Val::Builtin("阶乘", |args, _vm| {
                 let n = as_int(&args[0])?;
-                let mut r = 1i64; for i in 2..=n { r *= i; }
+                let mut r = 1i128;
+                for i in 2..=n { r = big_ok(r.checked_mul(i))?; }
                 Ok(Val::Int(r))
             }));
         }
@@ -2535,7 +2664,19 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
             "none" => Val::None_,
             "true" => Val::Bool(true),
             "false" => Val::Bool(false),
-            "int" => Val::Int(c.get("v").and_then(|x| x.as_i64()).unwrap_or(0)),
+            "int" => {
+                // 两种编码都要认：小整数是 JSON 数字，超出宿主安全范围的
+                // 大整数是**十进制字符串**（M32，见 jishi/serialize.py）。
+                // 解不出来就报错——以前 `unwrap_or(0)` 会把大整数静默变成 0。
+                let raw = c.get("v").ok_or("整数常量缺 v 字段")?;
+                let parsed = match raw {
+                    Json::Str(t) => t.parse::<i128>().ok(),
+                    other => other.as_i128(),
+                };
+                Val::Int(parsed.ok_or_else(|| {
+                    format!("整数常量超出范围（Rust 宿主支持到 i128）：{raw:?}")
+                })?)
+            }
             "float" => Val::Float(c.get("v").and_then(|x| x.as_f64()).unwrap_or(0.0)),
             "str" => Val::Str(c.get("v").and_then(|x| x.as_str()).unwrap_or("").to_string()),
             _ => return Err(format!("未知常量类型 {t}")),

@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 pub enum Json {
     Null,
     Bool(bool),
-    Int(i64),
+    Int(i128),   // 大整数（M32）：i64 装不下 Python 的任意精度 int 字面量
     Float(f64),
     Str(String),
     Arr(Vec<Json>),
@@ -24,9 +24,17 @@ impl Json {
             _ => None,
         }
     }
-    pub fn as_i64(&self) -> Option<i64> {
+    /// 取 128 位整数（大整数常量用，见 M32）。
+    pub fn as_i128(&self) -> Option<i128> {
         match self {
             Json::Int(i) => Some(*i),
+            _ => None,
+        }
+    }
+    /// 取 64 位整数（指令流里的操作数都是小整数，装得下）。
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            Json::Int(i) => i64::try_from(*i).ok(),
             _ => None,
         }
     }
@@ -224,7 +232,8 @@ impl<'a> Parser<'a> {
         if is_float {
             s.parse::<f64>().map(Json::Float).map_err(|_| "非法浮点".to_string())
         } else {
-            s.parse::<i64>().map(Json::Int).map_err(|_| "非法整数".to_string())
+            // 用 i128：字节码里的整数常量可能超出 i64（M32）
+            s.parse::<i128>().map(Json::Int).map_err(|_| "非法整数".to_string())
         }
     }
 }

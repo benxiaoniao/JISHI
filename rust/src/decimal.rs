@@ -189,6 +189,21 @@ impl BigInt {
         self.mag.is_empty()
     }
 
+    /// 从 i128 构造（M32：`Val::Int` 已从 i64 提到 i128）。
+    pub fn from_i128(v: i128) -> Self {
+        let neg = v < 0;
+        let mut u = v.unsigned_abs();
+        let mut mag = Vec::new();
+        while u > 0 {
+            mag.push((u % BASE as u128) as u32);
+            u /= BASE as u128;
+        }
+        BigInt {
+            neg: neg && !mag.is_empty(),
+            mag,
+        }
+    }
+
     pub fn from_i64(v: i64) -> Self {
         let neg = v < 0;
         let mut u = (v as i128).unsigned_abs() as u128;
@@ -421,12 +436,21 @@ impl Dec {
         c
     }
 
+    // 加减乘的结果都要按 28 位有效数字舍入（M32）：Python 的 Decimal 每次
+    // 运算都走 context（prec=28, ROUND_HALF_EVEN），
+    // `Decimal("9999999999999999999999999999") + 1` 给的是
+    // `1.000000000000000000000000000E+28` 而不是 29 位的精确值。
+    // 以前只给 div 加了舍入，于是「加减乘超 28 位」时各宿主给出不同的数
+    // ——那属于「静默算错」，比报错更糟。
+    // 注意：构造（`精确("…")`）**不**舍入，与 Python 的 Decimal(str) 一致。
+
     pub fn add(&self, o: &Dec) -> Dec {
         let e = self.exp.min(o.exp);
         Dec {
             coef: self.aligned(e).add(&o.aligned(e)),
             exp: e,
         }
+        .round_to_significant(PRECISION)
     }
 
     pub fn sub(&self, o: &Dec) -> Dec {
@@ -435,6 +459,7 @@ impl Dec {
             coef: self.aligned(e).sub(&o.aligned(e)),
             exp: e,
         }
+        .round_to_significant(PRECISION)
     }
 
     pub fn mul(&self, o: &Dec) -> Dec {
@@ -442,6 +467,7 @@ impl Dec {
             coef: self.coef.mul(&o.coef),
             exp: self.exp + o.exp,
         }
+        .round_to_significant(PRECISION)
     }
 
     /// 除法：算到 28 位有效数字，ROUND_HALF_EVEN，再去尾零。
@@ -547,7 +573,16 @@ impl Dec {
 
     /// 舍到某个 10 的幂位：0 → 个位，-2 → 分位，2 → 百位。
     pub fn quantize10(&self, target_exp: i32, mode: Round) -> Dec {
-        if self.exp >= target_exp {
+        if self.exp > target_exp {
+            // 系数要「补零」到自己更粗的标度上：Python 的 `quantize` 是**精确**
+            // 调整到给定指数，不只是舍入（`Decimal("1234").quantize(Decimal("0.01"))`
+            // 给 `1234.00`）。少了这一步，`舍入(2)` 会原地返回 `1234`（M32）。
+            return Dec {
+                coef: self.coef.mul(&BigInt::pow10((self.exp - target_exp) as u32)),
+                exp: target_exp,
+            };
+        }
+        if self.exp == target_exp {
             return self.clone();
         }
         let drop = (target_exp - self.exp) as u32;
@@ -601,11 +636,18 @@ impl Dec {
         Dec { coef: c, exp: e }
     }
 
-    /// 普通（非科学计数法）写法。
-    pub fn to_string(&self) -> String {
-        let neg = self.coef.neg;
-        let digits = self.coef.abs().to_string();
-        let sign = if neg { "-" } else { "" };
+    /// 定点写法 —— 对应 Python 的 `format(v, "f")`：`1.2E+3` → `1200`。
+    ///
+    /// `舍入` 的最后一步要用它：Python 侧是
+    /// `Decimal(format(rounded, "f"))`，把科学计数法换回普通写法。
+    pub fn to_fixed_string(&self) -> String {
+        let sign = if self.coef.neg { "-" } else { "" };
+        let abs = self.coef.abs();
+        let digits = if abs.is_zero() {
+            "0".repeat(std::cmp::max(1, -self.exp) as usize)
+        } else {
+            abs.to_string()
+        };
         if self.exp >= 0 {
             return format!("{sign}{digits}{}", "0".repeat(self.exp as usize));
         }
@@ -616,6 +658,65 @@ impl Dec {
         } else {
             format!("{}0.{}{}", sign, "0".repeat((-point) as usize), digits)
         }
+    }
+
+    /// `str(Decimal)` 的写法（对齐 CPython 的 `_pydecimal.__str__`）。
+    ///
+    /// 规则：`leftdigits = exp + 系数位数`；**只有 `exp <= 0` 且
+    /// `leftdigits > -6` 时才用定点**，否则用科学计数法（点前留 1 位、
+    /// 指数带正负号、大写 `E`）。
+    ///
+    /// M32 才补上科学计数法分支——以前无条件补零，于是
+    /// `精确("9999999999999999999999999999") + 1` 打出 29 位数字串，
+    /// 而 Python 给 `1.000000000000000000000000000E+28`。
+    pub fn to_string(&self) -> String {
+        let neg = self.coef.neg;
+        // 系数为 0 时按标度补足位数：Python 的 `_int` 对 `Decimal("0.00")` 是 "000"
+        let digits = if self.coef.is_zero() {
+            "0".repeat(std::cmp::max(1, -self.exp) as usize)
+        } else {
+            self.coef.abs().to_string()
+        };
+        let leftdigits = self.exp + digits.len() as i32;
+        let dotplace = if self.exp <= 0 && leftdigits > -6 {
+            leftdigits
+        } else {
+            1
+        };
+        let (intpart, fracpart) = if dotplace <= 0 {
+            (
+                "0".to_string(),
+                format!(".{}{}", "0".repeat((-dotplace) as usize), digits),
+            )
+        } else if dotplace as usize >= digits.len() {
+            (
+                format!(
+                    "{}{}",
+                    digits,
+                    "0".repeat(dotplace as usize - digits.len())
+                ),
+                String::new(),
+            )
+        } else {
+            let p = dotplace as usize;
+            (digits[..p].to_string(), format!(".{}", &digits[p..]))
+        };
+        let exp_part = if leftdigits == dotplace {
+            String::new()
+        } else {
+            format!(
+                "E{}{}",
+                if leftdigits - dotplace >= 0 { "+" } else { "" },
+                leftdigits - dotplace
+            )
+        };
+        format!(
+            "{}{}{}{}",
+            if neg { "-" } else { "" },
+            intpart,
+            fracpart,
+            exp_part
+        )
     }
 
     /// 正好是整数时给 `i64`（给 `**` 的指数用）；有小位数或放不下则 None。
