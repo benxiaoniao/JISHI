@@ -32,6 +32,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
+from conftest import tmp_bc_path   # noqa: E402
+
 from jishi import serialize                       # noqa: E402
 from jishi import vm as vm_mod                    # noqa: E402
 from jishi.compiler import compile_source         # noqa: E402
@@ -79,7 +81,7 @@ def _py_run(src: str) -> str:
 
 
 def _rs_run(src: str, exe: Path) -> tuple[int, str, str]:
-    bc = ROOT / "_tmp_rust_bc.json"
+    bc = tmp_bc_path(ROOT / "_tmp_rust_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
     try:
         r = subprocess.run([str(exe), str(bc)], capture_output=True,

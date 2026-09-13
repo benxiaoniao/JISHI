@@ -19,6 +19,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
+from conftest import tmp_bc_path   # noqa: E402
+
 from jishi import cvm_bind                        # noqa: E402
 from jishi import opcodes as O                    # noqa: E402
 from jishi import runtime as R                    # noqa: E402
@@ -547,7 +549,7 @@ def test_node_host_supports_varargs_and_star_unpack():
            '打印(带默认(1))\n'
            '令 首, *中, 尾 = [1, 2, 3, 4, 5]\n'
            '打印(首, 中, 尾)\n')
-    bc = ROOT / "_tmp_m25_node.json"
+    bc = tmp_bc_path(ROOT / "_tmp_m25_node.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
     try:
         r = subprocess.run([_NODE, str(ROOT / "node" / "index.js"), str(bc)],

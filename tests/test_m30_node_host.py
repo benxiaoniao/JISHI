@@ -35,6 +35,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
+from conftest import tmp_bc_path   # noqa: E402
+
 from jishi import cvm_bind                        # noqa: E402
 from jishi import serialize                       # noqa: E402
 from jishi import vm as vm_mod                    # noqa: E402
@@ -79,7 +81,7 @@ def _c_run(src: str) -> str:
 
 
 def _node_run(src: str) -> tuple[int, str, str]:
-    bc = ROOT / "_tmp_m30_bc.json"
+    bc = tmp_bc_path(ROOT / "_tmp_m30_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
     try:
         r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
@@ -646,7 +648,7 @@ def test_node_stdlib_system_module():
 
 def test_node_stdlib_system_args():
     """`系统.参数()`：`node index.js 字节码.json a b` → ['a', 'b']。"""
-    bc = ROOT / "_tmp_m30_args.json"
+    bc = tmp_bc_path(ROOT / "_tmp_m30_args.json")
     bc.write_text(serialize.dumps(compile_source("导入 系统\n打印(系统.参数())\n", "<t>")),
                   encoding="utf-8")
     try:
@@ -665,7 +667,7 @@ def test_node_stdlib_system_args():
 # 「按回车用默认路径」这类交互直接失效。
 
 def test_node_input_reads_stdin():
-    bc = ROOT / "_tmp_m30_in.json"
+    bc = tmp_bc_path(ROOT / "_tmp_m30_in.json")
     bc.write_text(serialize.dumps(compile_source(
         '令 名字 = 输入("请输入名字：")\n打印("你好 " + 名字)\n', "<t>")),
         encoding="utf-8")
@@ -682,7 +684,7 @@ def test_node_input_reads_stdin():
 
 def test_node_input_eof_is_chinese():
     """stdin 到末尾时报「输入结束」，与 Python 的 `input()` 一致。"""
-    bc = ROOT / "_tmp_m30_in2.json"
+    bc = tmp_bc_path(ROOT / "_tmp_m30_in2.json")
     bc.write_text(serialize.dumps(compile_source("令 x = 输入()\n打印(x)\n", "<t>")),
                   encoding="utf-8")
     try:
@@ -705,7 +707,7 @@ def _run_project(project: str, script: str, arg: str, feed: str | None) -> None:
     if not src_path.exists():
         pytest.skip(f"示例项目不存在：{src_path}")
     src = src_path.read_text(encoding="utf-8")
-    bc = ROOT / "_tmp_m30_proj.json"
+    bc = tmp_bc_path(ROOT / "_tmp_m30_proj.json")
     bc.write_text(serialize.dumps(compile_source(src, str(src_path))), encoding="utf-8")
     cwd = str(src_path.parent)
     try:

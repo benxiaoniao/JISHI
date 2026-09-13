@@ -34,7 +34,22 @@ else
   echo "  $RC_FILE 已包含安装目录"
 fi
 
-# 3. 自检
+# 3. 桌面项（Linux，M35）：让语言图标出现在应用菜单里
+#    macOS 走 .app 包，桌面项是 freedesktop 规范的东西，只对 Linux 有意义。
+if [ "$(uname -s)" = "Linux" ] && [ -f "$INSTALL_DIR/share/基石.desktop" ]; then
+  APPS_DIR="$HOME/.local/share/applications"
+  mkdir -p "$APPS_DIR"
+  # 桌面项要求绝对路径，所以把占位符换成实际安装目录
+  sed "s|__INSTALL_DIR__|$INSTALL_DIR|g" \
+    "$INSTALL_DIR/share/基石.desktop" > "$APPS_DIR/jishi.desktop"
+  chmod +x "$APPS_DIR/jishi.desktop"
+  # 刷新桌面数据库（没有 update-desktop-database 也不影响文件生效）
+  command -v update-desktop-database >/dev/null 2>&1 && \
+    update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
+  echo "  已安装桌面项：$APPS_DIR/jishi.desktop（应用菜单里可搜「基石」）"
+fi
+
+# 4. 自检
 echo ""
 echo "== 自检 =="
 "$BIN_DIR/jishi" --version || { echo "  自检失败"; exit 1; }

@@ -17,7 +17,16 @@ for RC_FILE in "$HOME/.bashrc" "$HOME/.zshrc"; do
   fi
 done
 
-# 2. 删除安装目录
+# 2. 删除桌面项（Linux，M35）
+APPS_DIR="$HOME/.local/share/applications"
+if [ -f "$APPS_DIR/jishi.desktop" ]; then
+  rm -f "$APPS_DIR/jishi.desktop"
+  command -v update-desktop-database >/dev/null 2>&1 && \
+    update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
+  echo "  已删除桌面项 jishi.desktop"
+fi
+
+# 3. 删除安装目录
 if [ -d "$INSTALL_DIR" ]; then
   rm -rf "$INSTALL_DIR"
   echo "  已删除 $INSTALL_DIR"

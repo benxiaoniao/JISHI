@@ -50,6 +50,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
+from conftest import tmp_bc_path   # noqa: E402
+
 from jishi import cvm_bind                        # noqa: E402
 from jishi import serialize                       # noqa: E402
 from jishi import vm as vm_mod                    # noqa: E402
@@ -92,7 +94,8 @@ def _c_run(src: str) -> str:
 
 
 def _write_bc(src: str, name: str) -> Path:
-    bc = ROOT / name
+    # 名字带进程号：跨进程并发跑测试时不会互相覆写（M32 的假失败就是这么来的）
+    bc = tmp_bc_path(ROOT / name)
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
     return bc
 
@@ -497,7 +500,7 @@ def test_rust_annotation_all_known_names(rust_exe):
 
 def test_rust_identity_of_class(rust_exe):
     assert _agree_rust(
-        "类 A：\n    通过\n类 B：\n    通过\n打印(A 是 A, A 是 B)\n",
+        "类 A：\n    :\n类 B：\n    :\n打印(A 是 A, A 是 B)\n",
         rust_exe) == "真 假\n"
 
 
@@ -510,7 +513,7 @@ def test_rust_identity_of_function(rust_exe):
 def test_rust_identity_alias_keeps_same_id(rust_exe):
     """别名（同一个对象赋给另一个名字）仍是同一个。"""
     assert _agree_rust(
-        "类 A：\n    通过\n令 b = A\n打印(A 是 b)\n"
+        "类 A：\n    :\n令 b = A\n打印(A 是 b)\n"
         "函数 f()：\n    返回 1\n令 g = f\n打印(f 是 g)\n",
         rust_exe) == "真\n真\n"
 

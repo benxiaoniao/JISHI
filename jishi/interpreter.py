@@ -457,10 +457,16 @@ class Interpreter:
                 # 这样 `计数 = 某个外部常量` 能用外层名字；写进类变量表，
                 # 也不污染外层作用域。
                 class_vars[node.target.id] = self.eval_expr(node.value, env)
+            elif isinstance(node, A.Pass):
+                # 空类占位（`通过` / `:`）——什么都不做（M35）。
+                # 解析期已保证类体里只有这三种节点（见 parser._check_class_body），
+                # 所以这里跳过即可；空类就是空类。
+                continue
             else:
+                # 解析期拦不住的（只在 AST 被程序化构造时才可能到这儿）
                 raise RunError(
-                    f"类体里只能写方法（函数）和类变量（名字 = 值），"
-                    f"不支持「{type(node).__name__}」",
+                    f"类体里只能写方法（函数）、类变量（名字 = 值）"
+                    f"或空类占位（:），不支持「{type(node).__name__}」",
                     line=node.line, col=node.col, filename=self.filename)
         # JishiClass 构造时自动合并基类方法（继承），子类同名覆盖
         cls = R.JishiClass(stmt.name, methods, base=base,

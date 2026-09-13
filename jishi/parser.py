@@ -54,6 +54,18 @@ _MATCH_HINT = """写法是：
 可以加守卫（`情形 90 如果 有加分：`），
 「情形 其他」是兜底，要放在最后。"""
 
+#: 「类体里只能写什么」的提示（M35）
+_CLASS_HINT = """类体里只放两样东西：
+
+类 甲：
+    计数 = 0                # 1. 类变量（名字 = 值）
+    函数 打招呼(自身)：      # 2. 方法（函数）
+        打印("你好")
+
+空类写一个单独的冒号占位：
+类 空类：
+    :"""
+
 #: 「枚举」的写法提示（M34.2）
 _ENUM_HINT = """写法是：
 枚举 颜色：
@@ -877,6 +889,93 @@ class Parser:
         return self._parse_annotation_name("类型名")
 
     # 类
+    def _err_at(self, exc: type, msg: str, node: A.Node,
+                hint: Optional[str] = None):
+        """按 AST 节点位置报错（块解析完之后拿不到 token 时用）。
+
+        块语句（类体、函数体）解析完之后，`self._peek()` 已经指到块后面去了，
+        用 `_err` 会把错误标在下一行。这里按节点自带的 line/col 合成一个
+        最小 token，让下划线落在**出错那一行**上。
+        """
+        line = getattr(node, "line", 1) or 1
+        col = getattr(node, "col", 1) or 1
+        src = (self.source_lines[line - 1]
+               if 0 < line <= len(self.source_lines) else "")
+        tok = Token("NAME", "", line=line, col=col, end_col=col + 1,
+                    source_line=src)
+        self._err(exc, msg, hint=hint, tok=tok)
+
+    def _check_class_body(self, body: list[A.Node]) -> None:
+        """类体只允许「方法 / 类变量 / 占位」——**解析期**统一校验（M35）。
+
+        为什么要在解析期拦：不拦的话三个执行器给的答案**各不相同**，而且
+        一个比一个糟（M35 实测）：
+
+        | 类体里写了 | 树遍历 | Python VM / C VM |
+        |---|---|---|
+        | `打印("…")` | 报「不支持 ExprStmt」 | **静默忽略**（副作用没发生） |
+        | `x += 5` | 报「不支持 Assign」 | 当成 `x = 5` **静默算错** |
+        | `x[0] = 1` | 报「不支持 Assign」 | 抛英文 `'Subscript' object has no attribute 'id'` |
+        | `"说明"` | 报「不支持 ExprStmt」 | 静默忽略 |
+        | `:`（空类占位） | 报「不支持 Pass」 | 静默忽略（**但空类就该这么写**） |
+
+        在解析期拦下来，一处覆盖全部执行器（它们都要过 parser），
+        而且把「静默算错 / 英文内部错」统一成一条说得清的中文提示。
+        顺便让 `:`（空类占位）在三个执行器上都合法——这是空类的自然写法。
+
+        （注：空块在基石里是**单独一行冒号**，没有 Python 那样的 `pass` 关键字；
+        M32 时曾把这条记成「树遍历不支持类体里写 通过」——那是个误判：
+        `通过` 从来不是关键字，它是个名字，于是被当成表达式语句。）
+        """
+        for node in body:
+            if isinstance(node, A.FuncDef):
+                continue
+            if isinstance(node, A.Pass):
+                continue                      # 空类占位：单独一行「:」
+            if (isinstance(node, A.Assign)
+                    and isinstance(node.target, A.Name) and node.op == "="):
+                continue                      # 类变量
+            kind = type(node).__name__
+            if isinstance(node, A.Assign):
+                if isinstance(node.target, A.Name):
+                    msg = (f"类体里不能用「{node.target.id} {node.op}」——"
+                           f"类变量只能在类体里用一次性的「名字 = 值」声明")
+                else:
+                    msg = ("类体里不能对下标或属性赋值，"
+                           "只能用「名字 = 值」定义类变量")
+                hint = ("类变量要在类体里用一次性的「=」声明：\n"
+                        "类 甲：\n"
+                        "    计数 = 0          # 类变量\n"
+                        "    函数 加(自身)：    # 方法\n"
+                        "        甲.计数 += 1   # 改类变量写在方法里")
+            elif isinstance(node, A.ExprStmt):
+                if (isinstance(node.expr, A.Name)
+                        and node.expr.id == "通过"):
+                    # 从 Python 借来的写法，特意点名——否则用户会以为
+                    # 「通过」是关键字只是位置不对（M35 实测确实有人这么写）
+                    self._err_at(
+                        ParseUnexpectedError,
+                        "类体里不能写「通过」——它不是关键字，只是个普通名字",
+                        node,
+                        hint=("空类用「单独一行冒号」占位：\n"
+                              "类 空类：\n"
+                              "    :\n\n"
+                              "（基石没有 Python 的 `pass`；`通过` 在别的地方"
+                              "也只是个名字，写了会报「找不到这个名字」。）"))
+                    continue
+                msg = "类体里不能写「表达式语句」（比如调用函数）"
+                hint = ("类体里只放声明，不放会执行的东西：\n"
+                        "类 甲：\n"
+                        "    计数 = 0\n"
+                        "    函数 打招呼(自身)：\n"
+                        "        打印(\"你好\")   # 想执行就写进方法里\n\n"
+                        "想在类上写说明文字，请用注释（# 开头）。")
+            else:
+                msg = (f"类体里只能写方法（函数）、类变量（名字 = 值）"
+                       f"或空类占位（:），不能写「{kind}」")
+                hint = _CLASS_HINT
+            self._err_at(ParseUnexpectedError, msg, node, hint=hint)
+
     def _parse_classdef(self) -> A.Node:
         start = self._next()
         name_tok = self._expect_name("类名")
@@ -886,6 +985,7 @@ class Parser:
             base = self._expect_name("基类名").value
         self._expect_colon("类")
         body = self._parse_block()
+        self._check_class_body(body)
 
         # M23.4：方法体里的 `超()` → `超(自身, "定义类名")`。
         # 解析期就知道「写在哪个类里」，比运行时猜实例的类更准

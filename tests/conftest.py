@@ -6,6 +6,7 @@
 """
 
 import io
+import os
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -19,6 +20,21 @@ from jishi.errors import JishiError
 
 CASES = Path(__file__).parent / "cases"
 ERROR_CASES = Path(__file__).parent / "error_cases"
+
+
+def tmp_bc_path(filename: str) -> Path:
+    """本轮专属的临时字节码路径（文件名里带进程号）。
+
+    来由（M32 踩到，M35 修）：这些对拍测试原先往项目根写**固定文件名**
+    （`_tmp_bc.json`、`_tmp_m30_bc.json` …）。同一个进程里测试是串行的，
+    所以单跑没事；但两个进程同时跑（人工并行、或有人加了 pytest-xdist）
+    就会互相覆写，产生**假失败**——表现是几十上百个 `SystemExit: 1`、
+    位置每次都不一样、单跑必过。M32 为此查了很久。
+
+    带进程号后跨进程不再撞；同进程内串行执行，所以这一个后缀就够了。
+    """
+    p = Path(filename)
+    return p.with_name(f"{p.stem}_{os.getpid()}{p.suffix}")
 
 
 def _list_cases(directory: Path) -> list[str]:

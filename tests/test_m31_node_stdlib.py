@@ -25,7 +25,6 @@ from __future__ import annotations
 import http.server
 import io
 import shutil
-import socket
 import subprocess
 import sys
 import threading
@@ -36,6 +35,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, ".")
+
+from conftest import tmp_bc_path   # noqa: E402
 
 from jishi import cvm_bind                        # noqa: E402
 from jishi import serialize                       # noqa: E402
@@ -61,7 +62,7 @@ def _py_run(src: str) -> str:
 
 
 def _node_run(src: str) -> tuple[int, str, str]:
-    bc = ROOT / "_tmp_m31_bc.json"
+    bc = tmp_bc_path(ROOT / "_tmp_m31_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
     try:
         r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
@@ -570,16 +571,22 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
 @pytest.fixture
 def http_port():
-    sock = socket.socket()
-    sock.bind(("127.0.0.1", 0))
-    port = sock.getsockname()[1]
-    sock.close()
-    httpd = http.server.HTTPServer(("127.0.0.1", port), _Handler)
+    """起一个本地 HTTP 服务，返回端口。
+
+    **让 HTTPServer 自己 bind 端口 0**（而不是先探一个空端口再关掉重绑）：
+    后者是典型的 TOCTOU 竞态——`close()` 到重新 `bind()` 之间端口可能被
+    别的进程抢走，于是偶发 `OSError: [WinError 10048] 每个套接字地址只允许
+    使用一次`。这个竞态只在全量跑（大量子进程同时抢临时端口）时暴露，
+    单跑必过，正是 M32 那类「假失败」的形态。
+    """
+    httpd = http.server.HTTPServer(("127.0.0.1", 0), _Handler)   # 原子占端口
+    port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
         yield port
     finally:
         httpd.shutdown()
+        httpd.server_close()
 
 
 def test_node_network_get_and_post(http_port):
@@ -614,7 +621,7 @@ def test_node_network_error_is_chinese():
 def _run_project(name: str, script: str, arg: str, feed, tmp_path: Path):
     src_path = ROOT / "examples" / "projects" / name / script
     src = src_path.read_text(encoding="utf-8")
-    bc = ROOT / "_tmp_m31_proj.json"
+    bc = tmp_bc_path(ROOT / "_tmp_m31_proj.json")
     bc.write_text(serialize.dumps(compile_source(src, str(src_path))),
                   encoding="utf-8")
     cmd_py = [sys.executable, "-m", "jishi.cli", str(src_path)]

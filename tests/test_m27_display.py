@@ -27,6 +27,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
+from conftest import tmp_bc_path   # noqa: E402
+
 from jishi import cvm_bind                        # noqa: E402
 from jishi import serialize                       # noqa: E402
 from jishi import vm as vm_mod                    # noqa: E402
@@ -170,7 +172,7 @@ pytestmark_host = pytest.mark.skipif(
 def _compare_host(src: str) -> None:
     py_out = _pvm(src)
     text = serialize.dumps(compile_source(src, "<t>"))
-    bc = ROOT / "_tmp_m27_bc.json"
+    bc = tmp_bc_path(ROOT / "_tmp_m27_bc.json")
     bc.write_text(text, encoding="utf-8")
     try:
         r = subprocess.run(

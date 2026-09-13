@@ -94,19 +94,48 @@ def _build_installer(out: Path, dist: Path) -> "Path | None":
         return None
     iss = ROOT / "tools" / "installer.iss"
     print("  编译 Windows 安装程序（Inno Setup）...")
-    subprocess.run(
-        [str(iscc),
-         f"/DSourceDir={out}",
-         f"/DAppVersion={VERSION}",
-         f"/DOutputDir={dist}",
-         str(iss)],
-        cwd=str(ROOT), check=True)
+    args = [str(iscc),
+            f"/DSourceDir={out}",
+            f"/DAppVersion={VERSION}",
+            f"/DOutputDir={dist}"]
+    # 图标路径由编译期确定（SetupIconFile），所以这里传**绝对路径**：.iss 自身
+    # 的编码在英文 Windows 上可能被当成 ANSI，中文相对路径会变乱码导致编译失败。
+    if ICON_WIN.exists():
+        args.append(f"/DMyIconFile={ICON_WIN}")
+    args.append(str(iss))
+    subprocess.run(args, cwd=str(ROOT), check=True)
     inst = dist / f"jishi-{VERSION}-windows-x64-setup.exe"
     if inst.exists():
         print(f"  已生成安装程序：{inst.name}")
         return inst
     print("  警告：安装程序似乎未生成，请检查 Inno Setup 输出")
     return None
+
+
+#: 各平台的图标资产。Windows 用 .ico（可执行文件内嵌图标只认 ico），
+#: macOS 用 .icns，Linux 的可执行文件**不内嵌图标**（那是桌面项的事，
+#: 见下面写出的 .desktop），所以不传给 PyInstaller。
+ICON_WIN = ROOT / "assets" / "基石.ico"
+ICON_MAC = ROOT / "assets" / "基石.icns"
+
+
+def _icon_args() -> list[str]:
+    """PyInstaller 的 `--icon` 参数（按平台挑文件；没有就返回空）。
+
+    为什么 Linux 不给：ELF 可执行文件没有图标资源的概念，PyInstaller 会
+    在参数不适用时警告并忽略。Linux 的图标靠 `share/基石.desktop` 指到
+    PNG（安装脚本会把桌面项放到 ~/.local/share/applications）。
+    """
+    if sys.platform == "win32":
+        ic = ICON_WIN
+    elif sys.platform == "darwin":
+        ic = ICON_MAC
+    else:
+        return []
+    if not ic.exists():
+        print(f"  提示：没找到图标 {ic.name}——先跑 python tools/make_logo.py 生成。")
+        return []
+    return ["--icon", str(ic)]
 
 
 def _find_cvm_dll() -> Path:
@@ -177,6 +206,7 @@ def build(argv: list[str]) -> int:
                    "--specpath", str(work),
                    "--console",
                    * _add_data_args(),
+                   * _icon_args(),
                    str(ROOT / "tools" / "entry_cli.py")]
 
     print("  运行 PyInstaller ...")
@@ -193,6 +223,7 @@ def build(argv: list[str]) -> int:
          "--specpath", str(work),
          "--console",
          * _add_data_args(),
+         * _icon_args(),
          str(ROOT / "tools" / "entry_mcp.py")],
         cwd=str(ROOT), check=True)
 
@@ -222,6 +253,12 @@ def build(argv: list[str]) -> int:
     logo = ROOT / "assets" / "基石_logo.png"
     if logo.exists():
         shutil.copy2(logo, share / "logo.png")
+    # 图标资产随发行包一起走：Windows 安装程序要用 share/基石.ico 当卸载项
+    # 与快捷方式图标；macOS/Linux 用 PNG/ICNS（见 M35）
+    for ic, name in ((ICON_WIN, "基石.ico"), (ICON_MAC, "基石.icns")):
+        if ic.exists():
+            shutil.copy2(ic, share / name)
+    _write_desktop_entry(out)
     # 语言卡与系统提示词
     try:
         sys.path.insert(0, str(ROOT))
@@ -256,6 +293,32 @@ def build(argv: list[str]) -> int:
 
     print(f"\n✅ 发行包生成完成：{out}")
     return 0
+
+
+def _write_desktop_entry(out: Path) -> None:
+    """写 Linux 桌面项（`share/基石.desktop`）。
+
+    Linux 的可执行文件不内嵌图标，语言「有图标」这件事只能靠桌面项体现
+    （菜单、文件管理器、任务栏）。`Icon=` 写**绝对路径占位**：桌面项要求
+    绝对路径，而安装位置由用户决定，所以同时写一份 `%f` 友好的版本，
+    并在 install.sh 里按实际安装目录替换 `__INSTALL_DIR__`。
+
+    不做 `.jsh` 文件关联：那要在用户桌面数据库里注册 MIME 类型，
+    各家发行版差异大，收益不如风险。要关联的用户自己加一行即可。
+    """
+    target = out / "share" / "基石.desktop"
+    target.write_text(
+        "[Desktop Entry]\n"
+        "Type=Application\n"
+        "Name=基石 jishi\n"
+        "Comment=一门像 Python 一样简单易用的中文编程语言\n"
+        "Exec=__INSTALL_DIR__/bin/jishi %f\n"
+        "Icon=__INSTALL_DIR__/share/logo.png\n"
+        "Terminal=true\n"
+        "Categories=Development;Languages;\n"
+        "Keywords=中文;编程;jishi;\n",
+        encoding="utf-8")
+    print("  已写入 Linux 桌面项：share/基石.desktop")
 
 
 def _write_install_scripts(out: Path) -> None:

@@ -15,6 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, ".")
 
+from conftest import tmp_bc_path   # noqa: E402
+
 import pytest
 
 from jishi.compiler import compile_source
@@ -29,7 +31,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def _node_run(bytecode_text: str) -> tuple[int, str]:
-    bc = ROOT / "_tmp_bc.json"
+    bc = tmp_bc_path(ROOT / "_tmp_bc.json")
     bc.write_text(bytecode_text, encoding="utf-8")
     try:
         r = subprocess.run(
