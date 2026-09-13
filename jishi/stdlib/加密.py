@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib as _py_hashlib
 
 from ..errors import RunValueError
+from ..runtime import jishi_repr
 
 __all__ = [
     "摘要", "md5", "sha1", "sha256", "sha512",
@@ -30,7 +31,8 @@ def 摘要(文本, 算法: str = "sha256") -> str:
     if algo not in _算法表:
         raise RunValueError(
             f"不支持的摘要算法「{算法}」，可选：md5/sha1/sha256/sha512")
-    data = 文本 if isinstance(文本, bytes) else str(文本).encode("utf-8")
+    data = (文本 if isinstance(文本, bytes)
+            else jishi_repr(文本, top=True).encode("utf-8"))
     return _算法表[algo](data).hexdigest()
 
 

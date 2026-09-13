@@ -1090,6 +1090,740 @@ const TABLE_FUNCS = {
   }),
 };
 
+// ---------------------------------------------------------------------------
+// 路径 / 文件 / 日期 / 时间 / 加密 / 压缩 / 网络（M31）
+// ---------------------------------------------------------------------------
+// 与 Python 侧 `jishi/stdlib/` 下的同名模块一一对齐 —— M31 把 JS 宿主从
+// 「5 个常用模块」补到与 Python 侧同宽。写这段守三条：
+//   ① 「值 → 文本」统一走 `pText`（布尔/空给中文，与 `文本()` 同一套显示）；
+//   ② 平台差异（路径分隔符、系统信息）**不算语义差异**，但同机跑出来的
+//      结果仍要与 Python 侧逐字节相同（由对拍测试锁住）；
+//   ③ 动态值（现在 / 时间戳）没法逐字节对拍，测试改断言格式与范围。
+
+const _path = require('path');
+const _crypto = require('crypto');
+const _zlib = require('zlib');
+
+/** 值 → 文本（路径、文件内容、摘要输入等参数用）。对齐 `jishi_repr(…, top=True)`。 */
+function pText(v) {
+  if (typeof v === 'string') return v;
+  return R.pyStr(v);
+}
+
+/** 按 Unicode 码点比较（Python 的 `sorted()` 就是这个序，JS 默认是 UTF-16 码元序）。 */
+function cmpCodepoint(a, b) {
+  const A = [...a]; const B = [...b];
+  const n = Math.min(A.length, B.length);
+  for (let i = 0; i < n; i++) {
+    const x = A[i].codePointAt(0); const y = B[i].codePointAt(0);
+    if (x !== y) return x - y;
+  }
+  return A.length - B.length;
+}
+
+function statOf(p) {
+  try { return fs.statSync(pText(p)); } catch (e) { return null; }
+}
+
+/**
+ * 后缀 —— 对齐 pathlib 的规则，**不能用 `path.extname`**：
+ * pathlib 对 `a.` 与 `.bashrc` 都给空，而 `path.extname('a.')` 给 `'.'`。
+ * pathlib 的真规则是「最后一个点既不在开头、也不在末尾」。
+ */
+function suffixOf(p) {
+  const base = _path.basename(pText(p));
+  const i = base.lastIndexOf('.');
+  return (i > 0 && i < base.length - 1) ? base.slice(i) : '';
+}
+
+/** Python 的 `str.splitlines()` 语义（含 \v \f \x1c-\x1e \x85 \u2028 \u2029）。 */
+function splitLines(text) {
+  if (text === '') return [];
+  const parts = text.split(/\r\n|[\n\r\v\f\x1c-\x1e\u0085\u2028\u2029]/);
+  if (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+  return parts;
+}
+
+/**
+ * Windows 上把 `/` 规范成 `\`。
+ *
+ * Python 的 `Path.__str__` 在 Windows 上**总是**吐反斜杠（`str(Path("a/b"))`
+ * 给 `a\b`），而 JS 的 `path` 会保留输入里原有的分隔符。不对齐的话
+ * `路径.父目录("a/b/c.txt")` 一边给 `a\b`、一边给 `a/b`。
+ */
+function normSep(p) {
+  return _path.sep === '\\' ? String(p).replace(/\//g, '\\') : String(p);
+}
+
+// -- 路径（M31）--
+// 薄封装平台的 `path` + `fs`，语义对齐 Python 的 pathlib。
+// 平台差异说明：`连接` 的结果在 Windows 上是 `a\b`（pathlib 与 `path` 一样），
+// 这是**平台一致**而不是语义偏差。
+const PATH_FUNCS = {
+  '连接': new R.Builtin('连接', (...parts) => {
+    if (parts.length === 0) return '.';
+    let acc = pText(parts[0]);
+    for (let i = 1; i < parts.length; i++) {
+      const seg = pText(parts[i]);
+      // pathlib 的 `/` 运算符：右段是绝对路径时**重置**，不是拼接
+      if (_path.isAbsolute(seg)) acc = seg;
+      else acc = acc === '' ? seg : _path.join(acc, seg);
+    }
+    return normSep(acc);
+  }),
+  '存在': new R.Builtin('存在', (p) => fs.existsSync(pText(p))),
+  '是文件': new R.Builtin('是文件', (p) => {
+    const st = statOf(p); return !!st && st.isFile();
+  }),
+  '是目录': new R.Builtin('是目录', (p) => {
+    const st = statOf(p); return !!st && st.isDirectory();
+  }),
+  '绝对路径': new R.Builtin('绝对路径', (p) => _path.resolve(pText(p))),
+  '父目录': new R.Builtin('父目录', (p) => normSep(_path.dirname(pText(p)))),
+  '文件名': new R.Builtin('文件名', (p) => _path.basename(pText(p))),
+  '后缀': new R.Builtin('后缀', (p) => suffixOf(p)),
+  '无后缀名': new R.Builtin('无后缀名', (p) => {
+    const base = _path.basename(pText(p));
+    const suf = suffixOf(p);
+    return suf === '' ? base : base.slice(0, base.length - suf.length);
+  }),
+  '当前目录': new R.Builtin('当前目录', () => process.cwd()),
+  '主目录': new R.Builtin('主目录', () => require('os').homedir()),
+  '创建目录': new R.Builtin('创建目录', (p, recursive = false) => {
+    const dir = pText(p);
+    try {
+      fs.mkdirSync(dir, { recursive: recursive === true });
+    } catch (e) {
+      // 已存在不算错（对齐 Python 的 `exist_ok=True`）
+      if (!e || e.code !== 'EEXIST') {
+        throw R.fileErr(`创建目录「${dir}」失败：${e && e.message ? e.message : e}`);
+      }
+    }
+    return normSep(dir);
+  }),
+  '删除': new R.Builtin('删除', (p) => {
+    const target = pText(p);
+    const st = statOf(target);
+    if (!st) return false;                       // 不存在给假（对齐 Python）
+    if (st.isFile()) { fs.unlinkSync(target); return true; }
+    fs.rmdirSync(target);                        // 只删空目录（Path.rmdir 语义）
+    return true;
+  }),
+  '列出': new R.Builtin('列出', (p) => {
+    const dir = pText(p);
+    const st = statOf(dir);
+    if (!st || !st.isDirectory()) throw R.valueErr(`「${dir}」不是目录`);
+    return fs.readdirSync(dir).sort(cmpCodepoint);
+  }),
+  '重命名': new R.Builtin('重命名', (from, to) => {
+    const src = pText(from); const dst = pText(to);
+    if (!fs.existsSync(src)) throw R.valueErr(`「${src}」不存在`);
+    fs.renameSync(src, dst);
+    return dst;
+  }),
+  '大小': new R.Builtin('大小', (p) => {
+    const target = pText(p);
+    const st = statOf(target);
+    if (!st || !st.isFile()) throw R.valueErr(`「${target}」不是文件`);
+    return st.size;
+  }),
+  '修改时间': new R.Builtin('修改时间', (p) => {
+    const target = pText(p);
+    const st = statOf(target);
+    if (!st) throw R.valueErr(`「${target}」不存在`);
+    return strftimeLocal(new Date(st.mtimeMs), '%Y-%m-%d %H:%M:%S');
+  }),
+};
+
+// -- 文件（M31）--
+// 薄封装 `fs`，对齐 Python 侧 `jishi/stdlib/文件.py`。
+// `路径拼接` 走 **posix**（Python 侧用的是 PurePosixPath，永远给 `/`），
+// 而 `文件名`/`扩展名` 会把 `\` 也当分隔符（Python 侧先把 `\` 换成 `/`）。
+const FILE_FUNCS = {
+  '写文本': new R.Builtin('写文本', (p, content) => {
+    fs.writeFileSync(pText(p), pText(content), 'utf8');
+    return null;
+  }),
+  '读文本': new R.Builtin('读文本', (p) => {
+    const target = pText(p);
+    const st = statOf(target);
+    if (!st || !st.isFile()) throw R.fileErr(`找不到文件「${target}」，没法读取`);
+    return fs.readFileSync(target, 'utf8');
+  }),
+  '追加文本': new R.Builtin('追加文本', (p, content) => {
+    fs.appendFileSync(pText(p), pText(content), 'utf8');
+    return null;
+  }),
+  '写行': new R.Builtin('写行', (p, lines) => {
+    const arr = R.asIterable(lines, '要写入的行');
+    fs.writeFileSync(pText(p), arr.map((x) => pText(x) + '\n').join(''), 'utf8');
+    return null;
+  }),
+  '按行读': new R.Builtin('按行读', (p) => splitLines(FILE_FUNCS['读文本'].fn(p))),
+  '文件存在': new R.Builtin('文件存在', (p) => fs.existsSync(pText(p))),
+  '是文件': new R.Builtin('是文件', (p) => {
+    const st = statOf(p); return !!st && st.isFile();
+  }),
+  '是目录': new R.Builtin('是目录', (p) => {
+    const st = statOf(p); return !!st && st.isDirectory();
+  }),
+  '列出目录': new R.Builtin('列出目录', (p = '.') => {
+    const dir = pText(p);
+    const st = statOf(dir);
+    if (!st || !st.isDirectory()) {
+      throw R.fileErr(`目录「${dir}」不存在，没法列出内容`);
+    }
+    return fs.readdirSync(dir).sort(cmpCodepoint);
+  }),
+  '创建目录': new R.Builtin('创建目录', (p) => {
+    const dir = pText(p);
+    try { fs.mkdirSync(dir, { recursive: true }); } catch (e) {
+      throw R.fileErr(`创建目录「${dir}」失败：${e && e.message ? e.message : e}`);
+    }
+    return null;
+  }),
+  '删除文件': new R.Builtin('删除文件', (p) => {
+    const target = pText(p);
+    const st = statOf(target);
+    if (!st) throw R.fileErr(`找不到文件「${target}」，没法删除`);
+    if (st.isDirectory()) {
+      throw R.fileErr(`「${target}」是目录，请先清空再删里面的文件；`
+        + '删目录的功能暂未提供');
+    }
+    fs.unlinkSync(target);
+    return null;
+  }),
+  '复制': new R.Builtin('复制', (from, to) => {
+    const src = pText(from); const dst = pText(to);
+    try { fs.copyFileSync(src, dst); } catch (e) {
+      throw R.fileErr(`无法把「${src}」复制到「${dst}」`);
+    }
+    return null;
+  }),
+  '文件大小': new R.Builtin('文件大小', (p) => {
+    const target = pText(p);
+    const st = statOf(target);
+    if (!st || !st.isFile()) throw R.fileErr(`找不到文件「${target}」，没法获取大小`);
+    return st.size;
+  }),
+  '路径拼接': new R.Builtin('路径拼接', (...parts) => {
+    if (parts.length === 0) return '.';
+    let acc = pText(parts[0]);
+    for (let i = 1; i < parts.length; i++) {
+      const seg = pText(parts[i]);
+      if (seg.startsWith('/')) acc = seg;         // PurePosixPath 遇绝对段重置
+      else acc = acc === '' ? seg : _path.posix.join(acc, seg);
+    }
+    return acc;
+  }),
+  '文件名': new R.Builtin('文件名', (p) =>
+    _path.posix.basename(pText(p).replace(/\\/g, '/'))),
+  '扩展名': new R.Builtin('扩展名', (p) => suffixOf(pText(p).replace(/\\/g, '/'))),
+};
+
+// -- 日期 / 时间的公用工具（M31）--
+// 基石里日期用「年-月-日」文本表示。这里实现 `strftime` 的一个子集：
+// Python 默认 C locale 下 `%a`/`%A`/`%b`/`%B` 给英文，所以照英文写。
+// （JS 没有等价的格式化 API——`toLocaleString` 依赖系统 locale。）
+const _WD_CN = ['一', '二', '三', '四', '五', '六', '日'];          // 0=周一
+const _WD_ABBR = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _WD_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday',
+                  'Saturday', 'Sunday'];
+const _MO_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
+                  'Sep', 'Oct', 'Nov', 'Dec'];
+const _MO_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                  'August', 'September', 'October', 'November', 'December'];
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const pad4 = (n) => String(n).padStart(4, '0');
+
+/** 本地时间字段（取本地时区，与 Python 的 `datetime.now()` 一致）。 */
+function localParts(d) {
+  const y = d.getFullYear(); const mo = d.getMonth(); const da = d.getDate();
+  return {
+    year: y, month: mo + 1, day: da,
+    hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds(),
+    weekday: (d.getDay() + 6) % 7,   // 0=周一，对齐 Python 的 weekday()
+    // 一年中的第几天（**从 0 起**，算 %U/%W 用；%j 要 +1）
+    yday: Math.floor((Date.UTC(y, mo, da) - Date.UTC(y, 0, 1)) / 86400000),
+  };
+}
+
+/**
+ * `strftime` 子集。
+ *
+ * 支持 `%Y %y %m %d %H %I %M %S %j %w %u %a %A %b %B %p %U %W %c %x %X %%`
+ * 与「去零」修饰 `%-d`。认不出的指令原样返回——宁可不格式化，也不给错。
+ */
+function strftimeLocal(d, fmt) {
+  const p = localParts(d);
+  const jsDow = d.getDay();                    // 0=周日（%w 用）
+  const P = (n, w, noPad) => (noPad ? String(n) : String(n).padStart(w, '0'));
+  return String(fmt).replace(/%([-_0]?)([A-Za-z%])/g, (whole, flag, c) => {
+    const noPad = flag === '-';
+    switch (c) {
+      case 'Y': return String(p.year);
+      case 'y': return P(p.year % 100, 2, noPad);
+      case 'm': return P(p.month, 2, noPad);
+      case 'd': return P(p.day, 2, noPad);
+      case 'H': return P(p.hour, 2, noPad);
+      case 'I': return P(((p.hour + 11) % 12) + 1, 2, noPad);
+      case 'M': return P(p.minute, 2, noPad);
+      case 'S': return P(p.second, 2, noPad);
+      case 'j': return P(p.yday + 1, 3, false);
+      case 'w': return String(jsDow);
+      case 'u': return String(p.weekday + 1);
+      case 'a': return _WD_ABBR[p.weekday];
+      case 'A': return _WD_FULL[p.weekday];
+      case 'b':
+      case 'h': return _MO_ABBR[p.month - 1];
+      case 'B': return _MO_FULL[p.month - 1];
+      case 'p': return p.hour < 12 ? 'AM' : 'PM';
+      // CPython 的公式：%U 以周日为一周之始、%W 以周一为始；
+      // 新年第一个周几之前的日期都算第 0 周
+      case 'U':
+        return P(Math.floor((p.yday + 7 - ((p.weekday + 1) % 7)) / 7), 2, false);
+      case 'W':
+        return P(Math.floor((p.yday + 7 - p.weekday) / 7), 2, false);
+      case 'c':
+        return `${_WD_ABBR[p.weekday]} ${_MO_ABBR[p.month - 1]} `
+          + `${String(p.day).padStart(2)} ${P(p.hour, 2, false)}`
+          + `:${P(p.minute, 2, false)}:${P(p.second, 2, false)} ${p.year}`;
+      case 'x':
+        return `${P(p.month, 2, false)}/${P(p.day, 2, false)}`
+          + `/${P(p.year % 100, 2, false)}`;
+      case 'X':
+        return `${P(p.hour, 2, false)}:${P(p.minute, 2, false)}`
+          + `:${P(p.second, 2, false)}`;
+      case '%': return '%';
+      default: return whole;
+    }
+  });
+}
+
+/** 解析「2026-09-01」/「2026/09/01」；格式不对或日期不存在都报中文错（对齐 Python）。 */
+function parseDate(text) {
+  const s = pText(text).trim();
+  const m = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(s);
+  if (m) {
+    const y = Number(m[1]); const mo = Number(m[2]); const da = Number(m[3]);
+    const d = new Date(0);
+    d.setFullYear(y, mo - 1, da);
+    d.setHours(0, 0, 0, 0);
+    // Python 的 strptime 会拒绝「2026-02-30」这类不存在的日期，这里也要拒
+    if (d.getFullYear() === y && d.getMonth() === mo - 1 && d.getDate() === da) {
+      return d;
+    }
+  }
+  throw R.valueErr(`「${text}」不是有效的日期，请写成 2026-09-01 这样的格式`);
+}
+
+/** `日期.解析` 的返回值。显示与 Python 的 datetime 一致（`2026-09-01 00:00:00`）。 */
+class JishiDate {
+  constructor(y, m, d) { this.y = y; this.m = m; this.d = d; this.__jishiType = 'datetime'; }
+
+  toString() { return `${pad4(this.y)}-${pad2(this.m)}-${pad2(this.d)} 00:00:00`; }
+}
+
+function daysInYear(y) {
+  return ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365;
+}
+
+// -- 日期（M31）--
+const DATE_FUNCS = {
+  '今天': new R.Builtin('今天', () => strftimeLocal(new Date(), '%Y-%m-%d')),
+  '解析': new R.Builtin('解析', (text) => {
+    const d = parseDate(text);
+    return new JishiDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  }),
+  '格式化': new R.Builtin('格式化', (text, fmt = '%Y-%m-%d') =>
+    strftimeLocal(parseDate(text), fmt)),
+  '加天数': new R.Builtin('加天数', (n, text) => {
+    const d = parseDate(text);
+    d.setDate(d.getDate() + Math.trunc(Number(n)));
+    return strftimeLocal(d, '%Y-%m-%d');
+  }),
+  '减天数': new R.Builtin('减天数', (n, text) => {
+    const d = parseDate(text);
+    d.setDate(d.getDate() - Math.trunc(Number(n)));
+    return strftimeLocal(d, '%Y-%m-%d');
+  }),
+  '相差天数': new R.Builtin('相差天数', (a, b) =>
+    Math.round((parseDate(a) - parseDate(b)) / 86400000)),
+  '早于': new R.Builtin('早于', (a, b) => parseDate(a) < parseDate(b)),
+  '晚于': new R.Builtin('晚于', (a, b) => parseDate(a) > parseDate(b)),
+  '相等': new R.Builtin('相等', (a, b) => parseDate(a).getTime() === parseDate(b).getTime()),
+  '星期名': new R.Builtin('星期名', (text) =>
+    _WD_CN[localParts(parseDate(text)).weekday]),
+  '今年': new R.Builtin('今年', () => new Date().getFullYear()),
+  '本月': new R.Builtin('本月', () => new Date().getMonth() + 1),
+  '本年天数': new R.Builtin('本年天数', () => daysInYear(new Date().getFullYear())),
+};
+
+// -- 时间（M31）--
+/**
+ * 同步睡眠。
+ *
+ * JS 主线程没有 `sleep`，用 `Atomics.wait` 阻塞——这是**唯一**不引入
+ * 异步语义的办法（基石没有 `await`，标准库不能变成异步函数）。
+ * 浏览器里主线程禁用 `Atomics.wait`，但 Node 里可用。
+ */
+function sleepSync(seconds) {
+  const ms = Math.max(0, Number(seconds) * 1000);
+  if (ms <= 0) return;
+  const sab = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(sab), 0, 0, ms);
+}
+
+const TIME_FUNCS = {
+  '现在': new R.Builtin('现在', () => strftimeLocal(new Date(), '%Y-%m-%d %H:%M:%S')),
+  '今天': new R.Builtin('今天', () => strftimeLocal(new Date(), '%Y-%m-%d')),
+  '此刻': new R.Builtin('此刻', () => {
+    const p = localParts(new Date());
+    const m = new Map();
+    m.set('年', p.year); m.set('月', p.month); m.set('日', p.day);
+    m.set('时', p.hour); m.set('分', p.minute); m.set('秒', p.second);
+    m.set('星期', _WD_CN[p.weekday]);
+    return m;
+  }),
+  '时间戳': new R.Builtin('时间戳', () => new R.FloatBox(Date.now() / 1000)),
+  '格式化时间戳': new R.Builtin('格式化时间戳', (ts) =>
+    strftimeLocal(new Date(Number(ts) * 1000), '%Y-%m-%d %H:%M:%S')),
+  '睡眠': new R.Builtin('睡眠', (seconds) => { sleepSync(seconds); return null; }),
+  '高精度时间': new R.Builtin('高精度时间', () =>
+    new R.FloatBox(Number(process.hrtime.bigint()) / 1e9)),
+  '星期名': DATE_FUNCS['星期名'],
+  '加天数': DATE_FUNCS['加天数'],
+};
+
+// -- 加密（M31）--
+// 薄封装 `crypto`。算法名先归一化（去 `-`/`_`、转小写），与 Python 侧一致。
+const HASH_ALGOS = ['md5', 'sha1', 'sha256', 'sha512'];
+
+function normAlgo(algo) {
+  const name = pText(algo).toLowerCase().replace(/-/g, '').replace(/_/g, '');
+  if (!HASH_ALGOS.includes(name)) {
+    throw R.valueErr(`不支持的摘要算法「${algo}」，可选：md5/sha1/sha256/sha512`);
+  }
+  return name;
+}
+
+function digestOf(text, algo) {
+  return _crypto.createHash(normAlgo(algo))
+    .update(Buffer.from(pText(text), 'utf8')).digest('hex');
+}
+
+const CRYPTO_FUNCS = {
+  '摘要': new R.Builtin('摘要', (text, algo = 'sha256') => digestOf(text, algo)),
+  'md5': new R.Builtin('md5', (text) => digestOf(text, 'md5')),
+  'sha1': new R.Builtin('sha1', (text) => digestOf(text, 'sha1')),
+  'sha256': new R.Builtin('sha256', (text) => digestOf(text, 'sha256')),
+  'sha512': new R.Builtin('sha512', (text) => digestOf(text, 'sha512')),
+  '文件摘要': new R.Builtin('文件摘要', (p, algo = 'sha256') => {
+    const name = normAlgo(algo);
+    const target = pText(p);
+    const h = _crypto.createHash(name);
+    let fd = null;
+    try {
+      fd = fs.openSync(target, 'r');
+      const buf = Buffer.alloc(65536);          // 分块读，不整个载入内存
+      for (;;) {
+        const n = fs.readSync(fd, buf, 0, buf.length, null);
+        if (n === 0) break;
+        h.update(buf.subarray(0, n));
+      }
+    } catch (e) {
+      throw R.valueErr(`读文件「${target}」失败：${e && e.message ? e.message : e}`);
+    } finally {
+      if (fd !== null) { try { fs.closeSync(fd); } catch (e) { /* 关不上就算了 */ } }
+    }
+    return h.digest('hex');
+  }),
+  '支持的算法': new R.Builtin('支持的算法', () => HASH_ALGOS.slice().sort(cmpCodepoint)),
+};
+
+// -- 压缩（M31）--
+// **Node 没有内置 zip**，所以这一块是手写 zip 容器：
+// `zlib.deflateRawSync` / `inflateRawSync` 只负责 deflate 流，本地文件头、
+// 中央目录、EOCD、CRC-32 都得自己拼。格式照 PKWARE APPNOTE 的 4.3.6/4.3.12/4.3.16。
+let _crcTable = null;
+
+/** CRC-32（IEEE 802.3，zip 用）。自己写，不依赖 `zlib.crc32` 的版本可用性。 */
+function crc32(buf) {
+  if (_crcTable === null) {
+    _crcTable = new Int32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+      _crcTable[n] = c;
+    }
+  }
+  let crc = -1;
+  for (let i = 0; i < buf.length; i++) {
+    crc = (crc >>> 8) ^ _crcTable[(crc ^ buf[i]) & 0xff];
+  }
+  return (crc ^ -1) >>> 0;
+}
+
+/** 毫秒 → zip 的 DOS 时间/日期（1980 起算）。 */
+function dosDateTime(ms) {
+  const d = new Date(ms);
+  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  const time = (d.getHours() << 11) | (d.getMinutes() << 5)
+    | Math.floor(d.getSeconds() / 2);
+  return { date, time };
+}
+
+/** 按 Python `os.walk` 的顺序（先当前层的文件，再依次进子目录）收集文件。 */
+function walkFiles(dir) {
+  const out = [];
+  const visit = (d) => {
+    let entries;
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { return; }
+    const dirs = [];
+    for (const ent of entries) {
+      const full = _path.join(d, ent.name);
+      if (ent.isDirectory()) dirs.push(full);
+      else out.push(full);
+    }
+    for (const sub of dirs) visit(sub);
+  };
+  visit(dir);
+  return out;
+}
+
+/** 写一条本地文件头 + 数据，返回中央目录项要用的元信息。 */
+function writeZipEntry(push, rawName, data, localOffset, mtimeMs) {
+  // zip 规范要求条目名用 `/` 分隔（Python 的 zipfile 也会把 `\` 换掉），
+  // 而 Windows 上 `path.relative` 给的是 `\`——不换就会出现
+  // `dir\a.txt` 这种按规范非法的名字。
+  const arcName = String(rawName).replace(/\\/g, '/');
+  const nameBuf = Buffer.from(arcName, 'utf8');
+  const isAscii = /^[\x00-\x7f]*$/.test(arcName);
+  const flags = isAscii ? 0 : 0x0800;            // bit 11 = 文件名是 UTF-8
+  const method = 8;                             // deflate
+  const comp = _zlib.deflateRawSync(data);
+  const crc = crc32(data);
+  const { date, time } = dosDateTime(mtimeMs);
+  const hdr = Buffer.alloc(30);
+  hdr.writeUInt32LE(0x04034b50, 0);             // 本地文件头签名
+  hdr.writeUInt16LE(20, 4);                     // 需要的版本
+  hdr.writeUInt16LE(flags, 6);
+  hdr.writeUInt16LE(method, 8);
+  hdr.writeUInt16LE(time, 10);
+  hdr.writeUInt16LE(date, 12);
+  hdr.writeUInt32LE(crc, 14);
+  hdr.writeUInt32LE(comp.length, 18);
+  hdr.writeUInt32LE(data.length, 22);
+  hdr.writeUInt16LE(nameBuf.length, 26);
+  hdr.writeUInt16LE(0, 28);                     // 扩展字段长度
+  push(hdr); push(nameBuf); push(comp);
+  return { nameBuf, flags, method, time, date, crc, csize: comp.length,
+           usize: data.length, offset: localOffset };
+}
+
+function centralEntry(e) {
+  const b = Buffer.alloc(46);
+  b.writeUInt32LE(0x02014b50, 0);               // 中央目录项签名
+  b.writeUInt16LE(20, 4);                       // 由什么版本创建
+  b.writeUInt16LE(20, 6);                       // 需要的版本
+  b.writeUInt16LE(e.flags, 8);
+  b.writeUInt16LE(e.method, 10);
+  b.writeUInt16LE(e.time, 12);
+  b.writeUInt16LE(e.date, 14);
+  b.writeUInt32LE(e.crc, 16);
+  b.writeUInt32LE(e.csize, 20);
+  b.writeUInt32LE(e.usize, 24);
+  b.writeUInt16LE(e.nameBuf.length, 28);
+  b.writeUInt16LE(0, 30);                       // 扩展字段
+  b.writeUInt16LE(0, 32);                       // 注释
+  b.writeUInt16LE(0, 34);                       // 起始磁盘
+  b.writeUInt16LE(0, 36);                       // 内部属性
+  b.writeUInt32LE(0, 38);                       // 外部属性
+  b.writeUInt32LE(e.offset, 42);
+  return Buffer.concat([b, e.nameBuf]);
+}
+
+/** 读 zip：从 EOCD 找中央目录，再逐条按偏移取本地头与数据。 */
+function readZipEntries(buf) {
+  let eocd = -1;
+  const earliest = Math.max(0, buf.length - 65557);   // 注释最长 65535
+  for (let i = buf.length - 22; i >= earliest; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('找不到 zip 结尾记录（EOCD）');
+  const count = buf.readUInt16LE(eocd + 10);
+  const cdOff = buf.readUInt32LE(eocd + 16);
+  const out = [];
+  let p = cdOff;
+  for (let i = 0; i < count; i++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error('中央目录坏了');
+    const flags = buf.readUInt16LE(p + 8);
+    const method = buf.readUInt16LE(p + 10);
+    const csize = buf.readUInt32LE(p + 20);
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    const localOff = buf.readUInt32LE(p + 42);
+    const name = buf.subarray(p + 46, p + 46 + nameLen)
+      .toString((flags & 0x0800) ? 'utf8' : 'latin1');
+    p += 46 + nameLen + extraLen + commentLen;
+    if (buf.readUInt32LE(localOff) !== 0x04034b50) throw new Error('本地文件头坏了');
+    const lNameLen = buf.readUInt16LE(localOff + 26);
+    const lExtraLen = buf.readUInt16LE(localOff + 28);
+    const dataStart = localOff + 30 + lNameLen + lExtraLen;
+    const raw = buf.subarray(dataStart, dataStart + csize);
+    out.push({ name, data: method === 0 ? Buffer.from(raw) : _zlib.inflateRawSync(raw) });
+  }
+  return out;
+}
+
+function zipBytes(zipPath) {
+  const target = pText(zipPath);
+  const st = statOf(target);
+  if (!st || !st.isFile()) throw R.valueErr(`「${target}」不是文件`);
+  try { return fs.readFileSync(target); } catch (e) {
+    throw R.runErr(`读「${target}」失败：${e && e.message ? e.message : e}`);
+  }
+}
+
+const ZIP_FUNCS = {
+  '打包': new R.Builtin('打包', (zipPath, ...items) => {
+    let list = items;
+    if (list.length === 1 && Array.isArray(list[0])) list = list[0];
+    if (list.length === 0) throw R.valueErr('打包至少需要提供一个文件或目录');
+    const out = pText(zipPath);
+    const chunks = [];
+    const central = [];
+    let offset = 0;
+    const push = (b) => { chunks.push(b); offset += b.length; };
+    for (const item of list) {
+      const p = pText(item);
+      const st = statOf(p);
+      if (!st) throw R.valueErr(`「${p}」不存在，无法打包`);
+      if (st.isDirectory()) {
+        // 条目名以「目录名/…」为前缀（Python 侧用 relpath(dirname(p), full)）
+        const parent = _path.dirname(p);
+        for (const full of walkFiles(p)) {
+          const arc = _path.relative(parent, full);
+          const localOff = offset;
+          const fst = statOf(full);
+          central.push(writeZipEntry(push, arc, fs.readFileSync(full), localOff,
+                                     fst ? fst.mtimeMs : Date.now()));
+        }
+      } else {
+        const localOff = offset;
+        central.push(writeZipEntry(push, _path.basename(p), fs.readFileSync(p),
+                                   localOff, st.mtimeMs));
+      }
+    }
+    const cd = Buffer.concat(central.map(centralEntry));
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(0, 4);                   // 本磁盘号
+    eocd.writeUInt16LE(0, 6);                   // 中央目录起始磁盘
+    eocd.writeUInt16LE(central.length, 8);
+    eocd.writeUInt16LE(central.length, 10);
+    eocd.writeUInt32LE(cd.length, 12);
+    eocd.writeUInt32LE(offset, 16);
+    eocd.writeUInt16LE(0, 20);                  // 注释长度
+    push(cd); push(eocd);
+    try { fs.writeFileSync(out, Buffer.concat(chunks)); } catch (e) {
+      throw R.runErr(`打包到「${out}」失败：${e && e.message ? e.message : e}`);
+    }
+    return out;
+  }),
+  '解压': new R.Builtin('解压', (zipPath, target = '') => {
+    const dst = (target === '' || target === null || target === undefined)
+      ? '.' : pText(target);
+    const buf = zipBytes(zipPath);
+    let entries;
+    try { entries = readZipEntries(buf); } catch (e) {
+      throw R.runErr(`解压「${pText(zipPath)}」失败：${e && e.message ? e.message : e}`);
+    }
+    try {
+      fs.mkdirSync(dst, { recursive: true });
+      for (const e of entries) {
+        const outPath = _path.join(dst, e.name);
+        fs.mkdirSync(_path.dirname(outPath), { recursive: true });
+        fs.writeFileSync(outPath, e.data);
+      }
+    } catch (e) {
+      throw R.runErr(`解压「${pText(zipPath)}」失败：${e && e.message ? e.message : e}`);
+    }
+    return dst;
+  }),
+  '列出内容': new R.Builtin('列出内容', (zipPath) => {
+    const buf = zipBytes(zipPath);
+    try { return readZipEntries(buf).map((e) => e.name); } catch (e) {
+      throw R.runErr(`「${pText(zipPath)}」不是有效的 zip：`
+        + `${e && e.message ? e.message : e}`);
+    }
+  }),
+};
+
+// -- 网络（M31）--
+// **Node 没有同步 HTTP**（`fetch` 是异步的，而基石没有 await 语法）。
+// 方案：`spawnSync` 起一个**自身的子进程**执行异步请求，结果经 stdout 回传。
+// 零第三方依赖，也不要求系统装了 `curl`。代价是每次请求多一次进程启动
+// （本机实测约 40ms），换来与 Python 侧 `urllib` 一样的**同步**调用形态。
+const NET_CHILD = [
+  "const [method, url, body, timeout] = process.argv.slice(1);",
+  "(async () => {",
+  "  const ctl = new AbortController();",
+  "  const timer = setTimeout(() => ctl.abort(), Math.max(100, Number(timeout) * 1000));",
+  "  try {",
+  "    const opt = { method, signal: ctl.signal,",
+  "                  headers: { 'User-Agent': 'jishi/0.1' } };",
+  "    if (method === 'POST') {",
+  "      opt.body = body;",
+  "      opt.headers['Content-Type'] = 'application/x-www-form-urlencoded';",
+  "    }",
+  "    const resp = await fetch(url, opt);",
+  "    process.stdout.write(await resp.text());",
+  "  } catch (e) {",
+  "    process.stderr.write(String((e && e.message) ? e.message : e));",
+  "    process.exitCode = 1;",
+  "  } finally {",
+  "    clearTimeout(timer);",
+  "  }",
+  "})();",
+].join('\n');
+
+function netRequest(method, url, body, timeout) {
+  const site = pText(url);
+  const secs = Number(timeout);
+  const args = ['-e', NET_CHILD, method, site,
+                (body === null || body === undefined) ? '' : pText(body),
+                String(secs)];
+  const res = _cp.spawnSync(process.execPath, args, {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: Math.max(100, secs * 1000) + 5000,
+  });
+  if (res.error) throw R.runErr(`访问「${site}」失败：${res.error.message}`);
+  if (res.status !== 0) {
+    const lines = String(res.stderr || '').trim().split('\n');
+    const why = lines[lines.length - 1] || '未知原因';
+    throw R.runErr(`${method === 'POST' ? '提交到' : '访问'}「${site}」失败：${why}`);
+  }
+  return res.stdout;
+}
+
+const NET_FUNCS = {
+  '获取': new R.Builtin('获取', (url, timeout = 10.0) =>
+    netRequest('GET', url, null, timeout)),
+  '提交': new R.Builtin('提交', (url, data = '', timeout = 10.0) =>
+    netRequest('POST', url, data, timeout)),
+  '获取JSON': new R.Builtin('获取JSON', (url, timeout = 10.0) => {
+    const text = netRequest('GET', url, null, timeout);
+    try { return jsonDecode(text); } catch (e) {
+      throw R.valueErr(`「${pText(url)}」返回的不是有效 JSON：`
+        + `${e && e.message ? e.message : e}`);
+    }
+  }),
+};
+
 const STDLIB = {
   '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
@@ -1212,6 +1946,13 @@ const STDLIB = {
   '系统': new R.Module('系统', SYS_FUNCS),
   'json': new R.Module('json', JSON_FUNCS),
   '正则': new R.Module('正则', RE_FUNCS),
+  '路径': new R.Module('路径', PATH_FUNCS),
+  '文件': new R.Module('文件', FILE_FUNCS),
+  '日期': new R.Module('日期', DATE_FUNCS),
+  '时间': new R.Module('时间', TIME_FUNCS),
+  '加密': new R.Module('加密', CRYPTO_FUNCS),
+  '压缩': new R.Module('压缩', ZIP_FUNCS),
+  '网络': new R.Module('网络', NET_FUNCS),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }

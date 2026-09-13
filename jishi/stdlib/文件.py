@@ -7,6 +7,7 @@ import shutil as _py_shutil
 from pathlib import Path as _py_Path, PurePosixPath as _py_PurePosixPath
 
 from ..errors import RunFileError
+from ..runtime import jishi_repr
 
 __all__ = [
     "写文本", "读文本", "追加文本", "写行", "按行读",
@@ -20,9 +21,18 @@ def _path(路径) -> _py_Path:
     return _py_Path(str(路径))
 
 
+# 读写都显式 `newline=""`：**不做换行转换**。
+#
+# Python 的文本模式在 Windows 上会把 `\n` 自动写成 `\r\n`，读的时候又转回来。
+# 这会让「同一份程序在不同平台产出的文件字节不同」，也会与其它语言的宿主
+# （Node 的 `fs` 不转换）对不上。基石的定位是「同一份程序到哪都一样」，
+# 所以标准库统一按字节保真来（M31）。`按行读` 用 splitlines，两种换行都认。
+
+
 def 写文本(路径, 内容: str) -> None:
     """把内容写进文件（覆盖原有内容）。"""
-    _path(路径).write_text(str(内容), encoding="utf-8")
+    with open(_path(路径), "w", encoding="utf-8", newline="") as f:
+        f.write(jishi_repr(内容, top=True))
 
 
 def 读文本(路径) -> str:
@@ -31,22 +41,23 @@ def 读文本(路径) -> str:
     if not p.is_file():
         raise RunFileError(f"找不到文件「{路径}」，没法读取")
     try:
-        return p.read_text(encoding="utf-8")
+        with open(p, encoding="utf-8", newline="") as f:
+            return f.read()
     except UnicodeDecodeError:
         raise RunFileError(f"文件「{路径}」不是 UTF-8 编码，没法按文本读取")
 
 
 def 追加文本(路径, 内容: str) -> None:
     """把内容追加到文件末尾（文件不存在则创建）。"""
-    with open(_path(路径), "a", encoding="utf-8") as f:
-        f.write(str(内容))
+    with open(_path(路径), "a", encoding="utf-8", newline="") as f:
+        f.write(jishi_repr(内容, top=True))
 
 
 def 写行(路径, 行列表: list) -> None:
     """把列表里的每一行写进文件（自动加换行，覆盖原内容）。"""
-    with open(_path(路径), "w", encoding="utf-8") as f:
+    with open(_path(路径), "w", encoding="utf-8", newline="") as f:
         for 行 in 行列表:
-            f.write(str(行) + "\n")
+            f.write(jishi_repr(行, top=True) + "\n")
 
 
 def 按行读(路径) -> list:

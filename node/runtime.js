@@ -77,6 +77,11 @@ function typeName(v) {
   if (v instanceof JishiInstance) return v.cls.name + ' 实例';
   if (v instanceof VmFunction) return '函数';
   if (v instanceof JishiError) return '异常';
+  // 宿主内部对象可以自报类型名（M31）：`日期.解析` 的返回值要报 'datetime'，
+  // 好与 Python 侧 `类型(datetime 对象)` 一致（见 vm.js 的 JishiDate）。
+  if (v !== null && typeof v === 'object' && typeof v.__jishiType === 'string') {
+    return v.__jishiType;
+  }
   return v === Object(v) ? v.constructor.name : '未知';
 }
 
