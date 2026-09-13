@@ -27,6 +27,7 @@ import io
 import shutil
 import subprocess
 import sys
+import time
 import threading
 import zipfile
 from contextlib import redirect_stdout
@@ -196,12 +197,21 @@ def test_node_time_now_shape():
 
 
 def test_node_time_format_timestamp_is_local():
-    """时间戳格式化按**本地时区**（与 Python 的 fromtimestamp 一致）。"""
+    """时间戳格式化按**本地时区**（与 Python 的 `fromtimestamp` 一致）。
+
+    期望值由本机时区算出来，**不能写死**：开发机 UTC+8 给 `08:00:00`，
+    CI 的 runner 是 UTC 给 `00:00:00`（M35 实测两处 CI 全红就是这个）。
+    语义本身（与 Python 本地时间一致）仍被校验，`_agree` 还额外保证
+    两个宿主逐字节相同。
+    """
+    want = "\n".join(
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+        for ts in (0, 1757000000)) + "\n"
     assert _agree(
         '导入 时间\n'
         '打印(时间.格式化时间戳(0))\n'
         '打印(时间.格式化时间戳(1757000000))\n'
-    ) == "1970-01-01 08:00:00\n2025-09-04 23:33:20\n"
+    ) == want
 
 
 def test_node_time_sleep_blocks_synchronously():

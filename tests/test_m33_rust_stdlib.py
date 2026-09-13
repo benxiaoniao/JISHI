@@ -23,6 +23,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import threading
 import zipfile
 from contextlib import redirect_stdout
@@ -409,7 +410,14 @@ def test_date_errors(rust_exe):
 
 
 def test_time_functions(rust_exe):
-    """不比对「现在」这类非确定值——比**格式化**与**差值**。"""
+    """不比对「现在」这类非确定值——比**格式化**与**差值**。
+
+    两个格式化结果按**本机时区**算期望（开发机 UTC+8、CI runner 是 UTC，
+    写死会让 CI 必挂——M35 实测）；其余部分是时区无关的。
+    """
+    want = (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(0)) + " "
+            + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(1700000000)) + "\n"
+            "日 2026-01-31\n真 真\n")
     assert _agree(
         '导入 时间\n'
         '打印(时间.格式化时间戳(0), 时间.格式化时间戳(1700000000))\n'
@@ -417,7 +425,7 @@ def test_time_functions(rust_exe):
         '令 a = 时间.高精度时间()\n时间.睡眠(0.02)\n令 b = 时间.高精度时间()\n'
         '打印(b > a, b - a > 0.015)\n',
 
-        rust_exe) == "1970-01-01 08:00:00 2023-11-15 06:13:20\n日 2026-01-31\n真 真\n"
+        rust_exe) == want
 
 
 # ---------------------------------------------------------------------------

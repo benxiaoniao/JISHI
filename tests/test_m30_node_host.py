@@ -637,13 +637,18 @@ def test_node_stdlib_regex_module():
 
 
 def test_node_stdlib_system_module():
-    assert _agree(
+    """平台名**不能写死**：开发机是 Windows、CI 是 Linux（M35 实测：
+    CI 全红就是这一行 `== "Windows…"` 造成的——`_agree` 本身已经在对拍
+    两个宿主，所以这里只校验稳定部分 + 平台名非空就够）。"""
+    out = _agree(
         "导入 系统\n"
         "打印(系统.系统名())\n"
         '打印(系统.环境变量("一定不存在的变量_xyz", "兜底"))\n'
         "打印(长度(系统.当前目录()) > 0)\n"
         "打印(长度(系统.主机名()) >= 0)\n"
-    ) == "Windows\n兜底\n真\n真\n"
+    )
+    assert out.split("\n")[0].strip(), "系统.系统名() 不该是空串"
+    assert out.endswith("兜底\n真\n真\n")
 
 
 def test_node_stdlib_system_args():
