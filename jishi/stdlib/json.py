@@ -30,12 +30,15 @@ def 解析(文本) -> object:
 def 读文件(路径) -> object:
     """从文件读入并解析 JSON。"""
     import io
-    with io.open(路径, "r", encoding="utf-8") as f:
+    # `newline=""`：不做换行转换。默认的通用换行会把 `\r\n` 悄悄改成 `\n`，
+    # 与 Node 宿主（`fs.readFileSync`）和 Rust 宿主（`fs::read`）就对不上了（M33）
+    with io.open(路径, "r", encoding="utf-8", newline="") as f:
         return 解析(f.read())
 
 
 def 写文件(路径, 对象, 缩进: int = None) -> None:
     """把对象转成 JSON 并写入文件（中文不转义）。"""
     import io
-    with io.open(路径, "w", encoding="utf-8") as f:
+    # 同 `读文件`：显式 `newline=""`，Windows 上不把 `\n` 变成 `\r\n`（M33）
+    with io.open(路径, "w", encoding="utf-8", newline="") as f:
         f.write(转文本(对象, 缩进=缩进))

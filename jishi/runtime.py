@@ -132,6 +132,11 @@ def type_name(v) -> str:
         return f"{v.cls.name} 实例"
     if isinstance(v, JishiError):
         return "异常"
+    # 标准库内部类型可以自带中文名（M33）：`表格._Table` 不然会漏成
+    # 英文类名 `_Table`，与另外两个宿主（都显示「表格」）对不上
+    alias = getattr(v, "_jishi_type_name", None)
+    if isinstance(alias, str):
+        return alias
     name = type(v).__name__
     if name == "UserFunction":
         return "函数"

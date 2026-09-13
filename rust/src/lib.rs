@@ -4,11 +4,18 @@
 //! 语义与 Python VM / JS VM 对齐。
 
 use std::cell::{Ref, RefCell, RefMut};
+use std::io::BufRead;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 
+mod crypto;
+mod http;
+mod inflate;
 mod json;
+mod regex;
+mod stdlib;
+mod zip;
 use json::Json;
 
 mod decimal;
@@ -30,18 +37,18 @@ use decimal::{BigInt, Dec, Round};
 // 方法内的修改就能被原变量看见。
 
 /// 基石列表（共享可变）
-type JList = Rc<RefCell<Vec<Val>>>;
+pub(crate) type JList = Rc<RefCell<Vec<Val>>>;
 /// 基石字典（共享可变，保持插入顺序）
-type JDict = Rc<RefCell<Vec<(Val, Val)>>>;
+pub(crate) type JDict = Rc<RefCell<Vec<(Val, Val)>>>;
 /// 基石集合（共享可变，**按插入顺序**去重——对齐 Python 侧 JishiSet：
 /// 刻意不用哈希集合，迭代顺序依赖哈希种子会让同一程序两次运行输出不同）
-type JSet = Rc<RefCell<Vec<Val>>>;
+pub(crate) type JSet = Rc<RefCell<Vec<Val>>>;
 /// 基石实例（共享可变）。必须是共享的：`自身.字段 = 值` 走 SET_ATTR，
 /// 拿到的是 `Val` 的一份拷贝——不共享的话就等于改副本，**不报错、静默失效**。
 type JInst = Rc<RefCell<Instance>>;
 
 #[derive(Clone)]
-enum Val {
+pub(crate) enum Val {
     None_,
     Bool(bool),
     // i128 而不是 i64（M32）：i64 装不下 `2 ** 62`、`2 ** 64` 这些常见写法，
@@ -53,6 +60,23 @@ enum Val {
     Str(String),
     /// 精确小数（M29）。`Rc` 只是为了让 `Val::clone` 便宜；内容不可变。
     Dec(Rc<Dec>),
+    /// 日期时间（M33）：`日期.解析` 的返回值。
+    ///
+    /// Python 侧返回的是 `datetime`，所以这里也得是个独立类型——
+    /// 显示成 `2026-09-01 00:00:00`、`类型()` 给 `datetime`。
+    /// 拿 `Val::Str` 糊弄会让 `类型()` 给出「文本」，三个宿主就对不上了。
+    /// 日期只到秒，且**没有时区**（与 Python 的 naive datetime 一致）。
+    Date(Rc<crate::stdlib::datetime::Dt>),
+    /// 切片（M33）：`a[1:3]` 编译成 BUILD_SLICE + GET_ITEM。
+    ///
+    /// 三个分量都可能缺省（`a[:2]` 的起点、`a[::2]` 的终点…），所以是
+    /// `Option`——缺省与「显式给 0」在负步长下含义完全不同。
+    Slice(Rc<SliceVal>),
+    /// 表格（M33）：`表格.读表格` 的返回值。
+    ///
+    /// Python 侧是个 `_Table` 实例，显示 `<表格 3 行 x 2 列>`。
+    /// 用字典代替的话，显示与 `类型()` 就都对不上了。
+    Table(Rc<crate::stdlib::tables::Table>),
     List(JList),
     Dict(JDict),
     Set(JSet),
@@ -74,17 +98,81 @@ enum Val {
 }
 
 /// 造一个列表值（把裸 Vec 包成共享容器）。
-fn list_new(items: Vec<Val>) -> Val {
+pub(crate) fn list_new(items: Vec<Val>) -> Val {
     Val::List(Rc::new(RefCell::new(items)))
 }
 
 /// 造一个字典值。
-fn dict_new(pairs: Vec<(Val, Val)>) -> Val {
+pub(crate) fn dict_new(pairs: Vec<(Val, Val)>) -> Val {
     Val::Dict(Rc::new(RefCell::new(pairs)))
 }
 
+/// 切片对象（M33）。
+#[derive(Clone, Debug)]
+pub(crate) struct SliceVal {
+    pub(crate) start: Option<i128>,
+    pub(crate) stop: Option<i128>,
+    pub(crate) step: Option<i128>,
+}
+
+/// 把切片换算成实际下标 `(start, stop, step)`——对齐 CPython 的
+/// `PySlice_AdjustIndices`：负值先加长度，再按方向裁到边界。
+fn slice_indices(sl: &SliceVal, len: usize) -> Result<(i128, i128, i128), JishiError> {
+    let step = sl.step.unwrap_or(1);
+    if step == 0 {
+        return Err(err("数值错误", "切片的步长不能为 0"));
+    }
+    let len = len as i128;
+    // 正步长时下界是 0、上界是 len；负步长时反着来（最容易写错的一处）
+    let lower: i128 = if step > 0 { 0 } else { -1 };
+    let upper: i128 = if step > 0 { len } else { len - 1 };
+    let norm = |v: Option<i128>, dflt: i128| -> i128 {
+        match v {
+            None => dflt,
+            Some(mut x) => {
+                if x < 0 {
+                    x += len;
+                    if x < lower { x = lower; }
+                } else if x > upper {
+                    x = upper;
+                }
+                x
+            }
+        }
+    };
+    let start = norm(sl.start, if step > 0 { lower } else { upper });
+    let stop = norm(sl.stop, if step > 0 { upper } else { lower });
+    Ok((start, stop, step))
+}
+
+/// 切片覆盖到的下标序列。
+fn slice_positions(start: i128, stop: i128, step: i128) -> Vec<i128> {
+    let mut out = Vec::new();
+    let mut i = start;
+    if step > 0 {
+        while i < stop {
+            out.push(i);
+            i += step;
+        }
+    } else {
+        while i > stop {
+            out.push(i);
+            i += step;
+        }
+    }
+    out
+}
+
+fn slice_repr(sl: &SliceVal) -> String {
+    let f = |v: Option<i128>| match v {
+        Some(x) => x.to_string(),
+        None => "空".to_string(),
+    };
+    format!("切片({}, {}, {})", f(sl.start), f(sl.stop), f(sl.step))
+}
+
 /// 造一个集合值（按插入顺序去重，元素重复就丢掉后来的）。
-fn set_new(items: Vec<Val>) -> Result<Val, JishiError> {
+pub(crate) fn set_new(items: Vec<Val>) -> Result<Val, JishiError> {
     let mut out: Vec<Val> = Vec::new();
     for it in items {
         set_push(&mut out, it)?;
@@ -98,7 +186,7 @@ fn set_new(items: Vec<Val>) -> Result<Val, JishiError> {
 /// 所以**列表/字典/集合放不进去**；精确小数也放不进去（Python 侧
 /// `__hash__ = None`）。函数/类在 Rust 里是值类型、没有稳定身份，
 /// 同样明确拒绝——静默塞进去会让 `2 在 集合` 出现「有时查得到有时查不到」。
-fn set_push(items: &mut Vec<Val>, v: Val) -> Result<(), JishiError> {
+pub(crate) fn set_push(items: &mut Vec<Val>, v: Val) -> Result<(), JishiError> {
     match &v {
         Val::List(_) | Val::Dict(_) | Val::Set(_) | Val::Dec(_) => {
             return Err(err("类型错误",
@@ -437,7 +525,7 @@ fn file_call(name: &str, f: Rc<RefCell<FileHandle>>,
 }
 
 /// 值的类型名（中文），与内建「类型」一致。
-fn type_label(v: &Val) -> String {
+pub(crate) fn type_label(v: &Val) -> String {
     match v {
         Val::None_ => "空".to_string(),
         Val::Bool(_) => "布尔".to_string(),
@@ -445,6 +533,10 @@ fn type_label(v: &Val) -> String {
         Val::Float(_) => "小数".to_string(),
         Val::Str(_) => "文本".to_string(),
         Val::Dec(_) => "精确小数".to_string(),
+        // Python 侧 `类型(日期.解析(…))` 给的就是这个
+        Val::Date(_) => "datetime".to_string(),
+        Val::Table(_) => "表格".to_string(),
+        Val::Slice(_) => "切片".to_string(),
         Val::List(_) => "列表".to_string(),
         Val::Dict(_) => "字典".to_string(),
         Val::Set(_) => "集合".to_string(),
@@ -497,6 +589,9 @@ mod op {
     pub const FOR_ITER: i64 = 30;
     pub const UNPACK: i64 = 46;
     pub const LIST_APPEND: i64 = 47;
+    // 切片（M33）：与 Python 侧的 opcodes.py 对齐；`a` 是位标志
+    // （1=有起点 2=有终点 4=有步长），分量按顺序压在栈上
+    pub const BUILD_SLICE: i64 = 48;
     pub const HALT: i64 = 0;
     pub const ROT_THREE: i64 = 12;
     pub const UNARY_OP: i64 = 14;
@@ -568,7 +663,7 @@ pub struct JishiError {
 
 type JsResult<T> = Result<T, JishiError>;
 
-fn err(t: &str, msg: impl Into<String>) -> JishiError {
+pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into() }
 }
 
@@ -907,6 +1002,18 @@ impl VM {
                         self.stack.drain(l - n..).collect()
                     } else { Vec::new() };
                     self.stack.push(list_new(items));
+                }
+                op::BUILD_SLICE => {
+                    // 分量按 起点→终点→步长 的顺序在栈上，缺省的不压栈，
+                    // 所以要按位标志**倒着**弹
+                    let flags = ins.a;
+                    let step = if flags & 4 != 0 { Some(as_int(&self.stack.pop().unwrap())?) } else { None };
+                    let stop = if flags & 2 != 0 { Some(as_int(&self.stack.pop().unwrap())?) } else { None };
+                    let start = if flags & 1 != 0 { Some(as_int(&self.stack.pop().unwrap())?) } else { None };
+                    if step == Some(0) {
+                        return Err(err("数值错误", "切片的步长不能为 0"));
+                    }
+                    self.stack.push(Val::Slice(Rc::new(SliceVal { start, stop, step })));
                 }
                 op::BUILD_DICT => {
                     let n = ins.a as usize;
@@ -1582,7 +1689,7 @@ fn truthy(v: Val) -> bool {
     }
 }
 
-fn display(v: &Val) -> String {
+pub(crate) fn display(v: &Val) -> String {
     match v {
         Val::None_ => "空".to_string(),
         Val::Bool(true) => "真".to_string(),
@@ -1591,6 +1698,10 @@ fn display(v: &Val) -> String {
         Val::Float(f) => format_float(*f),
         Val::Str(s) => s.clone(),
         Val::Dec(d) => d.to_string(),
+        // 与 Python 的 `str(datetime)` 一致：`2026-09-01 00:00:00`
+        Val::Date(d) => d.to_display(),
+        Val::Table(t) => t.display(),
+        Val::Slice(s) => slice_repr(s),
         Val::List(l) => {
             let items: Vec<String> = l.borrow().iter().map(py_repr).collect();
             format!("[{}]", items.join(", "))
@@ -1629,7 +1740,7 @@ fn display(v: &Val) -> String {
     }
 }
 
-fn py_repr(v: &Val) -> String {
+pub(crate) fn py_repr(v: &Val) -> String {
     match v {
         Val::Str(s) => format!("'{s}'"),
         // 空/真/假 用中文——与 Python 侧 jishi_repr、JS 侧 pyRepr 一致（M27）
@@ -1640,11 +1751,11 @@ fn py_repr(v: &Val) -> String {
     }
 }
 
-fn format_float(f: f64) -> String {
+pub(crate) fn format_float(f: f64) -> String {
     if f == f.trunc() && f.is_finite() { format!("{:.1}", f) } else { f.to_string() }
 }
 
-fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
+pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
     use Val::*;
     // 至少一边是精确小数 → 走十进制（0.1 + 0.2 才等于 0.3）
     if matches!(op, 0..=6) && has_dec(&l, &r) {
@@ -1725,7 +1836,7 @@ fn numeric_mul(a: Val, b: Val) -> Result<Val, JishiError> {
     }
 }
 
-fn to_num_pair(a: Val, b: Val) -> Result<(f64, f64), JishiError> {
+pub(crate) fn to_num_pair(a: Val, b: Val) -> Result<(f64, f64), JishiError> {
     let x = match a { Val::Int(i) => i as f64, Val::Float(f) => f, _ => return Err(err("类型错误", "需要数字")) };
     let y = match b { Val::Int(i) => i as f64, Val::Float(f) => f, _ => return Err(err("类型错误", "需要数字")) };
     Ok((x, y))
@@ -1912,6 +2023,16 @@ fn identity_key(v: &Val) -> Result<IdKey, JishiError> {
         Val::List(l) => Ok(IdKey::Identity(Rc::as_ptr(l) as usize)),
         Val::Dict(d) => Ok(IdKey::Identity(Rc::as_ptr(d) as usize)),
         Val::Set(s) => Ok(IdKey::Identity(Rc::as_ptr(s) as usize)),
+        // 日期按 `Rc` 身份（Python 侧 datetime 走 `id()`）：
+        // `d 是 d` 真、两次 `解析` 出来的相同日期互不相同
+        Val::Date(d) => Ok(IdKey::Identity(Rc::as_ptr(d) as usize)),
+        // 表格同样是引用身份（Python 的 `_Table` 没有自定义 `==`）
+        Val::Table(t) => Ok(IdKey::Identity(Rc::as_ptr(t) as usize)),
+        // 切片按**值**判（Python 的 `slice(1,2) == slice(1,2)` 为真）
+        Val::Slice(s) => Ok(IdKey::Value(
+            "切片".into(),
+            format!("{:?}|{:?}|{:?}", s.start, s.stop, s.step),
+        )),
         // 实例有了 `Rc` 身份——与 Python 侧 `_identity_snapshot` 对实例
         // 用 `id(value)` 一致（`a 是 a` 真，两个 `新建` 出来的互不相同）
         Val::Instance(i) => Ok(IdKey::Identity(Rc::as_ptr(i) as usize)),
@@ -1931,6 +2052,12 @@ impl PartialEq for Val {
             (Val::Str(a), Val::Str(b)) => a == b,
             // 精确小数按**数值**比（`精确("1.0") == 1` 为真，对齐 Python）
             (Val::Dec(a), Val::Dec(b)) => a.cmp(b) == std::cmp::Ordering::Equal,
+            (Val::Date(a), Val::Date(b)) => a == b,
+            // 表格没有自定义 `==`，按身份比（Python 同）
+            (Val::Table(a), Val::Table(b)) => Rc::ptr_eq(a, b),
+            (Val::Slice(a), Val::Slice(b)) => {
+                a.start == b.start && a.stop == b.stop && a.step == b.step
+            }
             (Val::Dec(a), b) => to_dec(b)
                 .map(|d| a.cmp(&d) == std::cmp::Ordering::Equal).unwrap_or(false),
             (a, Val::Dec(b)) => to_dec(a)
@@ -1976,6 +2103,25 @@ fn new_builtins() -> HashMap<String, Val> {
         vm.output.push_str(&parts.join(" "));
         vm.output.push('\n');
         Ok(Val::None_)
+    }));
+    m.insert("输入".to_string(), Val::Builtin("输入", |args, vm| {
+        // 提示语写到输出流（不换行），与 Python 的 `input(prompt)` 一致
+        if let Some(p) = args.first() {
+            if !matches!(p, Val::None_) {
+                let text = vm.format_value(p, true)?;
+                if !text.is_empty() {
+                    vm.output.push_str(&text);
+                }
+            }
+        }
+        let mut line = String::new();
+        let n = std::io::stdin().read_line(&mut line).unwrap_or(0);
+        if n == 0 && line.is_empty() {
+            // 与 Python / Node 侧同一套说法（两边都是「输入结束」）
+            return Err(err("输入结束", "输入已经结束，程序没有更多内容可读了"));
+        }
+        // 只去掉行尾换行（`\n` 或 `\r\n`）
+        Ok(Val::Str(line.trim_end_matches(['\n', '\r']).to_string()))
     }));
     m.insert("整数".to_string(), Val::Builtin("整数", |args, _vm| {
         match &args[0] {
@@ -2133,7 +2279,7 @@ fn new_builtins() -> HashMap<String, Val> {
 /// `i128` 的边界约 1.7e38。超出时**明确报错**，而不是让 release 构建回绕成
 /// 一个看似合法的数——那是最危险的静默算错。Python / JS 宿主是任意精度的，
 /// 所以这条边界只属于本宿主。
-fn big_ok(r: Option<i128>) -> Result<i128, JishiError> {
+pub(crate) fn big_ok(r: Option<i128>) -> Result<i128, JishiError> {
     r.ok_or_else(|| err("值错误",
         "整数运算结果太大，超出了 Rust 宿主能表示的范围（约 1.7e38）"))
 }
@@ -2190,7 +2336,7 @@ fn check_args(desc: &Val, values: &Val, func_name: &Val) -> Result<Val, JishiErr
     Ok(Val::None_)
 }
 
-fn as_int(v: &Val) -> Result<i128, JishiError> {
+pub(crate) fn as_int(v: &Val) -> Result<i128, JishiError> {
     match v { Val::Int(i) => Ok(*i), _ => Err(err("类型错误", "需要整数")) }
 }
 
@@ -2273,42 +2419,22 @@ fn b_sum(args: &[Val], _vm: &mut VM) -> Result<Val, JishiError> {
     Ok(if is_float { Val::Float(acc_f) } else { Val::Int(acc_int) })
 }
 
+/// 标准库模块（M33）：具体实现在 `stdlib.rs`，这里只是一个转发。
+///
+/// 拆出去的理由：14 个模块、一百三十多个函数，全塞进 lib.rs 会把它撑到
+/// 四千多行。零依赖约束下 `正则` / `加密` / `压缩` / `网络` 各自还有几百行，
+/// 干脆按模块分文件（crypto.rs / regex.rs / zip.rs / http.rs / csv.rs）。
 fn stdlib_module(name: &str) -> Result<Val, JishiError> {
-    let mut m = HashMap::new();
-    match name {
-        "数学" => {
-            m.insert("开方".to_string(), Val::Builtin("开方", |args, _vm| {
-                let f = match &args[0] { Val::Int(i) => (*i as f64).sqrt(), Val::Float(x) => x.sqrt(), _ => return Err(err("类型错误", "需要数字")) };
-                Ok(Val::Float(f))
-            }));
-            m.insert("幂".to_string(), Val::Builtin("幂", |args, _vm| {
-                let (a, b) = to_num_pair(args[0].clone(), args[1].clone())?;
-                Ok(Val::Float(a.powf(b)))
-            }));
-            m.insert("阶乘".to_string(), Val::Builtin("阶乘", |args, _vm| {
-                let n = as_int(&args[0])?;
-                let mut r = 1i128;
-                for i in 2..=n { r = big_ok(r.checked_mul(i))?; }
-                Ok(Val::Int(r))
-            }));
-        }
-        "文本" => {
-            m.insert("拼接".to_string(), Val::Builtin("拼接", |args, _vm| {
-                if let Val::List(l) = &args[0] {
-                    let sep = if args.len() > 1 { display(&args[1]) } else { String::new() };
-                    Ok(Val::Str(l.borrow().iter().map(display).collect::<Vec<_>>().join(&sep)))
-                } else { Err(err("类型错误", "需要列表")) }
-            }));
-        }
-        "随机" => {
-            m.insert("随机整数".to_string(), Val::Builtin("随机整数", |args, _vm| {
-                let (lo, hi) = (as_int(&args[0])?, as_int(&args[1])?);
-                Ok(Val::Int(lo))  // 确定性：固定返回下界，避免非确定性（对拍友好）
-            }));
-        }
-        _ => return Err(err("异常", format!("没有找到标准库模块「{name}」"))),
-    }
-    Ok(Val::Module(name.to_string(), m))
+    stdlib::module(name)
+}
+
+/// 设置脚本收到的命令行参数（`jishi-rs 字节码.json 参数1 参数2`）。
+///
+/// 与 Python 侧 `系统._设参数`、Node 侧 `process.argv.slice(3)` 同一语义：
+/// 不含字节码文件名本身。存成全局是因为 `Val::Builtin` 只能放**无捕获的
+/// 函数指针**，闭包捕获不了参数。
+pub fn set_args(args: Vec<String>) {
+    stdlib::set_args(args);
 }
 
 // ---------------------------------------------------------------------------
@@ -2354,6 +2480,35 @@ fn set_attr(obj: Val, attr: &str, val: Val) -> Result<(), JishiError> {
 }
 
 fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
+    // 切片（M33）：列表按元素切、文本按字符切（与 Python 的 str 索引一致）
+    if let Val::Slice(sl) = &idx {
+        return match &obj {
+            Val::List(l) => {
+                let items = l.borrow();
+                let (a, b, st) = slice_indices(sl, items.len())?;
+                Ok(list_new(
+                    slice_positions(a, b, st)
+                        .into_iter()
+                        .filter_map(|i| items.get(i as usize).cloned())
+                        .collect(),
+                ))
+            }
+            Val::Str(text) => {
+                let chars: Vec<char> = text.chars().collect();
+                let (a, b, st) = slice_indices(sl, chars.len())?;
+                Ok(Val::Str(
+                    slice_positions(a, b, st)
+                        .into_iter()
+                        .filter_map(|i| chars.get(i as usize))
+                        .collect(),
+                ))
+            }
+            other => Err(err(
+                "类型错误",
+                format!("「{}」不能切片，切片需要列表或文本", type_label(other)),
+            )),
+        };
+    }
     match (obj, idx) {
         (Val::List(l), Val::Int(i)) => l.borrow().get(i as usize).cloned().ok_or_else(|| err("索引错误", "越界")),
         (Val::Dict(d), k) => d.borrow().iter().find(|(key, _)| *key == k).map(|(_, v)| v.clone()).ok_or_else(|| err("键错误", "找不到这个键")),
@@ -2363,6 +2518,59 @@ fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
 }
 
 fn set_item(obj: Val, idx: Val, val: Val) -> Result<(), JishiError> {
+    // 切片赋值（M33）：步长为 1 时可以变长（替换整个区间），
+    // 步长不为 1 时长度必须精确匹配——与 Python 一致
+    if let Val::Slice(sl) = &idx {
+        let l = match &obj {
+            Val::List(l) => l.clone(),
+            other => {
+                return Err(err(
+                    "类型错误",
+                    format!("「{}」不能按下标赋值", type_label(other)),
+                ))
+            }
+        };
+        let vals = match &val {
+            Val::List(v) => v.borrow().clone(),
+            other => {
+                return Err(err(
+                    "类型错误",
+                    format!("切片赋值的值要是序列，得到了「{}」", type_label(other)),
+                ))
+            }
+        };
+        let (a, b, st) = slice_indices(sl, l.borrow().len())?;
+        let mut l = l.borrow_mut();
+        if st == 1 {
+            let a = a.max(0) as usize;
+            let b = b.max(0) as usize;
+            let kill = b.saturating_sub(a).min(l.len().saturating_sub(a));
+            for _ in 0..kill {
+                l.remove(a);
+            }
+            for (k, v) in vals.into_iter().enumerate() {
+                l.insert(a + k, v);
+            }
+            return Ok(());
+        }
+        let idxs = slice_positions(a, b, st);
+        if idxs.len() != vals.len() {
+            return Err(err(
+                "数值错误",
+                format!(
+                    "切片赋值长度不匹配：目标有 {} 个位置，却给了 {} 个值",
+                    idxs.len(),
+                    vals.len()
+                ),
+            ));
+        }
+        for (i, v) in idxs.into_iter().zip(vals) {
+            if let Some(slot) = l.get_mut(i as usize) {
+                *slot = v;
+            }
+        }
+        return Ok(());
+    }
     match (obj, idx) {
         // 注意是 `borrow_mut`：改的是共享容器本身，调用者（原变量）能看见
         (Val::List(l), Val::Int(i)) => {
@@ -2622,20 +2830,57 @@ fn store_cells(code: &Code, cells: &mut [Cell], values: &[Val]) {
     }
 }
 
+/// 值的全序比较（排序、`最大`/`最小`、`<` 这类都用它）。
+///
+/// **列表按字典序**逐项比（Python 的 `[1,2] < [1,3]` 就是这个规则）——
+/// 这一支以前是漏的：`partial_cmp` 对列表返回 `None`，而 `列表.排序`
+/// 把 `None` 当成「相等」，于是**排序静默失效**（`排名.排序()` 后顺序不变，
+/// 谁也没发现，直到拿真实项目跑端到端才撞出来，M33）。
+fn try_cmp_vals(a: &Val, b: &Val) -> Option<std::cmp::Ordering> {
+    use std::cmp::Ordering;
+    match (a, b) {
+        (Val::None_, Val::None_) => Some(Ordering::Equal),
+        (Val::Bool(x), Val::Bool(y)) => Some(x.cmp(y)),
+        // 布尔在 Python 里就是整数（`真 == 1`），排序也要按数值
+        (Val::Bool(x), Val::Int(y)) | (Val::Int(y), Val::Bool(x)) => {
+            Some((*x as i128).cmp(y))
+        }
+        (Val::Int(x), Val::Int(y)) => Some(x.cmp(y)),
+        (Val::Int(x), Val::Float(y)) => (*x as f64).partial_cmp(y),
+        (Val::Float(x), Val::Int(y)) => x.partial_cmp(&(*y as f64)),
+        (Val::Float(x), Val::Float(y)) => x.partial_cmp(y),
+        (Val::Str(x), Val::Str(y)) => Some(x.cmp(y)),
+        // 精确小数参加排序/最值：先转十进制再比（对齐 Python 侧
+        // `JishiDecimal.__lt__` 等，让 `最大`/`列表.排序` 能用）
+        (Val::Dec(x), Val::Dec(y)) => Some(x.cmp(y)),
+        (Val::Dec(x), b) => to_dec(b).ok().map(|d| x.cmp(&d)),
+        (a, Val::Dec(y)) => to_dec(a).ok().map(|d| d.cmp(y)),
+        (Val::Date(x), Val::Date(y)) => Some(x.to_display().cmp(&y.to_display())),
+        (Val::List(x), Val::List(y)) => {
+            let (x, y) = (x.borrow(), y.borrow());
+            for (p, q) in x.iter().zip(y.iter()) {
+                match try_cmp_vals(p, q)? {
+                    Ordering::Equal => continue,
+                    ord => return Some(ord),
+                }
+            }
+            Some(x.len().cmp(&y.len()))
+        }
+        // 其它组合：能判相等就给 Equal，否则「不可比」（Python 此时会抛
+        // TypeError，调用方按原来的方式报错）
+        _ => {
+            if a == b {
+                Some(Ordering::Equal)
+            } else {
+                None
+            }
+        }
+    }
+}
+
 impl PartialOrd for Val {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (Val::Int(a), Val::Int(b)) => a.partial_cmp(b),
-            (Val::Int(a), Val::Float(b)) => (*a as f64).partial_cmp(b),
-            (Val::Float(a), Val::Int(b)) => a.partial_cmp(&(*b as f64)),
-            (Val::Float(a), Val::Float(b)) => a.partial_cmp(b),
-            // 精确小数参加排序/最值：先转十进制再比（对齐 Python 侧
-            // `JishiDecimal.__lt__` 等，让 `最大`/`列表.排序` 能用）
-            (Val::Dec(a), Val::Dec(b)) => Some(a.cmp(b)),
-            (Val::Dec(a), b) => to_dec(b).ok().map(|d| a.cmp(&d)),
-            (a, Val::Dec(b)) => to_dec(a).ok().map(|d| d.cmp(b)),
-            _ => None,
-        }
+        try_cmp_vals(self, other)
     }
 }
 

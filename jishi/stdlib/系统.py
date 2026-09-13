@@ -71,21 +71,23 @@ def 执行(命令, 超时: float = 10.0) -> str:
     也可用文本（按 shell 解析，注意跨平台差异）。
     """
     try:
+        # 按**字节**收再显式解码（M33）：`text=True` 会做通用换行转换，
+        # 把命令输出里的 `\r\n` 悄悄改成 `\n`——而 Node / Rust 宿主不转，
+        # 于是同一份程序在三个宿主上输出不同。这里只做解码，不碰换行。
         if isinstance(命令, (list, tuple)):
             r = _py_subprocess.run(
                 [str(x) for x in 命令], capture_output=True,
-                timeout=max(0.1, float(超时)), text=True,
-                encoding="utf-8", errors="replace")
+                timeout=max(0.1, float(超时)))
         else:
             r = _py_subprocess.run(
                 str(命令), capture_output=True, shell=True,
-                timeout=max(0.1, float(超时)), text=True,
-                encoding="utf-8", errors="replace")
+                timeout=max(0.1, float(超时)))
     except _py_subprocess.TimeoutExpired:
         raise RunError(f"命令执行超过 {超时} 秒，已终止")
     except OSError as e:
         raise RunError(f"执行命令失败：{e}")
-    out = (r.stdout or "") + (r.stderr or "")
+    out = ((r.stdout or b"").decode("utf-8", "replace")
+           + (r.stderr or b"").decode("utf-8", "replace"))
     return out
 
 

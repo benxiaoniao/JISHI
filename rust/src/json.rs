@@ -223,9 +223,21 @@ impl<'a> Parser<'a> {
         let start = self.pos;
         if self.peek() == Some(b'-') { self.pos += 1; }
         let mut is_float = false;
+        let mut seen_e = false;
         while let Some(c) = self.peek() {
             if c.is_ascii_digit() { self.pos += 1; }
             else if c == b'.' && !is_float { is_float = true; self.pos += 1; }
+            // 注意 `1e+20` **没有小数点**，所以这里不能要求先见过 '.'
+            else if (c == b'e' || c == b'E') && !seen_e {
+                seen_e = true;
+                // 科学计数法（M33 修）：Python 的 json.dumps 写浮点用的是
+                // `repr`，`1e20` 会写成 `1e+20`、`1e-7` 写成 `1e-07`。
+                // 以前这里不认 `e`，于是**带这类浮点常量的程序直接加载失败**
+                // （报「对象未闭合」这种看不懂的错），不只是 `json` 模块的事。
+                is_float = true;
+                self.pos += 1;
+                if matches!(self.peek(), Some(b'+') | Some(b'-')) { self.pos += 1; }
+            }
             else { break; }
         }
         let s = std::str::from_utf8(&self.bytes[start..self.pos]).map_err(|_| "非法数字".to_string())?;

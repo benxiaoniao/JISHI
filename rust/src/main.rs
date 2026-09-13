@@ -16,6 +16,11 @@ fn main() -> ExitCode {
         Err(e) => { eprintln!("读取文件失败：{e}"); return ExitCode::from(1); }
     };
 
+    // 脚本参数（`jishi-rs 字节码.json 参数1 参数2`）→ `系统.参数()`。
+    // 与 Node 宿主的 `process.argv.slice(3)`、Python 侧 `系统._设参数` 同语义：
+    // 不含字节码文件名本身。
+    jishi_ffi::set_args(args[2..].to_vec());
+
     let mut vm = match jishi_ffi::load_module(&text) {
         Ok(vm) => vm,
         Err(e) => { eprintln!("字节码加载失败：{e}"); return ExitCode::from(1); }

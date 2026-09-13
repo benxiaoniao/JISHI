@@ -698,7 +698,33 @@ def _run_tool_cmd(argv: list[str]) -> int:
     return args.func(args)
 
 
+def _setup_io() -> None:
+    """把标准输出/错误固定成「UTF-8 + 不转换换行」（M33）。
+
+    - **UTF-8**：Windows 的 Cmd 默认不是 UTF-8，中文会 `UnicodeEncodeError`。
+    - **不转换换行**：文本模式在 Windows 上会把 `\n` 写成 `\r\n`，于是同一份
+      程序在 Python 侧输出 CRLF、在 Node / Rust 宿主输出 LF——「同一份程序到哪
+      都一样」在重定向输出时就破了（M33 端到端对拍撞出来的）。
+      只改输出；读入仍走通用换行，`\n` 与 `\r\n` 都认。
+
+    包成函数是因为入口有两条：`python -m jishi.cli` 直接调 `main()`，
+    PyInstaller 打包版走 `tools/entry_cli.py`——两条路都得设。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if stream is None or not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            stream.reconfigure(newline="\n")
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def main(argv: Optional[list[str]] = None) -> int:
+    _setup_io()
     if argv is None:
         argv = sys.argv[1:]
     # 包管理子命令（安装/卸载/列表/发布/索引/检查）走独立解析器，

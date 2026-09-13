@@ -26,6 +26,9 @@ class _Table:
         self.headers = list(headers)
         self.rows = [list(r) for r in rows]
 
+    #: 给 `类型()` 用的中文名（见 runtime.type_name 的钩子）
+    _jishi_type_name = "表格"
+
     def __repr__(self):
         return f"<表格 {len(self.rows)} 行 x {len(self.headers)} 列>"
 

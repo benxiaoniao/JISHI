@@ -864,6 +864,8 @@ function makeTable(headers, rows) {
     toString() {
       return `<表格 ${this.rows.length} 行 x ${this.headers.length} 列>`;
     },
+    // `类型()` 用它（见 runtime 的 typeName 钩子）——不然会给 `Object`
+    __jishiType: '表格',
   };
 }
 

@@ -27,6 +27,16 @@ def _force_utf8() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:  # noqa: BLE001
             pass
+    # 输出**不做换行转换**（M33）：Windows 的文本模式会把 `\n` 写成 `\r\n`，
+    # 于是同一份程序在 Python 侧输出 CRLF、在 Node / Rust 宿主输出 LF
+    # ——「同一份程序到哪都一样」在重定向输出时就破了。（读入不受影响。）
+    for stream in (sys.stdout, sys.stderr):
+        if stream is None or not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(newline="\n")
+        except Exception:  # noqa: BLE001
+            pass
 
 
 _force_utf8()
