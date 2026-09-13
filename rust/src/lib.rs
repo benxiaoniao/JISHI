@@ -3,7 +3,9 @@
 //! 消费 M13.1 产出的 JSON 字节码，脱离 Python 独立执行基石代码。
 //! 语义与 Python VM / JS VM 对齐。
 
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
+use std::rc::Rc;
 
 mod json;
 use json::Json;
@@ -11,6 +13,22 @@ use json::Json;
 // ---------------------------------------------------------------------------
 // 值表示
 // ---------------------------------------------------------------------------
+//
+// 列表与字典用 `Rc<RefCell<…>>` 包住（M28）：**基石里的容器是引用类型**，
+// `令 b = a` 之后 `b.追加(3)` 必须让 `a` 也变（Python / JS 侧都是这个语义，
+// C VM 有自己的引用计数）。
+//
+// 以前这里是裸 `Vec<Val>`，而 `Val` 是值类型、`Clone` 是深拷贝——于是
+// `a.追加(3)` 改的是**副本**，原变量纹丝不动：不报错、结果就是错的。
+// 推导式（内部走 `列表.追加`）因此返回空列表。
+//
+// 换成 `Rc<RefCell<…>>` 之后，`Val::clone` 只复制指针，同一份数据被共享，
+// 方法内的修改就能被原变量看见。
+
+/// 基石列表（共享可变）
+type JList = Rc<RefCell<Vec<Val>>>;
+/// 基石字典（共享可变，保持插入顺序）
+type JDict = Rc<RefCell<Vec<(Val, Val)>>>;
 
 #[derive(Clone)]
 enum Val {
@@ -19,8 +37,8 @@ enum Val {
     Int(i64),
     Float(f64),
     Str(String),
-    List(Vec<Val>),
-    Dict(Vec<(Val, Val)>),
+    List(JList),
+    Dict(JDict),
     Func(Func),
     Class(Class),
     Instance(Instance),
@@ -29,6 +47,24 @@ enum Val {
     ExcType(String),
     BoundMethod(Box<BoundMethod>),
     Cell(Box<Cell>),
+}
+
+/// 造一个列表值（把裸 Vec 包成共享容器）。
+fn list_new(items: Vec<Val>) -> Val {
+    Val::List(Rc::new(RefCell::new(items)))
+}
+
+/// 造一个字典值。
+fn dict_new(pairs: Vec<(Val, Val)>) -> Val {
+    Val::Dict(Rc::new(RefCell::new(pairs)))
+}
+
+/// 列表内容的只读借用（不是列表则给中文错误）。
+fn list_ro(v: &Val) -> Result<Ref<'_, Vec<Val>>, JishiError> {
+    match v {
+        Val::List(l) => Ok(l.borrow()),
+        _ => Err(err("类型错误", "需要列表")),
+    }
 }
 
 #[derive(Clone)]
@@ -485,7 +521,7 @@ impl VM {
                         let l = self.stack.len();
                         self.stack.drain(l - n..).collect()
                     } else { Vec::new() };
-                    self.stack.push(Val::List(items));
+                    self.stack.push(list_new(items));
                 }
                 op::BUILD_DICT => {
                     let n = ins.a as usize;
@@ -497,7 +533,7 @@ impl VM {
                     for i in (0..flat.len()).step_by(2) {
                         pairs.push((flat[i].clone(), flat[i + 1].clone()));
                     }
-                    self.stack.push(Val::Dict(pairs));
+                    self.stack.push(dict_new(pairs));
                 }
                 op::GET_ATTR => {
                     let name = self.module.names[ins.a as usize].clone();
@@ -693,8 +729,8 @@ fn truthy(v: Val) -> bool {
         Val::Int(i) => i != 0,
         Val::Float(f) => f != 0.0,
         Val::Str(s) => !s.is_empty(),
-        Val::List(l) => !l.is_empty(),
-        Val::Dict(d) => !d.is_empty(),
+        Val::List(l) => !l.borrow().is_empty(),
+        Val::Dict(d) => !d.borrow().is_empty(),
         _ => true,
     }
 }
@@ -708,11 +744,12 @@ fn display(v: &Val) -> String {
         Val::Float(f) => format_float(*f),
         Val::Str(s) => s.clone(),
         Val::List(l) => {
-            let items: Vec<String> = l.iter().map(py_repr).collect();
+            let items: Vec<String> = l.borrow().iter().map(py_repr).collect();
             format!("[{}]", items.join(", "))
         }
         Val::Dict(d) => {
-            let items: Vec<String> = d.iter().map(|(k, v)| format!("{}: {}", py_repr(k), py_repr(v))).collect();
+            let items: Vec<String> = d.borrow().iter()
+                .map(|(k, v)| format!("{}: {}", py_repr(k), py_repr(v))).collect();
             format!("{{{}}}", items.join(", "))
         }
         Val::Func(f) => format!("<函数 {}>", f.name),
@@ -763,7 +800,12 @@ fn numeric_add(a: Val, b: Val) -> Result<Val, JishiError> {
         (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x as f64 + y)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x + y)),
         (Val::Str(x), Val::Str(y)) => Ok(Val::Str(x + &y)),
-        (Val::List(mut x), Val::List(y)) => { x.extend(y); Ok(Val::List(x)) }
+        // `[1] + [2]` 造一个**新**列表，不改动任何一边（Python 语义）
+        (Val::List(x), Val::List(y)) => {
+            let mut out = x.borrow().clone();
+            out.extend(y.borrow().iter().cloned());
+            Ok(list_new(out))
+        }
         _ => Err(err("类型错误", "不支持的加法")),
     }
 }
@@ -782,7 +824,13 @@ fn numeric_mul(a: Val, b: Val) -> Result<Val, JishiError> {
         (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x as f64 * y)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x * y)),
         (Val::Str(s), Val::Int(n)) | (Val::Int(n), Val::Str(s)) => Ok(Val::Str(s.repeat(n as usize))),
-        (Val::List(l), Val::Int(n)) | (Val::Int(n), Val::List(l)) => Ok(Val::List((0..n).flat_map(|_| l.clone()).collect())),
+        // `[1, 2] * 2` 同样造新列表
+        (Val::List(l), Val::Int(n)) | (Val::Int(n), Val::List(l)) => {
+            let src = l.borrow();
+            let mut out = Vec::new();
+            for _ in 0..n.max(0) { out.extend(src.iter().cloned()); }
+            Ok(list_new(out))
+        }
         _ => Err(err("类型错误", "不支持的乘法")),
     }
 }
@@ -797,6 +845,12 @@ fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
     let out = match op {
         0 => l == r,
         1 => l != r,
+        // 6–9 是 M23.2 的语义比较，Python 侧放在 CmpOp.IN/NOT_IN/IS/IS_NOT。
+        // 这几个码 C VM 不认识、回落宿主，所以在这里实现它们是纯宿主侧工作。
+        6 => contains(&r, &l)?,                                    // `l 在 r`
+        7 => !contains(&r, &l)?,                                   // `l 不在 r`
+        8 => identity_key(&l)? == identity_key(&r)?,               // `l 是 r`
+        9 => identity_key(&l)? != identity_key(&r)?,               // `l 不是 r`
         _ => {
             let (a, b) = to_num_pair(l, r)?;
             match op {
@@ -811,6 +865,55 @@ fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
     Ok(Val::Bool(out))
 }
 
+/// 成员测试（`item 在 container`）——与 Python 侧 `runtime.contains` 同一套语义：
+/// 列表按值、字典按**键**、文本找子串（range 解出来的列表同理）。
+fn contains(container: &Val, item: &Val) -> Result<bool, JishiError> {
+    match container {
+        Val::List(l) => Ok(l.borrow().iter().any(|x| x == item)),
+        Val::Dict(d) => Ok(d.borrow().iter().any(|(k, _)| k == item)),
+        Val::Str(s) => {
+            let needle = match item { Val::Str(t) => t.clone(), other => display(other) };
+            Ok(s.contains(&needle))
+        }
+        _ => Err(err("类型错误",
+            format!("「{}」不能在「{}」里找", display(item), display(container)))),
+    }
+}
+
+/// 「是/不是」的同一性指纹（见 `identity_key`）。派生 `PartialEq` 即可：
+/// 三个变体各自比各自的内容。
+#[derive(PartialEq)]
+enum IdKey {
+    /// 空 / 真 / 假：单例，只和自己同一（`(是否为空, 是否真)`）
+    Singleton(bool, bool),
+    /// 数字 / 文本：按值比（`(类型名, 值的文本)`）
+    Value(String, String),
+    /// 列表 / 字典：按对象身份（同一份 `Rc` 的地址）
+    Identity(usize),
+}
+
+/// 「是/不是」的同一性指纹——对齐 Python 侧 `_identity_snapshot`：
+/// 空/真/假 是单例只和自己同一；数字/文本按**值**比（Python 侧也是这么定的，
+/// 否则会有「有时真有时假」的随机感）；列表/字典按**对象身份**——
+/// `Rc::as_ptr` 正好就是身份，两个内容相同的列表不是同一个东西。
+///
+/// 类/实例/函数在 Rust 里是值类型、**没有身份可谈**。这条宁可直接报错也不
+/// 猜：真要按「同内容即同一」算，`甲 是 甲` 会给出和 Python 相反的答案，
+/// 而「静默算错」比「明确不支持」糟得多。
+fn identity_key(v: &Val) -> Result<IdKey, JishiError> {
+    match v {
+        Val::None_ => Ok(IdKey::Singleton(true, false)),
+        Val::Bool(b) => Ok(IdKey::Singleton(false, *b)),
+        Val::Int(i) => Ok(IdKey::Value("整数".into(), i.to_string())),
+        Val::Float(f) => Ok(IdKey::Value("小数".into(), f.to_string())),
+        Val::Str(s) => Ok(IdKey::Value("文本".into(), s.clone())),
+        Val::List(l) => Ok(IdKey::Identity(Rc::as_ptr(l) as usize)),
+        Val::Dict(d) => Ok(IdKey::Identity(Rc::as_ptr(d) as usize)),
+        other => Err(err("运行期错误",
+            format!("Rust 宿主暂不支持对「{}」用「是 / 不是」", display(other)))),
+    }
+}
+
 impl PartialEq for Val {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -820,7 +923,10 @@ impl PartialEq for Val {
             (Val::Int(a), Val::Float(b)) | (Val::Float(b), Val::Int(a)) => *a as f64 == *b,
             (Val::Float(a), Val::Float(b)) => a == b,
             (Val::Str(a), Val::Str(b)) => a == b,
+            // 容器的 `==` 是**按值**比较（Python 语义：`[1,2] == [1,2]` 为真）。
+            // `Rc<RefCell<Vec<Val>>>` 的 PartialEq 正好逐元素比，递归到 `Val::eq`。
             (Val::List(a), Val::List(b)) => a == b,
+            (Val::Dict(a), Val::Dict(b)) => a == b,
             _ => false,
         }
     }
@@ -872,8 +978,8 @@ fn new_builtins() -> HashMap<String, Val> {
     m.insert("长度".to_string(), Val::Builtin("长度", |args, _vm| {
         match &args[0] {
             Val::Str(s) => Ok(Val::Int(s.chars().count() as i64)),
-            Val::List(l) => Ok(Val::Int(l.len() as i64)),
-            Val::Dict(d) => Ok(Val::Int(d.len() as i64)),
+            Val::List(l) => Ok(Val::Int(l.borrow().len() as i64)),
+            Val::Dict(d) => Ok(Val::Int(d.borrow().len() as i64)),
             _ => Err(err("类型错误", "没有长度")),
         }
     }));
@@ -887,23 +993,23 @@ fn new_builtins() -> HashMap<String, Val> {
         let mut out = Vec::new();
         if step > 0 { let mut i = a; while i < b { out.push(Val::Int(i)); i += step; } }
         else if step < 0 { let mut i = a; while i > b { out.push(Val::Int(i)); i += step; } }
-        Ok(Val::List(out))
+        Ok(list_new(out))
     }));
     m.insert("最大".to_string(), Val::Builtin("最大", |args, _vm| {
         if let Val::List(l) = &args[0] {
-            l.iter().cloned().max_by(|a, b| a.partial_cmp(b).unwrap()).ok_or_else(|| err("值错误", "空列表"))
+            l.borrow().iter().cloned().max_by(|a, b| a.partial_cmp(b).unwrap()).ok_or_else(|| err("值错误", "空列表"))
         } else { Err(err("类型错误", "需要列表")) }
     }));
     m.insert("最小".to_string(), Val::Builtin("最小", |args, _vm| {
         if let Val::List(l) = &args[0] {
-            l.iter().cloned().min_by(|a, b| a.partial_cmp(b).unwrap()).ok_or_else(|| err("值错误", "空列表"))
+            l.borrow().iter().cloned().min_by(|a, b| a.partial_cmp(b).unwrap()).ok_or_else(|| err("值错误", "空列表"))
         } else { Err(err("类型错误", "需要列表")) }
     }));
     m.insert("总和".to_string(), Val::Builtin("总和", |args, _vm| {
         if let Val::List(l) = &args[0] {
             let mut s = 0.0;
             let mut is_int = true;
-            for v in l {
+            for v in l.borrow().iter() {
                 match v { Val::Int(i) => s += *i as f64, Val::Float(f) => { s += f; is_int = false; }, _ => return Err(err("类型错误", "需要数字列表")) }
             }
             Ok(if is_int { Val::Int(s as i64) } else { Val::Float(s) })
@@ -918,7 +1024,7 @@ fn new_builtins() -> HashMap<String, Val> {
     m.insert("反转".to_string(), Val::Builtin("反转", |args, _vm| {
         match &args[0] {
             Val::Str(s) => Ok(Val::Str(s.chars().rev().collect())),
-            Val::List(l) => { let mut x = l.clone(); x.reverse(); Ok(Val::List(x)) }
+            Val::List(l) => { let mut x = l.borrow().clone(); x.reverse(); Ok(list_new(x)) }
             _ => Err(err("类型错误", "需要列表或文本")),
         }
     }));
@@ -955,7 +1061,7 @@ fn stdlib_module(name: &str) -> Result<Val, JishiError> {
             m.insert("拼接".to_string(), Val::Builtin("拼接", |args, _vm| {
                 if let Val::List(l) = &args[0] {
                     let sep = if args.len() > 1 { display(&args[1]) } else { String::new() };
-                    Ok(Val::Str(l.iter().map(display).collect::<Vec<_>>().join(&sep)))
+                    Ok(Val::Str(l.borrow().iter().map(display).collect::<Vec<_>>().join(&sep)))
                 } else { Err(err("类型错误", "需要列表")) }
             }));
         }
@@ -1004,8 +1110,8 @@ fn set_attr(obj: Val, attr: &str, val: Val) -> Result<(), JishiError> {
 
 fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
     match (obj, idx) {
-        (Val::List(l), Val::Int(i)) => l.get(i as usize).cloned().ok_or_else(|| err("索引错误", "越界")),
-        (Val::Dict(d), k) => d.iter().find(|(key, _)| *key == k).map(|(_, v)| v.clone()).ok_or_else(|| err("键错误", "找不到这个键")),
+        (Val::List(l), Val::Int(i)) => l.borrow().get(i as usize).cloned().ok_or_else(|| err("索引错误", "越界")),
+        (Val::Dict(d), k) => d.borrow().iter().find(|(key, _)| *key == k).map(|(_, v)| v.clone()).ok_or_else(|| err("键错误", "找不到这个键")),
         (Val::Str(s), Val::Int(i)) => s.chars().nth(i as usize).map(|c| Val::Str(c.to_string())).ok_or_else(|| err("索引错误", "越界")),
         _ => Err(err("类型错误", "不能取下标")),
     }
@@ -1013,8 +1119,17 @@ fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
 
 fn set_item(obj: Val, idx: Val, val: Val) -> Result<(), JishiError> {
     match (obj, idx) {
-        (Val::List(mut l), Val::Int(i)) => { let i = i as usize; if i < l.len() { l[i] = val; Ok(()) } else { Err(err("索引错误", "越界")) } }
-        (Val::Dict(mut d), k) => { if let Some(v) = d.iter_mut().find(|(key, _)| *key == k) { v.1 = val; } else { d.push((k, val)); } Ok(()) }
+        // 注意是 `borrow_mut`：改的是共享容器本身，调用者（原变量）能看见
+        (Val::List(l), Val::Int(i)) => {
+            let mut l = l.borrow_mut();
+            let i = i as usize;
+            if i < l.len() { l[i] = val; Ok(()) } else { Err(err("索引错误", "越界")) }
+        }
+        (Val::Dict(d), k) => {
+            let mut d = d.borrow_mut();
+            if let Some(v) = d.iter_mut().find(|(key, _)| *key == k) { v.1 = val; } else { d.push((k, val)); }
+            Ok(())
+        }
         _ => Err(err("类型错误", "不能按下标赋值")),
     }
 }
@@ -1024,23 +1139,33 @@ fn call_bound(bm: BoundMethod, args: &[Val]) -> Result<Val, JishiError> {
         BoundMethod::Builtin { name, receiver } => {
             match (*receiver, name.as_str()) {
                 // -- 列表方法 --
-                (Val::List(mut l), "追加") => { need_args(&name, args, 1, 1)?; l.push(args[0].clone()); Ok(Val::None_) }
-                (Val::List(mut l), "插入") => { need_args(&name, args, 2, 2)?; let i = as_int(&args[0])? as usize; l.insert(i.min(l.len()), args[1].clone()); Ok(Val::None_) }
+                // 这里全部走 `borrow_mut()`：改的是共享容器本身，
+                // 所以 `a.追加(3)` 之后原变量 `a` 也会变（M28 修的就是这个）。
+                (Val::List(l), "追加") => { need_args(&name, args, 1, 1)?; l.borrow_mut().push(args[0].clone()); Ok(Val::None_) }
+                (Val::List(l), "插入") => {
+                    need_args(&name, args, 2, 2)?;
+                    let i = as_int(&args[0])? as usize;
+                    let mut l = l.borrow_mut();
+                    let at = i.min(l.len());      // 先算好下标，再插入（避免同时可变+不可变借用）
+                    l.insert(at, args[1].clone());
+                    Ok(Val::None_)
+                }
                 (Val::List(l), "弹出") => {
                     need_args(&name, args, 0, 1)?;
-                    let mut l = l;
+                    let mut l = l.borrow_mut();
                     if l.is_empty() { return Err(err("值错误", "列表是空的")); }
                     let v = if args.is_empty() { l.pop() } else { let i = as_int(&args[0])? as usize; if i < l.len() { Some(l.remove(i)) } else { None } };
                     v.ok_or_else(|| err("索引错误", "越界"))
                 }
-                (Val::List(mut l), "排序") => { need_args(&name, args, 0, 0)?; l.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
-                (Val::List(mut l), "反转") => { need_args(&name, args, 0, 0)?; l.reverse(); Ok(Val::None_) }
-                (Val::List(mut l), "清空") => { need_args(&name, args, 0, 0)?; l.clear(); Ok(Val::None_) }
-                (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.iter().position(|x| *x == args[0]).map(|i| Val::Int(i as i64)).ok_or_else(|| err("值错误", "找不到元素")) }
-                (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(l.iter().filter(|x| **x == args[0]).count() as i64)) }
-                (Val::List(l), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(l.contains(&args[0]))) }
-                (Val::List(mut l), "移除") => {
+                (Val::List(l), "排序") => { need_args(&name, args, 0, 0)?; l.borrow_mut().sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
+                (Val::List(l), "反转") => { need_args(&name, args, 0, 0)?; l.borrow_mut().reverse(); Ok(Val::None_) }
+                (Val::List(l), "清空") => { need_args(&name, args, 0, 0)?; l.borrow_mut().clear(); Ok(Val::None_) }
+                (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.borrow().iter().position(|x| *x == args[0]).map(|i| Val::Int(i as i64)).ok_or_else(|| err("值错误", "找不到元素")) }
+                (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(l.borrow().iter().filter(|x| **x == args[0]).count() as i64)) }
+                (Val::List(l), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(l.borrow().contains(&args[0]))) }
+                (Val::List(l), "移除") => {
                     need_args(&name, args, 1, 1)?;
+                    let mut l = l.borrow_mut();
                     if let Some(pos) = l.iter().position(|x| *x == args[0]) { l.remove(pos); Ok(Val::None_) }
                     else { Err(err("值错误", "列表里没有这个元素")) }
                 }
@@ -1048,12 +1173,12 @@ fn call_bound(bm: BoundMethod, args: &[Val]) -> Result<Val, JishiError> {
                 (Val::Dict(d), "获取") => {
                     need_args(&name, args, 1, 2)?;
                     let dflt = if args.len() == 2 { args[1].clone() } else { Val::None_ };
-                    Ok(d.iter().find(|(k, _)| *k == args[0]).map(|(_, v)| v.clone()).unwrap_or(dflt))
+                    Ok(d.borrow().iter().find(|(k, _)| *k == args[0]).map(|(_, v)| v.clone()).unwrap_or(dflt))
                 }
-                (Val::Dict(d), "键") => { need_args(&name, args, 0, 0)?; Ok(Val::List(d.iter().map(|(k, _)| k.clone()).collect())) }
-                (Val::Dict(d), "值") => { need_args(&name, args, 0, 0)?; Ok(Val::List(d.iter().map(|(_, v)| v.clone()).collect())) }
-                (Val::Dict(d), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(d.iter().any(|(k, _)| *k == args[0]))) }
-                (Val::Dict(mut d), "清空") => { need_args(&name, args, 0, 0)?; d.clear(); Ok(Val::None_) }
+                (Val::Dict(d), "键") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())) }
+                (Val::Dict(d), "值") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(_, v)| v.clone()).collect())) }
+                (Val::Dict(d), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(d.borrow().iter().any(|(k, _)| *k == args[0]))) }
+                (Val::Dict(d), "清空") => { need_args(&name, args, 0, 0)?; d.borrow_mut().clear(); Ok(Val::None_) }
                 // -- 字符串方法 --
                 (Val::Str(s), "大写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_uppercase())) }
                 (Val::Str(s), "小写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_lowercase())) }
@@ -1061,7 +1186,7 @@ fn call_bound(bm: BoundMethod, args: &[Val]) -> Result<Val, JishiError> {
                 (Val::Str(s), "拆分") => {
                     need_args(&name, args, 0, 1)?;
                     let sep = args.first().map(display).unwrap_or_default();
-                    Ok(Val::List(s.split(&sep).map(|p| Val::Str(p.to_string())).collect()))
+                    Ok(list_new(s.split(&sep).map(|p| Val::Str(p.to_string())).collect()))
                 }
                 (Val::Str(s), "替换") => { need_args(&name, args, 2, 2)?; let a = display(&args[0]); let b = display(&args[1]); Ok(Val::Str(s.replace(&a, &b))) }
                 (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
@@ -1112,11 +1237,13 @@ fn make_instance(class: Class, args: &[Val]) -> Result<Instance, JishiError> {
 
 fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, JishiError> {
     // star >= 0 时是星号解包（M25）：该位置收「其余」成列表
+    // 注意这里取的是**快照**（`.borrow().clone()`）：解包是只读操作，
+    // 不该把原列表搬空。
     let seq: Vec<Val> = match v {
-        Val::List(l) => l,
+        Val::List(l) => l.borrow().clone(),
         Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string())).collect(),
         // 字典解出来的是键（与 Python 侧一致）
-        Val::Dict(d) => d.iter().map(|(k, _)| k.clone()).collect(),
+        Val::Dict(d) => d.borrow().iter().map(|(k, _)| k.clone()).collect(),
         _ => return Err(err("类型错误", "解包赋值需要列表")),
     };
     if star < 0 {
@@ -1137,7 +1264,7 @@ fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, JishiError> {
     let mut out: Vec<Val> = Vec::with_capacity(n);
     out.extend_from_slice(&seq[..nhead]);
     let mid_end = seq.len() - ntail;
-    out.push(Val::List(seq[nhead..mid_end].to_vec()));
+    out.push(list_new(seq[nhead..mid_end].to_vec()));
     if ntail > 0 {
         out.extend_from_slice(&seq[mid_end..]);
     }
@@ -1175,12 +1302,15 @@ fn exception_matches(exc: &Val, cond: &Val) -> bool {
 // ---------------------------------------------------------------------------
 
 fn make_iterator(obj: Val) -> Result<Val, JishiError> {
-    // 用 List 作为迭代器载体：在 VM 里把迭代器表示为特殊 List（元素+位置）
-    // 简化：直接用 List 本身 + 一个包装（这里用 List + 哨兵）
+    // 迭代器就是「一个会被逐个弹掉的列表」，FOR_ITER 每次 remove(0)。
+    //
+    // 关键：**必须做快照拷贝**。以前列表是值类型，`Val::List(l)` 天然就是
+    // 独立副本，所以「遍历不消耗原列表」是白捡的；换成共享容器后如果直接把
+    // `l` 递出去，`遍历 x 在 a` 会把 `a` 逐元素搬空——那是错的。
     match obj {
-        Val::List(l) => Ok(Val::List(l)),
-        Val::Str(s) => Ok(Val::List(s.chars().map(|c| Val::Str(c.to_string())).collect())),
-        Val::Dict(d) => Ok(Val::List(d.into_iter().map(|(k, _)| k).collect())),
+        Val::List(l) => Ok(list_new(l.borrow().clone())),
+        Val::Str(s) => Ok(list_new(s.chars().map(|c| Val::Str(c.to_string())).collect())),
+        Val::Dict(d) => Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())),
         _ => Err(err("类型错误", "不能遍历")),
     }
 }
@@ -1188,6 +1318,7 @@ fn make_iterator(obj: Val) -> Result<Val, JishiError> {
 // 简化迭代：FOR_ITER 直接弹 List 头
 fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
     if let Val::List(l) = it {
+        let mut l = l.borrow_mut();
         if l.is_empty() { Ok(None) } else { Ok(Some(l.remove(0))) }
     } else {
         Err(err("类型错误", "迭代器错误"))
@@ -1217,7 +1348,7 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defau
         if i < npos { bound.insert(i, a.clone()); }
     }
     if let Some(sp) = star_pos {
-        bound.insert(sp, Val::List(args[npos.min(args.len())..].to_vec()));
+        bound.insert(sp, list_new(args[npos.min(args.len())..].to_vec()));
     }
     // 未匹配的关键字收进 **选项
     let mut extra: Vec<(Val, Val)> = Vec::new();
@@ -1231,7 +1362,7 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defau
         }
     }
     if let Some(dp) = dstar_pos {
-        bound.insert(dp, Val::Dict(extra));
+        bound.insert(dp, dict_new(extra));
     }
     if let Some(d) = defaults {
         for (i, dv) in d.iter().enumerate() {

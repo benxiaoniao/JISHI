@@ -229,30 +229,183 @@ def test_rust_basics(src, expect, rust_exe):
 
 
 # ---------------------------------------------------------------------------
-# 已知缺口（明确标出，修好后 xfail 会变成 XPASS 提醒我们更新）
+# M28：可变容器语义（`Rc<RefCell<…>>` 重构）
+# ---------------------------------------------------------------------------
+# 修之前，`Val::List(Vec<Val>)` 是值类型、`Clone` 是深拷贝，所以
+# `a.追加(3)` 改的是**副本**、原变量纹丝不动——不报错、结果就是错的。
+# 推导式（内部走 `列表.追加`）因此返回空列表。这一组把语义锁死。
+
+def test_rust_list_methods_mutate_original(rust_exe):
+    """所有会改内容的列表方法，都必须落到原变量上。"""
+    assert _agree(
+        "令 a = [1, 2]\n"
+        "a.追加(3)\n打印(a)\n"
+        "a.插入(0, 0)\n打印(a)\n"
+        "a.移除(2)\n打印(a)\n"
+        "a.排序()\n打印(a)\n"
+        "a.反转()\n打印(a)\n"
+        "打印(a.弹出())\n打印(a)\n"
+        "a.清空()\n打印(a, 长度(a))\n",
+        rust_exe) == ("[1, 2, 3]\n[0, 1, 2, 3]\n[0, 1, 3]\n[0, 1, 3]\n"
+                      "[3, 1, 0]\n0\n[3, 1]\n[] 0\n")
+
+
+def test_rust_assignment_aliases_container(rust_exe):
+    """`令 b = a` 之后两者是同一个东西（Python / JS 侧都是引用语义）。"""
+    assert _agree(
+        "令 a = [1]\n令 b = a\nb.追加(2)\n打印(a, b)\n",
+        rust_exe) == "[1, 2] [1, 2]\n"
+
+
+def test_rust_index_assignment(rust_exe):
+    assert _agree(
+        '令 a = [1, 2]\na[0] = 9\n打印(a)\n'
+        '令 d = {"k": 1}\nd["k"] = 2\nd["n"] = 3\n打印(d)\n',
+        rust_exe) == "[9, 2]\n{'k': 2, 'n': 3}\n"
+
+
+def test_rust_comprehension(rust_exe):
+    """推导式依赖 `列表.追加`，曾是「返回空列表」的重灾区。"""
+    assert _agree(
+        "打印([x * 2 遍历 x 在 范围(4)])\n"
+        "打印([x 遍历 x 在 范围(6) 如果 x % 2 == 0])\n"
+        "打印([[y 遍历 y 在 范围(x)] 遍历 x 在 范围(3)])\n",
+        rust_exe) == "[0, 2, 4, 6]\n[0, 2, 4]\n[[], [0], [0, 1]]\n"
+
+
+def test_rust_accumulate_in_loop(rust_exe):
+    """循环里往同一个列表追加：容器是共享的才对。"""
+    assert _agree(
+        "令 结果 = []\n"
+        "遍历 i 在 范围(4)：\n"
+        "    结果.追加(i * i)\n"
+        "打印(结果)\n",
+        rust_exe) == "[0, 1, 4, 9]\n"
+
+
+def test_rust_mutation_inside_function(rust_exe):
+    """函数里改外部（自由变量）列表，调用方要看得见。"""
+    assert _agree(
+        "令 日志 = []\n"
+        "函数 记(x)：\n"
+        "    日志.追加(x)\n"
+        "记(1)\n记(2)\n打印(日志)\n",
+        rust_exe) == "[1, 2]\n"
+
+
+def test_rust_nested_container_mutation(rust_exe):
+    assert _agree(
+        "令 网格 = [[1, 2], [3, 4]]\n"
+        "网格[0].追加(9)\n打印(网格)\n"
+        '令 d = {"k": [1]}\nd["k"].追加(2)\n打印(d)\n'
+        "令 m = [[[1]]]\nm[0][0].追加(2)\n打印(m)\n",
+        rust_exe) == "[[1, 2, 9], [3, 4]]\n{'k': [1, 2]}\n[[[1, 2]]]\n"
+
+
+def test_rust_grouping_idiom(rust_exe):
+    """「按首字母分组」——把 成员测试 + 字典取值 + 列表追加 串起来用。
+
+    这条曾经在 `k 在 分组` 处就断了（Rust 侧没实现 `在`），
+    补完成员测试之后才跑通。
+    """
+    assert _agree(
+        '令 分组 = {}\n'
+        '遍历 w 在 ["ab", "cd", "ae"]：\n'
+        '    令 k = w[0]\n'
+        '    如果 k 在 分组：\n'
+        '        分组[k].追加(w)\n'
+        '    否则：\n'
+        '        分组[k] = [w]\n'
+        '打印(分组)\n',
+        rust_exe) == "{'a': ['ab', 'ae'], 'c': ['cd']}\n"
+
+
+def test_rust_iteration_does_not_consume(rust_exe):
+    """遍历**不能**把原列表搬空。
+
+    这是个真实的坑：Rust 版把「列表自身」当迭代器（`iter_next` 会
+    `remove(0)`）。以前列表是值类型，`Val::List(l)` 天然是独立副本，
+    「遍历不消耗」是白捡的；换成共享容器后如果直接把 `l` 递出去，
+    `遍历 x 在 a` 就会逐元素吃掉 `a`。所以 `make_iterator` 必须显式快照。
+    """
+    assert _agree(
+        "令 a = [1, 2, 3]\n"
+        "令 s = 0\n"
+        "遍历 x 在 a：\n"
+        "    s += x\n"
+        "打印(s, a)\n"
+        "遍历 x 在 a：\n"
+        "    s += x\n"
+        "打印(s, a)\n",
+        rust_exe) == "6 [1, 2, 3]\n12 [1, 2, 3]\n"
+
+
+def test_rust_unpack_does_not_consume(rust_exe):
+    assert _agree(
+        "令 a = [1, 2, 3]\n令 x, *y = a\n打印(x, y, a)\n",
+        rust_exe) == "1 [2, 3] [1, 2, 3]\n"
+
+
+def test_rust_list_concat_and_repeat_are_copies(rust_exe):
+    """`a + b` / `a * 2` 造新列表，不动任何一边（Python 语义）。"""
+    assert _agree(
+        "令 a = [1]\n令 b = [2]\n"
+        "打印(a + b, a, b)\n"
+        "打印(a * 3, a)\n",
+        rust_exe) == "[1, 2] [1] [2]\n[1, 1, 1] [1]\n"
+
+
+def test_rust_container_equality_is_by_value(rust_exe):
+    """容器的 `==` 按值比（`[1,2] == [1,2]` 为真），与 Python 一致。"""
+    assert _agree(
+        '打印([1, 2] == [1, 2], [1] == [2])\n'
+        '打印({"a": 1} == {"a": 1}, {"a": 1} == {"a": 2})\n',
+        rust_exe) == "真 假\n真 假\n"
+
+
+def test_rust_dict_methods(rust_exe):
+    assert _agree(
+        '令 d = {"a": 1, "b": 2}\n'
+        '打印(d.键())\n打印(d.值())\n'
+        '打印(d.获取("a"), d.获取("x", 0))\n'
+        '打印("a" 在 d, "x" 在 d)\n'
+        'd.清空()\n打印(d, 长度(d))\n',
+        rust_exe) == "['a', 'b']\n[1, 2]\n1 0\n真 假\n{} 0\n"
+
+
+# ---------------------------------------------------------------------------
+# M28 顺带补上：成员测试与同一性（此前 Rust 侧完全没实现）
 # ---------------------------------------------------------------------------
 
-XFAIL_REASON_MUTABLE = (
-    "Rust 的 Val 是值类型，get_attr 对列表会拷一份出来改，"
-    "所以 列表.追加 改的是副本、原变量不变（需要 Rc<RefCell> 重构）")
+def test_rust_membership(rust_exe):
+    """`在` / `不在` —— 列表按值、字典按键、文本找子串。
 
-
-@pytest.mark.xfail(reason=XFAIL_REASON_MUTABLE, strict=False)
-def test_rust_list_append_mutation(rust_exe):
-    """**静默算错**：`a.追加(3)` 不报错但列表没变。
-
-    这条比「报错」严重——用户会拿到错结果却不知道。所以放在 xfail 里
-    当显式记录，而不是假装它没问题。
+    这是补容器语义时暴露的另一个缺口：`compare` 只处理 0–5，
+    `在`(6)/`不在`(7)/`是`(8)/`不是`(9) 根本没实现，
+    所以「按首字母分组」这种惯用法在 `如果 k 在 分组` 处直接报「需要数字」。
     """
-    assert _agree("令 a = [1, 2]\na.追加(3)\n打印(a)\n", rust_exe) == "[1, 2, 3]\n"
+    assert _agree(
+        '打印(2 在 [1, 2], 9 在 [1, 2])\n'
+        '打印(9 不在 [1, 2], 2 不在 [1, 2])\n'
+        '打印("a" 在 {"a": 1}, "x" 在 {"a": 1})\n'
+        '打印("好" 在 "你好", "x" 在 "你好")\n'
+        '打印(3 在 范围(5), 9 在 范围(5))\n',
+        rust_exe) == "真 假\n真 假\n真 假\n真 假\n真 假\n"
 
 
-@pytest.mark.xfail(reason=XFAIL_REASON_MUTABLE, strict=False)
-def test_rust_comprehension(rust_exe):
-    """推导式依赖 `列表.追加` 的内部调用，同样受可变容器语义影响。"""
-    assert _agree("打印([x * 2 遍历 x 在 范围(4)])\n",
-                  rust_exe) == "[0, 2, 4, 6]\n"
+def test_rust_identity(rust_exe):
+    """`是` / `不是`：单例与数字文本按值、列表字典按对象身份。"""
+    assert _agree(
+        "令 x = 空\n打印(x 是 空, x 不是 空)\n"
+        "令 a = 1\n令 b = 1\n打印(a 是 b)\n"
+        '令 s = "甲"\n打印(s 是 "甲")\n'
+        "令 p = [1]\n令 q = [1]\n令 r = p\n打印(p 是 r, p 是 q)\n",
+        rust_exe) == "真 假\n真\n真\n真 假\n"
 
+
+# ---------------------------------------------------------------------------
+# 已知缺口（明确标出，修好后 xfail 会变成 XPASS 提醒我们更新）
+# ---------------------------------------------------------------------------
 
 @pytest.mark.xfail(reason="Rust 版用户方法调用尚未经 VM 帧实现", strict=False)
 def test_rust_method_call(rust_exe):
@@ -266,8 +419,18 @@ def test_rust_set_literal(rust_exe):
     assert _agree("令 s = {1, 2, 2}\n打印(s)\n", rust_exe) == "{1, 2}\n"
 
 
-@pytest.mark.xfail(reason="Rust 版尚未移植 M24 的列表高阶方法与类型标注校验",
-                   strict=False)
+@pytest.mark.xfail(reason="Rust 版列表高阶方法需要把 VM 传进方法调用路径，"
+                          "尚未实现", strict=False)
 def test_rust_list_map(rust_exe):
     assert _agree("打印([1, 2].映射(函数(x)：x * 2))\n",
                   rust_exe) == "[2, 4]\n"
+
+
+@pytest.mark.xfail(reason="Rust 版的类/实例是值类型、没有对象身份，"
+                          "对它们用「是/不是」会明确报错（不做静默降级）",
+                   strict=False)
+def test_rust_identity_on_instance_errors(rust_exe):
+    assert _agree(
+        "类 甲：\n    函数 初始化(自身)：\n        空\n"
+        "令 a = 新建 甲()\n令 b = a\n打印(a 是 b)\n", rust_exe) == "真\n"
+
