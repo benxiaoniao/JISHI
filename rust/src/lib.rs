@@ -255,6 +255,10 @@ impl VM {
                     self.frames.pop();
                     if Some(fi) == stop_at { return Ok(()); }
                 }
+                Ok(Flow::Call) => {
+                    // 帧已在 CALL 里压好，什么都不做、继续循环即可。
+                    // （这条分支以前不存在，导致新帧被 pop 掉。）
+                }
                 Ok(Flow::Halt) => {
                     self.frames.pop();
                     return Ok(());
@@ -416,7 +420,7 @@ impl VM {
                             };
                             self.frames[fi].ip = ip;
                             self.frames.push(nf);
-                            return Ok(Flow::Return);
+                            return Ok(Flow::Call);
                         }
                         Val::Builtin(name, bfn) => {
                             let out = bfn(&args, self)?;
@@ -450,8 +454,17 @@ impl VM {
                     let defaults = if ndefaults > 0 {
                         let n = self.stack.len();
                         let tail: Vec<Val> = self.stack.drain(n - ndefaults..).collect();
-                        let nparams = self.module.codes[code_idx].params.len();
-                        let mut d = vec![Val::None_; nparams - ndefaults];
+                        // 默认值只属于「普通参数」的尾部——`*参数` / `**选项`
+                        // 不能有默认值，也不参与对齐。所以 pad 要按
+                        // 「普通参数个数」算，不能按全部形参个数算：
+                        // `函数 带默认(甲, 乙 = 10, *余)` 若按 3 个形参 pad，
+                        // 默认值会被算到「余」头上，`带默认(1)` 就报「缺少参数：乙」。
+                        // （Python 侧 vm.py 在 M25 修过同一个坑。）
+                        let sub_kinds = &self.module.codes[code_idx].param_kind;
+                        let sub_nparams = self.module.codes[code_idx].params.len();
+                        let sub_npos = sub_kinds.iter().position(|k| *k != 0)
+                            .unwrap_or(sub_nparams);
+                        let mut d = vec![Val::None_; sub_npos - ndefaults];
                         d.extend(tail);
                         Some(d)
                     } else { None };
@@ -656,7 +669,14 @@ impl VM {
 // ---------------------------------------------------------------------------
 
 enum Flow {
+    /// 本帧执行完毕（跑到指令末尾或 RETURN），**调用方应弹掉它**。
     Return,
+    /// 刚压入一个新帧（CALL 到用户函数），**调用方绝不能弹帧**，直接继续循环。
+    ///
+    /// 以前这里复用 `Return`，于是 `execute` 每次函数调用后都把新帧弹掉，
+    /// 外层接着执行那个还没拿到实参的 CALL → `fn_base` 下溢 → panic。
+    /// 两个语义必须分开，否则「调用函数」这件事根本跑不起来。
+    Call,
     Halt,
     Error(JishiError),
     Signal(Signal),
@@ -1264,8 +1284,11 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
     if body.get("format").and_then(|v| v.as_str()) != Some("jishi-bytecode") {
         return Err("不是基石字节码格式".to_string());
     }
-    if body.get("version").and_then(|v| v.as_i64()) != Some(1) {
-        return Err("字节码版本不兼容".to_string());
+    // 字节码格式版本：2 = M25 起（Code 增加 param_kind，UNPACK 的 b 表示星号位置）。
+    // 与 Python 侧 serialize.FORMAT_VERSION、Node 侧 index.js 的检查保持一致；
+    // 版本不同宁可直接拒绝，也不要按旧格式错误解析（那会静默算错）。
+    if body.get("version").and_then(|v| v.as_i64()) != Some(2) {
+        return Err("字节码版本不兼容（本引擎需要 2）".to_string());
     }
     let payload = body.get("payload").ok_or("缺少 payload")?;
 
