@@ -30,6 +30,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import io
 import struct
 import subprocess
@@ -258,7 +259,14 @@ def test_build_release_wires_platform_icons():
 
 
 def test_make_logo_generates_all_three(tmp_path):
-    """`tools/make_logo.py` 跑一遍要能产出 png/ico/icns（依赖 Pillow）。"""
+    """`tools/make_logo.py` 跑一遍要能产出 png/ico/icns（依赖 Pillow）。
+
+    Pillow 只是**开发期**依赖（CI 只装 pytest，见 .github/workflows/ci.yml），
+    所以没有就跳过——图标资产本身就是提交进仓库的，结构另有不依赖 Pillow 的
+    用例（`test_ico_is_valid_multisize` / `test_icns_is_valid`）把关。
+    """
+    if importlib.util.find_spec("PIL") is None:
+        pytest.skip("本机没装 Pillow（仅开发期依赖），跳过 make_logo 实跑")
     # 产物写进 pytest 的临时目录，不覆盖仓库里的资产
     r = subprocess.run(
         [sys.executable, str(ROOT / "tools" / "make_logo.py"),

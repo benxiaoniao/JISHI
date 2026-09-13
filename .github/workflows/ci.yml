@@ -54,7 +54,27 @@ jobs:
 
       # 全量测试：三执行器对拍（树遍历 / Python VM / C VM 逐字节一致）
       - name: 全量测试
-        run: python -m pytest tests/ -q
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest tests/ -q --tb=line -rf 2>&1 | tee pytest.log
+
+      # 失败时把「哪些用例挂了」写成 Actions 注解（M35 加）。
+      # 来由：CI 一直红，而 job 日志只能登录网页看、公开 API 下载要管理员权限，
+      # 排查时两眼一抹黑。注解可以用公开 API 读到（check-runs/annotations），
+      # 于是「失败摘要」变成可被工具直接取到的信息。
+      - name: 失败摘要（写成注解）
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f pytest.log ]; then
+            SUMMARY=$(grep -E '^(FAILED|ERROR)' pytest.log | head -25 | tr -d '\r' | tr '\n' ' ')
+            if [ -z "$SUMMARY" ]; then
+              SUMMARY=$(tail -c 500 pytest.log | tr -d '\r' | tr '\n' ' ')
+            fi
+            CLEAN=$(printf '%s' "$SUMMARY" | sed 's/[%]//g')
+            echo "::error title=pytest 失败摘要::${CLEAN}"
+          fi
 
       # 一键全检（含 C VM 构建 + 基准冒烟）
       - name: 一键全检
