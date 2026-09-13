@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import io
+import os
 import shutil
 import subprocess
 import sys
@@ -245,16 +246,19 @@ def test_node_decimal_exp_alignment():
 @pytestmark_host
 def test_node_file_and_context_manager():
     """文件读写 + `用 … 为` 自动关闭，Node 侧要能对上。"""
+    # 临时文件放 build/ 且名字带进程号：build/ 由 conftest 保证存在（CI 全新
+    # 检出没有它），带进程号则并行跑同一文件时不会互相覆写（M35）
+    path = f"build/_t27_node_{os.getpid()}.txt"
     _compare_host(
-        '用 打开("build/_t27_node.txt", "写") 为 f：\n'
+        f'用 打开("{path}", "写") 为 f：\n'
         '    f.写行("第一行")\n'
         '    f.写行("第二行")\n'
-        '用 打开("build/_t27_node.txt") 为 f：\n'
+        f'用 打开("{path}") 为 f：\n'
         '    遍历 行 在 f：\n'
         '        打印(行)\n'
-        '用 打开("build/_t27_node.txt") 为 f：\n'
+        f'用 打开("{path}") 为 f：\n'
         '    打印(f.读所有行())\n'
-        '打印(打开("build/_t27_node.txt").读())\n')
+        f'打印(打开("{path}").读())\n')
 
 
 @pytestmark_host

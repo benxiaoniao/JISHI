@@ -50,7 +50,7 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from conftest import tmp_bc_path   # noqa: E402
+from conftest import rust_exe_path, tmp_bc_path   # noqa: E402
 
 from jishi import cvm_bind                        # noqa: E402
 from jishi import serialize                       # noqa: E402
@@ -63,7 +63,7 @@ from jishi.tokenizer import tokenize              # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
-EXE = ROOT / "rust" / "target" / "release" / "jishi-rs.exe"
+EXE = rust_exe_path()   # 平台感知：Windows 是 .exe，别处没有扩展名
 CARGO = shutil.which("cargo")
 
 

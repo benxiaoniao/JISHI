@@ -18,8 +18,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from jishi.interpreter import run_source
 from jishi.errors import JishiError
 
+ROOT = Path(__file__).resolve().parents[1]
 CASES = Path(__file__).parent / "cases"
 ERROR_CASES = Path(__file__).parent / "error_cases"
+
+# 项目根下的 build/ 是临时工作目录（被 .gitignore）。CI 是**全新检出**、没有这个
+# 目录，而个别用例会往它里面写文件（`打开("build/…", "写")`）→ 在 CI 上报
+# 「找不到文件或目录」（M35 定位）。本地因为目录一直在，永远看不到这个失败。
+(ROOT / "build").mkdir(exist_ok=True)
+
+
+def rust_exe_path() -> Path:
+    """Rust 宿主可执行文件的路径（**按平台**取名）。
+
+    cargo 在 Windows 上产出 `jishi-rs.exe`，在 Linux/macOS 上产出 `jishi-rs`
+    （没有扩展名）。此前四个测试文件都硬编码 `jishi-rs.exe`，于是 **Rust 对拍
+    在 Linux/macOS 的 CI 上全线 FileNotFoundError**（M35 定位；本机是 Windows
+    所以一直没暴露）。
+    """
+    name = "jishi-rs.exe" if os.name == "nt" else "jishi-rs"
+    return ROOT / "rust" / "target" / "release" / name
 
 
 def tmp_bc_path(filename: str) -> Path:

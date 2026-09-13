@@ -33,12 +33,14 @@ import pytest
 
 sys.path.insert(0, ".")
 
+from conftest import rust_exe_path       # noqa: E402
+
 from jishi import serialize                       # noqa: E402
 from jishi import vm as vm_mod                    # noqa: E402
 from jishi.compiler import compile_source         # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-EXE = ROOT / "rust" / "target" / "release" / "jishi-rs.exe"
+EXE = rust_exe_path()   # 平台感知：Windows 是 .exe，别处没有扩展名
 CARGO = shutil.which("cargo")
 
 
