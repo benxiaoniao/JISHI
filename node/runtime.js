@@ -1215,6 +1215,14 @@ class JishiClass {
     if (base) for (const [k, v] of base.methods) merged.set(k, v);
     for (const [k, v] of methods) merged.set(k, v);
     this.methods = merged;
+    // 类变量（M34 补上 M23.3）：与 Python 侧一致——继承时先合并基类的，
+    // 子类的同名规则由「先合基类、再合自己」自然覆盖。
+    //
+    // 为什么现在才补：以前只差这一块，但没被真实需求逼到；M34 的「枚举」
+    // 脱糖成「类 + 类体外给类设属性」，一写枚举就撞上了。
+    const vars = new Map();
+    if (base) for (const [k, v] of base.classVars) vars.set(k, v);
+    this.classVars = vars;
   }
 
   toString() { return `<类 ${this.name}>`; }
@@ -1482,13 +1490,16 @@ function getAttr(obj, attr, line, col) {
     throw nameErr(`模块「${obj.name}」里没有「${attr}」`, line, col);
   }
   if (obj instanceof JishiInstance) {
+    // 查找顺序与 Python 一致：实例字段 → 类变量（含基类）→ 方法（绑定实例）
     if (obj.fields.has(attr)) return obj.fields.get(attr);
+    if (obj.cls.classVars.has(attr)) return obj.cls.classVars.get(attr);
     if (obj.cls.methods.has(attr)) {
       return new BoundUserMethod(obj.cls.methods.get(attr), obj, attr, line, col);
     }
     throw typeErr(`「${typeName(obj)}」没有属性「${attr}」`, line, col);
   }
   if (obj instanceof JishiClass) {
+    if (obj.classVars.has(attr)) return obj.classVars.get(attr);   // 类变量（M23.3）
     if (obj.methods.has(attr)) return obj.methods.get(attr);
     throw typeErr(`「类 ${obj.name}」没有方法「${attr}」`, line, col);
   }
@@ -1502,6 +1513,12 @@ function getAttr(obj, attr, line, col) {
 function setAttr(obj, attr, value, line, col) {
   if (obj instanceof Module) { obj.attrs[attr] = value; return; }
   if (obj instanceof JishiInstance) { obj.fields.set(attr, value); return; }
+  if (obj instanceof JishiClass) {
+    // 类变量（M23.3）：`类名.计数 = 5`。写在类自己的类变量表里。
+    // 编译器的「类体里写 x = 1」也走这里（发射的是 DUP_TOP + SET_ATTR）。
+    obj.classVars.set(attr, value);
+    return;
+  }
   throw typeErr(`不能给「${display(obj)}」的属性「${attr}」赋值`, line, col);
 }
 
@@ -1577,6 +1594,9 @@ class BoundMethod {
   constructor(impl, obj, name, line, col) { this.impl = impl; this.obj = obj; this.name = name; this.line = line; this.col = col; }
 
   toString() { return `<方法 ${this.name}>`; }
+
+  // `类型()` 用它（见 runtime 的 typeName 钩子）——不然会给 `BoundMethod`
+  get __jishiType() { return '内建方法'; }
 }
 
 // 绑定到实例的用户方法（自身 首参）
@@ -1584,6 +1604,8 @@ class BoundUserMethod {
   constructor(fn, instance, name, line, col) { this.fn = fn; this.instance = instance; this.name = name; this.line = line; this.col = col; }
 
   toString() { return `<方法 ${this.name}>`; }
+
+  get __jishiType() { return '方法'; }
 }
 
 // ---------------------------------------------------------------------------

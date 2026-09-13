@@ -246,6 +246,13 @@ struct Func {
 struct Class {
     name: String,
     methods: HashMap<String, Val>,
+    /// 类变量（M34 补上 M23.3）。
+    ///
+    /// 必须是 `Rc<RefCell<…>>`：`Instance` 里存的是 `Class` 的**值拷贝**，
+    /// 用普通 `HashMap` 的话 `类名.计数 = 5` 只改到类自己那一份，已经造出来的
+    /// 实例看不到（Python 侧实例持的是类引用，看得见）。共享一份才一致
+    /// ——与 M28/M29 给容器、实例换 `Rc<RefCell>` 是同一个理由。
+    class_vars: Rc<RefCell<HashMap<String, Val>>>,
     /// 身份序号（M32）：见 `NEXT_OBJ_ID`
     id: usize,
 }
@@ -542,8 +549,22 @@ pub(crate) fn type_label(v: &Val) -> String {
         Val::Set(_) => "集合".to_string(),
         Val::File(_) => "文件".to_string(),
         Val::Func(_) => "函数".to_string(),
-        Val::Class(_) => "类".to_string(),
-        Val::Instance(_) => "对象".to_string(),
+        // 实例与类要给**带名字**的结果，与 Python 侧一致（M34 修）：
+        // Python 的 `type_name` 对实例给 `A 实例`、对类给 `类 A`，
+        // 以前这里一律给「对象」/「类」——用户拿 `类型(x) == "A 实例"`
+        // 判断会永远为假，属于「说好的能力给了错答案」。
+        Val::Class(c) => format!("类 {}", c.name),
+        Val::Instance(inst) => format!("{} 实例", inst.borrow().class.name),
+        // 内建函数 / 模块 / 异常类型 / 绑定方法：对齐 Python 的 `type_name`
+        Val::Builtin(..) => "内建函数".to_string(),
+        Val::Module(..) => "模块".to_string(),
+        Val::ExcType(_) => "异常类型".to_string(),
+        Val::BoundMethod(bm) => match bm.as_ref() {
+            BoundMethod::Builtin { .. } => "内建方法".to_string(),
+            BoundMethod::User { .. } => "方法".to_string(),
+        },
+        // 环境记录（`遍历 x 在 …` 的内部用途）不该被用户看到，
+        // 但类型名总要给一个——与 Python 侧同样是兜底
         _ => "其他".to_string(),
     }
 }
@@ -1092,13 +1113,25 @@ impl VM {
                             if let Val::Func(fu) = f { methods.insert(fu.name.clone(), Val::Func(fu)); }
                         }
                     }
+                    // 类变量（M34）：先把基类的那份**拷进来**（不是共用同一个
+                    // `Rc`）——与 Python 侧「子类持有独立的类变量表」一致；
+                    // 子类自己声明的随后由 SET_ATTR 覆盖上去。
+                    let mut class_vars: HashMap<String, Val> = HashMap::new();
                     if has_base {
                         // 基类方法合并（简化：直接展开基类）
                         if let Val::Class(base) = self.stack.pop().unwrap_or(Val::None_) {
                             for (k, v) in base.methods { methods.entry(k).or_insert(v); }
+                            for (k, v) in base.class_vars.borrow().iter() {
+                                class_vars.insert(k.clone(), v.clone());
+                            }
                         }
                     }
-                    self.stack.push(Val::Class(Class { name, methods, id: next_obj_id() }));
+                    self.stack.push(Val::Class(Class {
+                        name,
+                        methods,
+                        class_vars: Rc::new(RefCell::new(class_vars)),
+                        id: next_obj_id(),
+                    }));
                 }
                 op::IMPORT => {
                     let name = self.module.names[ins.a as usize].clone();
@@ -1229,7 +1262,11 @@ impl VM {
             };
             if loop_wins {
                 let (depth, cont, brk, _) = lp.unwrap();
-                self.frames[fi].loops.pop();
+                // **不要在这里弹循环块**（M34 修）：`继续` 只是跳回迭代头，
+                // 循环还在；弹掉的话「继续之后还要中断」就找不到循环了
+                // （报「中断/继续没有对应的循环」）。弹的动作归 POP_BLOCK，
+                // 与 Python 侧 `_signal_needs_dispatch` 之后只 `del stack[depth:]`
+                // + 改 ip 完全一致。
                 self.stack.truncate(depth);
                 self.frames[fi].ip = (match s { Signal::Break => brk, Signal::Continue => cont }) as usize;
                 return Ok(true);
@@ -2447,6 +2484,10 @@ fn get_attr(obj: Val, attr: &str) -> Result<Val, JishiError> {
         Val::Instance(inst_rc) => {
             let inst = inst_rc.borrow();
             if let Some(v) = inst.fields.get(attr) { return Ok(v.clone()); }
+            // 类变量（M23.3）：实例上没有就看类的（构造时已把基类的并进来）
+            if let Some(v) = inst.class.class_vars.borrow().get(attr) {
+                return Ok(v.clone());
+            }
             if let Some(f) = inst.class.methods.get(attr) {
                 if let Val::Func(fu) = f {
                     // 绑定时把实例一起带上——调用时它会被放进第一个形参（自身）
@@ -2458,7 +2499,10 @@ fn get_attr(obj: Val, attr: &str) -> Result<Val, JishiError> {
             let cls = inst.class.name.clone();
             Err(err("类型错误", format!("「{cls}」没有属性「{attr}」")))
         }
-        Val::Class(c) => c.methods.get(attr).cloned().ok_or_else(|| err("类型错误", format!("类没有方法「{attr}」"))),
+        Val::Class(c) => {
+            if let Some(v) = c.class_vars.borrow().get(attr) { return Ok(v.clone()); }
+            c.methods.get(attr).cloned().ok_or_else(|| err("类型错误", format!("类没有方法「{attr}」")))
+        }
         Val::Str(s) => str_method(attr, Val::Str(s)),
         Val::List(l) => list_method(attr, Val::List(l)),
         Val::Dict(d) => dict_method(attr, Val::Dict(d)),
@@ -2475,6 +2519,12 @@ fn set_attr(obj: Val, attr: &str, val: Val) -> Result<(), JishiError> {
         // 改的是**共享**的字段表（`Rc<RefCell<…>>`），
         // 否则 `自身.字段 = 值` 只改到一份拷贝，调用方看不见（M29）
         Val::Instance(inst) => { inst.borrow_mut().fields.insert(attr.to_string(), val); Ok(()) }
+        // 类变量（M23.3）：`类名.计数 = 5`，也承接编译器发射的「类体里 x = 1」
+        // （那走的就是 DUP_TOP + SET_ATTR）。写进共享表，实例才看得见（M34）。
+        Val::Class(c) => {
+            c.class_vars.borrow_mut().insert(attr.to_string(), val);
+            Ok(())
+        }
         _ => Err(err("类型错误", "不能给这个对象赋值属性")),
     }
 }

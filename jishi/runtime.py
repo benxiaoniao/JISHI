@@ -1192,6 +1192,10 @@ class _BoundUserMethod:
 
     __slots__ = ("fn", "instance", "name", "line", "col", "filename")
 
+    #: 给 `类型()` 用的中文名（见 type_name 的钩子）。不写的话会漏出
+    #: 内部类名 `_BoundUserMethod`，与另外两个宿主也不一致（M34）
+    _jishi_type_name = "方法"
+
     def __init__(self, fn, instance, name, line, col, filename):
         self.fn = fn
         self.instance = instance
@@ -1358,6 +1362,9 @@ class _BoundMethod:
     """
 
     __slots__ = ("impl", "obj", "name", "line", "col", "filename")
+
+    #: 同上：别把 `_BoundMethod` 漏给用户（M34）
+    _jishi_type_name = "内建方法"
 
     def __init__(self, impl, obj, name, line, col, filename):
         self.impl = impl

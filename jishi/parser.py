@@ -40,6 +40,36 @@ _BIN_PREC = {
 _FUTURE_KEYWORDS = {
 }
 
+#: 「匹配」的写法提示（M34.1）。报错里反复要用，抽出来免得抄漏。
+_MATCH_HINT = """写法是：
+匹配 分数：
+    情形 90：
+        打印("优秀")
+    情形 80, 85：
+        打印("良好")
+    情形 其他：
+        打印("继续努力")
+
+「情形」后面可以写多个值（逗号分隔，命中任一个即可）、
+可以加守卫（`情形 90 如果 有加分：`），
+「情形 其他」是兜底，要放在最后。"""
+
+#: 「枚举」的写法提示（M34.2）
+_ENUM_HINT = """写法是：
+枚举 颜色：
+    红 = 1
+    绿 = 2
+
+成员也可以不写值，让它自动接着编号：
+枚举 方向：
+    上
+    下
+    左
+    右
+
+用的时候写 `颜色.红`；取名字和值用 `颜色.红.名字` / `颜色.红.值`；
+遍历所有成员用 `遍历 c 在 颜色.全部：`。"""
+
 # M7.5 容错解析：LLM 写中文代码时 fallback 回英文的高频错误 → 中文建议。
 # 英文语句关键字 → 中文对应
 _EN_STMT_HINTS = {
@@ -181,6 +211,8 @@ class Parser:
         self.pos = 0
         #: 「用 … 为」脱糖时给保存上下文对象的临时变量编号（M26.2）
         self._with_seq = 0
+        #: 「匹配」脱糖时给保存待匹配值的临时变量编号（M34.1）
+        self._match_seq = 0
 
     # -- 基础工具 ----------------------------------------------------------
 
@@ -291,6 +323,27 @@ class Parser:
             return self._next()
         self._err(ParseMissingNameError, f"这里需要一个{what}")
 
+    def _expect_attr_name(self) -> Token:
+        """`.` 后面的属性名 —— **允许关键字**（M34）。
+
+        为什么要放开：属性名位置没有歧义（`.` 之后必然是名字），而关键字
+        表是会长大的。M34 加 `匹配` 时，`正则.匹配`（M33 刚写的标准库函数、
+        真实项目在用）立刻解析不了——「加一个关键字就撞掉一个既有 API」
+        这种事不该反复发生。
+
+        变量名、参数名、字典键那些位置**仍然不许**用关键字（与 Python 一致），
+        这里只放开最无歧义的一处。
+
+        顺带把属性名走一遍容错解析：写英文关键字时给中文建议。
+        """
+        t = self._peek()
+        if t.type == "NAME":
+            return self._next()
+        if t.type == "KEYWORD":
+            self._next()
+            return t
+        self._err(ParseMissingNameError, "这里需要一个属性名")
+
     def _expect_newline(self):
         if self._at("NEWLINE"):
             return self._next()
@@ -375,6 +428,14 @@ class Parser:
                 return self._parse_try()
             if kw == "用":
                 return self._parse_with()
+            if kw == "匹配":
+                return self._parse_match()
+            if kw == "枚举":
+                return self._parse_enum()
+            if kw == "情形":
+                self._err(ParseUnexpectedError,
+                          "「情形」只能写在「匹配」的代码块里",
+                          hint=_MATCH_HINT, tok=t)
             if kw == "抛出":
                 return self._parse_raise()
             if kw in ("捕获", "最终"):
@@ -953,6 +1014,283 @@ class Parser:
         # 返回三条语句；_parse_statements 会把 list 展平
         return [hold, bind, cleanup]
 
+    # 模式匹配（M34.1）
+    def _parse_match(self):
+        """`匹配 <表达式>：` —— **解析期脱糖**成 if/elif 链，不新增 AST 节点。
+
+        脱糖成：
+
+            __匹配_N__ = <表达式>
+            如果 __匹配_N__ == <值①>：
+                …
+            否则如果 __匹配_N__ == <值②> 或 __匹配_N__ == <值③>：
+                …
+            否则：
+                …
+
+        「解析期脱糖优先」在本项目已经验证过三次（M23 的 `超()`、M24 的
+        集合字面量、M26 的 `用 … 为`），这是第四次：**三个执行器一行都不用
+        改**，因为 `如果/否则如果/否则` 与 `==`/`或`/`与` 的语义早就对齐了。
+
+        待匹配值先落到临时变量，所以 `<表达式>` **只求值一次**
+        （`匹配 取下一个()` 不会因为分支多就跑多次）。
+        """
+        start = self._next()                       # 匹配
+        subject = self._parse_expr()
+        self._expect_colon("匹配")
+        cases = self._parse_case_block()
+        if not cases:
+            self._err(ParseBlockError,
+                      "「匹配」里至少要写一个「情形」",
+                      hint=_MATCH_HINT, tok=start)
+        return self._desugar_match(subject, cases, start)
+
+    def _parse_case_block(self) -> list:
+        """解析「匹配」的代码块：里面只能是一串「情形」子块。
+
+        不能用 `_parse_block`——它解析的是普通语句，而这里每一行都必须是
+        「情形 …：」开头（出了别的就报错，免得用户把普通语句写进来却不生效）。
+        """
+        if not self._at("NEWLINE"):
+            self._err(ParseBlockError,
+                      "「匹配」后面必须换行，然后缩进写「情形」",
+                      hint=_MATCH_HINT)
+        self._next()                               # NEWLINE
+        if not self._at("INDENT"):
+            self._err(ParseBlockError,
+                      "「匹配」的代码块里要写「情形」",
+                      hint=_MATCH_HINT)
+        self._next()                               # INDENT
+        cases = []
+        while not self._at("DEDENT") and not self._at("EOF"):
+            if self._at("NEWLINE"):
+                self._next()
+                continue
+            if not self._at_kw("情形"):
+                self._err(ParseUnexpectedError,
+                          "「匹配」的代码块里只能写「情形」，"
+                          f"但看到了{self._describe(self._peek())}",
+                          hint=_MATCH_HINT)
+            cases.append(self._parse_case())
+        if self._at("DEDENT"):
+            self._next()
+        return cases
+
+    def _parse_case(self) -> tuple:
+        """一条「情形」：模式（可多个，逗号分隔）+ 可选守卫「如果 条件」。"""
+        start = self._next()                       # 情形
+        t = self._peek()
+        wildcard = False
+        # 两种「不带值」的写法：
+        #   `情形 其他：`        通配，兜底（不带守卫时必须放最后）
+        #   `情形 如果 条件：`    只有条件，相当于这一条是普通的 if 分支
+        # 后者让「按条件一段段筛」写起来很自然：
+        #     匹配 分数：
+        #         情形 如果 分数 >= 90：……
+        #         情形 如果 分数 >= 60：……
+        #         情形 其他：……
+        if self._at_kw("如果"):
+            wildcard = True
+        elif t.type == "NAME" and t.value in ("其他", "_"):
+            nxt = self._peek(1)
+            if ((nxt.type == "OP" and nxt.value == ":")
+                    or (nxt.type == "KEYWORD" and nxt.value == "如果")):
+                # 想匹配一个**名叫「其他」的变量**，写 `情形 (其他)：` 即可——
+                # 加括号后走普通表达式解析，不会被当成通配。
+                self._next()
+                wildcard = True
+        patterns: list[A.Node] = []
+        if not wildcard:
+            patterns.append(self._parse_expr())
+            while self._at_op(","):
+                self._next()
+                patterns.append(self._parse_expr())
+        guard = None
+        if self._at_kw("如果"):
+            self._next()
+            guard = self._parse_expr()
+        self._expect_colon("情形")
+        body = self._parse_block()
+        return (wildcard, patterns, guard, body, start)
+
+    def _desugar_match(self, subject, cases, start) -> list:
+        pos = {"line": start.line, "col": start.col}
+        self._match_seq += 1
+        tmp = f"__匹配_{self._match_seq}__"
+        bind = A.Assign(target=A.Name(id=tmp, **pos), op="=",
+                        value=subject, **pos)
+
+        branches: list = []
+        orelse: Optional[list] = None
+        for i, (wildcard, patterns, guard, body, ctok) in enumerate(cases):
+            cpos = {"line": ctok.line, "col": ctok.col}
+            if wildcard:
+                if guard is None:
+                    # 裸兜底：它把剩下的情况全接住，所以必须最后
+                    if i != len(cases) - 1:
+                        self._err(ParseUnexpectedError,
+                                  "「情形 其他」要放在最后一条"
+                                  "（它把剩下的情况全接住）",
+                                  hint=_MATCH_HINT, tok=ctok)
+                    orelse = body
+                else:
+                    # 带守卫的通配（`情形 其他 如果 条件：`）就是个普通条件分支，
+                    # 可以放在中间——不成立时继续往下试
+                    branches.append((guard, body))
+                continue
+            tests = [
+                A.Compare(left=A.Name(id=tmp, **cpos), ops=["=="],
+                          comparators=[p], **cpos)
+                for p in patterns
+            ]
+            test = tests[0] if len(tests) == 1 else A.BoolOp(
+                op="或", values=tests, **cpos)
+            if guard is not None:
+                # 守卫写成 `模式 如果 条件`，等价于「模式命中**且**条件成立」
+                test = A.BoolOp(op="与", values=[test, guard], **cpos)
+            branches.append((test, body))
+
+        out: list[A.Node] = [bind]
+        if not branches:
+            # 只有一条无守卫的「情形 其他」——块体无条件执行，摊平即可
+            out.extend(orelse or [])
+            return out
+        out.append(A.If(branches=branches, orelse=orelse, **pos))
+        return out
+
+    # 枚举（M34.2）
+    def _parse_enum(self):
+        """`枚举 <名字>：` —— **解析期脱糖**成「类 + 成员实例」，不新增 AST 节点。
+
+            enum 颜色:
+                红 = 1
+                绿 = 2
+
+        脱糖成：
+
+            类 颜色：
+                函数 初始化(自身, 名字, 值)：
+                    自身.名字 = 名字
+                    自身.值 = 值
+                函数 文本(自身)：
+                    返回 "颜色." + 自身.名字
+            颜色.红 = 新建 颜色("红", 1)
+            颜色.绿 = 新建 颜色("绿", 2)
+            颜色.全部 = [颜色.红, 颜色.绿]
+
+        为什么成员是**实例**而不是普通值：这样 `打印(颜色.红)` 给
+        `颜色.红`（靠 `文本()` 方法，M27 已支持），还能取 `.名字` / `.值`。
+        若成员直接是 `1`，打印出来就是 `1`，枚举「用名字代替魔法数字」的
+        意义就没了一半。
+
+        `==` 按身份（同一次创建即相等），与 Python 的 Enum 一致：
+        `颜色.红 == 颜色.红` 为真、`颜色.红 == 1` 为假。
+        `颜色.全部` 是给 `遍历` 用的清单——**类对象本身不可遍历**
+        （`迭代()` 是实例方法），所以给一份清单更顺手。
+        """
+        start = self._next()                       # 枚举
+        name_tok = self._expect_name("枚举名")
+        self._expect_colon("枚举")
+        members = self._parse_enum_members()
+        if not members:
+            self._err(ParseBlockError,
+                      "「枚举」里至少要写一个成员",
+                      hint=_ENUM_HINT, tok=start)
+        return self._desugar_enum(name_tok.value, members, start, name_tok)
+
+    def _parse_enum_members(self) -> list:
+        """解析枚举体：每行 `成员 = 值`，或只写 `成员` 让值自动编号。"""
+        if not self._at("NEWLINE"):
+            self._err(ParseBlockError,
+                      "「枚举」后面必须换行，然后缩进写成员",
+                      hint=_ENUM_HINT)
+        self._next()                               # NEWLINE
+        if not self._at("INDENT"):
+            self._err(ParseBlockError,
+                      "「枚举」需要一个代码块：换行缩进，写「成员 = 值」",
+                      hint=_ENUM_HINT)
+        self._next()                               # INDENT
+        members: list = []                         # [(名字 token, 值节点)]
+        next_auto: Optional[int] = 1
+        while not self._at("DEDENT") and not self._at("EOF"):
+            if self._at("NEWLINE"):
+                self._next()
+                continue
+            mtok = self._expect_name("成员名")
+            if self._at_op("="):
+                self._next()
+                value = self._parse_expr()
+                # 值是整数字面量才允许后面的成员自动接着编号
+                v = getattr(value, "value", None)
+                if (isinstance(value, A.Num) and isinstance(v, int)
+                        and not isinstance(v, bool)):
+                    next_auto = v + 1
+                else:
+                    next_auto = None
+                members.append((mtok, value))
+            else:
+                if next_auto is None:
+                    self._err(ParseUnexpectedError,
+                              f"成员「{mtok.value}」要写值",
+                              hint="上一个成员的值不是整数，没法自动编号，"
+                                   "所以这里要写成「名字 = 值」",
+                              tok=mtok)
+                members.append((mtok, A.Num(
+                    value=next_auto, line=mtok.line, col=mtok.col)))
+                next_auto += 1
+            if self._at("NEWLINE"):
+                self._next()
+        if self._at("DEDENT"):
+            self._next()
+        return members
+
+    def _desugar_enum(self, cls_name: str, members: list, start, name_tok) -> list:
+        pos = {"line": start.line, "col": start.col}
+        mpos = {"line": name_tok.line, "col": name_tok.col}
+        self_name = A.Name(id="自身", **mpos)
+
+        def _field(name: str) -> A.Attr:
+            return A.Attr(obj=self_name, attr=name, **mpos)
+
+        init_fn = A.FuncDef(
+            name="初始化",
+            params=["自身", "名字", "值"],
+            body=[
+                A.Assign(target=_field("名字"), op="=",
+                         value=A.Name(id="名字", **mpos), **mpos),
+                A.Assign(target=_field("值"), op="=",
+                         value=A.Name(id="值", **mpos), **mpos),
+            ],
+            **mpos)
+        repr_fn = A.FuncDef(
+            name="文本",
+            params=["自身"],
+            body=[A.Return(
+                value=A.BinOp(left=A.Str(value=cls_name + ".", **mpos),
+                              op="+", right=_field("名字"), **mpos),
+                **mpos)],
+            **mpos)
+        out: list[A.Node] = [A.ClassDef(
+            name=cls_name, base=None, body=[init_fn, repr_fn], **pos)]
+
+        refs = []
+        for mtok, value in members:
+            kpos = {"line": mtok.line, "col": mtok.col}
+            attr = A.Attr(obj=A.Name(id=cls_name, **pos), attr=mtok.value,
+                          **kpos)
+            out.append(A.Assign(
+                target=attr, op="=",
+                value=A.Call(func=A.Name(id=cls_name, **pos),
+                             args=[A.Str(value=mtok.value, **kpos), value],
+                             **kpos),
+                **kpos))
+            refs.append(A.Attr(obj=A.Name(id=cls_name, **pos),
+                               attr=mtok.value, **kpos))
+        out.append(A.Assign(
+            target=A.Attr(obj=A.Name(id=cls_name, **pos), attr="全部", **pos),
+            op="=", value=A.List(elements=refs, **pos), **pos))
+        return out
+
     # -- 块 ----------------------------------------------------------------
 
     def _expect_colon(self, kw: str):
@@ -1158,7 +1496,7 @@ class Parser:
                               line=t.line, col=t.col)
             elif t.type == "OP" and t.value == ".":
                 self._next()
-                attr_tok = self._expect_name("属性名")
+                attr_tok = self._expect_attr_name()
                 node = A.Attr(obj=node, attr=attr_tok.value,
                               line=t.line, col=t.col)
             elif t.type == "OP" and t.value == "[":
