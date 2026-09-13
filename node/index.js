@@ -99,8 +99,20 @@ function main() {
     console.log('      node node/index.js --self-test');
     return 0;
   }
-  if (args.includes('--self-test')) return selfTest();
-  return runFile(args[0]);
+  try {
+    if (args.includes('--self-test')) return selfTest();
+    return runFile(args[0]);
+  } catch (e) {
+    // 基石错误打印成人话（此前是直接抛给 Node，用户看到的是 JS 堆栈，
+    // 既看不出是哪种错误也看不到行列——M30 规范化，与 Rust 宿主同风格）
+    if (e && e.isJishiError) {
+      console.error(`错误（${e.typeName}）：${e.message}`);
+      if (e.line != null) console.error(`  ← 第 ${e.line} 行第 ${e.col} 列`);
+      return 1;
+    }
+    console.error(`内部错误：${(e && e.stack) || e}`);
+    return 1;
+  }
 }
 
 if (require.main === module) {

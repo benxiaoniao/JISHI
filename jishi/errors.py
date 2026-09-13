@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Optional
@@ -375,6 +376,44 @@ EXCEPTION_TYPES: dict[str, type] = {
 # Python 异常 → 基石中文错误 翻译
 # ---------------------------------------------------------------------------
 
+#: Python 类型名 → 基石类型名（翻译错误消息用）
+_PY_TYPE_ZH = {
+    "int": "整数", "float": "小数", "str": "文本", "bool": "布尔",
+    "list": "列表", "dict": "字典", "tuple": "元组", "set": "集合",
+    "JishiSet": "集合", "JishiDecimal": "精确小数", "JishiInstance": "对象",
+    "JishiFile": "文件", "NoneType": "空",
+}
+
+
+def _type_error_zh(msg: str) -> str:
+    """把常见的 Python 二元运算类型错误翻成中文（M30）。
+
+    这些消息原来**漏成英文**（`can only concatenate list (not "int") to list`），
+    对中文教学语言来说读起来费劲。认不出的模式返回空串、保留原文——
+    宁可不翻，也不要翻错。
+    """
+    m = re.search(r"can only concatenate (\w+) \(not \"(\w+)\"\) to \w+", msg)
+    if m:
+        a = _PY_TYPE_ZH.get(m.group(1), m.group(1))
+        b = _PY_TYPE_ZH.get(m.group(2), m.group(2))
+        return f"「{a}」只能和「{a}」相加，不能和「{b}」相加"
+    m = re.search(
+        r"unsupported operand type\(s\) for (\S+): '(\w+)' and '(\w+)'", msg)
+    if m:
+        a = _PY_TYPE_ZH.get(m.group(2), m.group(2))
+        b = _PY_TYPE_ZH.get(m.group(3), m.group(3))
+        return f"「{a}」和「{b}」不能做「{m.group(1)}」运算"
+    m = re.search(r"can't multiply sequence by non-int of type '(\w+)'", msg)
+    if m:
+        a = _PY_TYPE_ZH.get(m.group(1), m.group(1))
+        return f"序列只能乘整数，不能乘「{a}」"
+    m = re.search(r"'(\w+)' object does not support item assignment", msg)
+    if m:
+        a = _PY_TYPE_ZH.get(m.group(1), m.group(1))
+        return f"「{a}」不能按下标赋值"
+    return ""
+
+
 def translate_python_exception(
     exc: BaseException,
     *,
@@ -408,7 +447,8 @@ def translate_python_exception(
         return wrap(RunValueError, f"数字太大，超出可表示范围（{exc}）")
     if isinstance(exc, (TypeError, AttributeError)):
         detail = str(exc) if str(exc) else ""
-        return wrap(RunTypeError, detail)
+        # 二元运算的类型不匹配：Python 的原文是英文，这里翻成人话（M30）
+        return wrap(RunTypeError, _type_error_zh(detail) or detail)
     if isinstance(exc, IndexError):
         return wrap(RunIndexError, str(exc) or "")
     if isinstance(exc, KeyError):
@@ -416,6 +456,13 @@ def translate_python_exception(
     if isinstance(exc, ValueError):
         msg = str(exc) or ""
         # 切片赋值长度不匹配：Python 的原文是英文，这里翻成人话（M24.2）
+        m2 = re.search(r"size (\d+) to extended slice of size (\d+)", msg)
+        if m2:
+            # 带上具体个数，比 Python 原文的英文更好用（M30）
+            return wrap(
+                RunValueError,
+                f"切片赋值长度不匹配：目标有 {m2.group(2)} 个位置，"
+                f"却给了 {m2.group(1)} 个值")
         if "extended slice" in msg:
             return wrap(
                 RunValueError,

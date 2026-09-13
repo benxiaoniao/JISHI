@@ -66,6 +66,8 @@ function typeName(v) {
   if (typeof v === 'string') return '文本';
   if (Array.isArray(v)) return '列表';
   if (v instanceof Map) return '字典';
+  if (v instanceof JishiSet) return '集合';
+  if (isSlice(v)) return '切片';
   if (isDecimal(v)) return '精确小数';
   if (isFile(v)) return '文件';
   if (v instanceof Module) return '模块';
@@ -81,6 +83,11 @@ function typeName(v) {
 function truthy(v) {
   if (v === null || v === undefined) return false;
   if (isDecimal(v)) return v.coef !== 0n;    // 精确小数的「零」是假（M26）
+  // 空容器为假——与 Python 的 bool([])/bool({})/bool(set()) 一致（M30）。
+  // JS 的 Boolean([]) 是 true，不特判就会让 `如果 列表：` 判断反掉。
+  if (Array.isArray(v)) return v.length > 0;
+  if (v instanceof Map) return v.size > 0;
+  if (v instanceof JishiSet) return v.size > 0;
   return Boolean(v);
 }
 
@@ -388,12 +395,386 @@ class JishiFile {
 
 function isFile(v) { return v instanceof JishiFile; }
 
+/**
+ * 从标准输入同步读一行（与 Python 的 `input()` 对齐，M30）。
+ *
+ * 逐字节读到换行、最后一次性按 UTF-8 解码——**不能逐字节 decode**，
+ * 否则中文（多字节）会被切坏。管道与终端都能用；读到末尾给空串。
+ */
+function stdinLine() {
+  const bytes = [];
+  const buf = Buffer.alloc(1);
+  let got = false;
+  let eof = false;
+  try {
+    for (;;) {
+      const n = fs.readSync(0, buf, 0, 1, null);
+      if (n === 0) { eof = true; break; }
+      got = true;
+      if (buf[0] === 0x0a) break;              // \n
+      if (buf[0] !== 0x0d) bytes.push(buf[0]); // 跳过 \r
+    }
+  } catch (e) {
+    eof = true;                                 // EAGAIN / EOF：当作结束
+  }
+  // 一个字节都没读到就到末尾：与 Python 的 `input()` 一样报「输入结束」，
+  // 而不是悄悄给个空串（那样程序会拿着空路径乱跑）
+  if (eof && !got) {
+    throw new JishiError('输入结束', '输入结束',
+                         '输入已经结束，程序没有更多内容可读了');
+  }
+  return Buffer.from(bytes).toString('utf8');
+}
+
+// ---------------------------------------------------------------------------
+// 集合（M30，JS 侧实现）
+// ---------------------------------------------------------------------------
+// 与 Python 侧 `JishiSet` 完全对齐：**按插入顺序**去重，打印结果稳定可复现
+// （三执行器 / 跨宿主对拍才不会随机失败）。
+//
+// 为什么不用内建 `Set`：它的元素相等用的是 SameValueZero，与 Python 的
+// `hash/eq` 语义不一致——Python 里 `{1, 1.0, True}` 只留一个元素
+// （三者 hash 相同、两两相等），而 JS 的 `new Set([1, 1.0, true])` 会留三个
+// （`1 === true` 是 false）。所以这里自己维护「规范化键 → 原值」的 Map。
+//
+// 另一条与 Python 一致：**列表 / 字典 / 集合 / 精确小数不能进集合**
+// （Python 侧它们 `__hash__ = None`）。这条必须拦下来——静默塞进去会让
+// `2 在 集合` 出现「有时查得到有时查不到」。
+
+//: 对象身份池（WeakMap：不阻止回收，且 id 不会复用）
+let _objIdSeq = 1;
+const _objIds = new WeakMap();
+
+function objId(o) {
+  let id = _objIds.get(o);
+  if (id === undefined) { id = _objIdSeq++; _objIds.set(o, id); }
+  return id;
+}
+
+/** 数字的规范化文本（`-0` 与 `0` 视为同一个键）。 */
+function numKey(x) {
+  if (Object.is(x, -0)) return '0';
+  return String(x);
+}
+
+/** 集合元素的「哈希键」——模拟 Python 的 hash/eq 语义。 */
+function setKey(v) {
+  if (v === null || v === undefined) return 'n';
+  // Python 里 True == 1、False == 0，所以布尔按数字归键
+  if (typeof v === 'boolean') return 'd:' + (v ? '1' : '0');
+  if (typeof v === 'number') return 'd:' + numKey(v);
+  if (isFloatBox(v)) return 'd:' + numKey(v.value);
+  if (typeof v === 'string') return 's:' + v;
+  return 'o:' + objId(v);
+}
+
+/** 能不能放进集合（对齐 Python 侧「元素必须可哈希」）。 */
+function hashable(v) {
+  if (Array.isArray(v)) return false;
+  if (v instanceof Map) return false;
+  if (v instanceof JishiSet) return false;
+  if (isDecimal(v)) return false;
+  return true;
+}
+
+class JishiSet {
+  constructor(items = null) {
+    //: 规范化键 → 原值（Map 保持插入顺序）
+    this.map = new Map();
+    if (items) for (const it of items) this.add(it);
+  }
+
+  add(v) {
+    if (!hashable(v)) {
+      throw typeErr(`「${display(v)}」不能放进集合，集合的元素要是不可变的`
+        + `（数字、文本…）；列表、字典和集合本身放不进去`);
+    }
+    const k = setKey(v);
+    if (!this.map.has(k)) this.map.set(k, v);   // 保留首次出现的那个
+    return null;
+  }
+
+  /** 删除元素；返回是否真的删掉了。 */
+  delete(v) {
+    if (!hashable(v)) return false;
+    return this.map.delete(setKey(v));
+  }
+
+  has(v) {
+    // Python 侧 `__contains__` 遇到不可哈希的元素也是吞掉 TypeError 给 False
+    if (!hashable(v)) return false;
+    return this.map.has(setKey(v));
+  }
+
+  get size() { return this.map.size; }
+
+  /** 按插入顺序取出元素（快照）。 */
+  values() { return [...this.map.values()]; }
+
+  [Symbol.iterator]() { return this.map.values(); }
+}
+
+/** 集合 → 文本。`useRepr` 为真时元素带引号（打印路径），否则不带（错误消息里用）。 */
+function setRepr(s, useRepr) {
+  const items = s.values();
+  if (items.length === 0) return '集合()';   // 空集合不写 {} ——那是空字典
+  const f = useRepr ? pyRepr : display;
+  return '{' + items.map(f).join(', ') + '}';
+}
+
+// ---------------------------------------------------------------------------
+// 切片（M18 / M30）
+// ---------------------------------------------------------------------------
+// 编译器把 `列表[起:止:步长]` 编译成 BUILD_SLICE（按位标志：1=有起、2=有止、
+// 4=有步长）→ 一个 slice 对象 → 由 GET_ITEM / SET_ITEM 消费。
+// 语义对齐 Python 的 `slice.indices()`：负索引、负步长、越界裁剪都一样。
+
+const SLICE = Symbol('slice');
+
+function makeSlice(start, stop, step) {
+  if (typeof step === 'number' && step === 0) {
+    throw valueErr('切片的步长不能为 0');
+  }
+  return { [SLICE]: true, start, stop, step };
+}
+
+function isSlice(v) {
+  return v !== null && typeof v === 'object' && v[SLICE] === true;
+}
+
+/** 把切片分量规范成整数（省略 → null）。 */
+function sliceInt(v, what) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number' && Number.isInteger(v)) return v;
+  throw typeErr(`切片的${what}要是整数，得到了「${typeName(v)}」`);
+}
+
+/**
+ * 把切片换算成实际下标 `[start, stop, step]`——对齐 CPython 的
+ * `PySlice_AdjustIndices`（负值先加长度、再按方向裁到边界）。
+ */
+function sliceIndices(sl, len) {
+  const step = sl.step === null || sl.step === undefined ? 1 : sliceInt(sl.step, '步长');
+  if (step === 0) throw valueErr('切片的步长不能为 0');
+  const lower = step > 0 ? 0 : -1;
+  const upper = step > 0 ? len : len - 1;
+
+  let start = sliceInt(sl.start, '起点');
+  if (start === null) {
+    start = step > 0 ? lower : upper;
+  } else if (start < 0) {
+    start += len;
+    if (start < lower) start = lower;
+  } else if (start > upper) {
+    start = upper;
+  }
+
+  let stop = sliceInt(sl.stop, '终点');
+  if (stop === null) {
+    stop = step > 0 ? upper : lower;
+  } else if (stop < 0) {
+    stop += len;
+    if (stop < lower) stop = lower;
+  } else if (stop > upper) {
+    stop = upper;
+  }
+  return [start, stop, step];
+}
+
+/** 取出切片覆盖的下标序列（用于步长 ≠ 1 的赋值，需要逐个对位）。 */
+function slicePositions(start, stop, step) {
+  const out = [];
+  for (let i = start; step > 0 ? i < stop : i > stop; i += step) out.push(i);
+  return out;
+}
+
+/** 切片的显示：正常情况下不会露到用户面前，但打印出来不该是 [object Object]。 */
+function sliceRepr(sl) {
+  const f = (x) => (x === null || x === undefined ? '空' : String(x));
+  return `切片(${f(sl.start)}, ${f(sl.stop)}, ${f(sl.step)})`;
+}
+
+/**
+ * 把一个值当序列展开（用于 `长度`/`最大`/`最小`/`总和` 这类「按序列处理」的内建）。
+ *
+ * `text` 为假时不把文本当序列——`最大("abc")` 在 Python 侧是「那一个文本」，
+ * 不是三个字符（对齐 `_single_iterable_arg`）。
+ * 不是可迭代则返回 null。
+ */
+function seqOf(v, text, line, col) {
+  if (Array.isArray(v)) return [...v];
+  if (v instanceof JishiSet) return v.values();
+  if (v instanceof Map) return [...v.keys()];
+  if (text && typeof v === 'string') return [...v];
+  if (v instanceof JishiInstance) {
+    // 自定义对象定义了「迭代」就能按序列处理（M24/M30）
+    const fn = v.cls.methods.get('迭代');
+    if (fn) return seqOf(fn.vm.callFunction(fn, [v], null, line, col), text, line, col);
+  }
+  return null;
+}
+
+/**
+ * 当成可迭代对象取元素（对齐 Python 侧 `_as_iterable`）；不行就报中文错。
+ * 文本在这里**算**可迭代（与 `seqOf(…, false)` 相反）——`集合("甲乙")` 是
+ * 两个字符，与 Python 一致。
+ */
+function asIterable(v, what, line, col) {
+  const got = seqOf(v, true, line, col);
+  if (got === null) {
+    throw typeErr(`「${typeName(v)}」不能当${what}用，需要列表、文本、集合或字典`, line, col);
+  }
+  return got;
+}
+
+/**
+ * 最值（`最大` / `最小`）：单参数是序列就按元素求，多参数就按参数求
+ * ——与 Python 侧 `_b_max` / `_single_iterable_arg` 同一套规则。
+ * 文本刻意当**标量**（`最大("abc")` 是那一个文本，不是三个字符）。
+ */
+function extremum(args, wantMax) {
+  const seq = args.length === 1 ? seqOf(args[0], false, undefined, undefined) : null;
+  const items = seq !== null ? seq : args;
+  const who = wantMax ? '最大' : '最小';
+  if (items.length === 0) {
+    throw typeErr(`「${who}」需要一个非空列表或若干数字`);
+  }
+  let best = items[0];
+  for (let i = 1; i < items.length; i++) {
+    const x = items[i];
+    if (!comparable(x, best)) {
+      throw typeErr(`「${who}」里混了不能互相比较的值——数字和文本不能比大小`);
+    }
+    const c = cmpVals(x, best);
+    if (wantMax ? c > 0 : c < 0) best = x;
+  }
+  return best;
+}
+
+/** 值相等（`==`）——容器按值递归，数字与布尔之间按数值（`1 == 真` 为真）。 */function valueEq(a, b) {
+  if (isDecimal(a) || isDecimal(b)) {
+    try {
+      return compareDecimals(toDecimal(a), toDecimal(b)) === 0;
+    } catch (e) {
+      if (e instanceof JishiError) return false;
+      throw e;
+    }
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!valueEq(a[i], b[i])) return false;
+    return true;
+  }
+  if (a instanceof Map && b instanceof Map) {
+    if (a.size !== b.size) return false;
+    for (const [k, v] of a) {
+      let hit = false;
+      for (const [k2, v2] of b) {
+        if (valueEq(k, k2)) { if (!valueEq(v, v2)) return false; hit = true; break; }
+      }
+      if (!hit) return false;
+    }
+    return true;
+  }
+  if (a instanceof JishiSet && b instanceof JishiSet) return setEq(a, b);
+  const av = unwrap(a), bv = unwrap(b);
+  // 数字与布尔在 Python 里可互相比较（True == 1）
+  const an = typeof av === 'boolean' ? (av ? 1 : 0) : av;
+  const bn = typeof bv === 'boolean' ? (bv ? 1 : 0) : bv;
+  if (typeof an === 'number' && typeof bn === 'number') return an === bn;
+  return av === bv;
+}
+
+/** 集合相等：与顺序无关（对齐 Python 侧 `JishiSet.__eq__`）。 */
+function setEq(a, b) {
+  if (a.map.size !== b.map.size) return false;
+  for (const k of a.map.keys()) if (!b.map.has(k)) return false;
+  return true;
+}
+
+/** 成员测试（`item 在 container`）——对齐 Python 侧 `runtime.contains`。 */
+function contains(container, item, line, col) {
+  if (Array.isArray(container)) return container.some((x) => valueEq(x, item));
+  if (container instanceof Map) return [...container.keys()].some((k) => valueEq(k, item));
+  if (container instanceof JishiSet) return container.has(item);
+  if (typeof container === 'string') {
+    // Python 的 `1 in "abc"` 是 TypeError（不是把 1 转成文本），这里保持一致
+    if (typeof item !== 'string') {
+      throw typeErr(`「${display(item)}」不能在「文本」里找`, line, col);
+    }
+    return container.includes(item);
+  }
+  throw typeErr(
+    `「${display(item)}」不能在「${typeName(container)}」里找；`
+    + `「在」只能用于列表、字典（按「键」找）、文本（找子串）和集合`, line, col);
+}
+
+/** 「是/不是」的同一性指纹（对齐 Python 侧 `_identity_snapshot`）。 */
+function identityKey(v) {
+  if (v === null || v === undefined) return 'n';
+  if (typeof v === 'boolean') return 'b:' + (v ? '1' : '0');
+  if (typeof v === 'number') return 'v:' + typeName(v) + ':' + numKey(v);
+  if (isFloatBox(v)) return 'v:小数:' + numKey(v.value);
+  if (typeof v === 'string') return 'v:文本:' + v;
+  // 其余（列表/字典/集合/实例/函数/精确小数…）按对象身份
+  return 'i:' + objId(v);
+}
+
+/**
+ * 从内建/方法里**同步**调用一个基石可调用对象。
+ *
+ * 「数据流水线」（映射/过滤/排序按/归约）靠它才能存在——在这之前内建
+ * 没有任何办法回过头去跑用户函数。JS 侧比 Rust 侧省一层：`VmFunction`
+ * 自带 `.vm`，不必把 VM 传进方法表。
+ */
+function callValue(f, args, line, col) {
+  if (f instanceof VmFunction) return f.vm.callFunction(f, args, null, line, col);
+  if (f instanceof Builtin) return f.fn(...args);
+  if (f instanceof BoundUserMethod) return f.fn.vm.callFunction(f.fn, [f.instance, ...args], null, line, col);
+  if (f instanceof BoundMethod) return f.impl(f.obj, args, line, col);
+  if (f instanceof JishiClass) return makeInstance(f, args, line, col);
+  throw typeErr(`「${display(f)}」不能当函数用`, line, col);
+}
+
+/** 检查一个参数确实可调用（报错要说清是哪个方法的参数）。 */
+function ensureCallable(f, name, line, col) {
+  if (f instanceof VmFunction || f instanceof Builtin || f instanceof BoundUserMethod
+      || f instanceof BoundMethod || f instanceof JishiClass) {
+    return f;
+  }
+  throw typeErr(`「${name}」需要一个函数作为参数，但给的是「${typeName(f)}」`, line, col);
+}
+
+/** 值的「可比族」：数字族含布尔与精确小数（Python 里它们可同台比较）。 */
+function valKind(v) {
+  if (isDecimal(v)) return 'num';
+  const x = unwrap(v);
+  if (typeof x === 'number' || typeof x === 'boolean') return 'num';
+  if (typeof x === 'string') return 'str';
+  return 'other';
+}
+
+function comparable(a, b) {
+  const ka = valKind(a), kb = valKind(b);
+  return ka === kb && (ka === 'num' || ka === 'str');
+}
+
+function cmpVals(a, b) {
+  if (isDecimal(a) || isDecimal(b)) return compareDecimals(toDecimal(a), toDecimal(b));
+  const x = unwrap(a), y = unwrap(b);
+  const xn = typeof x === 'boolean' ? (x ? 1 : 0) : x;
+  const yn = typeof y === 'boolean' ? (y ? 1 : 0) : y;
+  return xn < yn ? -1 : xn > yn ? 1 : 0;
+}
+
 function display(v) {
   if (v === null || v === undefined) return '空';
   if (v === true) return '真';
   if (v === false) return '假';
   if (typeof v === 'string') return v;
   if (v instanceof Map) return dictRepr(v);
+  if (v instanceof JishiSet) return setRepr(v, false);
+  if (isSlice(v)) return sliceRepr(v);
   if (Array.isArray(v)) return '[' + v.map(display).join(', ') + ']';
   if (v instanceof JishiError) return v.message;
   if (isFloatBox(v)) return String(v.value);
@@ -410,6 +791,8 @@ function pyStr(v) {
   // 列表/字典内部元素用 repr（字符串带引号，与 Python 一致）
   if (Array.isArray(v)) return '[' + v.map(pyRepr).join(', ') + ']';
   if (v instanceof Map) return dictPyRepr(v);
+  if (v instanceof JishiSet) return setRepr(v, true);
+  if (isSlice(v)) return sliceRepr(v);
   if (isFloatBox(v)) {
     const x = v.value;
     return Number.isInteger(x) ? x.toFixed(1) : String(x);
@@ -427,6 +810,8 @@ function pyRepr(v) {
   if (v === null || v === undefined) return '空';
   if (Array.isArray(v)) return '[' + v.map(pyRepr).join(', ') + ']';
   if (v instanceof Map) return dictPyRepr(v);
+  if (v instanceof JishiSet) return setRepr(v, true);
+  if (isSlice(v)) return sliceRepr(v);
   if (isFloatBox(v)) {
     const x = v.value;
     return Number.isInteger(x) ? x.toFixed(1) : String(x);
@@ -451,6 +836,47 @@ function dictPyRepr(m) {
 // ---------------------------------------------------------------------------
 class Builtin {
   constructor(name, fn) { this.name = name; this.fn = fn; }
+}
+
+//: 类型标注里认识的类型名 → 判定函数（对齐 Python 侧 `_TYPE_PREDICATES`）。
+//: **只检查认识的名字**：不认识的一律跳过（例如作者自定义的 `商品`、`订单`），
+//: 这样标注既能当文档用，又不会因为名字不在表里就误报。
+const TYPE_PREDICATES = {
+  '整数': (v) => typeof v === 'number' && Number.isInteger(v),
+  '小数': (v) => isFloatBox(v) || (typeof v === 'number' && !Number.isInteger(v)),
+  '文本': (v) => typeof v === 'string',
+  '列表': (v) => Array.isArray(v),
+  '字典': (v) => v instanceof Map,
+  '集合': (v) => v instanceof JishiSet,
+  '布尔': (v) => typeof v === 'boolean',
+  '空': (v) => v === null || v === undefined,
+  '函数': (v) => v instanceof VmFunction || v instanceof Builtin
+    || v instanceof BoundMethod || v instanceof BoundUserMethod
+    || v instanceof JishiClass || v instanceof ExcType,
+  '任意': () => true,
+  '值': () => true,
+};
+
+/**
+ * 按类型标注校验实参（M24.3）。参数由编译器发射的前导字节码提供：
+ *   desc      扁平描述 `[参数名, 类型名, 参数名, 类型名, …]`
+ *   values    实参值列表（与 desc 里的参数一一对应）
+ *   funcName  函数名（只为拼出好读的报错）
+ */
+function checkArgs(desc, values, funcName) {
+  for (let i = 0; i + 1 < desc.length; i += 2) {
+    const pname = desc[i], tname = desc[i + 1];
+    const pred = TYPE_PREDICATES[tname];
+    if (!pred) continue;                    // 不认识的标注：只作文档
+    const idx = i / 2;
+    if (idx >= values.length) continue;
+    const value = values[idx];
+    if (!pred(value)) {
+      throw typeErr(`函数「${funcName}」的参数「${pname}」要求是「${tname}」，`
+        + `但传进来的是「${typeName(value)}」`);
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -485,12 +911,18 @@ const EXCEPTION_TYPES = {
 function newBuiltins() {
   return {
     '打印': new Builtin('打印', (...args) => {
-      process.stdout.write(args.map(pyStr).join(' ') + '\n');
+      // 用 fs.writeSync 而不是 process.stdout.write：后者对管道是**异步**的，
+      // 与「输入()」的同步读 stdin 混用时，进程退出会丢掉没 flush 的字符
+      // （实测开头两个汉字被吞）——同步写没有这个问题（M30）
+      fs.writeSync(1, args.map(pyStr).join(' ') + '\n');
       return null;
     }),
     '输入': new Builtin('输入', (prompt = '') => {
-      // 同步读一行（仅交互场景用；非交互则返回空串避免阻塞）
-      return '';
+      // 提示语写到 stdout（不换行），与 Python 侧的 input(prompt) 一致（M30）
+      if (prompt !== '' && prompt !== null && prompt !== undefined) {
+        fs.writeSync(1, pyStr(prompt));
+      }
+      return stdinLine();
     }),
     '整数': new Builtin('整数', (v) => {
       const n = Math.trunc(Number(unwrap(v)));
@@ -504,6 +936,14 @@ function newBuiltins() {
     }),
     '文本': new Builtin('文本', (v) => pyStr(v)),
     '精确': new Builtin('精确', (v) => toDecimal(v)),
+    '集合': new Builtin('集合', (...args) => {
+      if (args.length > 1) {
+        throw typeErr(`「集合」最多接受 1 个参数，但传了 ${args.length} 个`,
+          undefined, undefined);
+      }
+      if (args.length === 0) return new JishiSet();
+      return new JishiSet(asIterable(args[0], '集合的初始内容', undefined, undefined));
+    }),
     '打开': new Builtin('打开', (path, mode = '读') => {
       if (typeof path !== 'string') {
         throw typeErr(`「打开」的第一个参数要是文件路径，得到了「${typeName(path)}」`);
@@ -529,6 +969,11 @@ function newBuiltins() {
     '长度': new Builtin('长度', (v) => {
       if (typeof v === 'string' || Array.isArray(v)) return v.length;
       if (v instanceof Map) return v.size;
+      if (v instanceof JishiSet) return v.size;
+      // 定义了「迭代」的自定义对象也能求长度（M24）：既然能遍历，
+      // 数一数有几个元素是自然的事，不必再要求作者额外写一个方法
+      const seq = seqOf(v, false, undefined, undefined);
+      if (seq !== null) return seq.length;
       throw typeErr(`「${display(v)}」没有长度`);
     }),
     '范围': new Builtin('范围', (...args) => {
@@ -537,43 +982,26 @@ function newBuiltins() {
       if (args.length === 3) return range(args[0], args[1], args[2]);
       throw typeErr('「范围」需要 1 到 3 个整数参数');
     }),
-    '最大': new Builtin('最大', (v) => {
-      if (!Array.isArray(v) || v.length === 0) throw typeErr(`「${display(v)}」不能求最大值`);
-      if (v.some(isDecimal)) {
-        let best = toDecimal(v[0]);
-        for (const x of v.slice(1)) {
-          const d = toDecimal(x);
-          if (compareDecimals(d, best) > 0) best = d;
-        }
-        return best;
-      }
-      return Math.max(...v);
-    }),
-    '最小': new Builtin('最小', (v) => {
-      if (!Array.isArray(v) || v.length === 0) throw typeErr(`「${display(v)}」不能求最小值`);
-      if (v.some(isDecimal)) {
-        let best = toDecimal(v[0]);
-        for (const x of v.slice(1)) {
-          const d = toDecimal(x);
-          if (compareDecimals(d, best) < 0) best = d;
-        }
-        return best;
-      }
-      return Math.min(...v);
-    }),
+    '最大': new Builtin('最大', (...args) => extremum(args, true)),
+    '最小': new Builtin('最小', (...args) => extremum(args, false)),
     '总和': new Builtin('总和', (v) => {
-      if (!Array.isArray(v)) throw typeErr(`「${display(v)}」不能求和`);
+      const seq = seqOf(v, false, undefined, undefined);
+      if (seq === null) throw typeErr(`「${display(v)}」不能求和，需要一个全是数字的列表`);
       // 精确小数要走十进制起点（与 Python 侧一致：sum 从整数 0 起算会出错）
-      if (v.some(isDecimal)) {
+      if (seq.some(isDecimal)) {
         let acc = new JishiDecimal(0n, 0);
-        for (const x of v) acc = acc.add(toDecimal(x));
+        for (const x of seq) acc = acc.add(toDecimal(x));
         return acc;
       }
-      const s = v.reduce((a, b) => a + unwrap(b), 0);
+      const s = seq.reduce((a, b) => a + unwrap(b), 0);
       // 含小数则返回 FloatBox
-      return v.some(isFloatBox) ? new FloatBox(s) : s;
+      return seq.some(isFloatBox) ? new FloatBox(s) : s;
     }),
     '类型': new Builtin('类型', (v) => typeName(v)),
+    // 类型标注的校验（M24.3）：编译器把校验发射成函数自己的前导字节码，
+    // 调用这个内建。所以这里实现它，JS 侧就自动获得了类型标注支持（M30）。
+    '检查实参': new Builtin('检查实参', (desc, values, funcName) =>
+      checkArgs(desc, values, funcName)),
     '反转': new Builtin('反转', (v) => {
       if (typeof v === 'string') return v.split('').reverse().join('');
       if (Array.isArray(v)) return [...v].reverse();
@@ -662,6 +1090,23 @@ class Cell {
 // ---------------------------------------------------------------------------
 // 运算
 // ---------------------------------------------------------------------------
+/// 序列重复（列表 / 文本 × 整数）：造新值，不动原值（与 Python 一致）。
+function repeatSeq(seq, n) {
+  const times = Math.max(0, n);
+  if (typeof seq === 'string') return seq.repeat(times);
+  const out = [];
+  for (let i = 0; i < times; i++) out.push(...seq);
+  return out;
+}
+
+/** 序列的乘数必须是整数（FloatBox 说明它是运算得到的小数，Python 会报错）。 */
+function intMulOf(v, line, col) {
+  if (isFloatBox(v) || typeof v !== 'number' || !Number.isInteger(v)) {
+    throw typeErr(`序列只能乘整数，不能乘「${typeName(v)}」`, line, col);
+  }
+  return v;
+}
+
 function applyBinop(op, l, r, line, col) {
   // 精确小数优先：任一边是它就整个走十进制（与 Python 侧一致）
   if (isDecimal(l) || isDecimal(r)) {
@@ -692,9 +1137,48 @@ function applyBinop(op, l, r, line, col) {
       default: throw runErr(`不支持的运算符「${op}」`, line, col);
     }
   }
-  // 先把 FloatBox 拆开，算出结果后再按 Python 语义决定是否包回 FloatBox
+
+  // 先把 FloatBox 拆开，再按 Python 的类型规则分派。**不能直接用 JS 的
+  // 运算符兜底**：`[1] + [2]` 在 JS 里会变成字符串 "12"、`1 + 空` 会当 0、
+  // `-7 % 3` 符号也和 Python 相反——全是「不报错但结果错」（M30 修）。
   const fl = isFloatBox(l), fr = isFloatBox(r);
   const lv = unwrap(l), rv = unwrap(r);
+  const lList = Array.isArray(l), rList = Array.isArray(r);
+  const lStr = typeof lv === 'string', rStr = typeof rv === 'string';
+  const lSet = l instanceof JishiSet, rSet = r instanceof JishiSet;
+
+  // -- 列表：+ 拼接、* 重复 --
+  if (lList || rList) {
+    if (op === '+' && lList && rList) return [...l, ...r];
+    if (op === '*' && lList) return repeatSeq(l, intMulOf(rv, line, col));
+    if (op === '*' && rList) return repeatSeq(r, intMulOf(lv, line, col));
+    if (op === '+') {
+      const other = lList ? r : l;
+      throw typeErr(`「列表」只能和「列表」相加，不能和「${typeName(other)}」相加`, line, col);
+    }
+    throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
+  }
+  // -- 文本：+ 拼接、* 重复 --
+  if (lStr || rStr) {
+    if (op === '+' && lStr && rStr) return lv + rv;
+    if (op === '*' && lStr) return repeatSeq(lv, intMulOf(rv, line, col));
+    if (op === '*' && rStr) return repeatSeq(rv, intMulOf(lv, line, col));
+    if (op === '+') {
+      const other = lStr ? r : l;
+      throw typeErr(`「文本」只能和「文本」相加，不能和「${typeName(other)}」相加`, line, col);
+    }
+    throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
+  }
+  // -- 集合：Python 侧没定义算术运算，直接报错（不要静默给出别扭结果）--
+  if (lSet || rSet) {
+    throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
+  }
+  // -- 数字（布尔在 Python 里也算数字：`真 + 1` 是 2）--
+  const numOk = (x) => typeof x === 'number' || typeof x === 'boolean';
+  if (!numOk(lv) || !numOk(rv)) {
+    throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
+  }
+
   let result;
   let isFloat = fl || fr;   // 参与运算的是小数 → Python 结果一般是 float
   switch (op) {
@@ -707,10 +1191,22 @@ function applyBinop(op, l, r, line, col) {
     case '//':
       if (rv === 0) throw zeroDiv(line, col);
       result = Math.floor(lv / rv); isFloat = false; break;  // // 产 int
-    case '%':
+    case '%': {
       if (rv === 0) throw zeroDiv(line, col);
-      result = lv % rv; break;
-    case '**': result = lv ** rv; break;
+      // Python 的 `%` 结果符号跟**除数**一致（JS 的是截断语义）：
+      // `-7 % 3` 在 Python 是 2，在 JS 是 -1——不修就是静默算错
+      let m = lv % rv;
+      if (m !== 0 && (m < 0) !== (rv < 0)) m += rv;
+      result = m;
+      break;
+    }
+    case '**': {
+      const p = lv ** rv;
+      result = p;
+      // `2 ** -1` 是 0.5、`2 ** 2` 是 4 —— 按结果是否为整数决定要不要装箱
+      isFloat = isFloat || !Number.isInteger(p);
+      break;
+    }
     default: throw runErr(`不支持的运算符「${op}」`, line, col);
   }
   // 若 result 是 NaN/Infinity（溢出/无效），Python 会抛或得 inf，这里简单放行
@@ -728,7 +1224,8 @@ function applyUnary(op, v, line, col) {
 
 function applyCompare(op, l, r, line, col) {
   // 精确小数：算术比较走十进制（混合 0.3 也能相等）；成员测试/同一性
-  // （在·不在·是·不是）在更上层处理，不走这里——与 Python 侧一致
+  // （在·不在·是·不是）不走这里——`精确("1") 在 [1]` 该按元素比较，
+  // 而不是让「精确」拒绝参加（与 Python 侧 apply_compare 的分工一致）
   if ((isDecimal(l) || isDecimal(r)) && ['==', '!=', '<', '>', '<=', '>='].includes(op)) {
     const a = toDecimal(l, line, col), b = toDecimal(r, line, col);
     const cmp = compareDecimals(a, b);
@@ -741,10 +1238,18 @@ function applyCompare(op, l, r, line, col) {
       case '>=': return cmp >= 0;
     }
   }
+  // 成员测试（M30）：列表按值、字典按「键」、文本找子串、集合按元素
+  if (op === '在') return contains(r, l, line, col);
+  if (op === '不在') return !contains(r, l, line, col);
+  // 同一性（M30）
+  if (op === '是') return identityKey(l) === identityKey(r);
+  if (op === '不是') return identityKey(l) !== identityKey(r);
   const lv = unwrap(l), rv = unwrap(r);
   switch (op) {
-    case '==': return lv === rv;
-    case '!=': return lv !== rv;
+    // `==` 走值相等：列表/字典/集合按内容递归比，数字与布尔按数值比
+    // （`[1, 2] == [1, 2]` 为真、`1 == 真` 为真，与 Python 一致）
+    case '==': return valueEq(l, r);
+    case '!=': return !valueEq(l, r);
     case '<': return lv < rv;
     case '>': return lv > rv;
     case '<=': return lv <= rv;
@@ -760,6 +1265,7 @@ function methodTable(obj) {
   if (Array.isArray(obj)) return LIST_METHODS;
   if (obj instanceof Map) return DICT_METHODS;
   if (typeof obj === 'string') return STR_METHODS;
+  if (obj instanceof JishiSet) return SET_METHODS;
   if (isFile(obj)) return FILE_METHODS;
   if (isDecimal(obj)) return DECIMAL_METHODS;
   return null;
@@ -800,6 +1306,19 @@ function setAttr(obj, attr, value, line, col) {
 }
 
 function getItem(obj, index, line, col) {
+  if (isSlice(index)) {
+    // 切片（M30）：列表按元素切、文本按字符切（与 Python 的 str 索引一致）
+    if (Array.isArray(obj)) {
+      const [s, e, st] = sliceIndices(index, obj.length);
+      return slicePositions(s, e, st).map((i) => obj[i]);
+    }
+    if (typeof obj === 'string') {
+      const chars = [...obj];                 // 按 code point，代理对不会切坏
+      const [s, e, st] = sliceIndices(index, chars.length);
+      return slicePositions(s, e, st).map((i) => chars[i]).join('');
+    }
+    throw typeErr(`「${typeName(obj)}」不能切片，切片需要列表或文本`, line, col);
+  }
   if (Array.isArray(obj)) {
     const i = index;
     if (!Number.isInteger(i) || i < 0 || i >= obj.length) {
@@ -822,6 +1341,26 @@ function getItem(obj, index, line, col) {
 }
 
 function setItem(obj, index, value, line, col) {
+  if (isSlice(index)) {
+    // 切片赋值（M24/M30）：步长为 1 时可以变长（替换整个区间），
+    // 步长不为 1 时长度必须精确匹配——与 Python 一致。
+    if (!Array.isArray(obj)) {
+      throw typeErr(`「${typeName(obj)}」不能按下标赋值`, line, col);
+    }
+    const vals = asIterable(value, '切片赋值的值', line, col);
+    const [s, e, st] = sliceIndices(index, obj.length);
+    if (st === 1) {
+      obj.splice(s, Math.max(0, e - s), ...vals);
+      return;
+    }
+    const idxs = slicePositions(s, e, st);
+    if (idxs.length !== vals.length) {
+      throw valueErr(`切片赋值长度不匹配：目标有 ${idxs.length} 个位置，`
+        + `却给了 ${vals.length} 个值`, line, col);
+    }
+    idxs.forEach((i, k) => { obj[i] = vals[k]; });
+    return;
+  }
   if (Array.isArray(obj)) {
     obj[index] = value;
     return;
@@ -894,11 +1433,10 @@ function makeInstance(cls, args, line, col) {
 // ---------------------------------------------------------------------------
 function unpackValues(value, n, star, line, col) {
   // star >= 0 时是星号解包（M25）：该位置收「其余」成列表
-  let seq;
-  if (Array.isArray(value)) seq = value;
-  else if (typeof value === 'string') seq = [...value];
-  else if (value instanceof Map) seq = [...value.keys()];
-  else {
+  // 用 seqOf 而不是逐类型判断：列表/文本/字典（键）/集合/自定义可迭代
+  // 都能解包，与 Python 侧 `_as_iterable` 取同一套口径（M30）
+  const seq = seqOf(value, true, line, col);
+  if (seq === null) {
     throw typeErr(`解包赋值需要列表，得到了「${typeName(value)}」`, line, col);
   }
   if (star == null || star < 0) {
@@ -951,7 +1489,9 @@ const LIST_METHODS = {
   '插入': (obj, args, line, col) => { needArgs('插入', args, 2, 2, line, col); obj.splice(args[0], 0, args[1]); return null; },
   '移除': (obj, args, line, col) => {
     needArgs('移除', args, 1, 1, line, col);
-    const i = obj.indexOf(args[0]);
+    // 用 valueEq（不是 ===）：Python 的 `list.remove` 用 `==`，
+    // 所以 `[1].移除(真)` 能删掉 1，这里要保持一致
+    const i = obj.findIndex((x) => valueEq(x, args[0]));
     if (i < 0) throw valueErr(`列表里没有「${display(args[0])}」，没法移除`, line, col);
     obj.splice(i, 1); return null;
   },
@@ -965,12 +1505,121 @@ const LIST_METHODS = {
   '清空': (obj, args, line, col) => { needArgs('清空', args, 0, 0, line, col); obj.length = 0; return null; },
   '索引': (obj, args, line, col) => {
     needArgs('索引', args, 1, 1, line, col);
-    const i = obj.indexOf(args[0]);
+    const i = obj.findIndex((x) => valueEq(x, args[0]));
     if (i < 0) throw valueErr(`列表里没有「${display(args[0])}」，找不到它的位置`, line, col);
     return i;
   },
-  '计数': (obj, args, line, col) => { needArgs('计数', args, 1, 1, line, col); return obj.filter(x => x === args[0]).length; },
-  '包含': (obj, args, line, col) => { needArgs('包含', args, 1, 1, line, col); return obj.includes(args[0]); },
+  '计数': (obj, args, line, col) => { needArgs('计数', args, 1, 1, line, col); return obj.filter((x) => valueEq(x, args[0])).length; },
+  '包含': (obj, args, line, col) => { needArgs('包含', args, 1, 1, line, col); return obj.some((x) => valueEq(x, args[0])); },
+
+  // -- 数据流水线（M30）--
+  // 内建要能反过来**同步调用用户函数**，靠 callValue。JS 数组的
+  // map/filter 天然返回新数组，不会动原列表（与 Python 侧一致）。
+  '映射': (obj, args, line, col) => {
+    needArgs('映射', args, 1, 1, line, col);
+    ensureCallable(args[0], '映射', line, col);
+    return obj.map((x) => callValue(args[0], [x], line, col));
+  },
+  '过滤': (obj, args, line, col) => {
+    needArgs('过滤', args, 1, 1, line, col);
+    ensureCallable(args[0], '过滤', line, col);
+    return obj.filter((x) => truthy(callValue(args[0], [x], line, col)));
+  },
+  '排序按': (obj, args, line, col) => {
+    needArgs('排序按', args, 1, 1, line, col);
+    ensureCallable(args[0], '排序按', line, col);
+    const keyed = obj.map((x) => [callValue(args[0], [x], line, col), x]);
+    if (keyed.length > 0) {
+      // 键必须能两两比较：Python 侧混着数字和文本会 TypeError，
+      // 这里也要报中文错，不能用「相等」糊过去（那会悄悄给出错顺序）
+      const first = keyed[0][0];
+      for (const [k] of keyed) {
+        if (!comparable(k, first)) {
+          throw typeErr('「排序按」算出来的排序键没法互相比较'
+            + '——排序键要都是数字，或都是文本，不能混着来', line, col);
+        }
+      }
+    }
+    keyed.sort((a, b) => cmpVals(a[0], b[0]));
+    return keyed.map((p) => p[1]);
+  },
+  '归约': (obj, args, line, col) => {
+    needArgs('归约', args, 2, 2, line, col);
+    ensureCallable(args[0], '归约', line, col);
+    let acc = args[1];
+    for (const x of obj) acc = callValue(args[0], [acc, x], line, col);
+    return acc;
+  },
+};
+
+// 集合方法（M30）：与 Python 侧 SET_METHODS 同名同语义。
+// 改内容的（添加/移除/丢弃/清空）直接落在共享的 Map 上，原变量能看见；
+// 返回集合的（并集/交集/差集/对称差/复制）都造**新**集合。
+const SET_METHODS = {
+  '添加': (obj, args, line, col) => {
+    needArgs('添加', args, 1, 1, line, col);
+    try {
+      obj.add(args[0]);
+    } catch (e) {
+      if (e instanceof JishiError) throw typeErr(e.message, line, col);
+      throw e;
+    }
+    return null;
+  },
+  '移除': (obj, args, line, col) => {
+    needArgs('移除', args, 1, 1, line, col);
+    if (!obj.has(args[0])) {
+      throw valueErr(`集合里没有「${display(args[0])}」，没法移除`, line, col);
+    }
+    obj.delete(args[0]); return null;
+  },
+  '丢弃': (obj, args, line, col) => {
+    needArgs('丢弃', args, 1, 1, line, col);
+    obj.delete(args[0]); return null;
+  },
+  '包含': (obj, args, line, col) => {
+    needArgs('包含', args, 1, 1, line, col);
+    return obj.has(args[0]);
+  },
+  '并集': (obj, args, line, col) => {
+    needArgs('并集', args, 1, 1, line, col);
+    return new JishiSet([...obj.values(),
+      ...asIterable(args[0], '「并集」的另一个集合', line, col)]);
+  },
+  '交集': (obj, args, line, col) => {
+    needArgs('交集', args, 1, 1, line, col);
+    const other = asIterable(args[0], '「交集」的另一个集合', line, col);
+    return new JishiSet(obj.values().filter(
+      (x) => other.some((y) => valueEq(y, x))));
+  },
+  '差集': (obj, args, line, col) => {
+    needArgs('差集', args, 1, 1, line, col);
+    const other = asIterable(args[0], '「差集」的另一个集合', line, col);
+    return new JishiSet(obj.values().filter(
+      (x) => !other.some((y) => valueEq(y, x))));
+  },
+  '对称差': (obj, args, line, col) => {
+    needArgs('对称差', args, 1, 1, line, col);
+    const other = asIterable(args[0], '「对称差」的另一个集合', line, col);
+    const mine = obj.values();
+    const theirs = [...new JishiSet(other).values()];   // 先去重，顺序取首次出现
+    return new JishiSet([
+      ...mine.filter((x) => !theirs.some((y) => valueEq(y, x))),
+      ...theirs.filter((x) => !mine.some((y) => valueEq(y, x))),
+    ]);
+  },
+  '清空': (obj, args, line, col) => {
+    needArgs('清空', args, 0, 0, line, col);
+    obj.map.clear(); return null;
+  },
+  '转列表': (obj, args, line, col) => {
+    needArgs('转列表', args, 0, 0, line, col);
+    return obj.values();
+  },
+  '复制': (obj, args, line, col) => {
+    needArgs('复制', args, 0, 0, line, col);
+    return new JishiSet(obj.values());
+  },
 };
 
 const DICT_METHODS = {
@@ -1127,10 +1776,13 @@ module.exports = {
   typeName, truthy, display, pyStr, pyRepr,
   FloatBox, isFloatBox, unwrap,
   JishiDecimal, isDecimal, toDecimal, compareDecimals,
+  JishiSet, setRepr, asIterable, seqOf,
+  makeSlice, isSlice,
   JishiFile, isFile, enterContext, exitContext,
   Builtin, ExcType, EXCEPTION_TYPES, newBuiltins,
   Module, JishiClass, JishiInstance, VmFunction, Cell,
   applyBinop, applyUnary, applyCompare,
+  contains, identityKey, valueEq, callValue, ensureCallable,
   methodTable, getAttr, setAttr, getItem, setItem,
   BoundMethod, BoundUserMethod, makeInstance,
   unpackValues, buildDict, lookupName,

@@ -1295,6 +1295,12 @@ def set_attr(obj, attr, value, *, line=None, col=None,
 
 
 def get_item(obj, index, *, line=None, col=None, filename="<输入>"):
+    if isinstance(index, slice) and not isinstance(obj, (list, tuple, str)):
+        # 字典等类型不支持切片：报清楚「什么才能切片」，别漏出
+        # `unhashable type: 'slice'` 这种英文（M30，与两个宿主一致）
+        raise RunTypeError(
+            f"「{type_name(obj)}」不能切片，切片需要列表或文本",
+            line=line, col=col, filename=filename)
     try:
         return obj[index]
     except (IndexError, KeyError, TypeError) as e:
@@ -1313,7 +1319,12 @@ def make_slice(start, stop, step, *, line=None, col=None,
         if v is None:
             return None
         return v
-    return slice(_norm(start), _norm(stop), _norm(step))
+    step = _norm(step)
+    if step == 0:
+        # 先拦下：Python 的原文是英文 `slice step cannot be zero`（M30）
+        raise RunValueError("切片的步长不能为 0",
+                            line=line, col=col, filename=filename)
+    return slice(_norm(start), _norm(stop), step)
 
 
 def set_item(obj, index, value, *, line=None, col=None,

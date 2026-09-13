@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from ..runtime import jishi_repr
+
 __all__ = [
     "拼接", "居中", "左对齐", "右对齐", "补零", "重复", "计数",
     "是数字", "是字母", "是空白", "是大写", "是小写", "首字母大写",
@@ -15,8 +17,12 @@ __all__ = [
 
 
 def 拼接(序列, 分隔符: str = "") -> str:
-    """把列表里的文本用分隔符连成一段。"""
-    return 分隔符.join(str(x) for x in 序列)
+    """把列表里的文本用分隔符连成一段。
+
+    用 `jishi_repr` 而不是 Python 的 `str()`：后者会把 真/空 显示成
+    `True`/`None`，与 `文本()`、`打印()` 的中文显示不一致（M30）。
+    """
+    return 分隔符.join(jishi_repr(x, top=True) for x in 序列)
 
 
 def 居中(文本: str, 宽度: int, 填充: str = " ") -> str:
@@ -90,8 +96,15 @@ def 去后缀(文本: str, 后缀: str) -> str:
 
 
 def 格式化(模板: str, *参数) -> str:
-    """把 {} 占位符依次替换成参数：格式化("{}今年{}岁", "小明", 12)。"""
-    return str(模板).format(*参数)
+    """把 {} 占位符依次替换成参数：格式化("{}今年{}岁", "小明", 12)。
+
+    支持常见的格式说明符（`{:.1f}`、`{:>5}`…）。布尔与空先转成中文文本，
+    免得 `格式化("{}", 真)` 给出 `True`（与 `文本()` 的显示不一致）；
+    数字保持原样，好让 `{:.1f}` 这类说明符仍然生效。
+    """
+    转好的 = [jishi_repr(a, top=True) if (a is None or isinstance(a, bool))
+              else a for a in 参数]
+    return str(模板).format(*转好的)
 
 
 def 切成三段(文本: str, 分隔符: str) -> list:
