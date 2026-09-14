@@ -607,6 +607,65 @@ def _b_sum(v):
         raise RunTypeError(f"「{v}」不能求和，需要一个全是数字的列表")
 
 
+def _as_bit_int(v, func: str) -> int:
+    """位运算的参数必须是**整数**。
+
+    为什么不收 `真`/`假`：Python 里 `True & 1` 给 1，但那会让「标志位」和
+    「逻辑值」混在一起；基石把布尔当**独立类型**（`类型(真)` 是「布尔」），
+    位运算只对整数有意义——明确报错比静默按 1/0 算清楚。
+    """
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise RunTypeError(
+            f"「{func}」需要整数，但收到「{jishi_repr(v, top=True)}」"
+            f"（{type_name(v)}）")
+    return v
+
+
+def _as_shift_count(v, func: str) -> int:
+    """位移位数：非负整数，且**不能大到把内存撑爆**。
+
+    `1 << 10**9` 在 Python 里会真的去申请 125 MB——所以给个上限（100 万位，
+    约 125 KB），超过就报错说明。这不算限制正常用法：基石整数本身在 C VM /
+    Rust 侧到 64 位 / 128 位就界了，真要移一百万位请用标准库的大数运算。
+    """
+    n = _as_bit_int(v, func)
+    if n < 0:
+        raise RunTypeError(f"「{func}」的位数不能是负数（收到 {n}）")
+    if n > 1_000_000:
+        raise RunTypeError(f"「{func}」的位数太大（收到 {n}，上限 1000000）")
+    return n
+
+
+def _b_bit_and(a, b):
+    """按位与。用于标志位、掩码这类场合（日常业务代码很少见）。"""
+    return _as_bit_int(a, "位与") & _as_bit_int(b, "位与")
+
+
+def _b_bit_or(a, b):
+    """按位或。"""
+    return _as_bit_int(a, "位或") | _as_bit_int(b, "位或")
+
+
+def _b_bit_xor(a, b):
+    """按位异或。"""
+    return _as_bit_int(a, "位异或") ^ _as_bit_int(b, "位异或")
+
+
+def _b_bit_not(a):
+    """按位取反（`~x`，Python 语义：`~x == -x - 1`）。"""
+    return ~_as_bit_int(a, "位取反")
+
+
+def _b_shl(a, n):
+    """左移：`左移(1, 4)` 给 16。"""
+    return _as_bit_int(a, "左移") << _as_shift_count(n, "左移")
+
+
+def _b_shr(a, n):
+    """右移：`右移(16, 4)` 给 1。"""
+    return _as_bit_int(a, "右移") >> _as_shift_count(n, "右移")
+
+
 def _b_type(v):
     return type_name(v)
 
@@ -780,6 +839,14 @@ def new_builtins() -> dict[str, Any]:
         "最小": _Builtin("最小", _b_min, "取列表中的最小值"),
         "总和": _Builtin("总和", _b_sum, "求列表中所有数的和"),
         "类型": _Builtin("类型", _b_type, "查看值的类型"),
+        # 位运算：**不做语法**（`& | ^ << >>` 日常罕见，且要动三执行器），
+        # 改成一小组内建（M36「关 0」）——标志位/掩码/协议解析够用了
+        "位与": _Builtin("位与", _b_bit_and, "位与(甲, 乙)：按位与，标志位/掩码用"),
+        "位或": _Builtin("位或", _b_bit_or, "位或(甲, 乙)：按位或"),
+        "位异或": _Builtin("位异或", _b_bit_xor, "位异或(甲, 乙)：按位异或"),
+        "位取反": _Builtin("位取反", _b_bit_not, "位取反(甲)：按位取反，等价于 -甲 - 1"),
+        "左移": _Builtin("左移", _b_shl, "左移(值, 位数)：值 × 2^位数"),
+        "右移": _Builtin("右移", _b_shr, "右移(值, 位数)：值 ÷ 2^位数（向下取整）"),
         "反转": _Builtin("反转", _b_reverse, "反转列表或文本"),
         "断言": _Builtin(
             "断言", _b_assert,
@@ -1890,6 +1957,22 @@ def _m_dict_update(obj, args, node):
     obj.update(args[0])
 
 
+def _m_dict_merge(obj, args, node):
+    """返回**新字典**：先放自己、再放参数（同名键以参数为准）。
+
+    与「更新」的分工：`更新` 就地改自己（返回空），`合并` 双方都不动、
+    返回一个新字典——写数据流水线（`令 全 = 默认配置.合并(用户配置)`）时更顺手。
+    """
+    _need_args("合并", args, node, 1, 1)
+    if not isinstance(args[0], dict):
+        raise RunTypeError(
+            f"「合并」需要一个字典参数，但传了「{args[0]}」（{type_name(args[0])}）",
+            line=node.line, col=node.col)
+    merged = dict(obj)
+    merged.update(args[0])
+    return merged
+
+
 def _m_dict_pop(obj, args, node):
     _need_args("弹出", args, node, 1, 2)
     if len(args) == 2:
@@ -2232,6 +2315,7 @@ DICT_METHODS = {
     "值": _m_dict_values,
     "包含": _m_dict_contains,
     "更新": _m_dict_update,
+    "合并": _m_dict_merge,
     "弹出": _m_dict_pop,
     "清空": _m_dict_clear,
 }
