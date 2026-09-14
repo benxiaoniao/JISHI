@@ -14,6 +14,8 @@
 from __future__ import annotations
 
 import io
+import shutil
+import subprocess
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -24,12 +26,58 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from jishi import cvm_bind                        # noqa: E402
+from jishi import serialize                       # noqa: E402
 from jishi import vm as vm_mod                    # noqa: E402
 from jishi.compiler import compile_source         # noqa: E402
 from jishi.errors import JishiError               # noqa: E402
 from jishi.interpreter import Interpreter         # noqa: E402
 from jishi.parser import parse                    # noqa: E402
 from jishi.tokenizer import tokenize              # noqa: E402
+from conftest import rust_exe_path                # noqa: E402
+
+NODE = shutil.which("node")
+CARGO = shutil.which("cargo")
+
+
+@pytest.fixture(scope="session")
+def rust_exe() -> Path:
+    """Rust 宿主可执行文件（没有 cargo 就跳过；路径按平台取名，见 conftest）。"""
+    exe = rust_exe_path()
+    if not CARGO:
+        pytest.skip("本机无 cargo，跳过 Rust 对拍")
+    if exe.exists():
+        return exe
+    r = subprocess.run(
+        [CARGO, "build", "--release", "--manifest-path",
+         str(ROOT / "rust" / "Cargo.toml")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=str(ROOT))
+    if r.returncode != 0:
+        pytest.skip(f"cargo build 失败：{r.stderr[-200:]}")
+    return exe
+
+
+def _run_host(src: str, host: str, rust_exe: "Path | None", tmp: Path) -> str:
+    """把源码编成字节码丢给宿主跑，返回 stdout（宿主非零退出直接报错）。"""
+    bc = tmp / f"_m36_{host}.json"
+    bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
+    cmd = ([NODE, str(ROOT / "node" / "index.js"), str(bc)] if host == "node"
+           else [str(rust_exe), str(bc)])
+    r = subprocess.run(cmd, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    assert r.returncode == 0, f"{host} 非零退出（rc={r.returncode}）：{r.stderr[-300:]}"
+    return r.stdout
+
+
+def _all_five(src: str, rust_exe: Path, tmp: Path) -> str:
+    """三执行器 + Node + Rust **五路逐字节一致**。"""
+    want = _all(src)
+    if NODE:
+        got = _run_host(src, "node", None, tmp)
+        assert got == want, f"Node 与 Python 不一致\nPython: {want!r}\nNode:   {got!r}"
+    got = _run_host(src, "rust", rust_exe, tmp)
+    assert got == want, f"Rust 与 Python 不一致\nPython: {want!r}\nRust:   {got!r}"
+    return want
 
 
 def _tree(src: str) -> str:
@@ -226,3 +274,118 @@ def test_probe_reports_no_open_questions():
                        capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT))
     assert r.returncode == 0, f"探针报告还有待定项：\n{r.stdout[-600:]}"
     assert "无悬案" in r.stdout
+
+
+# ---------------------------------------------------------------------------
+# 5. 三元表达式（M36 A1）：解析期脱糖成匿名函数立即调用
+# ---------------------------------------------------------------------------
+
+def test_ternary_basic():
+    assert _all(
+        '令 年龄 = 20\n'
+        '令 等级 = "成年" 如果 年龄 >= 18 否则 "未成年"\n'
+        '打印(等级)\n'
+    ) == "成年\n"
+
+
+def test_ternary_only_evaluates_one_side():
+    """**只求值选中的那一边**——条件表达式最关键的性质（不是「两个都算」）。"""
+    assert _all(
+        '函数 f(名)：\n'
+        '    打印(名)\n'
+        '    返回 名\n'
+        '打印(f("甲") 如果 真 否则 f("乙"))\n'
+        '打印(f("丙") 如果 假 否则 f("丁"))\n'
+    ) == "甲\n甲\n丁\n丁\n"
+
+
+def test_ternary_is_right_associative():
+    assert _all(
+        '令 a = 2\n'
+        '打印("一" 如果 a == 1 否则 "二" 如果 a == 2 否则 "其他")\n'
+    ) == "二\n"
+
+
+def test_ternary_binds_looser_than_and_or():
+    """优先级比「与/或」低（与 Python 同级）。"""
+    assert _all("打印(假 或 真 如果 假 否则 假)\n") == "假\n"
+
+
+def test_ternary_in_arguments_and_subscripts():
+    assert _all(
+        '令 d = {"k": 5}\n'
+        '打印(最大(1, 5 如果 真 否则 9))\n'
+        '打印(d["k"] 如果 "k" 在 d 否则 -1)\n'
+    ) == "5\n5\n"
+
+
+def test_ternary_nests_inside_comprehension_element():
+    """推导式**元素**可以是三元（Python 亦然）。"""
+    assert _all(
+        '打印([("偶" 如果 x % 2 == 0 否则 "奇") 遍历 x 在 范围(4)])\n'
+    ) == "['偶', '奇', '偶', '奇']\n"
+
+
+def test_ternary_does_not_break_comprehension_filter():
+    """**回归钉**：推导式的「如果」是过滤子句，不能被迭代对象吃成三元。
+
+    这是实现 M36 时真踩到的坑；Python 也是靠「comp_for 的可迭代对象只到
+    or_test 层级」避开的（见 parser._parse_comp_tail 的 allow_ternary=False）。
+    """
+    assert _all("打印([x * 2 遍历 x 在 范围(5) 如果 x % 2 == 0])\n") == "[0, 4, 8]\n"
+
+
+def test_ternary_missing_else_is_explicit_error():
+    assert "否则" in _err("打印(1 如果 真)\n")
+
+
+def test_ternary_does_not_break_match_guard():
+    """**回归钉（第二个同类位置）**：`情形 值 如果 条件：` 里的「如果」是**守卫**。
+
+    给「已有的关键字」加表达式用法时，把该关键字**所有既有位置**都过一遍才对：
+    M36 第一次撞的是推导式过滤子句，第二次就是这里（全量回归抓到的）。
+    想拿条件表达式当值，加括号即可。
+    """
+    assert _all(
+        '令 加分 = 真\n'
+        '匹配 90：\n'
+        '    情形 90 如果 加分：\n'
+        '        打印("含加分")\n'
+        '    情形 90：\n'
+        '        打印("普通")\n'
+    ) == "含加分\n"
+
+
+def test_ternary_still_works_next_to_guard_and_filter():
+    """三个「如果」同场共存：条件表达式 / 匹配守卫 / 推导式过滤。"""
+    assert _all(
+        '令 加分 = 假\n'
+        '匹配 90：\n'
+        '    情形 90 如果 加分：\n'
+        '        打印("含加分")\n'
+        '    情形 90：\n'
+        '        打印("普通")\n'
+        '打印("优" 如果 加分 否则 "常")\n'
+        '打印([x 如果 x > 0 否则 0 遍历 x 在 [-1, 2]])\n'
+        '打印([x 遍历 x 在 范围(4) 如果 x % 2 == 0])\n'
+    ) == "普通\n常\n[0, 2]\n[0, 2]\n"
+
+
+# ---------------------------------------------------------------------------
+# 6. 宿主同步：这些内建 / 方法在 Node / Rust 上也要一致
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("src", [
+    "打印(位与(12, 10), 位或(12, 10), 位异或(12, 10), 位取反(0), 位取反(5))\n",
+    "打印(左移(1, 4), 左移(3, 3), 右移(16, 4), 右移(-1, 1), 右移(1, 200))\n",
+    "打印(左移(1, 60))\n",                    # 60 位：JS 必须走 BigInt 才对得上
+    "打印(位与(2 ** 40, 2 ** 40 - 1))\n",
+    '令 a = {"甲": 1, "乙": 2}\n令 b = {"乙": 9}\n'
+    '令 c = a.合并(b)\n打印(c)\n打印(a)\n',
+    '令 a = {"甲": 1}\n打印(a.更新({"乙": 2}))\n打印(a)\n',
+    '令 a = {"甲": 1}\n打印(a.弹出("甲"))\n打印(a)\n打印(a.弹出("无", "兜底"))\n',
+    '令 年龄 = 20\n打印("成年" 如果 年龄 >= 18 否则 "未成年")\n',
+])
+def test_hosts_agree_on_m36_additions(src, rust_exe, tmp_path):
+    """三执行器 + Node + Rust 五路一致。"""
+    _all_five(src, rust_exe, tmp_path)

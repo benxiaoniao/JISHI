@@ -632,7 +632,9 @@ class Parser:
         self._expect_kw("遍历")
         target_tok = self._expect_name("循环变量名")
         self._expect_kw("在")
-        it = self._parse_expr()
+        # 可迭代对象**不认条件表达式**：紧随其后的「如果」是过滤子句
+        # （`[x 遍历 x 在 y 如果 条件]`），不能被迭代对象吃掉（M36）
+        it = self._parse_expr(allow_ternary=False)
         target = A.Name(id=target_tok.value, line=target_tok.line,
                         col=target_tok.col)
         condition = None
@@ -1201,10 +1203,13 @@ class Parser:
                 wildcard = True
         patterns: list[A.Node] = []
         if not wildcard:
-            patterns.append(self._parse_expr())
+            # 值这一层**不认条件表达式**：紧随其后的「如果」是**守卫**
+            # （`情形 90 如果 加分：`），不能被值吃掉（M36）。
+            # 想写条件表达式当值就加括号：`情形 (甲 如果 c 否则 乙)：`。
+            patterns.append(self._parse_expr(allow_ternary=False))
             while self._at_op(","):
                 self._next()
-                patterns.append(self._parse_expr())
+                patterns.append(self._parse_expr(allow_ternary=False))
         guard = None
         if self._at_kw("如果"):
             self._next()
@@ -1482,7 +1487,8 @@ class Parser:
 
     # -- 表达式：优先级爬升 --------------------------------------------------
 
-    def _parse_expr(self, min_prec: int = 0) -> A.Node:
+    def _parse_expr(self, min_prec: int = 0,
+                    allow_ternary: bool = True) -> A.Node:
         # 「非」是**前缀**运算符，但优先级不是「最紧」，而是比比较运算松、
         # 比「与/或」紧 —— 与 Python 的 ``not`` 一致（M23 修正）。
         #
@@ -1548,7 +1554,63 @@ class Parser:
                                    line=t.line, col=t.col)
                 continue
             break
+        # M36 条件表达式 `甲 如果 条件 否则 乙`：优先级比「与/或」低（与 Python 的
+        # conditional_expression 同级），所以只在本层最外面（min_prec == 0）识别。
+        #
+        # `allow_ternary=False` 专给**推导式的可迭代对象**用：
+        # `[x 遍历 x 在 y 如果 条件]` 里的「如果」是**过滤子句**，
+        # 迭代对象不能把它吃掉（Python 的 comp_for 也只允许到 or_test 层级，
+        # 同一个道理——这是我实现时撞上来的坑）。
+        if allow_ternary and min_prec == 0 and self._at_kw("如果"):
+            return self._desugar_ternary(left)
         return left
+
+    def _desugar_ternary(self, then_expr: A.Node) -> A.Node:
+        """`甲 如果 条件 否则 乙` —— **解析期脱糖**（M36），不新增 AST 节点。
+
+        脱糖成「匿名函数立即调用」：
+
+            甲 如果 条件 否则 乙
+            ⇓
+            (函数()：
+                如果 条件：
+                    返回 甲
+                返回 乙
+            )()
+
+        为什么不做成新的表达式节点：那要在三个执行器 + 两个宿主各写一遍求值
+        逻辑（还可能碰字节码格式）。脱糖之后走的是**既有**的函数调用与 if
+        语义，三执行器与两宿主零改动、行为必然一致——本项目第六次用这个手法
+        （前五次：`超()`、集合字面量、`用 … 为`、模式匹配、枚举）。
+
+        语义要点：
+
+        - **只求值一次**：`甲`/`乙` 只有被选中的那个会求值（`返回` 之后的语句
+          不执行），与 Python 一致；把待选值塞进临时变量那种写法反而会两个都算。
+        - **右结合**：`a 如果 c1 否则 b 如果 c2 否则 d` 解析成
+          `a 如果 c1 否则 (b 如果 c2 否则 d)`——「否则」后面仍按完整表达式解析。
+        - **条件位置**用完整的表达式层级，所以 `甲 如果 非 x 否则 乙`、
+          `甲 如果 x 在 列表 否则 乙` 都成立。
+        """
+        kw = self._next()                     # 消费「如果」
+        cond = self._parse_expr()
+        if not self._at_kw("否则"):
+            self._err(ParseUnexpectedError,
+                      "条件表达式少了「否则」",
+                      tok=self._peek(),
+                      hint="写法是「甲 如果 条件 否则 乙」——"
+                           "例如：令 等级 = \"成年\" 如果 年龄 >= 18 否则 \"未成年\"")
+        self._next()                          # 消费「否则」
+        other = self._parse_expr()            # 右结合：这里还会再嵌套
+        line, col = kw.line, kw.col
+        body = [A.If(
+            branches=[(cond, [A.Return(value=then_expr, line=then_expr.line,
+                                       col=then_expr.col)])],
+            orelse=[A.Return(value=other, line=other.line, col=other.col)],
+            line=line, col=col)]
+        lam = A.Lambda(params=[], body=body, defaults=[], annotations=[],
+                       param_kind=[], line=line, col=col)
+        return A.Call(func=lam, args=[], keywords=[], line=line, col=col)
 
     def _parse_unary(self) -> A.Node:
         t = self._peek()

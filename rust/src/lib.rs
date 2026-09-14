@@ -1492,6 +1492,48 @@ impl VM {
             (Val::Dict(d), "键") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())) }
             (Val::Dict(d), "值") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(_, v)| v.clone()).collect())) }
             (Val::Dict(d), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(d.borrow().iter().any(|(k, _)| *k == args[0]))) }
+            // M36 补：`更新` / `弹出` 此前在 Rust 宿主上**根本没实现**
+            // （报「方法调用未实现」——是明确报错，但确实是漏的）
+            (Val::Dict(d), "更新") => {
+                need_args(&name, args, 1, 1)?;
+                match &args[0] {
+                    Val::Dict(other) => {
+                        let items: Vec<(Val, Val)> = other.borrow().clone();
+                        let mut cur = d.borrow_mut();
+                        for (k, v) in items { dict_set(&mut cur, k, v); }
+                        Ok(Val::None_)
+                    }
+                    other => Err(err("类型错误", format!(
+                        "「更新」需要一个字典参数，但传了「{}」（{}）",
+                        display(other), type_label(other)))),
+                }
+            }
+            (Val::Dict(d), "合并") => {
+                need_args(&name, args, 1, 1)?;
+                match &args[0] {
+                    Val::Dict(other) => {
+                        // 返回**新字典**：双方都不动（与就地改的「更新」分工清楚）
+                        let mut merged = d.borrow().clone();
+                        let items: Vec<(Val, Val)> = other.borrow().clone();
+                        for (k, v) in items { dict_set(&mut merged, k, v); }
+                        Ok(dict_new(merged))
+                    }
+                    other => Err(err("类型错误", format!(
+                        "「合并」需要一个字典参数，但传了「{}」（{}）",
+                        display(other), type_label(other)))),
+                }
+            }
+            (Val::Dict(d), "弹出") => {
+                need_args(&name, args, 1, 2)?;
+                let mut cur = d.borrow_mut();
+                if let Some(pos) = cur.iter().position(|(k, _)| *k == args[0]) {
+                    Ok(cur.remove(pos).1)
+                } else if args.len() == 2 {
+                    Ok(args[1].clone())
+                } else {
+                    Err(err("键错误", format!("字典里没有键「{}」", display(&args[0]))))
+                }
+            }
             (Val::Dict(d), "清空") => { need_args(&name, args, 0, 0)?; d.borrow_mut().clear(); Ok(Val::None_) }
             // -- 字符串方法 --
             (Val::Str(s), "大写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_uppercase())) }
@@ -2128,6 +2170,42 @@ fn unary_neg(v: Val) -> Val {
 // 内建函数
 // ---------------------------------------------------------------------------
 
+/// 位运算参数必须是整数（M36）。
+///
+/// 为什么不收布尔：Python 里 `True & 1` 给 1，但基石把布尔当**独立类型**，
+/// 位运算混进逻辑值只会让人困惑 —— 明确报错，与 Python / JS 侧一致。
+fn as_bit_int(v: &Val, func: &str) -> Result<i128, JishiError> {
+    match v {
+        Val::Int(i) => Ok(*i),
+        _ => Err(err("类型错误", format!(
+            "「{}」需要整数，但收到「{}」（{}）", func, display(v), type_label(v)))),
+    }
+}
+
+/// 位移位数：非负整数，且不能大到把内存撑爆（上限与 Python / JS 侧一致）。
+fn shift_count(v: &Val, func: &str) -> Result<i128, JishiError> {
+    let n = as_bit_int(v, func)?;
+    if n < 0 {
+        return Err(err("类型错误",
+                       format!("「{}」的位数不能是负数（收到 {}）", func, n)));
+    }
+    if n > 1_000_000 {
+        return Err(err("类型错误",
+                       format!("「{}」的位数太大（收到 {}，上限 1000000）", func, n)));
+    }
+    Ok(n)
+}
+
+/// 字典赋值：键已存在就**就地替换**（位置不变），否则追加。
+/// 与 Python 的 dict 语义一致：插入顺序保持，重复赋值不改变位置。
+fn dict_set(d: &mut Vec<(Val, Val)>, k: Val, v: Val) {
+    if let Some(slot) = d.iter_mut().find(|(ek, _)| *ek == k) {
+        slot.1 = v;
+    } else {
+        d.push((k, v));
+    }
+}
+
 fn new_builtins() -> HashMap<String, Val> {
     let mut m = HashMap::new();
     m.insert("打印".to_string(), Val::Builtin("打印", |args, vm| {
@@ -2223,6 +2301,50 @@ fn new_builtins() -> HashMap<String, Val> {
     m.insert("总和".to_string(), Val::Builtin("总和", b_sum));
     m.insert("类型".to_string(), Val::Builtin("类型", |args, _vm| {
         Ok(Val::Str(type_label(&args[0])))
+    }));
+    // 位运算内建（M36）：Python 侧**不做 `& | ^ << >>` 语法**（日常罕见，
+    // 加运算符要动三执行器 + 两宿主 + 词法器），改成一小组内建。
+    m.insert("位与".to_string(), Val::Builtin("位与", |args, _vm| {
+        need_args("位与", args, 2, 2)?;
+        Ok(Val::Int(as_bit_int(&args[0], "位与")? & as_bit_int(&args[1], "位与")?))
+    }));
+    m.insert("位或".to_string(), Val::Builtin("位或", |args, _vm| {
+        need_args("位或", args, 2, 2)?;
+        Ok(Val::Int(as_bit_int(&args[0], "位或")? | as_bit_int(&args[1], "位或")?))
+    }));
+    m.insert("位异或".to_string(), Val::Builtin("位异或", |args, _vm| {
+        need_args("位异或", args, 2, 2)?;
+        Ok(Val::Int(as_bit_int(&args[0], "位异或")? ^ as_bit_int(&args[1], "位异或")?))
+    }));
+    m.insert("位取反".to_string(), Val::Builtin("位取反", |args, _vm| {
+        need_args("位取反", args, 1, 1)?;
+        // `!a`（补码取反）= `-a - 1`，与 Python 的 `~a` 一致
+        Ok(Val::Int(!as_bit_int(&args[0], "位取反")?))
+    }));
+    m.insert("左移".to_string(), Val::Builtin("左移", |args, _vm| {
+        need_args("左移", args, 2, 2)?;
+        let a = as_bit_int(&args[0], "左移")?;
+        let n = shift_count(&args[1], "左移")?;
+        if n >= 128 {
+            // 基石在 Rust 宿主上整数到 i128 就到边界（与其它整数运算一致）：
+            // 移出去就报错，**不给一个静默回绕的数**
+            return Err(err("类型错误",
+                           "「左移」的结果超出整数范围（Rust 宿主整数到 i128 就到边界）"));
+        }
+        a.checked_shl(n as u32).map(Val::Int).ok_or_else(|| {
+            err("类型错误", "「左移」的结果超出整数范围（Rust 宿主整数到 i128 就到边界）")
+        })
+    }));
+    m.insert("右移".to_string(), Val::Builtin("右移", |args, _vm| {
+        need_args("右移", args, 2, 2)?;
+        let a = as_bit_int(&args[0], "右移")?;
+        let n = shift_count(&args[1], "右移")?;
+        // 位数 ≥ 128 时 Python 给 0（或负数给 -1）——这里照做，别报错：
+        // 「右移」的结果一定在范围内，没有边界问题
+        if n >= 128 {
+            return Ok(Val::Int(if a < 0 { -1 } else { 0 }));
+        }
+        Ok(Val::Int(a >> n))
     }));
     // 类型标注的参数校验（M24.3）：编译器把校验发射成函数自己的前导字节码，
     // 宿主实现这个内建就自动获得这项能力（M32 补齐，JS 侧是 M30 补的）。

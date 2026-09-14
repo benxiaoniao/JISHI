@@ -164,6 +164,44 @@ function bigIntArith(op, lv, rv) {
   return r;
 }
 
+/**
+ * 位运算参数必须是整数（M36）。
+ *
+ * 为什么不收布尔：Python 里 `True & 1` 给 1，但基石把布尔当**独立类型**，
+ * 位运算混进逻辑值只会让人困惑 → 明确报错，与 Python 侧 `_as_bit_int` 一致。
+ */
+function asBitInt(v, func) {
+  if (typeof v === 'boolean' || !isIntLike(v)) {
+    throw typeErr(`「${func}」需要整数，但收到「${display(v)}」（${typeName(v)}）`);
+  }
+  return asBig(v);
+}
+
+/** 位移位数：非负整数，且不能大到把内存撑爆（上限与 Python 侧一致）。 */
+function bitShiftCount(v, func) {
+  if (typeof v === 'boolean' || !isIntLike(v)) {
+    throw typeErr(`「${func}」需要整数，但收到「${display(v)}」（${typeName(v)}）`);
+  }
+  const n = toIndexNum(v);
+  if (n < 0) throw typeErr(`「${func}」的位数不能是负数（收到 ${n}）`);
+  if (n > 1000000) throw typeErr(`「${func}」的位数太大（收到 ${n}，上限 1000000）`);
+  return BigInt(n);
+}
+
+/** 大整数结果回到安全范围就还原成 number（与 bigIntArith 同一约定）。 */
+function bigToJs(r) {
+  const MAX = BigInt(Number.MAX_SAFE_INTEGER);
+  return (r >= -MAX && r <= MAX) ? Number(r) : r;
+}
+
+/** 内建函数的参数个数检查（`needArgs` 的措辞是给「方法」用的）。 */
+function needBuiltinArgs(name, args, lo, hi) {
+  if (args.length < lo || args.length > hi) {
+    const need = lo === hi ? `${lo} 个` : `${lo} 到 ${hi} 个`;
+    throw typeErr(`「${name}」需要 ${need}参数，但传了 ${args.length} 个`);
+  }
+}
+
 function truthy(v) {
   if (v === null || v === undefined) return false;
   if (typeof v === 'bigint') return v !== 0n;
@@ -1170,6 +1208,34 @@ function newBuiltins() {
       return seq.some(isFloatBox) ? new FloatBox(s) : s;
     }),
     '类型': new Builtin('类型', (v) => typeName(v)),
+    // 位运算内建（M36）：Python 侧**不做 `& | ^ << >>` 语法**（日常罕见，
+    // 加运算符要动三执行器 + 两宿主 + 词法器），改成一小组内建。
+    // ⚠️ JS 的位运算符是 **32 位**（`2 ** 40 & 1` 会被截断），所以必须先转
+    // BigInt 再算——否则与 Python 的任意精度行为不一致（M32 同类坑）。
+    '位与': new Builtin('位与', (...args) => {
+      needBuiltinArgs('位与', args, 2, 2);
+      return bigToJs(asBitInt(args[0], '位与') & asBitInt(args[1], '位与'));
+    }),
+    '位或': new Builtin('位或', (...args) => {
+      needBuiltinArgs('位或', args, 2, 2);
+      return bigToJs(asBitInt(args[0], '位或') | asBitInt(args[1], '位或'));
+    }),
+    '位异或': new Builtin('位异或', (...args) => {
+      needBuiltinArgs('位异或', args, 2, 2);
+      return bigToJs(asBitInt(args[0], '位异或') ^ asBitInt(args[1], '位异或'));
+    }),
+    '位取反': new Builtin('位取反', (...args) => {
+      needBuiltinArgs('位取反', args, 1, 1);
+      return bigToJs(~asBitInt(args[0], '位取反'));
+    }),
+    '左移': new Builtin('左移', (...args) => {
+      needBuiltinArgs('左移', args, 2, 2);
+      return bigToJs(asBitInt(args[0], '左移') << bitShiftCount(args[1], '左移'));
+    }),
+    '右移': new Builtin('右移', (...args) => {
+      needBuiltinArgs('右移', args, 2, 2);
+      return bigToJs(asBitInt(args[0], '右移') >> bitShiftCount(args[1], '右移'));
+    }),
     // 类型标注的校验（M24.3）：编译器把校验发射成函数自己的前导字节码，
     // 调用这个内建。所以这里实现它，JS 侧就自动获得了类型标注支持（M30）。
     '检查实参': new Builtin('检查实参', (desc, values, funcName) =>
@@ -1865,6 +1931,16 @@ const DICT_METHODS = {
     if (!(args[0] instanceof Map)) throw typeErr(`「更新」需要一个字典参数`, line, col);
     for (const [k, v] of args[0]) obj.set(k, v);
     return null;
+  },
+  // 返回**新字典**（同名键以参数为准，浅合并）——与就地改的「更新」分工清楚
+  '合并': (obj, args, line, col) => {
+    needArgs('合并', args, 1, 1, line, col);
+    if (!(args[0] instanceof Map)) {
+      throw typeErr(`「合并」需要一个字典参数，但传了「${display(args[0])}」（${typeName(args[0])}）`, line, col);
+    }
+    const merged = new Map(obj);
+    for (const [k, v] of args[0]) merged.set(k, v);
+    return merged;
   },
   '弹出': (obj, args, line, col) => {
     needArgs('弹出', args, 1, 2, line, col);
