@@ -18,6 +18,7 @@ from . import ast_nodes as A
 from . import runtime as R
 from .opcodes import ParamKind
 from .errors import (
+    DebugQuit,
     Frame,
     JishiError,
     RunBreak,
@@ -203,6 +204,9 @@ class Interpreter:
         self._last_value = _NO_VALUE  # 最近一次顶层表达式语句的值（REPL 回显用）
         #: 调用帧栈（M17.2）：从外到内，出错时挂到 JishiError.trace
         self._call_stack: list = []
+        #: 调试器（M37）：非 None 时每次执行语句前会调它的 before_stmt。
+        #: 平时是 None，多出来的开销只有一次属性判断。
+        self.debugger = None
         self._register_builtins()
 
     # -- 内建函数 -----------------------------------------------------------
@@ -243,6 +247,11 @@ class Interpreter:
     # -- 语句 ---------------------------------------------------------------
 
     def exec_stmt(self, stmt: A.Node, env: Environment) -> None:
+        if self.debugger is not None:
+            # 调试钩子（M37）：**挂在「每个语句执行前」这一处**就够——断点、
+            # 单步（进/过/出）、看变量、看调用栈全都由此推出。钩子只读不写，
+            # 所以「带调试器跑」的输出与不带时逐字节相同。
+            self.debugger.before_stmt(stmt, env)
         if isinstance(stmt, A.Assign):
             self._do_assign(stmt, env)
         elif isinstance(stmt, A.ExprStmt):
@@ -476,10 +485,13 @@ class Interpreter:
     # 尝试 / 捕获 / 最终：借 Python 原生 try/except/finally 的传播语义。
     # 「中断/继续/返回」是异常（RunBreak/RunContinue/_ReturnSignal），
     # 因此它们穿出「尝试」块时「最终」照样执行 —— 行为与 Python 一致。
+    # `DebugQuit`（M37，调试器的「退出」）也走这条：下面那个 `except
+    # BaseException` 是为「把 Python 异常翻译成中文」而写的，若不显式放行，
+    # 用户程序里一句 `捕获：` 就能把「退出」吞掉（见 errors.DebugQuit）。
     def _do_try(self, stmt: A.Try, env: Environment) -> None:
         try:
             self.exec_block(stmt.body, env)
-        except (RunBreak, RunContinue, _ReturnSignal):
+        except (RunBreak, RunContinue, _ReturnSignal, DebugQuit):
             # 离开控制信号不被捕获，但「最终」必须执行
             if stmt.finalbody is not None:
                 self.exec_block(stmt.finalbody, env)
@@ -495,7 +507,7 @@ class Interpreter:
                         h_env = env
                     try:
                         self.exec_block(h.body, h_env)
-                    except (RunBreak, RunContinue, _ReturnSignal):
+                    except (RunBreak, RunContinue, _ReturnSignal, DebugQuit):
                         if stmt.finalbody is not None:
                             self.exec_block(stmt.finalbody, env)
                         raise
@@ -653,8 +665,14 @@ class Interpreter:
             # 与 Python 侧回调 __call__ 共用一份逻辑，避免两处漂移（M25）
             call_env = fn._bind_args(args, kwargs, line=expr.line,
                                      col=expr.col, filename=self.filename)
+            pushed = False
             try:
                 self._call_stack.append(Frame(fn.name, expr.line, expr.col))
+                if self.debugger is not None:
+                    # 调试器自己另存一份帧（多带 env，才能看那一帧的局部变量）
+                    self.debugger.push_frame(fn.name, call_env, expr.line,
+                                             expr.col)
+                    pushed = True
                 self.exec_block(fn.body, call_env)
             except _ReturnSignal as r:
                 return r.value
@@ -673,6 +691,8 @@ class Interpreter:
                 raise err
             finally:
                 self._call_stack.pop()
+                if pushed:
+                    self.debugger.pop_frame()
             return None
         return call_value(fn, args, kwargs, line=expr.line, col=expr.col, filename=self.filename)
 

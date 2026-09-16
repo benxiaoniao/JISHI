@@ -4,6 +4,7 @@
 用法：
     jishi 文件.jsh            运行脚本
     jishi 文件.jsh --ast      只显示语法树
+    jishi 调试 文件.jsh       调试（断点/单步/看变量与调用栈，M37）
     jishi -i                  交互式 REPL
     jishi                     进入 REPL
 """
@@ -477,6 +478,70 @@ def _cmd_format(args) -> int:
     return 0
 
 
+def _cmd_debug(args) -> int:
+    """`jishi 调试 脚本.jsh`：在**树遍历执行器**上跑调试会话（M37 · 主线 B1）。
+
+    与 `jishi 脚本.jsh` 的唯一差别是先挂上调试器再跑，于是能在断点处停下看
+    变量与调用栈。目前只支持树遍历执行器：字节码 VM 与 C VM 要另做一套
+    （栈机没有天然的「语句边界」事件），现状记在 `docs/调试器.md`。
+    """
+    from .debugger import Debugger, parse_lines
+
+    source, filename = _read_source(args.file)
+    lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    try:
+        program = parse(tokenize(source, filename), lines, filename)
+    except JishiError as e:
+        e.with_source(lines)
+        print(e.render(), file=sys.stderr)
+        return 1
+
+    try:
+        wanted = parse_lines(args.breakpoints)
+    except ValueError as e:
+        print(f"看不懂这个断点行号：「{e.args[0]}」——"
+              "写法是 --断点 12 或 --断点 12,15", file=sys.stderr)
+        return 2
+
+    script = None
+    if args.commands:
+        # 允许用中文分号（中文输入法下最常见的写法）
+        script = [c.strip() for c in args.commands.replace("；", ";").split(";")
+                  if c.strip()]
+
+    interp = Interpreter(filename=filename)
+    dbg = Debugger(interp, program,
+                   source_lines=lines, filename=filename,
+                   breakpoints=wanted,
+                   stop_on_entry=not args.no_entry,
+                   script=script)
+    # 断点写在空行/注释行上时**当场就说**：不然用户看着断点加上了、程序却从不停，
+    # 只会怀疑调试器坏了（这类「静默无效」是本项目最想避免的一类问题）。
+    dead = sorted(n for n in wanted if n not in dbg.stmt_lines)
+    if dead:
+        from .debugger import _DEAD_LINE_HINT
+        print("提示：" + "、".join(f"第 {n} 行" for n in dead)
+              + f" 上没有可停的语句（{_DEAD_LINE_HINT}），"
+                "这几个断点不会触发", file=sys.stderr)
+
+    try:
+        err = dbg.run()
+    except KeyboardInterrupt:
+        # 暂停时按 Ctrl-C：与 `jishi 脚本.jsh` 的说法保持一致
+        print("\n调试会话被中断", file=sys.stderr)
+        return 130
+    except Exception as e:  # noqa: BLE001
+        # 兜底：调试器本身出的问题也不该把英文堆栈甩给用户（M17 的方针）
+        print(f"错误：调试器内部出现未预料的问题（{type(e).__name__}）：{e}",
+              file=sys.stderr)
+        return 1
+    if err is not None:
+        err.with_source(lines)
+        print(err.render(), file=sys.stderr)
+        return 1
+    return 0
+
+
 def _cmd_publish(args) -> int:
     """`jishi 发布 <包目录>`：打包 + 生成索引条目（M22.2）。
 
@@ -694,6 +759,18 @@ def _run_tool_cmd(argv: list[str]) -> int:
     sub.add_parser("lsp", help="启动语言服务器（stdio，M21.2）").set_defaults(
         func=_cmd_lsp)
 
+    p_dbg = sub.add_parser("调试", help="调试脚本：断点/单步/看变量与调用栈（M37）")
+    p_dbg.add_argument("file", help="要调试的 .jsh 脚本")
+    p_dbg.add_argument("-b", "--断点", dest="breakpoints", action="append",
+                       default=[], metavar="行号",
+                       help="断点行号；可重复，也可写「--断点 5,12」")
+    p_dbg.add_argument("--不停在入口", dest="no_entry", action="store_true",
+                       help="不自动停在第一句（默认会停在第一句）")
+    p_dbg.add_argument("--命令", dest="commands", default=None, metavar="命令串",
+                       help="按顺序自动执行的调试命令（用分号分隔），"
+                            "供演示与自动化；命令用完会自动继续")
+    p_dbg.set_defaults(func=_cmd_debug)
+
     args = parser.parse_args(argv)
     return args.func(args)
 
@@ -731,8 +808,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     # 避免与「运行文件」位置参数冲突
     if argv and argv[0] in ("安装", "卸载", "列表", "发布", "索引", "检查"):
         return _run_package_cmd(argv)
-    # 工具子命令（医生/新项目/教程/格式化/lsp，M16 / M21）
-    if argv and argv[0] in ("医生", "新项目", "教程", "格式化", "lsp"):
+    # 工具子命令（医生/新项目/教程/格式化/lsp/调试，M16 / M21 / M37）
+    if argv and argv[0] in ("医生", "新项目", "教程", "格式化", "lsp", "调试"):
         return _run_tool_cmd(argv)
 
     parser = argparse.ArgumentParser(

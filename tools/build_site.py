@@ -32,6 +32,7 @@ PAGES: list[tuple[Path, str, str]] = [
     (Path("docs/语言规格.md"), "语言规格", "参考"),
     (Path("docs/设计决策.md"), "设计决策", "参考"),
     (Path("docs/路线图.md"), "路线图", "参考"),
+    (Path("docs/调试器.md"), "调试器", "参考"),
     (Path("docs/ai/system-prompt.md"), "AI 系统提示词", "AI"),
     (Path("docs/ai/prompt-guide.md"), "AI 提示词指南", "AI"),
     (Path("examples/ai/few-shot.md"), "few-shot 示例库", "AI"),
@@ -329,7 +330,8 @@ PAGE_DESC = {
     "README.md": "项目概览、能力清单、架构、环境与测试",
     "docs/语言规格.md": "完整语法与语义规范（关键字/语句/表达式/标准库/报错）",
     "docs/设计决策.md": "关键设计权衡与踩坑记录",
-    "docs/路线图.md": "唯一的路线图：已完成总表 + M36 起规划 + 不做清单 + 度量体系",
+    "docs/路线图.md": "唯一的路线图：已完成总表 + 主线 A/B/C 规划 + 不做清单 + 度量体系",
+    "docs/调试器.md": "调试器用法与命令表：断点 / 单步 / 变量 / 调用栈（含已知边界）",
     "docs/ai/system-prompt.md": "教 LLM 写基石的官方系统提示词",
     "examples/ai/few-shot.md": "20 个「任务描述 → 基石代码」few-shot 示例对",
 }

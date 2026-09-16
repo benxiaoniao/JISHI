@@ -1889,3 +1889,29 @@ def parse(tokens: list[Token], source_lines: list[str],
     # 就是写在类外用错了，给一句能照着改的提示（M23.4）。
     _check_no_stray_super(program, filename)
     return program
+
+
+def parse_expression(text: str, filename: str = "<调试>") -> A.Node:
+    """把一段文本解析成**单个表达式**的 AST 节点（M37，调试器「查看」用）。
+
+    与 `parse()` 的分工：`parse()` 要一整段合法程序；调试器里写的是
+    「查看 单价 * 数量」这种**随手一写**的片段，不该要求它是个程序，
+    所以单独给一个入口，而不是让调用方去碰 `Parser._parse_expr()` 这类内部方法
+    （那种「调试器直接伸手进解析器私有方法」的写法，改解析器时就容易漏掉它）。
+
+    多余的内容（`查看 x y`）**明确报错**：静默只看前半截会让人以为整句都算过了。
+    """
+    source = text.replace("\r\n", "\n").replace("\r", "\n")
+    tokens = tokenize(source, filename)
+    p = Parser(tokens, source.split("\n"), filename)
+    node = p._parse_expr()
+    # 词法器会在末尾补一个 NEWLINE（行结束）再补 EOF，所以先吃掉那个 NEWLINE。
+    # （M37 实测：漏了这一步，`查看 单价 * 数量` 会报「只能写一个表达式」——
+    #  明明写的就是一个表达式，用户只会觉得调试器坏了。）
+    if p._peek().type == "NEWLINE":
+        p._next()
+    if p._peek().type != "EOF":
+        p._err(ParseUnexpectedError,
+               "「查看」后面只能写一个表达式",
+               hint="例如：查看 单价 * 数量 —— 想看多句话请改脚本后重新跑一次")
+    return node
