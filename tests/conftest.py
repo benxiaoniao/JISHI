@@ -27,6 +27,11 @@ ERROR_CASES = Path(__file__).parent / "error_cases"
 # 「找不到文件或目录」（M35 定位）。本地因为目录一直在，永远看不到这个失败。
 (ROOT / "build").mkdir(exist_ok=True)
 
+#: REPL 历史文件的位置（M38 B3 起 REPL 会把历史落盘）。测试必须指向
+#: build/ 下：**别写进用户家目录**——测试跑一遍就把开发机/CI 的
+#: `~/.jishi/repl_history.txt` 改了，属于「测试影响机器状态」的坏味道。
+os.environ.setdefault("JISHI_HISTORY", str(ROOT / "build" / "_repl_history_test.txt"))
+
 
 def rust_exe_path() -> Path:
     """Rust 宿主可执行文件的路径（**按平台**取名）。

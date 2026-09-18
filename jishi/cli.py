@@ -29,15 +29,29 @@ BANNER = f"""基石 jishi {VERSION} —— 一门像 Python 一样简单易用�
 
 
 def _read_source(path: str) -> tuple[str, str]:
+    # 目录要**先判**：Windows 上 open(目录) 抛的是 PermissionError 而不是
+    # IsADirectoryError（M38 B4 实测），靠异常类型分会漏掉，给出的提示也就
+    # 变成「没有权限」这种误导性的话。
+    if os.path.isdir(path):
+        print(f"「{path}」是个目录。要整个目录一起处理请用："
+              f"「jishi 格式化 {path} --check」或「… --write」；"
+              "只想看一个文件就把文件名写全", file=sys.stderr)
+        sys.exit(2)
     try:
         with open(path, "r", encoding="utf-8") as f:
             return f.read(), path
     except FileNotFoundError:
         print(f"找不到文件「{path}」", file=sys.stderr)
         sys.exit(1)
+    except PermissionError:
+        print(f"没有权限读取「{path}」", file=sys.stderr)
+        sys.exit(2)
     except UnicodeDecodeError:
         print(f"文件「{path}」不是 UTF-8 编码，无法读取", file=sys.stderr)
         sys.exit(1)
+    except OSError as e:                # 兜底：别让英文 OSError 直接冒出来
+        print(f"读不了文件「{path}」：{e.strerror or e}", file=sys.stderr)
+        sys.exit(2)
 
 
 def _read_stdin() -> str:
@@ -447,6 +461,18 @@ def _cmd_format(args) -> int:
             print("请给出要格式化的文件，或用 --stdin 从标准输入读取",
                   file=sys.stderr)
             return 2
+        from pathlib import Path
+        if Path(args.file).is_dir():
+            # 目录要**说明白做什么**：不 --check 也不 --write 时把整目录的内容
+            # 打到屏幕上没有意义。README 里一直写着 `--check examples/`，
+            # 而这条路在 M38 B4 之前是抛英文 PermissionError 的（实测）。
+            if not (args.check or args.write):
+                print(f"「{args.file}」是目录，请说明要做什么：\n"
+                      f"  jishi 格式化 {args.file} --check   # 只检查（未格式化则退出码 1）\n"
+                      f"  jishi 格式化 {args.file} --write   # 就地改写目录里所有 .jsh",
+                      file=sys.stderr)
+                return 2
+            return _format_tree(Path(args.file), args)
         src, name = _read_source(args.file)
 
     if args.write and args.stdin:
@@ -476,6 +502,67 @@ def _cmd_format(args) -> int:
 
     sys.stdout.write(out)
     return 0
+
+
+def _format_tree(root, args) -> int:
+    """`jishi 格式化 <目录>`：递归处理目录下的 .jsh（M38 B4）。
+
+    两件事要分清楚：
+
+    - **没格式化**（跑一遍会变）→ 算「不合风格」，`--check` 时退出码 1；
+    - **解析不了**（本来就写错了，或有读不了的文件）→ 单独报，**不混进**
+      「不合风格」里——两者的修法完全不同（一个跑 `--write`，一个得先改代码）。
+
+    语法错的文件不该让整轮处理中断：报告它、继续处理其余文件。
+    """
+    from .formatter import format_source
+
+    files = sorted(p for p in root.rglob("*.jsh") if p.is_file())
+    if not files:
+        print(f"「{root}」里没有 .jsh 文件", file=sys.stderr)
+        return 2
+
+    unformatted: list = []
+    broken: list = []
+    for p in files:
+        try:
+            src = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            broken.append(f"{p}（读不了：{e}）")
+            continue
+        try:
+            out = format_source(src, str(p), indent=args.indent)
+        except JishiError as e:
+            # 格式化器只依赖词法层：能走到这里的多半是**词法错**（未闭合字符串、
+            # 非法字符）。语法错（漏冒号之类）照样能排版——用户可能正写到一半。
+            broken.append(f"{p}（{e.code} {e.title}——先修好这处词法错误，再格式化）")
+            continue
+        if src != out:
+            unformatted.append(p)
+            if args.write:
+                with open(p, "w", encoding="utf-8", newline="") as f:
+                    f.write(out)
+                print(f"已格式化 {p}")
+
+    if args.check:
+        if unformatted:
+            print(f"{len(unformatted)}/{len(files)} 个文件没有按统一风格书写"
+                  f"（跑 jishi 格式化 {root} --write 可自动修）：", file=sys.stderr)
+            for p in unformatted:
+                print(f"  {p}", file=sys.stderr)
+        else:
+            print(f"全部 {len(files)} 个文件都符合统一风格")
+    else:                                # --write
+        n = len(unformatted)
+        print(f"共 {len(files)} 个文件，改写了 {n} 个"
+              + ("（其余本来就符合）" if len(files) > n else ""))
+
+    for b in broken:
+        print(f"跳过：{b}", file=sys.stderr)
+    if args.check:
+        return 1 if (unformatted or broken) else 0
+    # --write：改写了是**成功**，只有「没处理掉的文件」才算失败
+    return 1 if broken else 0
 
 
 def _cmd_debug(args) -> int:

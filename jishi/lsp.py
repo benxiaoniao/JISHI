@@ -16,6 +16,12 @@
 
 协议要点：LSP 用 ``Content-Length`` 头分帧；行列是 **0 基**，而基石内部
 报错是 **1 基**，转换集中在 ``_range_from_error`` 与 ``_pos`` 两处。
+**位置单位按 LSP 默认的 UTF-16 码元**（``_utf16_len`` / ``_utf16_to_index``）：
+中文在 BMP 内一个字符算一个码元，但 emoji 这类天文平面字符算两个，
+不换算的话编辑会落在错位置（M38 B2）。
+
+同步方式：M38 B2 起是**增量同步**（``textDocumentSync.change = 2``）：客户端
+只发改动的那一段，服务端按行复用前缀重新分词（``jishi.incremental``）。
 """
 
 from __future__ import annotations
@@ -27,6 +33,8 @@ from typing import Any, Optional
 
 from . import ast_nodes as A
 from .errors import JishiError
+from .incremental import IncrementalDocument
+from .langdata import LangData
 from .parser import parse
 from .tokenizer import tokenize
 from .version import VERSION
@@ -34,6 +42,11 @@ from .version import VERSION
 # --- JSON-RPC 错误码 ---
 METHOD_NOT_FOUND = -32601
 INTERNAL_ERROR = -32603
+
+# --- 文本同步方式（LSP: TextDocumentSyncKind）---
+SYNC_NONE = 0
+SYNC_FULL = 1
+SYNC_INCREMENTAL = 2
 
 # --- LSP 诊断严重级别 ---
 SEVERITY_ERROR = 1
@@ -225,21 +238,72 @@ def _range_from_error(err: JishiError) -> dict:
     return {"start": _pos(line - 1, start - 1), "end": _pos(line - 1, end)}
 
 
+def _utf16_len(s: str) -> int:
+    """文本在 LSP 位置单位（UTF-16 码元）下的长度。
+
+    LSP 默认 ``positionEncoding = utf-16``：中文等 BMP 字符算 1，emoji 这类
+    天文平面字符算 2（Python 里它们都是 1 个字符）。**入向的编辑范围必须按
+    这个换算**——错一格就会把文档改坏，而改坏之后所有后续诊断都是错的
+    （出向的位置同理，M38 B2）。
+    """
+    return len(s.encode("utf-16-le")) // 2
+
+
+def _utf16_to_index(s: str, units: int) -> int:
+    """UTF-16 码元数 → Python 字符下标（越界时夹到字符串两端）。"""
+    if units <= 0:
+        return 0
+    if units >= _utf16_len(s):
+        return len(s)
+    # 逐字符累加：单行的长度有限，够用；比一次 encode 再切更省内存
+    total = 0
+    for i, ch in enumerate(s):
+        total += 2 if ord(ch) > 0xFFFF else 1
+        if total > units:
+            # 落在代理对中间（理论上不会发生）：退到字符边界
+            return i + 1
+        if total == units:
+            return i + 1
+    return len(s)
+
+
 def _offset_to_pos(text: str, offset: int) -> dict:
-    """字符偏移 → (行, 列)，均 0 基。"""
+    """字符偏移 → (行, 列)，行 0 基、列按 UTF-16 码元。"""
     offset = max(0, min(offset, len(text)))
     line = text.count("\n", 0, offset)
     last_nl = text.rfind("\n", 0, offset)
-    char = offset - (last_nl + 1)
+    char = _utf16_len(text[last_nl + 1:offset])
     return _pos(line, char)
 
 
 def _pos_to_offset(text: str, line0: int, char0: int) -> int:
-    """(行, 列) 0 基 → 字符偏移。"""
+    """(行, 列) 0 基（列按 UTF-16 码元）→ 字符偏移。"""
     lines = text.split("\n")
     line0 = max(0, min(line0, len(lines) - 1))
     offset = sum(len(l) + 1 for l in lines[:line0])
-    return offset + max(0, char0)
+    return offset + _utf16_to_index(lines[line0], char0)
+
+
+def _apply_change(text: str, change: dict) -> str:
+    """把一条 ``contentChange`` 应用到文本上（M38 B2）。
+
+    没有 ``range`` 的是**全量替换**（客户端用 Full 同步、或我们没声明
+    incremental 时的兜底）；有 ``range`` 的按区间替换——区间是**半开**的
+    ``[start, end)``，且行列按 UTF-16 码元。
+    """
+    new_text = change.get("text")
+    if new_text is None:
+        return text
+    rng = change.get("range")
+    if not rng:
+        return new_text
+    start = rng.get("start") or {}
+    end = rng.get("end") or {}
+    a = _pos_to_offset(text, int(start.get("line", 0)), int(start.get("character", 0)))
+    b = _pos_to_offset(text, int(end.get("line", 0)), int(end.get("character", 0)))
+    if b < a:                            # 客户端给反了：别把文本改坏
+        a, b = b, a
+    return text[:a] + new_text + text[b:]
 
 
 def _word_at(text: str, line0: int, char0: int) -> tuple[str, int, int]:
@@ -270,35 +334,6 @@ def _is_word_char(ch: str) -> bool:
 # ---------------------------------------------------------------------------
 # 语言元数据（单一数据源）
 # ---------------------------------------------------------------------------
-
-class LangData:
-    """从 ``ai.build_lang_spec()`` 提炼补全/悬停需要的数据。"""
-
-    def __init__(self) -> None:
-        from .ai import build_lang_spec
-
-        spec = build_lang_spec()
-        self.spec = spec
-        self.keywords: dict[str, str] = dict(spec.get("keywords") or {})
-        self.builtins: dict[str, str] = {
-            b["name"]: b.get("doc", "")
-            for b in (spec.get("builtins") or [])
-        }
-        self.stdlib: dict[str, list[dict]] = {
-            m["module"]: list(m.get("functions") or [])
-            for m in (spec.get("stdlib") or [])
-        }
-        self.methods: dict[str, list[str]] = dict(spec.get("methods") or {})
-        self.exceptions: set[str] = set(spec.get("exceptions") or [])
-
-    def all_methods(self) -> list[str]:
-        out: list[str] = []
-        for names in self.methods.values():
-            for n in names:
-                if n not in out:
-                    out.append(n)
-        return out
-
 
 # ---------------------------------------------------------------------------
 # 服务器
@@ -406,7 +441,13 @@ class LspServer:
     def on_initialize(self, params: dict) -> dict:
         return {
             "capabilities": {
-                "textDocumentSync": 1,               # 1 = 全量同步
+                # 2 = 增量同步（M38 B2）：客户端只发改动的那一段。
+                # 以前是 1（全量），等于每次按键都重收整份文件。
+                "textDocumentSync": {
+                    "openClose": True,
+                    "change": SYNC_INCREMENTAL,
+                    "save": True,
+                },
                 "completionProvider": {"triggerCharacters": ["."]},
                 "hoverProvider": True,
                 "definitionProvider": True,
@@ -430,19 +471,41 @@ class LspServer:
     def on_did_open(self, params: dict) -> None:
         doc = params.get("textDocument") or {}
         uri = doc.get("uri") or ""
-        self.docs[uri] = {"text": doc.get("text") or "",
-                          "version": doc.get("version")}
+        text = doc.get("text") or ""
+        self.docs[uri] = {
+            "text": text,
+            "version": doc.get("version"),
+            # 增量文档对象（M38 B2）：它自己维护 token 与每行的入行状态锚点
+            "inc": IncrementalDocument(text, uri),
+        }
         self._analyze(uri)
         return None
 
     def on_did_change(self, params: dict) -> None:
+        """接收编辑（M38 B2：增量同步）。
+
+        三件事按这个顺序做，缺一个都会出问题：
+
+        1. **版本乱序保护**：编辑器偶尔会把旧版本重发过来，若照单全收，
+           诊断会「改完又变回去」。所以收到的版本不比当前新时直接忽略。
+        2. **按区间应用编辑**：客户端只发改动的那一段（全量替换也认）；
+           区间行列按 UTF-16 码元换算（见 `_apply_change`）。
+        3. **重分析**：`_analyze` 内部走增量分词（文本没变则整个跳过）。
+        """
         uri = self._uri(params)
         changes = params.get("contentChanges") or []
-        if not changes:
+        doc = self.docs.get(uri)
+        if doc is None or not changes:
             return None
-        # textDocumentSync=1（全量）：最后一段就是完整文本
-        self.docs[uri] = {"text": changes[-1].get("text") or "",
-                          "version": (params.get("textDocument") or {}).get("version")}
+        version = (params.get("textDocument") or {}).get("version")
+        cur = doc.get("version")
+        if isinstance(version, int) and isinstance(cur, int) and version <= cur:
+            return None                  # 旧版本/重复版本：不覆盖新文本
+        text = doc.get("text") or ""
+        for ch in changes:
+            text = _apply_change(text, ch)
+        doc["text"] = text
+        doc["version"] = version
         self._analyze(uri)
         return None
 
@@ -450,6 +513,7 @@ class LspServer:
         uri = self._uri(params)
         self.docs.pop(uri, None)
         self.symbols.pop(uri, None)
+        self.diagnostics.pop(uri, None)
         self._notify("textDocument/publishDiagnostics",
                      {"uri": uri, "diagnostics": []})
         return None
@@ -464,11 +528,17 @@ class LspServer:
         doc = self.docs.get(uri)
         if doc is None:
             return
-        text = doc["text"]
-        lines = text.split("\n")
+        text = doc.get("text") or ""
         diags: list[dict] = []
         try:
-            tokens = tokenize(text, uri)
+            inc = doc.get("inc")
+            if inc is None:
+                lines = text.split("\n")
+                tokens = tokenize(text, uri)
+            else:
+                # 增量分词：文本没变是空操作，改了只重算改动行之后的部分
+                inc.update(text)
+                tokens, lines = inc.tokens, inc.lines
             program = parse(tokens, lines, uri)
         except JishiError as e:
             diags.append({

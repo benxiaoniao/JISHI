@@ -112,13 +112,65 @@ def _scan_string_state(line: str, in_triple: bool, quote: str):
     return in_triple, quote
 
 
-def _find_comment(body: str, from_idx: int) -> "int | None":
-    """在 ``body[from_idx:]`` 里找注释起始下标（``#`` 的位置）。
+def _scan_code(line: str) -> tuple["int | None", int]:
+    """扫一行，返回 ``(注释起始下标或 None, 括号净增量)``。
 
-    调用方保证 ``from_idx`` 之前已经是完整 token，因此这里只需朴素查找。
+    **必须走状态机扫，不能用 ``line.find("#")``**：字符串里的 `#` 不是注释
+    （M38 B4 实测：`令 甲 = "含 # 号"` 会被从字符串中间劈开，格式化直接报
+    「字符串没有正常结束」）。同一个扫描器顺手算括号净增量，供续行判定用——
+    以前这两件事各写一份字符串处理，两边都得单独记得「跳过字符串里的括号」。
+
+    识别：反引号插值字符串、三引号、单/双引号、中文引号、``\\`` 转义；
+    注释（``#``）之后不再扫描。
     """
-    idx = body.find("#", from_idx)
-    return idx if idx >= 0 else None
+    i = 0
+    n = len(line)
+    delta = 0
+    while i < n:
+        ch = line[i]
+        if ch == "#":
+            return i, delta
+        if ch == "\\":
+            i += 2
+            continue
+        if ch == "`":                      # 反引号文本插值（M7）
+            i += 1
+            while i < n and line[i] != "`":
+                i += 2 if line[i] == "\\" else 1
+            i += 1
+            continue
+        if ch in _TRIPLE_QUOTES:
+            if line.startswith(ch * 3, i):
+                end = line.find(ch * 3, i + 3)
+                if end < 0:
+                    break                  # 跨行三引号：本行到末尾都是字符串
+                i = end + 3
+                continue
+            close = _PAIRED.get(ch, ch)
+            i += 1
+            while i < n:
+                if line[i] == "\\":
+                    i += 2
+                    continue
+                if line[i] == close:
+                    break
+                i += 1
+            i += 1
+            continue
+        if ch in "([{":
+            delta += 1
+        elif ch in ")]}":
+            delta -= 1
+        i += 1
+    return None, delta
+
+
+def _split_comment(body: str) -> tuple[str, str]:
+    """把一行拆成「代码」与「注释」两段（没有注释时第二段为空串）。"""
+    idx = _scan_code(body)[0]
+    if idx is None:
+        return body, ""
+    return body[:idx], body[idx:].rstrip()
 
 
 def _indent_width(lead: str) -> int:
@@ -264,11 +316,16 @@ def format_source(source: str, filename: str = "<输入>",
                   indent: int = 4) -> str:
     """格式化基石源码，返回新源码（不修改入参）。"""
     src = source.replace("\r\n", "\n").replace("\r", "\n")
+    # 开头的 BOM 原样保留（Windows 编辑器常带）：剥掉它参与解析，最后再放回去。
+    # 不这么做的话，`--check` 会把每个带 BOM 的文件都判成「没格式化」。
+    bom = ""
+    if src.startswith("\ufeff"):
+        bom, src = "\ufeff", src[1:]
     lines = src.split("\n")
     while lines and lines[-1].strip() == "":
         lines.pop()
     if not lines:
-        return ""
+        return bom
 
     levels = _line_levels(src, filename)
     width_to_level = _width_level_map(lines, levels)
@@ -286,6 +343,10 @@ def format_source(source: str, filename: str = "<输入>",
         line_no = idx + 1
         stripped = raw.strip()
         lead = raw[:len(raw) - len(raw.lstrip())]
+        #: 去掉行首缩进后的内容。**必须在这里算**：括号续行分支与普通代码行
+        #: 分支都要用它，若在其中一处才算，另一处会拿到上一轮循环里的旧值
+        #: （M38 B4 实测：续行被整段替换成上一行的内容，输出直接语法错）。
+        body = raw[len(lead):]
 
         # ---- 块注释内部：原样保留 -------------------------------------
         if in_block_comment:
@@ -326,26 +387,25 @@ def format_source(source: str, filename: str = "<输入>",
             out.append(unit * level + stripped)
             continue
 
-        # ---- 括号内的续行：保留原有相对缩进 ---------------------------
+        # ---- 括号内的续行：保留原有相对缩进，但注释也要留住 --------------
         if bracket_depth > 0:
-            body = raw[len(lead):]
-            out.append(lead + _respacify(body, tk).strip())
-            bracket_depth += _bracket_delta(body)
-            bracket_depth = max(0, bracket_depth)
+            code_part, comment = _split_comment(body)
+            pieces = _respacify(code_part, tk).strip() if code_part.strip() else ""
+            if pieces:
+                line_out = lead + pieces
+                if comment:
+                    line_out += "  " + comment
+            else:
+                line_out = lead + comment
+            out.append(line_out.rstrip())
+            bracket_depth = max(0, bracket_depth + _scan_code(body)[1])
             continue
 
         # ---- 普通代码行：缩进归一 + 间距归一 ---------------------------
         level = levels.get(line_no, prev_level)
         prev_level = level
-        body = raw[len(lead):]
 
-        comment = None
-        code = body
-        cpos = _find_comment(body, 0)
-        if cpos is not None:
-            code = body[:cpos]
-            comment = body[cpos:].rstrip()
-
+        code, comment = _split_comment(body)
         pieces = _respacify(code, tk)
         line_out = unit * level + pieces
         if comment:
@@ -355,41 +415,9 @@ def format_source(source: str, filename: str = "<输入>",
                 line_out = unit * level + comment
         out.append(line_out.rstrip())
 
-        bracket_depth = max(0, bracket_depth + _bracket_delta(code))
+        bracket_depth = max(0, bracket_depth + _scan_code(code)[1])
 
     # 去掉末尾空行，统一以一个换行结束
     while out and out[-1] == "":
         out.pop()
-    return "\n".join(out) + "\n"
-
-
-def _bracket_delta(text: str) -> int:
-    """粗略统计一行里未配对括号的净增量（仅用于续行判定）。"""
-    delta = 0
-    i = 0
-    n = len(text)
-    in_str = False
-    quote = ""
-    while i < n:
-        ch = text[i]
-        if in_str:
-            if ch == "\\":
-                i += 2
-                continue
-            if ch == quote:
-                in_str = False
-            i += 1
-            continue
-        if ch == "#":
-            break
-        if ch in "\"'“”‘’「」『』":
-            in_str = True
-            quote = _PAIRED.get(ch, ch)
-            i += 1
-            continue
-        if ch in "([{":
-            delta += 1
-        elif ch in ")]}":
-            delta -= 1
-        i += 1
-    return delta
+    return bom + "\n".join(out) + "\n"

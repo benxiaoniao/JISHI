@@ -129,6 +129,29 @@ class Token:
         return f"Token({self.type}, {self.value!r}, {self.line}:{self.col})"
 
 
+@dataclass(frozen=True)
+class LineAnchor:
+    """进入某一**行之前**的词法状态（M38 B2，供增量分词复用）。
+
+    为什么可以这样复用的依据很朴素：**处理第 N 行时需要的全部历史，就是
+    这七个值**——缩进栈、括号深度、跨行三引号累积的内容与起点、以及
+    「正处在多行注释里」这个标志。行文本本身在 ``self.lines`` 里。
+
+    于是「只改了第 L 行之后的内容」时，直接把 L 之前的 token 拿来用、
+    从 L 的锚点续跑即可，不必从头分词（实测 5000 行文件从 104ms 降到约一半）。
+    正确性由对拍保证：随机编辑下增量结果必须与全量分词**逐项相同**。
+    """
+
+    token_index: int                 # 本行第一个 token 在整份 token 流里的下标
+    indent_stack: tuple
+    bracket_depth: int
+    pending_triple: "Optional[tuple]"
+    pending_quote: str
+    pending_line: int
+    pending_col: int
+    in_block_comment: bool
+
+
 # ---------------------------------------------------------------------------
 # 词法分析器
 # ---------------------------------------------------------------------------
@@ -138,6 +161,12 @@ class Tokenizer:
         # 统一换行
         self.filename = filename
         self.text = text.replace("\r\n", "\n").replace("\r", "\n")
+        # 开头的 BOM（U+FEFF）：Windows 记事本等编辑器存「UTF-8 带 BOM」时会写上它，
+        # 用户看不见，却会被词法器判成「无法识别的字符」（M38 B4 实测：带 BOM 的
+        # 文件连跑都跑不起来）。**只剥开头那一个**——文件中间的 BOM 仍按非法字符报错，
+        # 否则「不可见字符混进代码」这类问题会被悄悄放过去。
+        if self.text.startswith("\ufeff"):
+            self.text = self.text[1:]
         self.lines = self.text.split("\n")
         if self.lines and self.lines[-1] == "":
             self.lines.pop()  # 去掉末尾空行
@@ -150,16 +179,57 @@ class Tokenizer:
     # -- 主流程 ------------------------------------------------------------
 
     def tokenize(self) -> list[Token]:
+        """全量分词，并把**每一行的入行状态**记进 ``self.anchors``。
+
+        锚点只在增量分词（``jishi.incremental``）里用；普通调用者忽略它即可。
+        """
+        tokens, anchors = self._run(0, None, 0)
+        self.anchors = anchors
+        return tokens
+
+    def _run(self, start_idx: int, state: "Optional[LineAnchor]",
+             token_offset: int = 0) -> "tuple[list[Token], list[LineAnchor]]":
+        """从第 ``start_idx`` 行、按 ``state`` 给出的词法状态跑到文件末尾。
+
+        ``token_offset`` 是这批 token 在**整份 token 流**里的起始下标：
+        增量分词时前半段是复用来的，锚点里记的必须是绝对下标，否则第二次
+        增量就会错位。
+        """
         tokens: list[Token] = []
-        indent_stack: list[int] = [0]
-        bracket_depth = 0
-        line_idx = 0
+        anchors: list[LineAnchor] = []
+        if state is None:
+            indent_stack: list[int] = [0]
+            bracket_depth = 0
+            in_block_comment = False
+            self._pending_triple = None
+            self._pending_quote = ""
+            self._pending_line = 1
+            self._pending_col = 1
+        else:
+            indent_stack = list(state.indent_stack)
+            bracket_depth = state.bracket_depth
+            in_block_comment = state.in_block_comment
+            self._pending_triple = (None if state.pending_triple is None
+                                    else list(state.pending_triple))
+            self._pending_quote = state.pending_quote
+            self._pending_line = state.pending_line
+            self._pending_col = state.pending_col
+
+        def anchor() -> LineAnchor:
+            return LineAnchor(
+                token_offset + len(tokens), tuple(indent_stack), bracket_depth,
+                None if self._pending_triple is None
+                else tuple(self._pending_triple),
+                self._pending_quote, self._pending_line, self._pending_col,
+                in_block_comment)
+
+        line_idx = start_idx
         n_lines = len(self.lines)
-        in_block_comment = False
 
         while line_idx < n_lines:
             raw = self.lines[line_idx]
             line_no = line_idx + 1
+            anchors.append(anchor())
 
             # 跨行三引号字符串延续
             if self._pending_triple is not None:
@@ -192,6 +262,11 @@ class Tokenizer:
                 content = raw[content_start:]
             else:
                 indent_w, tab_used, bad_chars, indent_text = 0, False, [], ""
+                # `content_start` 必须显式归零：续行从第 0 列开始扫。
+                # 以前这一支**不赋值**，用的是上一轮的残留值——顶格写的续行
+                # 会被跳过前几个真字符、甚至整行扫不出 token（M38 B2 写增量
+                # 分词、从括号中间续跑时才暴露成 UnboundLocalError）。
+                content_start = 0
                 content = raw
 
             # 空行 / 纯注释行：不发 NEWLINE，不处理缩进
@@ -241,11 +316,25 @@ class Tokenizer:
 
             line_idx += 1
 
+        # EOF 锚点：供「在文件末尾继续写」时复用（进 EOF 之前的状态）
+        anchors.append(anchor())
+        # 文件结束时还停在跨行三引号里 → 字符串没写完。
+        # 以前这里**不检查**：整段内容被静默丢掉，用户只会看到「少了一个值」
+        # 这种对不上号的报错（M38 B3 做 REPL 续行判定时发现）。
+        # 报错位置指向字符串**开头**，那才是用户要改的地方。
+        if self._pending_triple is not None:
+            raise LexStringError(
+                "字符串没有正常结束，是不是漏了结束引号？",
+                line=self._pending_line, col=self._pending_col,
+                source_line=(self.lines[self._pending_line - 1]
+                             if 0 <= self._pending_line - 1 < len(self.lines)
+                             else None),
+                filename=self.filename).with_source(self.lines)
         # EOF：补齐 DEDENT
         for _ in range(len(indent_stack) - 1):
             tokens.append(Token("DEDENT", 0, n_lines, 1, 1, ""))
         tokens.append(Token("EOF", None, n_lines, 1, 1, ""))
-        return tokens
+        return tokens, anchors
 
     # -- 缩进测量 ----------------------------------------------------------
 

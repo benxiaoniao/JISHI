@@ -11,6 +11,7 @@
     python tools/publish_github.py --dry-run   # 只导出 + 屏蔽 + 本地提交，不推送
     python tools/publish_github.py --tag v0.1.1
                                                # 同步并打 tag（触发 Release 工作流）
+    python tools/publish_github.py -m "自定义提交信息"   # 覆盖默认的版本信息
 
 说明：tag 打在**屏蔽版快照的孤儿提交**上（不是本地仓库历史），
 因此不会把本地 git 历史里可能残留的个人路径一并推上公开仓库。
@@ -31,7 +32,11 @@ from pathlib import Path
 # 复用 Gitee 脚本里的屏蔽逻辑，保证两个目标产出一致
 TOOLS = Path(__file__).resolve().parent
 sys.path.insert(0, str(TOOLS))
-from publish_gitee import _sanitize  # noqa: E402
+from publish_gitee import (  # noqa: E402
+    _sanitize,
+    cli_message,
+    default_commit_msg,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO_HTTPS = "https://github.com/benxiaoniao/JISHI.git"
@@ -71,10 +76,12 @@ def main() -> int:
     _sanitize(snapshot)
 
     print("[3/4] 快照内初始化提交")
+    commit_msg = cli_message(sys.argv) or default_commit_msg(tag.lstrip("v") if tag else None)
+    print(f"   提交信息：{commit_msg}")
     _git("init", "-q", "-b", BRANCH, cwd=snapshot)
     _git("add", "-A", cwd=snapshot)
     _git("-c", f"user.name={AUTHOR_NAME}", "-c", f"user.email={AUTHOR_EMAIL}",
-         "commit", "-q", "-m", "sync: 公开快照（屏蔽版）", cwd=snapshot)
+         "commit", "-q", "-m", commit_msg, cwd=snapshot)
 
     if dry_run:
         if tag:

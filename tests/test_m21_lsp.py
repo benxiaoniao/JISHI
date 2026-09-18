@@ -67,7 +67,10 @@ def _frame(obj: dict) -> bytes:
 def test_initialize_capabilities():
     srv = _server()
     caps = srv.on_initialize({})["capabilities"]
-    assert caps["textDocumentSync"] == 1
+    # M38 B2：改成**增量同步**（change = 2）——客户端只发改动的那一段，
+    # 服务端按行复用前缀重新分词（以前是全量 1，每次按键重收整份文件）
+    assert caps["textDocumentSync"]["change"] == 2
+    assert caps["textDocumentSync"]["openClose"] is True
     assert caps["hoverProvider"] is True
     assert caps["definitionProvider"] is True
     assert caps["completionProvider"]["triggerCharacters"] == ["."]

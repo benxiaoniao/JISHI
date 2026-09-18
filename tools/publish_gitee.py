@@ -16,6 +16,7 @@
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tarfile
@@ -106,35 +107,60 @@ def upload_release_assets(token: str, release_id: int,
             {"access_token": token}, "file", p)
         print(f"[release]   ✓ {p.name} 上传完成")
 
-COMMIT_MSG = """基石（jishi）：中文编程语言——M0-M16 全部里程碑
+def read_version(root: Path = ROOT) -> str:
+    """读版本号（唯一来源 = pyproject.toml 的 [project] version，见 D21）。"""
+    m = re.search(r'^version\s*=\s*"([^"]+)"',
+                  (root / "pyproject.toml").read_text(encoding="utf-8"), re.M)
+    return m.group(1) if m else "0.0.0"
 
-语言核心
-- 中文词法/语法/AST，中文报错精确到行列 +「你是不是想写…」修正建议
-- 异常处理（尝试/捕获/最终/抛出）+ 面向对象（类/继承/新建）
-- M7 表达力：多赋值解包、默认参数、列表/字典推导式、反引号文本插值
-- M7.5 容错解析：误写英文关键字/内建（def、print、True…）→ 给中文对应建议
 
-三执行器（语义逐字节一致，107 项对拍护航）
-- 树遍历解释器 / Python 字节码 VM / C 字节码 VM（gcc 编译的 jsvm 内核）
-- 纯计算场景 C VM 提速 1.6x–47x（字符串拼接为 HOST 句柄架构边界，如实标注）
+def changelog_headline(version: str, root: Path = ROOT) -> str:
+    """取 CHANGELOG 里这一版的**粗体小标题**（拿不到就返回空串）。
 
-AI 原生（北极星：最容易被大模型正确生成、安全执行、自我修复）
-- jishi --ai-card 语言卡 / --lang-spec 机器可读语言规格 / --json-errors 结构化报错
-- 报错带 fix 字段，agent 可程序化文本替换自愈
-- 沙箱运行器（超时/输出上限/模块白名单）+ MCP Server（run_script/eval_expr）
-- llms.txt + few-shot 示例库 45 对 + 官方系统提示词 + JishiEval 评测集 50 题
+    只读现成的事实，不猜也不编：解析不出来就退化成「只写版本号」。
+    """
+    p = root / "CHANGELOG.md"
+    if not p.exists():
+        return ""
+    text = p.read_text(encoding="utf-8")
+    m = re.search(rf"^## \[{re.escape(version)}\].*?$", text, re.M)
+    if not m:
+        return ""
+    for line in text[m.end():].split("\n")[:12]:
+        line = line.strip()
+        if line.startswith("**"):
+            m2 = re.match(r"\*\*(.+?)\*\*", line)
+            if m2:
+                head = m2.group(1).strip()
+                return head if len(head) <= 60 else ""
+    return ""
 
-生态与工程
-- Python 生态桥接：导入任意 Python 库，关键字参数保中文，异常中文化
-- 标准库 14 模块（随机/数学/时间/文件/表格/文本/json/日期/正则/网络/
-  路径/加密/压缩/系统）+ 教程 10 章
-- 包管理：jishi 安装/卸载/列表，依赖递归解析 + 版本约束 + 循环检测
-- 跨语言字节码分发：JSON 字节码 + Node/Rust 宿主直嵌引擎
-- C VM 公开 ABI（cvm/include/jsvm.h）+ wheel 内带预编译 DLL，pip 装即含 C VM
-- 发行版：PyInstaller 独立可执行文件（免 Python 环境）+ 安装/卸载脚本
-  + jishi 医生 环境自检 + jishi 新项目 脚手架
 
-559 项测试全部通过"""
+def default_commit_msg(version: "str | None" = None) -> str:
+    """公开快照的提交信息：**显示版本阶段即可**（作者 2026-09-19 定）。
+
+    以前 GitHub 侧写的是「sync: 公开快照（屏蔽版）」——那是**同步机制**的说明，
+    对看仓库的人没有信息量；Gitee 侧更糟：写死的里程碑列表停在 M16（早就过时，
+    一直没人发现）。    现在两侧统一由「版本号 + CHANGELOG 那一版的标题」生成：
+
+        基石（jishi）v0.1.20 —— M38 主线 B 收尾：LSP 增量同步 / REPL 增强 / 格式化器边界
+
+    想换个说法就用 `--message "…"` 覆盖。
+    """
+    v = version or read_version()
+    head = changelog_headline(v)
+    return f"基石（jishi）v{v}" + (f" —— {head}" if head else "")
+
+
+def cli_message(argv: "list[str]") -> "str | None":
+    """从命令行取 `--message/-m`（覆盖快照提交信息）。"""
+    for flag in ("--message", "-m"):
+        if flag in argv:
+            i = argv.index(flag)
+            if i + 1 < len(argv):
+                return argv[i + 1].strip() or None
+    return None
+
 
 
 def _git(*args: str, cwd: Path | None = None) -> str:
@@ -218,10 +244,12 @@ def main() -> int:
     _sanitize(snapshot)
 
     print("[3/4] 快照内初始化提交")
+    commit_msg = cli_message(sys.argv) or default_commit_msg()
+    print(f"   提交信息：{commit_msg}")
     _git("init", "-q", "-b", BRANCH, cwd=snapshot)
     _git("add", "-A", cwd=snapshot)
     _git("-c", f"user.name={AUTHOR_NAME}", "-c", f"user.email={AUTHOR_EMAIL}",
-         "commit", "-q", "-m", COMMIT_MSG, cwd=snapshot)
+         "commit", "-q", "-m", commit_msg, cwd=snapshot)
 
     if dry_run:
         print(f"\n--dry-run：快照保留在 {snapshot}")
