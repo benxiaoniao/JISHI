@@ -1136,6 +1136,10 @@ function newBuiltins() {
       return new FloatBox(n);
     }),
     '文本': new Builtin('文本', (v) => pyStr(v)),
+    // 文本插值脱糖的目标（M40）：**内部保留名**。名字带 `$` 是因为 Python 侧
+    // 词法器不认这个字符、用户写不出来，所以永远不会被 `导入 文本` 遮蔽。
+    // 与 jishi/parser.py 的 INTERP_TO_TEXT 是同一个名字，语义同 `文本`。
+    '$文本': new Builtin('$文本', (v) => pyStr(v)),
     '精确': new Builtin('精确', (v) => toDecimal(v)),
     '集合': new Builtin('集合', (...args) => {
       if (args.length > 1) {

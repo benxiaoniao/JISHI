@@ -712,9 +712,10 @@ class _Emitter:
             slot = slot_of.get(name)
             if slot is None:
                 continue
-            local_hints[slot] = (
-                f"外层也有一个叫「{name}」的变量。在这个函数里给它赋过值，"
-                f"它就成了这个函数的局部变量，赋值之前不能读取")
+            # 文本来自 runtime 的单一来源：树遍历侧报同一条错时用的是同一份
+            # 文案（M40 起三执行器的报错要对拍，差一个字都算不一致）
+            from .runtime import UNBOUND_SHADOW_HINT
+            local_hints[slot] = UNBOUND_SHADOW_HINT.format(name=name)
 
         return O.Code(
             name=st.name,

@@ -23,6 +23,13 @@ from .errors import (
 #: opcodes 是纯数据定义、不反向依赖 parser，没有循环导入风险。
 from .opcodes import ParamKind
 from .tokenizer import Token, tokenize
+
+#: 文本插值脱糖用的**内部保留名**（M40）。见 `_parse_fstring`：
+#: 用 `$` 前缀是因为词法器把 `$` 判成「无法识别的字符」，用户**写不出**这个名字，
+#: 于是它永远不会被 `导入 文本` 之类的用户代码遮蔽。三个执行器（树遍历 /
+#: Python VM / C VM）与两个宿主（Node / Rust）都注册了这个内建。
+INTERP_TO_TEXT = "$文本"
+
 # 二元运算符优先级（数值越大越紧）
 # 注意：关键字形式的运算符（与/或/在/不在/是/不是）也登记在这里，
 # 让需要优先级的代码统一走 _BIN_PREC[op]。
@@ -600,7 +607,12 @@ class Parser:
     def _parse_fstring(self, tok: Token) -> A.Node:
         """把 FSTRING 分段组装成字符串拼接（M7 文本插值）。
 
-        「你好 {名字}」→ "你好 " + 文本(名字)（编译期脱糖为 + 链）。
+        「你好 {名字}」→ "你好 " + $文本(名字)（编译期脱糖为 + 链）。
+
+        插值用的是 **`$文本`**（内部保留名）而不是内建 `文本`（M40）：后者是
+        用户可见的名字，一句 `导入 文本`（本项目最常用的标准库名）就会把它遮蔽，
+        于是**所有 f-string 当场报「模块「文本」不能直接调用」**。`$` 在词法阶段
+        就是「无法识别的字符」，用户写不出这个名字，所以永远不会被遮蔽。
         """
         parts: list = tok.value   # [("text", str), ("expr", str), ...]
         nodes: list[A.Node] = []
@@ -612,7 +624,7 @@ class Parser:
                 sub = Parser(sub_tokens, [val], self.filename)
                 expr = sub._parse_expr()
                 nodes.append(A.Call(
-                    func=A.Name(id="文本", line=tok.line, col=tok.col),
+                    func=A.Name(id=INTERP_TO_TEXT, line=tok.line, col=tok.col),
                     args=[expr], line=tok.line, col=tok.col))
         if not nodes:
             return A.Str(value="", line=tok.line, col=tok.col)

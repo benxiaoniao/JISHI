@@ -42,3 +42,6 @@ jishi/_native/*.dylib
 # Rust 编译产物
 rust/target/
 rust/Cargo.lock
+
+# 待办清单示例的运行时数据（跑起来会生成）
+examples/projects/待办清单/待办.json

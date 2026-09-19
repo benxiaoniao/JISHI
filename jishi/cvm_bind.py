@@ -27,8 +27,8 @@ from typing import Any, Optional
 
 from . import opcodes as O
 from . import runtime as R
-from .errors import (JishiError, RunBreak, RunContinue, RunError, RunTypeError,
-                     RunValueError)
+from .errors import (DebugQuit, Frame, JishiError, RunBreak, RunContinue,
+                     RunError, RunTypeError, RunValueError)
 from .opcodes import BINOP_TO_SYMBOL, CMPOP_TO_SYMBOL, BinOp, CmpOp, UnOp
 
 # ---------------------------------------------------------------------------
@@ -103,6 +103,17 @@ def load_lib() -> ctypes.CDLL:
     lib.jsvm_run.restype = c_int
     lib.jsvm_run.argtypes = [c_void_p]
     lib.jsvm_get_last.argtypes = [c_void_p, JPV]
+    # 调试支持（M40）：语句起始表 + 语句钩子
+    lib.jsvm_set_stmt_marks.argtypes = [c_void_p, POINTER(c_int32), c_int]
+    lib.jsvm_set_stmt_hook.argtypes = [c_void_p, c_void_p, c_void_p]
+    # 帧查询（M40）：**必须声明 argtypes**，否则 ctypes 会把 vm 指针当普通整数
+    # 传（OverflowError: int too long to convert）
+    lib.jsvm_frame_meta.restype = c_int
+    lib.jsvm_frame_meta.argtypes = [c_void_p, c_int, POINTER(c_int32)]
+    lib.jsvm_dump_locals.restype = c_int
+    lib.jsvm_dump_locals.argtypes = [c_void_p, c_int]
+    lib.jsvm_dump_globals.restype = c_int
+    lib.jsvm_dump_globals.argtypes = [c_void_p]
     lib.jsvm_track_handle.argtypes = [c_void_p, c_uint32]
     lib.jsvm_func_retain.argtypes = [c_void_p, JPV]
     lib.jsvm_func_release.argtypes = [c_void_p, JPV]
@@ -110,6 +121,7 @@ def load_lib() -> ctypes.CDLL:
     lib.jsvm_call_function.argtypes = [
         c_void_p, JPV, JPV, c_int,
         POINTER(c_int), JPV, c_int, JPV,
+        c_int, c_int,        # call_line, call_col（M40：重入建帧的调用点）
     ]
     lib.jsvm_new_func_from.argtypes = [c_void_p, JPV, JPV]
     lib.jsvm_retain.argtypes = [c_void_p, JPV]
@@ -250,6 +262,14 @@ CB_MAKE_SLICE = CFUNCTYPE(c_int, _JPV, _JPV, _JPV, _JPV, c_int, c_int)
 # 变长关键字参数（M25）：名字下标数组 + 值数组 → 字典
 CB_PACK_KWARGS = CFUNCTYPE(c_int, POINTER(c_int32), _JPV, c_int, _JPV,
                            c_int, c_int)
+# 报错现场（M40）：扁平帧数组 + 层数（每层 3 个 int32：code_idx/行/列）
+CB_NOTE_FRAMES = CFUNCTYPE(c_int, POINTER(c_int32), c_int)
+# 语句钩子（M40）：每条语句首指令执行前回调。
+# 参数：宿主上下文指针（未用，用实例属性取）、代码下标、行号、当前帧数。
+CB_STMT_HOOK = CFUNCTYPE(c_int, c_void_p, c_int, c_int, c_int)
+# 调试：把一帧的一个变量交给宿主（M40）。
+# 参数：槽位号、是否单元变量、名字表下标（C 侧用不上，宿主自己按槽位查）、值指针。
+CB_DEBUG_LOCAL = CFUNCTYPE(c_int, c_int, c_int, c_int, _JPV)
 
 
 class JsHost(Structure):
@@ -295,6 +315,9 @@ class JsHost(Structure):
         ("make_slice", CB_MAKE_SLICE),
         # M25 追加：必须与 cvm/include/jsvm.h 的 JsHost 逐字段对齐
         ("pack_kwargs", CB_PACK_KWARGS),
+        # M40 追加：同上，**只能加在末尾**（插中间会让后续字段全部错位）
+        ("note_frames", CB_NOTE_FRAMES),
+        ("debug_local", CB_DEBUG_LOCAL),
     ]
 
 
@@ -440,8 +463,83 @@ class CvmHost:
             list_append=CB_LIST_APPEND(self._cb_list_append),
             make_slice=CB_MAKE_SLICE(self._cb_make_slice),
             pack_kwargs=CB_PACK_KWARGS(self._cb_pack_kwargs),
+            note_frames=CB_NOTE_FRAMES(self._cb_note_frames),
+            debug_local=CB_DEBUG_LOCAL(self._cb_debug_local),
         )
         self.lib.jsvm_set_host(self.vm, byref(self._cb))
+
+    # -- 调试支持（M40）-------------------------------------------------------
+
+    def set_stmt_hook(self, hook) -> None:
+        """装语句钩子：C 侧每条语句首指令执行前调 `hook(code_idx, line, nframes)`。
+
+        钩子由调试会话提供；返回非 0 表示请求中止。**只读**——C 侧不因它改变
+        任何执行状态，不装时开销只是一次指针判空。
+        """
+        self._stmt_hook = hook                 # 保活：C 侧持有函数指针
+        cb = (CB_STMT_HOOK(self._trampoline_stmt_hook)
+              if hook is not None else c_void_p(0))
+        self._stmt_hook_cb = cb
+        self.lib.jsvm_set_stmt_hook(self.vm, cb, None)
+
+    def _trampoline_stmt_hook(self, ud, code_idx, line, nframes):
+        hook = getattr(self, "_stmt_hook", None)
+        if hook is None:
+            return 0
+        try:
+            return int(hook(code_idx, line, nframes))
+        except BaseException:                  # noqa: BLE001 - 钩子出错不该崩 VM
+            return 0
+
+    def dump_locals(self, depth: int, names: list, code, out: dict) -> None:
+        """把 C 侧第 `depth` 帧的变量收进 `out`（名字 → 值）。
+
+        值以**借用**形式从 C 侧传过来（宿主不得持有），这里当场转成 Python 对象
+        存进 out，所以生命周期安全。
+        """
+        self._dump_names = list(names)
+        self._dump_cells = list(code.cellvars) + list(code.freevars)
+        self._dump_out = out
+        self._dump_globals = False
+        try:
+            self.lib.jsvm_dump_locals(self.vm, depth)
+        finally:
+            self._dump_out = None
+
+    def dump_globals(self, out: dict) -> None:
+        """把 C 侧**已赋值**的全局变量收进 `out`。
+
+        模块顶层的变量在 C 侧的全局数组里（宿主那侧只有内建影子表），
+        所以「在模块顶层看变量」必须走这条路。
+        """
+        self._dump_names = list(self.names)
+        self._dump_cells = []
+        self._dump_out = out
+        self._dump_globals = True
+        try:
+            self.lib.jsvm_dump_globals(self.vm)
+        finally:
+            self._dump_out = None
+
+    def _cb_debug_local(self, slot, is_cell, name_idx, val):
+        out = getattr(self, "_dump_out", None)
+        if out is None:
+            return 0
+        try:
+            if is_cell == 2:                 # 全局：slot 就是名字表下标
+                names = self._dump_names
+            elif is_cell:
+                names = self._dump_cells
+            else:
+                names = self._dump_names
+            if slot < len(names):
+                name = names[slot]
+                # 编译器内部临时槽、以及宿主侧的内建名字都不显示
+                if not name.startswith("$tmp"):
+                    out[name] = self.c2py(val[0])
+            return 0
+        except BaseException:                  # noqa: BLE001 - 转换失败跳过这一项
+            return 0
 
     # -- 生命周期 -----------------------------------------------------------
 
@@ -571,6 +669,10 @@ class CvmHost:
     def _cb_call(self, fn, args, nargs, kwname_idx, kwvals, nkw, out,
                  line, col):
         try:
+            # 记下调用位置：这一支里如果有基石函数被回调（`列表.映射(基石函数)`、
+            # 方法调用），重入建帧时要用它当调用点，否则调试器的调用栈会显示
+            # 「第 0 行」（M40）。
+            self._pending_call_site = (line, col)
             f = self.c2py(fn[0])
             arglist = [self.c2py(args[i]) for i in range(nargs)]
             kwargs = {}
@@ -750,9 +852,15 @@ class CvmHost:
             return self._fail(e)
 
     def _cb_make_error(self, value, line, col, out):
-        # `抛出 值`：规范化成异常对象，原值所有权转移给返回的异常句柄
+        # `抛出 值`：规范化成异常对象，原值所有权转移给返回的异常句柄。
+        # **例外**：调试器的「退出」(`DebugQuit`) 不是给用户看的异常，
+        # 不能被包装（否则用户程序一句 `捕获` 就把它接住了，M39/M40）。
+        # Python VM 在 THROW 处有同样的特判，这里对齐。
         try:
             v = self.c2py(value[0])
+            if isinstance(v, DebugQuit):
+                out[0] = self.py2c(v)
+                return 0
             exc = R.make_exception(v, line=line, col=col,
                                    filename=self.filename)
             out[0] = self.py2c(exc)
@@ -771,12 +879,23 @@ class CvmHost:
             return self._fail(e)
 
     def _cb_is_signal(self, exc, out):
+        """异常是不是「信号」（M40 起含调试器的 `退出`）。
+
+        约定与 C 侧 `dispatch_exception` 一致：
+          0 = 不是信号（普通异常，`捕获` 可以接）
+          1 = `中断`（循环接）
+          2 = `继续`（循环接）
+          3 = **卸载类**（`退出`）：只穿 `最终` 块，**既不被 `捕获` 接住、
+              也不被循环接住**——与 Python VM 的 `_UNWIND_SIGNALS` 同一语义。
+        """
         try:
             e = self.c2py(exc[0])
             if isinstance(e, RunBreak):
                 out[0] = 1
             elif isinstance(e, RunContinue):
                 out[0] = 2
+            elif isinstance(e, DebugQuit):
+                out[0] = 3
             else:
                 out[0] = 0
             return 0
@@ -839,6 +958,33 @@ class CvmHost:
         except BaseException as e:
             return self._fail(e)
 
+    def _cb_note_frames(self, flat, depth):
+        """记下「出错那一刻的调用链」（M40）。
+
+        C 侧在建帧时记了每帧的**调用点**，出错时把帧栈（除主帧）拍成扁平数组
+        递过来，这里翻成 `errors.Frame` 挂到 pending 异常上——于是 C VM 的函数内
+        报错也能印出「调用链（从外到内）」，与树遍历 / Python VM 长得一样。
+
+        口径与 `vm._frames_to_trace` **逐字对齐**：调用点而不是当前执行行、
+        跳过模块主帧、匿名函数的 code 名显示成「匿名函数」。
+        """
+        try:
+            chain = []
+            codes = self.cmod.codes
+            for i in range(depth):
+                code_idx, line, col = (flat[i * 3], flat[i * 3 + 1],
+                                       flat[i * 3 + 2])
+                name = (codes[code_idx].name
+                        if 0 <= code_idx < len(codes) else "?")
+                if name.startswith("<"):
+                    name = "匿名函数"
+                chain.append(Frame(name, line or None, col or None))
+            if self.pending is not None and self.pending.trace is None:
+                self.pending.trace = chain
+            return 0
+        except BaseException:            # noqa: BLE001 - 记现场失败不该改变语义
+            return 0
+
     def _cb_list_append(self, obj, val, line, col):
         """列表追加（M11）：obj.追加(val)，语义与 get_attr+call 完全一致。
 
@@ -894,9 +1040,11 @@ class CvmHost:
         code = self.cmod.codes[code_idx]
         name = (code.local_names[slot]
                 if slot < len(code.local_names) else f"${slot}")
-        self.pending = RunError(
-            f"找不到名字「{name}」", line=line, col=col,
-            filename=self.filename, hint=code.local_hints.get(slot))
+        # 文案走 runtime 的单一来源（M40）：树遍历 / 字节码 VM 报的是同一条，
+        # 对拍比的是报错全文，差一个字就判成「执行器不一致」。
+        self.pending = R.unbound_local_error(
+            name, line=line, col=col, filename=self.filename,
+            hint=code.local_hints.get(slot))
         return -1
 
     def _cb_raise_unbound_cell(self, code_idx, cell_idx, line, col):
@@ -984,7 +1132,14 @@ class CvmHost:
     # -- 基石函数回流 ---------------------------------------------------------
 
     def call_jishi_function(self, raw: JVal, args: tuple, kwargs: dict) -> Any:
-        """Python 高阶函数回调基石函数（重入 C VM）。"""
+        """Python 高阶函数回调基石函数（重入 C VM）。
+
+        `_pending_call_site` 是**宿主记下的最近一次调用位置**（`_cb_call` 里
+        从 C 侧收到的 line/col）：方法调用、`列表.映射(基石函数)` 这类都是从
+        `_cb_call` 转进重入的，重入建帧时用它当「本帧的调用点」——否则调试器
+        的调用栈最外层会显示「第 0 行」（M40）。
+        """
+        call_line, call_col = getattr(self, "_pending_call_site", (0, 0))
         c_args = (JVal * max(len(args), 1))()
         for i, a in enumerate(args):
             c_args[i] = self.py2c(a)
@@ -1004,7 +1159,7 @@ class CvmHost:
         out = JVal()
         rc = self.lib.jsvm_call_function(
             self.vm, byref(raw), c_args, len(args),
-            c_knames, c_kwvals, len(kw_names), byref(out))
+            c_knames, c_kwvals, len(kw_names), byref(out), call_line, call_col)
         for i in range(len(args)):
             self.lib.jsvm_release(self.vm, byref(c_args[i]))
         for i in range(len(kw_names)):
@@ -1119,6 +1274,22 @@ class CvmRunner:
             raise RunError("内部错误：字节码装载失败")
         self._keep.extend([consts, globals_in, c_instrs, c_meta,
                            c_params, c_kwflat, c_kwoff])
+        self._load_stmt_marks()
+
+    def _load_stmt_marks(self) -> None:
+        """把「语句起始表」交给 C 侧（M40，调试用）。
+
+        与指令流等长，第 i 项是「第 i 条指令所属语句的行号」，0 = 不是语句首。
+        单独一张表而不是往指令里加字段：指令宽度（6 个 int32）是跨语言字节码
+        格式的一部分，为一个调试功能改它不划算（见 `opcodes.Code.stmt_marks`）。
+        """
+        lib = self.host.lib
+        marks: list[int] = []
+        for code in self.cmod.codes:
+            marks.extend(code.stmt_marks)
+        c_marks = (c_int32 * max(len(marks), 1))(*marks)
+        self._keep.append(c_marks)
+        lib.jsvm_set_stmt_marks(self.host.vm, c_marks, len(marks))
 
     # -- 执行 ---------------------------------------------------------------
 

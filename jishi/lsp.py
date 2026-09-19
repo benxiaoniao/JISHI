@@ -586,6 +586,12 @@ class LspServer:
         for node in _load_names(program, marks):
             if node.id in known:
                 continue
+            # 内部保留名（`$文本`，文本插值脱糖的目标）不算「用户符号」：
+            # 它不在语言规格里（有意过滤掉，不推荐给用户），但插值展开后
+            # 会真的出现在 AST 里——不跳过就会满屏误报「名字「$文本」没有
+            # 定义过」（M40 全量回归抓到）。
+            if node.id.startswith("$"):
+                continue
             key = (node.id, node.line)
             if key in seen:
                 continue

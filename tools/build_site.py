@@ -34,6 +34,7 @@ PAGES: list[tuple[Path, str, str]] = [
     (Path("docs/路线图.md"), "路线图", "参考"),
     (Path("docs/调试器.md"), "调试器", "参考"),
     (Path("docs/工具链.md"), "工具链（LSP/REPL/格式化）", "参考"),
+    (Path("docs/真实项目.md"), "真实项目与行数比", "参考"),
     (Path("docs/ai/system-prompt.md"), "AI 系统提示词", "AI"),
     (Path("docs/ai/prompt-guide.md"), "AI 提示词指南", "AI"),
     (Path("examples/ai/few-shot.md"), "few-shot 示例库", "AI"),
@@ -343,6 +344,7 @@ PAGE_DESC = {
     "docs/路线图.md": "唯一的路线图：已完成总表 + 主线 A/B/C 规划 + 不做清单 + 度量体系",
     "docs/调试器.md": "调试器用法与命令表：断点 / 单步 / 变量 / 调用栈（含已知边界）",
     "docs/工具链.md": "LSP 增量同步 / REPL 增强 / 格式化器的实测数据与已知边界",
+    "docs/真实项目.md": "五类真实项目 + 行数比基线（口径、逐项数据）+ 别扭点清单",
     "docs/ai/system-prompt.md": "教 LLM 写基石的官方系统提示词",
     "examples/ai/few-shot.md": "20 个「任务描述 → 基石代码」few-shot 示例对",
 }

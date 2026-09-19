@@ -20,6 +20,7 @@ from .runtime import (
     DICT_METHODS,
     LIST_METHODS,
     STR_METHODS,
+    is_internal_builtin,
     new_builtins,
 )
 
@@ -101,7 +102,10 @@ def build_lang_spec() -> dict:
     builtin_list = [
         {"name": name, "doc": b.doc}
         for name, b in builtins.items()
+        # 内部名（`$文本`、`检查实参`…）不进规格：它们是编译器发射的，
+        # 写不出来也不该被推荐（M40，判据见 `runtime.is_internal_builtin`）
         if b is not None and hasattr(b, "doc")
+        and not is_internal_builtin(name, b)
     ]
     methods = {
         "列表": list(LIST_METHODS.keys()),

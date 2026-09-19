@@ -25,6 +25,7 @@ from . import opcodes as O
 from . import runtime as R
 from .errors import (
     DebugQuit,
+    Frame,
     JishiError,
     RunBreak,
     RunContinue,
@@ -116,6 +117,29 @@ class _Handler:
         self.finally_ip = finally_ip
         self.sp = sp
         self.seq = seq       # 块栈登记序号：越大越内层（越近）
+
+
+def _frames_to_trace(frames: list) -> list:
+    """把当前帧栈翻成 `errors.Frame` 调用链（从外到内），供报错渲染（M40）。
+
+    口径与树遍历**逐字对齐**，否则同一个错误在两个执行器里回溯长得不一样：
+
+    - 每帧记「函数名 + **它的调用点**」，而不是「当前执行到第几行」——
+      `errors.Frame` 的 `line` 语义就是调用点（见其定义），
+      `_render_trace` 会印成 `加 ← 第 9 行`；
+    - 调用点取自本帧的 `call_line`（`_do_call` 建帧时记的），最外层的模块主帧
+      没有调用点、也不该出现在链里（它的「函数名」是 `<模块>`，不是用户写的
+      函数）——所以跳过 frames[0]。
+    """
+    chain = []
+    for fr in frames[1:]:
+        name = fr.code.name
+        # 匿名函数（`函数(x)：…` 脱糖）的 code.name 是编译器给的名字，报错里
+        # 显示成「匿名函数」更好认（与树遍历的帧名口径一致）。
+        if name.startswith("<"):
+            name = "匿名函数"
+        chain.append(Frame(name, fr.call_line or None, fr.call_col or None))
+    return chain
 
 
 class _Frame:
@@ -319,9 +343,14 @@ class VM:
 
     def _unbound(self, name: str, line: int, col: int,
                  hint: Optional[str] = None) -> JishiError:
-        return SemanticNameError(f"找不到名字「{name}」", line=line, col=col,
-                                 filename=self.filename, hint=hint)
+        """局部变量「还没赋过值就被读」的报错（M40）。
 
+        文案走 `runtime.unbound_local_error` 这个**单一来源**（树遍历与 C VM
+        也调它）：对拍测试比的是 `(输出, 报错全文)` 整对，同一个程序在两个
+        执行器里不但结果要一样，**报错也要逐字一样**。
+        """
+        return R.unbound_local_error(name, line=line, col=col,
+                                     filename=self.filename, hint=hint)
     def _cell_name(self, code: O.Code, idx: int) -> str:
         """单元号 → 名字（单元变量在前、自由变量在后）。"""
         if idx < len(code.cellvars):
@@ -735,6 +764,12 @@ class VM:
                 # 统一异常分发：处理器（try）优先于循环，循环优先于弹帧 —— 
                 # 与树遍历/Python 的传播顺序一致（finally 先于循环接住信号）
                 frame.ip = ip
+                # 报错第一次冒出来时，**当场**把调用链拍下来（M40）：等到往外抛的
+                # 路上再问「现在有哪些帧」，帧早就被弹干净了（树遍历那边 M37 踩过
+                # 同一个坑）。只认 JishiError——`中断`/`继续`/`返回`/调试器的`退出`
+                # 是内部信号，不是给用户看的错误。
+                if isinstance(exc, JishiError) and exc.trace is None:
+                    exc.trace = _frames_to_trace(frames)
                 if self._dispatch_exception(exc, stop_at):
                     continue          # 处理器/循环接住：重新同步帧
                 raise                 # 一路无人处理：冒给用户

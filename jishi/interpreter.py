@@ -46,6 +46,29 @@ from .runtime import (
 # 运行环境（作用域链）
 # ---------------------------------------------------------------------------
 
+class _Unbound:
+    """「这个名字是本函数的局部变量，但还没赋过值」的占位（M40）。
+
+    与字节码执行器里的 `_UNSET` 是同一件事的两种说法：函数体里**被赋过值**的
+    名字一律算局部（Python 的规则），进函数时先占上未绑定位，于是
+
+    - 函数体内、赋值**之前**读它 → 报「赋值之前被用到了」，而不是穿透到外层；
+    - 外层有同名变量也不受影响（内层遮蔽）。
+
+    这修掉了 M39 对拍时发现的那条明确分歧（树遍历原先「先向外找、找到就用」，
+    字节码执行器却报错）。判定「哪些名字是局部」直接复用编译器的收集器，
+    见 `UserFunction._bound_names`。
+    """
+
+    __slots__ = ("name",)
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def __repr__(self) -> str:              # pragma: no cover - 只为调试好看
+        return f"<未绑定 {self.name}>"
+
+
 class Environment:
     __slots__ = ("vars", "parent")
 
@@ -79,7 +102,7 @@ class Environment:
 
 class UserFunction:
     __slots__ = ("name", "params", "defaults", "body", "closure", "interp",
-                 "annotations", "param_kind")
+                 "annotations", "param_kind", "_assigned")
 
     def __init__(self, name, params, body, closure, interp,
                  defaults=None, annotations=None, param_kind=None):
@@ -94,6 +117,8 @@ class UserFunction:
         self.annotations = annotations or []
         #: 形参种类（M25）：ParamKind.*，与 params 对齐
         self.param_kind = param_kind or []
+        #: 惰性缓存的「本函数赋过值的名字」（M40「赋值即局部」），见 `_bound_names`
+        self._assigned = None
 
     def __repr__(self):
         return f"<函数 {self.name}>"
@@ -170,7 +195,32 @@ class UserFunction:
                     vals.append(call_env.vars.get(p))
             if desc:
                 R._b_check_args(desc, vals, self.name)
+        # 「赋值即局部」（M40）：本函数里**赋过值**的名字，此刻先占一个「未赋值」
+        # 哨兵，于是「赋值之前读它」会报错——两个字节码执行器一直是这个语义
+        # （编译器早就实现好了，还专门为它写了提示语），树遍历原先按「先向外找、
+        # 找到就用」静默给值，是一条已记录的三执行器分歧。
+        # 名字从编译器的收集器来（见 `_bound_names`），不另写一遍。
+        for name in self._bound_names():
+            if name not in call_env.vars:
+                call_env.vars[name] = _Unbound(name)
         return call_env
+
+    def _bound_names(self) -> frozenset:
+        """本函数体里「被赋过值」的名字（= 这个函数的局部变量）。
+
+        **直接复用编译器的收集器**（`compiler._collect_stmts`）：那份逻辑已经
+        决定了字节码执行器把哪些名字当局部变量，另写一遍迟早会漂，而漂了就是
+        「同一个程序在不同执行器里行为不同」——正是本项目最防的一类问题。
+        """
+        cached = self._assigned
+        if cached is None:
+            from .compiler import FUNC_SCOPE, _Scope, _collect_stmts
+
+            scope = _Scope(FUNC_SCOPE, self.name)
+            _collect_stmts(self.body, scope, {})
+            cached = frozenset(scope.bound)
+            self._assigned = cached
+        return cached
 
     def __call__(self, *args, **kwargs):
         """让基石函数可以被 Python 侧调用（M3 桥接：map/sorted 等高阶函数回调）。
@@ -639,9 +689,18 @@ class Interpreter:
 
     def _lookup(self, name: str, env: Environment, node: A.Node) -> Any:
         try:
-            return env.get(name)
+            value = env.get(name)
         except KeyError:
-            pass
+            value = None
+        else:
+            if not isinstance(value, _Unbound):
+                return value
+            # 是本函数的局部变量、但这一句之前还没赋过值（M40「赋值即局部」）。
+            # 报「赋值之前被用到了」而不是「找不到名字」——后者会让人以为
+            # 是拼错了，实际是顺序问题。文案走单一来源，三个执行器逐字一致。
+            raise R.unbound_local_error(name, line=node.line, col=node.col,
+                                        filename=self.filename,
+                                        hint=self._shadow_hint(name, env))
         # 英文 True/False/None：从 Python 代码抄过来时常见，给中文写法提示
         hint = R.PY_NAME_HINT.get(name)
         if hint:
@@ -656,6 +715,21 @@ class Interpreter:
         raise SemanticNameError(
             f"找不到名字「{name}」",
             line=node.line, col=node.col, hint=hint, filename=self.filename)
+
+    def _shadow_hint(self, name: str, env: Environment) -> str:
+        """外层也有同名变量时，给一句说得更具体的提示（M40）。
+
+        口径与编译器**完全一致**：那边是「本函数赋过值、外层也 bound 了同一个
+        名字」就写进 `Code.local_hints`（字节码执行器报错时用它）；这里就是
+        照着同一条件在环境链上问一遍。两边都指向 `runtime.UNBOUND_SHADOW_HINT`
+        这一份文本——对拍比的是报错全文，差一个字就算不一致。
+        """
+        e = env.parent
+        while e is not None:
+            if name in e.vars and not isinstance(e.vars[name], _Unbound):
+                return R.UNBOUND_SHADOW_HINT.format(name=name)
+            e = e.parent
+        return ""
 
     def _suggest(self, name: str) -> list[str]:
         import difflib

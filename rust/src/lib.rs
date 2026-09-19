@@ -2262,6 +2262,16 @@ fn new_builtins() -> HashMap<String, Val> {
         }
         Ok(Val::Str(out))
     }));
+    // 文本插值脱糖的目标（M40）：**内部保留名**，用户写不出（Python 侧词法器
+    // 不认 `$`），所以不会被 `导入 文本` 遮蔽。与 jishi/parser.py 的
+    // INTERP_TO_TEXT 同名，语义与 `文本` 一致。
+    m.insert("$文本".to_string(), Val::Builtin("$文本", |args, vm| {
+        let mut out = String::new();
+        for a in args {
+            out.push_str(&vm.format_value(a, true)?);
+        }
+        Ok(Val::Str(out))
+    }));
     m.insert("长度".to_string(), Val::Builtin("长度", |args, vm| {
         match &args[0] {
             Val::Str(s) => Ok(Val::Int(s.chars().count() as i128)),

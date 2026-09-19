@@ -138,6 +138,9 @@ typedef struct {
     int block_seq;         /* 循环/处理器共用登记序号 */
     int pending_return;    /* 被 finally 挂起的返回值：0=无，1=有 */
     JVal ret_val;          /* 挂起的返回值 */
+    int call_line;         /* 本帧**被调进来**的位置（1 基；主帧为 0）——
+                              报错的「调用链」与调试器都要它（M40） */
+    int call_col;
 } JsFrame;
 
 typedef struct JsVm {
@@ -154,6 +157,11 @@ typedef struct JsVm {
     int main_idx;
     JVal *stack; int sp;   /* 预分配 JS_STACK_CAP，不再扩容 */
     JsFrame *frames; int nframes;
+    /* 语句起始表（M40）：与 instrs 等长，非 0 表示该指令是某语句的第一条。
+     * 调试器靠它认出「语句边界」；NULL = 没设（不调试）。 */
+    int32_t *stmt_marks; int nstmt_marks;
+    /* 语句钩子（M40）：每条语句首指令执行前回调；NULL = 不回调。 */
+    JsStmtHook stmt_hook; void *stmt_hook_ud;
     uint32_t *hrefcnt; int hcap;   /* HOST 句柄引用计数 */
     JVal last_value;
     JVal pending_err;      /* 宿主回调构造的异常对象（HOST 句柄），UNSET=无 */
@@ -271,6 +279,16 @@ JsVm *jsvm_create(void) {
 
 JSVM_API void jsvm_set_host(JsVm *vm, JsHost *host) { vm->host = host; }
 
+JSVM_API void jsvm_set_stmt_marks(JsVm *vm, int32_t *marks, int nmarks) {
+    vm->stmt_marks = marks;
+    vm->nstmt_marks = nmarks;
+}
+
+JSVM_API void jsvm_set_stmt_hook(JsVm *vm, JsStmtHook hook, void *ud) {
+    vm->stmt_hook = hook;
+    vm->stmt_hook_ud = ud;
+}
+
 /*
  * 装载模块。code_meta 每个代码对象 6 个 int32：
  *   instr_off, ninstrs, nlocals, ncellvars, nparams, params_off
@@ -375,7 +393,8 @@ JSVM_API void jsvm_destroy(JsVm *vm) {
 /* ------------------------------------------------------------------ */
 
 static int push_frame(JsVm *vm, int code_idx, int base,
-                      JVal *locals, int nlocals) {
+                      JVal *locals, int nlocals,
+                      int call_line, int call_col) {
     if (vm->nframes >= JS_MAX_FRAMES) return -1;
     JsFrame *f = &vm->frames[vm->nframes++];
     memset(f, 0, sizeof *f);
@@ -384,8 +403,30 @@ static int push_frame(JsVm *vm, int code_idx, int base,
     f->base = base;
     f->locals = locals;
     f->nlocals = nlocals;
+    f->call_line = call_line;
+    f->call_col = call_col;
     /* cells 由调用者随后填充（f->cells / f->ncells） */
     return 0;
+}
+
+/* 把当前帧栈（除主帧）拍成扁平数组交给宿主，供报错印「调用链」（M40）。
+ * 必须在**弹帧之前**调：调用点信息随帧一起消失。
+ * flat 布局：每层 3 个 int32 —— code_idx / call_line / call_col。 */
+static void note_frames(JsVm *vm) {
+    if (!vm->host || !vm->host->note_frames) return;
+    int depth = vm->nframes - 1 - vm->stop_depth;
+    if (depth < 0) depth = 0;
+    if (depth > JS_MAX_FRAMES) depth = JS_MAX_FRAMES;
+    int32_t flat[JS_MAX_FRAMES * 3];
+    int n = 0;
+    for (int i = vm->stop_depth + 1; i < vm->nframes; i++) {
+        JsFrame *f = &vm->frames[i];
+        flat[n++] = f->code_idx;
+        flat[n++] = f->call_line;
+        flat[n++] = f->call_col;
+    }
+    /* depth 为 0 也要通知：宿主拿它当「这次没有调用链」，否则会留着上一次的旧值 */
+    vm->host->note_frames(flat, depth);
 }
 
 /* ------------------------------------------------------------------ */
@@ -625,17 +666,25 @@ static int signal_needs_dispatch(JsFrame *f) {
 
 /* 异常分发：从当前帧向外找处理器（try）或（信号的）循环。
  * 找到 → 清栈、放好恢复点、异常对象压栈，返回 1（主循环 SYNC_FRAME 后继续）；
- * 找不到 → 帧弹净，返回 0（调用方把 pending 抛给用户）。 */
+ * 找不到 → 帧弹净，返回 0（调用方把 pending 抛给用户）。
+ *
+ * 信号约定（与宿主 `_cb_is_signal` 对齐）：
+ *   1 = 中断 / 2 = 继续：循环与处理器谁更内层谁先接（与 vm.py 一致）；
+ *   3 = **卸载类**（调试器的「退出」）：只穿 `最终` 块，**既不被 `捕获` 接住、
+ *       也不被循环接住**——与 Python VM 的 `_UNWIND_SIGNALS` 同一语义（M40）。 */
 static int dispatch_exception(JsVm *vm, JVal *exc) {
     int sig = 0;
     if (exc_is_signal(vm, exc, &sig) != 0) return 0;
+    int unwind_only = (sig == 3);
     while (vm->nframes > vm->stop_depth) {
         JsFrame *f = &vm->frames[vm->nframes - 1];
         JsHandler *h = f->nhandlers ? &f->handlers[f->nhandlers - 1] : NULL;
         JsLoop *lp = f->nloops ? &f->loops[f->nloops - 1] : NULL;
         if (sig) {
-            /* 信号：循环与处理器谁更内层谁先接（与 vm.py 一致） */
-            if (lp && (!h || lp->seq > h->seq)) {
+            /* 信号：循环与处理器谁更内层谁先接（与 vm.py 一致）。
+               **卸载类信号（sig==3，调试器的「退出」）不走循环**：它只该穿
+               `最终` 块（下面那个 h 分支），不该被 `中断`/`继续` 的循环接住。 */
+            if (!unwind_only && lp && (!h || lp->seq > h->seq)) {
                 while (vm->sp > lp->depth)
                     release_val(vm, vm->stack[--vm->sp]);
                 f->ip = sig == 1 ? lp->brk : lp->cont;
@@ -643,13 +692,20 @@ static int dispatch_exception(JsVm *vm, JVal *exc) {
                 return 1;
             }
             if (h) {
+                /* 交给处理器：
+                   - 普通/循环信号 → 跳到 `catch_ip`（编译器生成的「检查信号 →
+                     是信号就重新抛出」入口，所以**不会**误入用户的 `捕获` 体）；
+                   - **卸载类信号（sig==3）→ 直接跳 `finally_ip`**（有的话），
+                     跳过捕获检查：它只需要穿 `最终` 块，`捕获` 本来就不该接它。
+                     跑完 `最终` 由 END_FINALLY/THROW 继续向外（M40）。 */
+                int target = h->catch_ip;
+                if (unwind_only && h->finally_ip >= 0) target = h->finally_ip;
                 while (vm->sp > h->sp)
                     release_val(vm, vm->stack[--vm->sp]);
                 retain_val(vm, *exc);
                 PUSH(vm, *exc);
-                f->ip = h->catch_ip;
+                f->ip = target;
                 f->nhandlers--;
-                clear_pending_err(vm);
                 return 1;
             }
         } else if (h) {
@@ -796,6 +852,36 @@ static int run_loop(JsVm *vm) {
             int op = INSN(0);
             int a = INSN(1), b = INSN(2), c = INSN(3);
             int line = INSN(4), col = INSN(5);
+            /* 语句钩子（M40）：只在**语句首指令**上回调一次。判断放在这里
+             * （而不是每条指令都进一次回调）——不挂调试器时只多一次指针判空。 */
+            if (vm->stmt_hook && vm->stmt_marks) {
+                int gi = code->instr_off + ip;
+                if (gi < vm->nstmt_marks) {
+                    int32_t sl = vm->stmt_marks[gi];
+                    if (sl) {
+                        SAVE_IP();
+                        if (vm->stmt_hook(vm->stmt_hook_ud, f->code_idx,
+                                          (int)sl, vm->nframes) != 0) {
+                            /* 钩子请求中止（调试器的「退出」）：宿主已把
+                               `DebugQuit` 放进 pending_err，交给**异常分发**
+                               走一遍——于是 `最终` 块照常执行、`捕获` 接不住它
+                               （信号值 3 = 卸载类，见 dispatch_exception）。
+                               M39 在 Python VM 上就是这么做的，两边语义一致。 */
+                            JVal exc;
+                            if (take_pending_err(vm, &exc) != 0) return -1;
+                            if (dispatch_exception(vm, &exc)) {
+                                f = &vm->frames[vm->nframes - 1];
+                                code = &vm->codes[f->code_idx];
+                                instrs = vm->instrs +
+                                         (size_t)code->instr_off * 6;
+                                ip = f->ip;
+                                continue;
+                            }
+                            return -1;
+                        }
+                    }
+                }
+            }
             ip++;
 
             switch (op) {
@@ -1108,7 +1194,7 @@ static int run_loop(JsVm *vm) {
                     release_val(vm, fn);
 
                     push_frame(vm, fn_code_idx, fn_base, locals,
-                               sub->nlocals);
+                               sub->nlocals, line, col);
                     {
                         JsFrame *nf = &vm->frames[vm->nframes - 1];
                         nf->cells = cells;
@@ -1580,7 +1666,27 @@ static int run_loop(JsVm *vm) {
                     SYNC_FRAME();
                     break;
                 }
-                /* 无挂起返回：fall through */
+                /* 无挂起返回：检查有没有「待重新抛出的异常」。
+                   正常路径走 finally 时 pending_err 是空的（异常根本没发生）；
+                   而卸载类信号（`退出`）是**直接跳进 finally_ip** 的，它需要
+                   在 finally 跑完后继续向外传播——否则信号就在这里被静静吞掉
+                   （实测：`最终` 里的打印执行了，程序却「正常结束」了）。
+                   与 Python 的 END_FINALLY「栈顶是异常就重新抛出」同一语义。 */
+                if (vm->pending_err.tag != JS_TAG_UNSET) {
+                    JVal exc = vm->pending_err;
+                    if (dispatch_exception(vm, &exc)) {
+                        /* 注意**不能**用 SYNC_FRAME：它会先 SAVE_IP()，把
+                           `dispatch_exception` 刚设好的跳转目标冲掉
+                           （此时 ip 还指着 END_FINALLY 的下一条）。 */
+                        f = &vm->frames[vm->nframes - 1];
+                        code = &vm->codes[f->code_idx];
+                        instrs = vm->instrs +
+                                 (size_t)code->instr_off * 6;
+                        ip = f->ip;
+                        break;
+                    }
+                    return -1;
+                }
                 break;
             }
 
@@ -1604,6 +1710,10 @@ static int run_loop(JsVm *vm) {
 dispatch_err: {
             /* 宿主回调出错：取 pending 异常对象，走结构化分发 */
             JVal exc;
+            /* 先拍「调用链」再取异常对象（M40）：此时帧栈还是完整的。
+               取回异常对象会走宿主回调（error_handle），那边只关心异常本身；
+               帧信息只能靠这一次快照带出去。 */
+            note_frames(vm);
             if (take_pending_err(vm, &exc) != 0) return -1;
             if (dispatch_exception(vm, &exc)) {
                 /* 分发成功：帧/ip 已由 dispatch_exception 改好，
@@ -1628,6 +1738,45 @@ dispatch_err: {
 /* 对外 API                                                             */
 /* ------------------------------------------------------------------ */
 
+JSVM_API int jsvm_frame_meta(JsVm *vm, int depth, int *out3) {
+    if (depth < 0 || depth >= vm->nframes) return -1;
+    JsFrame *f = &vm->frames[vm->nframes - 1 - depth];
+    out3[0] = f->code_idx;
+    out3[1] = f->call_line;
+    out3[2] = f->call_col;
+    return 0;
+}
+
+JSVM_API int jsvm_dump_locals(JsVm *vm, int depth) {
+    if (depth < 0 || depth >= vm->nframes) return -1;
+    if (!vm->host || !vm->host->debug_local) return 0;
+    JsFrame *f = &vm->frames[vm->nframes - 1 - depth];
+    JsCode *code = &vm->codes[f->code_idx];
+    int ncells = code->ncellvars;
+    /* 先局部槽、后单元：与 Code.local_names / cellvars 的排布一致，
+       宿主按 (slot, is_cell) 就能还原出名字（它自己那侧有这两张表）。 */
+    for (int i = 0; i < f->nlocals; i++) {
+        if (f->locals[i].tag == JS_TAG_UNSET) continue;   /* 还没赋值的槽位不显示 */
+        if (vm->host->debug_local(i, 0, -1, &f->locals[i]) != 0) return -1;
+    }
+    for (int i = 0; i < ncells; i++) {
+        if (!f->cells[i]) continue;
+        if (f->cells[i]->v.tag == JS_TAG_UNSET) continue;
+        if (vm->host->debug_local(i, 1, -1, &f->cells[i]->v) != 0) return -1;
+    }
+    return 0;
+}
+
+JSVM_API int jsvm_dump_globals(JsVm *vm) {
+    if (!vm->host || !vm->host->debug_local) return 0;
+    for (int i = 0; i < vm->nnames; i++) {
+        if (vm->globals[i].tag == JS_TAG_UNSET) continue;
+        /* is_cell == 2：这是全局，slot 就是名字表下标 */
+        if (vm->host->debug_local(i, 2, i, &vm->globals[i]) != 0) return -1;
+    }
+    return 0;
+}
+
 JSVM_API int jsvm_run(JsVm *vm) {
     if (vm->halted) return 0;
     vm->stop_depth = 0;
@@ -1650,7 +1799,7 @@ JSVM_API int jsvm_run(JsVm *vm) {
             cells[i]->refcnt = 1;
         }
     }
-    if (push_frame(vm, vm->main_idx, 0, locals, main->nlocals) != 0) {
+    if (push_frame(vm, vm->main_idx, 0, locals, main->nlocals, 0, 0) != 0) {
         free(locals);
         for (int i = 0; i < ncellvars; i++) free(cells[i]);
         free(cells);
@@ -1684,7 +1833,7 @@ JSVM_API int jsvm_func_release(JsVm *vm, JVal *fv) {
 JSVM_API int jsvm_call_function(JsVm *vm, JVal *fv,
                        JVal *args, int nargs,
                        const int *kwname_idx, JVal *kwvals, int nkw,
-                       JVal *out) {
+                       JVal *out, int call_line, int call_col) {
     if (fv->tag != JS_TAG_FUNC) return -1;
     JsFunc *jfn = (JsFunc *)(uintptr_t)fv->v.u;
     JsCode *sub = &vm->codes[jfn->code_idx];
@@ -1738,7 +1887,8 @@ JSVM_API int jsvm_call_function(JsVm *vm, JVal *fv,
 
     int base = vm->sp;
     PUSH(vm, make_null());    /* 返回值占位 */
-    if (push_frame(vm, jfn->code_idx, base, locals, sub->nlocals) != 0)
+    if (push_frame(vm, jfn->code_idx, base, locals, sub->nlocals,
+                   call_line, call_col) != 0)
         goto fail;
     {
         JsFrame *nf = &vm->frames[vm->nframes - 1];

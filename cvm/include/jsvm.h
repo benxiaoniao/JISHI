@@ -155,6 +155,25 @@ typedef struct JsHost {
        out 是新字典，C 侧持有其引用。 */
     int (*pack_kwargs)      (const int *name_idxs, JVal *vals, int n,
                              JVal *out, int line, int col);
+    /* 报错现场（M40）：C 侧把「出错那一刻的帧栈」交给宿主，宿主记到异常对象上
+       （`JishiError.trace`），于是 C VM 的函数内报错也能印出「调用链（从外到内）」——
+       与树遍历 / Python VM 的报错长得一样。
+
+       depth 是**帧栈里除主帧以外的层数**；每层三个 int32 写在 flat 里
+       （code_idx、call_line、call_col 顺序）。调用点取「该帧被调进来时的行列」，
+       与 errors.Frame 的 line 语义一致（那是调用点，不是当前执行行）。
+
+       宿主实现只需把 flat 翻成 Frame 列表挂到 pending 异常上；返回 0 表示
+       「不用记」（例如已经记过）。**必须在帧被弹掉之前调**。 */
+    int (*note_frames)      (const int *flat, int depth);
+    /* 调试：把一帧的变量交给宿主（M40）。
+       `slot` 是槽位号（local 在前、单元在后，与 Code.local_names/cellvars
+       的排布一致），`is_cell` 标明它属于哪一段，`name_idx` 是名字表下标
+       （C 侧没有「下标 → 字符串」的能力，翻译交给宿主）。
+       值以**借用**形式传入：宿主转换后须自己持有结果，不得保存 `val` 指针。
+       返回 0 继续，非 0 让 C 侧中止（宿主报错时用）。 */
+    int (*debug_local)      (int slot, int is_cell, int name_idx,
+                             const JVal *val);
 } JsHost;
 
 /* ------------------------------------------------------------------ */
@@ -181,6 +200,36 @@ JSVM_API int jsvm_load_module(
 JSVM_API int jsvm_run(JsVm *vm);
 JSVM_API void jsvm_get_last(JsVm *vm, JVal *out);
 
+/* 语句起始表（M40）：与 instrs 等长，第 i 项是「第 i 条指令所属语句的行号」，
+ * 0 表示它不是语句的第一条。调试器靠它认出「语句边界」——栈机没有这种事件，
+ * 但编译器知道。
+ *
+ * 单独一个 setter 而不是加进 jsvm_load_module 的参数表：**不改已有 ABI**，
+ * 而且「要不要调试」与「能不能装载」本来就是两件事（不设表 = 不调试）。
+ * 数组内存仍归宿主持有，须覆盖 VM 存活期；传 NULL 表示关掉。 */
+JSVM_API void jsvm_set_stmt_marks(JsVm *vm, int32_t *marks, int nmarks);
+
+/* 调试钩子（M40）：非 NULL 时，**每条语句的第一条指令**执行前回调一次。
+ * 回调返回非 0 表示请求中止（宿主用 -1 让 jsvm_run 返回错误）。
+ * 这是**只读**钩子：C 侧不因它改变任何执行状态（不调它时开销为零）。 */
+typedef int (*JsStmtHook)(void *ud, int code_idx, int line, int nframes);
+JSVM_API void jsvm_set_stmt_hook(JsVm *vm, JsStmtHook hook, void *ud);
+
+/* 帧查询（M40，调试器用）。`depth` 从**最内层**数起：0 = 当前帧。
+
+ *   jsvm_frame_meta：取一帧的「代码下标 + 调用点行列」（三个 int32 写进 out3）。
+ *                     只回整数、不碰值，所以随时可调。
+ *   jsvm_dump_locals：取一帧的局部槽与单元，经宿主回调 `debug_locals` 转换。
+ *   jsvm_dump_globals：取模块全局里**已赋值**的那些，同样经 `debug_locals`
+ *                      （`is_cell == 2`，`slot` 就是名字表下标）。
+ *                     值以**借用**形式传给宿主（宿主不得持有），这样不必为
+ *                     调试专门发明一套「值数组」的所有权规则。
+ *
+ * 都返回 0 成功 / -1 表示参数越界。 */
+JSVM_API int jsvm_frame_meta(JsVm *vm, int depth, int *out3);
+JSVM_API int jsvm_dump_locals(JsVm *vm, int depth);
+JSVM_API int jsvm_dump_globals(JsVm *vm);
+
 /* 句柄与引用计数 */
 JSVM_API int jsvm_track_handle(JsVm *vm, uint32_t id);
 JSVM_API int jsvm_retain(JsVm *vm, JVal *v);
@@ -192,7 +241,7 @@ JSVM_API int jsvm_func_release(JsVm *vm, JVal *fv);
 JSVM_API int jsvm_call_function(JsVm *vm, JVal *fv,
                                 JVal *args, int nargs,
                                 const int *kwname_idx, JVal *kwvals, int nkw,
-                                JVal *out);
+                                JVal *out, int call_line, int call_col);
 JSVM_API int jsvm_new_func_from(JsVm *vm, JVal *proto, JVal *out);
 JSVM_API void jsvm_func_raw(JsVm *vm, JVal *fv, JVal *out);
 JSVM_API int jsvm_func_code(JsVm *vm, JVal *fv);

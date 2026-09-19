@@ -44,6 +44,31 @@ PY_NAME_HINT = {
 }
 
 
+def unbound_local_error(name: str, *, line=None, col=None,
+                        filename="<输入>", hint: Optional[str] = None):
+    """「局部变量还没赋过值就被读」的报错（M40）——**三个执行器共用的单一来源**。
+
+    这条消息不能各写各的：对拍测试比的是 `(输出, 报错全文)` 整对，文案差一个字
+    就判成「执行器不一致」。所以树遍历（`interpreter._lookup`）、字节码 VM
+    （`vm._unbound`）、C VM（`cvm_bind._cb_raise_unbound_local`）都调这里。
+
+    `hint` 由调用方给「外层确实有同名变量」时的更具体说法（编译器把它按槽位存进
+    `Code.local_hints`，树遍历侧则由 `_Unbound` 随身带着）；给不出就用通用说法。
+    """
+    return SemanticNameError(
+        f"名字「{name}」在赋值之前被用到了", line=line, col=col,
+        filename=filename,
+        hint=hint or (f"「{name}」在这个函数里被赋过值，所以它是局部变量；"
+                      "函数一进来它还没值。想读外层同名的那个，就换个名字。"))
+
+
+#: 「外层也有同名变量」时的那句提示。**编译器与树遍历共用这一份文本**——
+#: 两边各写一遍迟早会漂，而漂了就是「同一个错误在两个执行器里提示不同」。
+UNBOUND_SHADOW_HINT = (
+    "外层也有一个叫「{name}」的变量。在这个函数里给它赋过值，"
+    "它就成了这个函数的局部变量，赋值之前不能读取")
+
+
 # ---------------------------------------------------------------------------
 # 基础对象
 # ---------------------------------------------------------------------------
@@ -811,6 +836,24 @@ def _b_isinstance(value, cls):
     return _instance_of(value.cls, cls)
 
 
+def is_internal_builtin(name: str, b: Any = None) -> bool:
+    """这个内建名是不是**内部用**的（不该出现在用户可见的语言规格 / 补全里）。
+
+    判据两条（M40 统一）：
+
+    - 名字以 `$` 开头：用户**写不出来**（词法器把 `$` 判成无法识别的字符），
+      例如文本插值脱糖出的 `$文本`；
+    - 说明以「内部用」开头：靠编译器发射、用户不需要知道的，例如 `检查实参`。
+
+    这类名字一旦漏进 `ai.build_lang_spec()`，AI 提示词与编辑器补全就会把
+    `$文本` 当成可写的函数推荐出去——「内部的东西不该出现在用户的选项里」。
+    """
+    if name.startswith("$"):
+        return True
+    doc = getattr(b, "doc", "") or ""
+    return doc.startswith("内部用")
+
+
 def new_builtins() -> dict[str, Any]:
     """返回一份全新的内建函数表（每个执行器实例一份）。"""
     return {
@@ -863,6 +906,11 @@ def new_builtins() -> dict[str, Any]:
         "检查实参": _Builtin(
             "检查实参", _b_check_args,
             "内部用：按类型标注校验函数实参（由编译器在函数前导发射）"),
+        # 文本插值脱糖的目标（M40）：**内部保留名**，不是给用户调的。
+        # 名字带 `$` 是因为词法器不认这个字符、用户写不出来，因此永远不会被
+        # `导入 文本` 这类用户代码遮蔽（原先脱糖成内建 `文本`，一句导入就打断
+        # 所有 f-string）。与 parser.INTERP_TO_TEXT 是同一个名字。
+        "$文本": _Builtin("$文本", _b_str, "内部用：文本插值里的值→文本"),
         "空": None,
         # 异常类型：既可 `抛出 值错误("…")`，也可 `捕获 值错误 为 e`
         **{name: ExcType(name, cls) for name, cls in EXCEPTION_TYPES.items()},

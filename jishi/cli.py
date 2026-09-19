@@ -579,10 +579,15 @@ def _cmd_debug(args) -> int:
 
     engine = args.engine or "树遍历"
     if engine == "cvm":
-        print("C 虚拟机（--执行器 cvm）暂时还不能调试：它的栈帧与局部变量都在 C 侧，"
-              "要先让宿主回调把帧传出来（设计草图见 docs/调试器.md）。\n"
-              "请改用 --执行器 树遍历（默认）或 --执行器 vm。", file=sys.stderr)
-        return 2
+        # 三条执行器的调试器都齐了（M40 起），这里只剩「动态库在不在」这一件事
+        try:
+            from . import cvm_bind as _cvm
+            _cvm.load_lib()
+        except Exception as e:              # noqa: BLE001
+            print(f"用不了 C 虚拟机：{e}\n"
+                  "请先构建：python cvm/build.py，或改用 --执行器 树遍历 / vm",
+                  file=sys.stderr)
+            return 2
 
     source, filename = _read_source(args.file)
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -614,6 +619,13 @@ def _cmd_debug(args) -> int:
 
         cmod = compile_program(program, filename, lines)
         dbg = VmDebugger(VM(cmod, filename), **common)
+    elif engine == "cvm":
+        from .compiler import compile_program
+        from .cvm_bind import CvmRunner
+        from .debugger import CvmDebugger
+
+        cmod = compile_program(program, filename, lines)
+        dbg = CvmDebugger(CvmRunner(cmod, filename), **common)
     else:
         dbg = Debugger(Interpreter(filename=filename), program, **common)
     if args.engine:                     # 用户显式选了执行器：说一声用的哪个
@@ -876,7 +888,7 @@ def _run_tool_cmd(argv: list[str]) -> int:
     p_dbg.add_argument("--执行器", dest="engine", default=None,
                        choices=["树遍历", "vm", "cvm"],
                        help="在哪个执行器上调试：树遍历（默认）/ vm（字节码 "
-                            "Python VM）/ cvm（C 虚拟机，暂不支持调试）")
+                            "Python VM）/ cvm（C 虚拟机）")
     p_dbg.set_defaults(func=_cmd_debug)
 
     args = parser.parse_args(argv)

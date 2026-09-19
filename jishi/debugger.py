@@ -68,7 +68,7 @@ import sys
 from typing import Any, Callable, Iterable, Optional
 
 from . import ast_nodes as A
-from .errors import DebugQuit, JishiError
+from .errors import DebugQuit, JishiError, RunError
 from .runtime import jishi_repr, new_builtins
 
 #: 暂停时显示的主提示符（非交互模式也会把它打出来，好读）
@@ -196,12 +196,18 @@ class _Snapshot:
 
     `target` 是执行器自己的「帧句柄」：树遍历是 `Environment`，字节码是
     `vm._Frame`——它由 `_vars_of` 解释，会话本身不需要认识。
+
+    `vars` 是**当场抄下来的变量表**（M40 补）：C 虚拟机的帧活在 C 侧、按
+    「第几层」编号，一旦弹帧那个编号就指向别的帧（或越界），报错时再去问只会
+    得到空表。所以三个执行器统一在「执行语句之前」把变量复制一份——顺带也更
+    准确：报错那一刻语句可能只执行了一半，读活环境会读到半成品。
     """
 
     line: int
     label: str
     target: Any
     chain: list[tuple[int, str]]
+    vars: dict
 
 
 class _Session:
@@ -337,19 +343,30 @@ class _Session:
         if snap is None:
             self._write_line("（错误发生在任何语句之前，没有变量快照）")
             return
-        self._dump_vars("", snap.target, snap.label)
+        self._dump_vars("", snap.target, snap.label, frozen=snap.vars)
         self._dump_stack(snap.chain)
         self._write_line("（想复盘就改脚本、带上同一组断点再跑一次）")
 
     # -- 暂停与命令 ---------------------------------------------------------
 
+    def _snapshot_vars(self) -> dict:
+        """此刻的变量表（**复制**一份，供出错现场用）。取不到就返回空表。"""
+        try:
+            target = self._frame_target()
+            return dict(self._vars_of(target)) if target is not None else {}
+        except Exception:                    # noqa: BLE001 - 取不到就不显示
+            return {}
+
     def _before_statement(self, line: int, target: Any) -> None:
         """执行器每进入一个语句就调这里（两种执行器共用的暂停判定）。"""
         self._line = line
         # 顺手留一份现场：错误可能在**这条语句执行到一半**时冒出来，那时帧
-        # 已经被弹掉了（见 _Snapshot 的说明）。
-        self._snapshot = _Snapshot(line, self._frame_label(), target,
-                                   self._live_chain())
+        # 已经被弹掉了（见 _Snapshot 的说明）。变量也**当场复制**——C VM 的
+        # 帧句柄在弹帧后就失效了，事后再问只会得到空表。
+        self._snapshot = _Snapshot(line, self._frame_label(),
+                                   self._frame_target(),
+                                   self._live_chain(),
+                                   self._snapshot_vars())
         depth = self._depth()
         mode = self._mode
         if mode == "entry":
@@ -556,16 +573,21 @@ class _Session:
         return name.startswith("__") or name in self._builtin_names
 
     def _dump_vars(self, arg: str, target: Any = None,
-                   label: Optional[str] = None) -> None:
-        """打印某一帧的变量。`target` / `label` 不传时用**当前暂停处**的。"""
+                   label: Optional[str] = None,
+                   frozen: Optional[dict] = None) -> None:
+        """打印某一帧的变量。`target` / `label` 不传时用**当前暂停处**的。
+
+        `frozen` 是「出错现场」抄下来的那份变量（见 `_Snapshot.vars`）：
+        传了就用它，不再去问执行器（那时帧可能已经没了）。
+        """
         show_all = arg.strip() in ("全部", "all", "-a")
         if target is None and label is None:
             target, label = self._frame_target(), self._frame_label()
         self._write_line(f"当前帧（{label}）的变量：")
-        if target is None:
+        if target is None and frozen is None:
             self._write_line("  （还没有执行到任何语句）")
             return
-        vars_map = self._vars_of(target)
+        vars_map = frozen if frozen is not None else self._vars_of(target)
         shown: list[tuple[str, Any]] = []
         hidden: list[str] = []
         for name in sorted(vars_map):
@@ -578,8 +600,10 @@ class _Session:
         for name, value in shown:
             self._write_line(f"  {name} = {jishi_repr(value, top=True)}")
         if hidden:
-            self._write_line(f"  （另有 {len(hidden)} 项内建/临时变量没显示，"
-                             "要看用「变量 全部」）")
+            # 不报具体条数：各执行器「看得见的全局」本来就不同——C 侧的名字表
+            # 只收程序用到的名字，树遍历/Python VM 那边则把整套内建都放进来。
+            # 报数字会让三个执行器的记录对不上，而这数字对用户没有意义（M40）。
+            self._write_line("  （另有内建/临时变量没显示，要看用「变量 全部」）")
 
     def _dump_stack(self, chain: Optional[list[tuple[int, str]]] = None) -> None:
         self._write_line("调用栈（由内到外）：")
@@ -650,7 +674,13 @@ class Debugger(_Session):
         return self._env
 
     def _vars_of(self, target: Any) -> dict:
-        return dict(getattr(target, "vars", {}) or {})
+        # 「赋值即局部」给每个会被赋值的名字先占了一个未绑定哨兵（M40）：
+        # 它代表「这个名字是本函数的局部变量，但还没轮到赋值」，不是值。
+        # 与字节码执行器把 `_UNSET` 槽位跳过是同一口径——不然调试器会显示
+        # `果 = <未绑定 果>`，用户会以为变量里真存了个东西。
+        from .interpreter import _Unbound
+        return {k: v for k, v in (getattr(target, "vars", {}) or {}).items()
+                if not isinstance(v, _Unbound)}
 
     def _live_chain(self) -> list[tuple[int, str]]:
         """把「当前在哪一行、各层是从哪里调进来的」算成一张由内到外的表。"""
@@ -793,6 +823,187 @@ class VmDebugger(_Session):
             return self.vm.eval_in_frame(code, frame)
         finally:
             self._evaluating = False
+
+
+class CvmDebugger(_Session):
+    """C 虚拟机上的调试会话（M40）。
+
+    与另外两个执行器的差别只在**「执行器知识」怎么问**：帧、局部变量、调用点
+    全都在 C 侧，所以每一步都要过一次宿主回调。命令循环、断点、暂停判定、
+    出错现场全部复用 `_Session`——这正是把基类抽出来的目的。
+
+    C 侧为它加了三个入口（`cvm/include/jsvm.h`）：
+    `jsvm_set_stmt_marks`（语句起始表）、`jsvm_set_stmt_hook`（语句回调）、
+    `jsvm_frame_meta` / `jsvm_dump_locals`（问帧与变量）。
+    都是**只读**的：不挂调试器时 C 侧只多一次指针判空。
+
+    **已知边界**：`查看 表达式`（就地求值）暂不支持——C 侧没有「在任意帧上求
+    一个表达式」的入口，要做得把编译好的求值代码塞进当前帧执行，属另一件事。
+    会话会明确说「C 虚拟机暂不支持就地求值」，而不是静默给个错值。
+    """
+
+    executor_name = "C 虚拟机"
+
+    def __init__(self, runner, *,
+                 source_lines: Iterable[str],
+                 filename: str = "<输入>",
+                 breakpoints: Iterable[Any] = (),
+                 stop_on_entry: bool = True,
+                 read_line: Optional[Callable[[str], str]] = None,
+                 write: Optional[Callable[[str], None]] = None,
+                 script: Optional[Iterable[str]] = None,
+                 stmt_lines: Optional[Iterable[int]] = None):
+        cmod = runner.cmod
+        super().__init__(source_lines=source_lines, filename=filename,
+                         breakpoints=breakpoints, stop_on_entry=stop_on_entry,
+                         read_line=read_line, write=write, script=script,
+                         stmt_lines=(mark_lines(cmod) if stmt_lines is None
+                                     else stmt_lines))
+        self.runner = runner
+        self.cmod = cmod
+        #: 暂停时 C 侧回调填进来：当前行、代码下标、帧数（含模块主帧）
+        self._hook_line = 0
+        self._hook_code = -1
+        self._hook_nframes = 0
+        self._evaluating = False
+        self._aborted_by_quit = False
+        self._hook = None            # 保活：C 侧持有函数指针
+        runner.host.set_stmt_hook(self._on_stmt)
+
+    # -- C 侧回调 -----------------------------------------------------------
+
+    def _on_stmt(self, code_idx: int, line: int, nframes: int) -> int:
+        """C 侧每条语句首指令执行前调这里（见 `jsvm.c` 主循环）。
+
+        返回 1 = 请求中止（「退出」）；C 侧会把它当「卸载类信号」走一遍异常
+        分发，于是 `最终` 块照常执行、`捕获` 接不住它。
+        """
+        if self._evaluating:
+            return 0
+        self._hook_line = line
+        self._hook_code = code_idx
+        self._hook_nframes = nframes
+        if self._aborted_by_quit:
+            # **已经在退出流程里了**（此刻正在跑 `最终` 块）：不能再请求一次
+            # 中止——否则 finally 的第一条语句就会被打断，用户看到的「清理」
+            # 一行都不会执行（实测踩到）。让它跑完，信号会在 END_FINALLY 后
+            # 由 C 侧继续向外传播。
+            return 0
+        try:
+            self._before_statement(line, None)
+        except DebugQuit:
+            self._aborted_by_quit = True
+            self.quit_requested = True
+            self.runner.host.pending = DebugQuit()
+            return 1
+        return 0
+
+    # -- 执行器知识 ---------------------------------------------------------
+
+    def _start(self) -> None:
+        try:
+            self.runner.run()
+        except BaseException:
+            # 「退出」时 C 侧会把 `DebugQuit` 作为未接住的异常交回宿主，
+            # `runner.run()` 原样抛出（它是 BaseException，不是 JishiError）。
+            # 认出来交给 `_Session.run()` 的 DebugQuit 分支统一收尾——
+            # 会话结束语与另两个执行器一字不差。
+            if self._aborted_by_quit:
+                raise DebugQuit() from None
+            raise
+
+    def _depth(self) -> int:
+        """用户函数层数 = 帧数 - 1（模块主帧不算）。"""
+        return max(0, self._hook_nframes - 1)
+
+    def _frame_label(self) -> str:
+        if self._hook_nframes <= 1:
+            return "模块顶层"
+        return f"函数「{self._code_name(0)}」"
+
+    def _frame_target(self) -> Any:
+        # C 侧没有「帧对象」可拿，用 (深度, 代码下标) 当句柄
+        return (0, self._hook_code) if self._hook_code >= 0 else None
+
+    def _code_name(self, depth: int) -> str:
+        meta = self._frame_meta(depth)
+        if meta is None:
+            return "?"
+        return self.cmod.codes[meta[0]].name
+
+    def _frame_meta(self, depth: int) -> Optional[tuple[int, int, int]]:
+        """问 C 侧要一帧的 (代码下标, 调用点行, 调用点列)。"""
+        from ctypes import c_int32
+
+        out = (c_int32 * 3)()
+        if self.runner.host.lib.jsvm_frame_meta(
+                self.runner.host.vm, depth, out) != 0:
+            return None
+        return (out[0], out[1], out[2])
+
+    def _vars_of(self, target: Any) -> dict:
+        if target is None:
+            return {}
+        depth, code_idx = target
+        code = self.cmod.codes[code_idx]
+        out: dict[str, Any] = {}
+        if code_idx == self.cmod.main:
+            # 模块顶层：变量都在 C 侧的全局表里（与另外两个执行器一致）。
+            # 注意**不能**用宿主侧的 `globals` 影子表——那里只有内建，
+            # 用户定义的全局变量在 C 侧，只有 `jsvm_dump_globals` 问得到。
+            try:
+                self.runner.host.dump_globals(out)
+            except Exception:                 # noqa: BLE001
+                return out
+            return out
+        names = list(code.local_names)
+        cells = code.cellvars + code.freevars
+        try:
+            self.runner.host.dump_locals(depth, names, code, out)
+        except Exception:                     # noqa: BLE001 - 看变量失败不该中断会话
+            return out
+        # 自由变量（从外层捕获进来的）不显示，与另外两个执行器口径一致
+        for i in range(len(code.cellvars), len(cells)):
+            out.pop(cells[i], None)
+        return out
+
+    def _live_chain(self) -> list[tuple[int, str]]:
+        """调用栈（由内到外）：与另外两个执行器**同一口径**。
+
+        `jsvm_frame_meta(depth)` 的 depth 从最内层数起（0 = 当前帧），而一帧的
+        `call_line` 是「**它**被调进来时，调用方写在第几行」。所以链条上第 d 层
+        该配的行号是 **`meta(d-1).call_line`**（= 更内层那一帧的调用点），
+        不是 `meta(d).call_line`——后者会错位一层（实测：`主` 被标成第 9 行，
+        实际第 9 行是「主被调用」的位置，而「倍被调用」才是第 6 行）。
+
+        与 `VmDebugger._live_chain` / `Debugger._live_chain` 逐字一致。
+        """
+        n = max(1, self._hook_nframes)          # 含模块主帧
+        chain = [(self._hook_line, self._frame_label())]
+        for d in range(1, n):
+            meta = self._frame_meta(d - 1)
+            call_line = meta[1] if meta else self._hook_line
+            if d == n - 1:
+                chain.append((call_line, "模块顶层"))
+            else:
+                chain.append((call_line, f"函数「{self._code_name(d)}」"))
+        return chain
+
+    def _can_eval(self) -> bool:
+        """C 侧没有「在任意帧上求一个表达式」的入口，所以就地求值不支持。
+
+        返回 True 让 `_cmd_eval` 走到 `_eval_expr`，由它给出**具体原因**
+        （「暂不支持就地求值」）——比笼统的「还没有执行到任何语句，没法求值」
+        有用得多：后者会让人以为是暂停位置的问题。
+        """
+        return self._frame_target() is not None
+
+    def _eval_expr(self, text: str) -> Any:
+        # 用 RunError（有具体错误码/标题），而不是抽象基类 JishiError
+        raise RunError(
+            "C 虚拟机暂不支持就地求值",
+            hint="「查看 表达式」只在树遍历 / 字节码执行器上可用；"
+                 "C 虚拟机要看值请用「变量」，或改用 --执行器 vm")
 
 
 #: 命令表：规范名 → 会话上的方法名

@@ -699,13 +699,23 @@ def test_cli_debug_two_engines_same_record(tmp_path):
     assert a == b
 
 
-def test_cli_debug_cvm_is_refused_explicitly(tmp_path):
-    """C VM：明确拒绝 + 给替代方案（退出码 2，而不是静默按树遍历跑）。"""
+def test_cli_debug_cvm_runs(tmp_path):
+    """C VM 也能调试了（M40 补齐）——这里只验证 CLI 不再拒绝、能跑起来。
+
+    三个执行器的会话记录逐字对拍在 `tests/test_m40_cvm_debugger.py`；
+    这条留在这里是为了说明「M39 的拒绝」已经被 M40 的实现取代。
+    """
+    try:
+        from jishi import cvm_bind
+        cvm_bind.load_lib()
+    except Exception:                                # noqa: BLE001
+        pytest.skip("C 虚拟机动态库不可用（先 python cvm/build.py）")
     f = _write(tmp_path, "演示.jsh", DEMO)
-    code, out, err = _run_cli(["调试", f, "--执行器", "cvm"])
-    assert code == 2
-    assert "C 虚拟机" in err and "树遍历" in err and "vm" in err
-    assert out.strip() == ""
+    code, out, err = _run_cli(["调试", f, "--执行器", "cvm",
+                               "--断点", "2", "--命令", "变量；继续"])
+    assert code == 0, err[-400:]
+    assert "C 虚拟机" in out
+    assert "命中第 2 行的断点" in out
 
 
 def test_cli_debug_unknown_engine_rejected(tmp_path):

@@ -285,6 +285,19 @@ class Code:
     firstlineno: int = 1
 
     @property
+    def stmt_marks(self) -> list[int]:
+        """**语句起始表**：与 `instrs` 等长，第 i 项是「第 i 条指令对应的语句行号」。
+
+        0 表示这条指令不是语句的第一条。这就是给 C 侧（与跨语言宿主）用的形态——
+        Python VM 直接读 `Instr.stmt_line` 更快，但 C 侧的指令是扁平 int32 数组，
+        再塞一个字段就要动指令宽度（6→7），而**跨语言字节码格式**是公开契约，
+        为一个调试功能改它不划算。所以另发一张平行的 int32 表（M40）。
+
+        长度不足的位置按 0 处理，所以旧产物/缺表也不会出错。
+        """
+        return [ins.stmt_line for ins in self.instrs]
+
+    @property
     def ncells(self) -> int:
         return len(self.cellvars) + len(self.freevars)
 
