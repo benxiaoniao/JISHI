@@ -1,0 +1,15 @@
+[package]
+name = "jishi-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "基石（jishi）中文编程语言的 Rust 字节码解释器，消费 M13.1 的 JSON 字节码，脱离 Python 独立执行。零第三方依赖。"
+
+[dependencies]
+
+[[bin]]
+name = "jishi-rs"
+path = "src/main.rs"
+
+[lib]
+name = "jishi_ffi"
+path = "src/lib.rs"
