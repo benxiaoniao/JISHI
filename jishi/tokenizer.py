@@ -242,7 +242,15 @@ class Tokenizer:
                         elif t.type == "OP" and t.value in ")]}":
                             bracket_depth = max(0, bracket_depth - 1)
                         tokens.append(t)
-                    if bracket_depth == 0 and rest:
+                    if bracket_depth == 0:
+                        # 收尾引号后面即使**什么都没有**也要收这一行（M39）：
+                        # 之前这里多一个 `and rest`，于是
+                        #     令 a = """第一行
+                        #     第二行
+                        #     """
+                        # （收尾引号独占一行——最自然的写法）不会补 NEWLINE，
+                        # 解析器接着把下一行当成同一句，报「这一行没写完」。
+                        # 一个「文档里没写、测试没跑过、一写就报错」的坑。
                         tokens.append(Token("NEWLINE", "\n", line_no, 1, 1, raw))
                 line_idx += 1
                 continue

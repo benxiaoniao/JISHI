@@ -24,6 +24,7 @@ from typing import Any, Optional
 from . import opcodes as O
 from . import runtime as R
 from .errors import (
+    DebugQuit,
     JishiError,
     RunBreak,
     RunContinue,
@@ -51,6 +52,12 @@ _PENDING_NONE: Any = object()
 
 #: 需要穿透帧继续传播的循环控制信号
 _LOOP_SIGNALS = (RunBreak, RunContinue)
+
+#: 「卸载类」信号：要一路穿过 `最终` 块，但**不该被 `捕获` 接住**。
+#: 循环信号之外，调试器的「退出」（`DebugQuit`）也走这条路——它在 VM 里不是
+#: Python 异常直接穿透就能了事的（主循环的 `except BaseException` 会把它当成
+#: 用户程序的异常去分发），必须显式交给处理器链，让 `最终` 照跑（M39）。
+_UNWIND_SIGNALS = _LOOP_SIGNALS + (DebugQuit,)
 
 
 # ---------------------------------------------------------------------------
@@ -119,10 +126,12 @@ class _Frame:
     """
 
     __slots__ = ("code", "ip", "base", "locals", "cells", "loops",
-                 "handlers", "pending_return", "block_seq")
+                 "handlers", "pending_return", "block_seq",
+                 "call_line", "call_col")
 
     def __init__(self, code: O.Code, ip: int, base: int,
-                 locals_: list[Any], cells: list[Cell]):
+                 locals_: list[Any], cells: list[Cell],
+                 call_line: int = 0, call_col: int = 0):
         self.code = code
         self.ip = ip
         self.base = base
@@ -132,6 +141,10 @@ class _Frame:
         self.handlers: list[_Handler] = []
         self.pending_return: Any = _PENDING_NONE
         self.block_seq: int = 0
+        #: 本帧是**从哪里被调进来的**（调用点，1 基行列）：调试器的调用栈要它。
+        #: 模块主帧没有调用点，留 0（与树遍历里「模块顶层」一致）。
+        self.call_line = call_line
+        self.call_col = call_col
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +164,14 @@ class VM:
         self.frames: list[_Frame] = []
         #: 最近一次顶层表达式语句的值（REPL 回显用）
         self.last_value: Any = None
+        #: 调试器（M39 · B5）：非 None 时**每条指令**都会回调它的 `before_instr`，
+        #: 由它按「语句起始标记」决定要不要暂停。不挂调试器时只有一个 `is not None`
+        #: 判断，对性能的影响就是这一次判断。
+        self.debugger: Optional[Any] = None
+        #: 最近一次「非字节码直接调用」的调用点（M39）：绑定方法
+        #: （`实例.方法()`）会绕道 `R.call_value` 再进 `VmFunction.__call__`，
+        #: 拿它当帧的调用点，调试器的调用栈才显示得对。
+        self._pending_call_site: tuple[int, int] = (0, 0)
 
     # -- 对外入口 -----------------------------------------------------------
 
@@ -180,7 +201,9 @@ class VM:
         self._store_cells(code, frame_cells, values)
         base = len(self.stack)
         self.stack.append(None)                     # 返回值占位
-        frame = _Frame(code, 0, base, locals_, frame_cells)
+        line, col = self._pending_call_site
+        frame = _Frame(code, 0, base, locals_, frame_cells,
+                       call_line=line, call_col=col)
         self.frames.append(frame)
         try:
             self._execute(stop_at=frame)
@@ -190,6 +213,31 @@ class VM:
         value = self.stack[base]
         del self.stack[base:]
         return value
+
+    # -- 调试器：「查看 表达式」（M39 · B5）----------------------------------
+
+    def eval_in_frame(self, code: O.Code, frame: "_Frame") -> Any:
+        """在 `frame` 的**局部槽与闭包单元上**执行一小段代码，返回它的值。
+
+        调试器「查看 单价 * 数量」要的是**暂停那一刻**的值，所以这里不新建
+        环境：小代码对象与所在帧共用同一个 `locals` 列表和同一组 `Cell`，
+        `LOAD_FAST` / `LOAD_DEREF` 因此直接读到眼前的值。
+
+        与 `call_function` 的三点不同：① 不绑定参数；② 重入边界是这个小帧，
+        于是求值过程中出错只影响求值本身，不会把外层帧带下水；
+        ③ 无论成败都把栈恢复原样（求值失败不能污染正在被调试的程序）。
+        """
+        base = len(self.stack)
+        self.stack.append(None)                 # 返回值占位
+        sub = _Frame(code, 0, base, frame.locals, frame.cells)
+        self.frames.append(sub)
+        try:
+            self._execute(stop_at=sub)
+            return self.stack[base]
+        finally:
+            if self.frames and self.frames[-1] is sub:
+                self.frames.pop()
+            del self.stack[base:]
 
     # -- 参数绑定 -----------------------------------------------------------
 
@@ -294,6 +342,7 @@ class VM:
         codes = self.codes
         globs = self.globals
         filename = self.filename
+        dbg = self.debugger
 
         while frames:
             frame = frames[-1]
@@ -308,6 +357,16 @@ class VM:
             try:
                 while True:
                     ins = instrs[ip]
+                    if dbg is not None:
+                        # 调试钩子（M39 · B5）：只读，不改任何状态。**只在语句
+                        # 起始指令上回调**——「是不是语句起始」由编译器标在指令
+                        # 上（`Instr.stmt_line`），这里一次属性读取就够。
+                        # 实测：挂上（哪怕从不暂停）比不挂慢约 13%；不挂调试器时
+                        # 只有这一次 `is not None` 判断，几十纳秒。
+                        # 「退出」时回调里会抛 `DebugQuit` 穿透出去。
+                        stmt_line = ins.stmt_line
+                        if stmt_line:
+                            dbg.before_statement(stmt_line, frame)
                     op = ins.op
                     ip += 1
 
@@ -628,12 +687,19 @@ class VM:
                     elif op == Op.THROW:
                         v = stack.pop()
                         frame.ip = ip
+                        if isinstance(v, DebugQuit):
+                            # 调试器的「退出」穿过 `最终` 之后原样再抛。
+                            # **不能走 make_exception**：它不是 JishiError，
+                            # 会被包装成「异常」而被用户程序接住（M39）。
+                            raise v
                         raise R.make_exception(
                             v, line=ins.line, col=ins.col, filename=filename)
                     elif op == Op.CHECK_SIGNAL:
                         # 只查看不弹出：未匹配路径末尾的 THROW 统一负责
                         # 弹出并重新抛出（信号原样传播，由外层循环接住）
-                        if isinstance(stack[-1], _LOOP_SIGNALS):
+                        # `退出`（DebugQuit）与循环信号一样**不该被 `捕获` 接住**，
+                        # 但要走这条路去穿 `最终` 块（M39）
+                        if isinstance(stack[-1], _UNWIND_SIGNALS):
                             ip = ins.a
                     elif op == Op.MATCH_EXC:
                         cond = stack.pop()
@@ -702,10 +768,15 @@ class VM:
             del stack[fn_base:]
             sub_cells = [Cell() for _ in sub.cellvars] + list(fn.cells)
             self._store_cells(sub, sub_cells, values)
-            self.frames.append(_Frame(sub, 0, fn_base, locals_, sub_cells))
+            self.frames.append(_Frame(sub, 0, fn_base, locals_, sub_cells,
+                                      call_line=ins.line, call_col=ins.col))
             return None
 
         del stack[fn_base:]
+        # 只有「接下来可能进基石函数」的调用才记调用点（绑定方法 / 类实例化），
+        # 否则回调体里的内建调用会把调用点覆盖成它自己（M39）。
+        if isinstance(fn, (R._BoundMethod, R._BoundUserMethod, R.JishiClass)):
+            self._pending_call_site = (ins.line, ins.col)
         stack.append(R.call_value(fn, args, kwargs, line=ins.line,
                                   col=ins.col, filename=self.filename))
         return True
@@ -734,19 +805,15 @@ class VM:
                 return False      # 到达重入边界，交给调用方处理
             h = frame.handlers[-1] if frame.handlers else None
             lp = frame.loops[-1] if frame.loops else None
-            if isinstance(exc, _LOOP_SIGNALS):
-                if lp and (h is None or lp[3] > h.seq):
-                    depth, cont, brk, _s = lp
-                    del stack[depth:]
-                    frame.ip = brk if isinstance(exc, RunBreak) else cont
-                    return True
-                if h is not None:
-                    frame.handlers.pop()
-                    del stack[h.sp:]
-                    stack.append(exc)
-                    frame.ip = h.catch_ip
-                    return True
-            elif h is not None:
+            # 循环信号优先看**最近的循环**（就近原则）；调试器的「退出」不是
+            # 循环信号，跳过这一段直接找处理器（`最终` 照跑，`捕获` 不接）
+            if isinstance(exc, _LOOP_SIGNALS) and lp and (
+                    h is None or lp[3] > h.seq):
+                depth, cont, brk, _s = lp
+                del stack[depth:]
+                frame.ip = brk if isinstance(exc, RunBreak) else cont
+                return True
+            if h is not None:
                 frame.handlers.pop()
                 del stack[h.sp:]
                 stack.append(exc)

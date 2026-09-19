@@ -293,6 +293,15 @@ def build_page(md_path: Path, title: str, group: str,
         active = ' class="active"' if j == idx else ""
         nav.append(f'<a{active} href="{rel_to(j)}">{t}</a>')
 
+    # 「基石自述」那一套页面是**用基石语言自己写**的生成器产出的
+    # （examples/projects/基石自述站/生成.jsh）。它跑过就把链接挂进导航，
+    # 没跑过就不挂（不让文档站出现死链）。
+    self_site = OUT / "基石自述" / "index.html"
+    if self_site.exists():
+        rel = os.path.relpath(self_site, cur_dir).replace("\\", "/")
+        nav.append('<div class="group">自述</div>')
+        nav.append(f'<a href="{rel}">基石自述（基石写的）</a>')
+
     prev, nxt = "", ""
     if idx > 0:
         prev = f'<a href="{rel_to(idx-1)}">← {PAGES[idx-1][1]}</a>'

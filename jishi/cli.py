@@ -566,13 +566,23 @@ def _format_tree(root, args) -> int:
 
 
 def _cmd_debug(args) -> int:
-    """`jishi 调试 脚本.jsh`：在**树遍历执行器**上跑调试会话（M37 · 主线 B1）。
+    """`jishi 调试 脚本.jsh [--执行器 树遍历|vm|cvm]`：跑一场调试会话。
 
     与 `jishi 脚本.jsh` 的唯一差别是先挂上调试器再跑，于是能在断点处停下看
-    变量与调用栈。目前只支持树遍历执行器：字节码 VM 与 C VM 要另做一套
-    （栈机没有天然的「语句边界」事件），现状记在 `docs/调试器.md`。
+    变量与调用栈。**两个执行器都能调**：默认树遍历（M37 · B1），
+    `--执行器 vm` 走字节码 Python VM（M39 · B5），两者的会话记录逐字相同。
+
+    C VM 还不能调试：它的栈帧与局部变量都在 C 侧，要先让宿主回调把帧传出来。
+    这里**明确拒绝并给替代方案**，不静默降级——否则用户会以为断点生效了。
     """
-    from .debugger import Debugger, parse_lines
+    from .debugger import Debugger, VmDebugger, parse_lines
+
+    engine = args.engine or "树遍历"
+    if engine == "cvm":
+        print("C 虚拟机（--执行器 cvm）暂时还不能调试：它的栈帧与局部变量都在 C 侧，"
+              "要先让宿主回调把帧传出来（设计草图见 docs/调试器.md）。\n"
+              "请改用 --执行器 树遍历（默认）或 --执行器 vm。", file=sys.stderr)
+        return 2
 
     source, filename = _read_source(args.file)
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -596,12 +606,19 @@ def _cmd_debug(args) -> int:
         script = [c.strip() for c in args.commands.replace("；", ";").split(";")
                   if c.strip()]
 
-    interp = Interpreter(filename=filename)
-    dbg = Debugger(interp, program,
-                   source_lines=lines, filename=filename,
-                   breakpoints=wanted,
-                   stop_on_entry=not args.no_entry,
-                   script=script)
+    common = dict(source_lines=lines, filename=filename, breakpoints=wanted,
+                  stop_on_entry=not args.no_entry, script=script)
+    if engine == "vm":
+        from .compiler import compile_program
+        from .vm import VM
+
+        cmod = compile_program(program, filename, lines)
+        dbg = VmDebugger(VM(cmod, filename), **common)
+    else:
+        dbg = Debugger(Interpreter(filename=filename), program, **common)
+    if args.engine:                     # 用户显式选了执行器：说一声用的哪个
+        print(f"（调试执行器：{dbg.executor_name}；默认是树遍历）")
+
     # 断点写在空行/注释行上时**当场就说**：不然用户看着断点加上了、程序却从不停，
     # 只会怀疑调试器坏了（这类「静默无效」是本项目最想避免的一类问题）。
     dead = sorted(n for n in wanted if n not in dbg.stmt_lines)
@@ -856,6 +873,10 @@ def _run_tool_cmd(argv: list[str]) -> int:
     p_dbg.add_argument("--命令", dest="commands", default=None, metavar="命令串",
                        help="按顺序自动执行的调试命令（用分号分隔），"
                             "供演示与自动化；命令用完会自动继续")
+    p_dbg.add_argument("--执行器", dest="engine", default=None,
+                       choices=["树遍历", "vm", "cvm"],
+                       help="在哪个执行器上调试：树遍历（默认）/ vm（字节码 "
+                            "Python VM）/ cvm（C 虚拟机，暂不支持调试）")
     p_dbg.set_defaults(func=_cmd_debug)
 
     args = parser.parse_args(argv)

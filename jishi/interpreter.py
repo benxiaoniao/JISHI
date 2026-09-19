@@ -173,12 +173,32 @@ class UserFunction:
         return call_env
 
     def __call__(self, *args, **kwargs):
-        """让基石函数可以被 Python 侧调用（M3 桥接：map/sorted 等高阶函数回调）。"""
+        """让基石函数可以被 Python 侧调用（M3 桥接：map/sorted 等高阶函数回调）。
+
+        B5 起这里也登记**调试器帧**（M39）：`实例.方法()` 与
+        `列表.映射(列表, 基石函数)` 都是从这条路过来的，不登记的话，调试器在
+        方法体里会把「我在哪一层」显示成「模块顶层」。调用点由调用方经
+        `interp._pending_call_site` 递进来（拿不到就是 0，不猜）。
+
+        只登记**调试器**的帧、不动 `_call_stack`（那是错误回溯用的）：错误回溯
+        的帧语义归 M17 管，改它会牵动报错渲染，不在调试器的职责里。
+        """
         call_env = self._bind_args(args, kwargs)
+        dbg = self.interp.debugger
+        if dbg is None:
+            try:
+                self.interp.exec_block(self.body, call_env)
+            except _ReturnSignal as r:
+                return r.value
+            return None
+        line, col = self.interp._pending_call_site
+        dbg.push_frame(self.name, call_env, line, col)
         try:
             self.interp.exec_block(self.body, call_env)
         except _ReturnSignal as r:
             return r.value
+        finally:
+            dbg.pop_frame()
         return None
 
 
@@ -202,6 +222,9 @@ class Interpreter:
         self.globals = Environment()
         self.filename = filename      # 出错时渲染「文件:行:列」用
         self._last_value = _NO_VALUE  # 最近一次顶层表达式语句的值（REPL 回显用）
+        #: 最近一次「非直接调用」的调用点（M39）：方法调用 / Python 高阶函数
+        #: 回调要拿它当调试器帧的调用点（见 `UserFunction.__call__`）。
+        self._pending_call_site: tuple[int, int] = (0, 0)
         #: 调用帧栈（M17.2）：从外到内，出错时挂到 JishiError.trace
         self._call_stack: list = []
         #: 调试器（M37）：非 None 时每次执行语句前会调它的 before_stmt。
@@ -451,6 +474,11 @@ class Interpreter:
         methods: dict[str, Any] = {}
         class_vars: dict[str, Any] = {}
         for node in stmt.body:
+            if self.debugger is not None:
+                # 类体里的每一句也是语句：不告诉调试器的话，「函数 叫(自身)：」
+                # 这一行永远停不住，而 `statement_lines` 又说它可停——一个
+                # **静默失效**的断点（M39 做字节码调试器时对拍才发现的）。
+                self.debugger.before_stmt(node, env)
             if isinstance(node, A.FuncDef):
                 fn = UserFunction(
                     node.name, node.params, node.body, env, self,
@@ -694,7 +722,15 @@ class Interpreter:
                 if pushed:
                     self.debugger.pop_frame()
             return None
-        return call_value(fn, args, kwargs, line=expr.line, col=expr.col, filename=self.filename)
+        # 其余（内建 / 标准库 / Python 生态 / 绑定了实例的方法）走 call_value。
+        # 把调用点记下来：**只有「接下来可能进基石函数」的那几类调用**才记——
+        # `实例.方法()`、`列表.映射(基石函数)`、`类(参数)`（会进 `初始化`）。
+        # 不区分的话，回调体里的一句 `打印(x)` 就会把调用点改成它自己，
+        # 第二次回调进来时栈上就显示成上一句 `打印` 的行号（真踩到过，M39）。
+        if isinstance(fn, (R._BoundMethod, R._BoundUserMethod, R.JishiClass)):
+            self._pending_call_site = (expr.line, expr.col)
+        return call_value(fn, args, kwargs, line=expr.line, col=expr.col,
+                          filename=self.filename)
 
 
 def run_source(source: str, filename: str = "<输入>") -> None:

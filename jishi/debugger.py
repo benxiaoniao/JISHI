@@ -1,19 +1,32 @@
 # -*- coding: utf-8 -*-
-"""基石调试器（M37 · 主线 B1：最小可用 —— 断点 / 单步 / 看变量 / 看调用栈）。
+"""基石调试器（M37 · B1 起点；M39 · B5 补齐字节码执行器）。
 
-为什么先做树遍历
-----------------
-路线图的既定顺序是「树遍历 → Python VM → C VM」，B1 落在树遍历上，理由是
-**树遍历里「一个语句 = 一次 ``exec_stmt``」本身就是天然的暂停点**：在
-``exec_stmt`` 开头挂一个钩子，同一处就同时给出了断点、单步（进入/越过/跳出）、
-调用栈与局部变量。字节码执行器没有这种「语句边界」事件（栈机只知道指令，
-要么每步比对行号表、要么加新指令），C VM 还要先让宿主回调把帧传出来。
-所以本模块**只服务树遍历**，`docs/embed.md` 与路线图如实标注
-「Python VM / C VM 暂不支持调试」。
+两个执行器，一套会话
+--------------------
+调试会话里真正需要「执行器知识」的只有五件事：**当前帧的深度、名字、变量、
+调用链，以及怎么求一个表达式的值**。其余（断点表、命令循环、单步模式判定、
+源码显示、出错现场渲染）与执行器无关。所以本模块的结构是：
+
+- `_Session`：执行器无关的会话（命令、断点、输出、暂停判定）；
+- `Debugger`：树遍历执行器（`interpreter.py`）—— 钩子是 `before_stmt`
+  （每个语句执行前）与 `push_frame`/`pop_frame`；
+- `VmDebugger`：字节码执行器（`vm.py`）—— 钩子是 `before_instr`
+  （每条指令），靠编译器打的「**语句起始标记**」认出语句边界。
+
+于是**同一个程序、同一组断点与单步命令，两个执行器的会话记录逐字相同**——
+这不是巧合，是 `tests/test_m39_vm_debugger.py` 里逐项对拍钉住的性质。
+
+字节码执行器怎么会有「语句边界」
+--------------------------------
+栈机只知道指令，但**编译器知道**：`compile_stmt` 会给每个语句的**第一条指令**
+打一个标（`opcodes.Code.stmt_marks`），调试器只在标记处暂停。标「首指令」
+而不是「语句范围内的每一行」是刻意的：循环的回边（`遍历`→FOR_ITER、
+`当`→条件、`循环 n 次`→计数器判断）都落在语句中部，于是循环头只停一次，
+与树遍历里 `A.For`/`A.While` 只被 `exec_stmt` 进入一次**完全一致**。
 
 三条设计原则
 ------------
-1. **调试器不改语义**：钩子只读（读语句行号、读环境），暂停时也不动环境。
+1. **调试器不改语义**：钩子只读（读标记、读帧），暂停时也不动任何状态。
    所以「带调试器跑」与「不带调试器跑」的输出必须逐字节相同——有测试钉住。
 2. **中文命令**，与语言本身一致；同时给英文字母做别名（`c`/`s`/`n`/`b`/`p`…），
    让习惯 gdb 的人手感不掉。
@@ -24,8 +37,28 @@
 -------------------------------------------
 用户在暂停时按「退出」是想**立刻结束**，而不是让程序里的 `尝试/捕获` 把它接住
 ——一句 `捕获：` 就能吞掉「退出」的话，用户会觉得调试器失灵。所以 `DebugQuit`
-刻意不继承 `JishiError`，并在 `interpreter._do_try` 里显式放行（那边是
-`except BaseException`，为的是把 Python 异常翻译成中文）。
+刻意不继承 `JishiError`，两个执行器都要显式放行它：
+
+- 树遍历：`interpreter._do_try` 里那段是 `except BaseException`（为把 Python
+  异常翻译成中文），控制信号元组里显式带上它；
+- 字节码：VM 主循环的 `except BaseException` 会把它当用户异常去分发，所以
+  `vm._dispatch_exception` 让它**跳过循环目标、只走处理器链**，`vm.THROW`
+  也不许把它包装成用户异常。
+
+两边合起来的效果一样：**`最终` 块照跑，`捕获` 接不住**——像正常控制流离开，
+不是硬杀。
+
+已知边界（不粉饰）
+------------------
+- **C VM 还不能调试**：它的帧与局部变量都在 C 侧，要先让宿主回调把帧传出来；
+  理由与设计草图见 `docs/调试器.md`。`jishi 调试 --执行器 cvm` 会明确拒绝，
+  不静默降级。
+- **空块 `:` 那一行在字节码执行器上停不住**：它不发射任何指令，标不上「语句
+  起始」。CLI 会明确提示「这一行没有可停的语句」（树遍历则停得住）。
+- **块关键字行不能设断点**（`否则：` / `捕获：` / `最终：`）：它们是块的一部分，
+  不是独立语句（`否则` 那一行连 AST 节点都没有）。
+- **从 Python 侧回调进来的基石函数不会在其中暂停**（如 `列表.映射` 的回调），
+  与 M17 错误调用栈同一限制。
 """
 
 from __future__ import annotations
@@ -109,6 +142,17 @@ def statement_lines(program: A.Program) -> set[int]:
     return {n.line for n in iter_nodes(program) if isinstance(n, _STMT_TYPES)}
 
 
+def mark_lines(cmod) -> set[int]:
+    """字节码里所有「语句起始标记」的行号（= VM 调试器可停的行）。
+
+    与 `statement_lines()` 是同一件事的两种说法：前者问 AST，后者问字节码。
+    两者应当相等，`tests/test_m39_vm_debugger.py` 会拿真实程序对拍；
+    差一处就是「某个断点在两个执行器里表现不同」，必须当场发现。
+    """
+    return {ins.stmt_line for code in cmod.codes for ins in code.instrs
+            if ins.stmt_line}
+
+
 def parse_lines(spec: Iterable[Any]) -> list[int]:
     """把「12,15」「12 15」这类行号写法解析成整数列表（中文逗号也认）。"""
     out: list[int] = []
@@ -122,15 +166,16 @@ def parse_lines(spec: Iterable[Any]) -> list[int]:
 
 
 # ---------------------------------------------------------------------------
-# 调试器
+# 会话（执行器无关）
 # ---------------------------------------------------------------------------
 
 @dataclasses.dataclass
 class DebugFrame:
-    """调试器的调用帧：函数名 + **那一帧的环境**（用于看变量）+ 调用点。
+    """树遍历调试器的调用帧：函数名 + **那一帧的环境**（用于看变量）+ 调用点。
 
     与 `errors.Frame` 的区别：那个只记「函数名 + 调用点」（渲染错误回溯够用），
     这里必须留着 `env`，否则「在函数里暂停时看局部变量」就无从谈起。
+    字节码执行器不需要它——那里的 `_Frame` 自己就带着局部槽与单元。
     """
 
     name: str
@@ -144,42 +189,45 @@ class _Snapshot:
     """出错现场的快照（M37）。
 
     为什么要专门存一份：**错误是在语句执行到一半时冒出来的**，等它传到
-    `run()` 时，`_eval_call` 的 `finally` 已经把帧全弹掉了——那时再去看
-    「当前帧」，看到的会是模块顶层、变量也可能是上一帧的（真实踩到过：
-    错误出在函数「主」里，快照却写着「模块顶层」）。所以每执行一条语句就把
-    「此刻在哪、哪个帧、有哪些变量、栈长什么样」**复制**一份留底。
+    `run()` 时，调用帧已经被弹干净了——那时再去看「当前帧」，看到的会是
+    模块顶层、变量也可能是上一帧的（真实踩到过：错误出在函数「主」里，
+    快照却写着「模块顶层」）。所以每执行一条语句就把「此刻在哪、哪个帧、
+    有哪些变量、栈长什么样」**复制**一份留底。
+
+    `target` 是执行器自己的「帧句柄」：树遍历是 `Environment`，字节码是
+    `vm._Frame`——它由 `_vars_of` 解释，会话本身不需要认识。
     """
 
     line: int
     label: str
-    env: Any
+    target: Any
     chain: list[tuple[int, str]]
 
 
-class Debugger:
-    """挂在 `Interpreter` 上的调试器（`interp.debugger = Debugger(...)`）。
+class _Session:
+    """调试会话中与执行器无关的部分。
 
-    钩子只有两个：`before_stmt`（每个语句执行前）与 `push_frame`/`pop_frame`
-    （进出函数）。语义零改动——它们只读不写。
+    子类需要提供五件「执行器知识」（都是只读的）：
+    `_depth()` / `_frame_label()` / `_frame_target()` / `_vars_of()` /
+    `_live_chain()` / `_eval_expr()`，外加 `_start()`（怎么把程序跑起来）。
     """
 
-    def __init__(self, interp, program: A.Program, *,
-                 source_lines: Iterable[str],
-                 filename: str = "<输入>",
-                 breakpoints: Iterable[Any] = (),
-                 stop_on_entry: bool = True,
+    #: 给用户看的执行器名字（CLI 提示用；会话输出里不出现，两种执行器才逐字相同）
+    executor_name = "未知"
+
+    def __init__(self, *, source_lines: Iterable[str], filename: str = "<输入>",
+                 breakpoints: Iterable[Any] = (), stop_on_entry: bool = True,
                  read_line: Optional[Callable[[str], str]] = None,
                  write: Optional[Callable[[str], None]] = None,
-                 script: Optional[Iterable[str]] = None):
-        self.interp = interp
-        self.program = program
+                 script: Optional[Iterable[str]] = None,
+                 stmt_lines: Iterable[int] = ()):
         self.filename = filename
         self.lines = list(source_lines)
         self.breakpoints: set[int] = set()
         self.stop_on_entry = stop_on_entry
         self.quit_requested = False
         #: 程序里「可停的语句行」，设断点时用来提示「这行停不住」
-        self.stmt_lines = statement_lines(program)
+        self.stmt_lines = set(stmt_lines)
         #: 语言自带的全局名字（内建函数 + 异常类型 + `空`）。「看变量」默认
         #: 把它们藏起来——模块顶层本来会一次冒出三十多个，把用户的变量淹掉。
         #: 按**名字**判断而不是按值的类型判断：`值错误` 这类异常类型是 Python
@@ -191,8 +239,6 @@ class Debugger:
         #: 命令脚本（非 None 时按顺序自动执行；用完自动「继续」）
         self._script: Optional[list[str]] = list(script) if script is not None else None
 
-        self._frames: list[DebugFrame] = []
-        self._env: Optional[Any] = None
         self._snapshot: Optional[_Snapshot] = None
         self._line = 1
         #: 恢复模式：run / step / next / out；entry 只用于「停在入口」那一次
@@ -203,7 +249,41 @@ class Debugger:
         self.stops = 0
         self._help_shown = False
         self.add_breakpoints(breakpoints)
-        interp.debugger = self
+
+    # -- 子类要实现的「执行器知识」------------------------------------------
+
+    def _start(self) -> None:
+        """把程序跑起来（返回即正常结束）。"""
+        raise NotImplementedError
+
+    def _depth(self) -> int:
+        """当前**用户函数**的层数（模块顶层 = 0）。
+
+        三种单步全靠它区分：`下一步` = 深度不增加，`跳出` = 深度变小。
+        """
+        raise NotImplementedError
+
+    def _frame_label(self) -> str:
+        raise NotImplementedError
+
+    def _frame_target(self) -> Any:
+        """当前帧的句柄（交给 `_vars_of` 解释），没有则 None。"""
+        raise NotImplementedError
+
+    def _vars_of(self, target: Any) -> dict:
+        """帧句柄 → 变量表（名字 → 值）。"""
+        raise NotImplementedError
+
+    def _live_chain(self) -> list[tuple[int, str]]:
+        """调用栈：由内到外的 (行号, 在哪)。"""
+        raise NotImplementedError
+
+    def _eval_expr(self, text: str) -> Any:
+        """在当前帧里求一个表达式的值。"""
+        raise NotImplementedError
+
+    def _can_eval(self) -> bool:
+        return self._frame_target() is not None
 
     # -- 断点 ---------------------------------------------------------------
 
@@ -225,44 +305,12 @@ class Debugger:
     def clear_breakpoints(self) -> None:
         self.breakpoints.clear()
 
-    # -- 执行器调用的钩子 ---------------------------------------------------
-
-    def before_stmt(self, stmt: A.Node, env: Any) -> None:
-        """每个语句执行前调用（见 `interpreter.exec_stmt` 开头）。"""
-        line = getattr(stmt, "line", None) or self._line
-        self._line = line
-        self._env = env
-        # 顺手留一份现场：错误可能在**这条语句执行到一半**时冒出来，那时帧
-        # 已经被 finally 弹掉了（见 _Snapshot 的说明）。
-        self._snapshot = _Snapshot(line, self._frame_label(), env,
-                                   self._live_chain())
-        depth = len(self._frames)
-        mode = self._mode
-        if mode == "entry":
-            self._pause("停在入口")
-        elif mode == "step":
-            self._pause("单步")
-        elif mode == "next" and depth <= self._paused_depth:
-            self._pause("下一步")
-        elif mode == "out" and depth < self._paused_depth:
-            self._pause("跳出")
-        elif mode == "run" and line in self.breakpoints:
-            self._pause(f"命中第 {line} 行的断点")
-
-    def push_frame(self, name: str, env: Any, call_line: int,
-                   call_col: int = 1) -> None:
-        self._frames.append(DebugFrame(name, env, call_line, call_col))
-
-    def pop_frame(self) -> None:
-        if self._frames:
-            self._frames.pop()
-
     # -- 会话 ---------------------------------------------------------------
 
     def run(self) -> Optional[JishiError]:
         """跑程序；返回 ``None`` 表示正常跑完或用户主动退出。"""
         try:
-            self.interp.run(self.program)
+            self._start()
         except DebugQuit:
             self.quit_requested = True
             self._write_line("（调试会话已结束，程序没有跑完）")
@@ -289,15 +337,35 @@ class Debugger:
         if snap is None:
             self._write_line("（错误发生在任何语句之前，没有变量快照）")
             return
-        self._dump_vars("", snap.env, snap.label)
+        self._dump_vars("", snap.target, snap.label)
         self._dump_stack(snap.chain)
         self._write_line("（想复盘就改脚本、带上同一组断点再跑一次）")
 
     # -- 暂停与命令 ---------------------------------------------------------
 
+    def _before_statement(self, line: int, target: Any) -> None:
+        """执行器每进入一个语句就调这里（两种执行器共用的暂停判定）。"""
+        self._line = line
+        # 顺手留一份现场：错误可能在**这条语句执行到一半**时冒出来，那时帧
+        # 已经被弹掉了（见 _Snapshot 的说明）。
+        self._snapshot = _Snapshot(line, self._frame_label(), target,
+                                   self._live_chain())
+        depth = self._depth()
+        mode = self._mode
+        if mode == "entry":
+            self._pause("停在入口")
+        elif mode == "step":
+            self._pause("单步")
+        elif mode == "next" and depth <= self._paused_depth:
+            self._pause("下一步")
+        elif mode == "out" and depth < self._paused_depth:
+            self._pause("跳出")
+        elif mode == "run" and line in self.breakpoints:
+            self._pause(f"命中第 {line} 行的断点")
+
     def _pause(self, reason: str) -> None:
         self.stops += 1
-        self._paused_depth = len(self._frames)
+        self._paused_depth = self._depth()
         self._write_line("")
         self._write_line(f"暂停（{reason}） 第 {self._line} 行 · {self._frame_label()}")
         self._write_line(self._source_line(self._line))
@@ -367,7 +435,7 @@ class Debugger:
         return "next"
 
     def _cmd_out(self, arg: str) -> Optional[str]:
-        if not self._frames:
+        if self._depth() == 0:
             self._write_line("（已经在最外层了，按「继续」处理）")
             return "run"
         return "out"
@@ -435,12 +503,10 @@ class Debugger:
         if not text:
             self._write_line("用法：查看 表达式（例如 查看 单价 * 数量）")
             return None
-        if self._env is None:
+        if not self._can_eval():
             self._write_line("（还没有执行到任何语句，没法求值）")
             return None
-        from .parser import parse_expression
-        node = parse_expression(text, "<调试>")
-        value = self.interp.eval_expr(node, self._env)
+        value = self._eval_expr(text)
         self._write_line(f"  {text} = {jishi_repr(value, top=True)}")
         return None
 
@@ -475,11 +541,6 @@ class Debugger:
 
     # -- 输出片段 -----------------------------------------------------------
 
-    def _frame_label(self) -> str:
-        if self._frames:
-            return f"函数「{self._frames[-1].name}」"
-        return "模块顶层"
-
     def _source_line(self, n: int) -> str:
         text = self.lines[n - 1] if 1 <= n <= len(self.lines) else ""
         return _number_line(n, text, len(str(max(1, len(self.lines)))), n)
@@ -494,16 +555,17 @@ class Debugger:
         """
         return name.startswith("__") or name in self._builtin_names
 
-    def _dump_vars(self, arg: str, env: Any = None, label: Optional[str] = None) -> None:
-        """打印某一帧的变量。`env`/`label` 不传时用**当前暂停处**的。"""
+    def _dump_vars(self, arg: str, target: Any = None,
+                   label: Optional[str] = None) -> None:
+        """打印某一帧的变量。`target` / `label` 不传时用**当前暂停处**的。"""
         show_all = arg.strip() in ("全部", "all", "-a")
-        if env is None and label is None:
-            env, label = self._env, self._frame_label()
+        if target is None and label is None:
+            target, label = self._frame_target(), self._frame_label()
         self._write_line(f"当前帧（{label}）的变量：")
-        if env is None:
+        if target is None:
             self._write_line("  （还没有执行到任何语句）")
             return
-        vars_map = dict(getattr(env, "vars", {}) or {})
+        vars_map = self._vars_of(target)
         shown: list[tuple[str, Any]] = []
         hidden: list[str] = []
         for name in sorted(vars_map):
@@ -519,6 +581,77 @@ class Debugger:
             self._write_line(f"  （另有 {len(hidden)} 项内建/临时变量没显示，"
                              "要看用「变量 全部」）")
 
+    def _dump_stack(self, chain: Optional[list[tuple[int, str]]] = None) -> None:
+        self._write_line("调用栈（由内到外）：")
+        for i, (line, label) in enumerate(chain or self._live_chain()):
+            self._write_line(f"  #{i} 第 {line:>4} 行  {label}")
+
+
+# ---------------------------------------------------------------------------
+# 树遍历执行器
+# ---------------------------------------------------------------------------
+
+class Debugger(_Session):
+    """挂在 `Interpreter` 上的调试器（`interp.debugger = Debugger(...)`）。
+
+    钩子只有两个：`before_stmt`（每个语句执行前）与 `push_frame`/`pop_frame`
+    （进出函数）。语义零改动——它们只读不写。
+    """
+
+    executor_name = "树遍历"
+
+    def __init__(self, interp, program: A.Program, *,
+                 source_lines: Iterable[str],
+                 filename: str = "<输入>",
+                 breakpoints: Iterable[Any] = (),
+                 stop_on_entry: bool = True,
+                 read_line: Optional[Callable[[str], str]] = None,
+                 write: Optional[Callable[[str], None]] = None,
+                 script: Optional[Iterable[str]] = None):
+        super().__init__(source_lines=source_lines, filename=filename,
+                         breakpoints=breakpoints, stop_on_entry=stop_on_entry,
+                         read_line=read_line, write=write, script=script,
+                         stmt_lines=statement_lines(program))
+        self.interp = interp
+        self.program = program
+        self._frames: list[DebugFrame] = []
+        self._env: Optional[Any] = None
+        interp.debugger = self
+
+    # -- 执行器调用的钩子 ---------------------------------------------------
+
+    def before_stmt(self, stmt: A.Node, env: Any) -> None:
+        """每个语句执行前调用（见 `interpreter.exec_stmt` 开头）。"""
+        self._env = env
+        self._before_statement(getattr(stmt, "line", None) or self._line, env)
+
+    def push_frame(self, name: str, env: Any, call_line: int,
+                   call_col: int = 1) -> None:
+        self._frames.append(DebugFrame(name, env, call_line, call_col))
+
+    def pop_frame(self) -> None:
+        if self._frames:
+            self._frames.pop()
+
+    # -- 执行器知识 ---------------------------------------------------------
+
+    def _start(self) -> None:
+        self.interp.run(self.program)
+
+    def _depth(self) -> int:
+        return len(self._frames)
+
+    def _frame_label(self) -> str:
+        if self._frames:
+            return f"函数「{self._frames[-1].name}」"
+        return "模块顶层"
+
+    def _frame_target(self) -> Any:
+        return self._env
+
+    def _vars_of(self, target: Any) -> dict:
+        return dict(getattr(target, "vars", {}) or {})
+
     def _live_chain(self) -> list[tuple[int, str]]:
         """把「当前在哪一行、各层是从哪里调进来的」算成一张由内到外的表。"""
         if not self._frames:
@@ -532,13 +665,137 @@ class Debugger:
         chain.append((self._frames[0].call_line, "模块顶层"))
         return chain
 
-    def _dump_stack(self, chain: Optional[list[tuple[int, str]]] = None) -> None:
-        self._write_line("调用栈（由内到外）：")
-        for i, (line, label) in enumerate(chain or self._live_chain()):
-            self._write_line(f"  #{i} 第 {line:>4} 行  {label}")
+    def _eval_expr(self, text: str) -> Any:
+        from .parser import parse_expression
+        node = parse_expression(text, "<调试>")
+        return self.interp.eval_expr(node, self._env)
 
 
-#: 命令表：规范名 → Debugger 上的方法名
+# ---------------------------------------------------------------------------
+# 字节码执行器（M39 · B5）
+# ---------------------------------------------------------------------------
+
+class VmDebugger(_Session):
+    """挂在 `VM` 上的调试器（`vm.debugger = VmDebugger(...)`）。
+
+    钩子只有一个：`before_instr`（每条指令），靠编译器在**语句首指令**上打的
+    标记认出语句边界。帧从 `vm.frames` 现取（不另存一份），所以「退出」这类
+    把帧一路弹空的路径也不会让调试器的视图与执行器失步。
+    """
+
+    executor_name = "字节码（Python VM）"
+
+    def __init__(self, vm, *,
+                 source_lines: Iterable[str],
+                 filename: str = "<输入>",
+                 breakpoints: Iterable[Any] = (),
+                 stop_on_entry: bool = True,
+                 read_line: Optional[Callable[[str], str]] = None,
+                 write: Optional[Callable[[str], None]] = None,
+                 script: Optional[Iterable[str]] = None,
+                 stmt_lines: Optional[Iterable[int]] = None):
+        super().__init__(source_lines=source_lines, filename=filename,
+                         breakpoints=breakpoints, stop_on_entry=stop_on_entry,
+                         read_line=read_line, write=write, script=script,
+                         # 「可停的行」直接取字节码里打的语句标记——比再解析一遍
+                         # AST 更准：它就是执行器真正停得下来的那些行
+                         stmt_lines=(mark_lines(vm.cmod) if stmt_lines is None
+                                     else stmt_lines))
+        self.vm = vm
+        #: 「查看 表达式」求值期间不许再触发暂停（否则会在一条命令中途停下）
+        self._evaluating = False
+        vm.debugger = self
+
+    # -- 执行器调用的钩子 ---------------------------------------------------
+
+    def before_statement(self, line: int, frame) -> None:
+        """每进入一个语句前调用（见 `vm._execute` 主循环）。
+
+        VM 侧已经把「这条指令是不是语句起始」查好了（`Code.stmt_marks`），
+        这里只管暂停判定——于是它和树遍历的 `before_stmt` 是同一件事的两种
+        触发方式，会话行为因此逐字一致。
+        """
+        if self._evaluating:
+            # 「查看 表达式」求值中：不许在一条命令中途再暂停
+            return
+        self._before_statement(line, frame)
+
+    # -- 执行器知识 ---------------------------------------------------------
+
+    def _start(self) -> None:
+        self.vm.run()
+
+    def _frames(self) -> list:
+        """**用户函数**帧（不含模块主帧），与树遍历的 `_frames` 对齐。"""
+        frames = self.vm.frames
+        return frames[1:] if len(frames) > 1 else []
+
+    def _depth(self) -> int:
+        return len(self._frames())
+
+    def _frame_label(self) -> str:
+        frames = self._frames()
+        if frames:
+            return f"函数「{frames[-1].code.name}」"
+        return "模块顶层"
+
+    def _frame_target(self) -> Any:
+        return self.vm.frames[-1] if self.vm.frames else None
+
+    def _vars_of(self, target: Any) -> dict:
+        from .vm import _UNSET
+
+        if target is None:
+            return {}
+        if target.code is self.vm.codes[self.vm.cmod.main]:
+            # 模块顶层：普通变量都在全局表里（与树遍历的模块环境一致）
+            return dict(self.vm.globals)
+        out: dict[str, Any] = {}
+        code = target.code
+        for i, name in enumerate(code.local_names):
+            if name.startswith("$tmp"):     # 编译器内部的临时槽（循环计数器…）
+                continue
+            if i >= len(target.locals):
+                break
+            value = target.locals[i]
+            if value is not _UNSET:         # 还没赋过值的槽位不显示（与树遍历一致）
+                out[name] = value
+        # 本函数**自己的**单元变量（被内层函数捕获的局部变量）照常显示；
+        # 但**自由变量**（从外层捕获进来的）不显示——树遍历那边的函数环境里
+        # 只有本函数自己绑定的名字，列出来两边就不一致了。
+        # 想看它们用「查看 基数」：`LOAD_DEREF` 读得到，只是不进变量表。
+        for i in range(len(code.cellvars)):
+            if i >= len(target.cells):
+                break
+            cell = target.cells[i]
+            if cell.value is not _UNSET:
+                out[self.vm._cell_name(code, i)] = cell.value
+        return out
+
+    def _live_chain(self) -> list[tuple[int, str]]:
+        frames = self._frames()
+        if not frames:
+            return [(self._line, "模块顶层")]
+        chain = [(self._line, f"函数「{frames[-1].code.name}」")]
+        for j in range(len(frames) - 1, 0, -1):
+            chain.append((frames[j].call_line,
+                          f"函数「{frames[j - 1].code.name}」"))
+        chain.append((frames[0].call_line, "模块顶层"))
+        return chain
+
+    def _eval_expr(self, text: str) -> Any:
+        from .compiler import compile_debug_expr
+
+        frame = self.vm.frames[-1]
+        code = compile_debug_expr(self.vm.cmod, frame.code, text)
+        self._evaluating = True
+        try:
+            return self.vm.eval_in_frame(code, frame)
+        finally:
+            self._evaluating = False
+
+
+#: 命令表：规范名 → 会话上的方法名
 _COMMANDS = {
     "继续": "_cmd_continue",
     "单步": "_cmd_step",

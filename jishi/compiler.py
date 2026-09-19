@@ -323,6 +323,40 @@ class _Emitter:
             self.compile_stmt(st)
 
     def compile_stmt(self, st: A.Node):
+        """编译一条语句，**顺手在它的第一条指令上打一个「语句起始」标**（B5）。
+
+        标记只标**首指令**：循环的回边（`遍历`→FOR_ITER、`当`→条件、
+        `循环 n 次`→计数器判断）都落在语句中部，因此循环头只停一次，
+        与树遍历「一个语句一次 `exec_stmt`」严格对齐。
+        """
+        start = len(self.code.instrs)
+        self._compile_stmt(st)
+        self._mark_start(start, st)
+
+    def _mark_start(self, start: int, st: A.Node) -> None:
+        """给 `start` 处那条指令打上「语句起始」标（这一段真发射了指令才算）。
+
+        不变式：**打标行的集合 == AST 里语句行的集合**。`tests/test_m39_vm_debugger.py`
+        拿 `examples/` 与 `tests/cases/` 全量对拍这条不变式——破了就意味着
+        「某一行在树遍历停得住、在字节码停不住」。
+        """
+        if len(self.code.instrs) > start:
+            self.code.instrs[start].stmt_line = getattr(st, "line", 1) or 1
+
+    def _emit_nop(self, node: A.Node) -> None:
+        """发一条「空操作」（常量入栈再弹出）并就地打上语句起始标。
+
+        为什么需要它：语句标记是**打在指令上**的，而有些语句本身不产生任何
+        效果（空块 `:`、类定义的开头）。若不为它们占一条指令，「语句起始」
+        就无处安放 —— 这一行在树遍历里停得住、在字节码里停不住。
+        两条指令、不动栈、无副作用。
+        """
+        start = len(self.code.instrs)
+        self.emit(O.Op.LOAD_CONST, node, self.const_idx(None))
+        self.emit(O.Op.POP_TOP, node)
+        self._mark_start(start, node)
+
+    def _compile_stmt(self, st: A.Node):
         if isinstance(st, A.Assign):
             self._c_assign(st)
         elif isinstance(st, A.ExprStmt):
@@ -361,7 +395,9 @@ class _Emitter:
         elif isinstance(st, A.Raise):
             self._c_raise(st)
         elif isinstance(st, A.Pass):
-            pass
+            # 空块占位（`:` / `通过`）：树遍历里它是一次真实的 `exec_stmt`
+            # （调试器会停在这一行），字节码里得占一条指令（B5）
+            self._emit_nop(st)
         else:
             raise JishiError(f"还不支持的语句：{type(st).__name__}",
                              line=getattr(st, "line", 1),
@@ -537,13 +573,37 @@ class _Emitter:
 
     # 类定义：压基类（若有）+ 逐个方法 + 类名，最后 BUILD_CLASS 组装
     def _c_classdef(self, st: A.ClassDef):
+        # 类定义本身也是一条语句，先占一条指令：类体里第一个方法/类变量的
+        # 首指令与「类定义的首指令」会是同一条（类定义还没发射任何东西时
+        # 就开始编类体了），两条语句抢一个指令下标，标记只能活一个——
+        # 少了这条空操作，「函数 方法(自身)：」那一行就永远停不住（M39 踩到）。
+        self._emit_nop(st)
         # 基类在最底（若有）
         if st.base is not None:
             self.load_name(st.base, st)
 
         n_methods = 0
+        value_slots: list[tuple[A.Node, int]] = []   # 类变量：值先算好，最后挂上
         for node in st.body:
-            if isinstance(node, A.FuncDef):
+            if isinstance(node, A.Pass):
+                # 空类占位（`:`）：同样占一条指令，让这一行在调试器里停得住
+                self._emit_nop(node)
+            elif isinstance(node, A.Assign):
+                # 类变量（M23.3）：值在「定义类的外层作用域」求值。
+                # **求值就地进行**（占一个临时槽），等类造出来再 SET_ATTR ——
+                # 这样副作用的发生顺序与树遍历（源码顺序）一致。
+                # 以前是「先造类、再按源码顺序求值」，于是同一个程序在两个
+                # 执行器里副作用顺序不同（调试器看到的语句顺序也不同，M39 发现）。
+                start = len(self.code.instrs)
+                slot = self.new_tmp()
+                self.compile_expr(node.value)
+                self.emit(O.Op.STORE_FAST, node, slot)
+                value_slots.append((node, slot))
+                self._mark_start(start, node)
+            elif isinstance(node, A.FuncDef):
+                # 方法定义也是**一条语句**（树遍历里调试器会停在这一行，
+                # 见 interpreter._do_classdef 里的 before_stmt），所以要打标
+                start = len(self.code.instrs)
                 sub_scope = self.func_scopes[id(node)]
                 code = self._make_code(node, sub_scope)
                 code_idx = len(self.cmod.codes)
@@ -572,6 +632,7 @@ class _Emitter:
                 self.emit(O.Op.LOAD_CONST, node, self.const_idx(None))
                 self.emit(O.Op.RETURN, node)
                 self.code, self.scope = saved_code, saved_scope
+                self._mark_start(start, node)
 
         # 栈 [基类?, 方法..., 类名] → 类
         self.emit(O.Op.LOAD_CONST, st, self.const_idx(st.name))
@@ -580,11 +641,10 @@ class _Emitter:
         # 类变量（M23.3）：类造好后逐个挂上。栈上此时是 [类]，
         # 每次 DUP_TOP 出一份「目标」，再压入值，SET_ATTR 吃掉值和那份目标，
         # 原类仍留在栈上留给下一次——这样连续多个类变量也对。
-        for node in st.body:
-            if not isinstance(node, A.Assign):
-                continue
+        # 值是**在源码位置**就算好的（见上面的 value_slots），这里只负责挂。
+        for node, slot in value_slots:
             self.emit(O.Op.DUP_TOP, node)
-            self.compile_expr(node.value)
+            self.emit(O.Op.LOAD_FAST, node, slot)
             self.emit(O.Op.SET_ATTR, node, self.name_idx(node.target.id))
 
         self.store_name(st.name, st)
@@ -983,6 +1043,49 @@ def compile_source(source: str, filename: str = "<输入>") -> O.CompiledModule:
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     program = parse(tokens, lines, filename)
     return compile_program(program, filename, lines)
+
+
+def compile_debug_expr(cmod: O.CompiledModule, frame_code: O.Code,
+                       text: str) -> O.Code:
+    """把一句调试命令里的表达式编译成**能在当前帧上跑**的小代码对象（B5）。
+
+    「查看 单价 * 数量」要看见的是**暂停那一刻**的值，所以不能另起一个环境去
+    求值：这段代码与所在帧**共用局部槽与闭包单元**（VM 侧 `eval_in_frame`），
+    因此名字解析必须与该帧一致——局部名走 `LOAD_FAST`、单元名走 `LOAD_DEREF`、
+    其余走 `LOAD_GLOBAL`（内建、导入的模块、模块级变量都在全局表里）。
+
+    返回的小代码对象会**追加进同一个 `cmod.codes`**：常量表、名字表也跟着
+    复用同一份，于是它在运行中的 VM 上直接可执行（VM 的 `self.codes` 就是
+    这个 list）。
+    """
+    from .parser import parse_expression
+
+    node = parse_expression(text, "<调试>")
+    scope = _Scope(FUNC_SCOPE, "<查看>")
+    # 与所在帧同名同槽：局部槽表整体复用（LOAD_FAST 的下标必须对得上）
+    scope.bound = set(frame_code.local_names) | set(frame_code.params)
+    scope.cellvars = set(frame_code.cellvars)
+    scope.freevars = set(frame_code.freevars)
+    func_scopes: dict[int, _Scope] = {}
+    _collect_expr(node, scope, func_scopes)
+    _resolve(scope)
+
+    code = O.Code(name="<查看>",
+                  nlocals=frame_code.nlocals,
+                  local_names=list(frame_code.local_names),
+                  cellvars=list(frame_code.cellvars),
+                  freevars=list(frame_code.freevars),
+                  firstlineno=0)
+    emit = _Emitter(cmod, func_scopes, scope)
+    emit.code = code
+    try:
+        emit.compile_expr(node)
+    except KeyError:                   # pragma: no cover - 兜底，别甩英文 KeyError
+        raise JishiError("「查看」里不能定义函数或类，只能看一个表达式",
+                         line=1, col=1)
+    emit.emit(O.Op.RETURN)
+    cmod.codes.append(code)
+    return code
 
 
 def main(argv: Optional[list[str]] = None) -> int:

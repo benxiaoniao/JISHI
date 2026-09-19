@@ -248,6 +248,12 @@ class Instr:
     c: int = 0
     line: int = 0
     col: int = 0
+    #: 若这条指令是**某个语句的第一条指令**，这里是那个语句的行号，否则 0。
+    #: 调试器（B5）靠它认出「语句边界」：栈机没有这种事件，但编译器知道。
+    #: 放在指令上而不是另开一张表，是为了让 VM 主循环里的一次判断就够了
+    #: （实测：+15% → 更低；挂调试器才有这个开销，不挂时只多一次属性读取）。
+    #: 注意 `as_tuple()` 仍是 6 元组——C 侧与跨语言宿主的布局不受影响。
+    stmt_line: int = 0
 
     def as_tuple(self) -> tuple[int, int, int, int, int, int]:
         return (self.op, self.a, self.b, self.c, self.line, self.col)

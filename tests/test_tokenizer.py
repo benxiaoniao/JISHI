@@ -238,5 +238,46 @@ def test_reserved_future_keyword_passes_lexer():
     assert ("KEYWORD", "类") in values(toks)
 
 
+# ---------------------------------------------------------------------------
+# 跨行三引号字符串（M39 修：收尾引号独占一行时不补 NEWLINE）
+# ---------------------------------------------------------------------------
+
+def test_triple_quoted_multiline_closed_on_its_own_line():
+    """收尾 `\"\"\"` 独占一行——最自然的写法——必须收尾这一行（补 NEWLINE）。
+
+    M39 之前这里漏了 NEWLINE，于是解析器把下一行当成同一句，
+    报「这一行没写完」。三引号跨行**整个特性**因此不可用，
+    但语料里没人真跑过（只有格式化的用例），所以一直没被发现。
+    """
+    toks = tokenize('令 甲 = """第一行\n第二行\n"""\n打印(甲)\n')
+    assert ("STRING", "第一行\n第二行\n") in values(toks)
+    # 收尾引号那一行之后要有 NEWLINE，否则下一句会被并进同一句
+    idx = [i for i, t in enumerate(toks) if t.type == "STRING"][0]
+    assert toks[idx + 1].type == "NEWLINE"
+    assert ("NAME", "打印") in values(toks)
+
+
+def test_triple_quoted_multiline_closed_with_trailing_code():
+    toks = tokenize('令 甲 = """甲\n乙""" + "丙"\n')
+    assert ("STRING", "甲\n乙") in values(toks)
+    assert types(toks).count("NEWLINE") == 1
+    assert ("OP", "+") in values(toks)
+
+
+def test_triple_quoted_inside_brackets_does_not_end_the_line():
+    """括号里跨行的三引号：中途不补 NEWLINE（括号深度还没归零）。"""
+    toks = tokenize('令 甲 = ["""甲\n乙""",\n    "丙"]\n')
+    first_string = [i for i, t in enumerate(toks) if t.type == "STRING"][0]
+    # 字符串之后是逗号，不是 NEWLINE
+    assert toks[first_string + 1].value == ","
+    assert ("NEWLINE", "\n") in values(toks)
+
+
+def test_triple_quoted_multiline_still_reports_unclosed():
+    """没写完就 EOF：照旧报「字符串没有正常结束」（别因为修了 NEWLINE 漏了它）。"""
+    with pytest.raises(LexStringError):
+        tokenize('令 甲 = """第一行\n第二行\n')
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
