@@ -1126,13 +1126,28 @@ function newBuiltins() {
       return stdinLine();
     }),
     '整数': new Builtin('整数', (v) => {
-      const n = Math.trunc(Number(unwrap(v)));
-      if (Number.isNaN(n)) throw typeErr(`不能把「${display(v)}」转成整数`);
+      // 归类与 Python 侧 `_b_int` 一致（M41）：文本转不动 → **值错误**；
+      // 类型本身不对（列表/字典/集合）→ **类型错误**。
+      const x = unwrap(v);
+      if (x === null || typeof x === 'boolean') {
+        return x === null ? 0 : (x ? 1 : 0);
+      }
+      if (typeof x === 'object') {
+        throw typeErr(`「${display(v)}」不能转成整数`);
+      }
+      const n = Math.trunc(Number(x));
+      if (Number.isNaN(n)) throw valueErr(`「${display(v)}」不能转成整数`);
       return n;
     }),
     '小数': new Builtin('小数', (v) => {
-      const n = Number(v);
-      if (Number.isNaN(n)) throw typeErr(`不能把「${display(v)}」转成小数`);
+      const x = unwrap(v);
+      if (x === null) return new FloatBox(0);
+      if (typeof x === 'boolean') return new FloatBox(x ? 1 : 0);
+      if (typeof x === 'object') {
+        throw typeErr(`「${display(v)}」不能转成小数`);
+      }
+      const n = Number(x);
+      if (Number.isNaN(n)) throw valueErr(`「${display(v)}」不能转成小数`);
       return new FloatBox(n);
     }),
     '文本': new Builtin('文本', (v) => pyStr(v)),
@@ -1186,6 +1201,36 @@ function newBuiltins() {
       if (args.length === 2) return range(args[0], args[1], 1);
       if (args.length === 3) return range(args[0], args[1], args[2]);
       throw typeErr('「范围」需要 1 到 3 个整数参数');
+    }),
+    // M41：`带下标` / `配对` 与 Python 的 enumerate / zip 同语义。
+    // 立刻返回列表而不是惰性迭代器——与 Python 侧一致（见 runtime._b_enumerate）
+    '带下标': new Builtin('带下标', (...args) => {
+      if (args.length < 1 || args.length > 2) {
+        throw typeErr('「带下标」需要 1 到 2 个参数，例如 带下标(列表)');
+      }
+      const seq = seqOf(args[0], true, undefined, undefined);
+      if (seq === null) {
+        throw typeErr(`「${display(args[0])}」不能当「带下标」的内容用`);
+      }
+      const start = args.length === 2 ? Number(args[1]) : 0;
+      if (!Number.isInteger(start)) {
+        throw typeErr(`「带下标」的起始值要是整数，得到了「${display(args[1])}」`);
+      }
+      return seq.map((v, i) => [start + i, v]);
+    }),
+    '配对': new Builtin('配对', (...args) => {
+      if (args.length === 0) throw typeErr('「配对」至少要给一个可迭代对象');
+      const seqs = args.map((a) => {
+        const s = seqOf(a, true, undefined, undefined);
+        if (s === null) {
+          throw typeErr(`「${display(a)}」不能当「配对」的内容用`);
+        }
+        return s;
+      });
+      const n = Math.min(...seqs.map((s) => s.length));
+      const out = [];
+      for (let i = 0; i < n; i++) out.push(seqs.map((s) => s[i]));
+      return out;
     }),
     '最大': new Builtin('最大', (...args) => extremum(args, true)),
     '最小': new Builtin('最小', (...args) => extremum(args, false)),
@@ -2101,4 +2146,6 @@ module.exports = {
   unpackValues, buildDict, lookupName,
   isLoopSignal, exceptionMatches, makeException,
   nameErr, typeErr, valueErr, runErr, fileErr,
+  // M41：`容器` / `迭代` 两个模块要用它做「元素 → 字典键」的归键
+  setKey,
 };

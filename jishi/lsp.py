@@ -75,8 +75,18 @@ _LITERAL_KEYWORDS = ("真", "假", "空")
 # ---------------------------------------------------------------------------
 
 def _flatten(value: Any):
-    """把任意字段值里的 AST 节点摊平出来（支持列表/元组嵌套）。"""
-    if isinstance(value, A.Node):
+    """把任意字段值里的 AST 节点摊平出来（支持列表/元组嵌套）。
+
+    **`TargetList` 要摊成里面的名字**（M41 修）：`令 甲, 乙 = …` 与
+    `遍历 序, 项 在 …` 的 target 都是 `TargetList`，它自己**不是** `Name`——
+    原先只 yield 出 `TargetList` 本身，于是解包出来的名字在 LSP 眼里
+    「从未定义」（`test_corpus_has_no_false_positive_warnings` 报出来）。
+    这条缺陷在 `令 甲, 乙 = …` 上早就存在，M41 的 `遍历` 解包让它暴露得更明显。
+    """
+    if isinstance(value, A.TargetList):
+        for n in value.names:
+            yield from _flatten(n)
+    elif isinstance(value, A.Node):
         yield value
     elif isinstance(value, (list, tuple)):
         for item in value:

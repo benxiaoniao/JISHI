@@ -61,6 +61,30 @@ def _stdlib_dir() -> str:
     return os.path.dirname(_stdlib_pkg.__file__)
 
 
+def _函数签名(node: ast.FunctionDef) -> dict:
+    params = [a.arg for a in node.args.args]
+    sig = f"{node.name}({', '.join(params)})"
+    doc = (ast.get_docstring(node) or "").strip().split("\n")[0]
+    return {"name": node.name, "sig": sig, "doc": doc}
+
+
+def _收集函数(节点们) -> list[dict]:
+    """从一组语句里收「公开函数」。
+
+    会**往 `__基石新建__` 里再看一层**：有状态模块（`日志` / `测试`）把函数
+    定义在那个工厂函数内部，好让每次 `导入` 都拿到一份独立状态（否则同进程里
+    跑第二个执行器会串——M41 对拍暴露过）。规格扫描不能因此漏掉它们。
+    """
+    funcs: list[dict] = []
+    for node in 节点们:
+        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
+            funcs.append(_函数签名(node))
+        elif (isinstance(node, ast.FunctionDef)
+              and node.name == "__基石新建__"):
+            funcs.extend(_收集函数(node.body))
+    return funcs
+
+
 def _stdlib_api() -> list[dict]:
     """扫描 jishi/stdlib/*.py，提取每个模块导出的函数签名与说明。"""
     import os
@@ -77,15 +101,7 @@ def _stdlib_api() -> list[dict]:
             tree = ast.parse(src)
         except SyntaxError:
             continue
-        funcs = []
-        for node in tree.body:
-            if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
-                params = []
-                for a in node.args.args:
-                    params.append(a.arg)
-                sig = f"{node.name}({', '.join(params)})"
-                doc = (ast.get_docstring(node) or "").strip().split("\n")[0]
-                funcs.append({"name": node.name, "sig": sig, "doc": doc})
+        funcs = _收集函数(tree.body)
         mods.append({"module": name, "functions": funcs})
     return mods
 

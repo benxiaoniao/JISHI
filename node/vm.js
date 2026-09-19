@@ -1219,6 +1219,28 @@ const PATH_FUNCS = {
     if (!st || !st.isDirectory()) throw R.valueErr(`「${dir}」不是目录`);
     return fs.readdirSync(dir).sort(cmpCodepoint);
   }),
+  '递归列出': new R.Builtin('递归列出', (p, suffix = '') => {
+    // 与 Python 侧 路径.py 的 `递归列出` 对齐：返回**相对路径**、已排序、
+    // 只列文件（目录本身不算）。后缀判定走 `suffixOf`（对齐 pathlib 规则，
+    // 不能用 path.extname——见上面 `后缀` 的注释）。
+    const dir = pText(p);
+    const st = statOf(dir);
+    if (!st || !st.isDirectory()) throw R.valueErr(`「${dir}」不是目录`);
+    const want = String(suffix);
+    const out = [];
+    const walk = (base, rel) => {
+      for (const name of fs.readdirSync(base).sort(cmpCodepoint)) {
+        const full = _path.join(base, name);
+        const st2 = statOf(full);
+        if (st2 && st2.isDirectory()) { walk(full, _path.join(rel, name)); continue; }
+        if (want && suffixOf(name) !== want) continue;
+        out.push(_path.join(rel, name));
+      }
+    };
+    walk(dir, '');
+    out.sort(cmpCodepoint);
+    return out;
+  }),
   '重命名': new R.Builtin('重命名', (from, to) => {
     const src = pText(from); const dst = pText(to);
     if (!fs.existsSync(src)) throw R.valueErr(`「${src}」不存在`);
@@ -1828,6 +1850,308 @@ const NET_FUNCS = {
   }),
 };
 
+// ---------------------------------------------------------------------------
+// M41 新增模块：容器 / 迭代 / 参数 / 日志
+//
+// 与 Python 侧 jishi/stdlib/ 下同名文件逐函数对齐。四个模块都只用「列表 /
+// 字典 / 文本」这些共同类型，所以不需要引擎特有能力。
+// ---------------------------------------------------------------------------
+
+/** 序列化：与 Python 侧 `_as_iterable` 同口径（列表/集合/字典键/文本）。 */
+function seqFor(name, v) {
+  const s = R.seqOf(v, true, undefined, undefined);
+  if (s === null) throw R.typeErr(`「${R.display(v)}」不能当「${name}」的内容用`);
+  return s;
+}
+
+/** 排序用的比较：与 Python 侧一样「保序」——平局按首次出现的先后。 */
+function stableBy(entries, keyFn) {
+  return entries
+    .map((e, i) => [e, i])
+    .sort((a, b) => {
+      const ka = keyFn(a[0]); const kb = keyFn(b[0]);
+      if (ka < kb) return -1;
+      if (ka > kb) return 1;
+      return a[1] - b[1];
+    })
+    .map(([e]) => e);
+}
+
+const CONTAINER_FUNCS = {
+  '计数': new R.Builtin('计数', (it) => {
+    const out = new Map();
+    for (const x of seqFor('计数', it)) {
+      const k = R.setKey(x);
+      if (out.has(k)) out.get(k).n += 1;
+      else out.set(k, { v: x, n: 1 });
+    }
+    const d = new Map();
+    for (const { v, n } of out.values()) d.set(v, n);
+    return d;
+  }),
+  '最多': new R.Builtin('最多', (it, count = 1) => {
+    const n = Number(count);
+    if (n <= 0) throw R.valueErr(`「最多」的个数要大于 0，得到了 ${count}`);
+    const seq = seqFor('最多', it);
+    const seen = new Map();
+    for (const x of seq) {
+      const k = R.setKey(x);
+      if (seen.has(k)) seen.get(k).n += 1;
+      else seen.set(k, { v: x, n: 1, i: seen.size });
+    }
+    const items = [...seen.values()].sort((a, b) => (b.n - a.n) || (a.i - b.i));
+    const picked = items.slice(0, n).map((o) => [o.v, o.n]);
+    if (n === 1) return picked.length ? picked[0][0] : null;
+    return picked;
+  }),
+  '按值排序': new R.Builtin('按值排序', (d, desc = true) => {
+    if (!(d instanceof Map)) {
+      throw R.typeErr(`「按值排序」要一个字典，得到了「${R.typeName(d)}」`);
+    }
+    const items = [...d.entries()];
+    const keyed = items.map((e, i) => [e, i]);
+    keyed.sort((a, b) => {
+      const ka = a[0][1]; const kb = b[0][1];
+      const c = ka < kb ? -1 : (ka > kb ? 1 : 0);
+      const r = desc ? -c : c;
+      return r !== 0 ? r : a[1] - b[1];
+    });
+    return keyed.map(([e]) => [e[0], e[1]]);
+  }),
+  '分组': new R.Builtin('分组', (it, keyFn) => {
+    const out = new Map();
+    for (const x of seqFor('分组', it)) {
+      const k = R.callValue(keyFn, [x]);
+      const hk = R.setKey(k);
+      if (out.has(hk)) out.get(hk).list.push(x);
+      else out.set(hk, { k, list: [x] });
+    }
+    const d = new Map();
+    for (const { k, list } of out.values()) d.set(k, list);
+    return d;
+  }),
+  '取前': new R.Builtin('取前', (it, n) => seqFor('取前', it).slice(0, Math.max(0, Math.trunc(Number(n))))),
+  '取后': new R.Builtin('取后', (it, n) => {
+    const all = seqFor('取后', it);
+    const k = Math.max(0, Math.trunc(Number(n)));
+    return k ? all.slice(all.length - k) : [];
+  }),
+  '分块': new R.Builtin('分块', (it, n) => {
+    const k = Math.trunc(Number(n));
+    if (k <= 0) throw R.valueErr(`「分块」的每块个数要大于 0，得到了 ${n}`);
+    const all = seqFor('分块', it);
+    const out = [];
+    for (let i = 0; i < all.length; i += k) out.push(all.slice(i, i + k));
+    return out;
+  }),
+};
+
+const ITER_FUNCS = {
+  '分组': new R.Builtin('分组', (it, n) => {
+    const k = Math.trunc(Number(n));
+    if (k <= 0) throw R.valueErr(`「分组」的每组个数要大于 0，得到了 ${n}`);
+    const all = seqFor('分组', it);
+    const out = [];
+    for (let i = 0; i < all.length; i += k) out.push(all.slice(i, i + k));
+    return out;
+  }),
+  '滑窗': new R.Builtin('滑窗', (it, size, step = 1) => {
+    const n = Math.trunc(Number(size)); const s = Math.trunc(Number(step));
+    if (n <= 0) throw R.valueErr(`「滑窗」的窗口大小要大于 0，得到了 ${size}`);
+    if (s <= 0) throw R.valueErr(`「滑窗」的步长要大于 0，得到了 ${step}`);
+    const all = seqFor('滑窗', it);
+    const out = [];
+    for (let i = 0; i + n <= all.length; i += s) out.push(all.slice(i, i + n));
+    return out;
+  }),
+  '去重': new R.Builtin('去重', (it) => {
+    const out = []; const seen = new Set();
+    for (const x of seqFor('去重', it)) {
+      const k = R.setKey(x);
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(x);
+    }
+    return out;
+  }),
+  '展开': new R.Builtin('展开', (it) => {
+    const out = [];
+    for (const seg of seqFor('展开', it)) {
+      const s = R.seqOf(seg, true, undefined, undefined);
+      if (s === null) out.push(seg); else out.push(...s);
+    }
+    return out;
+  }),
+  '取前': new R.Builtin('取前', (it, n) => seqFor('取前', it).slice(0, Math.max(0, Math.trunc(Number(n))))),
+  '取后': new R.Builtin('取后', (it, n) => {
+    const all = seqFor('取后', it);
+    const k = Math.max(0, Math.trunc(Number(n)));
+    return k ? all.slice(all.length - k) : [];
+  }),
+  '求和': new R.Builtin('求和', (it) => {
+    let s = 0;
+    for (const x of seqFor('求和', it)) s += R.unwrap(x);
+    return s;
+  }),
+  '计数': new R.Builtin('计数', (it, cond) => {
+    let n = 0;
+    for (const x of seqFor('计数', it)) if (R.truthy(R.callValue(cond, [x]))) n += 1;
+    return n;
+  }),
+};
+
+/** 参数解析：与 Python 侧 参数.py 同一套规则（句柄式）。
+ *
+ *  句柄式而不是 `解析器.选项(...)`：Rust 宿主的 `Val::Builtin` 只能存
+ *  无捕获的函数指针，挂不了「每个解析器一套方法」。为了五路写法一致，
+ *  统一「新建拿句柄 → 句柄当第一个参数传回去」。
+ */
+const _parsers = [];
+
+class ArgParser {
+  constructor(name, desc = '') {
+    this.name = String(name); this.desc = String(desc); this.specs = [];
+  }
+  addOption(name, def, desc) {
+    this.specs.push({ name: String(name), def, desc: String(desc), flag: false });
+  }
+  addFlag(name, desc) {
+    this.specs.push({ name: String(name), def: false, desc: String(desc), flag: true });
+  }
+  usage() {
+    const lines = [`用法：${this.name} [命令] [选项]`];
+    if (this.desc) lines.push(`  ${this.desc}`);
+    if (this.specs.length) {
+      lines.push('选项：');
+      for (const o of this.specs) {
+        lines.push(o.flag
+          ? `  --${o.name}         ${o.desc}`
+          : `  --${o.name} <值>     ${o.desc}（默认 ${R.display(o.def)}）`);
+      }
+    }
+    return lines.join('\n');
+  }
+}
+
+function _parserOf(h) {
+  const i = Number(h);
+  if (!Number.isInteger(i) || i < 1 || i > _parsers.length) {
+    throw R.runErr('参数解析器已失效（要用 参数.新建(...) 造一个）');
+  }
+  return _parsers[i - 1];
+}
+
+function _parseList(specs, list) {
+  if (typeof list === 'string') {
+    throw R.runErr('「参数.解析」要一个参数列表，通常写 参数.解析(解析器, 系统.参数())');
+  }
+  const arr = [...list];
+  const known = new Map(specs.map((o) => [o.name, o]));
+  const out = new Map();
+  for (const o of specs) out.set(o.name, o.def);
+  const positional = [];
+  let command = '';
+  let i = 0;
+  while (i < arr.length) {
+    const raw = arr[i];
+    const t = typeof raw === 'string' ? raw : R.display(raw);
+    if (t === '--') { positional.push(...arr.slice(i + 1)); break; }
+    if (t.startsWith('--')) {
+      const body = t.slice(2);
+      if (body.includes('=')) {
+        const [nm, ...rest] = body.split('=');
+        if (!known.has(nm)) throw R.runErr(_unknownOpt(specs, nm));
+        if (known.get(nm).flag) throw R.runErr(`「--${nm}」是个开关，不该给值`);
+        out.set(nm, rest.join('='));
+        i += 1; continue;
+      }
+      if (!known.has(body)) throw R.runErr(_unknownOpt(specs, body));
+      if (known.get(body).flag) { out.set(body, true); i += 1; continue; }
+      if (i + 1 >= arr.length) throw R.runErr(`「--${body}」后面要跟一个值`);
+      out.set(body, arr[i + 1]);
+      i += 2; continue;
+    }
+    if (!command && positional.length === 0) command = t;
+    else positional.push(raw);
+    i += 1;
+  }
+  out.set('命令', command);
+  out.set('位置', positional);
+  return out;
+}
+
+function _unknownOpt(specs, name) {
+  const all = specs.map((o) => `--${o.name}`).join('、') || '（没有）';
+  return `不认识选项「--${name}」。已声明的有：${all}`;
+}
+
+const ARG_FUNCS = {
+  '新建': new R.Builtin('新建', (name, desc = '') => {
+    _parsers.push(new ArgParser(name, desc));
+    return _parsers.length;
+  }),
+  '选项': new R.Builtin('选项', (h, name, def = null, desc = '') => {
+    _parserOf(h).addOption(name, def, desc);
+    return h;
+  }),
+  '标志': new R.Builtin('标志', (h, name, desc = '') => {
+    _parserOf(h).addFlag(name, desc);
+    return h;
+  }),
+  '用法': new R.Builtin('用法', (h) => _parserOf(h).usage()),
+  '解析': new R.Builtin('解析', (a, b) => {
+    // 一次式：第一个参数不是句柄（是列表），第二个是「选项 → 默认值」字典
+    if (typeof a !== 'number' || !Number.isInteger(a) || a < 1) {
+      if (!(b instanceof Map)) {
+        throw R.runErr('「参数.解析」的第二个参数要是字典（选项名 → 默认值）');
+      }
+      const specs = [];
+      for (const [k, v] of b.entries()) {
+        if (typeof v === 'boolean') specs.push({ name: String(k), def: false, desc: '', flag: true });
+        else specs.push({ name: String(k), def: v, desc: '', flag: false });
+      }
+      return _parseList(specs, a);
+    }
+    if (b === undefined) {
+      throw R.runErr('「参数.解析」还要一个参数列表，通常写 参数.解析(解析器, 系统.参数())');
+    }
+    return _parseList(_parserOf(a).specs, b);
+  }),
+};
+
+/** 日志：级别 + 前缀（与 Python 侧 日志.py 对齐）。 */
+const _logState = { level: '信息', prefix: '' };
+const _LEVELS = { '调试': 10, '信息': 20, '警告': 30, '错误': 40, '静默': 99 };
+
+function _logOut(level, parts) {
+  if (_LEVELS[level] < _LEVELS[_logState.level]) return;
+  const seg = [];
+  if (_logState.prefix) seg.push(_logState.prefix);
+  seg.push(`[${level}]`);
+  seg.push(...parts.map((x) => R.display(x)));
+  const line = seg.join(' ');
+  if (level === '警告' || level === '错误') process.stderr.write(line + '\n');
+  else process.stdout.write(line + '\n');
+}
+
+const LOG_FUNCS = {
+  '级别们': new R.Builtin('级别们', () =>
+    Object.keys(_LEVELS).sort((a, b) => _LEVELS[a] - _LEVELS[b])),
+  '设级别': new R.Builtin('设级别', (lv) => {
+    const k = String(lv);
+    if (!(k in _LEVELS)) {
+      throw R.valueErr(`不认识级别「${k}」，可用的有：${Object.keys(_LEVELS).join('、')}`);
+    }
+    _logState.level = k;
+    return null;
+  }),
+  '取级别': new R.Builtin('取级别', () => _logState.level),
+  '设前缀': new R.Builtin('设前缀', (p) => { _logState.prefix = String(p); return null; }),
+  '调试': new R.Builtin('调试', (...a) => { _logOut('调试', a); return null; }),
+  '信息': new R.Builtin('信息', (...a) => { _logOut('信息', a); return null; }),
+  '警告': new R.Builtin('警告', (...a) => { _logOut('警告', a); return null; }),
+  '错误': new R.Builtin('错误', (...a) => { _logOut('错误', a); return null; }),
+};
+
 const STDLIB = {
   '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
@@ -1957,6 +2281,13 @@ const STDLIB = {
   '加密': new R.Module('加密', CRYPTO_FUNCS),
   '压缩': new R.Module('压缩', ZIP_FUNCS),
   '网络': new R.Module('网络', NET_FUNCS),
+  // M41 新增的四个模块（与 Python 侧 jishi/stdlib/ 下同名文件对齐）。
+  // 注意模块名是「容器」而不是「集合」——`集合` 是内建函数名，
+  // 同名模块会把内建遮蔽掉（见 Python 侧 容器.py 的模块说明）。
+  '容器': new R.Module('容器', CONTAINER_FUNCS),
+  '迭代': new R.Module('迭代', ITER_FUNCS),
+  '参数': new R.Module('参数', ARG_FUNCS),
+  '日志': new R.Module('日志', LOG_FUNCS),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }

@@ -1753,7 +1753,7 @@ enum ReturnStep {
 // 语义函数
 // ---------------------------------------------------------------------------
 
-fn truthy(v: Val) -> bool {
+pub(crate) fn truthy(v: Val) -> bool {
     match v {
         Val::None_ => false,
         Val::Bool(b) => b,
@@ -2239,19 +2239,31 @@ fn new_builtins() -> HashMap<String, Val> {
         Ok(Val::Str(line.trim_end_matches(['\n', '\r']).to_string()))
     }));
     m.insert("整数".to_string(), Val::Builtin("整数", |args, _vm| {
+        // 归类与 Python 侧 `_b_int` 一致（M41）：文本转不动 → **值错误**；
+        // 类型本身不对（列表/字典/集合）→ **类型错误**。
         match &args[0] {
             Val::Int(i) => Ok(Val::Int(*i)),
             Val::Float(f) => Ok(Val::Int(*f as i128)),
-            Val::Str(s) => s.parse::<i128>().map(Val::Int).map_err(|_| err("值错误", format!("「{s}」不能转成整数"))),
-            _ => Err(err("值错误", "不能转成整数")),
+            Val::Bool(b) => Ok(Val::Int(if *b { 1 } else { 0 })),
+            Val::Str(s) => s.parse::<i128>().map(Val::Int)
+                .map_err(|_| err("值错误", format!("「{s}」不能转成整数"))),
+            other => Err(err(
+                "类型错误",
+                format!("「{}」不能转成整数", display(other)),
+            )),
         }
     }));
     m.insert("小数".to_string(), Val::Builtin("小数", |args, _vm| {
         match &args[0] {
             Val::Int(i) => Ok(Val::Float(*i as f64)),
             Val::Float(f) => Ok(Val::Float(*f)),
-            Val::Str(s) => s.parse::<f64>().map(Val::Float).map_err(|_| err("值错误", format!("「{s}」不能转成小数"))),
-            _ => Err(err("值错误", "不能转成小数")),
+            Val::Bool(b) => Ok(Val::Float(if *b { 1.0 } else { 0.0 })),
+            Val::Str(s) => s.parse::<f64>().map(Val::Float)
+                .map_err(|_| err("值错误", format!("「{s}」不能转成小数"))),
+            other => Err(err(
+                "类型错误",
+                format!("「{}」不能转成小数", display(other)),
+            )),
         }
     }));
     m.insert("文本".to_string(), Val::Builtin("文本", |args, vm| {
@@ -2306,8 +2318,65 @@ fn new_builtins() -> HashMap<String, Val> {
         else if step < 0 { let mut i = a; while i > b { out.push(Val::Int(i)); i += step; } }
         Ok(list_new(out))
     }));
-    m.insert("最大".to_string(), Val::Builtin("最大", b_max));
-    m.insert("最小".to_string(), Val::Builtin("最小", b_min));
+    // M41：`带下标` / `配对`（Python 的 enumerate / zip 同语义）。
+    // 用 `seq_of` 而不是 `to_vec`——前者认得「定义了 `迭代` 的自定义对象」，
+    // 与 Python 侧 `_as_iterable` 的口径一致。
+    m.insert("带下标".to_string(), Val::Builtin("带下标", |args, vm| {
+        if args.is_empty() || args.len() > 2 {
+            return Err(err("类型错误", "「带下标」需要 1 到 2 个参数，例如 带下标(列表)"));
+        }
+        let seq = match seq_of(&args[..1], vm)? {
+            Some(s) => s,
+            None => match &args[0] {
+                Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string())).collect(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「{}」不能当「带下标」的内容用", display(other)),
+                    ));
+                }
+            },
+        };
+        let start = if args.len() == 2 { as_int(&args[1])? } else { 0 };
+        let out: Vec<Val> = seq
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| {
+                let idx = Val::Int(start + i as i128);
+                list_new(vec![idx, v])
+            })
+            .collect();
+        Ok(list_new(out))
+    }));
+    m.insert("配对".to_string(), Val::Builtin("配对", |args, vm| {
+        if args.is_empty() {
+            return Err(err("类型错误", "「配对」至少要给一个可迭代对象"));
+        }
+        let mut seqs: Vec<Vec<Val>> = Vec::with_capacity(args.len());
+        for a in args {
+            let one = std::slice::from_ref(a);
+            match seq_of(one, vm)? {
+                Some(s) => seqs.push(s),
+                None => match a {
+                    Val::Str(s) => {
+                        seqs.push(s.chars().map(|c| Val::Str(c.to_string())).collect());
+                    }
+                    other => {
+                        return Err(err(
+                            "类型错误",
+                            format!("「{}」不能当「配对」的内容用", display(other)),
+                        ));
+                    }
+                },
+            }
+        }
+        let n = seqs.iter().map(|s| s.len()).min().unwrap_or(0);
+        let out: Vec<Val> = (0..n)
+            .map(|i| list_new(seqs.iter().map(|s| s[i].clone()).collect()))
+            .collect();
+        Ok(list_new(out))
+    }));
+    m.insert("最大".to_string(), Val::Builtin("最大", b_max));    m.insert("最小".to_string(), Val::Builtin("最小", b_min));
     m.insert("总和".to_string(), Val::Builtin("总和", b_sum));
     m.insert("类型".to_string(), Val::Builtin("类型", |args, _vm| {
         Ok(Val::Str(type_label(&args[0])))
@@ -2510,7 +2579,7 @@ pub(crate) fn as_int(v: &Val) -> Result<i128, JishiError> {
 }
 
 /// 排序/最值时用的比较（没法比的键给「相等」，让调用方自己判可比性）。
-fn cmp_vals(a: &Val, b: &Val) -> std::cmp::Ordering {
+pub(crate) fn cmp_vals(a: &Val, b: &Val) -> std::cmp::Ordering {
     a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
 }
 

@@ -416,17 +416,32 @@ def _b_input(prompt: str = ""):
 
 
 def _b_int(v):
+    """`整数(值)`：转成整数。
+
+    文本转不动时抛**值错误**（不是类型错误）——与 Python 的 `int("abc")`
+    给 `ValueError` 一致，也与本项目的 `"abc".转整数()` 一致（M41 统一）。
+    传进来的东西**类型**就不对（比如列表）才是类型错误。
+    """
+    if isinstance(v, (list, dict, JishiSet)):
+        raise RunTypeError(f"「{jishi_repr(v, top=True)}」不能转成整数")
     try:
         return int(v)
-    except (TypeError, ValueError):
-        raise RunTypeError(f"不能把「{v}」转成整数")
+    except ValueError:
+        raise RunValueError(f"「{v}」不能转成整数")
+    except TypeError:
+        raise RunTypeError(f"「{jishi_repr(v, top=True)}」不能转成整数")
 
 
 def _b_float(v):
+    """`小数(值)`：转成小数。归类规则同 `整数`（M41）。"""
+    if isinstance(v, (list, dict, JishiSet)):
+        raise RunTypeError(f"「{jishi_repr(v, top=True)}」不能转成小数")
     try:
         return float(v)
-    except (TypeError, ValueError):
-        raise RunTypeError(f"不能把「{v}」转成小数")
+    except ValueError:
+        raise RunValueError(f"「{v}」不能转成小数")
+    except TypeError:
+        raise RunTypeError(f"「{jishi_repr(v, top=True)}」不能转成小数")
 
 
 def _b_str(v):
@@ -570,6 +585,37 @@ def _b_range(*args):
         raise RunTypeError(
             f"「范围」需要 1 到 3 个整数参数，例如 范围(5)、范围(1, 5)、范围(1, 5, 2)")
     raise RunTypeError("「范围」最多接受 3 个参数")
+
+
+def _b_enumerate(*args):
+    """`带下标(可迭代, 起始=0)`：造 [下标, 元素] 对。
+
+    与 Python 的 `enumerate` 同语义，但**立刻返回列表**而不是惰性迭代器——
+    本项目的迭代协议允许惰性，可惰性对象在调试器「看变量」、跨宿主对拍、
+    `文本()` 渲染时都得额外照顾；而它几乎总是直接进 `遍历`，先算出来
+    反而更简单（与 `范围` 的做法一致）。
+    """
+    if not 1 <= len(args) <= 2:
+        raise RunTypeError(
+            "「带下标」需要 1 到 2 个参数，例如 带下标(列表)、带下标(列表, 1)")
+    seq = _as_iterable(args[0], "「带下标」的内容")
+    try:
+        start = int(args[1]) if len(args) == 2 else 0
+    except (TypeError, ValueError):
+        raise RunTypeError(f"「带下标」的起始值要是整数，得到了「{args[1]}」")
+    return [[start + i, v] for i, v in enumerate(seq)]
+
+
+def _b_zip(*args):
+    """`配对(甲, 乙, …)`：把多个可迭代按位置配成 [甲[i], 乙[i], …]。
+
+    与 Python 的 `zip` 同语义（**取最短**，多余的丢弃）。零参数报错
+    （Python 的 `zip()` 给空迭代器，那多半是写错了）。
+    """
+    if not args:
+        raise RunTypeError("「配对」至少要给一个可迭代对象")
+    seqs = [_as_iterable(a, "「配对」的内容") for a in args]
+    return [list(t) for t in zip(*seqs)]
 
 
 def _single_iterable_arg(v):
@@ -878,6 +924,14 @@ def new_builtins() -> dict[str, Any]:
         "范围": _Builtin(
             "范围", _b_range,
             "生成一段整数序列（范围(5)、范围(1, 5)、范围(1, 5, 2)）"),
+        "带下标": _Builtin(
+            "带下标", _b_enumerate,
+            "带下标(可迭代, 起始=0)：造 [下标, 元素] 对，"
+            "遍历时想同时拿到序号就用它"),
+        "配对": _Builtin(
+            "配对", _b_zip,
+            "配对(甲, 乙, …)：按位置把多个列表配成 [甲[i], 乙[i], …]，"
+            "长度取最短的那个"),
         "最大": _Builtin("最大", _b_max, "取列表中的最大值"),
         "最小": _Builtin("最小", _b_min, "取列表中的最小值"),
         "总和": _Builtin("总和", _b_sum, "求列表中所有数的和"),
@@ -1644,6 +1698,12 @@ def do_import(name: str, from_python: bool = False, from_local: bool = False,
             filename=filename,
             hint="试试：导入 随机 / 导入 数学 / 导入 时间 / 导入 文本")
     attrs = {k: v for k, v in vars(mod).items() if not k.startswith("_")}
+    # 有状态模块（`日志` / `测试`）声明这个钩子：**每次导入造一份新状态**。
+    # 否则状态挂在模块级全局上，同一进程里跑第二个执行器（对拍、测试、
+    # REPL 里连跑两段）会串——M41 的五路对拍测试就是这么发现的。
+    hook = getattr(mod, "__基石新建__", None)
+    if hook is not None:
+        attrs = hook()
     # 用了别名就不会遮蔽内建，不提示（M18.4）
     if alias is None:
         _warn_shadow_builtin(name)

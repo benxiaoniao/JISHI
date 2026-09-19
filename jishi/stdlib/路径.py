@@ -13,7 +13,7 @@ from ..errors import RunValueError
 __all__ = [
     "存在", "是文件", "是目录", "绝对路径", "父目录", "文件名",
     "后缀", "无后缀名", "连接", "当前目录", "主目录", "创建目录",
-    "删除", "列出", "重命名", "大小", "修改时间",
+    "删除", "列出", "递归列出", "重命名", "大小", "修改时间",
 ]
 
 
@@ -105,6 +105,26 @@ def 列出(路径) -> list:
     if not p.is_dir():
         raise RunValueError(f"「{路径}」不是目录")
     return sorted(e.name for e in p.iterdir())
+
+
+def 递归列出(路径, 后缀: str = "") -> list:
+    """递归列出目录下所有文件（含子目录），返回**相对路径**列表，已排序。
+
+    `后缀` 非空时只留这个后缀的文件，例如 `递归列出("examples", ".jsh")`
+    列出所有基石源文件。写 `基石自述站` 时数 `examples/` 下的 .jsh 要手写
+    递归，正是这个函数要消掉的（Python 那边一个 `rglob`）。
+    """
+    p = _PyPath(str(路径))
+    if not p.is_dir():
+        raise RunValueError(f"「{路径}」不是目录")
+    出 = []
+    for e in p.rglob("*"):
+        if not e.is_file():
+            continue
+        if 后缀 and e.suffix != 后缀:
+            continue
+        出.append(str(e.relative_to(p)))
+    return sorted(出)
 
 
 def 重命名(旧路径, 新路径) -> str:

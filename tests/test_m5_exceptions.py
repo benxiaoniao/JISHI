@@ -98,10 +98,25 @@ def test_multi_handler_order():
 
 
 def test_catch_builtin_error():
-    """内建函数抛出的错误也能被捕获。"""
+    """内建函数抛出的错误也能被捕获。
+
+    归类按 Python 来（M41 修正）：`整数("abc")` 是**值错误**
+    （原先抛「类型错误」，于是写 `捕获 值错误` 接不住——真实项目里真踩到过，
+    见 `docs/真实项目.md` 的别扭点清单 #2）。
+    """
     out = run_capture(
         "尝试：\n"
         "    令 x = 整数(\"abc\")\n"
+        "捕获 值错误 为 e：\n"
+        "    打印(\"接住了\", e.类型)\n")
+    assert "接住了" in out
+
+
+def test_catch_builtin_type_error_still_type_error():
+    """类型本身不对（不是文本转不动）仍归「类型错误」。"""
+    out = run_capture(
+        "尝试：\n"
+        "    令 x = 整数([1, 2])\n"
         "捕获 类型错误 为 e：\n"
         "    打印(\"接住了\", e.类型)\n")
     assert "接住了" in out

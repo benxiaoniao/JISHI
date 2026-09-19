@@ -277,6 +277,41 @@ def test_document_symbols():
     assert names.count("总数") == 1
 
 
+def test_unpacked_names_count_as_defined():
+    """解包出来的名字要算「已定义」——`令 甲, 乙 = …` 与 `遍历 序, 项 在 …`。
+
+    来由（M41 修）：`_flatten` 原先对 `TargetList` 只 yield 它自己，里面的
+    `Name` 一个都收不到，于是解包变量在 LSP 眼里「从未定义」——
+    `test_corpus_has_no_false_positive_warnings` 报出来了。这条缺陷在
+    `令 甲, 乙 = …`（M25）上早就存在，M41 的 `遍历` 解包让它暴露得更明显。
+    """
+    from jishi import lsp as lsp_mod
+    from jishi.parser import parse
+    from jishi.tokenizer import tokenize
+
+    def 已定义(src: str) -> set[str]:
+        return lsp_mod._defined_names(
+            parse(tokenize(src, "<t>"), src.split("\n"), "<t>"))
+
+    assert {"甲", "乙"} <= 已定义("令 甲, 乙 = [1, 2]\n")
+    assert {"头", "尾"} <= 已定义("令 头, *尾 = [1, 2, 3]\n")
+    assert {"序", "项"} <= 已定义(
+        "遍历 序, 项 在 带下标([1, 2], 1):\n    打印(序, 项)\n")
+
+
+def test_unpacked_loop_vars_no_false_positive():
+    """解包遍历的循环体里用那些名字，不该报「没有定义过」。"""
+    src = ("令 对们 = [[\"小明\", 8]]\n"
+           "遍历 名字, 年龄 在 对们：\n"
+           "    打印(名字, 年龄)\n")
+    srv = _server()
+    sent = []
+    srv._write = sent.append
+    _open(srv, src)
+    diag = sent[-1]["params"]["diagnostics"]
+    assert [d for d in diag if "没有定义过" in d.get("message", "")] == []
+
+
 # ---------------------------------------------------------------------------
 # 传输层
 # ---------------------------------------------------------------------------

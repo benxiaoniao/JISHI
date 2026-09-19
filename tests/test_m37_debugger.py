@@ -708,6 +708,17 @@ def test_docs_state_bytecode_engines_unsupported():
 
 
 def test_ai_card_and_lang_spec_not_promising_debugger():
-    """语言卡 / 语言规格是给模型看的规格，调试器是工具，不该混进去。"""
+    """语言卡 / 语言规格是给模型看的规格，调试器是工具，不该混进去。
+
+    判据要**具体到调试器能力**，不能只搜「调试」两个字——M41 加了标准库
+    `日志` 模块，它的函数名 `调试(...)`（Python 的 `logger.debug`）是正经
+    语言 API，出现在语言卡里是对的。这条测试原先只搜「调试」，于是把
+    `日志.调试` 也当成了违规（M41 踩到）。
+    """
     from jishi.ai import render_ai_card
-    assert "调试" not in render_ai_card()
+
+    card = render_ai_card()
+    for 词 in ("断点", "单步", "调用栈", "调试器", "jishi 调试"):
+        assert 词 not in card, f"语言卡里不该出现调试器能力「{词}」"
+    # `日志.调试` 属于标准库，应该**在**卡里（对照，免得下次又改错方向）
+    assert "日志" in card

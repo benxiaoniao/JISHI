@@ -735,15 +735,54 @@ class Parser:
 
     # 遍历
     def _parse_for(self) -> A.Node:
+        """`遍历 [变量, 变量…] 在 可迭代：`。
+
+        多变量（解包遍历，M41）走**解析期脱糖**：编译器只认单变量循环，
+        所以这里改写成「单个临时循环变量 + 循环体开头一句解包赋值」：
+
+            遍历 名字, 年龄 在 对们：
+                打印(名字, 年龄)
+
+        脱糖成：
+
+            遍历 __遍历项_N__ 在 对们：
+                令 名字, 年龄 = __遍历项_N__
+                打印(名字, 年龄)
+
+        好处与 M26.2 的脱糖同一思路：**三个执行器与两个宿主一行都不用改**，
+        行为必然一致（`令 a, b = …` 早就支持解包了）。
+        """
         start = self._next()
-        target_tok = self._expect_name("循环变量名")
+        first_tok = self._expect_name("循环变量名")
+        names = [A.Name(id=first_tok.value, line=first_tok.line,
+                        col=first_tok.col)]
+        star_index: Optional[int] = None
+        while self._at_op(","):
+            self._next()
+            if self._at_op("*"):               # 星号解包：遍历 头, *尾 在 …
+                star_tok = self._next()
+                if star_index is not None:
+                    self._err(ParseUnexpectedError,
+                              "解包遍历里只能有一个「*」", tok=star_tok)
+                star_index = len(names)
+            tok = self._expect_name("循环变量名")
+            names.append(A.Name(id=tok.value, line=tok.line, col=tok.col))
         self._expect_kw("在")
         it = self._parse_expr()
         self._expect_colon("遍历")
         body = self._parse_block()
-        return A.For(target=A.Name(id=target_tok.value,
-                                   line=target_tok.line, col=target_tok.col),
-                     iter=it, body=body, line=start.line, col=start.col)
+        if len(names) == 1:
+            return A.For(target=names[0], iter=it, body=body,
+                         line=start.line, col=start.col)
+        # 多变量：脱糖（临时名带 `__`，用户写不出来，见 M40 的「内部名」纪律）
+        tmp = A.Name(id=f"__遍历项_{start.line}_{start.col}__",
+                     line=start.line, col=start.col)
+        unpack = A.Assign(target=A.TargetList(names=names,
+                                              star_index=star_index,
+                                              line=start.line, col=start.col),
+                          op="=", value=tmp, line=start.line, col=start.col)
+        return A.For(target=tmp, iter=it, body=[unpack] + list(body),
+                     line=start.line, col=start.col)
 
     # 循环 N 次
     def _parse_loop(self) -> A.Node:

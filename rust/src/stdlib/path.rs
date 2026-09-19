@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 
 use super::{as_text, need, need_range, table, R};
 use crate::stdlib::datetime::format_system_time;
-use crate::{err, Val, VM};
+use crate::{err, list_new, Val, VM};
 
 /// 把路径里的 `/` 换成平台分隔符（Windows 上 pathlib 总吐 `\`）。
 pub(crate) fn norm_sep(p: &Path) -> String {
@@ -64,6 +64,38 @@ pub(crate) fn stem_of(name: &str) -> String {
     } else {
         name[..name.len() - suf.len()].to_string()
     }
+}
+
+/// 递归收集文件（`路径.递归列出` 用）。返回**相对路径**、只收文件。
+/// 注意返回类型是 `Result<(), JishiError>` 而不是 `R`（`R` 带 `Val`）。
+fn 递归收(
+    dir: &Path,
+    rel: &Path,
+    suffix: &str,
+    out: &mut Vec<String>,
+) -> Result<(), crate::JishiError> {
+    let entries = fs::read_dir(dir)
+        .map_err(|e| err("文件错误", format!("读目录「{}」失败：{e}", dir.display())))?;
+    for entry in entries {
+        let entry = entry
+            .map_err(|e| err("文件错误", format!("读目录「{}」失败：{e}", dir.display())))?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let full = entry.path();
+        let 相对 = rel.join(&name);
+        if full.is_dir() {
+            递归收(&full, &相对, suffix, out)?;
+            continue;
+        }
+        if !suffix.is_empty() {
+            let 后缀 = full.extension().map(|e| format!(".{}", e.to_string_lossy()))
+                .unwrap_or_default();
+            if 后缀 != suffix {
+                continue;
+            }
+        }
+        out.push(相对.to_string_lossy().to_string());
+    }
+    Ok(())
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
@@ -188,6 +220,19 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             names.sort();
             Ok(crate::list_new(names.into_iter().map(Val::Str).collect()))
+        },
+        "递归列出" => |args: &[Val], _vm: &mut VM| -> R {
+            need_range("递归列出", args, 1, 2)?;
+            let p = as_text(&args[0]);
+            let suffix = if args.len() == 2 { as_text(&args[1]) } else { String::new() };
+            let path = Path::new(&p);
+            if !path.is_dir() {
+                return Err(err("值错误", format!("「{p}」不是目录")));
+            }
+            let mut out: Vec<String> = Vec::new();
+            递归收(path, Path::new(""), &suffix, &mut out)?;
+            out.sort();
+            Ok(list_new(out.into_iter().map(Val::Str).collect()))
         },
         "重命名" => |args: &[Val], _vm: &mut VM| -> R {
             need("重命名", args, 2)?;

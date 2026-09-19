@@ -196,6 +196,18 @@ _JVAL_SIZE = ctypes.sizeof(JVal)
 _INT_BATCH_FMT: dict[int, _struct.Struct] = {}
 _LITTLE_ENDIAN = _sys.byteorder == "little"
 
+#: 内部哨兵（M41）：批量快路径里「这一批有非整数」的信号。
+#: 用异常而不是 `all(...)` 预扫描，是为了**一趟**遍历（见
+#: `_cb_iter_next_batch` 的注释）。它只在同一文件内抛出/捕获，不外泄。
+#: **必须是类不是实例**——`except (A, B, 实例)` 会在运行时炸
+#: （TypeError: catching classes that do not inherit from BaseException，
+#: M41 踩到，五路对拍立刻暴露）。
+class _非整数信号(Exception):
+    """批量快路径内部用：这一批里混了非整数，回退逐个转换。"""
+
+
+_非整数 = _非整数信号
+
 
 def _int_batch_fmt(n: int) -> _struct.Struct:
     st = _INT_BATCH_FMT.get(n)
@@ -785,18 +797,25 @@ class CvmHost:
             # 快路径（M20）：整批都是整数时，一次 pack + memmove 写入 C 侧
             # 数组，省掉逐个构造 JVal 的 ctypes 开销（实测约快 9 倍）。
             # 混合类型 / 大端平台 / 溢出时回退到逐个 py2c，语义不变。
-            if chunk and _LITTLE_ENDIAN and all(type(v) is int for v in chunk):
+            #
+            # M41 优化：原先先跑一遍 `all(type(v) is int …)` 生成器再跑一遍
+            # 构造 flat，**两趟**遍历；改成**一趟**——边判边装，遇到非整数
+            # 就丢掉重来（回退路径本来就要重新走）。cProfile 里那一趟
+            # `all` + 生成器占了批量回调 15% 的自耗时。
+            if chunk and _LITTLE_ENDIAN:
+                flat: list = []
                 try:
-                    fmt = _int_batch_fmt(len(chunk))
-                    flat: list = []
                     for v in chunk:
+                        if type(v) is not int:
+                            raise _非整数
                         flat.append(O.T_INT)
                         flat.append(v)
+                    fmt = _int_batch_fmt(len(chunk))
                     ctypes.memmove(out, fmt.pack(*flat),
                                    len(chunk) * _JVAL_SIZE)
                     n[0] = len(chunk)
                     return 0
-                except (_struct.error, OverflowError):
+                except (_struct.error, OverflowError, _非整数):
                     pass          # 回退逐个
             for i, v in enumerate(chunk):
                 out[i] = self.py2c(v)

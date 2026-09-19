@@ -40,6 +40,11 @@ mod rand;
 mod system;
 pub(crate) mod tables;
 mod text;
+// M41 新增（与 Python 侧 jishi/stdlib/ 下同名文件对齐）
+mod args;
+mod containers;
+mod iter;
+mod log;
 
 /// 标准库函数的统一返回类型（省得每处都写一长串）。
 pub(crate) type R = Result<Val, JishiError>;
@@ -64,6 +69,12 @@ pub(crate) fn module(name: &str) -> Result<Val, JishiError> {
         "json" => jsonmod::module(),
         "正则" => crate::regex::module(),
         "网络" => crate::http::module(),
+        // M41：容器 / 迭代 / 参数 / 日志
+        // 注意是「容器」不是「集合」——`集合` 是内建函数名，同名模块会遮蔽它
+        "容器" => containers::module(),
+        "迭代" => iter::module(),
+        "参数" => args::module(),
+        "日志" => log::module(),
         _ => {
             return Err(err("异常", format!("没有找到标准库模块「{name}」")));
         }
