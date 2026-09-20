@@ -19,6 +19,11 @@ build-env/
 .vscode/
 *.swp
 
+# 例外：VS Code 扩展的 F5 启动配置是**扩展源码的一部分**（不是个人设置），
+# 少了它打开扩展目录按 F5 还得手选运行环境（M42）。
+!editors/vscode-jishi/.vscode/
+!editors/vscode-jishi/.vscode/launch.json
+
 # 打包产物
 *.whl
 
