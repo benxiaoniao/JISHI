@@ -1,8 +1,8 @@
 {
   "name": "vscode-jishi",
   "displayName": "基石语言（jishi）",
-  "description": "基石 —— 一门像 Python 一样简单易用的中文编程语言：.jsh 语法高亮、代码片段与注释支持",
-  "version": "0.1.0",
+  "description": "基石 —— 一门像 Python 一样简单易用的中文编程语言：语法高亮、代码片段、实时诊断、补全、格式化、重命名、快速修复、语义高亮",
+  "version": "0.2.0",
   "publisher": "jishi-lang",
   "engines": {
     "vscode": "^1.80.0"
@@ -21,6 +21,10 @@
     "type": "git",
     "url": "https://example.invalid/jishi.git"
   },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:jishi"
+  ],
   "contributes": {
     "languages": [
       {
@@ -48,6 +52,38 @@
         "language": "jishi",
         "path": "./snippets/jishi.code-snippets"
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "jishi.restartServer",
+        "title": "基石：重启语言服务",
+        "category": "基石"
+      }
+    ],
+    "configuration": {
+      "title": "基石语言",
+      "properties": {
+        "jishi.server.command": {
+          "type": "string",
+          "default": "jishi",
+          "description": "基石可执行文件。默认从 PATH 上找 `jishi`；装了包但没进 PATH 时，填绝对路径（例如 Windows 上的 ...\\jishi.exe）。"
+        },
+        "jishi.server.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "lsp"
+          ],
+          "description": "启动语言服务要传的参数。默认 `[\"lsp\"]`，一般不用改。"
+        },
+        "jishi.server.trace": {
+          "type": "boolean",
+          "default": false,
+          "description": "把语言服务的收发消息打到「输出 → 基石语言服务」面板，排查问题时打开。"
+        }
+      }
+    }
   }
 }
