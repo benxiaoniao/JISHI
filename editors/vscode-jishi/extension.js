@@ -116,8 +116,9 @@ async function startServer(context) {
     setStatus('已停止', 'warning');
     vscode.window.showWarningMessage(
       `基石语言服务已退出：${err.message}`,
-      '重启').then((pick) => {
+      '重启', '看日志').then((pick) => {
       if (pick === '重启') restartServer(context);
+      else if (pick === '看日志' && output) output.show();
     });
   });
 
@@ -160,9 +161,18 @@ function restartServer(context) {
   diagnostics && diagnostics.clear();
   return startServer(context).catch((e) => {
     setStatus('启动失败', 'error');
+    // 给可点的出路，别只甩一句错误：起不来最常见的原因是 `jishi` 不在 PATH 上
+    // （装是装了，但没激活虚拟环境 / 没加 PATH）。
     vscode.window.showErrorMessage(
-      `基石语言服务启动失败：${e.message}。请确认 \`jishi\` 在 PATH 上` +
-      '（或在设置里指定 jishi.server.command）。');
+      `基石语言服务启动失败：${e.message}`,
+      '设置 jishi 路径', '看日志').then(async (pick) => {
+      if (pick === '设置 jishi 路径') {
+        await vscode.commands.executeCommand(
+          'workbench.action.openSettings', 'jishi.server.command');
+      } else if (pick === '看日志' && output) {
+        output.show();
+      }
+    });
   });
 }
 

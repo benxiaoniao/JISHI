@@ -45,11 +45,15 @@ jishi lsp           # 编辑器就是靠这条命令起服务（一般不用手�
 ## 本地加载（F5 调试方式，**推荐**）
 
 1. 用 VSCode 打开本目录 `editors/vscode-jishi`
-2. 按 `F5`（或 运行 → 启动调试）
+2. 按 `F5`（或 运行 → 启动调试）——`.vscode/launch.json` 已备好，不用选环境
 3. 弹出「扩展开发宿主」窗口：在里面打开任意 `.jsh` 文件
 
 此时打开文件就能看到诊断、补全、格式化、重命名、快速修复、签名提示与语义高亮。
 右下角状态栏有「基石 LSP：就绪」，点它可以重启服务。
+
+**开发宿主窗口第一次打开时**，如果 `jishi` 不在 PATH 上，会弹一条提示——
+点「设置 jishi 路径」把 `jishi.server.command` 指到可执行文件即可
+（例如 Windows 上 `D:/jishi/jishi.exe`）。
 
 **装了 jishi 但扩展说连不上时**，先看「输出 → 基石语言服务」面板；
 把设置 `jishi.server.trace` 打开还能看到逐条 LSP 收发消息。
@@ -94,6 +98,7 @@ package.json                   扩展清单（语言注册 + 语言服务配置�
 extension.js                   语言客户端：把编辑器 API 接到 LSP 上
 lsp-transport.js               最小 LSP 传输层（分帧/请求应答/通知，不依赖 vscode）
 verify-lsp.js                  端到端自检（脱离 VSCode 也能跑）
+.vscode/launch.json            F5 启动配置（打开扩展开发宿主）
 language-configuration.json    括号/注释/缩进规则
 syntaxes/jishi.tmLanguage.json TextMate 语法（高亮核心）
 snippets/jishi.code-snippets   代码片段
