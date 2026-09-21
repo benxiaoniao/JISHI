@@ -28,6 +28,11 @@ let statusItem = null;
 let serverArgs = [];
 let output = null;
 
+//: 语言文档选择器。显式写 `scheme: '*'`——我们要的就是「任何来源的 .jsh 都管」
+//: （新建还没保存的文件是 `untitled:`，也该有补全与诊断）。写上 scheme 之后，
+//: VS Code 那句「document selector without scheme」的提示也就不再出现了。
+const DOC_SELECTOR = { language: 'jishi', scheme: '*' };
+
 // --- LSP → VS Code 的枚举映射（两边数值**不通用**，别拿数字硬套）---
 
 const COMPLETION_KIND = {
@@ -251,7 +256,7 @@ function registerFeatures(context) {
 
   // --- 补全 ---
   context.subscriptions.push(vscode.languages.registerCompletionItemProvider(
-    'jishi', {
+    DOC_SELECTOR, {
       async provideCompletionItems(document, position) {
         const res = await transport.request('textDocument/completion', {
           textDocument: { uri: docUri(document) },
@@ -271,7 +276,7 @@ function registerFeatures(context) {
     }, '.'));
 
   // --- 悬停 ---
-  context.subscriptions.push(vscode.languages.registerHoverProvider('jishi', {
+  context.subscriptions.push(vscode.languages.registerHoverProvider(DOC_SELECTOR, {
     async provideHover(document, position) {
       const res = await transport.request('textDocument/hover', {
         textDocument: { uri: docUri(document) },
@@ -286,7 +291,7 @@ function registerFeatures(context) {
 
   // --- 跳转定义（含跨文件）---
   context.subscriptions.push(
-    vscode.languages.registerDefinitionProvider('jishi', {
+    vscode.languages.registerDefinitionProvider(DOC_SELECTOR, {
       async provideDefinition(document, position) {
         const res = await transport.request('textDocument/definition', {
           textDocument: { uri: docUri(document) },
@@ -298,7 +303,7 @@ function registerFeatures(context) {
 
   // --- 文档符号（大纲）---
   context.subscriptions.push(
-    vscode.languages.registerDocumentSymbolProvider('jishi', {
+    vscode.languages.registerDocumentSymbolProvider(DOC_SELECTOR, {
       async provideDocumentSymbols(document) {
         const res = await transport.request('textDocument/documentSymbol', {
           textDocument: { uri: docUri(document) },
@@ -332,7 +337,7 @@ function registerFeatures(context) {
   // --- 格式化 ---
   if (caps.documentFormattingProvider) {
     context.subscriptions.push(
-      vscode.languages.registerDocumentFormattingEditProvider('jishi', {
+      vscode.languages.registerDocumentFormattingEditProvider(DOC_SELECTOR, {
         async provideDocumentFormattingEdits(document) {
           const res = await transport.request('textDocument/formatting', {
             textDocument: { uri: docUri(document) },
@@ -347,7 +352,7 @@ function registerFeatures(context) {
   // --- 重命名（含「能不能改」的前置判断）---
   if (caps.renameProvider) {
     context.subscriptions.push(
-      vscode.languages.registerRenameProvider('jishi', {
+      vscode.languages.registerRenameProvider(DOC_SELECTOR, {
         async prepareRename(document, position) {
           const res = await transport.request('textDocument/prepareRename', {
             textDocument: { uri: docUri(document) },
@@ -372,7 +377,7 @@ function registerFeatures(context) {
   // --- 快速修复 ---
   if (caps.codeActionProvider) {
     context.subscriptions.push(
-      vscode.languages.registerCodeActionsProvider('jishi', {
+      vscode.languages.registerCodeActionsProvider(DOC_SELECTOR, {
         async provideCodeActions(document, range, ctx) {
           const only = (ctx.only || []).map((k) => k.value || String(k));
           const res = await transport.request('textDocument/codeAction', {
@@ -399,7 +404,7 @@ function registerFeatures(context) {
   if (caps.signatureHelpProvider) {
     const triggers = caps.signatureHelpProvider.triggerCharacters || ['('];
     context.subscriptions.push(
-      vscode.languages.registerSignatureHelpProvider('jishi', {
+      vscode.languages.registerSignatureHelpProvider(DOC_SELECTOR, {
         async provideSignatureHelp(document, position) {
           const res = await transport.request('textDocument/signatureHelp', {
             textDocument: { uri: docUri(document) },
@@ -432,7 +437,7 @@ function registerFeatures(context) {
     const legend = new vscode.SemanticTokensLegend(
       sem.legend.tokenTypes || [], sem.legend.tokenModifiers || []);
     context.subscriptions.push(
-      vscode.languages.registerDocumentSemanticTokensProvider('jishi', {
+      vscode.languages.registerDocumentSemanticTokensProvider(DOC_SELECTOR, {
         async provideDocumentSemanticTokens(document) {
           const res = await transport.request(
             'textDocument/semanticTokens/full',
@@ -446,6 +451,84 @@ function registerFeatures(context) {
 
 // ---------------------------------------------------------------------------
 // 入口
+// ---------------------------------------------------------------------------
+// 调试器（M43）：把 `jishi dap` 交给 VS Code
+//
+// 这里**不用**自己写传输层：`DebugAdapterExecutable` 就是「起一个子进程 +
+// 做 DAP 的 stdio 转发」这件事的官方做法，VS Code 自己会把断点、单步、
+// 变量面板那一套接上。语言服务那边之所以自己写 lsp-transport.js，是因为
+// 要在**非扩展**环境（verify-lsp.js / 自检）里也能跑同一份代码。
+// ---------------------------------------------------------------------------
+
+/** 取「可执行文件 + 工作目录」——语言服务与调试适配器共用同一套设置。 */
+function serverLaunch() {
+  const cfg = vscode.workspace.getConfiguration('jishi');
+  return {
+    command: cfg.get('server.command', 'jishi'),
+    cwd: vscode.workspace.workspaceFolders
+      ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
+  };
+}
+
+/** 启动配置里没给 program 时，用当前打开的那个 .jsh。 */
+function activeJishiFile() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== 'jishi') return null;
+  return editor.document.uri.fsPath;
+}
+
+function registerDebugger(context) {
+  context.subscriptions.push(
+    vscode.debug.registerDebugAdapterDescriptorFactory('jishi', {
+      createDebugAdapterDescriptor() {
+        const { command, cwd } = serverLaunch();
+        return new vscode.DebugAdapterExecutable(command, ['dap'], {
+          cwd,
+          // Windows 上 Python 的 stdout 默认不是 UTF-8，程序里的中文会炸
+          //（与 CI 里设 PYTHONUTF8 是同一个理由）
+          env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
+        });
+      },
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.debug.registerDebugConfigurationProvider('jishi', {
+      // 第一次按 F5 且没有 launch.json 时，VS Code 会拿这个当模板
+      provideDebugConfigurations() {
+        return [{
+          type: 'jishi',
+          request: 'launch',
+          name: '调试基石脚本',
+          program: '${file}',
+          stopOnEntry: false,
+        }];
+      },
+      resolveDebugConfiguration(_folder, config) {
+        if (!config.type && !config.request && !config.name) {
+          const file = activeJishiFile();
+          if (!file) {
+            vscode.window.showInformationMessage('先打开一个 .jsh 文件再启动调试');
+            return undefined;          // 返回 undefined = 中止这次启动
+          }
+          config.type = 'jishi';
+          config.request = 'launch';
+          config.name = '调试基石脚本';
+        }
+        if (!config.program) {
+          const file = activeJishiFile();
+          if (!file) {
+            vscode.window.showInformationMessage('先打开一个 .jsh 文件再启动调试');
+            return undefined;
+          }
+          config.program = file;
+        }
+        return config;
+      },
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 
 async function activate(context) {
@@ -463,6 +546,7 @@ async function activate(context) {
   );
 
   registerSync(context);
+  registerDebugger(context);
   await restartServer(context);
 }
 

@@ -5,6 +5,8 @@
     jishi 文件.jsh            运行脚本
     jishi 文件.jsh --ast      只显示语法树
     jishi 调试 文件.jsh       调试（断点/单步/看变量与调用栈，M37）
+    jishi dap                 以 Debug Adapter Protocol 服务编辑器
+                              （M43；由 VS Code 之类的编辑器启动，不手敲）
     jishi -i                  交互式 REPL
     jishi                     进入 REPL
 """
@@ -565,17 +567,49 @@ def _format_tree(root, args) -> int:
     return 1 if broken else 0
 
 
+def build_debug_session(engine: str, source: str, filename: str,
+                        lines, *, program=None, breakpoints=(),
+                        stop_on_entry: bool = True,
+                        read_line=None, write=None, script=None):
+    """按执行器名装配一个调试会话。
+
+    「谁来跑、怎么编译」随执行器而变，但**会话参数是同一套**——放在一处，
+    命令行（`jishi 调试`）与编辑器（`jishi dap`）两条入口才不会漂移。
+
+    `engine` 取 `树遍历` / `vm` / `cvm`；`program` 传解析好的 AST 可省一次解析。
+    出错抛 `JishiError`：调用方自己决定怎么呈现（CLI 打源码，DAP 回 error）。
+    """
+    from .debugger import CvmDebugger, Debugger, VmDebugger
+
+    if program is None:
+        program = parse(tokenize(source, filename), lines, filename)
+    common = dict(source_lines=lines, filename=filename, breakpoints=breakpoints,
+                  stop_on_entry=stop_on_entry, read_line=read_line, write=write,
+                  script=script)
+    if engine == "vm":
+        from .compiler import compile_program
+        from .vm import VM
+
+        cmod = compile_program(program, filename, lines)
+        return VmDebugger(VM(cmod, filename), **common)
+    if engine == "cvm":
+        from .compiler import compile_program
+        from .cvm_bind import CvmRunner
+
+        cmod = compile_program(program, filename, lines)
+        return CvmDebugger(CvmRunner(cmod, filename), **common)
+    return Debugger(Interpreter(filename=filename), program, **common)
+
+
 def _cmd_debug(args) -> int:
     """`jishi 调试 脚本.jsh [--执行器 树遍历|vm|cvm]`：跑一场调试会话。
 
     与 `jishi 脚本.jsh` 的唯一差别是先挂上调试器再跑，于是能在断点处停下看
-    变量与调用栈。**两个执行器都能调**：默认树遍历（M37 · B1），
-    `--执行器 vm` 走字节码 Python VM（M39 · B5），两者的会话记录逐字相同。
-
-    C VM 还不能调试：它的栈帧与局部变量都在 C 侧，要先让宿主回调把帧传出来。
-    这里**明确拒绝并给替代方案**，不静默降级——否则用户会以为断点生效了。
+    变量与调用栈。**三个执行器都能调**（M40 起齐了）：默认树遍历（M37 · B1），
+    `--执行器 vm` 走字节码 Python VM（M39 · B5），`--执行器 cvm` 走 C 虚拟机
+    （M40），三者的会话记录逐字相同。
     """
-    from .debugger import Debugger, VmDebugger, parse_lines
+    from .debugger import parse_lines
 
     engine = args.engine or "树遍历"
     if engine == "cvm":
@@ -611,23 +645,14 @@ def _cmd_debug(args) -> int:
         script = [c.strip() for c in args.commands.replace("；", ";").split(";")
                   if c.strip()]
 
-    common = dict(source_lines=lines, filename=filename, breakpoints=wanted,
-                  stop_on_entry=not args.no_entry, script=script)
-    if engine == "vm":
-        from .compiler import compile_program
-        from .vm import VM
-
-        cmod = compile_program(program, filename, lines)
-        dbg = VmDebugger(VM(cmod, filename), **common)
-    elif engine == "cvm":
-        from .compiler import compile_program
-        from .cvm_bind import CvmRunner
-        from .debugger import CvmDebugger
-
-        cmod = compile_program(program, filename, lines)
-        dbg = CvmDebugger(CvmRunner(cmod, filename), **common)
-    else:
-        dbg = Debugger(Interpreter(filename=filename), program, **common)
+    try:
+        dbg = build_debug_session(
+            engine, source, filename, lines, program=program,
+            breakpoints=wanted, stop_on_entry=not args.no_entry, script=script)
+    except JishiError as e:                 # 编译期错误（语法错在前一步已拦）
+        e.with_source(lines)
+        print(e.render(), file=sys.stderr)
+        return 1
     if args.engine:                     # 用户显式选了执行器：说一声用的哪个
         print(f"（调试执行器：{dbg.executor_name}；默认是树遍历）")
 
@@ -656,6 +681,18 @@ def _cmd_debug(args) -> int:
         print(err.render(), file=sys.stderr)
         return 1
     return 0
+
+
+def _cmd_dap(args) -> int:
+    """`jishi dap [--执行器 …]`：以 DAP 跟编辑器对话（M43）。
+
+    由编辑器（VS Code 等）当子进程启动，不面向手敲——所以这里不打印任何
+    「给你看」的东西：协议里的 error 才是对客户端的交代（多打一行普通文本
+    会污染 stdout，编辑器解析不了）。
+    """
+    from .dap import main as dap_main
+
+    return dap_main(["--执行器", args.engine] if args.engine else [])
 
 
 def _cmd_publish(args) -> int:
@@ -891,6 +928,13 @@ def _run_tool_cmd(argv: list[str]) -> int:
                             "Python VM）/ cvm（C 虚拟机）")
     p_dbg.set_defaults(func=_cmd_debug)
 
+    p_dap = sub.add_parser(
+        "dap", help="以 Debug Adapter Protocol 服务编辑器（M43）")
+    p_dap.add_argument("--执行器", dest="engine", default=None,
+                       choices=["树遍历", "vm", "cvm"],
+                       help="在哪个执行器上调试（默认树遍历）")
+    p_dap.set_defaults(func=_cmd_dap)
+
     args = parser.parse_args(argv)
     return args.func(args)
 
@@ -928,8 +972,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     # 避免与「运行文件」位置参数冲突
     if argv and argv[0] in ("安装", "卸载", "列表", "发布", "索引", "检查"):
         return _run_package_cmd(argv)
-    # 工具子命令（医生/新项目/教程/格式化/lsp/调试，M16 / M21 / M37）
-    if argv and argv[0] in ("医生", "新项目", "教程", "格式化", "lsp", "调试"):
+    # 工具子命令（医生/新项目/教程/格式化/lsp/调试/dap，M16 / M21 / M37 / M43）
+    if argv and argv[0] in ("医生", "新项目", "教程", "格式化", "lsp", "调试", "dap"):
         return _run_tool_cmd(argv)
 
     parser = argparse.ArgumentParser(

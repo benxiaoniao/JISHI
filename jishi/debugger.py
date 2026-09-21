@@ -232,6 +232,9 @@ class _Session:
         self.breakpoints: set[int] = set()
         self.stop_on_entry = stop_on_entry
         self.quit_requested = False
+        #: 「运行中请求暂停」（DAP 的 pause 请求用；命令行会话用不到）。
+        #: 在下一个语句边界生效——调试器本来就是按语句停的。
+        self.pause_requested = False
         #: 程序里「可停的语句行」，设断点时用来提示「这行停不住」
         self.stmt_lines = set(stmt_lines)
         #: 语言自带的全局名字（内建函数 + 异常类型 + `空`）。「看变量」默认
@@ -245,6 +248,8 @@ class _Session:
         #: 命令脚本（非 None 时按顺序自动执行；用完自动「继续」）
         self._script: Optional[list[str]] = list(script) if script is not None else None
 
+        #: 暂停时的回调（DAP 用，M43）。命令行会话不用它。
+        self.on_pause: Optional[Callable[[str], None]] = None
         self._snapshot: Optional[_Snapshot] = None
         self._line = 1
         #: 恢复模式：run / step / next / out；entry 只用于「停在入口」那一次
@@ -290,6 +295,15 @@ class _Session:
 
     def _can_eval(self) -> bool:
         return self._frame_target() is not None
+
+    def _frame_target_at(self, index: int) -> Any:
+        """按调用栈下标取帧句柄（0 = 当前帧，与 `_live_chain()` 同一顺序）。
+
+        DAP（M43）让用户在编辑器里点调用栈的**任意一帧**看变量，所以需要
+        「按层取帧」。默认只认当前帧——将来新增执行器不实现它也能用，
+        代价只是别的层变量显示为空。
+        """
+        return self._frame_target() if index == 0 else None
 
     # -- 断点 ---------------------------------------------------------------
 
@@ -369,7 +383,11 @@ class _Session:
                                    self._snapshot_vars())
         depth = self._depth()
         mode = self._mode
-        if mode == "entry":
+        if self.pause_requested:
+            # 「暂停」请求优先：用户刚点的按钮，就地停下最符合预期
+            self.pause_requested = False
+            self._pause("暂停")
+        elif mode == "entry":
             self._pause("停在入口")
         elif mode == "step":
             self._pause("单步")
@@ -383,6 +401,11 @@ class _Session:
     def _pause(self, reason: str) -> None:
         self.stops += 1
         self._paused_depth = self._depth()
+        if self.on_pause is not None:
+            # DAP（M43）：先把「停了」告诉编辑器 —— 它一收到就会来问栈与变量，
+            # 而那必须在**状态静止**时读。此刻脚本线程正要往下走去读命令，
+            # 不会改执行状态（`_pause` 里只有打印和读命令），所以是安全的。
+            self.on_pause(reason)
         self._write_line("")
         self._write_line(f"暂停（{reason}） 第 {self._line} 行 · {self._frame_label()}")
         self._write_line(self._source_line(self._line))
@@ -673,6 +696,15 @@ class Debugger(_Session):
     def _frame_target(self) -> Any:
         return self._env
 
+    def _frame_target_at(self, index: int) -> Any:
+        # `self._frames` 是由外到内存的，而栈表是由内到外，所以要倒着数；
+        # 最后一层（下标 = 帧数）是模块顶层，句柄就是解释器的全局环境。
+        if index < len(self._frames):
+            return self._frames[-1 - index].env
+        if index == len(self._frames):
+            return self.interp.globals
+        return None
+
     def _vars_of(self, target: Any) -> dict:
         # 「赋值即局部」给每个会被赋值的名字先占了一个未绑定哨兵（M40）：
         # 它代表「这个名字是本函数的局部变量，但还没轮到赋值」，不是值。
@@ -771,6 +803,11 @@ class VmDebugger(_Session):
 
     def _frame_target(self) -> Any:
         return self.vm.frames[-1] if self.vm.frames else None
+
+    def _frame_target_at(self, index: int) -> Any:
+        # `vm.frames` 由外到内（[0] 是模块主帧），倒着数即可
+        frames = self.vm.frames
+        return frames[-1 - index] if index < len(frames) else None
 
     def _vars_of(self, target: Any) -> dict:
         from .vm import _UNSET
@@ -924,6 +961,11 @@ class CvmDebugger(_Session):
     def _frame_target(self) -> Any:
         # C 侧没有「帧对象」可拿，用 (深度, 代码下标) 当句柄
         return (0, self._hook_code) if self._hook_code >= 0 else None
+
+    def _frame_target_at(self, index: int) -> Any:
+        # 向 C 侧问第 index 层（0 = 最内层）的代码下标，凑成同一种句柄
+        meta = self._frame_meta(index)
+        return (index, meta[0]) if meta is not None else None
 
     def _code_name(self, depth: int) -> str:
         meta = self._frame_meta(depth)

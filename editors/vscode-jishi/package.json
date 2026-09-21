@@ -2,7 +2,7 @@
   "name": "vscode-jishi",
   "displayName": "基石语言（jishi）",
   "description": "基石 —— 一门像 Python 一样简单易用的中文编程语言：语法高亮、代码片段、实时诊断、补全、格式化、重命名、快速修复、语义高亮",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "jishi-lang",
   "engines": {
     "vscode": "^1.80.0"
@@ -19,11 +19,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://example.invalid/jishi.git"
+    "url": "https://github.com/benxiaoniao/JISHI.git"
   },
   "main": "./extension.js",
   "activationEvents": [
-    "onLanguage:jishi"
+    "onLanguage:jishi",
+    "onDebugResolve:jishi"
   ],
   "contributes": {
     "languages": [
@@ -58,6 +59,76 @@
         "command": "jishi.restartServer",
         "title": "基石：重启语言服务",
         "category": "基石"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "jishi",
+        "label": "基石调试",
+        "languages": [
+          "jishi"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "要调试的 .jsh 文件（默认用当前打开的那个）",
+                "default": "${file}"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "启动后先停在第一句上",
+                "default": false
+              },
+              "执行器": {
+                "type": "string",
+                "enum": [
+                  "树遍历",
+                  "vm",
+                  "cvm"
+                ],
+                "default": "树遍历",
+                "description": "在哪个执行器上调试（三个执行器行为一致；cvm 不支持在暂停处求值）"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "jishi",
+            "request": "launch",
+            "name": "调试基石脚本",
+            "program": "${file}",
+            "stopOnEntry": false
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "基石：调试当前文件",
+            "description": "调试当前打开的 .jsh 文件",
+            "body": {
+              "type": "jishi",
+              "request": "launch",
+              "name": "调试基石脚本",
+              "program": "${file}"
+            }
+          },
+          {
+            "label": "基石：停在入口",
+            "description": "调试当前文件，并且在第一句就停下",
+            "body": {
+              "type": "jishi",
+              "request": "launch",
+              "name": "调试基石脚本（停在入口）",
+              "program": "${file}",
+              "stopOnEntry": true
+            }
+          }
+        ]
       }
     ],
     "configuration": {

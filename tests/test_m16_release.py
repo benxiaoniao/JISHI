@@ -29,6 +29,32 @@ def test_version_fallback():
     assert _ver.VERSION.count(".") == 2
 
 
+def test_version_matches_pyproject():
+    """`pyproject.toml` 是版本号的唯一来源——运行时读到的必须与它一致。
+
+    不一致的典型原因是「改了 pyproject，但环境里的元数据还是旧的」。这种不一致
+    很隐蔽：文档写 0.1.25、`jishi --版本` 说 0.1.17，两边各自看都像是对的
+    （M43 真实踩到：源码目录里躺着一个陈旧的 `jishi.egg-info`，它挡在
+    `sys.path` 前面，`importlib.metadata` 先扫到它就返回了旧版本）。
+
+    修法：`python -m pip install -e . --no-deps --no-build-isolation`，
+    并确认源码目录里没有过期的 `*.egg-info`（那是老式 editable 安装的遗留物）。
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[1]
+    src = (root / "pyproject.toml").read_text(encoding="utf-8")
+    m = re.search(r'^version\s*=\s*"([^"]+)"', src, re.M)
+    assert m, "pyproject.toml 里找不到 version"
+    期望 = m.group(1)
+    assert _ver.VERSION == 期望, (
+        f"pyproject 写的是 {期望}，运行时读到 {_ver.VERSION}"
+        "——多半是改了版本号没重装：pip install -e . --no-deps")
+    assert _ver.__FALLBACK__ == 期望, (
+        f"兜底常量是 {_ver.__FALLBACK__}，与 pyproject 的 {期望} 不一致"
+        "（打包成单文件后没有元数据，用的就是它）")
+
+
 def _run_cli(argv):
     buf = io.StringIO()
     with redirect_stdout(buf):
