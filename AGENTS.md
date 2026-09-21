@@ -77,6 +77,9 @@
    - **Python 包 → PyPI**：`tools/publish_pypi.py`。**默认只做只读检查（不上传）**，
      加 `--上传` 才真发；凭据是用户手里的 `PYPI_TOKEN`，所以**这条不自动**。
      **PyPI 一个版本只能传一次、不可覆盖**（不像 GitHub 能 force push）。
+     **首次上传的时机已定**（2026-09-21 用户定，账号已注册）：**M45 做完、
+     GitHub Releases 打包完成之后**再跑第一次 `--上传`。
+     ⚠️ 真传上去之前，**README 不许写 `pip install jishi`**——那是没兑现的承诺。
 
 ---
 
@@ -475,6 +478,10 @@
   **M41 的复盘给 M42–M45 提供了新靶子**：别扭点清单里 2 条其实是
   **「能力早就有、只是不知道」**（`数学.四舍五入`、`文本.左对齐`、集合交并差）
   ——治它靠补全与机器可读事实，不靠加能力。
+- 📌 **M45 的收尾动作（按顺序，别漏）**：① 打包 GitHub Releases；
+  ② **PyPI 第一次上传**（`python tools/publish_pypi.py --上传`，需 `PYPI_TOKEN`）。
+  时机由用户 **2026-09-21** 指定：**M45 做完 + Releases 打包完成**之后才传
+  （账号已注册；`tools/publish_pypi.py` 已就绪并验证过）。
 - ✅ **两个「已记录待修项」已清零（M40）**：① f-string 改用内部保留名 `$文本`；
   ② 树遍历补齐「赋值即局部」。当前**没有已知的未修分歧**——`tests/test_cvm.py`
   里那条 `xfail` 也按约定转成了正常断言。
@@ -530,6 +537,14 @@ python tools/publish_pypi.py --上传                  # 正式发（要 PYPI_TO
 **PyPI 那条不自动**：凭据在用户手里，而且**一个版本只能传一次、不能覆盖**。
 要发新版先改 `pyproject.toml` 的 `version`（并把 `jishi/version.py` 的兜底常量
 同步——脚本第 1 步就会拦不一致；`tests/test_m16_release.py` 也钉着）。
+
+**首次上传时机（2026-09-21 用户定）：M45 完成 + GitHub Releases 打包完成之后。**
+到时按这三步走（账号已注册）：
+1. PyPI 开两步验证（不开不能建 token）；
+2. 建 **Account scope** 的 API token（`jishi` 项目还不存在，建不了项目级 token）；
+3. `export PYPI_TOKEN=pypi-xxx` → `python tools/publish_pypi.py --上传`
+   （想先练手加 `--仓库 testpypi`；`--dry-run` 或直接不带 `--上传` 只检查）。
+**传成功之前不在 README 写 `pip install jishi`。**
 
 两个坑：
 - **别用 `git push origin`**：本仓库的 `origin`（Gitee）已废弃移除；而且
