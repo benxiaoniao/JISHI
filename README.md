@@ -36,8 +36,13 @@ cd jishi-<版本>-linux-x64 && bash install.sh
 **pip 安装**（需本机 Python 3.10+）：
 
 ```bash
-pip install jishi
+pip install git+https://github.com/benxiaoniao/JISHI.git   # 现在可用
+pip install jishi                                          # PyPI 首发后可用
 ```
+
+> ⏳ **`jishi` 尚未上传到 PyPI**（首发定在 M45 收尾时），所以现在请用上面那条 git
+> 安装；上传成功后这一节会改回一行 `pip install jishi`。
+> 源码安装的 wheel 构建细节见 `tools/build_wheel.py`。
 
 发行包下载见 [GitHub Releases](https://github.com/benxiaoniao/JISHI/releases)，
 每个版本附 `SHA256SUMS` 便于校验完整性。
@@ -951,7 +956,7 @@ code --install-extension jishi-lang.vscode-jishi
 
 ```bash
 cd editors/vscode-jishi && npx @vscode/vsce package
-code --install-extension vscode-jishi-0.3.0.vsix
+code --install-extension vscode-jishi-*.vsix
 ```
 
 装完在**任何窗口、任何文件夹**打开 `.jsh` 都有效，不再需要开发宿主窗口。
@@ -1348,8 +1353,8 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
 
 - **Python ≥3.10**（运行时零第三方依赖；测试用 pytest，
   `tools/make_logo.py` 图像处理用 pillow——均为开发期工具，与运行时无关）
-- **使用（pip 安装）**：`pip install jishi` 即含预编译 C VM，无需 gcc
-  （`tools/build_wheel.py` 打出的 wheel 内带 DLL/SO）
+- **使用（pip 安装）**：`pip install jishi`（**PyPI 首发后**；此前用上面的 git 安装）
+  即含预编译 C VM，无需 gcc（`tools/build_wheel.py` 打出的 wheel 内带 DLL/SO）
 - **从源码开发**：需要 C 编译器构建 C VM（`python cvm/build.py`），
   装 MinGW-w64（Windows）或 zig / gcc 均可；无编译器也能跑树遍历解释器，
   C VM 自动降级、其余功能照常

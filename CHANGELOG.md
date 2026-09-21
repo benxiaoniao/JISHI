@@ -45,6 +45,11 @@
   并补一条「一个请求只能有一个响应」的测试。
 
 ### 打包
+- **扩展 0.3.1**：扩展 README 精简（它是 Marketplace 页面上「Details」那一栏的正文）
+  ——去掉「先决条件 / 安装与试用 / 上架 Marketplace」三节与文件目录，只留一行前置
+  说明、三张能力表（语法层 / 语义层 / 调试）与「已知边界」。其余内容本就在仓库
+  README 与 `docs/工具链.md` 里，不重复。**升版本号是必须的**：Marketplace 不接受
+  重传一个已经发布的版本号。
 - `vscode-jishi-0.3.0.vsix`（26KB；`.vscodeignore` 排掉 99MB 的 `node_modules`）。
   装完之后**任意窗口、任意文件夹**打开 `.jsh` 都有效，不必再走「F5 + 扩展宿主」。
 - **已上架 VS Code Marketplace**：publisher `jishi-lang`，扩展

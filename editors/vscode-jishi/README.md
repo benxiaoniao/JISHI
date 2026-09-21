@@ -1,6 +1,17 @@
-# 基石语言 · VSCode 扩展
+# 基石语言 · VS Code 扩展
 
-为 **基石（jishi）** —— 中文编程语言提供编辑器支持。
+为 **基石（jishi）**——中文编程语言——提供编辑器支持。
+
+> **先装基石本体**（扩展只负责编辑器那一层）：
+> `pip install git+https://github.com/benxiaoniao/JISHI.git`
+> （发布到 PyPI 后即为 `pip install jishi`），装好用 `jishi 医生` 确认环境。
+> `jishi` 不在 PATH 上时，在设置里指明它——语言服务与调试共用这一项：
+>
+> ```json
+> { "jishi.server.command": "D:/jishi/jishi.exe" }
+> ```
+
+## 能力
 
 **语法层**（扩展自带，不需要语言服务）：
 
@@ -38,122 +49,9 @@
 | 监视 / 悬停求值 | 「监视」面板加表达式；鼠标悬停也能求值（C 虚拟机除外，见下） |
 | 调试控制台 | 程序输出与调试器提示都在这里；`output` 事件按 stdout / console 分类着色 |
 
-## 先决条件
-
-扩展是**编辑器那一层**，真正干活的是基石本体——**先把它装上**（本仓库自带完整
-的 `pyproject.toml`，直接从源码装即可；以后发布到 PyPI 就是 `pip install jishi`）：
-
-```bash
-pip install git+https://github.com/benxiaoniao/JISHI.git
-jishi 医生                               # 装好后确认环境就绪
-```
-
-语言服务与调试适配器都由基石自带（`jishi lsp` / `jishi dap`——一般不用手动跑，
-编辑器会自己起）。**扩展本身零运行时依赖**：高亮与片段不用任何外部程序；
-语言服务的传输层是自己写的 `lsp-transport.js`（没引 `vscode-languageclient`）；
-调试用的则是 VSCode 内置的 `DebugAdapterExecutable`，它负责起子进程并转发 DAP 消息。
-
-`jishi` 不在 PATH 上时，在设置里指明（语言服务与调试都用这一项）：
-
-```json
-{
-  "jishi.server.command": "D:/jishi/jishi.exe"
-}
-```
-
-## 安装与试用
-
-### 方式一：从 `.vsix` 安装（**推荐**）
-
-`.vsix` 是构建产物，**没有进版本库**（`.gitignore` 里排掉了），先在本目录打一个
-（需要 Node；命令会自己拉 `@vscode/vsce`）：
-
-```bash
-npx @vscode/vsce package        # 产出 vscode-jishi-0.3.0.vsix，约 26KB
-code --install-extension vscode-jishi-0.3.0.vsix
-```
-
-或在 VSCode 里：扩展面板 → 右上角 `...` → 「从 VSIX 安装」。
-装完之后**任何窗口、任何文件夹**打开 `.jsh` 都能用，不需要开发宿主窗口。
-
-### 方式二：F5 开发方式（改扩展代码时用）
-
-1. 用 VSCode 打开本目录 `editors/vscode-jishi`
-2. 按 `F5`（或 运行 → 启动调试）——`.vscode/launch.json` 已备好，不用选环境
-3. 弹出「扩展开发宿主」窗口：在里面**打开单个 `.jsh` 文件**（用「文件 → 打开文件」，
-   别用「打开文件夹」——从宿主窗口打开新文件夹会另开一个**普通窗口**，
-   而普通窗口不加载开发中的扩展）
-
-此时打开文件就能看到诊断、补全、格式化、重命名、快速修复、签名提示与语义高亮；
-按 `F5` 还能调试脚本。右下角状态栏有「基石 LSP：就绪」，点它可以重启服务。
-
-**开发宿主窗口第一次打开时**，如果 `jishi` 不在 PATH 上，会弹一条提示——
-点「设置 jishi 路径」把 `jishi.server.command` 指到可执行文件即可。
-
-**装了 jishi 但扩展说连不上时**，先看「输出 → 基石语言服务」面板；
-把设置 `jishi.server.trace` 打开还能看到逐条 LSP 收发消息。
-
-### 调试一个脚本
-
-第一次按 `F5` 时会生成 `launch.json`，选「基石调试」即可。手写的话：
-
-```json
-{
-  "type": "jishi",
-  "request": "launch",
-  "name": "调试基石脚本",
-  "program": "${file}",
-  "stopOnEntry": false
-}
-```
-
-- `program` 不写就用当前打开的文件；
-- `stopOnEntry: true` 让程序停在第一句上；
-- 想换执行器加 `"执行器": "vm"`（可选 `树遍历` / `vm` / `cvm`，三者调试行为一致）。
-
-## 不装编辑器也能自检
-
-```bash
-cd editors/vscode-jishi
-node verify-lsp.js /path/to/jishi        # 语言服务：走完 25 项断言
-node verify-tokenize.js                  # 词法层的老自检
-```
-
-`verify-lsp.js` 用**扩展同一份传输代码**真的起一个 `jishi lsp` 子进程，把每项
-能力都点一遍。装进 VSCode 之前先跑这个，能把「点了没反应」这类问题挡在前面。
-（它也是回归测试的一部分：`tests/test_m42_vscode_client.py`。）
-
-调试那条路没有对应的 JS 自检——扩展用的是 VSCode 内置的 `DebugAdapterExecutable`，
-没有「扩展自己的传输层」可复用；协议级验证在 `tests/test_m43_dap.py`（34 项）。
-
-## 打包成 vsix
-
-```bash
-cd editors/vscode-jishi
-npx @vscode/vsce package                 # 生成 vscode-jishi-0.3.0.vsix（约 26KB）
-```
-
-`.vscodeignore` 已排掉 `node_modules`（那是打包工具自己的依赖，99MB 不进包）。
-
-图标由项目 logo 生成（128×128 圆角白底），要改就改脚本再跑一遍（在仓库根运行）：
-
-```bash
-python tools/make_icon.py
-```
-
-## 上架 Marketplace（需要你本人操作两步）
-
-1. 去 <https://dev.azure.com> 建一个 Personal Access Token（scope 选
-   **Marketplace → Manage**）；
-2. 用这个 token 注册一次发布者身份：
-
-   ```bash
-   npx @vscode/vsce login <发布者名>
-   npx @vscode/vsce publish                 # 之后的每次上架
-   ```
-
-发布者名必须先在 <https://marketplace.visualstudio.com/manage> 建好
-（`package.json` 里的 `publisher` 字段要与之相同）。
+第一次按 `F5` 会自动生成 `launch.json`，选「基石调试」即可（`program` 不写就用
+当前打开的文件；换执行器加 `"执行器": "vm"`，可选 `树遍历` / `vm` / `cvm`）。
+右下角状态栏有「基石 LSP：就绪」，点它可以重启服务。
 
 ## 已知边界（不粉饰）
 
@@ -176,24 +74,3 @@ python tools/make_icon.py
 - **没有条件断点 / 命中计数 / 日志断点**：命令行版也没有，这里不假装有
   （能力声明里一律写 `false`，VSCode 就不会给用户画出没用的输入框）。
 
-## 目录
-
-```
-package.json                   扩展清单（语言注册 + 语言服务与调试配置项）
-icon.png                       Marketplace / 列表里显示的图标（128×128 圆角白底）
-extension.js                   客户端：把编辑器 API 接到 LSP / DAP 上
-lsp-transport.js               最小 LSP 传输层（分帧/请求应答/通知，不依赖 vscode）
-verify-lsp.js                  语言服务的端到端自检（脱离 VSCode 也能跑）
-verify-tokenize.js             词法层自检
-.vscode/launch.json            F5 启动配置（打开扩展开发宿主）
-language-configuration.json    括号/注释/缩进规则
-syntaxes/jishi.tmLanguage.json TextMate 语法（高亮核心）
-snippets/jishi.code-snippets   代码片段
-LICENSE                        许可证（Unlicense，随包分发）
-```
-
-> 语法以 `jishi/tokenizer.py` 的 KEYWORDS 表为准；语言变更时同步本文件。
-> 语言能力以 `jishi/lsp.py` 的 `on_initialize` 声明为准；调试能力以
-> `jishi/dap.py` 的 `_req_initialize` 与 `tests/test_m43_dap.py` 为准。
-> 高亮表与片段和语言事实的对齐由 `tests/test_m43_highlight.py` 钉住——
-> 新增内建/模块/关键字后如果忘了同步，那条测试会红。
