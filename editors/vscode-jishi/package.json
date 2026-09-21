@@ -160,5 +160,6 @@
   "homepage": "https://github.com/benxiaoniao/JISHI",
   "bugs": {
     "url": "https://github.com/benxiaoniao/JISHI/issues"
-  }
+  },
+  "icon": "icon.png"
 }

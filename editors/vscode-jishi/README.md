@@ -135,6 +135,12 @@ npx @vscode/vsce package                 # 生成 vscode-jishi-0.3.0.vsix（约 
 
 `.vscodeignore` 已排掉 `node_modules`（那是打包工具自己的依赖，99MB 不进包）。
 
+图标由项目 logo 生成（128×128 圆角白底），要改就改脚本再跑一遍（在仓库根运行）：
+
+```bash
+python tools/make_icon.py
+```
+
 ## 上架 Marketplace（需要你本人操作两步）
 
 1. 去 <https://dev.azure.com> 建一个 Personal Access Token（scope 选
@@ -174,6 +180,7 @@ npx @vscode/vsce package                 # 生成 vscode-jishi-0.3.0.vsix（约 
 
 ```
 package.json                   扩展清单（语言注册 + 语言服务与调试配置项）
+icon.png                       Marketplace / 列表里显示的图标（128×128 圆角白底）
 extension.js                   客户端：把编辑器 API 接到 LSP / DAP 上
 lsp-transport.js               最小 LSP 传输层（分帧/请求应答/通知，不依赖 vscode）
 verify-lsp.js                  语言服务的端到端自检（脱离 VSCode 也能跑）
@@ -182,6 +189,7 @@ verify-tokenize.js             词法层自检
 language-configuration.json    括号/注释/缩进规则
 syntaxes/jishi.tmLanguage.json TextMate 语法（高亮核心）
 snippets/jishi.code-snippets   代码片段
+LICENSE                        许可证（Unlicense，随包分发）
 ```
 
 > 语法以 `jishi/tokenizer.py` 的 KEYWORDS 表为准；语言变更时同步本文件。
