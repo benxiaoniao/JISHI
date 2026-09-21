@@ -71,7 +71,8 @@
   - **打包 `.vsix`**（26KB，`node_modules` 不进包）：装完在任何窗口打开 `.jsh`
     都有效，不必再走「F5 + 扩展宿主」。
   - **已上架 VS Code Marketplace**（publisher `jishi-lang`，扩展
-    `jishi-lang.vscode-jishi` 0.3.0，搜「基石语言」即可装）。
+    `jishi-lang.vscode-jishi` 0.3.0，搜「基石语言」即可装；
+    当前线上版本 **0.3.1**——README 精简后重发，2026-09-21 23:20 验证通过）。
     走的是**手动上传 .vsix**——官方文档与 `vsce publish` 并列的第二种发布方式，
     网页端靠登录会话认证，**全程不需要 PAT、不需要 Azure DevOps 组织**。
   - **高亮与片段对齐语言事实**（D44）：内建 15 → 28、模块名 19 个、异常类型
