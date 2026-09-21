@@ -47,6 +47,11 @@
 ### 打包
 - `vscode-jishi-0.3.0.vsix`（26KB；`.vscodeignore` 排掉 99MB 的 `node_modules`）。
   装完之后**任意窗口、任意文件夹**打开 `.jsh` 都有效，不必再走「F5 + 扩展宿主」。
+- **已上架 VS Code Marketplace**：publisher `jishi-lang`，扩展
+  `jishi-lang.vscode-jishi` 0.3.0（搜「基石语言」即可安装）。
+  走的是**手动上传 `.vsix`**——官方文档里与 `vsce publish` 并列的第二种发布方式，
+  网页端靠登录会话认证，**全程不需要 PAT、不需要 Azure DevOps 组织**（后者是
+  `vsce publish` 那条路的要求）。
 - **新增 `tools/publish_pypi.py`**：把基石打包发布到 PyPI 的脚本。**默认不上传**
   （PyPI 的版本一旦上传就不能覆盖，跟 GitHub 能 force push 完全不同），默认只做
   「校验版本号一致 → 查 PyPI 上是否已有该版本 → 构建 sdist/wheel → `twine check`

@@ -177,10 +177,11 @@ jishi examples/01_猜数字.jsh --ast
 - 顺带给调试器补了两样：**按帧取变量**（编辑器可点调用栈的任意一帧）与
   **运行中暂停**（在下一个语句边界生效）。
 
-**扩展能打成一个 26KB 的 `.vsix`**（`node_modules` 不进包）：装完之后**任意窗口、
-任意文件夹**打开 `.jsh` 都能用，不必再走「F5 + 扩展宿主窗口」那条路
-（从宿主窗口打开新文件夹会另开一个普通窗口，那个窗口不加载开发中的扩展）。
-`.vsix` 是构建产物、不入库，打包命令见下文「编辑器接入」。
+**扩展已上架 VS Code Marketplace**（publisher `jishi-lang`，扩展
+`jishi-lang.vscode-jishi`）：在编辑器的扩展面板里搜 **「基石语言」** 就能装，
+装完**任意窗口、任意文件夹**打开 `.jsh` 都能用，不必再走「F5 + 扩展宿主窗口」
+那条路（从宿主窗口打开新文件夹会另开一个普通窗口，那个窗口不加载开发中的扩展）。
+也可以自己打 `.vsix`（构建产物、不入库），命令见下文「编辑器接入」。
 
 **语法高亮与代码片段补齐并对齐语言事实**：内建从 15 个补到 **28 个**
 （含 M41 的 `带下标` / `配对`）、新增**标准库模块名**（19 个）与**异常类型**
@@ -936,18 +937,26 @@ Python `not` 的语义：`非 年龄 >= 18` = `非 (年龄 >= 18)`。
   **保留注释、三引号字符串与中文引号原样**；支持 `--write` / `--check` / `--stdin`。
   保证**幂等**与**语义不变**（全语料 token 流逐一对拍）。
 
-编辑器接入：本仓库自带 VS Code 扩展 `editors/vscode-jishi`（**零运行时依赖**）。
-先在扩展目录里打个包——`.vsix` 是构建产物、**不入库**，但一条命令就出来
-（约 26KB，`node_modules` 不会进包）：
+编辑器接入：**扩展已上架 VS Code Marketplace** —— 在扩展面板里搜 **「基石语言」**
+（或 `jishi`）直接安装，或走命令行：
+
+```bash
+code --install-extension jishi-lang.vscode-jishi
+```
+
+页面：<https://marketplace.visualstudio.com/items?itemName=jishi-lang.vscode-jishi>
+
+也可以从源码自己打 `.vsix`（构建产物、**不入库**；一条命令约 26KB，
+`node_modules` 不会进包）：
 
 ```bash
 cd editors/vscode-jishi && npx @vscode/vsce package
+code --install-extension vscode-jishi-0.3.0.vsix
 ```
 
-再装它（`code --install-extension vscode-jishi-0.3.0.vsix`，或在扩展面板里
-「从 VSIX 安装」）——装完在**任何窗口、任何文件夹**打开 `.jsh` 都有效，
-不再需要开发宿主窗口。改扩展代码时则用 VS Code 打开该目录按 `F5` 走
-「扩展开发宿主」（那条路的限制见扩展自己的 README）。
+装完在**任何窗口、任何文件夹**打开 `.jsh` 都有效，不再需要开发宿主窗口。
+改扩展代码时则用 VS Code 打开该目录按 `F5` 走「扩展开发宿主」
+（那条路的限制见扩展自己的 README）。
 `jishi` 不在 PATH 上时在设置里指明：
 
 ```json
