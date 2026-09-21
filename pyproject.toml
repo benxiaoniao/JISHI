@@ -8,7 +8,10 @@ version = "0.1.25"
 description = "基石 —— 一门像 Python 一样简单易用的中文编程语言"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE"}
+# SPDX 表达式 + license-files（PEP 639 的新写法）。旧的 `license = {file = ...}`
+# 被 setuptools 标为已弃用，并写明 2027-02-18 之后构建会失败。
+license = "Unlicense"
+license-files = ["LICENSE"]
 authors = [{ name = "jishi contributors" }]
 
 # 上架 / 发 PyPI 需要的对外链接（PEP 621）
@@ -22,7 +25,11 @@ jishi = "jishi.cli:main"
 jishi-mcp = "jishi.mcp_server:main"
 
 [tool.setuptools]
-packages = ["jishi", "jishi.stdlib"]
+# `jishi._native` 是**只放动态库的数据目录**（没有 .py）。这里显式列上它，
+# 是为了消掉 setuptools 的保守提醒「Package 'jishi._native' is absent from the
+# packages configuration」——它看到目录里有文件却不在 packages 里就会警告。
+# 真正决定哪些文件进包的是下面的 package-data。
+packages = ["jishi", "jishi.stdlib", "jishi._native"]
 
 # M11：wheel 内带预编译 C VM 动态库（pip install 即含三执行器，无需本机 gcc）
 [tool.setuptools.package-data]

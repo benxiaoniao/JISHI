@@ -71,9 +71,12 @@
    保持本地与公开版一致，发布时无需反复屏蔽。
 7. **新特性准入三关**：真实需求驱动 / 可度量验收 / 投入产出比。
    说不出「怎么算完成」就不开工。
-8. **发布只走 GitHub 一个通道**：`tools/publish_github.py`（Gitee 已于
-   2026-09-20 弃用）。**每个里程碑提交后自动发布，不用问用户**——
-   见 §4 的命令与两个坑。
+8. **发布走两条通道，规矩不同**：
+   - **代码 → GitHub**：`tools/publish_github.py`（Gitee 已于 2026-09-20 弃用）。
+     **每个里程碑提交后自动发布，不用问用户**——见 §4 的命令与两个坑。
+   - **Python 包 → PyPI**：`tools/publish_pypi.py`。**默认只做只读检查（不上传）**，
+     加 `--上传` 才真发；凭据是用户手里的 `PYPI_TOKEN`，所以**这条不自动**。
+     **PyPI 一个版本只能传一次、不可覆盖**（不像 GitHub 能 force push）。
 
 ---
 
@@ -511,13 +514,22 @@ python tools/ci.py
 # 打发行包（PyInstaller；Windows 上会自动调 Inno Setup 出 setup.exe）
 python tools/build_release.py
 
-# 发布到 GitHub —— **唯一的发布通道**（2026-09-20 起 Gitee 已弃用）
+# 发布到 GitHub —— 代码的发布通道（2026-09-20 起 Gitee 已弃用）
 python tools/publish_github.py           # 同步代码（屏蔽版快照）
 python tools/publish_github.py --dry-run # 只导出+屏蔽+本地提交，不推送
 python tools/publish_github.py --tag v0.2.0  # 同步 + 打 tag（触发三平台构建）
 
+# 发布 Python 包到 PyPI（**默认不上传**：只打包 + 校验 + 隐私扫描）
+python tools/publish_pypi.py                        # 只检查，产物落在 dist/
+python tools/publish_pypi.py --上传 --仓库 testpypi  # 先传 TestPyPI 练手
+python tools/publish_pypi.py --上传                  # 正式发（要 PYPI_TOKEN 环境变量）
+
 **这条不用问用户，直接执行**（2026-09-20 定的规矩）：每个里程碑提交后，
 自动跑一次 `publish_github.py` 把屏蔽版快照同步到 GitHub。
+
+**PyPI 那条不自动**：凭据在用户手里，而且**一个版本只能传一次、不能覆盖**。
+要发新版先改 `pyproject.toml` 的 `version`（并把 `jishi/version.py` 的兜底常量
+同步——脚本第 1 步就会拦不一致；`tests/test_m16_release.py` 也钉着）。
 
 两个坑：
 - **别用 `git push origin`**：本仓库的 `origin`（Gitee）已废弃移除；而且

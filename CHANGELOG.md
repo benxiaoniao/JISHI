@@ -47,6 +47,16 @@
 ### 打包
 - `vscode-jishi-0.3.0.vsix`（26KB；`.vscodeignore` 排掉 99MB 的 `node_modules`）。
   装完之后**任意窗口、任意文件夹**打开 `.jsh` 都有效，不必再走「F5 + 扩展宿主」。
+- **新增 `tools/publish_pypi.py`**：把基石打包发布到 PyPI 的脚本。**默认不上传**
+  （PyPI 的版本一旦上传就不能覆盖，跟 GitHub 能 force push 完全不同），默认只做
+  「校验版本号一致 → 查 PyPI 上是否已有该版本 → 构建 sdist/wheel → `twine check`
+  → 隐私扫描（包内不许出现本机路径）」，加 `--上传` 才真发，并支持先传 TestPyPI。
+  sdist 里会带上 `tests/`（setuptools 的默认行为，下游拿到能自己跑测试），
+  脚本会把包内容如实报出来，包括「随包的 C VM 动态库只有 Windows 的 DLL」这条边界。
+- 修 `pyproject.toml` 两处会让构建出问题的写法：
+  `license = {file = "LICENSE"}` 已被 setuptools 标记弃用（并写明 **2027-02-18
+  之后构建会失败**）→ 改成 `license = "Unlicense"` + `license-files`（PEP 639）；
+  `jishi._native` 没列进 `packages` 会让 setuptools 警告「可能有内容漏发」→ 显式列上。
 
 ### 测试
 - 新增 `tests/test_m43_dap.py`（34 项：协议级 31 + 扩展契约 3）。
