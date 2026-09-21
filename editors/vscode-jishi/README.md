@@ -40,16 +40,18 @@
 
 ## 先决条件
 
-语言服务与调试适配器都由基石自带，**扩展本身零运行时依赖**（高亮与片段不用
-任何外部程序；语言服务那条路也没引 `vscode-languageclient`，传输层是自己写的
-`lsp-transport.js`。调试那条路用的是 VSCode 内置的 `DebugAdapterExecutable`，
-它负责起子进程并转发 DAP 消息）。你需要能跑 `jishi`：
+扩展是**编辑器那一层**，真正干活的是基石本体——**先把它装上**（本仓库自带完整
+的 `pyproject.toml`，直接从源码装即可；以后发布到 PyPI 就是 `pip install jishi`）：
 
 ```bash
-jishi 医生          # 看环境是否就绪
-jishi lsp           # 编辑器就是靠这条命令起语言服务（一般不用手动跑）
-jishi dap           # 调试时靠这条命令起调试适配器（同上，不用手动跑）
+pip install git+https://github.com/benxiaoniao/JISHI.git
+jishi 医生                               # 装好后确认环境就绪
 ```
+
+语言服务与调试适配器都由基石自带（`jishi lsp` / `jishi dap`——一般不用手动跑，
+编辑器会自己起）。**扩展本身零运行时依赖**：高亮与片段不用任何外部程序；
+语言服务的传输层是自己写的 `lsp-transport.js`（没引 `vscode-languageclient`）；
+调试用的则是 VSCode 内置的 `DebugAdapterExecutable`，它负责起子进程并转发 DAP 消息。
 
 `jishi` 不在 PATH 上时，在设置里指明（语言服务与调试都用这一项）：
 
@@ -122,13 +124,13 @@ node verify-tokenize.js                  # 词法层的老自检
 （它也是回归测试的一部分：`tests/test_m42_vscode_client.py`。）
 
 调试那条路没有对应的 JS 自检——扩展用的是 VSCode 内置的 `DebugAdapterExecutable`，
-没有「扩展自己的传输层」可复用；协议级验证在 `tests/test_m43_dap.py`（31 项）。
+没有「扩展自己的传输层」可复用；协议级验证在 `tests/test_m43_dap.py`（34 项）。
 
 ## 打包成 vsix
 
 ```bash
 cd editors/vscode-jishi
-npx @vscode/vsce package                 # 生成 vscode-jishi-0.3.0.vsix（约 25KB）
+npx @vscode/vsce package                 # 生成 vscode-jishi-0.3.0.vsix（约 26KB）
 ```
 
 `.vscodeignore` 已排掉 `node_modules`（那是打包工具自己的依赖，99MB 不进包）。

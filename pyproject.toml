@@ -8,7 +8,14 @@ version = "0.1.25"
 description = "基石 —— 一门像 Python 一样简单易用的中文编程语言"
 readme = "README.md"
 requires-python = ">=3.10"
+license = {file = "LICENSE"}
 authors = [{ name = "jishi contributors" }]
+
+# 上架 / 发 PyPI 需要的对外链接（PEP 621）
+[project.urls]
+Homepage = "https://github.com/benxiaoniao/JISHI"
+Repository = "https://github.com/benxiaoniao/JISHI"
+Issues = "https://github.com/benxiaoniao/JISHI/issues"
 
 [project.scripts]
 jishi = "jishi.cli:main"

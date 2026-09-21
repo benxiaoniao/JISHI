@@ -16,7 +16,7 @@
     "chinese",
     "programming language"
   ],
-  "license": "MIT",
+  "license": "Unlicense",
   "repository": {
     "type": "git",
     "url": "https://github.com/benxiaoniao/JISHI.git"
@@ -156,5 +156,9 @@
         }
       }
     }
+  },
+  "homepage": "https://github.com/benxiaoniao/JISHI",
+  "bugs": {
+    "url": "https://github.com/benxiaoniao/JISHI/issues"
   }
 }
