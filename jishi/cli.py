@@ -570,7 +570,8 @@ def _format_tree(root, args) -> int:
 def build_debug_session(engine: str, source: str, filename: str,
                         lines, *, program=None, breakpoints=(),
                         stop_on_entry: bool = True,
-                        read_line=None, write=None, script=None):
+                        read_line=None, write=None, script=None,
+                        interactive: bool = True):
     """按执行器名装配一个调试会话。
 
     「谁来跑、怎么编译」随执行器而变，但**会话参数是同一套**——放在一处，
@@ -585,7 +586,7 @@ def build_debug_session(engine: str, source: str, filename: str,
         program = parse(tokenize(source, filename), lines, filename)
     common = dict(source_lines=lines, filename=filename, breakpoints=breakpoints,
                   stop_on_entry=stop_on_entry, read_line=read_line, write=write,
-                  script=script)
+                  script=script, interactive=interactive)
     if engine == "vm":
         from .compiler import compile_program
         from .vm import VM

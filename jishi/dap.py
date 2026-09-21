@@ -274,21 +274,27 @@ class DapAdapter:
     # -- 生命周期 -----------------------------------------------------------
 
     def _req_initialize(self, req: dict) -> None:
+        # 能力声明必须**嵌在 `body.capabilities` 里**（DAP 规范）。
+        # 平铺在 `body` 顶层的话，编辑器读 `body.capabilities` 得到 undefined，
+        # 于是所有开关都退回默认值——表现是「单步按钮灰着」「悬停不求值」这类
+        # 莫名其妙的现象，而适配器这边一切正常。**必须是这一层嵌套**。
         self.respond(req, {
-            "supportsConfigurationDoneRequest": True,
-            "supportsEvaluateForHovers": True,
-            "supportsPauseRequest": True,
-            "supportsTerminateRequest": True,
-            "supportTerminateDebuggee": True,
-            # 下面这些**明说不支持**，别让编辑器以为点了有用
-            "supportsFunctionBreakpoints": False,
-            "supportsConditionalBreakpoints": False,
-            "supportsHitConditionalBreakpoints": False,
-            "supportsLogPoints": False,
-            "supportsSetVariable": False,
-            "supportsStepBack": False,
-            "supportsRestartRequest": False,
-            "exceptionBreakpointFilters": [],
+            "capabilities": {
+                "supportsConfigurationDoneRequest": True,
+                "supportsEvaluateForHovers": True,
+                "supportsPauseRequest": True,
+                "supportsTerminateRequest": True,
+                "supportTerminateDebuggee": True,
+                # 下面这些**明说不支持**，别让编辑器以为点了有用
+                "supportsFunctionBreakpoints": False,
+                "supportsConditionalBreakpoints": False,
+                "supportsHitConditionalBreakpoints": False,
+                "supportsLogPoints": False,
+                "supportsSetVariable": False,
+                "supportsStepBack": False,
+                "supportsRestartRequest": False,
+                "exceptionBreakpointFilters": [],
+            },
         })
         # 规范：应答之后紧接着发 `initialized`，客户端才知道可以配置断点了
         self.event("initialized")
@@ -318,6 +324,8 @@ class DapAdapter:
                 engine, source, str(program), lines,
                 stop_on_entry=stop_on_entry,
                 read_line=self._read_line,
+                # 编辑器不是终端：别打「输入「帮助」看命令」这类寒暄
+                interactive=False,
                 write=lambda text: self.output(text + "\n", "console"),
             )
         except JishiError as e:
@@ -332,10 +340,14 @@ class DapAdapter:
         self.respond(req, {})
 
     def _req_configuration_done(self, req: dict) -> None:
-        self.respond(req, {})
+        # 先把「没 launch」拦下来——**一个请求只能有一个响应**。
+        # 原来写成「先 respond({}) 再检查」，于是这种情形会回两条响应
+        # （先成功、后失败）：多数客户端取第一条，那条「还没 launch」的提示
+        # 就永远显示不出来，用户看到的只是「点了没反应」。
         if self.session is None:
             self.error(req, "还没 launch：先说清楚要跑哪个脚本")
             return
+        self.respond(req, {})
         self._start_script()
 
     def _start_script(self) -> None:

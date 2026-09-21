@@ -226,12 +226,16 @@ class _Session:
                  read_line: Optional[Callable[[str], str]] = None,
                  write: Optional[Callable[[str], None]] = None,
                  script: Optional[Iterable[str]] = None,
-                 stmt_lines: Iterable[int] = ()):
+                 stmt_lines: Iterable[int] = (),
+                 interactive: bool = True):
         self.filename = filename
         self.lines = list(source_lines)
         self.breakpoints: set[int] = set()
         self.stop_on_entry = stop_on_entry
         self.quit_requested = False
+        #: 前端是不是「敲命令的终端」。false 时省掉命令行专属的寒暄
+        #: （「输入「帮助」看命令」）——编辑器里没有命令输入这回事，那是纯噪音。
+        self.interactive = interactive
         #: 「运行中请求暂停」（DAP 的 pause 请求用；命令行会话用不到）。
         #: 在下一个语句边界生效——调试器本来就是按语句停的。
         self.pause_requested = False
@@ -409,7 +413,7 @@ class _Session:
         self._write_line("")
         self._write_line(f"暂停（{reason}） 第 {self._line} 行 · {self._frame_label()}")
         self._write_line(self._source_line(self._line))
-        if not self._help_shown:
+        if self.interactive and not self._help_shown:
             self._help_shown = True
             self._write_line("（输入「帮助」看命令）")
 
@@ -654,11 +658,13 @@ class Debugger(_Session):
                  stop_on_entry: bool = True,
                  read_line: Optional[Callable[[str], str]] = None,
                  write: Optional[Callable[[str], None]] = None,
-                 script: Optional[Iterable[str]] = None):
+                 script: Optional[Iterable[str]] = None,
+                 interactive: bool = True):
         super().__init__(source_lines=source_lines, filename=filename,
                          breakpoints=breakpoints, stop_on_entry=stop_on_entry,
                          read_line=read_line, write=write, script=script,
-                         stmt_lines=statement_lines(program))
+                         stmt_lines=statement_lines(program),
+                         interactive=interactive)
         self.interp = interp
         self.program = program
         self._frames: list[DebugFrame] = []
@@ -755,14 +761,16 @@ class VmDebugger(_Session):
                  read_line: Optional[Callable[[str], str]] = None,
                  write: Optional[Callable[[str], None]] = None,
                  script: Optional[Iterable[str]] = None,
-                 stmt_lines: Optional[Iterable[int]] = None):
+                 stmt_lines: Optional[Iterable[int]] = None,
+                 interactive: bool = True):
         super().__init__(source_lines=source_lines, filename=filename,
                          breakpoints=breakpoints, stop_on_entry=stop_on_entry,
                          read_line=read_line, write=write, script=script,
                          # 「可停的行」直接取字节码里打的语句标记——比再解析一遍
                          # AST 更准：它就是执行器真正停得下来的那些行
                          stmt_lines=(mark_lines(vm.cmod) if stmt_lines is None
-                                     else stmt_lines))
+                                     else stmt_lines),
+                         interactive=interactive)
         self.vm = vm
         #: 「查看 表达式」求值期间不许再触发暂停（否则会在一条命令中途停下）
         self._evaluating = False
@@ -889,13 +897,15 @@ class CvmDebugger(_Session):
                  read_line: Optional[Callable[[str], str]] = None,
                  write: Optional[Callable[[str], None]] = None,
                  script: Optional[Iterable[str]] = None,
-                 stmt_lines: Optional[Iterable[int]] = None):
+                 stmt_lines: Optional[Iterable[int]] = None,
+                 interactive: bool = True):
         cmod = runner.cmod
         super().__init__(source_lines=source_lines, filename=filename,
                          breakpoints=breakpoints, stop_on_entry=stop_on_entry,
                          read_line=read_line, write=write, script=script,
                          stmt_lines=(mark_lines(cmod) if stmt_lines is None
-                                     else stmt_lines))
+                                     else stmt_lines),
+                         interactive=interactive)
         self.runner = runner
         self.cmod = cmod
         #: 暂停时 C 侧回调填进来：当前行、代码下标、帧数（含模块主帧）

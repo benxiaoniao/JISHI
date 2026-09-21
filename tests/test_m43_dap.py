@@ -200,10 +200,16 @@ def 开一场调试(client, script, *, lines=(3,), stop_on_entry=False,
 # ---------------------------------------------------------------------------
 
 def test_initialize_declares_capabilities_and_signals_initialized(dap):
-    """能力声明要**诚实**：说不支持的，编辑器就不会给你画出没用的按钮。"""
+    """能力声明要**诚实**：说不支持的，编辑器就不会给你画出没用的按钮。
+
+    注意取的是 `body.capabilities`——**规范要求嵌这一层**。平铺在 body 顶层
+    的话编辑器读不到（它固定读 capabilities），所有开关退化成默认值；
+    这条测试原来就是照着实现的写法写的，于是「实现和测试一起错」，
+    直到拿一个独立客户端跑真实场景才发现。
+    """
     init = dap.request("initialize", {"clientID": "pytest", "adapterID": "jishi"})
     assert init["success"] is True
-    caps = init["body"]
+    caps = init["body"]["capabilities"]
     assert caps["supportsConfigurationDoneRequest"] is True
     assert caps["supportsEvaluateForHovers"] is True
     assert caps["supportsPauseRequest"] is True
@@ -217,6 +223,20 @@ def test_initialize_declares_capabilities_and_signals_initialized(dap):
     assert dap.wait("event", "initialized") != "TIMEOUT"
 
 
+def test_initialize_body_shape_follows_spec(dap):
+    """`initialize` 的 body **只能**有 `capabilities` 这一层（规范就这么定的）。
+
+    这条是防「又平铺回去」的：上一条测试读的是 `body.capabilities`，
+    但它不检查 body 里还有没有别的键——万一有人把能力项既嵌一层又平铺一份，
+    上一条依然会过。
+    """
+    init = dap.request("initialize", {"clientID": "pytest", "adapterID": "jishi"})
+    body = init["body"]
+    assert list(body.keys()) == ["capabilities"], body.keys()
+    assert isinstance(body["capabilities"], dict)
+    assert "supportsConfigurationDoneRequest" not in body   # 不许平铺
+
+
 def test_unknown_request_gets_empty_success(dap):
     """不认识的请求回空应答——回 error 会让某些客户端直接报「调试器坏了」。"""
     dap.request("initialize", {})
@@ -227,6 +247,24 @@ def test_unknown_request_gets_empty_success(dap):
 # ---------------------------------------------------------------------------
 # 2. launch 的参数校验（错在哪儿要说清楚）
 # ---------------------------------------------------------------------------
+
+def test_configuration_done_without_launch_gets_exactly_one_response(dap):
+    """没 launch 就 configurationDone：要**只回一个失败响应**，不是两个。
+
+    DAP 规定一个请求只能有一个响应。原来写成「先回成功、再报错」，于是多数
+    客户端取第一条（成功），那条「还没 launch」的提示**永远显示不出来**——
+    用户看到的只是「点了没反应」，而适配器这边看不出任何异常。
+    """
+    dap.request("initialize", {})
+    dap.wait("event", "initialized")
+    first = dap.request("configurationDone")        # 故意不 launch
+    assert first["success"] is False
+    assert "launch" in first["message"]
+    # 紧接着不该再冒出第二个响应
+    second = dap.recv(timeout=3)
+    assert not (isinstance(second, dict)
+                and second.get("type") == "response"), second
+
 
 def test_launch_without_program_says_what_is_missing(dap):
     dap.request("initialize", {})
@@ -472,6 +510,23 @@ def test_program_output_goes_to_console(dap, script):
     assert "stdout" in cats and "console" in cats
 
 
+def test_console_has_no_cli_chatter(dap, script):
+    """编辑器里不该出现命令行专属的寒暄（「输入「帮助」看命令」）。
+
+    那条提示是给终端用户的；编辑器靠按钮操作、没有「输入命令」这回事，
+    打出来纯属噪音——而且它混在程序输出里，用户会以为那是程序打印的。
+    靠会话的 `interactive=False` 关掉；命令行那条路仍照打。
+    """
+    开一场调试(dap, script, lines=(3,))
+    dap.request("setBreakpoints", {"source": {"path": str(script)},
+                                   "breakpoints": []})
+    dap.request("continue", {"threadId": 1})
+    dap.wait("event", "terminated", timeout=15)
+    text = dap.console()
+    assert "暂停（命中第 3 行的断点）" in text    # 暂停提示还在（有信息价值）
+    assert "帮助" not in text                    # 但命令行的寒暄没了
+
+
 def test_exit_code_is_one_when_program_fails(dap, tmp_path):
     boom = tmp_path / "出错.jsh"
     boom.write_text("令 甲 = 1\n打印(甲 / 0)\n", encoding="utf-8", newline="\n")
@@ -530,11 +585,11 @@ def test_three_executors_agree(engine, tmp_path):
         client.request("continue", {"threadId": 1})
         client.wait("event", "terminated", timeout=15)
         assert client.event_names() == [
-            "initialized", "stopped", "output", "output", "output", "output",
+            "initialized", "stopped", "output", "output", "output",
             "continued", "output", "output", "output", "exited", "terminated"]
         assert client.console() == (
             "\n暂停（命中第 3 行的断点） 第 3 行 · 函数「倍」\n"
-            "→ 3 │     返回 果\n（输入「帮助」看命令）\n"
+            "→ 3 │     返回 果\n"
             "12\n（程序正常结束，本次共暂停 1 次）\n")
     finally:
         client.close()
