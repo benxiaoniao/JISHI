@@ -101,3 +101,75 @@ def test_run_file_still_works(tmp_path, monkeypatch):
     code, out = _run_cli(["a.jsh"])
     assert code == 0
     assert out == "你好\n"
+
+
+# ---------------------------------------------------------------------------
+# 打包契约：`packages` 里列的目录必须真的存在于「干净检出」
+# ---------------------------------------------------------------------------
+#
+# 2026-09-21 起 CI 连续 6 次全红、四平台都倒在「安装项目（可编辑）」，报
+#     error: package directory 'jishi/_native' does not exist
+# 根因：pyproject 的 `packages` 列了 `jishi._native`，setuptools 在**生成构建
+# 元数据**阶段就会检查该目录是否存在；而这个目录里只有 `.dll/.so/.dylib`，
+# 那些扩展名被 .gitignore 排除、不入库 → 干净检出里目录整个消失 → 构建失败。
+#
+# **本地永远复现不出来**：开发机里 dll 早就构建好了，目录一直在。
+# 必须用 `git archive` 导出一棵干净树才看得见。这条测试就干这件事。
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _pyproject() -> dict:
+    """读 pyproject.toml（用 tomllib；3.11+ 标准库，3.10 用 tomli 兜底）。"""
+    try:
+        import tomllib as _t
+    except ModuleNotFoundError:                                    # pragma: no cover
+        import tomli as _t  # type: ignore
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    return _t.loads(text)
+
+
+def test_packages_directories_exist_in_clean_checkout():
+    """`packages` 里每个目录都必须在 git 里存在（哪怕只有一个占位文件）。
+
+    判据不是「本地磁盘上有这个目录」（开发机上当然有），而是
+    **「git 跟踪的文件能让这个目录被检出来」**——这正是 CI 的处境。
+    """
+    import subprocess
+    cfg = _pyproject()
+    pkgs = cfg["tool"]["setuptools"]["packages"]
+
+    # git 里所有被跟踪的路径（干净检出后能拿到的东西就是这些）
+    out = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
+                         text=True, encoding="utf-8")
+    assert out.returncode == 0, "需要 git 环境来判定「干净检出」"
+    tracked = out.stdout.splitlines()
+
+    for dotted in pkgs:
+        rel = dotted.replace(".", "/")
+        prefix = rel + "/"
+        assert any(p.startswith(prefix) for p in tracked), (
+            f"packages 里的 {dotted!r}（目录 {rel}/）在 git 里没有任何被跟踪的文件——"
+            f"干净检出时该目录不存在，`pip install -e .` 会直接失败"
+            f"（error: package directory '{rel}' does not exist）。"
+            f"修法：在该目录放一个 .gitkeep 并入库。"
+        )
+
+
+def test_native_dir_is_tracked_but_libs_are_not():
+    """`jishi/_native`：目录要入库（占位），动态库本身不入库（各平台产物）。
+
+    这两条**必须同时成立**——只满足一边都会出问题：
+    - 目录不入库 → CI 构建失败（见上一条测试）；
+    - 动态库入库 → 仓库里塞进二进制、且跨平台产物互相覆盖。
+    """
+    import subprocess
+    out = subprocess.run(["git", "ls-files", "jishi/_native"],
+                         cwd=ROOT, capture_output=True, text=True,
+                         encoding="utf-8")
+    files = out.stdout.splitlines()
+    assert files, "jishi/_native 在 git 里是空的——干净检出会缺目录"
+    for f in files:
+        assert not f.endswith((".dll", ".so", ".dylib")), (
+            f"动态库不该入库：{f}"
+        )

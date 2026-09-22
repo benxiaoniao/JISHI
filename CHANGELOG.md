@@ -24,14 +24,20 @@
   不另抄一份——规格变了工具自动跟着变。
 
 ### 修复
-- **CI 连续全红（自 2026-09-21 起，6 次）：`build-system` 的 setuptools 下限太低**。
-  9-21 把 `license` 改成 PEP 639 的 SPDX 写法（`license = "Unlicense"` +
-  `license-files`），这是 **setuptools 77 才支持**的，但 `requires` 还写着
-  `setuptools>=68`。本地开发机的 setuptools 是新版所以看不出问题，CI 干净环境
-  按最低版本装，`license` 校验只认 `{'file': ...}` → 四平台全部倒在
-  「安装项目（可编辑）」这一步（`metadata-generation-failed`）。改为
-  `setuptools>=77`。**这是 M45 收尾核对发布时查到的**——顺带说明 CI 早就红了，
-  不是本轮引入的。
+- **CI 连续全红（自 2026-09-21 起，6 次）：`jishi/_native` 目录在干净检出里不存在**。
+  `packages` 列了 `jishi._native`，setuptools 在**生成构建元数据**阶段就检查该目录；
+  但目录里只有 `.dll/.so/.dylib`，这些扩展名被 `.gitignore` 排除、不入库 →
+  **干净检出时目录整个消失** → 四平台全倒在「安装项目（可编辑）」：
+  `error: package directory 'jishi/_native' does not exist`。
+  **本地永远复现不出来**（开发机里 dll 早就构建好了），是用 `git archive`
+  导出一棵干净树才查到的。修法：加 `jishi/_native/.gitkeep` 让目录入库，
+  动态库仍不入库；并补两条测试钉住（`packages` 里每个目录必须在 git 里存在、
+  `_native` 目录要入库但动态库不入库）。
+- **`build-system` 的 setuptools 下限太低**：PEP 639 的 `license = "Unlicense"`
+  + `license-files` 是 setuptools 77 才支持的（9-21 改的写法），但 `requires`
+  还写着 `setuptools>=68`；干净环境按最低版本装会 `metadata-generation-failed`。
+  提到 `setuptools>=77`。（**这条不是 CI 全红的根因**，是排查过程中一并发现的
+  另一个真实隐患。）
 - **语言规格指纹跨进程不稳定（真缺陷）**：`content_hash()` 的整个用途是  「同一指纹下跑分结果才可比」，但它每次算出来都不一样——实测同一份代码连跑三次
   得到 `b67363fb` / `1beb9fde` / `4be64793`。根因：`parser._ASSIGN_OPS` 是 `set`，
   而 `ai.py` 直接 `list()` 它，顺序随 `PYTHONHASHSEED` 抖动，抖动被 sha256 放大成
@@ -56,7 +62,7 @@
 - `.gitignore` 忽略 `.tmp-probe/`（探测脚本与跑分日志，不是交付物）。
 
 ### 度量
-- 全量测试 **2064 项**（M44 时 2009，+55）。
+- 全量测试 **2066 项**（M44 时 2009，+57）。
 - 语言规格指纹 `92700b8c`（**修复后已跨进程稳定**；错误码 35 条 / 检查码 5 条 /
   等价 Python 写法 83 条 / 方法 33 个）。
 - **AI 跑分表**（45 题 × 2 模型，最大 3 轮，判分＝输出逐字相同且退出码为 0）：

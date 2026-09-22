@@ -161,7 +161,7 @@ jishi examples/01_猜数字.jsh --ast
 | M34 | D 档第一批：模式匹配 `匹配`/`情形` + 枚举 `枚举`（解析期脱糖，三执行器 + 两宿主零改动） | ✅ |
 | M35 | 发布工程与收尾（语言图标进安装包与三平台发行物 + 类体校验统一到解析期 + 测试并发安全 + 文档一致性整理 + 路线图 v2） | ✅ |
 
-**测试现状：2061 项全部通过**（`python -m pytest tests/`），其中 130 余项是三执行器
+**测试现状：2066 项全部通过**（`python -m pytest tests/`），其中 130 余项是三执行器
 对拍（树遍历 / Python VM / C VM 输出逐字节一致），另有跨语言宿主对拍
 （Rust 101 + 58 + 37 项、JS 62 + 43 项，都与 Python VM 逐字节一致，含三个真实示例
 项目的端到端对比）。
@@ -1420,7 +1420,7 @@ cvm/             C 执行内核（M4b）
   src/jsvm.c     C 虚拟机主循环
 node/            Node.js 纯 JS 解释器（零依赖，消费 JSON 字节码；M31 起标准库 14 模块全同步）
 rust/            Rust 绑定（M13.3，jishi-ffi crate + 自研零依赖 JSON 解析器）
-tests/           2064 项测试（含 130 余项三执行器对拍 + 跨宿主对拍）
+tests/           2066 项测试（含 130 余项三执行器对拍 + 跨宿主对拍）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例、packages/ 包管理示例）
 docs/            语言规格.md、设计决策.md、路线图.md、调试器.md、工具链.md、真实项目.md、embed.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 10 章
 assets/          品牌资产（基石_logo.png，源图 基石_logo.jpeg）
