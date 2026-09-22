@@ -157,6 +157,13 @@
   `conftest.rust_exe_path()`）、`build/` 目录（CI 全新检出没有它，conftest 负责建）、
   平台名（别写 `"Windows"`）、**时区**（别写 UTC+8 的 `08:00:00`，runner 是 UTC）。
   写测试时凡遇「我这台机器上是什么」，都要问一句「CI 上是什么」。
+- **「本地能装 ≠ CI 能装」**（2026-09-23 M45 收尾抓到）：`pip install -e .`
+  这类**打包/安装**问题，凡本地能过、CI 过不了的，先 `git archive HEAD | tar -x`
+  导出一棵干净树再装——开发机的构建产物会掩盖「干净检出缺文件」。
+  真实案例：`packages` 列了 `jishi._native`，但目录里只有被 `.gitignore` 排除的
+  `*.dll`，干净检出时目录整个消失 → 四平台全倒（`package directory does not exist`）。
+  修法是 `.gitkeep` 让目录入库；测试用 `git ls-files` 判「目录是否被跟踪」，
+  而不是看本地磁盘。已钉进 `tests/test_m16_release.py`。
 - **CI 失败怎么查**：两个工作流里有「失败摘要 → `::error` 注解」+「环境诊断」，
   注解可由公开 API 读（`check-runs/annotations`），不必登录网页下 job 日志
   （那要管理员权限）。注意注解步骤需 `set +e`，且要抓 pytest 的 `E ` 行才有
