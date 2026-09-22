@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jishi"
-version = "0.1.26"
+version = "0.1.27"
 description = "基石 —— 一门像 Python 一样简单易用的中文编程语言"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -39,4 +39,5 @@ jishi = ["_native/*.dll", "_native/*.so", "_native/*.dylib"]
 testpaths = ["tests"]
 markers = [
     "网络: 需要联网的用例（离线可用 -m \"not 网络\" 跳过）",
+    "慢: 真跑几十次子进程的用例（如 AI 跑分题集自检；-m \"not 慢\" 跳过）",
 ]

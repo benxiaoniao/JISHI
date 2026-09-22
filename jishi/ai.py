@@ -229,7 +229,11 @@ def build_lang_spec() -> dict:
                 for op, prec in binops
             ],
             "compare": list(_parser._COMPARE_OPS),
-            "assign": list(_parser._ASSIGN_OPS),
+            # ⚠️ `_ASSIGN_OPS` 是 set，`list(set)` 的顺序取决于 PYTHONHASHSEED，
+            # 每个进程都不一样 —— 这会让 `content_hash()` 每次算出的指纹都不同，
+            # 而指纹的整个意义就是「同一指纹下跑分可比」。必须排序后再放进规格。
+            # （M45 收尾时实测抓到：同一份代码连跑三次得到三个指纹。）
+            "assign": sorted(_parser._ASSIGN_OPS),
             "unary": ["-", "非"],
         },
         "builtins": builtin_list,

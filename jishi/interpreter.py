@@ -399,9 +399,17 @@ class Interpreter:
             obj = self.eval_expr(target.obj, env)
             index = self.eval_expr(target.index, env)
             if stmt.op != "=":
-                old = obj[index]
-                obj[index] = R.apply_binop(stmt.op[:-1], old, value,
-                                           line=stmt.line, col=stmt.col, filename=self.filename)
+                # 走 get_item / set_item 而不是裸下标：它们会把 Python 的
+                # KeyError / IndexError 翻成中文的「找不到这个键」/「索引越界」。
+                # 裸下标会漏成「程序内部出现未预料的问题（KeyError）：'新词'」
+                # ——M45 写调试题集时撞到（`频次[新词] += 1` 统计词频是极常见写法）。
+                old = R.get_item(obj, index, line=stmt.line, col=stmt.col,
+                                 filename=self.filename)
+                R.set_item(obj, index,
+                           R.apply_binop(stmt.op[:-1], old, value,
+                                         line=stmt.line, col=stmt.col,
+                                         filename=self.filename),
+                           line=stmt.line, col=stmt.col, filename=self.filename)
             else:
                 R.set_item(obj, index, value, line=stmt.line, col=stmt.col, filename=self.filename)
             return

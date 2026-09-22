@@ -48,5 +48,8 @@ jishi/_native/*.dylib
 rust/target/
 rust/Cargo.lock
 
+# 临时探测脚本与日志（不进仓库）
+.tmp-probe/
+
 # 待办清单示例的运行时数据（跑起来会生成）
 examples/projects/待办清单/待办.json

@@ -126,4 +126,12 @@ def test_mcp_describe_language():
 def test_mcp_tools_list():
     from jishi.mcp_server import TOOLS
     names = [t["name"] for t in TOOLS]
-    assert names == ["run_script", "eval_expr", "describe_language"]
+    # M45 把工具面从 3 个补到 7 个（写片段 / 静态检查 / 查错误码 / 查标准库 / 格式化）。
+    # 这条断言原先写死 3 个名字，M45 加了工具就红了——改成「前三个在、七个齐」，
+    # 保留它本来的意图（工具面是稳定的契约），又不挡后续新增。
+    assert names[:3] == ["run_script", "eval_expr", "describe_language"]
+    assert set(names) == {
+        "run_script", "eval_expr", "describe_language",
+        "check_source", "lookup_error", "lookup_stdlib", "format_source",
+    }
+    assert len(names) == len(set(names)), "工具名有重复"
