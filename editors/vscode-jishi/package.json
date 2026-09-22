@@ -1,0 +1,165 @@
+{
+  "name": "vscode-jishi",
+  "displayName": "基石语言（jishi）",
+  "description": "基石 —— 一门像 Python 一样简单易用的中文编程语言：语法高亮、代码片段、实时诊断、补全、格式化、重命名、快速修复、语义高亮",
+  "version": "0.3.1",
+  "publisher": "jishi-lang",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "jishi",
+    "基石",
+    "chinese",
+    "programming language"
+  ],
+  "license": "Unlicense",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/benxiaoniao/JISHI.git"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:jishi",
+    "onDebugResolve:jishi"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "jishi",
+        "aliases": [
+          "基石",
+          "基石语言",
+          "jishi"
+        ],
+        "extensions": [
+          ".jsh"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jishi",
+        "scopeName": "source.jishi",
+        "path": "./syntaxes/jishi.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "jishi",
+        "path": "./snippets/jishi.code-snippets"
+      }
+    ],
+    "commands": [
+      {
+        "command": "jishi.restartServer",
+        "title": "基石：重启语言服务",
+        "category": "基石"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "jishi",
+        "label": "基石调试",
+        "languages": [
+          "jishi"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "要调试的 .jsh 文件（默认用当前打开的那个）",
+                "default": "${file}"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "启动后先停在第一句上",
+                "default": false
+              },
+              "执行器": {
+                "type": "string",
+                "enum": [
+                  "树遍历",
+                  "vm",
+                  "cvm"
+                ],
+                "default": "树遍历",
+                "description": "在哪个执行器上调试（三个执行器行为一致；cvm 不支持在暂停处求值）"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "jishi",
+            "request": "launch",
+            "name": "调试基石脚本",
+            "program": "${file}",
+            "stopOnEntry": false
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "基石：调试当前文件",
+            "description": "调试当前打开的 .jsh 文件",
+            "body": {
+              "type": "jishi",
+              "request": "launch",
+              "name": "调试基石脚本",
+              "program": "${file}"
+            }
+          },
+          {
+            "label": "基石：停在入口",
+            "description": "调试当前文件，并且在第一句就停下",
+            "body": {
+              "type": "jishi",
+              "request": "launch",
+              "name": "调试基石脚本（停在入口）",
+              "program": "${file}",
+              "stopOnEntry": true
+            }
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "基石语言",
+      "properties": {
+        "jishi.server.command": {
+          "type": "string",
+          "default": "jishi",
+          "description": "基石可执行文件。默认从 PATH 上找 `jishi`；装了包但没进 PATH 时，填绝对路径（例如 Windows 上的 ...\\jishi.exe）。"
+        },
+        "jishi.server.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "lsp"
+          ],
+          "description": "启动语言服务要传的参数。默认 `[\"lsp\"]`，一般不用改。"
+        },
+        "jishi.server.trace": {
+          "type": "boolean",
+          "default": false,
+          "description": "把语言服务的收发消息打到「输出 → 基石语言服务」面板，排查问题时打开。"
+        }
+      }
+    }
+  },
+  "homepage": "https://github.com/benxiaoniao/JISHI",
+  "bugs": {
+    "url": "https://github.com/benxiaoniao/JISHI/issues"
+  },
+  "icon": "icon.png"
+}

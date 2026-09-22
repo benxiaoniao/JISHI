@@ -1,0 +1,203 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "jishi",
+	"scopeName": "source.jishi",
+	"fileTypes": [
+		"jsh"
+	],
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#numbers"
+		},
+		{
+			"include": "#classdef"
+		},
+		{
+			"include": "#funcdef"
+		},
+		{
+			"include": "#builtins"
+		},
+		{
+			"include": "#stdlib-modules"
+		},
+		{
+			"include": "#methods"
+		},
+		{
+			"include": "#exceptions"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#operators"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.block.jishi",
+					"begin": "#-",
+					"end": "-#"
+				},
+				{
+					"name": "comment.line.number-sign.jishi",
+					"match": "#.*$"
+				}
+			]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"include": "#string-double"
+				},
+				{
+					"include": "#string-single"
+				},
+				{
+					"include": "#string-cjk-double"
+				},
+				{
+					"include": "#string-cjk-corner"
+				},
+				{
+					"include": "#string-cjk-corner-heavy"
+				}
+			]
+		},
+		"string-double": {
+			"name": "string.quoted.double.jishi",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.jishi",
+					"match": "\\\\."
+				}
+			]
+		},
+		"string-single": {
+			"name": "string.quoted.single.jishi",
+			"begin": "'",
+			"end": "'",
+			"patterns": [
+				{
+					"name": "constant.character.escape.jishi",
+					"match": "\\\\."
+				}
+			]
+		},
+		"string-cjk-double": {
+			"name": "string.quoted.double.jishi",
+			"begin": "“",
+			"end": "”"
+		},
+		"string-cjk-corner": {
+			"name": "string.quoted.jishi",
+			"begin": "「",
+			"end": "」"
+		},
+		"string-cjk-corner-heavy": {
+			"name": "string.quoted.jishi",
+			"begin": "『",
+			"end": "』"
+		},
+		"numbers": {
+			"name": "constant.numeric.jishi",
+			"match": "\\b(?:0[xX][0-9a-fA-F]+|\\d+\\.\\d+[eE][+-]?\\d+|\\d+\\.\\d+|\\d+)\\b"
+		},
+		"classdef": {
+			"comment": "类 名字[ 继承 基类]: 定义行（begin 到行尾）",
+			"name": "meta.class.jishi",
+			"begin": "^\\s*(?=类\\s)",
+			"end": "$",
+			"patterns": [
+				{
+					"name": "keyword.control.jishi",
+					"match": "类|继承"
+				},
+				{
+					"name": "entity.name.class.jishi",
+					"match": "(?<![\\u4e00-\\u9fffA-Za-z0-9_])[\\u4e00-\\u9fffA-Za-z0-9_]+(?=[：:]|\\s*继承)"
+				}
+			]
+		},
+		"funcdef": {
+			"comment": "函数 名字(参数): 定义行（begin 到行尾）",
+			"name": "meta.function.jishi",
+			"begin": "^\\s*(?=函数\\s)",
+			"end": "$",
+			"patterns": [
+				{
+					"name": "keyword.control.jishi",
+					"match": "函数"
+				},
+				{
+					"name": "entity.name.function.jishi",
+					"match": "(?<=函数\\s)[\\u4e00-\\u9fffA-Za-z0-9_]+(?=\\s*\\()"
+				}
+			]
+		},
+		"methods": {
+			"comment": "方法调用：实例.方法(...)",
+			"name": "support.function.method.jishi",
+			"match": "(?<=\\.)[\\u4e00-\\u9fffA-Za-z_][\\u4e00-\\u9fffA-Za-z0-9_]*(?=\\s*\\()"
+		},
+		"builtins": {
+			"comment": "内建函数名 —— 与 `jishi --lang-spec` 自动对齐（tests 里有防漂移的检查）",
+			"name": "support.function.builtin.jishi",
+			"match": "(?<![一-鿿A-Za-z0-9_.])(?:进入上下文|退出上下文|位取反|位异或|带下标|是实例|位与|位或|反转|右移|小数|左移|总和|打印|打开|整数|文本|断言|最大|最小|类型|精确|范围|输入|配对|长度|集合|超)(?=\\s*\\()"
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"comment": "布尔与空字面量",
+					"name": "constant.language.jishi",
+					"match": "(?<![一-鿿A-Za-z0-9_.])(?:假|真|空)(?![一-鿿A-Za-z0-9_])"
+				},
+				{
+					"comment": "逻辑运算符",
+					"name": "keyword.operator.logical.jishi",
+					"match": "(?<![一-鿿A-Za-z0-9_.])(?:与|或|非)(?![一-鿿A-Za-z0-9_])"
+				},
+				{
+					"comment": "助词：在/从/为",
+					"name": "keyword.operator.assist.jishi",
+					"match": "(?<![一-鿿A-Za-z0-9_.])(?:为|从|在)(?![一-鿿A-Za-z0-9_])"
+				},
+				{
+					"comment": "控制流与结构关键字 —— 与 `jishi --lang-spec` 自动对齐",
+					"name": "keyword.control.jishi",
+					"match": "(?<![一-鿿A-Za-z0-9_.])(?:否则如果|不在|不是|中断|函数|匹配|否则|如果|导入|尝试|循环|情形|抛出|捕获|新建|最终|枚举|继承|继续|返回|遍历|令|当|是|次|用|类)(?![一-鿿A-Za-z0-9_])"
+				}
+			]
+		},
+		"operators": {
+			"patterns": [
+				{
+					"comment": "算术/比较/赋值运算符",
+					"name": "keyword.operator.jishi",
+					"match": "\\*\\*=|//=|\\*\\*|//|==|!=|<=|>=|\\+=|-=|\\*=|/=|%=|=|\\+|\\-|\\*|/|%|<|>|!"
+				}
+			]
+		},
+		"stdlib-modules": {
+			"comment": "标准库模块名：只在后面跟 `.` 时才算（`文本(x)` 是内建函数，`文本.左对齐(x)` 才当模块）",
+			"name": "support.namespace.jishi",
+			"match": "(?<![一-鿿A-Za-z0-9_.])(?:json|加密|压缩|参数|容器|数学|文件|文本|日志|日期|时间|正则|测试|系统|网络|表格|路径|迭代|随机)(?=\\s*\\.)"
+		},
+		"exceptions": {
+			"comment": "异常类型名（`捕获 值错误：`）",
+			"name": "support.class.exception.jishi",
+			"match": "(?<![一-鿿A-Za-z0-9_.])(?:运行期错误|文件错误|断言错误|类型错误|索引错误|除零错误|值错误|键错误|异常)(?![一-鿿A-Za-z0-9_])"
+		}
+	}
+}
