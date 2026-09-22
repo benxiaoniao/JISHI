@@ -47,6 +47,98 @@ OP_NAME = {
     "或": "逻辑或", "与": "逻辑与",
 }
 
+# ---------------------------------------------------------------------------
+# 等价 Python 写法（M44）
+#
+# 为什么要有这块：设计核心二要求「语言事实机器可读」。模型学过的 Python 是它
+# 最大的先验，把基石写法**显式映射**到 Python 心智模型，比让它自己猜准得多
+# （`与`/`或`/`非` 不是 and/or/not 的话，它一定会猜错）。
+#
+# 只列**确实对应**的；对应关系有差异的一律在文本里点明（如 `反转`、`集合`），
+# 不写成「等于 Python 的 X」这种半真话。
+# ---------------------------------------------------------------------------
+
+#: 关键字 → 等价 Python
+PY_KEYWORD = {
+    "令": "=", "如果": "if", "否则": "else", "否则如果": "elif",
+    "遍历": "for", "循环": "for _ in range(N)", "当": "while",
+    "中断": "break", "继续": "continue",
+    "次": "（助词：`循环 N 次` → range(N)）",
+    "函数": "def", "返回": "return", "导入": "import", "从": "from",
+    "在": "in（`遍历 x 在 列表` → for x in 列表）", "为": "as",
+    "真": "True", "假": "False", "空": "None",
+    "与": "and", "或": "or", "非": "not",
+    "类": "class", "继承": "class 名(基类)", "新建": "类名(...)",
+    "尝试": "try", "捕获": "except", "最终": "finally", "抛出": "raise",
+}
+
+#: 运算符 → 等价 Python（符号运算符 + 关键字形式的比较）
+PY_OP = {
+    "+": "+", "-": "-", "*": "*", "/": "/", "//": "//", "%": "%", "**": "**",
+    "==": "==", "!=": "!=", "<": "<", ">": ">", "<=": "<=", ">=": ">=",
+    "=": "=", "+=": "+=", "-=": "-=", "*=": "*=", "/=": "/=",
+    "//=": "//=", "%=": "%=", "**=": "**=",
+    "在": "in", "不在": "not in", "是": "is", "不是": "is not",
+    "与": "and", "或": "or", "非": "not",
+}
+
+#: 内建 → 等价 Python。只列**有一一对应**的：`进入上下文` / `退出上下文` 是
+#: `with` 协议的一部分，Python 里没有同名内建，所以不列（列了就是在编）。
+PY_BUILTIN = {
+    "打印": "print", "输入": "input", "整数": "int", "小数": "float",
+    "文本": "str", "精确": "decimal.Decimal", "打开": "open",
+    "长度": "len", "范围": "range", "带下标": "enumerate", "配对": "zip",
+    "最大": "max", "最小": "min", "总和": "sum", "类型": "type",
+    "是实例": "isinstance", "超": "super()", "断言": "assert",
+    # 下面两条与 Python 有语义差异，点明它：
+    "反转": "reversed(列表) / 文本[::-1]（Python 的 reversed 不吃文本）",
+    "集合": "set(可迭代)（Python 的 set 无序；基石这个保持首次出现顺序）",
+    "位与": "&", "位或": "|", "位异或": "^", "位取反": "~",
+    "左移": "<<", "右移": ">>",
+}
+
+
+def _error_codes() -> list[dict]:
+    """错误码表（M44）：**从 `errors.py` 上收集**，不另抄一份。
+
+    含少数「运行期临时挂上」的码（`errors.EXTRA_CODES`，它们没有独立异常类）。
+    `internal` 为真的是执行器内部信号（E299x：中断/继续/迭代结束）——不展示给
+    用户，但工具做协议转换时真的会碰到（DAP 与 MCP 都在转发），所以照实列出来。
+
+    每条只给 `code / class / title`：**更细的修法建议不在这里**，它是随错误发生
+    的上下文来的（`--json-errors` 的 `hint` 与 `fix`），硬写在表里只会写成空话。
+    """
+    import inspect
+
+    from . import errors as _errors
+
+    rows: list[dict] = []
+    for cls_name, obj in vars(_errors).items():
+        if not inspect.isclass(obj) or not issubclass(obj, Exception):
+            continue
+        if getattr(obj, "__module__", "") != _errors.__name__:
+            continue                      # 只认本模块定义的，别把 import 进来的算上
+        code = getattr(obj, "code", None)
+        if not code:
+            continue
+        title = getattr(obj, "title", "") or ""
+        rows.append({
+            "code": code,
+            "class": cls_name,
+            "title": title,
+            "internal": title.startswith("（内部）"),
+        })
+    for code, title in _errors.EXTRA_CODES.items():
+        rows.append({"code": code, "class": "", "title": title, "internal": False})
+    rows.sort(key=lambda r: r["code"])
+    return rows
+
+
+def _check_codes() -> list[dict]:
+    """静态检查的问题码表（M44）——目录在 `checker.CHECK_CATALOG`，这里只做投影。"""
+    from .checker import CHECK_CATALOG
+    return [dict(item) for item in CHECK_CATALOG]
+
 
 def _stdlib_dir() -> str:
     """stdlib 源码目录。打包后（PyInstaller）源文件在 _MEIPASS，源码树在包内。"""
@@ -144,6 +236,17 @@ def build_lang_spec() -> dict:
         "methods": methods,
         "stdlib": _stdlib_api(),
         "exceptions": list(EXCEPTION_TYPES.keys()),
+        # --- M44 补的三块 -------------------------------------------------
+        # 错误码表：模型/工具拿到报错里的 E 码后，能在这里查到中文含义
+        "error_codes": _error_codes(),
+        # 静态检查的问题码表（`jishi 源码静态检查` 会输出哪些码）
+        "check_codes": _check_codes(),
+        # 等价 Python 写法：把基石写法映射到模型最熟的那套心智模型
+        "python_equiv": {
+            "keywords": PY_KEYWORD,
+            "operators": PY_OP,
+            "builtins": PY_BUILTIN,
+        },
     }
 
 

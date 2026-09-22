@@ -815,6 +815,41 @@ def _cmd_check(args) -> int:
     return 1
 
 
+def _cmd_static_check(args) -> int:
+    """`jishi 源码静态检查`：不运行程序，只看源码有问题（M44）。
+
+    与 `jishi 检查`（**包依赖冲突检测**，M22.3）是两件事——那个查的是已装包的
+    版本冲突，这个查的是源码本身。命名上刻意错开，免得两条命令互相顶替。
+
+    退出码：发现问题为 1（供 CI / 提交钩子用），没发现为 0。
+    """
+    from .checker import LEVEL_ERROR, check_paths
+    from .langdata import LangData
+
+    paths = list(args.paths) if args.paths else ["."]
+    rows = check_paths(paths, LangData())
+
+    if args.json:
+        payload = {
+            "ok": not rows,
+            "issues": [{"file": str(p), **i.to_dict()} for p, i in rows],
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 1 if rows else 0
+
+    if not rows:
+        print(f"检查了 {len(paths)} 个路径，没发现问题。")
+        return 0
+
+    for path, issue in rows:
+        print(issue.format(str(path)))
+    errors = sum(1 for _, i in rows if i.level == LEVEL_ERROR)
+    print(f"\n共 {len(rows)} 个问题（错误 {errors} 个 / 警告 {len(rows) - errors} 个），"
+          f"涉及 {len({str(p) for p, _ in rows})} 个文件。")
+    print("（只是提醒，不改你的代码；确认无误可以照常运行）")
+    return 1
+
+
 def _cmd_lsp(args) -> int:
     """启动语言服务器（M21.2，stdio 上的 LSP）。
 
@@ -936,6 +971,19 @@ def _run_tool_cmd(argv: list[str]) -> int:
                        help="在哪个执行器上调试（默认树遍历）")
     p_dap.set_defaults(func=_cmd_dap)
 
+    # 注意与包管理那条 `检查` 区分：`检查` 查的是**包依赖冲突**，
+    # 这条查的是**源码**。名字由用户定（2026-09-22）：叫「源码静态检查」，
+    # 别名「静态检查」——两条命令都带「检查」，但一个是包、一个是源码，
+    # 所以正式名字里点明「源码」。
+    p_static = sub.add_parser(
+        "源码静态检查", aliases=["静态检查"],
+        help="不运行程序，检查源码问题（M44：未定义名/遮蔽内建/未使用变量/可疑相等）")
+    p_static.add_argument("paths", nargs="*", metavar="路径",
+                          help="要检查的 .jsh 文件或目录（默认当前目录，递归找 .jsh）")
+    p_static.add_argument("--json", action="store_true",
+                          help="输出机器可读 JSON（供脚本与 AI 消费）")
+    p_static.set_defaults(func=_cmd_static_check)
+
     args = parser.parse_args(argv)
     return args.func(args)
 
@@ -973,8 +1021,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     # 避免与「运行文件」位置参数冲突
     if argv and argv[0] in ("安装", "卸载", "列表", "发布", "索引", "检查"):
         return _run_package_cmd(argv)
-    # 工具子命令（医生/新项目/教程/格式化/lsp/调试/dap，M16 / M21 / M37 / M43）
-    if argv and argv[0] in ("医生", "新项目", "教程", "格式化", "lsp", "调试", "dap"):
+    # 工具子命令（医生/新项目/教程/格式化/lsp/调试/dap/源码静态检查，
+    # M16 / M21 / M37 / M43 / M44）
+    if argv and argv[0] in ("医生", "新项目", "教程", "格式化", "lsp", "调试", "dap",
+                            "源码静态检查", "静态检查"):
         return _run_tool_cmd(argv)
 
     parser = argparse.ArgumentParser(

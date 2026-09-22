@@ -49,6 +49,18 @@ def _safe_text(s: str) -> str:
 # 基础错误类
 # ---------------------------------------------------------------------------
 
+#: 少数错误码是**运行期临时挂上**的（没有独立异常类）。在这里登记，
+#: 好让语言规格的错误码表（`ai.build_lang_spec()["error_codes"]`）一并报出来，
+#: 不漏；使用时直接引用常量，改码只改这一处，不会两边漂移。
+CODE_INPUT_END = "E2010"
+CODE_INTERRUPTED = "E2100"
+
+EXTRA_CODES = {
+    CODE_INPUT_END: "输入结束",
+    CODE_INTERRUPTED: "程序被中断",
+}
+
+
 class JishiError(Exception):
     """所有基石错误的基类。携带错误码、中文标题、行列位置与修正建议。"""
     code = "E0000"
@@ -335,7 +347,11 @@ class RunStopIteration(RunError):
 class RunCustomError(RunError):
     """`抛出 值` 抛出的非异常值会被包装成这一类，类型名就是「异常」。"""
 
-    code = "E2008"
+    # M44 修：这里原本也是 E2008，与 `RunAssertionError`（断言没通过）**重码**。
+    # 是给 M44 做机器可读错误码表时才发现的——同一份表里出现两个 E2008，
+    # 谁也没法用它定位问题。`E2008` 归「断言错误」（那是既有文档与测试的用法），
+    # 这条改用空着的 E2009。
+    code = "E2009"
     title = "异常"
 
 
@@ -486,11 +502,11 @@ def translate_python_exception(
         e = JishiError(
             "输入已经结束，程序没有更多内容可读了",
             line=line, col=col, filename=filename)
-        e.code = "E2010"
+        e.code = CODE_INPUT_END
         e.title = "输入结束"
         return e
     if isinstance(exc, KeyboardInterrupt):
-        return JishiError("用户按下了 Ctrl+C 中断程序", code="E2100",
+        return JishiError("用户按下了 Ctrl+C 中断程序", code=CODE_INTERRUPTED,
                           title="程序被中断", line=line, col=col, filename=filename)
     if isinstance(exc, JishiError):
         return exc

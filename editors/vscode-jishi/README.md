@@ -3,8 +3,8 @@
 为 **基石（jishi）**——中文编程语言——提供编辑器支持。
 
 > **先装基石本体**（扩展只负责编辑器那一层）：
-> `pip install git+https://github.com/benxiaoniao/JISHI.git`
-> （发布到 PyPI 后即为 `pip install jishi`），装好用 `jishi 医生` 确认环境。
+> `pip install git+https://github.com/benxiaoniao/JISHI.git`，装好用 `jishi 医生`
+> 确认环境。（基石**不发布到 PyPI**，自带的分发通道在规划中。）
 > `jishi` 不在 PATH 上时，在设置里指明它——语言服务与调试共用这一项：
 >
 > ```json

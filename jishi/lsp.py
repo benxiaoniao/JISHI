@@ -26,7 +26,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -37,6 +36,17 @@ from .errors import JishiError
 from .incremental import IncrementalDocument
 from .langdata import LangData
 from .parser import parse
+# 作用域分析只有一份实现（M44 抽到 scope.py）：编辑器诊断与命令行
+# `jishi 源码静态检查` 共用，免得两边漂移成「编辑器不报、命令行报」。
+# 这里保留原有的下划线私有名，既有调用点一个字都不用改。
+from .scope import (
+    attr_base_marks as _attr_base_marks,
+    binding_marks as _binding_marks,
+    child_nodes as _child_nodes,
+    defined_names as _defined_names,
+    flatten as _flatten,
+    load_names as _load_names,
+)
 from .tokenizer import tokenize
 from .version import VERSION
 
@@ -102,38 +112,6 @@ CODE_ACTION_SOURCE = "source.format"
 # ---------------------------------------------------------------------------
 # AST 遍历工具
 # ---------------------------------------------------------------------------
-
-def _flatten(value: Any):
-    """把任意字段值里的 AST 节点摊平出来（支持列表/元组嵌套）。
-
-    **`TargetList` 要摊成里面的名字**（M41 修）：`令 甲, 乙 = …` 与
-    `遍历 序, 项 在 …` 的 target 都是 `TargetList`，它自己**不是** `Name`——
-    原先只 yield 出 `TargetList` 本身，于是解包出来的名字在 LSP 眼里
-    「从未定义」（`test_corpus_has_no_false_positive_warnings` 报出来）。
-    这条缺陷在 `令 甲, 乙 = …` 上早就存在，M41 的 `遍历` 解包让它暴露得更明显。
-    """
-    if isinstance(value, A.TargetList):
-        for n in value.names:
-            yield from _flatten(n)
-    elif isinstance(value, A.Node):
-        yield value
-    elif isinstance(value, (list, tuple)):
-        for item in value:
-            yield from _flatten(item)
-
-
-def _child_nodes(node: Any):
-    """遍历一个 AST 节点的直接子节点。"""
-    if not dataclasses.is_dataclass(node):
-        return
-    for f in dataclasses.fields(node):
-        try:
-            value = getattr(node, f.name)
-        except AttributeError:
-            continue
-        yield from _flatten(value)
-
-
 def _collect_symbols(program: A.Program) -> list[dict]:
     """收集文档内定义：函数 / 类 / 变量 / 导入（供跳转与文档符号）。"""
     out: list[dict] = []
@@ -182,84 +160,6 @@ def _collect_symbols(program: A.Program) -> list[dict]:
         seen.add(key)
         deduped.append(s)
     return deduped
-
-
-def _defined_names(program: A.Program) -> set[str]:
-    """文档内所有被绑定的名字（宽松收集：任何作用域都算已定义）。"""
-    names: set[str] = set()
-
-    def walk(node: Any) -> None:
-        if isinstance(node, A.FuncDef):
-            names.add(node.name)
-            names.update(p for p in node.params if p)
-        elif isinstance(node, A.ClassDef):
-            names.add(node.name)
-        elif isinstance(node, A.ExceptHandler):
-            if node.name:
-                names.add(node.name)
-        elif isinstance(node, A.Import):
-            names.add(node.alias or node.name)
-        elif isinstance(node, (A.Assign, A.For, A.Comprehension)):
-            for n in _flatten(getattr(node, "target", None)):
-                if isinstance(n, A.Name):
-                    names.add(n.id)
-        for child in _child_nodes(node):
-            walk(child)
-
-    walk(program)
-    return names
-
-
-def _binding_marks(program: A.Program) -> set[int]:
-    """标出处于「绑定位置」的 Name 节点（这些不算使用）。"""
-    marks: set[int] = set()
-
-    def walk(node: Any) -> None:
-        if isinstance(node, (A.Assign, A.For, A.Comprehension)):
-            for n in _flatten(getattr(node, "target", None)):
-                if isinstance(n, A.Name):
-                    marks.add(id(n))
-        for child in _child_nodes(node):
-            walk(child)
-
-    walk(program)
-    return marks
-
-
-def _load_names(program: A.Program, marks: set[int]) -> list[A.Name]:
-    """文档里所有「读取使用」的名字节点。"""
-    out: list[A.Name] = []
-
-    def walk(node: Any) -> None:
-        if isinstance(node, A.Name) and id(node) not in marks:
-            out.append(node)
-        for child in _child_nodes(node):
-            walk(child)
-
-    walk(program)
-    return out
-
-
-def _attr_base_marks(program: A.Program) -> set[int]:
-    """标出「属性基址」的 Name 节点（`基础库.平方` 里的 `基础库`）。
-
-    这类名字可能来自包依赖注入（见 `包.json` 的依赖项）或 Python 桥接，
-    文件内无法静态得知，因此不做「未定义」判断，避免误报。
-    """
-    marks: set[int] = set()
-
-    def walk(node: Any) -> None:
-        if isinstance(node, A.Attr):
-            obj = getattr(node, "obj", None)
-            if isinstance(obj, A.Name):
-                marks.add(id(obj))
-        for child in _child_nodes(node):
-            walk(child)
-
-    walk(program)
-    return marks
-
-
 # ---------------------------------------------------------------------------
 # 位置换算
 # ---------------------------------------------------------------------------

@@ -33,15 +33,15 @@ tar -xzf jishi-<版本>-linux-x64.tar.gz
 cd jishi-<版本>-linux-x64 && bash install.sh
 ```
 
-**pip 安装**（需本机 Python 3.10+）：
+**从源码安装**（需本机 Python 3.10+；这是目前唯一的方式）：
 
 ```bash
-pip install git+https://github.com/benxiaoniao/JISHI.git   # 现在可用
-pip install jishi                                          # PyPI 首发后可用
+pip install git+https://github.com/benxiaoniao/JISHI.git
 ```
 
-> ⏳ **`jishi` 尚未上传到 PyPI**（首发定在 M45 收尾时），所以现在请用上面那条 git
-> 安装；上传成功后这一节会改回一行 `pip install jishi`。
+> **没有 `pip install jishi` 这条命令**：基石**不发布到 PyPI**——分发链路全押在
+> Python 生态上不合适。我们用自己的服务器做包管理与分发，并自带安装命令
+> （暂名 `下载`，规划中，见 `docs/路线图.md`「方向四 · 自主分发」）。
 > 源码安装的 wheel 构建细节见 `tools/build_wheel.py`。
 
 发行包下载见 [GitHub Releases](https://github.com/benxiaoniao/JISHI/releases)，
@@ -161,10 +161,52 @@ jishi examples/01_猜数字.jsh --ast
 | M34 | D 档第一批：模式匹配 `匹配`/`情形` + 枚举 `枚举`（解析期脱糖，三执行器 + 两宿主零改动） | ✅ |
 | M35 | 发布工程与收尾（语言图标进安装包与三平台发行物 + 类体校验统一到解析期 + 测试并发安全 + 文档一致性整理 + 路线图 v2） | ✅ |
 
-**测试现状：1981 项全部通过**（`python -m pytest tests/`），其中 130 余项是三执行器
+**测试现状：2009 项全部通过**（`python -m pytest tests/`），其中 130 余项是三执行器
 对拍（树遍历 / Python VM / C VM 输出逐字节一致），另有跨语言宿主对拍
 （Rust 101 + 58 + 37 项、JS 62 + 43 项，都与 Python VM 逐字节一致，含三个真实示例
 项目的端到端对比）。
+
+### M44 已交付：机器可读的语言事实 + 源码静态检查（方向三 · AI 可用性第一轮）
+
+**① `--lang-spec` 补齐三块**（`jishi --lang-spec` 是模型读语言事实的入口）：
+
+- **错误码表**（35 条）：`code` / `class` / `title`，含两个「运行期临时挂上」的码
+  （`E2010` 输入结束、`E2100` 程序被中断），并用 `internal` 标出执行器内部信号
+  （E299x，不该展示给用户）。**做这张表时才发现 `E2008` 被两个异常类共用**
+  （`RunAssertionError` 与 `RunCustomError`）——已修：断言错误留 `E2008`，
+  自定义异常改 `E2009`。
+- **静态检查码表**：`源码静态检查` 会输出的五类问题码，与检查器**同一份目录**
+  （加了新检查项却忘了登记，测试会红）。
+- **等价 Python 写法**：关键字 29 / 运算符 29 / 内建 26 条映射（`与`→`and`、
+  `遍历`→`for`、`长度`→`len`……）。模型最大的先验是 Python，这层显式映射比让它猜
+  准得多；**对应关系有差异的照样点明**（`反转` → `reversed(列表)/文本[::-1]`、
+  `集合` → Python 的 `set` 无序而基石这个保持首次出现顺序）。
+- `--json-errors` 早在 M8.3 就有，本轮把它**钉进测试**：字段契约
+  （`code/title/message/line/col/hint`）、走 stderr（stdout 留给程序自己的输出）、
+  有修法时带机器可读的 `fix`。
+
+**② 新增 `jishi 源码静态检查`**（别名 `静态检查`）——不运行程序，只看源码：
+
+| 问题码 | 检查 |
+|--------|------|
+| `name.undefined` | 未定义名（与编辑器实时诊断**同一份实现**） |
+| `name.shadow` | 遮蔽内建（模块级绑定撞上内建函数 / 异常类型） |
+| `name.unused` | 未使用变量（函数体内绑定、全文件从未读取） |
+| `compare.self` | 可疑相等（`甲 == 甲` 这类恒定比较） |
+
+可传文件或目录（默认当前目录，递归找 `.jsh`）、`--json` 机器可读输出、
+发现问题**退出码 1**（供 CI 与提交钩子）。
+
+**口径是「宁可漏报，不可误报」**——静态检查一旦误报，用户就学会忽略它。
+第一版在仓库自己的语料上误报 **38 条**：`导入 随机` 被当成「遮蔽标准库」（33 条）、
+脱糖内部名 `__遍历项_57_5__` 被当成「未使用变量」（5 条），还有把 `表.追加(1)`
+里的 `表` 当成没读过。逐条判为误报后收窄口径，现在 examples / tests / stdlib
+的 30+ 个真实文件**零误报**；`tests/error_cases/` 里 35 个故意错例中**静态可查的
+16 个全部逮住**——另外 19 个要跑起来才知道（除以零、索引越界、赋值前读局部……），
+**不假装静态检查能做它做不到的事**。
+
+**③ 作用域分析抽成 `jishi/scope.py`**：编辑器诊断与命令行检查**共用一份实现**，
+免得漂移成「编辑器说没事、命令行说有事」（有测试专门钉这条一致性）。
 
 ### M43 已交付：调试器接进编辑器（`jishi dap`）+ 扩展打包
 
@@ -1079,7 +1121,9 @@ jishi 格式化 --check examples/  # 未格式化则退出码 1
   ≥1.5x（最高 47x）。字符串拼接是透明架构边界（HOST 句柄无法直接操作 Python
   str，详见 `tools/benchmark.py` 输出说明）。
 - **wheel 内带预编译 DLL**：`tools/build_wheel.py` 编译 DLL 到包内并打包，
-  `pip install jishi` 即含 C VM，无需本机 gcc；干净 venv 实测三执行器全可用。
+  装 wheel 即含 C VM，无需本机 gcc；干净 venv 实测三执行器全可用。
+  （当时写给 `pip install jishi`，但那个包**从未发布到 PyPI**——PyPI 通道已于
+  2026-09-22 放弃，见 `docs/路线图.md`「方向四 · 自主分发」。）
 
 ### M10 已交付：生态扩展（「拿到就能写」的覆盖）
 
@@ -1322,7 +1366,7 @@ cvm/             C 执行内核（M4b）
   src/jsvm.c     C 虚拟机主循环
 node/            Node.js 纯 JS 解释器（零依赖，消费 JSON 字节码；M31 起标准库 14 模块全同步）
 rust/            Rust 绑定（M13.3，jishi-ffi crate + 自研零依赖 JSON 解析器）
-tests/           1981 项测试（含 130 余项三执行器对拍 + 跨宿主对拍）
+tests/           2009 项测试（含 130 余项三执行器对拍 + 跨宿主对拍）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例、packages/ 包管理示例）
 docs/            语言规格.md、设计决策.md、路线图.md、调试器.md、工具链.md、真实项目.md、embed.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 10 章
 assets/          品牌资产（基石_logo.png，源图 基石_logo.jpeg）
@@ -1353,7 +1397,7 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
 
 - **Python ≥3.10**（运行时零第三方依赖；测试用 pytest，
   `tools/make_logo.py` 图像处理用 pillow——均为开发期工具，与运行时无关）
-- **使用（pip 安装）**：`pip install jishi`（**PyPI 首发后**；此前用上面的 git 安装）
+- **使用（源码安装）**：`pip install git+https://github.com/benxiaoniao/JISHI.git`
   即含预编译 C VM，无需 gcc（`tools/build_wheel.py` 打出的 wheel 内带 DLL/SO）
 - **从源码开发**：需要 C 编译器构建 C VM（`python cvm/build.py`），
   装 MinGW-w64（Windows）或 zig / gcc 均可；无编译器也能跑树遍历解释器，
