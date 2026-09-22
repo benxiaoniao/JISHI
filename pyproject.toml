@@ -1,5 +1,11 @@
 [build-system]
-requires = ["setuptools>=68"]
+# ⚠️ 必须 >=77：PEP 639 的 `license = "Unlicense"`（SPDX 字符串）+ `license-files`
+# 是 setuptools 77 才支持的写法。写 `>=68` 时，本地开发机装的是新版 setuptools
+# 所以看不出来，但 CI（干净环境按最低版本装）会直接失败：
+#   `license` 的校验只认 {'file': ...} / {'text': ...} → metadata-generation-failed。
+# 2026-09-21 把 license 改成 PEP 639 写法后，CI 连续 6 次全红就是这个原因
+# （四平台都倒在「安装项目（可编辑）」这一步）。M45 收尾时查到并修掉。
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]

@@ -24,6 +24,14 @@
   不另抄一份——规格变了工具自动跟着变。
 
 ### 修复
+- **CI 连续全红（自 2026-09-21 起，6 次）：`build-system` 的 setuptools 下限太低**。
+  9-21 把 `license` 改成 PEP 639 的 SPDX 写法（`license = "Unlicense"` +
+  `license-files`），这是 **setuptools 77 才支持**的，但 `requires` 还写着
+  `setuptools>=68`。本地开发机的 setuptools 是新版所以看不出问题，CI 干净环境
+  按最低版本装，`license` 校验只认 `{'file': ...}` → 四平台全部倒在
+  「安装项目（可编辑）」这一步（`metadata-generation-failed`）。改为
+  `setuptools>=77`。**这是 M45 收尾核对发布时查到的**——顺带说明 CI 早就红了，
+  不是本轮引入的。
 - **语言规格指纹跨进程不稳定（真缺陷）**：`content_hash()` 的整个用途是  「同一指纹下跑分结果才可比」，但它每次算出来都不一样——实测同一份代码连跑三次
   得到 `b67363fb` / `1beb9fde` / `4be64793`。根因：`parser._ASSIGN_OPS` 是 `set`，
   而 `ai.py` 直接 `list()` 它，顺序随 `PYTHONHASHSEED` 抖动，抖动被 sha256 放大成
