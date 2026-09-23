@@ -280,6 +280,12 @@ def build(argv: list[str]) -> int:
         f"安装：运行 install.{'ps1' if sys.platform == 'win32' else 'sh'}\n"
         f"详见项目 README.md 与 docs/。\n",
         encoding="utf-8")
+    # 许可证正文随发行包一起走（以前这行注释写着「README 与 LICENSE」，
+    # 但实际只写了 README —— 发行包里根本没带 LICENSE）。
+    _license = ROOT / "LICENSE"
+    if _license.exists():
+        (out / "LICENSE").write_text(_license.read_text(encoding="utf-8"),
+                                     encoding="utf-8")
 
     # 打包 zip / tar.gz
     if not args.no_zip:

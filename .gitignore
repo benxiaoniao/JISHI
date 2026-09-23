@@ -53,3 +53,7 @@ rust/Cargo.lock
 
 # 待办清单示例的运行时数据（跑起来会生成）
 examples/projects/待办清单/待办.json
+
+# 对拍测试的临时字节码文件（conftest.tmp_bc_path 写到项目根、带进程号）。
+# 正常情况下测试自己会清掉；这里是**中断/崩溃时的兜底**，别让它们进仓库。
+_tmp_*.json

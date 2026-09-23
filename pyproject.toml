@@ -1,5 +1,5 @@
 [build-system]
-# ⚠️ 必须 >=77：PEP 639 的 `license = "Unlicense"`（SPDX 字符串）+ `license-files`
+# ⚠️ 必须 >=77：PEP 639 的 `license = "MIT-0"`（SPDX 字符串）+ `license-files`
 # 是 setuptools 77 才支持的写法。写 `>=68` 时，本地开发机装的是新版 setuptools
 # 所以看不出来，但 CI（干净环境按最低版本装）会直接失败：
 #   `license` 的校验只认 {'file': ...} / {'text': ...} → metadata-generation-failed。
@@ -10,13 +10,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jishi"
-version = "0.1.27"
+version = "0.2.0"
 description = "基石 —— 一门像 Python 一样简单易用的中文编程语言"
 readme = "README.md"
 requires-python = ">=3.10"
 # SPDX 表达式 + license-files（PEP 639 的新写法）。旧的 `license = {file = ...}`
 # 被 setuptools 标为已弃用，并写明 2027-02-18 之后构建会失败。
-license = "Unlicense"
+# MIT-0 = MIT No Attribution：保留 MIT 的免责声明，但**不要求署名**，
+# 最贴近原来 Unlicense 的「随便用、别找我」意图，同时是 OSI 认可的标准许可证。
+license = "MIT-0"
 license-files = ["LICENSE"]
 authors = [{ name = "jishi contributors" }]
 
