@@ -19,12 +19,14 @@
                                                # 构建三平台发行包 + 建 Release）
     python tools/publish_github.py -m "自定义提交信息"   # 覆盖默认提交信息
 
-自动屏蔽项（隐私界定，2026-09-04 与作者确认；2026-09-12 更新）：
+自动屏蔽项（隐私界定，2026-09-04 与作者确认；2026-09-23 更新）：
 - `cvm/build.py` / `docs/设计决策.md` / `README.md`：个人机器路径（CLion 等）
   按行屏蔽或通用化；
 - 令牌等敏感串绝不入库；
-- `docs/路线图.md` **恢复上传**（2026-09-12 作者确认），不再屏蔽；
-- 终检：快照里若仍出现 `CLion` / 个人路径片段 / 令牌环境变量名，直接中止发布。
+- **`docs/路线图.md` 整个不上传**（2026-09-23 作者定）：里面有自建分发服务器的
+  实例 ID / 公网 IP / 地域与规格等运行细节。**文件直接删掉**，其余文档里指向它的
+  链接与提及一并抹成中性表述（否则公开仓库里全是死链）；
+- 终检：快照里若仍出现 `CLion` / 个人路径片段 / 令牌环境变量名 / 服务器地址，直接中止发布。
 """
 
 from __future__ import annotations
@@ -118,8 +120,9 @@ def _git(*args: str, cwd: Path | None = None) -> str:
 def _sanitize(snapshot: Path) -> None:
     """隐私屏蔽（每步幂等，重复运行安全）。
 
-    2026-09-12 调整：路线图恢复上传（用户确认），不再屏蔽 `docs/路线图.md`；
-    仍保留个人机器路径 / CLion / 令牌等真正的隐私项屏蔽。
+    2026-09-23 调整：**`docs/路线图.md` 不再上传**（作者定）——删文件 + 抹掉
+    指向它的引用（理由见模块 docstring）。个人机器路径 / CLion / 令牌 /
+    服务器地址等照旧屏蔽。
     """
     # 1. build.py：移除个人机器的 CLion gcc 路径条目
     p = snapshot / "cvm" / "build.py"
@@ -149,9 +152,45 @@ def _sanitize(snapshot: Path) -> None:
         out.append(l)
     io.open(p, "w", encoding="utf-8", newline="\n").write("\n".join(out))
 
-    # 4. 终检：快照里不允许再出现任何隐私模式
-    #    （路线图已恢复上传，因此不检查它引用的死链）
+    # 4. 路线图不上传（2026-09-23 作者定）：整个文件删掉 + 抹掉指向它的引用
+    #    理由：里面有自建分发服务器的实例 ID / 公网 IP / 地域与规格。
+    #    删文件会让其余文档里的引用变成死链，所以一并换成中性表述。
+    rm = snapshot / "docs" / "路线图.md"
+    if rm.exists():
+        rm.unlink()
+    _link = re.compile(r"\[[^\]]*?路线图[^\]]*?\]\((?:\.\./|docs/)?路线图\.md\)")
+    _code = re.compile(r"`+(?:\.\./|docs/)?路线图\.md`+")
+    _plain = re.compile(r"(?:\.\./|docs/)?路线图\.md")
+    for f in sorted(snapshot.rglob("*")):
+        if not f.is_file() or f.name.startswith("publish_"):
+            continue
+        if f.suffix.lower() not in (".md", ".py", ".json", ".txt", ".jsh", ".rst"):
+            continue
+        try:
+            s = io.open(f, encoding="utf-8").read()
+        except (UnicodeDecodeError, OSError):
+            continue
+        # 顺序：先整条链接 → 再去内联代码 → 最后兜底裸路径
+        new = _plain.sub("内部路线图（未公开）",
+                         _code.sub("内部路线图（未公开）",
+                                   _link.sub("内部路线图（未公开）", s)))
+        if new != s:
+            io.open(f, "w", encoding="utf-8", newline="\n").write(new)
+
+    # 4.1 README「项目结构」是**文件清单**：路线图那一条要整条摘掉
+    #     （否则清单里混进一句「内部路线图（未公开）」，读着像文件名）
+    p = snapshot / "README.md"
+    if p.exists():
+        s = io.open(p, encoding="utf-8").read()
+        s2 = s.replace("设计决策.md、内部路线图（未公开）、调试器.md",
+                       "设计决策.md、调试器.md")
+        if s2 != s:
+            io.open(p, "w", encoding="utf-8", newline="\n").write(s2)
+
+    # 5. 终检：快照里不允许再出现任何隐私模式
     bad = []
+    if rm.exists():
+        bad.append("docs/路线图.md 仍在快照里（本文件不上传）")
     for f in snapshot.rglob("*"):
         if not f.is_file():
             continue
@@ -162,7 +201,8 @@ def _sanitize(snapshot: Path) -> None:
             text = io.open(f, encoding="utf-8").read()
         except (UnicodeDecodeError, OSError):
             continue
-        for pat in ("17719", "CLion", "GITEE_TOKEN", "gitee.com"):
+        for pat in ("17719", "CLion", "GITEE_TOKEN", "gitee.com",
+                    "lhins-", "111.229."):
             if pat in text:
                 bad.append(f"{f} 含 {pat!r}")
     if bad:
