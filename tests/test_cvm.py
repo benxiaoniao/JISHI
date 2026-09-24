@@ -660,3 +660,73 @@ def test_read_local_before_assignment_is_an_error(monkeypatch):
            '    令 x = 1\n'
            'f()\n')
     _compare(src, "<赋值前读局部>", monkeypatch)
+
+
+# -- M46：迭代器批量快路径的类型覆盖 -----------------------------------------
+#
+# M46 阶段一①把「一次 pack + memmove」的快路径从「纯整数」扩到了
+# **浮点 / 布尔 / 空 / 文本**（见 `cvm_bind._pack_batch`）。C 侧每次最多
+# 填 256 个元素（`JS_ITER_BUF`），所以这里刻意用**跨多批**的长度，
+# 并且覆盖「混合类型 → 回退逐个转换」的路径——回退路径与批量路径
+# **必须给出逐字节相同的结果**，否则就是把性能优化做成了语义 bug。
+
+_迭代类型用例 = {
+    "整数": ('令 甲 = []\n'
+             '遍历 i 在 范围(600)：\n'
+             '    甲.追加(i * 3)\n'),
+    "浮点": ('令 甲 = []\n'
+             '遍历 i 在 范围(600)：\n'
+             '    甲.追加(i * 1.5)\n'),
+    "布尔": ('令 甲 = []\n'
+             '遍历 i 在 范围(600)：\n'
+             '    甲.追加(i % 2 == 0)\n'),
+    "空值": ('令 甲 = []\n'
+             '遍历 i 在 范围(600)：\n'
+             '    甲.追加(空)\n'),
+    "文本": ('令 甲 = []\n'
+             '遍历 i 在 范围(600)：\n'
+             '    甲.追加("值" + 文本(i))\n'),
+}
+
+
+@pytest.mark.parametrize("name,head", list(_迭代类型用例.items()))
+def test_iter_batch_types_match(name, head, monkeypatch):
+    """每种元素类型都要跨批次对拍一致（600 > 缓冲 256，必然跨 3 批）。"""
+    _compare(head + '遍历 v 在 甲：\n    打印(v)\n',
+             f"<迭代批量-{name}>", monkeypatch)
+
+
+def test_iter_batch_mixed_types_match(monkeypatch):
+    """混合类型走**回退**路径（`_pack_batch` 给 None），结果必须与树遍历一致。"""
+    _compare('令 甲 = [1, 2.5, "甲", 真, 空, 3, "乙", 假]\n'
+             '遍历 v 在 甲：\n'
+             '    打印(v)\n',
+             "<迭代批量-混合>", monkeypatch)
+
+
+@pytest.mark.parametrize("head", [
+    '["甲", 1, 2, 3]',          # 首个是文本、后面混进非文本
+    '["甲", "乙", 空]',          # 文本 + 空
+    '[真, 1]',                   # 布尔与整数（bool 是 int 子类，最易判错）
+    '[1, 真]',
+    '[空, "甲"]',
+])
+def test_iter_batch_mixed_start_matches(head, monkeypatch):
+    """**首个元素的类型决定走哪个分支**，所以「首元素类型 + 后面混别的类型」
+    的组合要单独覆盖——尤其文本打头的混合批：早先那版会**边建句柄边发现混类型**，
+    中途回退就漏句柄（M46 自查发现，已改成「先确认整批类型、再建句柄」）。"""
+    _compare(f'令 甲 = {head}\n'
+             f'遍历 v 在 甲：\n'
+             f'    打印(v)\n',
+             f"<迭代批量-首元素混合{head}>", monkeypatch)
+
+
+@pytest.mark.parametrize("n", [255, 256, 257, 512, 513])
+def test_iter_batch_boundary_lengths(n, monkeypatch):
+    """正好卡在批次边界（256）前后的长度——边界差一个元素也要对拍一致。"""
+    _compare(f'令 甲 = []\n'
+             f'遍历 i 在 范围({n})：\n'
+             f'    甲.追加(i)\n'
+             f'遍历 v 在 甲：\n'
+             f'    打印(v)\n',
+             f"<迭代批量-边界{n}>", monkeypatch)

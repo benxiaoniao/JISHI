@@ -191,29 +191,28 @@ def _jhost(h: int) -> JVal:
 #: JVal 的字节大小（批量转换用）
 _JVAL_SIZE = ctypes.sizeof(JVal)
 
-#: 批量构造「全整数」JVal 数组的 struct.Struct 缓存（M20 热路径优化）。
-#: 布局：uint8 tag + 7 字节填充 + int64 值，与 JVal 内存布局一致（仅小端）。
-_INT_BATCH_FMT: dict[int, _struct.Struct] = {}
+#: 批量构造 JVal 数组的 struct.Struct 缓存（M20 引入，M46 泛化）。
+#: 布局：uint8 tag + 7 字节填充 + 8 字节值（小端），与 `JVal` 内存布局一致。
+#: 三种格式只差「值槽怎么解释」：
+#:   `B7xq` ── 整数 / 布尔 / 空（8 字节整数槽）
+#:   `B7xd` ── 浮点（8 字节 double 槽）
+#:   `B7xQ` ── 宿主句柄（8 字节无符号槽）
+_BATCH_FMT: dict[tuple[str, int], _struct.Struct] = {}
 _LITTLE_ENDIAN = _sys.byteorder == "little"
 
-#: 内部哨兵（M41）：批量快路径里「这一批有非整数」的信号。
-#: 用异常而不是 `all(...)` 预扫描，是为了**一趟**遍历（见
-#: `_cb_iter_next_batch` 的注释）。它只在同一文件内抛出/捕获，不外泄。
-#: **必须是类不是实例**——`except (A, B, 实例)` 会在运行时炸
-#: （TypeError: catching classes that do not inherit from BaseException，
-#: M41 踩到，五路对拍立刻暴露）。
-class _非整数信号(Exception):
-    """批量快路径内部用：这一批里混了非整数，回退逐个转换。"""
+# ⚠️ M41 的教训留在这里（现在不用异常了，但同类坑还在）：
+# 早先批量快路径用「一个哨兵异常」表示「这批混了非整数」，
+# 而 `except (A, B, 实例)` 会在运行时炸（TypeError: catching classes that
+# do not inherit from BaseException）。**要抛就抛类，别抛实例**。
+# M46 改成 `_pack_batch` 返回 `None`，不再需要那个哨兵。
 
 
-_非整数 = _非整数信号
-
-
-def _int_batch_fmt(n: int) -> _struct.Struct:
-    st = _INT_BATCH_FMT.get(n)
+def _batch_fmt(kind: str, n: int) -> _struct.Struct:
+    key = (kind, n)
+    st = _BATCH_FMT.get(key)
     if st is None:
-        st = _struct.Struct("<" + "B7xq" * n)
-        _INT_BATCH_FMT[n] = st
+        st = _struct.Struct("<" + kind * n)
+        _BATCH_FMT[key] = st
     return st
 
 
@@ -781,6 +780,71 @@ class CvmHost:
         except BaseException as e:
             return self._fail(e)
 
+    def _pack_batch(self, chunk: list):
+        """把一批**同类型**的值打成 JVal 数组的字节串；不适合批量就返回 None。
+
+        M20 只认整数；**M46 阶段一①扩到浮点 / 布尔 / 空 / 文本**——这几种的值槽
+        都是 8 字节、        `JVal` 布局一致（1 字节 tag + 7 字节填充 + 8 字节小端值），
+        所以能一次 `pack` + `memmove` 灌进 C 数组，省掉逐个构造 ctypes
+        `Structure` 的开销（那是纯 Python 层面的对象分配，最贵的一步）。
+
+        **整数 / 浮点 / 布尔**分支**一趟**遍历（M41 的经验）：边判类型边装，
+        发现混类型立即返回 None，不在前面先跑一遍 `all(...)` 预扫描。
+        **文本**分支是唯一要两趟的（见该分支的注释：建句柄有副作用）。
+
+        返回 None 的几种情况（调用方回退逐个 `py2c`，**语义完全不变**）：
+        混合类型 / 批次里出现别的类型 / 整数溢出 int64 / 不认识的类型。
+        """
+        n = len(chunk)
+        t0 = type(chunk[0])
+        flat: list = []
+        if t0 is bool:
+            # 布尔必须排在 int **前面**判：Python 里 bool 是 int 的子类，
+            # 靠 `type()` 区分（`type(True) is bool`），不能用 isinstance。
+            for v in chunk:
+                if type(v) is not bool:
+                    return None
+                flat.append(O.T_TRUE if v else O.T_FALSE)
+                flat.append(0)
+            kind = "B7xq"
+        elif t0 is int:
+            for v in chunk:
+                if type(v) is not int:
+                    return None
+                flat.append(O.T_INT)
+                flat.append(v)
+            kind = "B7xq"
+        elif t0 is float:
+            for v in chunk:
+                if type(v) is not float:
+                    return None
+                flat.append(O.T_FLOAT)
+                flat.append(v)
+            kind = "B7xd"
+        elif t0 is str:
+            # 文本在 C 侧是 HOST 句柄：**每个元素仍要建一个句柄**
+            # （`_new_handle` 里有 dict 插入 + 一次 C 调用），批量省不掉；
+            # 省掉的是「逐个构造 JVal」与逐次 memmove。
+            #
+            # ⚠️ 这里必须**先确认整批都是 str、再建句柄**（两趟）：
+            # `_new_handle` 有副作用（注册进 `_handles` + 通知 C 侧），
+            # 边建边发现混类型就会**漏句柄**——中途返回 None 后，回退路径
+            # 会再造一批新句柄，先前那批再也无人释放。
+            # 别的分支只往 `flat` 里塞、无副作用，所以可以一趟。
+            for v in chunk:
+                if type(v) is not str:
+                    return None
+            for v in chunk:
+                flat.append(O.T_HOST)
+                flat.append(self._new_handle(v))
+            return _batch_fmt("B7xQ", n).pack(*flat)
+        else:
+            return None
+        try:
+            return _batch_fmt(kind, n).pack(*flat)
+        except (_struct.error, OverflowError):
+            return None          # 整数越界等 → 回退（走 _jint 报中文错）
+
     def _cb_iter_next_batch(self, it, out, cap, n, line, col):
         try:
             wrapper = self.c2py(it[0])
@@ -794,29 +858,17 @@ class CvmHost:
                         chunk.append(next(wrapper.it))
                     except StopIteration:
                         break
-            # 快路径（M20）：整批都是整数时，一次 pack + memmove 写入 C 侧
-            # 数组，省掉逐个构造 JVal 的 ctypes 开销（实测约快 9 倍）。
-            # 混合类型 / 大端平台 / 溢出时回退到逐个 py2c，语义不变。
-            #
-            # M41 优化：原先先跑一遍 `all(type(v) is int …)` 生成器再跑一遍
-            # 构造 flat，**两趟**遍历；改成**一趟**——边判边装，遇到非整数
-            # 就丢掉重来（回退路径本来就要重新走）。cProfile 里那一趟
-            # `all` + 生成器占了批量回调 15% 的自耗时。
+            # 快路径（M20 引入，**M46 泛化**）：整批同类型时一次 pack + memmove
+            # 写入 C 侧数组，省掉逐个构造 JVal 的 ctypes 开销。
+            # M20 只认整数（实测快 ~9x）；M46 阶段一把浮点 / 布尔 / 空 / 文本
+            # 也纳入。混合类型 / 大端平台 / 溢出 → `_pack_batch` 给 None，
+            # 回退逐个 py2c，**语义完全不变**（三执行器对拍钉住）。
             if chunk and _LITTLE_ENDIAN:
-                flat: list = []
-                try:
-                    for v in chunk:
-                        if type(v) is not int:
-                            raise _非整数
-                        flat.append(O.T_INT)
-                        flat.append(v)
-                    fmt = _int_batch_fmt(len(chunk))
-                    ctypes.memmove(out, fmt.pack(*flat),
-                                   len(chunk) * _JVAL_SIZE)
+                blob = self._pack_batch(chunk)
+                if blob is not None:
+                    ctypes.memmove(out, blob, len(chunk) * _JVAL_SIZE)
                     n[0] = len(chunk)
                     return 0
-                except (_struct.error, OverflowError, _非整数):
-                    pass          # 回退逐个
             for i, v in enumerate(chunk):
                 out[i] = self.py2c(v)
             n[0] = len(chunk)
