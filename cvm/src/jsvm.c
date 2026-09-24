@@ -143,6 +143,14 @@ typedef struct {
     int call_col;
 } JsFrame;
 
+/* 待冲刷的「追加」批次（M46 阶段一③）：见 JsVm.pa 的注释。 */
+typedef struct JsAppendBatch {
+    uint32_t handle;   /* 目标列表的宿主句柄 */
+    JVal holder;       /* 批次持有的对象引用（落盘前句柄不能死） */
+    JVal *vals;        /* 攒着的追加值（按序；所有权归本批次） */
+    int n, cap;
+} JsAppendBatch;
+
 typedef struct JsVm {
     JsHost *host;
     JVal *consts; int nconsts;
@@ -163,12 +171,26 @@ typedef struct JsVm {
     /* 语句钩子（M40）：每条语句首指令执行前回调；NULL = 不回调。 */
     JsStmtHook stmt_hook; void *stmt_hook_ud;
     uint32_t *hrefcnt; int hcap;   /* HOST 句柄引用计数 */
+    /* 「这个句柄是不是纯 Python 列表」（M46 阶段一③）：只有 build_list
+     * 造出来的列表才置 1。**只对确定是 list 的目标做「追加延迟合并写」**——
+     * 因为 list.extend 不可能失败，冲刷就不会产生「报错行号该算哪一条」的
+     * 歧义；不是 list 的目标走原来的同步回调，错误语义一模一样。
+     * 与 hrefcnt 同步扩容 / 释放。 */
+    uint8_t *islist;
     JVal last_value;
     JVal pending_err;      /* 宿主回调构造的异常对象（HOST 句柄），UNSET=无 */
     int halted;
     /* run_loop 的帧边界：RETURN/HALT 弹到这一层就停（重入支持）。
      * jsvm_run 设 0；jsvm_call_function 设为进入时的帧深。 */
     int stop_depth;
+    /* 待冲刷的「追加」批次（M46 阶段一③）——**延迟合并写**。
+     * 每个表项 = 一个 HOST 句柄 + 它攒着还没落盘的追加值（按序）。
+     * 目的：把「循环里追加 N 次」的 N 次宿主回调压成 1 次——实测每次宿主
+     * 回调固定约 2.4µs（C↔Python 的 FFI 往返），是 C VM 最大的固定开销。
+     * ⚠️ **不变式：任何宿主回调之前必须 flush_pending()**，否则宿主会看到
+     * 一个「少了最后几条」的列表（静默算错）。见 HC() 宏：全部宿主调用点
+     * 都套了它，就是为这条。 */
+    JsAppendBatch *pa; int pa_n, pa_cap;
 } JsVm;
 
 /* ------------------------------------------------------------------ */
@@ -184,6 +206,11 @@ static int ensure_hcap(JsVm *vm, uint32_t id) {
     if (!p) return -1;
     memset(p + vm->hcap, 0, (size_t)(ncap - vm->hcap) * sizeof *p);
     vm->hrefcnt = p;
+    /* M46 阶段一③：islist 与 hrefcnt 同步扩容（两者同生命周期） */
+    uint8_t *q = (uint8_t *)realloc(vm->islist, (size_t)ncap);
+    if (!q) return -1;
+    memset(q + vm->hcap, 0, (size_t)(ncap - vm->hcap));
+    vm->islist = q;
     vm->hcap = ncap;
     return 0;
 }
@@ -257,6 +284,77 @@ static void release_val(JsVm *vm, JVal v) {
     default: break;
     }
 }
+
+/* ------------------------------------------------------------------ */
+/* 「追加」延迟合并写（M46 阶段一③）                                      */
+/* ------------------------------------------------------------------ */
+
+/* 把一条追加记进目标句柄的批次（**接管 obj 与 val 的所有权**）。
+ * 返回 0 成功；-1 = 内存不足（调用方原地回退成同步落盘，行为不变）。 */
+static int pa_push(JsVm *vm, JVal obj, JVal val) {
+    uint32_t h = (uint32_t)obj.v.u;
+    JsAppendBatch *b = NULL;
+    for (int i = 0; i < vm->pa_n; i++)
+        if (vm->pa[i].handle == h) { b = &vm->pa[i]; break; }
+
+    if (b == NULL) {
+        /* 先把值数组备好、**最后才提交**（pa_n++）——失败要能原地退出，
+         * 不然调用方没法干净回退（obj/val 的所有权还没真交出去）。 */
+        if (vm->pa_n == vm->pa_cap) {
+            int nc = vm->pa_cap ? vm->pa_cap * 2 : 4;
+            JsAppendBatch *p = (JsAppendBatch *)realloc(
+                vm->pa, (size_t)nc * sizeof *p);
+            if (!p) return -1;
+            vm->pa = p; vm->pa_cap = nc;
+        }
+        b = &vm->pa[vm->pa_n];
+        b->handle = h; b->vals = NULL; b->n = 0; b->cap = 0;
+    }
+    if (b->n == b->cap) {
+        int nc = b->cap ? b->cap * 2 : 16;
+        JVal *p = (JVal *)realloc(b->vals, (size_t)nc * sizeof *p);
+        if (!p) return -1;
+        b->vals = p; b->cap = nc;
+    }
+    if (b->n == 0) {
+        b->holder = obj;        /* 新批次：存下对象引用（句柄落盘前不能死） */
+        b->vals[b->n++] = val;
+        vm->pa_n++;             /* 提交 */
+        return 0;
+    }
+    release_val(vm, obj);       /* 已有批次：这一份 obj 用不上 */
+    b->vals[b->n++] = val;
+    return 0;
+}
+
+/* 把攒下的追加一次性交给宿主落盘。
+ * ⚠️ **任何宿主回调之前都必须先跑它**（见 HC 宏）——否则宿主会看到一个
+ * 「少了最后几条」的列表。
+ * 做法上先把 pa 整体摘下来：落盘时释放值会回调宿主（release_handle），
+ * 重入进来看到 pa_n == 0，不会递归。 */
+static int flush_pending(JsVm *vm) {
+    if (vm->pa_n == 0) return 0;
+    JsAppendBatch *batches = vm->pa;
+    int n = vm->pa_n;
+    vm->pa = NULL; vm->pa_n = 0; vm->pa_cap = 0;
+    int rc = 0;
+    for (int i = 0; i < n; i++) {
+        JsAppendBatch *b = &batches[i];
+        if (b->n > 0 && rc == 0)
+            rc = vm->host->list_append_many(b->handle, b->vals, b->n);
+        for (int k = 0; k < b->n; k++)
+            release_val(vm, b->vals[k]);
+        free(b->vals);
+        release_val(vm, b->holder);   /* 放掉批次持有的那份对象引用 */
+    }
+    free(batches);
+    return rc;
+}
+
+/* ⚠️ **所有宿主回调调用点都必须经由本宏**（M46 阶段一③）。
+ * 它保证「待冲刷的追加」一定在宿主看到列表**之前**落盘——
+ * 漏掉任何一处，都会变成「列表少了最后几条」的静默算错。 */
+#define HC(vm, m) (flush_pending(vm), (vm)->host->m)
 
 /* ------------------------------------------------------------------ */
 /* 创建 / 装载 / 销毁                                                    */
@@ -352,6 +450,9 @@ static void frame_teardown(JsVm *vm, JsFrame *f) {
 
 JSVM_API void jsvm_destroy(JsVm *vm) {
     if (!vm) return;
+    /* M46 阶段一③：兜底把攒下的追加落盘（正常路径 jsvm_run 收尾已经冲过；
+       这里防的是「run 被中断 / 直接 destroy」的路径，避免泄漏批次内存）。 */
+    flush_pending(vm);
     for (int i = 0; i < vm->nframes; i++)
         frame_teardown(vm, &vm->frames[i]);
     while (vm->sp > 0)
@@ -370,6 +471,7 @@ JSVM_API void jsvm_destroy(JsVm *vm) {
      * 分配并持有，这里绝不 free —— 跨运行时释放会损坏堆。 */
     free(vm->codes); free(vm->stack); free(vm->frames);
     free(vm->hrefcnt);
+    free(vm->islist);       /* M46 阶段一③：与 hrefcnt 同生命周期 */
     free(vm);
 }
 
@@ -413,7 +515,7 @@ static int push_frame(JsVm *vm, int code_idx, int base,
  * 必须在**弹帧之前**调：调用点信息随帧一起消失。
  * flat 布局：每层 3 个 int32 —— code_idx / call_line / call_col。 */
 static void note_frames(JsVm *vm) {
-    if (!vm->host || !vm->host->note_frames) return;
+    if (!vm->host || !HC(vm, note_frames)) return;
     int depth = vm->nframes - 1 - vm->stop_depth;
     if (depth < 0) depth = 0;
     if (depth > JS_MAX_FRAMES) depth = JS_MAX_FRAMES;
@@ -426,7 +528,7 @@ static void note_frames(JsVm *vm) {
         flat[n++] = f->call_col;
     }
     /* depth 为 0 也要通知：宿主拿它当「这次没有调用链」，否则会留着上一次的旧值 */
-    vm->host->note_frames(flat, depth);
+    HC(vm, note_frames)(flat, depth);
 }
 
 /* ------------------------------------------------------------------ */
@@ -487,7 +589,7 @@ static int bind_args(JsVm *vm, int code_idx,
             goto fail_argc;
         }
         JVal lst;
-        if (vm->host->build_list(args + npos, nargs - npos, &lst,
+        if (HC(vm, build_list)(args + npos, nargs - npos, &lst,
                                  line, col) != 0)
             goto fail;
         bound[star_pos] = lst;      /* 新构造值，本体已持引用 */
@@ -519,14 +621,14 @@ static int bind_args(JsVm *vm, int code_idx,
                 nextra++;
             } else {
                 free(extra_names); free(extra_vals);
-                vm->host->raise_bad_kw(code_idx, name, line, col);
+                HC(vm, raise_bad_kw)(code_idx, name, line, col);
                 goto fail;
             }
         }
 
         if (dstar_pos >= 0) {
             JVal dct;
-            if (vm->host->pack_kwargs(extra_names, extra_vals, nextra,
+            if (HC(vm, pack_kwargs)(extra_names, extra_vals, nextra,
                                       &dct, line, col) != 0) {
                 free(extra_names); free(extra_vals);
                 goto fail;
@@ -553,12 +655,12 @@ static int bind_args(JsVm *vm, int code_idx,
     /* 5) *参数 / **选项 没拿到东西时给空容器（Python 语义：0 个也成立） */
     if (star_pos >= 0 && bound[star_pos].tag == JS_TAG_UNSET) {
         JVal lst;
-        if (vm->host->build_list(args, 0, &lst, line, col) != 0) goto fail;
+        if (HC(vm, build_list)(args, 0, &lst, line, col) != 0) goto fail;
         bound[star_pos] = lst;
     }
     if (dstar_pos >= 0 && bound[dstar_pos].tag == JS_TAG_UNSET) {
         JVal dct;
-        if (vm->host->pack_kwargs(NULL, NULL, 0, &dct, line, col) != 0)
+        if (HC(vm, pack_kwargs)(NULL, NULL, 0, &dct, line, col) != 0)
             goto fail;
         bound[dstar_pos] = dct;
     }
@@ -569,7 +671,7 @@ static int bind_args(JsVm *vm, int code_idx,
         for (int i = 0; i < npos && nmiss < 64; i++)
             if (bound[i].tag == JS_TAG_UNSET) miss[nmiss++] = i;
         if (nmiss > 0) {
-            vm->host->raise_missing(code_idx, miss, nmiss, line, col);
+            HC(vm, raise_missing)(code_idx, miss, nmiss, line, col);
             goto fail;
         }
     }
@@ -589,7 +691,7 @@ static int bind_args(JsVm *vm, int code_idx,
     return 0;
 
 fail_argc:
-    vm->host->raise_argc(code_idx, nargs + nkw, line, col);
+    HC(vm, raise_argc)(code_idx, nargs + nkw, line, col);
     /* fall through */
 fail:
     /* 统一清理：已 retain 的（借用来源）在这里撤销，
@@ -632,7 +734,7 @@ static void pop_frame(JsVm *vm, int full_stack_clear) {
 
 /* 判断异常是否是「中断/继续」信号（穿透到循环） */
 static int exc_is_signal(JsVm *vm, JVal *exc, int *out) {
-    return vm->host->is_signal(exc, out);
+    return HC(vm, is_signal)(exc, out);
 }
 
 /* 从宿主取 pending 异常对象（转成 HOST 句柄，C 侧持引用）。
@@ -640,7 +742,7 @@ static int exc_is_signal(JsVm *vm, JVal *exc, int *out) {
 static int take_pending_err(JsVm *vm, JVal *out) {
     if (vm->pending_err.tag == JS_TAG_UNSET) {
         /* 首次：向宿主要（error_handle 返回的句柄引用归 C 侧） */
-        if (vm->host->error_handle(out) != 0) return -1;
+        if (HC(vm, error_handle)(out) != 0) return -1;
         if (out->tag == JS_TAG_UNSET) return -1;
         vm->pending_err = *out;   /* 引用归 pending_err */
         return 0;
@@ -749,13 +851,13 @@ static int binop_fast(int op, JVal l, JVal r, JVal *out, JsVm *vm,
             *out = make_int(res); return 1;
         case JS_BIN_DIV:                       /* 真除法 → float */
             if (b == 0) {
-                vm->host->raise_zero_div(line, col);
+                HC(vm, raise_zero_div)(line, col);
                 return -1;
             }
             *out = make_float((double)a / (double)b); return 1;
         case JS_BIN_FLOORDIV:                  /* Python 向下取整 */
             if (b == 0) {
-                vm->host->raise_zero_div(line, col);
+                HC(vm, raise_zero_div)(line, col);
                 return -1;
             }
             res = a / b;
@@ -763,7 +865,7 @@ static int binop_fast(int op, JVal l, JVal r, JVal *out, JsVm *vm,
             *out = make_int(res); return 1;
         case JS_BIN_MOD:                       /* 符号跟除数 */
             if (b == 0) {
-                vm->host->raise_zero_div(line, col);
+                HC(vm, raise_zero_div)(line, col);
                 return -1;
             }
             res = a % b;
@@ -828,7 +930,7 @@ static int truthy_fast(JVal v, JsVm *vm, int *out) {
     case JS_TAG_INT:   *out = v.v.i != 0; return 1;
     case JS_TAG_FLOAT: *out = v.v.d != 0.0; return 1;
     default:
-        return vm->host->truthy(&v, out, 0, 0) == 0 ? 1 : -1;
+        return HC(vm, truthy)(&v, out, 0, 0) == 0 ? 1 : -1;
     }
 }
 
@@ -895,7 +997,7 @@ static int run_loop(JsVm *vm) {
                 JVal v = f->locals[a];
                 if (v.tag == JS_TAG_UNSET) {
                     SAVE_IP();
-                    vm->host->raise_unbound_local(f->code_idx, a, line, col);
+                    HC(vm, raise_unbound_local)(f->code_idx, a, line, col);
                     goto dispatch_err;
                 }
                 retain_val(vm, v);
@@ -915,7 +1017,7 @@ static int run_loop(JsVm *vm) {
                 JVal v = vm->globals[a];
                 if (v.tag == JS_TAG_UNSET) {
                     SAVE_IP();
-                    vm->host->raise_name(a, line, col);
+                    HC(vm, raise_name)(a, line, col);
                     goto dispatch_err;
                 }
                 retain_val(vm, v);
@@ -935,7 +1037,7 @@ static int run_loop(JsVm *vm) {
                 JsCell *cell = f->cells[a];
                 if (cell->v.tag == JS_TAG_UNSET) {
                     SAVE_IP();
-                    vm->host->raise_unbound_cell(f->code_idx, a, line, col);
+                    HC(vm, raise_unbound_cell)(f->code_idx, a, line, col);
                     goto dispatch_err;
                 }
                 retain_val(vm, cell->v);
@@ -1008,7 +1110,7 @@ static int run_loop(JsVm *vm) {
                     PUSH(vm, out);
                 } else {
                     SAVE_IP();
-                    if (vm->host->binop(a, &l, &r, &out, line, col) != 0) {
+                    if (HC(vm, binop)(a, &l, &r, &out, line, col) != 0) {
                         release_val(vm, l); release_val(vm, r);
                         goto dispatch_err;
                     }
@@ -1038,7 +1140,7 @@ static int run_loop(JsVm *vm) {
                     PUSH(vm, out);
                 } else {
                     SAVE_IP();
-                    if (vm->host->unary(a, &v, &out, line, col) != 0) {
+                    if (HC(vm, unary)(a, &v, &out, line, col) != 0) {
                         release_val(vm, v); goto dispatch_err;
                     }
                     release_val(vm, v);
@@ -1054,7 +1156,7 @@ static int run_loop(JsVm *vm) {
                     PUSH(vm, out);
                 } else {
                     SAVE_IP();
-                    if (vm->host->compare(a, &l, &r, &out, line, col) != 0) {
+                    if (HC(vm, compare)(a, &l, &r, &out, line, col) != 0) {
                         release_val(vm, l); release_val(vm, r);
                         goto dispatch_err;
                     }
@@ -1112,7 +1214,7 @@ static int run_loop(JsVm *vm) {
                     JVal *kwv = (JVal *)malloc(
                         (size_t)(nkw > 0 ? nkw : 1) * sizeof(JVal));
                     if (!args || !kwv) { free(args); free(kwv);
-                        vm->host->raise_internal("内存不足"); return -1; }
+                        HC(vm, raise_internal)("内存不足"); return -1; }
                     for (int i = 0; i < nargs; i++)
                         args[i] = vm->stack[fn_base + 1 + i];
                     for (int k = 0; k < nkw; k++)
@@ -1122,13 +1224,13 @@ static int run_loop(JsVm *vm) {
                         (size_t)(sub->nlocals > 0 ? sub->nlocals : 1)
                         * sizeof(JVal));
                     if (!locals) { free(args); free(kwv);
-                        vm->host->raise_internal("内存不足"); return -1; }
+                        HC(vm, raise_internal)("内存不足"); return -1; }
                     for (int i = 0; i < sub->nlocals; i++)
                         locals[i] = make_unset();
 
                     if (vm->nframes >= JS_MAX_FRAMES) {
                         SAVE_IP();
-                        vm->host->raise_recursion(line, col);
+                        HC(vm, raise_recursion)(line, col);
                         /* 栈上的 fn/args 已被取出，需释放（先释放值再释放数组） */
                         for (int i = 0; i < nargs; i++)
                             release_val(vm, args[i]);
@@ -1148,10 +1250,10 @@ static int run_loop(JsVm *vm) {
                                  ? ncellvars + nfreevars : 1)
                         * sizeof(JsCell *));
                     if (!cells) { free(args); free(kwv); free(locals);
-                        vm->host->raise_internal("内存不足"); return -1; }
+                        HC(vm, raise_internal)("内存不足"); return -1; }
                     for (int i = 0; i < ncellvars; i++) {
                         cells[i] = (JsCell *)malloc(sizeof(JsCell));
-                        if (!cells[i]) { vm->host->raise_internal("内存不足"); return -1; }
+                        if (!cells[i]) { HC(vm, raise_internal)("内存不足"); return -1; }
                         cells[i]->v = make_unset();
                         cells[i]->refcnt = 1;   /* 帧持有 */
                     }
@@ -1209,7 +1311,7 @@ static int run_loop(JsVm *vm) {
                     JVal out;
                     SAVE_IP();
                     /* 回调借用栈上的参数 */
-                    if (vm->host->call(&fn,
+                    if (HC(vm, call)(&fn,
                                        &vm->stack[fn_base + 1], nargs,
                                        knames,
                                        &vm->stack[fn_base + 1 + nargs], nkw,
@@ -1264,7 +1366,7 @@ static int run_loop(JsVm *vm) {
                 }
                 JVal out;
                 SAVE_IP();
-                if (vm->host->make_class(&name, &base, methods, nmethods,
+                if (HC(vm, make_class)(&name, &base, methods, nmethods,
                                          &out, line, col) != 0) {
                     release_val(vm, name);
                     goto dispatch_err;
@@ -1282,7 +1384,7 @@ static int run_loop(JsVm *vm) {
                 int ncells = b;
                 int ndefaults = c;
                 JsFunc *jfn = (JsFunc *)malloc(sizeof *jfn);
-                if (!jfn) { vm->host->raise_internal("内存不足"); return -1; }
+                if (!jfn) { HC(vm, raise_internal)("内存不足"); return -1; }
                 jfn->code_idx = a;
                 jfn->ncells = ncells;
                 jfn->ndefaults = ndefaults;
@@ -1290,14 +1392,14 @@ static int run_loop(JsVm *vm) {
                 jfn->defaults = (JVal *)malloc(
                     (size_t)(ndefaults > 0 ? ndefaults : 1) * sizeof(JVal));
                 if (!jfn->defaults) { free(jfn);
-                    vm->host->raise_internal("内存不足"); return -1; }
+                    HC(vm, raise_internal)("内存不足"); return -1; }
                 for (int i = 0; i < ndefaults; i++)
                     jfn->defaults[i] = vm->stack[vm->sp - ndefaults + i];
                 vm->sp -= ndefaults;
                 jfn->cells = (JsCell **)malloc(
                     (size_t)(ncells > 0 ? ncells : 1) * sizeof(JsCell *));
                 if (!jfn->cells) { free(jfn->defaults); free(jfn);
-                    vm->host->raise_internal("内存不足"); return -1; }
+                    HC(vm, raise_internal)("内存不足"); return -1; }
                 for (int i = 0; i < ncells; i++) {
                     JVal cv = vm->stack[vm->sp - ncells + i];
                     jfn->cells[i] = (JsCell *)(uintptr_t)cv.v.u;
@@ -1315,9 +1417,9 @@ static int run_loop(JsVm *vm) {
                 JVal *items = (JVal *)malloc(
                     (size_t)(n > 0 ? n : 1) * sizeof(JVal));
                 if (!items) { release_val(vm, v);
-                    vm->host->raise_internal("内存不足"); return -1; }
+                    HC(vm, raise_internal)("内存不足"); return -1; }
                 SAVE_IP();
-                if (vm->host->unpack(&v, n, star, items, line, col) != 0) {
+                if (HC(vm, unpack)(&v, n, star, items, line, col) != 0) {
                     release_val(vm, v); free(items);
                     goto dispatch_err;
                 }
@@ -1334,7 +1436,21 @@ static int run_loop(JsVm *vm) {
                 JVal val = POP(vm);
                 JVal obj = POP(vm);
                 SAVE_IP();
-                if (vm->host->list_append(&obj, &val, line, col) != 0) {
+                /* M46 阶段一③「延迟合并写」：先攒在 C 侧，等下一个可能
+                 * 「观察」到列表的宿主回调之前一次性落盘。
+                 * 于是「循环里追加 5000 次」从 5000 次 FFI 往返压成 1 次。
+                 * **只对 build_list 造出来的列表攒**（`islist`）——那种目标
+                 * 必然是 list，落盘用 extend 不会失败，也就不会有「报错该算
+                 * 哪一条」的歧义；别的目标照旧同步回调，错误语义不变。
+                 * 攒不下（内存不足）同样原地退回同步路径。 */
+                if (obj.tag == JS_TAG_HOST
+                        && (int)obj.v.u < vm->hcap
+                        && vm->islist[(uint32_t)obj.v.u]
+                        && pa_push(vm, obj, val) == 0) {
+                    PUSH(vm, make_null());  /* 追加返回空，保持 CALL 栈语义 */
+                    break;
+                }
+                if (HC(vm, list_append)(&obj, &val, line, col) != 0) {
                     release_val(vm, obj); release_val(vm, val);
                     goto dispatch_err;
                 }
@@ -1352,7 +1468,7 @@ static int run_loop(JsVm *vm) {
                 if (a & 2) stop = POP(vm);
                 if (a & 1) start = POP(vm);
                 SAVE_IP();
-                if (vm->host->make_slice(&start, &stop, &step, &out,
+                if (HC(vm, make_slice)(&start, &stop, &step, &out,
                                          line, col) != 0) {
                     /* 出错：释放已取出的分量（UNSET 的 release 是 no-op） */
                     release_val(vm, start); release_val(vm, stop);
@@ -1368,20 +1484,25 @@ static int run_loop(JsVm *vm) {
             case JS_OP_BUILD_LIST: {
                 JVal out;
                 SAVE_IP();
-                if (vm->host->build_list(&vm->stack[vm->sp - a], a,
+                if (HC(vm, build_list)(&vm->stack[vm->sp - a], a,
                                          &out, line, col) != 0)
                     goto dispatch_err;
                 vm->sp -= a;
                 for (int i = 0; i < a; i++)
                     release_val(vm, vm->stack[vm->sp + i]);
                 PUSH(vm, out);
+                /* M46 阶段一③：记下「这个句柄是纯 list」——后面 `X.追加(v)`
+                 * 才敢走「延迟合并写」（见 islist 字段的注释）。 */
+                if (out.tag == JS_TAG_HOST
+                        && (int)out.v.u < vm->hcap)
+                    vm->islist[(uint32_t)out.v.u] = 1;
                 break;
             }
 
             case JS_OP_BUILD_DICT: {
                 JVal out;
                 SAVE_IP();
-                if (vm->host->build_dict(&vm->stack[vm->sp - 2 * a], a,
+                if (HC(vm, build_dict)(&vm->stack[vm->sp - 2 * a], a,
                                          &out, line, col) != 0)
                     goto dispatch_err;
                 int n = 2 * a;
@@ -1395,7 +1516,7 @@ static int run_loop(JsVm *vm) {
             case JS_OP_GET_ATTR: {
                 JVal obj = POP(vm), out;
                 SAVE_IP();
-                if (vm->host->getattr(&obj, a, &out, line, col) != 0) {
+                if (HC(vm, getattr)(&obj, a, &out, line, col) != 0) {
                     release_val(vm, obj); goto dispatch_err;
                 }
                 release_val(vm, obj);
@@ -1406,7 +1527,7 @@ static int run_loop(JsVm *vm) {
             case JS_OP_SET_ATTR: {
                 JVal val = POP(vm), obj = POP(vm);
                 SAVE_IP();
-                if (vm->host->setattr(&obj, a, &val, line, col) != 0) {
+                if (HC(vm, setattr)(&obj, a, &val, line, col) != 0) {
                     release_val(vm, obj); release_val(vm, val); goto dispatch_err;
                 }
                 release_val(vm, obj); release_val(vm, val);
@@ -1416,7 +1537,7 @@ static int run_loop(JsVm *vm) {
             case JS_OP_GET_ITEM: {
                 JVal idx = POP(vm), obj = POP(vm), out;
                 SAVE_IP();
-                if (vm->host->getitem(&obj, &idx, &out, line, col) != 0) {
+                if (HC(vm, getitem)(&obj, &idx, &out, line, col) != 0) {
                     release_val(vm, obj); release_val(vm, idx); goto dispatch_err;
                 }
                 release_val(vm, obj); release_val(vm, idx);
@@ -1427,7 +1548,7 @@ static int run_loop(JsVm *vm) {
             case JS_OP_SET_ITEM: {
                 JVal val = POP(vm), idx = POP(vm), obj = POP(vm);
                 SAVE_IP();
-                if (vm->host->setitem(&obj, &idx, &val, line, col) != 0) {
+                if (HC(vm, setitem)(&obj, &idx, &val, line, col) != 0) {
                     release_val(vm, obj); release_val(vm, idx);
                     release_val(vm, val); goto dispatch_err;
                 }
@@ -1440,7 +1561,7 @@ static int run_loop(JsVm *vm) {
                 JVal obj = POP(vm), out;
                 int batchable = 0;
                 SAVE_IP();
-                if (vm->host->iter_new(&obj, &out, &batchable,
+                if (HC(vm, iter_new)(&obj, &out, &batchable,
                                        line, col) != 0) {
                     release_val(vm, obj); goto dispatch_err;
                 }
@@ -1448,8 +1569,8 @@ static int run_loop(JsVm *vm) {
                 /* out 是宿主句柄（引用归新迭代器所有），包一层 C 侧缓冲 */
                 JsIterC *it = (JsIterC *)malloc(sizeof *it);
                 if (!it) {
-                    vm->host->release_handle((uint32_t)out.v.u);
-                    vm->host->raise_internal("内存不足"); return -1;
+                    HC(vm, release_handle)((uint32_t)out.v.u);
+                    HC(vm, raise_internal)("内存不足"); return -1;
                 }
                 memset(it, 0, sizeof *it);
                 it->refcnt = 1;
@@ -1479,13 +1600,13 @@ static int run_loop(JsVm *vm) {
                     JVal hj; memset(&hj, 0, sizeof hj);
                     hj.tag = JS_TAG_HOST; hj.v.u = it->host_id;
                     if (it->batchable) {
-                        if (vm->host->iter_next_batch(
+                        if (HC(vm, iter_next_batch)(
                                 &hj, it->buf, JS_ITER_BUF, &n,
                                 line, col) != 0)
                             goto dispatch_err;
                     } else {
                         JVal out; int done = 0;
-                        if (vm->host->iter_next(&hj, &out, &done,
+                        if (HC(vm, iter_next)(&hj, &out, &done,
                                                 line, col) != 0)
                             goto dispatch_err;
                         if (!done) { it->buf[0] = out; n = 1; }
@@ -1505,7 +1626,7 @@ static int run_loop(JsVm *vm) {
                 JVal out;
                 int done = 0;
                 SAVE_IP();
-                if (vm->host->iter_next(&itv, &out, &done, line, col) != 0)
+                if (HC(vm, iter_next)(&itv, &out, &done, line, col) != 0)
                     goto dispatch_err;
                 if (done) {
                     release_val(vm, POP(vm));
@@ -1518,7 +1639,7 @@ static int run_loop(JsVm *vm) {
 
             case JS_OP_SETUP_LOOP: {
                 if (f->nloops >= JS_MAX_LOOPS) {
-                    vm->host->raise_internal("循环嵌套太深");
+                    HC(vm, raise_internal)("循环嵌套太深");
                     return -1;
                 }
                 f->block_seq++;
@@ -1539,7 +1660,7 @@ static int run_loop(JsVm *vm) {
                 if (f->nloops == 0 || signal_needs_dispatch(f)) {
                     /* 循环外的中断 / 循环内 try 里的中断：走异常分发，
                      * 触发 finally，最终仍由循环接住（或冒给用户） */
-                    vm->host->raise_break(line, col);
+                    HC(vm, raise_break)(line, col);
                     goto dispatch_err;
                 }
                 JsLoop *lp = &f->loops[f->nloops - 1];
@@ -1552,7 +1673,7 @@ static int run_loop(JsVm *vm) {
             case JS_OP_CONTINUE_LOOP: {
                 SAVE_IP();
                 if (f->nloops == 0 || signal_needs_dispatch(f)) {
-                    vm->host->raise_continue(line, col);
+                    HC(vm, raise_continue)(line, col);
                     goto dispatch_err;
                 }
                 JsLoop *lp = &f->loops[f->nloops - 1];
@@ -1568,7 +1689,7 @@ static int run_loop(JsVm *vm) {
                     /* 快路径 */
                 } else {
                     SAVE_IP();
-                    if (vm->host->to_int(&n, &out, line, col) != 0) {
+                    if (HC(vm, to_int)(&n, &out, line, col) != 0) {
                         release_val(vm, n); goto dispatch_err;
                     }
                     release_val(vm, n);
@@ -1583,7 +1704,7 @@ static int run_loop(JsVm *vm) {
             case JS_OP_IMPORT: {
                 JVal out;
                 SAVE_IP();
-                if (vm->host->do_import(a, b, &out, line, col) != 0) goto dispatch_err;
+                if (HC(vm, do_import)(a, b, &out, line, col) != 0) goto dispatch_err;
                 PUSH(vm, out);
                 break;
             }
@@ -1599,7 +1720,7 @@ static int run_loop(JsVm *vm) {
             /* === 异常处理（M5a） === */
             case JS_OP_SETUP_TRY: {
                 if (f->nhandlers >= JS_MAX_HANDLERS) {
-                    vm->host->raise_internal("异常嵌套太深");
+                    HC(vm, raise_internal)("异常嵌套太深");
                     goto dispatch_err;
                 }
                 f->block_seq++;
@@ -1619,7 +1740,7 @@ static int run_loop(JsVm *vm) {
                 JVal v = POP(vm), exc;
                 SAVE_IP();
                 /* 让宿主把值规范化成异常对象（make_exception） */
-                if (vm->host->make_error(&v, line, col, &exc) != 0) {
+                if (HC(vm, make_error)(&v, line, col, &exc) != 0) {
                     release_val(vm, v);
                     goto dispatch_err;
                 }
@@ -1642,7 +1763,7 @@ static int run_loop(JsVm *vm) {
                 JVal cond = POP(vm);
                 JVal *err = &vm->stack[vm->sp - 1];
                 int matched = 0;
-                if (vm->host->match_error(err, &cond, &matched,
+                if (HC(vm, match_error)(err, &cond, &matched,
                                           line, col) != 0) {
                     release_val(vm, cond);
                     goto dispatch_err;
@@ -1701,7 +1822,7 @@ static int run_loop(JsVm *vm) {
             default: {
                 char buf[64];
                 snprintf(buf, sizeof buf, "未知指令 %d", op);
-                vm->host->raise_internal(buf);
+                HC(vm, raise_internal)(buf);
                 goto dispatch_err;
             }
             }
@@ -1710,6 +1831,10 @@ static int run_loop(JsVm *vm) {
 dispatch_err: {
             /* 宿主回调出错：取 pending 异常对象，走结构化分发 */
             JVal exc;
+            /* M46 阶段一③：报错前先把攒下的追加落盘——用户可能用
+             * `尝试/捕获` 接住这个错，之后再去读那个列表；树遍历那边
+             * 追加早就生效了，这里不补一次就是「静默少几条」。 */
+            flush_pending(vm);
             /* 先拍「调用链」再取异常对象（M40）：此时帧栈还是完整的。
                取回异常对象会走宿主回调（error_handle），那边只关心异常本身；
                帧信息只能靠这一次快照带出去。 */
@@ -1749,7 +1874,7 @@ JSVM_API int jsvm_frame_meta(JsVm *vm, int depth, int *out3) {
 
 JSVM_API int jsvm_dump_locals(JsVm *vm, int depth) {
     if (depth < 0 || depth >= vm->nframes) return -1;
-    if (!vm->host || !vm->host->debug_local) return 0;
+    if (!vm->host || !HC(vm, debug_local)) return 0;
     JsFrame *f = &vm->frames[vm->nframes - 1 - depth];
     JsCode *code = &vm->codes[f->code_idx];
     int ncells = code->ncellvars;
@@ -1757,22 +1882,22 @@ JSVM_API int jsvm_dump_locals(JsVm *vm, int depth) {
        宿主按 (slot, is_cell) 就能还原出名字（它自己那侧有这两张表）。 */
     for (int i = 0; i < f->nlocals; i++) {
         if (f->locals[i].tag == JS_TAG_UNSET) continue;   /* 还没赋值的槽位不显示 */
-        if (vm->host->debug_local(i, 0, -1, &f->locals[i]) != 0) return -1;
+        if (HC(vm, debug_local)(i, 0, -1, &f->locals[i]) != 0) return -1;
     }
     for (int i = 0; i < ncells; i++) {
         if (!f->cells[i]) continue;
         if (f->cells[i]->v.tag == JS_TAG_UNSET) continue;
-        if (vm->host->debug_local(i, 1, -1, &f->cells[i]->v) != 0) return -1;
+        if (HC(vm, debug_local)(i, 1, -1, &f->cells[i]->v) != 0) return -1;
     }
     return 0;
 }
 
 JSVM_API int jsvm_dump_globals(JsVm *vm) {
-    if (!vm->host || !vm->host->debug_local) return 0;
+    if (!vm->host || !HC(vm, debug_local)) return 0;
     for (int i = 0; i < vm->nnames; i++) {
         if (vm->globals[i].tag == JS_TAG_UNSET) continue;
         /* is_cell == 2：这是全局，slot 就是名字表下标 */
-        if (vm->host->debug_local(i, 2, i, &vm->globals[i]) != 0) return -1;
+        if (HC(vm, debug_local)(i, 2, i, &vm->globals[i]) != 0) return -1;
     }
     return 0;
 }
@@ -1808,7 +1933,11 @@ JSVM_API int jsvm_run(JsVm *vm) {
     JsFrame *f = &vm->frames[vm->nframes - 1];
     f->cells = cells;
     f->ncells = ncellvars;
-    return run_loop(vm);
+    int rc = run_loop(vm);
+    /* 收尾：把 C 侧攒下的追加落盘（M46 阶段一③）。程序正常跑完时，
+     * 最后那批追加后面已经没有「宿主回调」去触发冲刷，必须在这里补一次。 */
+    if (flush_pending(vm) != 0 && rc == 0) rc = -1;
+    return rc;
 }
 
 JSVM_API void jsvm_get_last(JsVm *vm, JVal *out) { *out = vm->last_value; }
@@ -1857,7 +1986,7 @@ JSVM_API int jsvm_call_function(JsVm *vm, JVal *fv,
     vm->stop_depth = vm->nframes;
 
     if (vm->nframes >= JS_MAX_FRAMES) {
-        vm->host->raise_recursion(0, 0);
+        HC(vm, raise_recursion)(0, 0);
         goto fail;
     }
 
@@ -1912,6 +2041,9 @@ JSVM_API int jsvm_call_function(JsVm *vm, JVal *fv,
     for (int i = 0; i < nargs; i++) release_val(vm, cargs[i]);
     for (int k = 0; k < nkw; k++) release_val(vm, ckwv[k]);
     free(cargs); free(ckwv);
+    /* M46 阶段一③：这是「回到宿主」的边界——宿主马上可能读那个列表，
+     * 所以攒下的追加必须在这里落盘。 */
+    flush_pending(vm);
     return 0;
 
 fail:
@@ -1919,6 +2051,7 @@ fail:
     for (int i = 0; i < nargs; i++) release_val(vm, cargs[i]);
     for (int k = 0; k < nkw; k++) release_val(vm, ckwv[k]);
     free(cargs); free(ckwv); free(locals);
+    flush_pending(vm);        /* 同理：出错也可能被上层接住后继续读列表 */
     return -1;
 }
 

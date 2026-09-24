@@ -269,6 +269,9 @@ CB_RAISE_BAD_KW = CFUNCTYPE(c_int, c_int, c_int, c_int, c_int)
 CB_RAISE_MISSING = CFUNCTYPE(c_int, c_int, _IPV, c_int, c_int, c_int)
 CB_RAISE_INTERNAL = CFUNCTYPE(c_int, c_char_p)
 CB_LIST_APPEND = CFUNCTYPE(c_int, _JPV, _JPV, c_int, c_int)
+#: 批量追加（M46 阶段一③）：handle + C 侧值数组（**借用**）+ 个数。
+#: C 侧「追加延迟合并写」的落盘口——把「循环里追加 N 次」的 N 次回调压成 1 次。
+CB_LIST_APPEND_MANY = CFUNCTYPE(c_int, c_uint32, _JPV, c_int)
 CB_MAKE_SLICE = CFUNCTYPE(c_int, _JPV, _JPV, _JPV, _JPV, c_int, c_int)
 # 变长关键字参数（M25）：名字下标数组 + 值数组 → 字典
 CB_PACK_KWARGS = CFUNCTYPE(c_int, POINTER(c_int32), _JPV, c_int, _JPV,
@@ -329,6 +332,8 @@ class JsHost(Structure):
         # M40 追加：同上，**只能加在末尾**（插中间会让后续字段全部错位）
         ("note_frames", CB_NOTE_FRAMES),
         ("debug_local", CB_DEBUG_LOCAL),
+        # M46 追加：同上，必须与 cvm/include/jsvm.h 的 JsHost 逐字段对齐
+        ("list_append_many", CB_LIST_APPEND_MANY),
     ]
 
 
@@ -476,6 +481,7 @@ class CvmHost:
             pack_kwargs=CB_PACK_KWARGS(self._cb_pack_kwargs),
             note_frames=CB_NOTE_FRAMES(self._cb_note_frames),
             debug_local=CB_DEBUG_LOCAL(self._cb_debug_local),
+            list_append_many=CB_LIST_APPEND_MANY(self._cb_list_append_many),
         )
         self.lib.jsvm_set_host(self.vm, byref(self._cb))
 
@@ -1110,6 +1116,38 @@ class CvmHost:
                            filename=self.filename)
             R.call_value(m, [v], {}, line=line, col=col,
                          filename=self.filename)
+            return 0
+        except BaseException as e:
+            return self._fail(e)
+
+    def _cb_list_append_many(self, hid, vals, n):
+        """批量追加落盘（M46 阶段一③）：把 C 侧攒下的 n 个值一次追加到列表。
+
+        C 侧「追加延迟合并写」把「循环里追加 N 次」的 N 次宿主回调压成 1 次
+        （实测每次回调固定约 2.4µs，是 C VM 最大的固定开销）。
+
+        ⚠️ **只有 C 侧确认过「目标是纯 Python 列表」的批次才走这里**
+        （见 `JsVm.islist`：那标记只在 `build_list` 造列表时置位）。
+        所以这里直接 `extend` 即可——`list.extend` 不会失败，也就不存在
+        「这一批报错该算哪一行」的歧义；不是 list 的目标仍走单条
+        `_cb_list_append`（同步回调），错误语义一模一样。
+
+        快路径：整批都是整数时一次 `unpack` + `extend`，省掉逐个 `c2py`——
+        「循环追加数字」正是这一步的主战场。
+        """
+        try:
+            n = int(n)
+            if n <= 0:
+                return 0
+            o = self._handles[int(hid)]
+            if _LITTLE_ENDIAN:
+                raw = ctypes.string_at(vals, n * _JVAL_SIZE)
+                flat = _batch_fmt("B7xq", n).unpack(raw)
+                if flat[0::2].count(O.T_INT) == n:
+                    o.extend(flat[1::2])
+                    return 0
+            c2py = self.c2py
+            o.extend([c2py(vals[i]) for i in range(n)])
             return 0
         except BaseException as e:
             return self._fail(e)

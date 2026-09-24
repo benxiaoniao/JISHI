@@ -174,6 +174,17 @@ typedef struct JsHost {
        返回 0 继续，非 0 让 C 侧中止（宿主报错时用）。 */
     int (*debug_local)      (int slot, int is_cell, int name_idx,
                              const JVal *val);
+    /* 批量追加（M46 阶段一③）：把 C 侧攒下的 n 个值**一次**落盘到 handle。
+       C 侧「延迟合并写」的落盘口——把「循环里追加 N 次」的 N 次回调压成 1 次
+       （实测每次宿主回调固定约 2.4µs，是 C VM 最大的固定开销）。
+
+       `vals` 是 C 侧数组（**借用**：回调返回后由 C 侧释放并回收各值的引用），
+       顺序就是用户的追加顺序。宿主实现：目标是 list 就直接 extend，
+       否则按「obj.追加(v)」逐个走通用分发（语义必须与单条 list_append 一致）。
+
+       返回 0 成功；非 0 表示已经报错（走 error_handle 那一套）。
+       ⚠️ 新回调**必须追加在末尾**（C 与 Python 两侧逐字段对齐）。 */
+    int (*list_append_many) (uint32_t handle, JVal *vals, int n);
 } JsHost;
 
 /* ------------------------------------------------------------------ */
