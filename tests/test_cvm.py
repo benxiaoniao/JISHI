@@ -838,3 +838,84 @@ def test_append_mixed_types_then_observe(monkeypatch):
         '    打印(长度(文本(v)))\n'
     )
     _compare(src, "<混合类型追加后观察>", monkeypatch)
+
+
+# -- M46 阶段一④：字典写入「延迟合并写」的冲刷纪律 ---------------------------
+#
+# 与 ③ 同一套机制（C 侧攒住、下一个宿主回调前落盘），但**字典写入可能失败**
+# （键不可哈希），所以批次里**按项存行列**，下面专门钉「报错行号/顺序/调用链」。
+
+def test_dict_set_then_observe_every_path(monkeypatch):
+    """字典写入之后，所有能「观察」到它的路径都必须看到那几条。"""
+    src = (
+        '函数 取值(字, k)：\n'
+        '    返回 字[k]\n'
+        '令 字 = {}\n'
+        '遍历 i 在 范围(300)：\n'
+        '    字[i] = i * 2\n'
+        '打印(长度(字))\n'                # 长度 → call
+        '打印(字[0], 字[299])\n'          # 下标 → getitem
+        '打印(取值(字, 7))\n'             # 当实参 → call
+        '打印(7 在 字)\n'                 # 成员测试 → compare/call
+        '令 丙 = {"包": 字}\n'
+        '打印(长度(丙["包"]))\n'          # 嵌进新字典 → build_dict
+        '令 表 = [字]\n'
+        '打印(长度(表[0]))\n'             # 嵌进列表 → build_list
+        '打印(长度(文本(字)) > 0)\n'      # 文本化 → call
+    )
+    _compare(src, "<字典写入后走遍观察路径>", monkeypatch)
+
+
+def test_dict_unhashable_key_after_loop(monkeypatch):
+    """循环写完之后用不可哈希键：报错行号必须与树遍历一致。"""
+    _compare('令 字 = {}\n'
+             '令 键 = [1, 2]\n'
+             '遍历 i 在 范围(5)：\n'
+             '    字[i] = i\n'
+             '字[键] = 9\n',
+             "<不可哈希键-循环后>", monkeypatch)
+
+
+def test_dict_unhashable_key_inside_loop(monkeypatch):
+    """循环体内立刻用不可哈希键：报错必须发生，且**报错前那句打印不能执行**
+    （冲刷在下一个宿主回调之前，顺序不能乱）。"""
+    _compare('令 字 = {}\n'
+             '遍历 i 在 范围(5)：\n'
+             '    字[[i]] = i\n'
+             '    打印("不该出现", i)\n',
+             "<不可哈希键-循环内>", monkeypatch)
+
+
+def test_dict_unhashable_key_with_call_chain(monkeypatch):
+    """跨函数时也要带「调用链」——冲刷失败必须走正常的错误路径
+    （踩过的坑：`_guard` 早先会拦掉 `note_frames`，把调用链弄丢）。"""
+    _compare('函数 填(字)：\n'
+             '    遍历 i 在 范围(5)：\n'
+             '        字[[i]] = i\n'
+             '令 字 = {}\n'
+             '填(字)\n',
+             "<不可哈希键-带调用链>", monkeypatch)
+
+
+def test_dict_string_keys_and_nesting(monkeypatch):
+    """字符串键 + 嵌套字典：攒批后观察仍要一致。"""
+    _compare('令 外层 = {}\n'
+             '遍历 i 在 范围(60)：\n'
+             '    令 内 = {}\n'
+             '    遍历 j 在 范围(4)：\n'
+             '        内["k" + 文本(j)] = i * 10 + j\n'
+             '    外层["行" + 文本(i)] = 内\n'
+             '打印(长度(外层))\n'
+             '打印(外层["行7"]["k3"])\n',
+             "<字符串键与嵌套字典>", monkeypatch)
+
+
+def test_list_and_dict_interleaved(monkeypatch):
+    """列表追加与字典写入交错攒批：两个批次都要按序落盘。"""
+    _compare('令 表 = []\n'
+             '令 字 = {}\n'
+             '遍历 i 在 范围(80)：\n'
+             '    表.追加(i)\n'
+             '    字[i] = i * 2\n'
+             '打印(长度(表), 长度(字), 表[79], 字[79])\n',
+             "<列表与字典交错攒批>", monkeypatch)

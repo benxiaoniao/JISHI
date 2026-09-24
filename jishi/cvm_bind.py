@@ -223,6 +223,17 @@ def _jfunc_copy(src: JVal) -> JVal:
     return x
 
 
+#: 不套 `_guard` 的宿主回调（M46 阶段一④）。两类：
+#:  - **错误处理期间必须照常跑**的：`note_frames` 就是来记调用链的
+#:    （它恰好在 pending 已设置时才被调）；
+#:  - **返回值被 C 侧忽略**的：`release_handle` 在 `release_val` 里调，没人看它返回什么
+#:    ——套上会把「冲刷失败」的标志白白吃掉，真正该失败的回调反而放行（实测踩到）。
+_GUARD_EXEMPT = frozenset({
+    "note_frames", "debug_local", "release_handle", "raise_internal",
+    "error_handle", "is_signal", "match_error", "make_error",
+})
+
+
 # ---------------------------------------------------------------------------
 # 宿主回调签名
 # ---------------------------------------------------------------------------
@@ -272,6 +283,10 @@ CB_LIST_APPEND = CFUNCTYPE(c_int, _JPV, _JPV, c_int, c_int)
 #: 批量追加（M46 阶段一③）：handle + C 侧值数组（**借用**）+ 个数。
 #: C 侧「追加延迟合并写」的落盘口——把「循环里追加 N 次」的 N 次回调压成 1 次。
 CB_LIST_APPEND_MANY = CFUNCTYPE(c_int, c_uint32, _JPV, c_int)
+#: 批量字典写入（M46 阶段一④）：handle + 键值数组（每项 2 个，借用）
+#: + 行列数组（每项 2 个）+ 条数。行列**按项传**，落盘失败时报错行号才准。
+CB_DICT_SETITEM_MANY = CFUNCTYPE(c_int, c_uint32, _JPV,
+                                 POINTER(c_int32), c_int)
 CB_MAKE_SLICE = CFUNCTYPE(c_int, _JPV, _JPV, _JPV, _JPV, c_int, c_int)
 # 变长关键字参数（M25）：名字下标数组 + 值数组 → 字典
 CB_PACK_KWARGS = CFUNCTYPE(c_int, POINTER(c_int32), _JPV, c_int, _JPV,
@@ -334,6 +349,7 @@ class JsHost(Structure):
         ("debug_local", CB_DEBUG_LOCAL),
         # M46 追加：同上，必须与 cvm/include/jsvm.h 的 JsHost 逐字段对齐
         ("list_append_many", CB_LIST_APPEND_MANY),
+        ("dict_setitem_many", CB_DICT_SETITEM_MANY),
     ]
 
 
@@ -434,10 +450,24 @@ class CvmHost:
         #: 影子全局表（报错建议 / do_import 用），初始为内建
         self.globals = R.new_builtins()
         self.pending: Optional[JishiError] = None
+        #: 「延迟合并写的冲刷刚刚失败」的一次性标志（M46 阶段一④）——见 `_guard`。
+        self._flush_failed = False
 
         self.vm = self.lib.jsvm_create()
 
         # 回调表：CFUNCTYPE 实例必须保活，挂在 self 上
+        #
+        # M46 阶段一④：**每个宿主回调都先套一层「有待抛的错就直接失败」**。
+        # 为什么需要：C 侧「延迟合并写」在**调用回调之前**会先冲刷，而冲刷
+        # 可能失败（例如字典键不可哈希）。那个失败的返回值被 `HC` 宏丢掉了，
+        # 所以必须靠这里把错误接住、并让**当前这次回调也失败**——否则错误会被
+        # 吞掉、后续语句照跑（实测踩到：`字[[i]] = i` 在 C VM 里静默不报错）。
+        # 包一层之后：冲刷失败 → pending 已设 → 紧接着那次回调返回 -1 →
+        # C 侧 `goto dispatch_err`，报错位置/顺序与树遍历一致。
+        for _name in [n for n in dir(type(self)) if n.startswith("_cb_")]:
+            if _name[4:] in _GUARD_EXEMPT:
+                continue
+            setattr(self, _name, self._guard(getattr(self, _name)))
         self._cb = JsHost(
             binop=CB_BINOP(self._cb_binop),
             unary=CB_UNARY(self._cb_unary),
@@ -482,6 +512,8 @@ class CvmHost:
             note_frames=CB_NOTE_FRAMES(self._cb_note_frames),
             debug_local=CB_DEBUG_LOCAL(self._cb_debug_local),
             list_append_many=CB_LIST_APPEND_MANY(self._cb_list_append_many),
+            dict_setitem_many=CB_DICT_SETITEM_MANY(
+                self._cb_dict_setitem_many),
         )
         self.lib.jsvm_set_host(self.vm, byref(self._cb))
 
@@ -626,6 +658,28 @@ class CvmHost:
         return obj
 
     # -- 错误存档 -------------------------------------------------------------
+
+    def _guard(self, fn):
+        """包一层：**冲刷失败后的紧接着那次回调**直接失败（M46 阶段一④）。
+
+        为什么需要：C 侧「延迟合并写」在**调用回调之前**会先冲刷，而冲刷可能
+        失败（例如字典键不可哈希），且那个失败的返回值会被 `HC` 宏丢掉。
+        所以必须让紧接着的那次回调失败，C 侧才会 `goto dispatch_err` 把错误
+        抛出来（否则错误被静默吞掉，后续语句还会照跑）。
+
+        ⚠️ 两个坑（都实测踩过）：
+        1. **不能拿 `self.pending` 当判据**——`note_frames`（记调用链）正是在
+           `pending` 已设置时才被调，一拦就丢「调用链」（9 项对拍变红）。
+        2. **不能做成「拦一次就清」**——冲刷失败后 C 侧会先释放待落盘的值，
+           那会调 `release_handle`，而它的返回值在 C 侧被忽略，标志就被它
+           白吃掉了（真正该失败的 `build_list` 反而放行）。
+        所以：用**持续标志**（错误被取走时清），并**豁免错误处理类回调**。
+        """
+        def wrapper(*args):
+            if self._flush_failed:
+                return -1
+            return fn(*args)
+        return wrapper
 
     def _fail(self, e: BaseException) -> int:
         if self.pending is None:
@@ -1150,6 +1204,46 @@ class CvmHost:
             o.extend([c2py(vals[i]) for i in range(n)])
             return 0
         except BaseException as e:
+            # 冲刷失败：让紧接着那次回调也失败，错误才会被 C 侧接住（见 _guard）
+            self._flush_failed = True
+            return self._fail(e)
+
+    def _cb_dict_setitem_many(self, hid, kvs, lc, n):
+        """批量字典写入落盘（M46 阶段一④）：把 C 侧攒下的 n 条 `字[键] = 值` 一次落盘。
+
+        ⚠️ **只有 C 侧确认过「目标是纯 Python 字典」的批次才走这里**
+        （`JsVm.hkind == HK_DICT`，只在 `build_dict` 造字典时置位）。
+
+        与 ③ 的 `list_append_many` 有一处关键不同：**字典写入可能失败**
+        （键不可哈希），所以**行列是按项传进来的**，走 `R.set_item` 逐条
+        落盘、报错位置与逐条写入**完全一致**——不能拿整批第一条的行号糊。
+
+        快路径：整批「键和值都是整数」时一次 `unpack` 后直接赋值——
+        整数必定可哈希，赋值不可能失败，所以可以不套 `R.set_item`
+        （省掉每条一次 Python 函数调用）。顺序不变，同键后者覆盖 ✅。
+        """
+        try:
+            n = int(n)
+            if n <= 0:
+                return 0
+            o = self._handles[int(hid)]
+            if _LITTLE_ENDIAN:
+                raw = ctypes.string_at(kvs, n * 2 * _JVAL_SIZE)
+                flat = _batch_fmt("B7xq", n * 2).unpack(raw)
+                if flat[0::2].count(O.T_INT) == n * 2:
+                    vals = flat[1::2]
+                    for i in range(0, 2 * n, 2):
+                        o[vals[i]] = vals[i + 1]
+                    return 0
+            c2py = self.c2py
+            for i in range(n):
+                R.set_item(o, c2py(kvs[i * 2]), c2py(kvs[i * 2 + 1]),
+                           line=int(lc[i * 2]), col=int(lc[i * 2 + 1]),
+                           filename=self.filename)
+            return 0
+        except BaseException as e:
+            # 冲刷失败：让紧接着那次回调也失败，错误才会被 C 侧接住（见 _guard）
+            self._flush_failed = True
             return self._fail(e)
 
     def _cb_make_slice(self, start, stop, step, out, line, col):
@@ -1322,6 +1416,8 @@ class CvmHost:
         return self._take(out)
 
     def _pop_pending(self) -> JishiError:
+        # 错误被取走 = 冲刷失败的「封锁」到此结束（见 _guard）
+        self._flush_failed = False
         e = self.pending
         self.pending = None
         if e is None:

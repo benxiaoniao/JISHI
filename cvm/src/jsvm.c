@@ -151,6 +151,21 @@ typedef struct JsAppendBatch {
     int n, cap;
 } JsAppendBatch;
 
+/* 待冲刷的「字典写入」批次（M46 阶段一④）：见 JsVm.pd 的注释。 */
+typedef struct JsDictBatch {
+    uint32_t handle;   /* 目标字典的宿主句柄 */
+    JVal holder;
+    JVal *kvs;         /* 每项 2 个：键、值（按序） */
+    int32_t *lc;       /* 每项 2 个：行、列——落盘时要按项报错，行号不能糊 */
+    int n, cap;
+} JsDictBatch;
+
+/* 句柄「种类」标记（M46 ③④）：只有宿主在 build_list / build_dict 里造出来的
+ * 容器才置位。**只对确定是纯 list / 纯 dict 的目标做「延迟合并写」**——
+ * 那种目标的落盘操作不会失败（list.extend）/ 失败也能按项报准行号，
+ * 而别的目标照旧同步回调，语义一模一样。 */
+enum { HK_UNKNOWN = 0, HK_LIST = 1, HK_DICT = 2 };
+
 typedef struct JsVm {
     JsHost *host;
     JVal *consts; int nconsts;
@@ -171,12 +186,8 @@ typedef struct JsVm {
     /* 语句钩子（M40）：每条语句首指令执行前回调；NULL = 不回调。 */
     JsStmtHook stmt_hook; void *stmt_hook_ud;
     uint32_t *hrefcnt; int hcap;   /* HOST 句柄引用计数 */
-    /* 「这个句柄是不是纯 Python 列表」（M46 阶段一③）：只有 build_list
-     * 造出来的列表才置 1。**只对确定是 list 的目标做「追加延迟合并写」**——
-     * 因为 list.extend 不可能失败，冲刷就不会产生「报错行号该算哪一条」的
-     * 歧义；不是 list 的目标走原来的同步回调，错误语义一模一样。
-     * 与 hrefcnt 同步扩容 / 释放。 */
-    uint8_t *islist;
+    /* 每个句柄的「种类」（M46 ③④）：见 HK_* 枚举。与 hrefcnt 同步扩容 / 释放。 */
+    uint8_t *hkind;
     JVal last_value;
     JVal pending_err;      /* 宿主回调构造的异常对象（HOST 句柄），UNSET=无 */
     int halted;
@@ -191,6 +202,9 @@ typedef struct JsVm {
      * 一个「少了最后几条」的列表（静默算错）。见 HC() 宏：全部宿主调用点
      * 都套了它，就是为这条。 */
     JsAppendBatch *pa; int pa_n, pa_cap;
+    /* 待冲刷的「字典写入」批次（M46 阶段一④）：与 pa 同一套思路，
+     * 把「循环里 字[键] = 值 N 次」压成 1 次。同上，靠 HC() 宏保证冲刷。 */
+    JsDictBatch *pd; int pd_n, pd_cap;
 } JsVm;
 
 /* ------------------------------------------------------------------ */
@@ -206,11 +220,11 @@ static int ensure_hcap(JsVm *vm, uint32_t id) {
     if (!p) return -1;
     memset(p + vm->hcap, 0, (size_t)(ncap - vm->hcap) * sizeof *p);
     vm->hrefcnt = p;
-    /* M46 阶段一③：islist 与 hrefcnt 同步扩容（两者同生命周期） */
-    uint8_t *q = (uint8_t *)realloc(vm->islist, (size_t)ncap);
+    /* M46 ③④：hkind 与 hrefcnt 同步扩容（两者同生命周期） */
+    uint8_t *q = (uint8_t *)realloc(vm->hkind, (size_t)ncap);
     if (!q) return -1;
     memset(q + vm->hcap, 0, (size_t)(ncap - vm->hcap));
-    vm->islist = q;
+    vm->hkind = q;
     vm->hcap = ncap;
     return 0;
 }
@@ -327,27 +341,89 @@ static int pa_push(JsVm *vm, JVal obj, JVal val) {
     return 0;
 }
 
-/* 把攒下的追加一次性交给宿主落盘。
- * ⚠️ **任何宿主回调之前都必须先跑它**（见 HC 宏）——否则宿主会看到一个
- * 「少了最后几条」的列表。
- * 做法上先把 pa 整体摘下来：落盘时释放值会回调宿主（release_handle），
- * 重入进来看到 pa_n == 0，不会递归。 */
-static int flush_pending(JsVm *vm) {
-    if (vm->pa_n == 0) return 0;
-    JsAppendBatch *batches = vm->pa;
-    int n = vm->pa_n;
-    vm->pa = NULL; vm->pa_n = 0; vm->pa_cap = 0;
-    int rc = 0;
-    for (int i = 0; i < n; i++) {
-        JsAppendBatch *b = &batches[i];
-        if (b->n > 0 && rc == 0)
-            rc = vm->host->list_append_many(b->handle, b->vals, b->n);
-        for (int k = 0; k < b->n; k++)
-            release_val(vm, b->vals[k]);
-        free(b->vals);
-        release_val(vm, b->holder);   /* 放掉批次持有的那份对象引用 */
+/* 把一条「字[键] = 值」记进目标句柄的批次（**接管 obj/key/val 的所有权**）。
+ * line/col **按项存**：字典写入可能失败（键不可哈希），落盘时要按项报准行号。
+ * 返回 0 成功；-1 = 内存不足（调用方原地回退成同步落盘，行为不变）。 */
+static int pd_push(JsVm *vm, JVal obj, JVal key, JVal val,
+                   int line, int col) {
+    uint32_t h = (uint32_t)obj.v.u;
+    JsDictBatch *b = NULL;
+    for (int i = 0; i < vm->pd_n; i++)
+        if (vm->pd[i].handle == h) { b = &vm->pd[i]; break; }
+
+    if (b == NULL) {
+        if (vm->pd_n == vm->pd_cap) {
+            int nc = vm->pd_cap ? vm->pd_cap * 2 : 4;
+            JsDictBatch *p = (JsDictBatch *)realloc(
+                vm->pd, (size_t)nc * sizeof *p);
+            if (!p) return -1;
+            vm->pd = p; vm->pd_cap = nc;
+        }
+        b = &vm->pd[vm->pd_n];
+        b->handle = h; b->kvs = NULL; b->lc = NULL; b->n = 0; b->cap = 0;
     }
-    free(batches);
+    if (b->n == b->cap) {
+        int nc = b->cap ? b->cap * 2 : 8;
+        JVal *pk = (JVal *)realloc(b->kvs, (size_t)nc * 2 * sizeof *pk);
+        if (!pk) return -1;
+        b->kvs = pk;
+        int32_t *pl = (int32_t *)realloc(b->lc, (size_t)nc * 2 * sizeof *pl);
+        if (!pl) return -1;
+        b->lc = pl; b->cap = nc;
+    }
+    b->kvs[b->n * 2] = key;
+    b->kvs[b->n * 2 + 1] = val;
+    b->lc[b->n * 2] = (int32_t)line;
+    b->lc[b->n * 2 + 1] = (int32_t)col;
+    if (b->n == 0) {
+        b->holder = obj;        /* 新批次：存下对象引用（落盘前句柄不能死） */
+        b->n++;
+        vm->pd_n++;             /* 提交 */
+        return 0;
+    }
+    release_val(vm, obj);       /* 已有批次：这一份 obj 用不上 */
+    b->n++;
+    return 0;
+}
+
+/* 把攒下的追加与字典写入一次性交给宿主落盘。
+ * ⚠️ **任何宿主回调之前都必须先跑它**（见 HC 宏）——否则宿主会看到一个
+ * 「少了最后几条」的容器。
+ * 做法上先把 pa/pd 整体摘下来：落盘时释放值会回调宿主（release_handle），
+ * 重入进来看到计数为 0，不会递归。 */
+static int flush_pending(JsVm *vm) {
+    int rc = 0;
+    if (vm->pa_n > 0) {
+        JsAppendBatch *batches = vm->pa;
+        int n = vm->pa_n;
+        vm->pa = NULL; vm->pa_n = 0; vm->pa_cap = 0;
+        for (int i = 0; i < n; i++) {
+            JsAppendBatch *b = &batches[i];
+            if (b->n > 0 && rc == 0)
+                rc = vm->host->list_append_many(b->handle, b->vals, b->n);
+            for (int k = 0; k < b->n; k++)
+                release_val(vm, b->vals[k]);
+            free(b->vals);
+            release_val(vm, b->holder);   /* 放掉批次持有的那份对象引用 */
+        }
+        free(batches);
+    }
+    if (vm->pd_n > 0) {
+        JsDictBatch *batches = vm->pd;
+        int n = vm->pd_n;
+        vm->pd = NULL; vm->pd_n = 0; vm->pd_cap = 0;
+        for (int i = 0; i < n; i++) {
+            JsDictBatch *b = &batches[i];
+            if (b->n > 0 && rc == 0)
+                rc = vm->host->dict_setitem_many(b->handle, b->kvs, b->lc,
+                                                 b->n);
+            for (int k = 0; k < b->n * 2; k++)
+                release_val(vm, b->kvs[k]);
+            free(b->kvs); free(b->lc);
+            release_val(vm, b->holder);
+        }
+        free(batches);
+    }
     return rc;
 }
 
@@ -471,7 +547,7 @@ JSVM_API void jsvm_destroy(JsVm *vm) {
      * 分配并持有，这里绝不 free —— 跨运行时释放会损坏堆。 */
     free(vm->codes); free(vm->stack); free(vm->frames);
     free(vm->hrefcnt);
-    free(vm->islist);       /* M46 阶段一③：与 hrefcnt 同生命周期 */
+    free(vm->hkind);        /* M46 ③④：与 hrefcnt 同生命周期 */
     free(vm);
 }
 
@@ -1439,13 +1515,13 @@ static int run_loop(JsVm *vm) {
                 /* M46 阶段一③「延迟合并写」：先攒在 C 侧，等下一个可能
                  * 「观察」到列表的宿主回调之前一次性落盘。
                  * 于是「循环里追加 5000 次」从 5000 次 FFI 往返压成 1 次。
-                 * **只对 build_list 造出来的列表攒**（`islist`）——那种目标
+                 * **只对 build_list 造出来的列表攒**（`hkind == HK_LIST`）——那种目标
                  * 必然是 list，落盘用 extend 不会失败，也就不会有「报错该算
                  * 哪一条」的歧义；别的目标照旧同步回调，错误语义不变。
                  * 攒不下（内存不足）同样原地退回同步路径。 */
                 if (obj.tag == JS_TAG_HOST
                         && (int)obj.v.u < vm->hcap
-                        && vm->islist[(uint32_t)obj.v.u]
+                        && vm->hkind[(uint32_t)obj.v.u] == HK_LIST
                         && pa_push(vm, obj, val) == 0) {
                     PUSH(vm, make_null());  /* 追加返回空，保持 CALL 栈语义 */
                     break;
@@ -1492,10 +1568,10 @@ static int run_loop(JsVm *vm) {
                     release_val(vm, vm->stack[vm->sp + i]);
                 PUSH(vm, out);
                 /* M46 阶段一③：记下「这个句柄是纯 list」——后面 `X.追加(v)`
-                 * 才敢走「延迟合并写」（见 islist 字段的注释）。 */
+                 * 才敢走「延迟合并写」（见 hkind 字段的注释）。 */
                 if (out.tag == JS_TAG_HOST
                         && (int)out.v.u < vm->hcap)
-                    vm->islist[(uint32_t)out.v.u] = 1;
+                    vm->hkind[(uint32_t)out.v.u] = HK_LIST;
                 break;
             }
 
@@ -1510,6 +1586,11 @@ static int run_loop(JsVm *vm) {
                 for (int i = 0; i < n; i++)
                     release_val(vm, vm->stack[vm->sp + i]);
                 PUSH(vm, out);
+                /* M46 阶段一④：记下「这个句柄是纯 dict」——后面
+                 * `字[键] = 值` 才敢走「延迟合并写」（见 hkind 的注释）。 */
+                if (out.tag == JS_TAG_HOST
+                        && (int)out.v.u < vm->hcap)
+                    vm->hkind[(uint32_t)out.v.u] = HK_DICT;
                 break;
             }
 
@@ -1548,6 +1629,15 @@ static int run_loop(JsVm *vm) {
             case JS_OP_SET_ITEM: {
                 JVal val = POP(vm), idx = POP(vm), obj = POP(vm);
                 SAVE_IP();
+                /* M46 阶段一④「字典写入延迟合并写」：与 ③ 的追加同一套思路，
+                 * 把「循环里 字[键] = 值 N 次」压成 1 次宿主回调。
+                 * **只对 build_dict 造出来的字典攒**——别的目标（自定义对象、
+                 * 列表下标赋值…）照旧同步回调，语义与报错行号一模一样。 */
+                if (obj.tag == JS_TAG_HOST
+                        && (int)obj.v.u < vm->hcap
+                        && vm->hkind[(uint32_t)obj.v.u] == HK_DICT
+                        && pd_push(vm, obj, idx, val, line, col) == 0)
+                    break;
                 if (HC(vm, setitem)(&obj, &idx, &val, line, col) != 0) {
                     release_val(vm, obj); release_val(vm, idx);
                     release_val(vm, val); goto dispatch_err;

@@ -185,6 +185,17 @@ typedef struct JsHost {
        返回 0 成功；非 0 表示已经报错（走 error_handle 那一套）。
        ⚠️ 新回调**必须追加在末尾**（C 与 Python 两侧逐字段对齐）。 */
     int (*list_append_many) (uint32_t handle, JVal *vals, int n);
+    /* 批量字典写入（M46 阶段一④）：与 `list_append_many` 同一套「延迟合并写」，
+       把「循环里 字[键] = 值 N 次」压成 1 次宿主回调。
+
+       `kvs` 每项 2 个 JVal（键、值）；`lc` 每项 2 个 int32（行、列）——
+       **行列是按项给的**：字典写入可能失败（键不可哈希），报错行号必须精确，
+       不能拿整批里第一条的行号糊。两者都是 C 侧数组（**借用**），
+       顺序就是用户的写入顺序（同键后者覆盖，与逐条写入一致）。
+
+       返回 0 成功；非 0 表示已经报错（走 error_handle 那一套）。 */
+    int (*dict_setitem_many) (uint32_t handle, JVal *kvs,
+                              const int32_t *lc, int n);
 } JsHost;
 
 /* ------------------------------------------------------------------ */
