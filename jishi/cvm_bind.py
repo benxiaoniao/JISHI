@@ -684,13 +684,52 @@ class CvmHost:
             # 方法调用），重入建帧时要用它当调用点，否则调试器的调用栈会显示
             # 「第 0 行」（M40）。
             self._pending_call_site = (line, col)
-            f = self.c2py(fn[0])
-            arglist = [self.c2py(args[i]) for i in range(nargs)]
-            kwargs = {}
-            for k in range(nkw):
-                kwargs[self.names[kwname_idx[k]]] = self.c2py(kwvals[k])
+            c2py = self.c2py
+            f = c2py(fn[0])
+            # 参数个数走特化分支（M46 阶段一②）：`长度(甲)`、`甲.追加(x)` 这类
+            # 一元/二元调用占绝对多数，省掉 `range()` + 列表推导的那点开销。
+            if nargs == 1:
+                arglist = [c2py(args[0])]
+            elif nargs == 2:
+                arglist = [c2py(args[0]), c2py(args[1])]
+            elif nargs <= 0:
+                arglist = []
+            else:
+                arglist = [c2py(args[i]) for i in range(nargs)]
+            if nkw:
+                kwargs = {}
+                names = self.names
+                for k in range(nkw):
+                    kwargs[names[kwname_idx[k]]] = c2py(kwvals[k])
+            else:
+                kwargs = None       # 无关键字参数时连空 dict 都不建
             r = R.call_value(f, arglist, kwargs, line=line, col=col,
                              filename=self.filename)
+            # 结果写回：**直接写 JVal 的字段**，省掉构造一个 ctypes `Structure`
+            # （多数调用返回的就是个数，构造 JVal 的那一步在剖析里占得不小）。
+            # 只覆盖最常见的四类结果，其余仍走 `py2c`——语义（含越界报错）不变。
+            # 注意每个分支都把值槽**写满**：C 侧那个 `JVal out` 在 C 里是
+            # 未初始化的，只写 tag 会把垃圾留在值槽里。
+            o = out[0]
+            tr = type(r)
+            if tr is int:
+                if _I64_MIN <= r <= _I64_MAX:
+                    o.tag = O.T_INT
+                    o.v.i = r
+                    return 0
+                # 越界 → 落到 py2c，由 _jint 报中文错
+            elif tr is bool:
+                o.tag = O.T_TRUE if r else O.T_FALSE
+                o.v.u = 0
+                return 0
+            elif tr is float:
+                o.tag = O.T_FLOAT
+                o.v.d = r
+                return 0
+            elif r is None:
+                o.tag = O.T_NULL
+                o.v.u = 0
+                return 0
             out[0] = self.py2c(r)
             return 0
         except BaseException as e:

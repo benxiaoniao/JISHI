@@ -210,6 +210,36 @@ def _sanitize(snapshot: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# 推送前的提示音（2026-09-24 用户要求）
+# ---------------------------------------------------------------------------
+
+def _notify_push() -> None:
+    """推送**之前**响一声 + 打一行醒目提示。
+
+    背景（2026-09-24 用户提）：往 GitHub 推送时用户机器上会弹确认框，
+    用户希望**推之前先有个声音**，好知道该去看那个弹窗了。
+
+    做法是「双保险」，因为任何单一路径都可能被静音/关掉：
+    1. **终端响铃**（`\\a`）——有没有声音取决于终端设置；
+    2. **系统提示音**（Windows 用标准库 `winsound.Beep`）——独立于终端。
+    两步都包在 try 里：**响不了也绝不挡推送**，那只是提醒手段，不是前置条件。
+    """
+    print("\n🔔 即将推送 GitHub —— 若弹出确认框请点允许")
+    try:                                    # 1. 终端响铃
+        sys.stdout.write("\a")
+        sys.stdout.flush()
+    except Exception:                       # noqa: BLE001
+        pass
+    if sys.platform == "win32":            # 2. 系统提示音
+        try:
+            import winsound
+            for _ in range(2):
+                winsound.Beep(880, 180)
+        except Exception:                   # noqa: BLE001
+            pass
+
+
+# ---------------------------------------------------------------------------
 
 def main() -> int:
     dry_run = "--dry-run" in sys.argv
@@ -250,6 +280,7 @@ def main() -> int:
         print("   已做：导出 + 屏蔽 + 终检 + 本地提交（未推送）")
         return 0
 
+    _notify_push()
     print(f"[4/4] force push 到 GitHub（{REPO_HTTPS}）")
     r = subprocess.run(
         ["git", "push", "-f", REPO_HTTPS, f"{BRANCH}:{BRANCH}"],
