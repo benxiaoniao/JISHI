@@ -5,6 +5,12 @@
 
 ## [0.2.0] - 2026-09-25（M46–M50）
 
+> **本版已有正式发行包**：三平台构建全部通过，见
+> [GitHub Releases v0.2.0](https://github.com/benxiaoniao/JISHI/releases/tag/v0.2.0)
+> （`windows-x64-setup.exe` / `windows-x64.zip` / `linux-x64.tar.gz` /
+> `macos-arm64.tar.gz` / `SHA256SUMS`）。
+> 这是基石**第一个带 Release 安装包的版本**。
+
 ### 新增（M50 第一批：标准库 6 个新模块 + 3 个模块补缺）
 
 **19 → 25 个模块，161 → 231 个函数**。按「真实需求驱动」排序，不做凑数。
