@@ -12,6 +12,7 @@ from ..runtime import _as_iterable
 
 __all__ = [
     "分组", "滑窗", "去重", "展开", "取前", "取后", "求和", "计数",
+    "累积", "组合", "排列", "笛卡尔积",
 ]
 
 
@@ -110,3 +111,69 @@ def 计数(可迭代, 条件) -> int:
         if 条件(项):
             个数 += 1
     return 个数
+
+
+# -- M50 补缺（都是真实项目里手写过的） ---------------------------------------
+
+def 累积(可迭代, 初值=0) -> list:
+    """前缀和：返回「每一步累加到目前」的列表，长度与原序列相同。
+
+    例：`迭代.累积([1, 2, 3])` → `[1, 3, 6]`；`迭代.累积([1, 2], 10)`
+    → `[11, 13]`（`初值` 参与第一次累加）。
+
+    做「进度百分比」「累计销量」这类图时，之前得手写循环 + 临时变量。
+    """
+    全部 = _as_iterable(可迭代, "「累积」的内容")
+    out = []
+    acc = 初值
+    for v in 全部:
+        acc = acc + v
+        out.append(acc)
+    return out
+
+
+def 组合(可迭代, 取几个: int) -> list:
+    """从序列里挑 `取几个` 个（**不计顺序**），返回所有组合。
+
+    例：`迭代.组合([1, 2, 3], 2)` → `[[1, 2], [1, 3], [2, 3]]`。
+    顺序与 Python 的 `itertools.combinations` 一致（按原序列下标递增）。
+    """
+    import itertools as _it
+    n = int(取几个)
+    if n < 0:
+        raise RunTypeError(f"「组合」要取的个数不能是负数，得到了 {取几个}")
+    全部 = _as_iterable(可迭代, "「组合」的内容")
+    if n > len(全部):
+        return []
+    return [list(c) for c in _it.combinations(全部, n)]
+
+
+def 排列(可迭代, 取几个: int = -1) -> list:
+    """从序列里挑 `取几个` 个并**计顺序**，返回所有排列。
+
+    不给 `取几个` 就是全排列：`迭代.排列([1, 2])` → `[[1, 2], [2, 1]]`。
+    """
+    import itertools as _it
+    全部 = _as_iterable(可迭代, "「排列」的内容")
+    n = len(全部) if 取几个 == -1 else int(取几个)
+    if n < 0:
+        raise RunTypeError(f"「排列」要取的个数不能是负数，得到了 {取几个}")
+    if n > len(全部):
+        return []
+    return [list(c) for c in _it.permutations(全部, n)]
+
+
+def 笛卡尔积(*序列) -> list:
+    """返回多个序列的笛卡尔积（每个序列里各取一个，所有搭配）。
+
+    例：`迭代.笛卡尔积([1, 2], "甲乙")` → `[[1, "甲"], [1, "乙"], [2, "甲"], [2, "乙"]]`。
+    做「所有规格组合」「参数网格」时用。
+    """
+    import itertools as _it
+    if not 序列:
+        return []
+    lists = [_as_iterable(s, f"「笛卡尔积」第 {i + 1} 个序列")
+             for i, s in enumerate(序列)]
+    if any(not x for x in lists):
+        return []
+    return [list(c) for c in _it.product(*lists)]

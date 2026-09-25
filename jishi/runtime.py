@@ -469,6 +469,13 @@ def _ctx_lookup(obj, name: str):
     方法存在各自的 ``*_METHODS`` 表里（调用约定是 ``impl(obj, args, node)``）。
     这里把两种约定统一成一种，「进入上下文 / 退出上下文」就不必关心对象
     到底是什么类型。
+
+    ⚠️ **第三条路：宿主对象**（M50 修）。**标准库返回的对象**（比如
+    `时间.计时()` 给的计时器）既不是 `JishiInstance`，`method_table` 也不认
+    它们——于是即使类里写了 `进入` / `退出`，`用 … 为 …：` 也会报
+    「不能当上下文管理器用」。修法是再兜一层：宿主对象有同名可调用属性就用它
+    （调用约定是普通 Python 方法，无参）。
+    三个执行器共用本函数，所以**改这一处就够**。
     """
     if isinstance(obj, JishiInstance):
         fn = obj.cls.methods.get(name)
@@ -479,6 +486,9 @@ def _ctx_lookup(obj, name: str):
     if table is not None and name in table:
         impl = table[name]
         return lambda: _BoundMethod(impl, obj, name, None, None, "<输入>")()
+    fn = getattr(obj, name, None)
+    if callable(fn):
+        return fn
     return None
 
 
