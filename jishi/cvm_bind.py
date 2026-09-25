@@ -319,6 +319,11 @@ CB_LIST_APPEND_MANY = CFUNCTYPE(c_int, c_uint32, _JPV, c_int)
 #: + 行列数组（每项 2 个）+ 条数。行列**按项传**，落盘失败时报错行号才准。
 CB_DICT_SETITEM_MANY = CFUNCTYPE(c_int, c_uint32, _JPV,
                                  POINTER(c_int32), c_int)
+#: 方法调用融合（M48 阶段三②）：obj + 方法名下标 + 实参数组 + 实参数
+#: + 结果 + **两组**行列（GET_ATTR 的 / CALL 的）——取属性失败报前者、
+#: 调用失败报后者，与「先 getattr 再 call」逐字一致。
+CB_METHOD_CALL = CFUNCTYPE(c_int, _JPV, c_int, _JPV, c_int, _JPV,
+                           c_int, c_int, c_int, c_int)
 CB_MAKE_SLICE = CFUNCTYPE(c_int, _JPV, _JPV, _JPV, _JPV, c_int, c_int)
 # 变长关键字参数（M25）：名字下标数组 + 值数组 → 字典
 CB_PACK_KWARGS = CFUNCTYPE(c_int, POINTER(c_int32), _JPV, c_int, _JPV,
@@ -382,6 +387,8 @@ class JsHost(Structure):
         # M46 追加：同上，必须与 cvm/include/jsvm.h 的 JsHost 逐字段对齐
         ("list_append_many", CB_LIST_APPEND_MANY),
         ("dict_setitem_many", CB_DICT_SETITEM_MANY),
+        # M48 追加：同上（**差一行就是 NULL 函数指针 → 段错误**，M48 踩过）
+        ("method_call", CB_METHOD_CALL),
     ]
 
 
@@ -550,6 +557,7 @@ class CvmHost:
             list_append_many=CB_LIST_APPEND_MANY(self._cb_list_append_many),
             dict_setitem_many=CB_DICT_SETITEM_MANY(
                 self._cb_dict_setitem_many),
+            method_call=CB_METHOD_CALL(self._cb_method_call),
         )
         self.lib.jsvm_set_host(self.vm, byref(self._cb))
 
@@ -1315,6 +1323,34 @@ class CvmHost:
             self._flush_failed = True
             return self._fail(e)
 
+    def _cb_method_call(self, obj, name_idx, args, nargs, out,
+                        gline, gcol, line, col):
+        """`X.方法(实参)` —— 一次回调做完「取方法 + 调用」（M48 阶段三②）。
+
+        语义必须与「先 `_cb_getattr` 再 `_cb_call`」**逐字一致**：
+        - 取属性失败 → 用 **GET_ATTR 的行列**（gline/gcol）报错
+        - 调用失败   → 用 **CALL 的行列**（line/col）报错
+        所以这里没有走 `call_value` 的「取属性」分支，而是自己拆成两步、
+        各带各的行列——这样报错文本与两次回调的老路径完全相同。
+
+        省掉的是：一次 ctypes 编组（实测约 4µs）+ 一次 `_BoundMethod` 句柄
+        往返。生成.jsh 里「开头是」被调 88286 次，正是靠这条才把该项目
+        那 47% 的回调耗时压下来。
+        """
+        try:
+            c2py = self.c2py
+            o = c2py(obj[0])
+            name = self.names[name_idx]
+            m = R.get_attr(o, name, line=gline, col=gcol,
+                           filename=self.filename)
+            arglist = [c2py(args[i]) for i in range(nargs)]
+            r = R.call_value(m, arglist, None, line=line, col=col,
+                             filename=self.filename)
+            out[0] = self.py2c(r)
+            return 0
+        except BaseException as e:
+            return self._fail(e)
+
     def _cb_dict_setitem_many(self, hid, kvs, lc, n):
         """批量字典写入落盘（M46 阶段一④）：把 C 侧攒下的 n 条 `字[键] = 值` 一次落盘。
 
@@ -1677,7 +1713,10 @@ def run_source_c(source: str, filename: str = "<输入>") -> Any:
     """源码 → 编译 → C 字节码虚拟机执行（三执行器之一）。"""
     from .compiler import compile_source
 
-    cmod = compile_source(source, filename)
+    # M48 阶段三②：**只有这里**打开方法调用融合——`METHOD_CALL` 是 C VM
+    # 专属指令（Python VM / Node / Rust 不认识它）。别的入口一律用默认值
+    # （关闭），于是它们拿到的产物与以前逐字节相同。
+    cmod = compile_source(source, filename, fuse_method_call=True)
     runner = CvmRunner(cmod, filename)
     try:
         return runner.run()

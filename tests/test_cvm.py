@@ -1193,3 +1193,157 @@ def test_iter_buffer_releases_every_slot(name, tail, monkeypatch):
             "——迭代器预取缓冲漏放引用（见 release_buf 的不变式）")
     finally:
         runner.close()
+
+
+# -- M48 阶段三②：方法调用融合（METHOD_CALL） --------------------------------
+#
+# `X.方法(实参)` 本来是 `GET_ATTR` + `CALL`，即**两次**宿主回调；实测每次回调
+# 约 4µs（必要工作只 2–3µs，其余是 ctypes 编组的固定开销），于是每次方法调用
+# 白花约 4µs。M48 让它编译成一条 `METHOD_CALL`，一次回调做完。
+#
+# 这一组盯三件事：
+#   1. **融合确实生效**（否则优化悄悄失效，普通对拍还是全绿）；
+#   2. **默认编译不含新指令**——`METHOD_CALL` 是 C VM 专属，别的宿主
+#      （Python VM / Node / Rust）认不出它，给它们发就是「未知指令」；
+#   3. **错误行列与老路径逐字一致**（取属性失败用属性名的列、调用失败用
+#      左括号的列——老路径里这两件事由两条指令分别上报）。
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+def test_method_call_fusion_is_used(monkeypatch):
+    """C VM 跑 `X.方法(...)` 时，必须是**一次**回调（`method_call`），
+    而不是 `getattr` + `call` 两次。"""
+    from jishi import cvm_bind as CB
+
+    counts = {"method_call": 0, "getattr": 0, "call": 0}
+    orig_m = CB.CvmHost._cb_method_call
+    orig_g = CB.CvmHost._cb_getattr
+    orig_c = CB.CvmHost._cb_call
+
+    def sp_m(self, *a):
+        counts["method_call"] += 1
+        return orig_m(self, *a)
+
+    def sp_g(self, *a):
+        counts["getattr"] += 1
+        return orig_g(self, *a)
+
+    def sp_c(self, *a):
+        counts["call"] += 1
+        return orig_c(self, *a)
+
+    monkeypatch.setattr(CB.CvmHost, "_cb_method_call", sp_m)
+    monkeypatch.setattr(CB.CvmHost, "_cb_getattr", sp_g)
+    monkeypatch.setattr(CB.CvmHost, "_cb_call", sp_c)
+
+    src = ('令 甲 = "abcdef"\n'
+           '令 计 = 0\n'
+           '遍历 i 在 范围(50)：\n'
+           '    如果 甲.开头是("a")：\n'
+           '        计 = 计 + 1\n'
+           '打印(计)\n')
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        CB.run_source_c(src, filename="<fuse>")
+    assert buf.getvalue() == "50\n"
+    assert counts["method_call"] == 50, f"融合没生效：{counts}"
+    assert counts["getattr"] == 0, f"还走了老路径的 GET_ATTR：{counts}"
+    _ = counts["call"]  # 循环里的比较等仍会用到普通 CALL，不作断言
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+def test_method_call_fusion_matches_all_shapes(monkeypatch):
+    """融合路径的对拍：零参 / 多参 / 嵌套实参 / 链式 / 自定义类 / 报错。"""
+    _compare(
+        '令 甲 = "abcdef"\n'
+        '打印(甲.开头是("ab"), 甲.结尾是("ef"), 甲.替换("a", "x"))\n'
+        '令 表 = [3, 1, 2]\n'
+        '表.排序()\n'
+        '表.追加(9)\n'
+        '打印(表, 表.包含(1), 表.索引(3))\n'
+        '令 字 = {"甲": 1}\n'
+        '打印(字.获取("甲"), 字.获取("乙", 0))\n'
+        '打印(甲.去空白().开头是("a"))\n'          # 链式（内层也是融合）
+        '打印(长度(甲.拆分("d")))\n'               # 融合结果是别的调用的实参
+        '类 箱：\n'
+        '    令 初始化(自己, v)：\n'
+        '        自己.值 = v\n'
+        '    令 取(自己)：\n'
+        '        返回 自己.值\n'
+        '打印(箱(7).取())\n'
+        '令 f = 表.追加\n'                        # 裸属性访问（不融合）
+        'f(4)\n'
+        '打印(表)\n',
+        "<方法调用融合各形态>", monkeypatch)
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+def test_method_call_error_positions_match(monkeypatch):
+    """报错行列必须与老路径逐字一致。
+
+    老路径是两条指令：`GET_ATTR` 带**属性名**的列、`CALL` 带**左括号**的列。
+    融合成一条之后，编译器把属性名的列塞进 `c` 供「取属性失败」用，
+     调用失败仍用指令本身的列——这条用例就是钉这个区分的。
+    """
+    # 取属性失败：该报属性名的列
+    _compare('令 甲 = [1]\n甲.排续()\n', "<方法不存在>", monkeypatch)
+    # 调用体内出错：该报左括号的列
+    _compare('令 甲 = [1]\n甲.追加()\n', "<方法参数个数>", monkeypatch)
+    _compare('令 字 = {"a": 1}\n字.弹出("b")\n', "<弹出缺失键>", monkeypatch)
+    # 多参数
+    _compare('令 甲 = [1]\n甲.索引()\n', "<索引零参>", monkeypatch)
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+def test_method_call_falls_back_with_keywords(monkeypatch):
+    """带关键字参数时**不融合**（融合版没带 `kw_flat` 表），走老路径。
+
+    为什么必须不融合：内置方法的实现是 `impl(obj, args, node)`，**不收关键字
+    参数**。老路径会把关键字打包送进去（于是报 `_BoundMethod.__call__() got
+    an unexpected keyword argument`），融合版则会把关键字整个丢掉、当成
+    位置参数用 —— **报错文本就不一样了**。这条用例钉住「退化成老路径」。
+    """
+    from jishi import cvm_bind as CB
+
+    counts = {"method_call": 0}
+    orig = CB.CvmHost._cb_method_call
+
+    def sp(self, *a):
+        counts["method_call"] += 1
+        return orig(self, *a)
+
+    monkeypatch.setattr(CB.CvmHost, "_cb_method_call", sp)
+    src = '令 表 = [1, 2, 3]\n打印(表.索引(值=2))\n'
+    buf = io.StringIO()
+    err = None
+    try:
+        with redirect_stdout(buf):
+            CB.run_source_c(src, filename="<kw>")
+    except BaseException as e:          # noqa: BLE001
+        err = e
+    assert counts["method_call"] == 0, "带关键字参数不该融合（会丢 kw_flat）"
+    assert err is not None and "unexpected keyword argument" in str(err), (
+        f"带关键字参数的报错应当来自 _BoundMethod 的绑定层，实得：{err!r}")
+
+
+def test_default_compile_has_no_fused_opcode():
+    """**默认编译必须不含 `METHOD_CALL`** —— 它是 C VM 专属指令。
+
+    Python VM 与 Node / Rust 宿主都不认识它（会对未知指令报错）。所以
+    `compile_source` 的默认值必须是「不融合」，只有 C VM 的入口显式打开。
+    这条是保护其它宿主不被编译器新指令误伤的看门狗。
+    """
+    from jishi import opcodes as O
+
+    src = '令 甲 = "abc"\n打印(甲.开头是("a"))\n'
+    for fuse in (False, None):
+        kw = {} if fuse is None else {"fuse_method_call": fuse}
+        cmod = compile_source(src, "<默认>", **kw)
+        ops = [ins.op for c in cmod.codes for ins in c.instrs]
+        assert O.Op.METHOD_CALL not in ops, (
+            "默认编译出现了 METHOD_CALL —— 其它语言宿主会报「未知指令」")
+        assert O.Op.GET_ATTR in ops, "默认编译应当保留 GET_ATTR 的老形状"
+
+    fused = compile_source(src, "<融合>", fuse_method_call=True)
+    ops = [ins.op for c in fused.codes for ins in c.instrs]
+    assert O.Op.METHOD_CALL in ops

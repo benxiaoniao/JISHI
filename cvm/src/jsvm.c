@@ -897,6 +897,9 @@ fail:
 /* ------------------------------------------------------------------ */
 
 #define INSN(f) (instrs[(size_t)(ip) * 6 + (f)])
+/* 取**当前指令之后第 k 条**指令的字段 f（M48 方法调用融合要看紧跟的 CALL）。
+ * 用 int64 中间量：`ip + 1` 不会溢出，但下标算式显式写出来更不容易看错。 */
+#define INSN_AT(k, f) (instrs[((size_t)(ip) + (size_t)(k)) * 6 + (f)])
 
 /* 弹帧：清栈/局部/单元。RETURN 已把栈清到 base 并放好返回值的情形
  * 由 RETURN 自身处理，此处只做 locals/cells 的释放。 */
@@ -1746,6 +1749,46 @@ static int run_loop(JsVm *vm) {
                     release_val(vm, obj); goto dispatch_err;
                 }
                 release_val(vm, obj);
+                PUSH(vm, out);
+                break;
+            }
+
+            /* 方法调用融合（M48 阶段三②）：栈 [obj, 实参...] → 结果。
+             *
+             * `X.方法(实参)` 本来是 `GET_ATTR` + `CALL` 两条指令，即**两次**
+             * 宿主回调。实测每次回调约 4µs（其中必要工作只有 2–3µs，其余是
+             * ctypes 编组的固定开销），于是每次方法调用白花约 4µs。
+             * 这条指令把两步合成一次回调。
+             *
+             * ⚠️ 试过两个更「省事」的做法，都行不通，记在这里免得重走：
+             *   ① 在 `GET_ATTR` 里向前看那条 `CALL` 直接融合 —— 行不通：
+             *      实参是在 GET_ATTR **之后**才逐条压栈的，一跳过就等于
+             *      **实参永远没被求值**。
+             *   ② 借 `GET_ATTR` 的 `b` 字段当「距离提示」—— 同样因为在
+             *      GET_ATTR 处拿不到实参；而且 `1 + 实参数` 对**复合实参**
+             *      （`甲.方法(乙.方法2(x))`）也不成立（内层调用占好几条指令）。
+             * 所以只能发一条新指令，并且**只发给 C VM**（见编译器侧）。
+             *
+             * 错误语义与老路径**逐字一致**：老路径里「取属性失败」用 `GET_ATTR`
+             * 的行列、「调用体里出错」用 `CALL` 的行列，两者**行相同、列不同**
+             * （`甲.方法(...)`：属性名在第 2 列、左括号在第 5 列左右）。
+             * 所以编译器把**属性名的列**塞在 `c` 里（属性名所在的位置就是老路径
+             * `GET_ATTR` 的位置），这里据此分两次上报：取属性失败用 (line, c)、
+             * 调用失败用 (line, col)。 */
+            case JS_OP_METHOD_CALL: {
+                int nargs = a;
+                int name_idx = b;
+                int gcol = c;                 /* 属性名列（= 老 GET_ATTR 的列） */
+                int fn_base = vm->sp - (1 + nargs);
+                JVal obj = vm->stack[fn_base];
+                JVal out;
+                SAVE_IP();
+                if (HC(vm, method_call)(&obj, name_idx, &vm->stack[fn_base + 1],
+                                        nargs, &out, line, gcol,
+                                        line, col) != 0)
+                    goto dispatch_err;
+                while (vm->sp > fn_base)
+                    release_val(vm, vm->stack[--vm->sp]);
                 PUSH(vm, out);
                 break;
             }

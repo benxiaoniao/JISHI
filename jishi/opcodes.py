@@ -98,6 +98,18 @@ class Op:
     LIST_APPEND = 47       # 列表追加：[obj, val] → obj.追加(val)，弹 2 压 0
     # -- M18 表达力 --
     BUILD_SLICE = 48       # 切片：按 a 的位标志从栈上取分量构造 slice，压 1
+    # -- M48 性能 --
+    #: 方法调用融合（M48 阶段三②）：栈 [obj, 实参...] → 结果，a=实参数
+    #: b=方法名下标（names 表）。一次宿主回调做完「取方法 + 调用」，
+    #: 省掉 GET_ATTR 那次 ctypes 编组（实测每次约 4µs）。
+    #:
+    #: ⚠️ **只发给 C VM**（见 `runtime.py` 的 `Executor.can_fuse_method_call`）。
+    #: 其它执行器与别的语言宿主**根本看不到这条指令**：树遍历不走字节码、
+    #: Python VM / Node / Rust 拿到的是未融合的 GET_ATTR + CALL。所以
+    #: **不需要改字节码格式版本**（`cache.py` 的键已含基石版本，会自然失效）。
+    #: 万一别的宿主真收到了：它本来就会对未知指令报错——
+    #: 但那是「编译器按宿主能力挑指令」的前提被破坏，属于内部错误。
+    METHOD_CALL = 49
 
 
 #: 指令号 → 名字（按号排序，C 头生成依赖此顺序）
@@ -161,6 +173,7 @@ OP_ARITY = {
     Op.UNPACK: 1,
     Op.LIST_APPEND: 0,
     Op.BUILD_SLICE: 1,
+    Op.METHOD_CALL: 2,     # M48：a=实参数 b=方法名下标
 }
 
 

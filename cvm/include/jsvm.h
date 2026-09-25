@@ -201,6 +201,26 @@ typedef struct JsHost {
        返回 0 成功；非 0 表示已经报错（走 error_handle 那一套）。 */
     int (*dict_setitem_many) (uint32_t handle, JVal *kvs,
                               const int32_t *lc, int n);
+    /* 取方法并立刻调用，**一次**回调完成（M48 阶段三②）。
+
+       为什么需要：`X.方法(实参)` 编译成 `GET_ATTR` + `CALL` 两条指令，
+       于是每次方法调用要付**两次**宿主回调（实测 `_cb_getattr` 4.5µs +
+       `_cb_call` 4.3µs，而一次回调的**必要工作**只有 2–3µs，其余是 ctypes
+       编组的固定开销）。生成.jsh 里「开头是」被调 88286 次，光这一处就
+       占该项目 47% 的运行时间。
+
+       ⚠️ 触发条件由**编译器**标出（`GET_ATTR.b == 1`），C 侧只负责在
+       `ip == a` 时调本回调并跳过那条 `CALL`。**这不是新指令**——`GET_ATTR`
+       的 `b` 字段历史上没有任何执行器读过（Python VM / Node 都只读 `a`），
+       所以借它当提示不需要改字节码格式、也不影响其它宿主（它们忽略 `b`，
+       照常走两次回调，只是慢一点）。
+
+       语义必须与「先 getattr 再 call」**逐字一致**，包括：
+       - 取属性失败 → 报错位置是 **GET_ATTR 的行列**（`gline/gcol`）
+       - 调用失败   → 报错位置是 **CALL 的行列**（`line/col`）
+       宿主实现：`r = get_attr(obj, name); call(r, args)`。 */
+    int (*method_call)  (JVal *obj, int name_idx, JVal *args, int nargs,
+                         JVal *out, int gline, int gcol, int line, int col);
 } JsHost;
 
 /* ------------------------------------------------------------------ */

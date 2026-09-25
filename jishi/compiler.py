@@ -232,11 +232,16 @@ class _CodeCtx:
 
 class _Emitter:
     def __init__(self, cmod: O.CompiledModule, func_scopes: dict[int, _Scope],
-                 root: _Scope):
+                 root: _Scope, fuse_method_call: bool = False):
         self.cmod = cmod
         self.func_scopes = func_scopes
         self.code: O.Code = cmod.codes[cmod.main]
         self.scope: _Scope = root
+        #: 是否把 `X.方法(实参)` 编译成融合指令 `METHOD_CALL`（M48 阶段三②）。
+        #: **只有 C VM 打开**（见 `interpreter` 的编译入口）：Python VM 与
+        #: Node/Rust 宿主不认识这条指令，给它们发就是「未知指令」。
+        #: 关闭时照旧发 `GET_ATTR` + `CALL`，语义完全相同、只是慢一点。
+        self.fuse_method_call = fuse_method_call
         self._const_cache: dict[tuple, int] = {}
         self._name_cache: dict[str, int] = {}
         self._tmp_seq = 0
@@ -952,6 +957,20 @@ class _Emitter:
             self.compile_expr(e.args[0])
             self.emit(O.Op.LIST_APPEND, e)
             return
+        # M48 阶段三②「方法调用融合」：`X.方法(实参)` → 一条 METHOD_CALL。
+        # 顺序必须是 **[obj, 实参...]**——与「先 GET_ATTR 再压实参」的栈形状
+        # 完全一致，只是少了那条 GET_ATTR（省一次宿主回调，实测约 4µs）。
+        # 只在 C VM 打开（Python VM / Node / Rust 不认识这条指令）。
+        # 带关键字参数、或实参里含 `*`/`**` 时不融合：那条路要 kw_flat 表，
+        # 融合版没带，**退化成老路径即可**（语义不变）。
+        if (self.fuse_method_call and not e.keywords
+                and isinstance(e.func, A.Attr)):
+            self.compile_expr(e.func.obj)
+            for a in e.args:
+                self.compile_expr(a)
+            self.emit(O.Op.METHOD_CALL, e, len(e.args),
+                      self.name_idx(e.func.attr), e.func.col)
+            return
         self.compile_expr(e.func)
         for a in e.args:
             self.compile_expr(a)
@@ -1016,8 +1035,15 @@ class _Emitter:
 # ---------------------------------------------------------------------------
 
 def compile_program(program: A.Program, filename: str = "<输入>",
-                    source_lines: Optional[list[str]] = None) -> O.CompiledModule:
-    """把 AST 编译成 CompiledModule。"""
+                    source_lines: Optional[list[str]] = None,
+                    fuse_method_call: bool = False) -> O.CompiledModule:
+    """把 AST 编译成 CompiledModule。
+
+    `fuse_method_call`（M48 阶段三②）：把 `X.方法(实参)` 编译成一条
+    `METHOD_CALL` 而不是 `GET_ATTR` + `CALL`。**只有 C VM 该打开**——
+    Python VM 与 Node/Rust 宿主不认识那条指令。默认关闭，于是默认产物
+    与之前逐字节相同。
+    """
     cmod = O.CompiledModule(filename=filename)
     main = O.Code(name="<模块>", firstlineno=1)
     cmod.codes.append(main)
@@ -1027,7 +1053,7 @@ def compile_program(program: A.Program, filename: str = "<输入>",
     _collect_stmts(program.body, root, func_scopes)
     _resolve(root)
 
-    emit = _Emitter(cmod, func_scopes, root)
+    emit = _Emitter(cmod, func_scopes, root, fuse_method_call=fuse_method_call)
     emit.code = main
     emit.compile_body(program.body)
     emit.emit(O.Op.HALT, None)
@@ -1035,7 +1061,8 @@ def compile_program(program: A.Program, filename: str = "<输入>",
     return cmod
 
 
-def compile_source(source: str, filename: str = "<输入>") -> O.CompiledModule:
+def compile_source(source: str, filename: str = "<输入>",
+                   fuse_method_call: bool = False) -> O.CompiledModule:
     """源码 → CompiledModule（含词法/语法分析）。"""
     from .tokenizer import tokenize
     from .parser import parse
@@ -1043,7 +1070,8 @@ def compile_source(source: str, filename: str = "<输入>") -> O.CompiledModule:
     tokens = tokenize(source, filename)
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     program = parse(tokens, lines, filename)
-    return compile_program(program, filename, lines)
+    return compile_program(program, filename, lines,
+                           fuse_method_call=fuse_method_call)
 
 
 def compile_debug_expr(cmod: O.CompiledModule, frame_code: O.Code,
