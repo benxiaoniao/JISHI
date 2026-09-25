@@ -10,35 +10,14 @@
 **孤儿提交**，再 force push 到远端。副作用是远端 master 与本地 master
 **不是同一个提交哈希**（设计如此，不是问题）。
 
-## ⚠️ 两段式发布：**推送前必须停下来等作者点头**（2026-09-25 作者定）
-
-以前是「一个命令从头做到尾」。作者要求改成**两段**：
-
-    # 第一段：准备（导出 + 屏蔽 + 终检 + 在快照里本地提交），**不推送**
-    python tools/publish_github.py
-
-    # —— 到这里停下来，向作者报告「待推快照已就绪」，等作者说「推」——
-
-    # 第二段：推送那个已备好的快照
-    python tools/publish_github.py --push
-
-理由：`git push` 到作者机器上会弹确认框，作者要知道**正在推什么、什么时候推**，
-而不是被一个后台命令悄悄推走。所以**默认行为就是「只准备、不推」**，
-推送必须显式加 `--push`。备好的快照固定放在一个稳定路径
-（`<系统临时目录>/jishi-publish-pending`），第二次调用不需要再传路径，
-`--tag` 也会随状态文件一起记住（不会漏打）。
-
 用法：
-    python tools/publish_github.py              # 只准备（默认）
-    python tools/publish_github.py --push       # 推送那个已备好的快照
-    python tools/publish_github.py --push --tag v0.2.0
+    python tools/publish_github.py             # 导出 + 屏蔽 + 推送
+    python tools/publish_github.py --dry-run   # 只导出 + 屏蔽 + 本地提交，不推送
+    python tools/publish_github.py --tag v0.2.0
                                                # 同步并在快照上打 tag（触发
                                                # .github/workflows/release.yml
                                                # 构建三平台发行包 + 建 Release）
-    python tools/publish_github.py --prepare --tag v0.2.0
-                                               # 准备时就记下 tag，推送时自动带上
     python tools/publish_github.py -m "自定义提交信息"   # 覆盖默认提交信息
-    python tools/publish_github.py --dry-run    # `--prepare` 的旧名（保留兼容）
 
 自动屏蔽项（隐私界定，2026-09-04 与作者确认；2026-09-23 更新）：
 - `cvm/build.py` / `docs/设计决策.md` / `README.md`：个人机器路径（CLion 等）
@@ -53,9 +32,7 @@
 from __future__ import annotations
 
 import io
-import json
 import re
-import shutil
 import subprocess
 import sys
 import tarfile
@@ -67,13 +44,6 @@ REPO_HTTPS = "https://github.com/benxiaoniao/JISHI.git"
 BRANCH = "master"
 AUTHOR_NAME = "陈柏林"
 AUTHOR_EMAIL = "benxiaoniao@outlook.com"
-
-#: 待推快照的**固定路径**（两段式发布：第一段准备到这里，第二段从这里推）。
-#: 用固定路径而不是每次 `mkdtemp`：第二段调用时不必再传路径，
-#: 也就不会出现「推错快照」这种事故。
-PENDING_DIR = Path(tempfile.gettempdir()) / "jishi-publish-pending"
-#: 与快照并列的状态文件（记住这次要打的 tag 与提交信息）。
-PENDING_STATE = Path(tempfile.gettempdir()) / "jishi-publish-pending.json"
 
 
 # ---------------------------------------------------------------------------
@@ -271,133 +241,70 @@ def _notify_push() -> None:
 
 # ---------------------------------------------------------------------------
 
-def _export_snapshot(dest: Path) -> None:
-    """把已提交状态导出到 dest（已存在则先清空）。"""
-    if dest.exists():
-        shutil.rmtree(dest)
-    dest.mkdir(parents=True, exist_ok=True)
+def main() -> int:
+    dry_run = "--dry-run" in sys.argv
+    tag = None
+    if "--tag" in sys.argv:
+        i = sys.argv.index("--tag")
+        if i + 1 < len(sys.argv):
+            tag = sys.argv[i + 1].strip()
+        if not tag:
+            raise SystemExit("--tag 后面要跟版本号，例如：--tag v0.2.0")
+
+    snapshot = Path(tempfile.mkdtemp(prefix="jishi-github-"))
+    print(f"[1/4] 导出快照 → {snapshot}")
     r = subprocess.run(["git", "archive", "HEAD", "--format=tar"],
                        cwd=ROOT, capture_output=True)
     if r.returncode != 0:
         raise SystemExit(f"git archive 失败：{r.stderr.decode('utf-8', 'replace')}")
     with tarfile.open(fileobj=io.BytesIO(r.stdout)) as tf:
-        tf.extractall(dest, filter="data")      # 自家 git archive 产物
-
-
-def cmd_prepare(argv: list[str]) -> int:
-    """第一段：导出 + 屏蔽 + 终检 + 本地提交。**不推送。**"""
-    tag = None
-    if "--tag" in argv:
-        i = argv.index("--tag")
-        if i + 1 < len(argv):
-            tag = argv[i + 1].strip()
-        if not tag:
-            raise SystemExit("--tag 后面要跟版本号，例如：--tag v0.2.0")
-
-    print(f"[1/4] 导出快照 → {PENDING_DIR}")
-    _export_snapshot(PENDING_DIR)
+        tf.extractall(snapshot, filter="data")  # 自家 git archive 产物
 
     print("[2/4] 隐私屏蔽 + 终检")
-    _sanitize(PENDING_DIR)
+    _sanitize(snapshot)
 
     print("[3/4] 快照内初始化提交")
-    commit_msg = cli_message(argv) or default_commit_msg(
+    commit_msg = cli_message(sys.argv) or default_commit_msg(
         tag.lstrip("v") if tag else None)
     print(f"   提交信息：{commit_msg}")
-    _git("init", "-q", "-b", BRANCH, cwd=PENDING_DIR)
-    _git("add", "-A", cwd=PENDING_DIR)
+    _git("init", "-q", "-b", BRANCH, cwd=snapshot)
+    _git("add", "-A", cwd=snapshot)
     _git("-c", f"user.name={AUTHOR_NAME}", "-c", f"user.email={AUTHOR_EMAIL}",
-         "commit", "-q", "-m", commit_msg, cwd=PENDING_DIR)
-    if tag:
-        _git("tag", "-f", tag, cwd=PENDING_DIR)
+         "commit", "-q", "-m", commit_msg, cwd=snapshot)
 
-    PENDING_STATE.write_text(json.dumps(
-        {"commit_msg": commit_msg, "tag": tag, "branch": BRANCH,
-         "snapshot": str(PENDING_DIR)}, ensure_ascii=False, indent=2),
-        encoding="utf-8")
-
-    changed = _git("show", "--stat", "--oneline", "-1", cwd=PENDING_DIR)
-    print("[4/4] 待推快照已就绪 —— **没有推送**（等你点头）")
-    print("\n" + "=" * 68)
-    print("  待推快照：", PENDING_DIR)
-    print("  提交信息：", commit_msg)
-    print("  将打的 tag：", tag or "（无）")
-    print("=" * 68)
-    head = "\n".join(changed.split("\n")[:1] + changed.split("\n")[-2:])
-    print(head.strip())
-    print("\n确认无误后，让我执行 `--push` 即可推送（会先响提示音）。")
-    return 0
-
-
-def cmd_push(argv: list[str]) -> int:
-    """第二段：推送那个已备好的快照（可选打 tag）。"""
-    if not PENDING_DIR.exists() or not (PENDING_DIR / ".git").exists():
-        raise SystemExit(
-            f"没找到待推快照（{PENDING_DIR}）。\n"
-            "请先运行：python tools/publish_github.py   （只准备，不推）")
-    state: dict = {}
-    if PENDING_STATE.exists():
-        try:
-            state = json.loads(PENDING_STATE.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            state = {}
-    # 命令行 --tag 优先于状态文件里记的
-    tag = None
-    if "--tag" in argv:
-        i = argv.index("--tag")
-        if i + 1 < len(argv):
-            tag = argv[i + 1].strip()
-    if not tag:
-        tag = state.get("tag")
-
-    print(f"推送已备好的快照 → {PENDING_DIR}")
-    print(f"   提交信息：{state.get('commit_msg', '（未知，读快照里的 HEAD）')}")
-    print(f"   将打的 tag：{tag or '（无）'}")
+    if dry_run:
+        if tag:
+            _git("tag", "-f", tag, cwd=snapshot)
+            print(f"   （dry-run 也已在快照内打 tag {tag}，但未推送）")
+        print(f"\n--dry-run：快照保留在 {snapshot}")
+        print("   已做：导出 + 屏蔽 + 终检 + 本地提交（未推送）")
+        return 0
 
     _notify_push()
-    print(f"[1/2] force push 到 GitHub（{REPO_HTTPS}）")
+    print(f"[4/4] force push 到 GitHub（{REPO_HTTPS}）")
     r = subprocess.run(
         ["git", "push", "-f", REPO_HTTPS, f"{BRANCH}:{BRANCH}"],
-        cwd=PENDING_DIR, capture_output=True, text=True,
+        cwd=snapshot, capture_output=True, text=True,
         encoding="utf-8", errors="replace")
     if r.returncode != 0:
         raise SystemExit(f"推送失败：\n{r.stderr}")
     print("    ✓ 代码已同步")
 
+    # 可选：在屏蔽版快照的孤儿提交上打 tag，触发 Release 工作流
     if tag:
-        _git("tag", "-f", tag, cwd=PENDING_DIR)
+        _git("tag", "-f", tag, cwd=snapshot)
         r = subprocess.run(
             ["git", "push", "-f", REPO_HTTPS, f"refs/tags/{tag}"],
-            cwd=PENDING_DIR, capture_output=True, text=True,
+            cwd=snapshot, capture_output=True, text=True,
             encoding="utf-8", errors="replace")
         if r.returncode != 0:
             raise SystemExit(f"推送 tag 失败：\n{r.stderr}")
         print(f"    ✓ 已打 tag {tag}（将触发 GitHub Actions 构建三平台发行包）")
 
-    print("[2/2] 清理待推快照")
-    shutil.rmtree(PENDING_DIR, ignore_errors=True)
-    PENDING_STATE.unlink(missing_ok=True)
-    print("✓ 已同步（含屏蔽）并清理待推快照")
+    import shutil
+    shutil.rmtree(snapshot, ignore_errors=True)
+    print("✓ 已同步（含屏蔽）并清理临时快照")
     return 0
-
-
-def main() -> int:
-    argv = sys.argv[1:]
-    if not argv:
-        return cmd_prepare(argv)
-
-    push = "--push" in argv
-    # `--dry-run` 是改两段式之前的名字，语义与新默认相同（只准备不推）
-    prepare = ("--prepare" in argv) or ("--dry-run" in argv)
-    if push and prepare:
-        raise SystemExit("--prepare 与 --push 不能同时用（前者只准备、后者只推送）")
-    if push:
-        return cmd_push(argv)
-    if prepare:
-        return cmd_prepare(argv)
-    raise SystemExit(
-        "没看懂参数。可用：无参数（只准备）/ --push（推送已备快照）/ "
-        "--tag vX.Y.Z / -m \"提交信息\"")
 
 
 if __name__ == "__main__":
