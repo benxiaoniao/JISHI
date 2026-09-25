@@ -105,7 +105,12 @@ typedef struct JsHost {
                        int line, int col);
     int (*iter_next)  (JVal *it, JVal *out, int *done, int line, int col);
     /* 批量预取：list/范围/文本等安全类型一次取一批，循环体零回调。
-     * 填 out[0..n-1]，n==0 表示耗尽。 */
+     * 填 out[0..n-1]，n==0 表示耗尽。
+     *
+     * ⚠️ **所有权**：每个 out[i] 必须是**本宿主新持有的一份引用**（宿主交给
+     * C 侧；C 侧负责释放）。**不许**把同一个值的引用重复填进多个槽位，
+     * 也不许填「借来的」值——C 侧会为缓冲里每个槽位各放一次。
+     * （C 侧不变式见 `jsvm.c` 的 `release_buf`。） */
     int (*iter_next_batch)(JVal *it, JVal *out, int cap, int *n,
                            int line, int col);
     int (*do_import)  (int name_idx, int from_python, JVal *out,
@@ -256,6 +261,36 @@ JSVM_API int jsvm_dump_globals(JsVm *vm);
 JSVM_API int jsvm_track_handle(JsVm *vm, uint32_t id);
 JSVM_API int jsvm_retain(JsVm *vm, JVal *v);
 JSVM_API int jsvm_release(JsVm *vm, JVal *v);
+
+/* 原生字符串（M47 阶段二①）：`JS_TAG_STR` 是**不可变的 UTF-8 字符串**，
+ * 字节与引用计数都由 C 侧持有（`甲 + "x"` 因此不必回调宿主）。
+ *
+ * 为什么需要它：字符串若只以 HOST 句柄表示，C 侧就看不见内容，于是每次
+ * 拼接都要一次宿主回调（实测每次固定约 2.4µs，是 C VM 最大的固定开销），
+ * 而树遍历直接调 Python 的 C 级 `str.__add__`（约 0.05µs）——差 48 倍。
+ * 字符串**不可变**，所以没有列表/字典那种「别名 + 逃逸」的问题
+ * （M46 阶段一③④ 就是被那个坑逼着换了方案），这是它与容器的关键区别。
+ *
+ * 宿主不必了解内部布局，用下面三个函数读写（**不要**手解 `v.u`）：
+ *   jsvm_str_new   把一段 UTF-8 字节交给 C 侧（**复制**一份）→ 得到一个
+ *                  JS_TAG_STR 值，refcnt = 1，所有权交给调用者；
+ *                  返回 0 成功 / -1 内存不足（此时 out 未改动）
+ *   jsvm_str_len   字节数（非原生字符串返回 -1）
+ *   jsvm_str_bytes 字节首地址（非原生字符串返回 NULL；生命周期同该值） */
+JSVM_API int jsvm_str_new(JsVm *vm, const char *utf8, int32_t blen, JVal *out);
+JSVM_API int32_t jsvm_str_len(const JVal *v);
+JSVM_API const char *jsvm_str_bytes(const JVal *v);
+
+/* 批量构造原生字符串（M47 阶段二①）：`buf` 里依次放着 n 段 UTF-8 字节，
+ * 第 i 段是 `buf[offsets[i] .. offsets[i+1])`（所以 offsets 有 n+1 项）。
+ * 结果写进 `out[0..n-1]`（调用方须提供 n 个 JVal 的位置），refcnt 都是 1。
+ *
+ * 一次调用建整批：宿主侧「遍历一段文本」时每批最多 256 个元素，逐个
+ * `jsvm_str_new` 光 FFI 往返就要 0.87µs × 256 —— 这是文本迭代的主要成本。
+ * 返回 0 成功；-1 失败（内存不足 / 参数非法），**失败时已建的会被释放干净**，
+ * 不会留半成品给调用方。 */
+JSVM_API int jsvm_str_new_batch(JsVm *vm, const char *buf,
+                                const int32_t *offsets, int n, JVal *out);
 
 /* 函数对象操作（重入调用 / 从原型复制 / 取元数据） */
 JSVM_API int jsvm_func_retain(JsVm *vm, JVal *fv);

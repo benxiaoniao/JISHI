@@ -32,6 +32,10 @@ def test_jsvm_header_has_value_ctors():
     for ctor in ("jsvm_int", "jsvm_float", "jsvm_bool", "jsvm_null",
                  "jsvm_host", "jsvm_unset"):
         assert ctor in text, f"缺少构造器 {ctor}"
+    # 原生字符串的公开 ABI（M47 阶段二①）：头文件是第三方宿主的唯一依据
+    for fn in ("jsvm_str_new", "jsvm_str_len", "jsvm_str_bytes",
+               "jsvm_str_new_batch"):
+        assert fn in text, f"缺少原生字符串 API {fn}"
 
 
 @pytest.mark.skipif(not JSVM_DLL.exists(), reason="jsvm 动态库未构建")
@@ -44,6 +48,44 @@ def test_jsvm_dll_exports_symbols():
     vm = lib.jsvm_create()
     assert vm, "jsvm_create 返回空"
     lib.jsvm_destroy(vm)
+
+
+@pytest.mark.skipif(not JSVM_DLL.exists(), reason="jsvm 动态库未构建")
+def test_native_string_public_abi():
+    """原生字符串的公开 ABI（M47 阶段二①）——**不镜像内部布局**也能用。
+
+    第三方宿主（C / Node / Rust…）看得到 `jsvm.h`，看不到 `JsStr` 的内部布局。
+    所以这条测试刻意**只用三个公开函数**，验证「建 → 量长度 → 取字节」这条
+    文档承诺的路子真的走得通；语言绑定（Python）为省 FFI 才去镜像头部，
+    那是它自己的事（由 tests/test_cvm.py 的布局往返测试管）。
+    """
+    import ctypes
+
+    lib = ctypes.CDLL(str(JSVM_DLL))
+    lib.jsvm_create.restype = ctypes.c_void_p
+    lib.jsvm_destroy.argtypes = [ctypes.c_void_p]
+    lib.jsvm_str_new.restype = ctypes.c_int
+    lib.jsvm_str_new.argtypes = [ctypes.c_void_p, ctypes.c_char_p,
+                                ctypes.c_int32, ctypes.c_void_p]
+    lib.jsvm_str_len.restype = ctypes.c_int32
+    lib.jsvm_str_len.argtypes = [ctypes.c_void_p]
+    lib.jsvm_str_bytes.restype = ctypes.c_void_p
+    lib.jsvm_str_bytes.argtypes = [ctypes.c_void_p]
+    lib.jsvm_release.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+
+    vm = lib.jsvm_create()
+    assert vm
+    val = (ctypes.c_ubyte * 16)()          # JVal：16 字节，公开布局见 jsvm.h
+    try:
+        for raw in (b"", b"abc", "中文与 🙂".encode("utf-8")):
+            assert lib.jsvm_str_new(vm, raw, len(raw), val) == 0
+            assert lib.jsvm_str_len(val) == len(raw)
+            got = lib.jsvm_str_bytes(val)
+            assert ctypes.string_at(got, len(raw)) == raw
+            # 长过 0 的文本必须是**值**（新分配），不是借用的缓冲区
+            lib.jsvm_release(vm, val)      # 释放：refcnt 归零 → 内部 free
+    finally:
+        lib.jsvm_destroy(vm)
 
 
 def _find_gcc():

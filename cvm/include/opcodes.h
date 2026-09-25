@@ -106,6 +106,7 @@ enum {
     JS_TAG_CELL = 7,
     JS_TAG_FUNC = 8,
     JS_TAG_ITER = 9,
+    JS_TAG_STR = 10,
 };
 
 /* 帧深度上限（与 jishi/vm.py 的 MAX_FRAMES 一致） */

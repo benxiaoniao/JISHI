@@ -97,7 +97,7 @@ def gen_header() -> Path:
         ("UNSET", O.T_UNSET), ("NULL", O.T_NULL), ("FALSE", O.T_FALSE),
         ("TRUE", O.T_TRUE), ("INT", O.T_INT), ("FLOAT", O.T_FLOAT),
         ("HOST", O.T_HOST), ("CELL", O.T_CELL), ("FUNC", O.T_FUNC),
-        ("ITER", O.T_ITER),
+        ("ITER", O.T_ITER), ("STR", O.T_STR),
     ])
 
     lines += [

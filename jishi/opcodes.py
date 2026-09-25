@@ -28,11 +28,12 @@ T_HOST = 6
 T_CELL = 7
 T_FUNC = 8
 T_ITER = 9
+T_STR = 10
 
 TAG_NAMES = {
     T_UNSET: "UNSET", T_NULL: "NULL", T_FALSE: "FALSE", T_TRUE: "TRUE",
     T_INT: "INT", T_FLOAT: "FLOAT", T_HOST: "HOST", T_CELL: "CELL",
-    T_FUNC: "FUNC", T_ITER: "ITER",
+    T_FUNC: "FUNC", T_ITER: "ITER", T_STR: "STR",
 }
 
 

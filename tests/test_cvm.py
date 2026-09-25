@@ -919,3 +919,277 @@ def test_list_and_dict_interleaved(monkeypatch):
              '    字[i] = i * 2\n'
              '打印(长度(表), 长度(字), 表[79], 字[79])\n',
              "<列表与字典交错攒批>", monkeypatch)
+
+
+# -- M47 阶段二①：C 侧原生字符串（JS_TAG_STR） ------------------------------
+#
+# 文本在 C VM 里不再走 HOST 句柄，而是 C 自己持有的**不可变 UTF-8 字符串**
+# （`cvm/src/jsvm.c` 的 `JsStr`）。于是 `甲 + "字"`、`甲 == "字"` 都在 C 侧
+# 就地完成，不再回调宿主——实测「字符串拼接」0.35x → 约 3x、「文本比较」
+# 1.1x → 约 12x（详见 tools/benchmark.py 与 CHANGELOG）。
+#
+# 这一组测试盯三件事：
+#   1. **跨语言布局**：Python 侧镜像了 `JsStr` 的头部（为省 FFI），C 侧改了、
+#      这边没跟上就会静默读错——用一次性往返把它钉死；
+#   2. **边界**：空串 / 含 NUL / 代理项 / 跨批次的长度；
+#   3. **快路径确实生效**（否则优化悄悄失效，测试还是全绿）。
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+def test_native_string_layout():
+    """Python 镜像的 `_JsStr` 必须与 C 侧的 `JsStr` 逐字段一致。
+
+    这是跨语言契约：`c2py` 直读头部拿字节数（不走 `jsvm_str_len`，
+    为的是省掉热路径上的两次 ctypes 往返）。**两侧错位就是静默读错内存**，
+    所以这里用 C 侧公开的 `jsvm_str_len` / `jsvm_str_bytes` 当裁判，
+    校验 Python 镜像读到的与 C 自己说的完全一样。
+    """
+    import ctypes
+
+    from jishi import cvm_bind as CB
+    from jishi.compiler import compile_source
+
+    cmod = compile_source('令 x = "字"\n', "<layout>")
+    host = CB.CvmHost(cmod, "<layout>", list(cmod.names))
+    try:
+        for text in ("", "a", "值123", "中文与 emoji 🙂", "x" * 300):
+            v = host.str2c(text)
+            raw = text.encode("utf-8", "surrogatepass")
+
+            # C 侧自己怎么说
+            assert host.lib.jsvm_str_len(ctypes.byref(v)) == len(raw)
+            ptr = host.lib.jsvm_str_bytes(ctypes.byref(v))
+            assert ctypes.string_at(ptr, len(raw)) == raw
+
+            # Python 镜像怎么说（`c2py` 走的就是这条路）
+            assert CB._JsStr.from_address(int(v.v.u)).blen == len(raw)
+            assert host.c2py(v) == text
+
+        # 非原生字符串：C 侧公开 API 的约定是 -1 / NULL
+        assert host.lib.jsvm_str_len(ctypes.byref(CB.JVal())) == -1
+        assert not host.lib.jsvm_str_bytes(ctypes.byref(CB.JVal()))
+    finally:
+        host.destroy()
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+def test_native_string_batch_matches_single():
+    """批量构造（`jsvm_str_new_batch`）与逐个构造必须给出完全一样的值。
+
+    文本迭代器走的就是批量这条路（每批最多 256 个），所以它必须与
+    `py2c` 的逐个路径逐字节等价——否则「遍历文本」和别的取字符方式会分家。
+    """
+    import ctypes
+
+    from jishi import cvm_bind as CB
+    from jishi.compiler import compile_source
+
+    cmod = compile_source('令 x = "字"\n', "<batch>")
+    host = CB.CvmHost(cmod, "<batch>", list(cmod.names))
+    try:
+        texts = ["", "a", "中文", "🙂", "x" * 300, "\x00", "a\x00b"]
+        one = [host.c2py(host.str2c(t)) for t in texts]
+        blob = host._str_batch(texts)
+        got = [
+            host.c2py(CB.JVal.from_buffer_copy(
+                blob[i * CB._JVAL_SIZE:(i + 1) * CB._JVAL_SIZE]))
+            for i in range(len(texts))
+        ]
+        assert got == one == texts
+        # 含 NUL 的文本也必须原样回来（批量路径同样按长度切，不看 NUL）
+        assert got[5] == "\x00" and got[6] == "a\x00b"
+    finally:
+        host.destroy()
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+def test_native_string_surrogate_roundtrip():
+    """落单代理项必须能过 C 边界且**可逆**。
+
+    基石的源码里造不出代理项（没有 `字符()` 那种内建），但宿主传进来的
+    Python `str` 可能有（比如读了一个编码错乱的文件）。默认的 UTF-8 编码
+    会在这里抛 `UnicodeEncodeError` —— 那就成了「树遍历能跑、C VM 不能跑」。
+    所以两侧都走 `surrogatepass`；这条路径**没有对拍覆盖**，只能在这里钉
+    （源码里写不出代理项，对拍用例造不出来）。
+
+    顺带验一条语义前提：代理项在 UTF-8 下也是 3 字节且字节序与码点序一致
+    （ED A0 80 < EE 80 80），所以 C 侧的字节比较与 Python 的码点比较同序。
+    """
+    from jishi import cvm_bind as CB
+    from jishi.compiler import compile_source
+
+    cmod = compile_source('令 x = "字"\n', "<surrogate>")
+    host = CB.CvmHost(cmod, "<surrogate>", list(cmod.names))
+    try:
+        for text in ("\ud800", "a\udfffb", "\ud800\ud801"):
+            assert host.c2py(host.str2c(text)) == text
+        a, b, c = "\ud800", "\ue000", "\uffff"
+        assert (a < b < c) == (
+            a.encode("utf-8", "surrogatepass")
+            < b.encode("utf-8", "surrogatepass")
+            < c.encode("utf-8", "surrogatepass"))
+    finally:
+        host.destroy()
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+def test_native_string_avoids_host_binop(monkeypatch):
+    """`甲 + "字"` / `甲 == "字"` 必须**不走宿主**（否则快路径悄悄失效）。
+
+    这条是「优化确实生效」的看门狗：把宿主的 `binop`/`compare` 回调换成
+    计数器，跑完断言两边都没被调到。对拍只看输出，抓不到「优化退化成慢路径」。
+    """
+    from jishi import cvm_bind as CB
+
+    calls = {"binop": 0, "compare": 0}
+    orig_binop, orig_compare = CB.CvmHost._cb_binop, CB.CvmHost._cb_compare
+
+    def spy_binop(self, *a):
+        calls["binop"] += 1
+        return orig_binop(self, *a)
+
+    def spy_compare(self, *a):
+        calls["compare"] += 1
+        return orig_compare(self, *a)
+
+    monkeypatch.setattr(CB.CvmHost, "_cb_binop", spy_binop)
+    monkeypatch.setattr(CB.CvmHost, "_cb_compare", spy_compare)
+
+    src = (
+        '令 甲 = "a"\n'
+        '令 乙 = 甲 + "b"\n'
+        '打印(乙 == "ab")\n'
+        '令 积 = ""\n'
+        '遍历 i 在 范围(50)：\n'
+        '    积 = 积 + "字"\n'
+        '打印(长度(积), 积 == 甲)\n'
+    )
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        CB.run_source_c(src, filename="<native-str>")
+    assert buf.getvalue() == "真\n50 假\n"
+    assert calls == {"binop": 0, "compare": 0}, (
+        f"文本的拼接/比较竟然回调了宿主：{calls}——快路径没生效")
+
+
+def test_text_concat_and_compare_match(monkeypatch):
+    """文本拼接 / 比较 / 身份 / 空串 / 含 NUL / 跨批次长度的对拍。"""
+    _compare(
+        '令 甲 = ""\n'
+        '遍历 i 在 范围(300)：\n'
+        '    甲 = 甲 + "字"\n'
+        '打印(长度(甲))\n'
+        '打印(甲[0:3], 甲[-1])\n'
+        '令 乙 = "甲" + "乙" + "丙"\n'
+        '打印(乙, 乙 == "甲乙丙", 乙 != "甲乙")\n'
+        '打印("a" < "b", "甲" < "乙", "" < "a", "中" > "a")\n'
+        '令 表 = ["乙", "甲", "", "a", "🙂", "中"]\n'
+        '表.排序()\n'
+        '打印(表)\n'
+        '打印(甲 是 甲, 乙 不是 "甲")\n',
+        "<文本拼接比较>", monkeypatch)
+
+
+def test_text_with_embedded_nul_matches(monkeypatch):
+    """含 NUL 的文本：读回来**不能**被截断。
+
+    Python 侧有一条快路径用 `c_char_p` 读到第一个 NUL 为止（实测比
+    `string_at` 快一倍），靠「读到的长度 == blen」来判断有没有被截断。
+    这条用例就是钉那个判断的边界（含 NUL / 以 NUL 结尾 / 纯 NUL）。
+    """
+    _compare(
+        '令 空 = ""\n'
+        '令 甲 = "x" + "\u0000" + "y"\n'
+        '令 乙 = "a" + "\u0000"\n'
+        '令 丙 = "\u0000"\n'
+        '打印(长度(甲), 长度(乙), 长度(丙), 长度(空))\n'
+        '打印(甲 == "x" + "\u0000" + "y", 甲 == "x")\n'
+        '打印(乙 == "a", 丙 == 空, 丙 != 空)\n'
+        '令 字 = {}\n'
+        '字[甲] = 1\n'
+        '打印(长度(字), 字[甲], 甲 在 字, "x" 在 字)\n'
+        '令 表 = [甲, 乙, 丙]\n'
+        '打印(长度(表), 表.包含("a"), 表.包含(丙))\n',
+        "<含NUL文本>", monkeypatch)
+
+
+def test_text_iteration_matches(monkeypatch):
+    """逐字符遍历文本：跨批次（256）与含多字节字符都要一致。"""
+    _compare(
+        '令 长 = ""\n'
+        '遍历 i 在 范围(600)：\n'
+        '    长 = 长 + "字"\n'
+        '令 计 = 0\n'
+        '令 各 = ""\n'
+        '遍历 字 在 长：\n'
+        '    计 = 计 + 1\n'
+        '    各 = 各 + 字\n'
+        '打印(计, 各 == 长)\n'
+        '令 计2 = 0\n'
+        '遍历 字 在 "中文🙂测试":\n'
+        '    计2 = 计2 + 长度(字)\n'
+        '打印(计2)\n',
+        "<文本遍历>", monkeypatch)
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+def test_pinned_consts_cleared_on_close(monkeypatch):
+    """文本常量的「钉住表」必须随 VM 关闭清空（否则复用 host 会误认指针）。"""
+    from jishi import cvm_bind as CB
+    from jishi.compiler import compile_source
+
+    cmod = compile_source('令 甲 = "常量文本"\n打印(甲)\n', "<pin>")
+    runner = CB.CvmRunner(cmod, "<pin>")
+    assert runner.host._str_pinned, "文本常量应当被钉住（否则字面量当参数要重新解码）"
+    runner.close()
+    assert runner.host._str_pinned == {}
+
+
+# -- M47 附带修掉：迭代器预取缓冲的「漏引用」（对拍抓不到的那类） -------------
+#
+# `FOR_ITER` 的批量预取缓冲 `it->buf[0..nbuf-1]` 每个槽位都由**缓冲区自己**
+# 持有一份引用，消费时额外 retain 一次给栈。但早先**换批时不释放上一批、
+# 销毁时只从 `it->pos` 开始放**（等于假定「消费即转移所有权」，与消费处的
+# retain 配不上）——**每消费一个元素漏一份引用**。
+#
+# 它不会报错、不会让对拍变红，只会让长跑进程（LSP / MCP / REPL）内存一直涨：
+# 实测遍历 1000 个文本一次漏约 **33KB**，遍历 400 个内层列表一次漏 **399 个句柄**。
+# 可追溯到最早的 v0.2 快照（`retain_val(vm, it->buf[0])` 一直没配对的释放）。
+#
+# 这里用「**宿主句柄数**」当确定性判据：HOST 句柄的引用计数归零时宿主才把它
+# 从 `_handles` 里删，所以漏一份引用 = 表里留一个条目。数字差距极大
+# （修复前 403 / 修复后 3–6），不会误报。**别改成用 RSS 判**——那在 CI 上会飘。
+
+
+@pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
+@pytest.mark.parametrize("name,tail", [
+    ("正常跑完", "令 c = 0\n遍历 v 在 甲：\n    c = c + 1\n打印(c)\n"),
+    ("中途 中断", "令 c = 0\n遍历 v 在 甲：\n    c = c + 1\n"
+                 "    如果 c >= 300：\n        中断\n打印(c)\n"),
+    ("中途抛错被接住", "令 c = 0\n尝试：\n    遍历 v 在 甲：\n"
+                       "        c = c + 1\n        如果 c >= 300：\n"
+                       "            抛出 值错误(\"x\")\n"
+                       "捕获 值错误：\n    打印(\"接住\")\n打印(c)\n"),
+    ("嵌套两层", "令 d = 0\n遍历 v 在 甲：\n    遍历 w 在 甲：\n"
+                 "        d = d + 1\n打印(d)\n"),
+])
+def test_iter_buffer_releases_every_slot(name, tail, monkeypatch):
+    """迭代器缓冲必须把每个槽位都放掉——各条退出路径都要放干净。"""
+    from jishi import cvm_bind as CB
+
+    src = ('令 甲 = []\n'
+           '遍历 i 在 范围(400)：\n'
+           '    甲.追加([i])\n'      # 每个元素都是一个新列表 → 迭代时各建一个句柄
+           + tail)
+    runner = CB.CvmRunner(compile_source(src, f"<iter-ref-{name}>"),
+                          f"<iter-ref-{name}>")
+    try:
+        with redirect_stdout(io.StringIO()):
+            runner.run()
+        left = len(runner.host._handles)
+        # 修复前 403；修复后 3–6（还剩的几个是 VM 仍活着时合法持有的）
+        assert left < 30, (
+            f"「{name}」迭代结束后仍留着 {left} 个宿主句柄"
+            "——迭代器预取缓冲漏放引用（见 release_buf 的不变式）")
+    finally:
+        runner.close()

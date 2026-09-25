@@ -16,6 +16,7 @@ C 主循环立即停止；``run_source_c`` 统一把 ``pending`` 重新抛出。
 
 from __future__ import annotations
 
+import array as _array
 import ctypes
 import struct as _struct
 import sys as _sys
@@ -115,6 +116,16 @@ def load_lib() -> ctypes.CDLL:
     lib.jsvm_dump_globals.restype = c_int
     lib.jsvm_dump_globals.argtypes = [c_void_p]
     lib.jsvm_track_handle.argtypes = [c_void_p, c_uint32]
+    # M47 阶段二①：宿主侧构造原生字符串（UTF-8 字节 → JS_TAG_STR）
+    lib.jsvm_str_new.restype = c_int
+    lib.jsvm_str_new.argtypes = [c_void_p, c_char_p, c_int32, JPV]
+    lib.jsvm_str_len.restype = c_int32
+    lib.jsvm_str_len.argtypes = [JPV]
+    lib.jsvm_str_bytes.restype = c_void_p
+    lib.jsvm_str_bytes.argtypes = [JPV]
+    # M47 阶段二①：批量构造（文本迭代器整批一次建，省 n-1 次 ctypes 往返）
+    lib.jsvm_str_new_batch.restype = c_int
+    lib.jsvm_str_new_batch.argtypes = [c_void_p, c_char_p, c_void_p, c_int, JPV]
     lib.jsvm_func_retain.argtypes = [c_void_p, JPV]
     lib.jsvm_func_release.argtypes = [c_void_p, JPV]
     lib.jsvm_call_function.restype = c_int
@@ -188,15 +199,36 @@ def _jhost(h: int) -> JVal:
     x = JVal(); x.tag = O.T_HOST; x.v.u = h; return x
 
 
+class _JsStr(Structure):
+    """原生字符串（`JS_TAG_STR`）的头部，与 `cvm/src/jsvm.c` 的 `JsStr`
+    逐字段对齐；字节数据紧跟其后。
+
+    ⚠️ 这是**内部布局**，不是公开 ABI 的一部分。之所以在 Python 里镜像它
+    而不是走 `jsvm_str_bytes`/`jsvm_str_len`：`c2py` 在宿主回调的热路径上
+    （每个文本参数一次），镜像之后零 FFI 就能拿到字节；走函数则每次多两次
+    ctypes 往返。**改 C 侧必须同步这里**，
+    `tests/test_cvm.py::test_native_string_layout` 有往返测试钉住它。
+
+    第三方宿主没有这个便利，请用头文件里的 `jsvm_str_new` /
+    `jsvm_str_len` / `jsvm_str_bytes`。
+    """
+
+    _fields_ = [("refcnt", c_int32), ("blen", c_int32)]
+
+
+#: 原生字符串头部字节数（= C 侧 `sizeof(JsStr)`）。
+_JS_STR_HDR = ctypes.sizeof(_JsStr)
+
 #: JVal 的字节大小（批量转换用）
 _JVAL_SIZE = ctypes.sizeof(JVal)
 
 #: 批量构造 JVal 数组的 struct.Struct 缓存（M20 引入，M46 泛化）。
 #: 布局：uint8 tag + 7 字节填充 + 8 字节值（小端），与 `JVal` 内存布局一致。
-#: 三种格式只差「值槽怎么解释」：
+#: 两种格式只差「值槽怎么解释」：
 #:   `B7xq` ── 整数 / 布尔 / 空（8 字节整数槽）
 #:   `B7xd` ── 浮点（8 字节 double 槽）
-#:   `B7xQ` ── 宿主句柄（8 字节无符号槽）
+#: （M47 阶段二①之前还有 `B7xQ` 宿主句柄格 —— 文本改原生字符串后
+#:  Python 拿不到其指针，那条路已删，见 `_pack_batch` 的文本分支。）
 _BATCH_FMT: dict[tuple[str, int], _struct.Struct] = {}
 _LITTLE_ENDIAN = _sys.byteorder == "little"
 
@@ -447,6 +479,10 @@ class CvmHost:
         #: `f 是 g` 在 C VM 下判不等、与另外两个执行器不一致。
         #: 缓存持强引用 ⇒ 底层 JsFunc 不会被释放 ⇒ 指针不会被复用，键安全。
         self._func_cache: dict[int, "CvmFunction"] = {}
+        #: 常量文本的「钉住表」：原生字符串指针 → 宿主侧原件（M47 阶段二①）。
+        #: 常量在 `jsvm_destroy` 之前不会被释放，所以按指针认回原件是安全的
+        #: （见 `pin_str`）。只装常量，所以条目数 = 程序的文本字面量数，有界。
+        self._str_pinned: dict[int, str] = {}
         #: 影子全局表（报错建议 / do_import 用），初始为内建
         self.globals = R.new_builtins()
         self.pending: Optional[JishiError] = None
@@ -596,6 +632,9 @@ class CvmHost:
         if getattr(self, "vm", None):
             self.lib.jsvm_destroy(self.vm)
             self.vm = None
+        # 钉住表里的指针在 `jsvm_destroy` 之后才真正失效，必须跟着清掉
+        # （否则复用同一 host 时会拿旧指针误认回别的文本）。
+        self._str_pinned.clear()
 
     # -- 值转换 ---------------------------------------------------------------
 
@@ -606,8 +645,21 @@ class CvmHost:
         self.lib.jsvm_track_handle(self.vm, hid)
         return hid
 
+    def pin_str(self, v: JVal, obj: str) -> None:
+        """登记一份**宿主原创、且与常量同寿命**的文本（M47 阶段二①）。
+
+        只该用于 `_load` 里的字符串常量：它们由 `consts` 数组持有引用，
+        在 `jsvm_destroy` 之前**绝不会被释放**，所以「按指针认回原件」是安全的
+        ——不存在「指针被回收后又被别的文本复用」这一类错。
+
+        效果：`打印("字面量")`、`长度("abc")`、`字["键"]` 这些「字面量当参数」
+        的常见写法可以直接拿回原对象，省掉一次 ctypes 解码。
+        这里**不额外持有**对象——`cmod.consts` 本来就一直活着。
+        """
+        self._str_pinned[int(v.v.u)] = obj
+
     def py2c(self, obj: Any) -> JVal:
-        """Python 对象 → JVal。产生的 C 侧引用（句柄/FUNC）归接收槽位所有。"""
+        """Python 对象 → JVal。产生的 C 侧引用（字符串/句柄/FUNC）归接收槽位所有。"""
         if obj is None:
             return _jnull()
         if obj is True:
@@ -618,11 +670,28 @@ class CvmHost:
             return _jint(obj)
         if isinstance(obj, float):
             return _jfloat(obj)
+        if isinstance(obj, str):
+            return self.str2c(obj)
         if isinstance(obj, CvmFunction):
             v = _jfunc_copy(obj._raw)          # 借用其引用再 retain 一次
             self.lib.jsvm_func_retain(self.vm, byref(v))
             return v
         return _jhost(self._new_handle(obj))
+
+    def str2c(self, s: str) -> JVal:
+        """Python 文本 → 原生字符串（M47 阶段二①）。
+
+        用 ``surrogatepass`` 编码：Python 的 ``str`` 允许落单代理项
+        （``chr(0xD800)``），默认编码会抛 ``UnicodeEncodeError``——而
+        「能在树遍历里跑通的程序在 C VM 里也必须跑通」是硬约束。
+        代理项的 UTF-8 三字节序仍与码点序一致（ED A0 80… < EE 80 80…），
+        所以比较语义不受影响；回程也按 ``surrogatepass`` 解码，可逆。
+        """
+        raw = s.encode("utf-8", "surrogatepass")
+        out = JVal()
+        if self.lib.jsvm_str_new(self.vm, raw, len(raw), byref(out)) != 0:
+            raise RunError("内部错误：原生字符串分配失败（内存不足）")
+        return out
 
     def c2py(self, v: JVal) -> Any:
         """JVal → Python 对象（借用语义：不改 C 侧引用计数）。"""
@@ -637,6 +706,22 @@ class CvmHost:
             return int(v.v.i)
         if t == O.T_FLOAT:
             return float(v.v.d)
+        if t == O.T_STR:
+            ptr = int(v.v.u)
+            # 常量文本：直接认回宿主原件（省一次 ctypes 解码）——见 `pin_str`
+            pinned = self._str_pinned.get(ptr)
+            if pinned is not None:
+                return pinned
+            # 直读内部头部拿字节数（见 `_JsStr` 的说明：省两次 FFI 往返）
+            blen = _JsStr.from_address(ptr).blen
+            # 快路径用 `c_char_p`（实测 0.52µs，`string_at` 要 1.13µs）：
+            # 它按 C 字符串读，到第一个 NUL 为止。C 侧保证在 bytes[blen] 补 0，
+            # 所以「读到的长度 == blen」就等价于「文本里没有 NUL」。含 NUL 的
+            # 文本（\x00 能在基石里拼出来）长度会对不上，回退到带长度的读法。
+            raw = c_char_p(ptr + _JS_STR_HDR).value
+            if len(raw) != blen:
+                raw = ctypes.string_at(ptr + _JS_STR_HDR, blen)
+            return raw.decode("utf-8", "surrogatepass")
         if t == O.T_HOST:
             return self._handles[int(v.v.u)]
         if t == O.T_FUNC:
@@ -882,14 +967,14 @@ class CvmHost:
     def _pack_batch(self, chunk: list):
         """把一批**同类型**的值打成 JVal 数组的字节串；不适合批量就返回 None。
 
-        M20 只认整数；**M46 阶段一①扩到浮点 / 布尔 / 空 / 文本**——这几种的值槽
-        都是 8 字节、        `JVal` 布局一致（1 字节 tag + 7 字节填充 + 8 字节小端值），
+        M20 只认整数；**M46 阶段一①扩到浮点 / 布尔 / 空**；**M47 阶段二①
+        扩到文本**（文本走 `_str_batch`，一次 FFI 建整批）。这几种的值槽
+        都是 8 字节、与 `JVal` 布局一致（1 字节 tag + 7 字节填充 + 8 字节小端值），
         所以能一次 `pack` + `memmove` 灌进 C 数组，省掉逐个构造 ctypes
         `Structure` 的开销（那是纯 Python 层面的对象分配，最贵的一步）。
 
-        **整数 / 浮点 / 布尔**分支**一趟**遍历（M41 的经验）：边判类型边装，
-        发现混类型立即返回 None，不在前面先跑一遍 `all(...)` 预扫描。
-        **文本**分支是唯一要两趟的（见该分支的注释：建句柄有副作用）。
+        **一趟**遍历（M41 的经验）：边判类型边装，发现混类型立即返回 None，
+        不在前面先跑一遍 `all(...)` 预扫描（文本分支是例外，见 `_str_batch`）。
 
         返回 None 的几种情况（调用方回退逐个 `py2c`，**语义完全不变**）：
         混合类型 / 批次里出现别的类型 / 整数溢出 int64 / 不认识的类型。
@@ -921,28 +1006,50 @@ class CvmHost:
                 flat.append(v)
             kind = "B7xd"
         elif t0 is str:
-            # 文本在 C 侧是 HOST 句柄：**每个元素仍要建一个句柄**
-            # （`_new_handle` 里有 dict 插入 + 一次 C 调用），批量省不掉；
-            # 省掉的是「逐个构造 JVal」与逐次 memmove。
-            #
-            # ⚠️ 这里必须**先确认整批都是 str、再建句柄**（两趟）：
-            # `_new_handle` 有副作用（注册进 `_handles` + 通知 C 侧），
-            # 边建边发现混类型就会**漏句柄**——中途返回 None 后，回退路径
-            # 会再造一批新句柄，先前那批再也无人释放。
-            # 别的分支只往 `flat` 里塞、无副作用，所以可以一趟。
-            for v in chunk:
-                if type(v) is not str:
-                    return None
-            for v in chunk:
-                flat.append(O.T_HOST)
-                flat.append(self._new_handle(v))
-            return _batch_fmt("B7xQ", n).pack(*flat)
+            # M47 阶段二①起，文本在 C 侧是**原生字符串**（`JS_TAG_STR`）：
+            # 它的字节由 C 侧持有，Python 这边拿不到指针，没法像整数/浮点那样
+            # 用 `struct.pack` 直接拼出 JVal。所以改走 C 侧的**批量构造**
+            # （一次 FFI 建整批，见 `_str_batch`）——「遍历一段文本」每批最多
+            # 256 个元素，逐个建光 ctypes 往返就要 0.87µs × 256。
+            return self._str_batch(chunk)
         else:
             return None
         try:
             return _batch_fmt(kind, n).pack(*flat)
         except (_struct.error, OverflowError):
             return None          # 整数越界等 → 回退（走 _jint 报中文错）
+
+    def _str_batch(self, chunk: list):
+        """一批文本 → 原生字符串的 JVal 数组字节串（M47 阶段二①）。
+
+        与整数/浮点的批量路径不同：原生字符串的字节由 C 侧持有，Python 造不出
+        JVal，所以走 `jsvm_str_new_batch` —— 把整批 UTF-8 拼成一块连续的 `buf`，
+        配上 n+1 个偏移，**一次 FFI** 建完整批（逐个建是一批 256 次往返）。
+
+        语义与逐个 `py2c` 完全等价（同样 UTF-8 + `surrogatepass` 编解码）。
+        混类型返回 None 让调用方回退：**注意这里必须先编码完再调 C**——
+        半路返回时 C 侧还没建任何东西，才不会有半个批次漏掉。
+        """
+        n = len(chunk)
+        if n == 0:
+            return None
+        encoded = []
+        for v in chunk:
+            if type(v) is not str:
+                return None
+            encoded.append(v.encode("utf-8", "surrogatepass"))
+        buf = b"".join(encoded)
+        offs = _array.array("i", [0])          # 'i' = C int = int32（与 C 侧一致）
+        acc = 0
+        for e in encoded:
+            acc += len(e)
+            offs.append(acc)
+        out = (JVal * n)()
+        rc = self.lib.jsvm_str_new_batch(
+            self.vm, buf, c_void_p(offs.buffer_info()[0]), n, out)
+        if rc != 0:
+            raise RunError("内部错误：原生字符串批量分配失败（内存不足）")
+        return ctypes.string_at(ctypes.addressof(out), n * _JVAL_SIZE)
 
     def _cb_iter_next_batch(self, it, out, cap, n, line, col):
         try:
@@ -1488,10 +1595,16 @@ class CvmRunner:
                 kw_flat.append(name_index[k])
             kw_off.append(len(kw_flat))
 
-        # 常量池：数字内联，其余走句柄
+        # 常量池：数字内联，文本走原生字符串，其余走句柄
         consts = (JVal * max(len(cmod.consts), 1))()
         for i, c in enumerate(cmod.consts):
-            consts[i] = self.host.py2c(c)
+            v = self.host.py2c(c)
+            consts[i] = v
+            # 文本常量额外登记进「钉住表」：它们与常量数组同寿命，此后
+            # `c2py` 遇到它们可直接认回原件，省掉一次 ctypes 解码
+            # （见 `CvmHost.pin_str`）。
+            if type(c) is str:
+                self.host.pin_str(v, c)
 
         # 初始全局（内建函数），长度 = 名字表长度
         globals_in = (JVal * max(nnames, 1))()

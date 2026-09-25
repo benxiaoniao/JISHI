@@ -46,7 +46,10 @@ jsvm_load_module(vm, consts, nconsts, nnames, globals_in,
 jsvm_run(vm);
 ```
 
-C 宿主的约束：常量池里的字符串等非数值对象，须由宿主预先分配句柄；
+C 宿主的约束：常量池里的**字符串可以用 `jsvm_str_new` 直接建成 C 侧原生字符串**
+（M47 阶段二①起；`jsvm_str_len` / `jsvm_str_bytes` 读它，批量用
+`jsvm_str_new_batch`），**不必**再为它分配宿主句柄——字符串的拼接与比较在 C 侧
+就地完成，不回调宿主。列表 / 字典 / 模块 / Python 生态对象仍须由宿主预先分配句柄；
 所有 I/O 与 Python 生态对象操作都要宿主回调实现。适合对性能有极致要求、
 愿意实现完整回调表的宿主。
 

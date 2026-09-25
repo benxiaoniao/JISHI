@@ -11,7 +11,8 @@
  * C 侧保留的热路径（无回调）：
  *   整数/浮点算术（+ - * / 与整数的 // %，含 Python 语义修正与溢出回落）、
  *   比较、跳转、局部槽/全局槽读写、栈操作、基石函数调用与返回、
- *   「循环 n 次」计数循环、闭包单元读写。
+ *   「循环 n 次」计数循环、闭包单元读写、
+ *   **原生字符串的拼接与比较（M47 阶段二①，见下面的 JsStr）**。
  */
 
 #include <stdint.h>
@@ -45,6 +46,58 @@ static JVal make_cell(struct JsCell *c) {
 static JVal make_func(struct JsFunc *f) {
     JVal x; memset(&x, 0, sizeof x); x.tag = JS_TAG_FUNC;
     x.v.u = (uint64_t)(uintptr_t)f; return x;
+}
+
+/* ------------------------------------------------------------------ */
+/* 原生字符串（M47 阶段二①）                                            */
+/* ------------------------------------------------------------------ */
+
+/* 不可变 UTF-8 字符串 + 引用计数。字节数据**紧跟头部**（一次 malloc），
+ * 所以 `(char *)s + sizeof(JsStr)` 就是首字节。
+ *
+ * ⚠️ 这个布局是**跨语言契约**：jishi/cvm_bind.py 的 `_JsStr` 按同一布局
+ * 直读头部（为了省掉每次转换的 FFI 往返）。改这里必须同步改那边，
+ * tests/test_cvm.py 有一次性往返测试钉住它。
+ *
+ * 为什么不复用 HOST 句柄：句柄背后是 Python 对象，C 侧看不见内容，于是
+ * 每次拼接都要一次 FFI 往返（固定 ~2.4µs），而树遍历直接调 Python 的
+ * C 级 str.__add__（~0.05µs）—— 差 48 倍，永远追不上。
+ * 字符串**不可变**，所以没有容器那种「别名 + 逃逸」的坑（M46 ③④ 就是被
+ * 那个坑逼着换了方案），这是它与列表/字典最关键的区别。 */
+typedef struct JsStr {
+    int32_t refcnt;
+    int32_t blen;      /* UTF-8 字节数（码点数 C 侧暂时用不到，故不缓存） */
+} JsStr;
+
+static char *str_bytes(JsStr *s) { return (char *)s + sizeof(JsStr); }
+
+/* 分配一块 n 字节的原生字符串（内容未初始化），refcnt = 1。 */
+static JsStr *str_alloc(int32_t n) {
+    JsStr *s = (JsStr *)malloc(sizeof(JsStr) + (size_t)n + 1);
+    if (!s) return NULL;
+    s->refcnt = 1;
+    s->blen = n;
+    str_bytes(s)[n] = '\0';   /* 结尾补 0：方便调试，不参与语义 */
+    return s;
+}
+
+static JVal make_str(JsStr *s) {
+    JVal x; memset(&x, 0, sizeof x); x.tag = JS_TAG_STR;
+    x.v.u = (uint64_t)(uintptr_t)s; return x;
+}
+
+static JsStr *as_str(JVal v) { return (JsStr *)(uintptr_t)v.v.u; }
+
+static void str_release(JsStr *s) { if (s && --s->refcnt <= 0) free(s); }
+
+/* 逐字节比较。UTF-8 的性质：字节序 == 码点序，所以 `memcmp` 的结果与
+ * Python（按码点比较）完全一致——包括中文、emoji 与代理项。 */
+static int str_cmp(JsStr *a, JsStr *b) {
+    int32_t n = a->blen < b->blen ? a->blen : b->blen;
+    int c = n ? memcmp(str_bytes(a), str_bytes(b), (size_t)n) : 0;
+    if (c) return c < 0 ? -1 : 1;
+    if (a->blen == b->blen) return 0;
+    return a->blen < b->blen ? -1 : 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -236,6 +289,47 @@ JSVM_API int jsvm_track_handle(JsVm *vm, uint32_t id) {
     return 0;
 }
 
+/* -- 原生字符串（M47 阶段二①）：宿主侧入口，见 jsvm.h 的说明 ---------- */
+
+JSVM_API int jsvm_str_new(JsVm *vm, const char *utf8, int32_t blen, JVal *out) {
+    (void)vm;                     /* 预留：将来做常量驻留（interning）用 */
+    if (blen < 0) return -1;
+    if (blen > 0 && !utf8) return -1;
+    JsStr *s = str_alloc(blen);
+    if (!s) return -1;
+    if (blen > 0) memcpy(str_bytes(s), utf8, (size_t)blen);
+    *out = make_str(s);
+    return 0;
+}
+
+JSVM_API int32_t jsvm_str_len(const JVal *v) {
+    if (!v || v->tag != JS_TAG_STR) return -1;
+    return as_str(*v)->blen;
+}
+
+JSVM_API const char *jsvm_str_bytes(const JVal *v) {
+    if (!v || v->tag != JS_TAG_STR) return NULL;
+    return str_bytes(as_str(*v));
+}
+
+JSVM_API int jsvm_str_new_batch(JsVm *vm, const char *buf,
+                                const int32_t *offsets, int n, JVal *out) {
+    (void)vm;
+    if (n < 0 || (n > 0 && (!buf || !offsets || !out))) return -1;
+    for (int i = 0; i < n; i++) {
+        int32_t a = offsets[i], b = offsets[i + 1];
+        JsStr *s = (a >= 0 && b >= a) ? str_alloc(b - a) : NULL;
+        if (!s) {
+            /* 半途失败：把这一批已建的**全部**释放，不留半成品给调用方 */
+            for (int k = 0; k < i; k++) str_release(as_str(out[k]));
+            return -1;
+        }
+        if (b > a) memcpy(str_bytes(s), buf + a, (size_t)(b - a));
+        out[i] = make_str(s);
+    }
+    return 0;
+}
+
 static void retain_val(JsVm *vm, JVal v);
 static void release_val(JsVm *vm, JVal v);
 
@@ -271,8 +365,25 @@ static void retain_val(JsVm *vm, JVal v) {
     case JS_TAG_CELL:  retain_cell((JsCell *)(uintptr_t)v.v.u); break;
     case JS_TAG_FUNC:  retain_func((JsFunc *)(uintptr_t)v.v.u); break;
     case JS_TAG_ITER:  ((JsIterC *)(uintptr_t)v.v.u)->refcnt++; break;
+    case JS_TAG_STR:   as_str(v)->refcnt++; break;   /* M47 阶段二① */
     default: break;   /* 数值/UNSET 无需计数 */
     }
+}
+
+/* 把迭代器预取缓冲里的**全部**槽位放掉并清空。
+ *
+ * ⚠️ 不变式（M47 修正的漏引用 bug）：`it->buf[0 .. nbuf-1]` 每一个都由缓冲区
+ * **持有引用**，消费时额外 retain 一次给栈。所以「换批前」与「销毁时」都必须
+ * 整段释放——**不能**只从 `it->pos` 开始放（那等于假定「消费即转移所有权」，
+ * 与消费处的 retain 配不上，每消费一个元素漏一份引用）。
+ *
+ * 症状很不显眼：不报错、对拍全绿，只是长跑进程（LSP / MCP / REPL）内存一直涨
+ * ——遍历 1000 个文本一次就漏约 33KB。由 `.tmp-probe/leak_probe.py` 量出来。 */
+static void release_buf(JsVm *vm, JsIterC *it) {
+    for (int i = 0; i < it->nbuf; i++)
+        release_val(vm, it->buf[i]);
+    it->nbuf = 0;
+    it->pos = 0;
 }
 
 static void release_val(JsVm *vm, JVal v) {
@@ -289,12 +400,15 @@ static void release_val(JsVm *vm, JVal v) {
     case JS_TAG_ITER: {
         JsIterC *it = (JsIterC *)(uintptr_t)v.v.u;
         if (--it->refcnt > 0) break;
-        for (int i = it->pos; i < it->nbuf; i++)
-            release_val(vm, it->buf[i]);
+        /* 缓冲里的**每一个**槽位都由它自己持有引用，这里必须整段放掉（M47 修正，
+         * 见 FOR_ITER 处的不变式说明）。原先只从 `it->pos` 开始放，等于假定
+         * 「消费即转移所有权」，与消费处的 retain 配不上——每消费一个元素漏一份。 */
+        release_buf(vm, it);
         vm->host->release_handle(it->host_id);
         free(it);
         break;
     }
+    case JS_TAG_STR:   str_release(as_str(v)); break;   /* M47 阶段二① */
     default: break;
     }
 }
@@ -907,6 +1021,22 @@ static int dispatch_exception(JsVm *vm, JVal *exc) {
  * 已报错返回 -1 */
 static int binop_fast(int op, JVal l, JVal r, JVal *out, JsVm *vm,
                       int line, int col) {
+    /* 原生字符串拼接（M47 阶段二①）：两边都是原生字符串时 C 侧就地拼，
+     * 不再回调宿主 —— 「循环里 甲 = 甲 + "x" 2000 次」因此从 2000 次
+     * FFI 往返降到 0。`*`（重复）等其它运算回落宿主，语义不变。 */
+    if (l.tag == JS_TAG_STR && r.tag == JS_TAG_STR) {
+        if (op != JS_BIN_ADD) return 0;
+        JsStr *ls = as_str(l), *rs = as_str(r);
+        int64_t total = (int64_t)ls->blen + (int64_t)rs->blen;
+        /* 超过 int32 表示长度：回落宿主（由 Python 去决定报什么错） */
+        if (total > 0x7FFFFFFF) return 0;
+        JsStr *s = str_alloc((int32_t)total);
+        if (!s) return 0;                      /* 内存不足同样回落，语义不变 */
+        memcpy(str_bytes(s), str_bytes(ls), (size_t)ls->blen);
+        memcpy(str_bytes(s) + ls->blen, str_bytes(rs), (size_t)rs->blen);
+        *out = make_str(s);
+        return 1;
+    }
     int li = l.tag == JS_TAG_INT;
     int ri = r.tag == JS_TAG_INT;
     int lf = l.tag == JS_TAG_FLOAT;
@@ -968,6 +1098,21 @@ static int binop_fast(int op, JVal l, JVal r, JVal *out, JsVm *vm,
 }
 
 static int compare_fast(int op, JVal l, JVal r, JVal *out) {
+    /* 原生字符串比较（M47 阶段二①）：`memcmp` 走 UTF-8 字节序，而 UTF-8
+     * 的字节序**就是**码点序，所以与 Python 的按码点比较逐位一致。
+     * 「是/不是/在/不在」不走这里（它们有各自的语义），回落宿主。 */
+    if (l.tag == JS_TAG_STR && r.tag == JS_TAG_STR) {
+        int c = str_cmp(as_str(l), as_str(r));
+        switch (op) {
+        case JS_CMP_EQ: *out = make_bool(c == 0); return 1;
+        case JS_CMP_NE: *out = make_bool(c != 0); return 1;
+        case JS_CMP_LT: *out = make_bool(c <  0); return 1;
+        case JS_CMP_GT: *out = make_bool(c >  0); return 1;
+        case JS_CMP_LE: *out = make_bool(c <= 0); return 1;
+        case JS_CMP_GE: *out = make_bool(c >= 0); return 1;
+        default: return 0;
+        }
+    }
     int li = l.tag == JS_TAG_INT, ri = r.tag == JS_TAG_INT;
     int lf = l.tag == JS_TAG_FLOAT, rf = r.tag == JS_TAG_FLOAT;
     if (!((li || lf) && (ri || rf))) return 0;
@@ -1674,6 +1819,15 @@ static int run_loop(JsVm *vm) {
                 JVal itv = vm->stack[vm->sp - 1];   /* 借用 */
                 if (itv.tag == JS_TAG_ITER) {
                     JsIterC *it = (JsIterC *)(uintptr_t)itv.v.u;
+                    /* ⚠️ 缓冲的所有权不变式（M47 修正）：
+                     * `it->buf[0 .. nbuf-1]` **每一个都由缓冲区持有引用**，
+                     * 消费时**额外** retain 一次给栈。所以
+                     *   换批前 → 必须把上一批整段释放（见下面的 release_buf）
+                     *   销毁时 → 必须把**整段**释放（见 release_val 的 ITER 分支）
+                     * 早先销毁只从 `it->pos` 开始放，等于「消费即转移所有权」，
+                     * 与消费处的 retain 配不上——**每消费一个元素漏一份引用**：
+                     * 文本 32 字节/元素（一个 `JsStr` 块），列表/字典/函数同理。
+                     * 遍历 1000 个文本一次就漏 33KB，LSP / MCP 这类长跑进程会一直涨。 */
                     if (it->pos < it->nbuf) {           /* 缓冲命中：零回调 */
                         JVal v = it->buf[it->pos++];
                         retain_val(vm, v);
@@ -1686,6 +1840,8 @@ static int run_loop(JsVm *vm) {
                         break;
                     }
                     SAVE_IP();
+                    /* 换批：先把上一批整段放掉（缓冲持有它们，见上面的不变式） */
+                    release_buf(vm, it);
                     int n = 0;
                     JVal hj; memset(&hj, 0, sizeof hj);
                     hj.tag = JS_TAG_HOST; hj.v.u = it->host_id;
