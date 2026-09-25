@@ -43,6 +43,13 @@ mod text;
 // M41 新增（与 Python 侧 jishi/stdlib/ 下同名文件对齐）
 mod args;
 mod containers;
+// M50 新增（与 Python 侧 jishi/stdlib/ 下同名文件对齐）
+mod stats;
+mod ident;
+mod encode;
+mod htmlmod;
+mod diffmod;
+mod config;
 mod iter;
 mod log;
 
@@ -75,6 +82,13 @@ pub(crate) fn module(name: &str) -> Result<Val, JishiError> {
         "迭代" => iter::module(),
         "参数" => args::module(),
         "日志" => log::module(),
+        // M50 新增的六个模块
+        "统计" => stats::module(),
+        "标识" => ident::module(),
+        "编码" => encode::module(),
+        "html" => htmlmod::module(),
+        "对比" => diffmod::module(),
+        "配置" => config::module(),
         _ => {
             return Err(err("异常", format!("没有找到标准库模块「{name}」")));
         }

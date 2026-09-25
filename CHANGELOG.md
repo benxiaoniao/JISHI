@@ -34,6 +34,34 @@ base64 / 行级 diff / UUID，它零第三方依赖）——属后续批次，**
 （Python 的 `tomllib` 是 3.11+）。为不引入版本依赖，本批**只做 JSON 与键值文本**；
 要 TOML 得单独立项（那是独立解析器工程）。
 
+### 新增（M50 第二批：6 个新模块的 **Node / Rust 宿主实现**）
+
+第一批只做了 Python 侧（README 里如实标注过「两个宿主还没实现」），本批补齐。
+**五引擎逐字节一致**（树遍历 / Python VM / C VM / Node / Rust）：
+
+| 模块 | Node 侧 | Rust 侧 |
+|------|---------|---------|
+| `统计` | `node/vm.js` 的 `STATS_FUNCS` | `rust/src/stdlib/stats.rs` |
+| `编码` | `ENCODE_FUNCS` | `encode.rs`（**自写 base64 / URL 编解码**，零依赖） |
+| `配置` | `CFG_FUNCS` | `config.rs`（复用 `jsonmod::parse` / `to_text`） |
+| `html` | `HTML_FUNCS` | `htmlmod.rs`（新增 `Val::HtmlRaw` 变体） |
+| `对比` | `DIFF_FUNCS` | `diffmod.rs`（**自写 LCS + 对齐 difflib 分块**） |
+| `标识` | `ID_FUNCS` | `ident.rs`（复用 `rand::next_u64`） |
+
+新增 `tests/test_m50_hosts.py`（**39 项**）：三执行器 + Node + Rust 逐字节对拍。
+要改某个新模块时，**这一份是全绿的底线**——别只改 Python 侧就提交。
+
+⚠️ **一处 API 因跨宿主限制而降级**：`html` 的属性原用关键字参数
+（`标签("p", "内容", 类名="提示")`），但**两个宿主的「内建函数」类型都没有
+放关键字的位置**（Node 是 `fn(...args)`、Rust 是 `fn(&[Val], &mut VM)`），
+用关键字在那边会**静默丢失全部属性**。已改成**属性字典**
+（`标签("p", "内容", {"类名": "提示"})`），五引擎一致。
+
+📌 **顺带记一个既有的同类缺口**：`加密.摘要("abc", 算法="md5")` 在 Node / Rust 上
+**静默用默认的 sha256**（实测：Python 给 `900150…`、两个宿主给 `ba7816bf…`）。
+同一个根因，要根治得给两个宿主的内建类型加 kwargs 位——**属独立任务，本批未做**，
+已写进 `AGENTS.md` §3。
+
 ### 修复（M50 暴露的 3 个坑 —— 1 个语言级 + 2 个标准库级）
 
 1. **`用 … 为 …：` 原先不认宿主对象**（语言级）：找 `进入`/`退出` 时只看了

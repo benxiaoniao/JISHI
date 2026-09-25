@@ -16,7 +16,12 @@ use crate::{display, err, Val, VM};
 
 static STATE: OnceLock<Mutex<u64>> = OnceLock::new();
 
-fn next_u64() -> u64 {
+/// 取一个 64 位随机数。
+///
+/// **给别的模块用的**（M50 的  要生成 UUID）：Rust 标准库没有随机数
+/// 发生器，全项目只有这里一个实现——别再各写一个（那样两处的质量与种子
+/// 策略会漂开）。
+pub(crate) fn next_u64() -> u64 {
     let slot = STATE.get_or_init(|| {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)

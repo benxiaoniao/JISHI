@@ -2152,6 +2152,645 @@ const LOG_FUNCS = {
   '错误': new R.Builtin('错误', (...a) => { _logOut('错误', a); return null; }),
 };
 
+// ---------------------------------------------------------------------------
+// M50 新增的六个标准库模块（与 Python 侧 jishi/stdlib/ 下同名文件对齐）
+//
+// ⚠️ 对齐纪律（照 Python 侧的语义逐条搬，别「顺手改好」）：
+//   · 报错措辞与 Python 侧**逐字一致**（对拍测试逐字节比 stdout 与报错文本）
+//   · 顺序敏感的地方要**保序**（`众数` 并列取最先出现、`去重` 保首次出现顺序）
+//   · 浮点算出来的值与 Python 的差可能在末位，对拍时用近似断言
+// ---------------------------------------------------------------------------
+
+/** 统计：集中趋势与离散程度（对齐 Python 侧 统计.py）。 */
+function _numsFor(name, v) {
+  if (typeof v === 'string') {
+    throw R.typeErr(`「${name}」要传一组数字，不能传文本`);
+  }
+  const s = R.seqOf(v, true, undefined, undefined);
+  if (s === null) throw R.typeErr(`「${name}」要传一组数字（列表）`);
+  return s.map((x0, i) => {
+    // ⚠️ 先 `R.unwrap`：JS 侧浮点是 `FloatBox` 包装的（见 runtime.js 的说明），
+    //    不解包会 `typeof x !== 'number'` 而把 `9.5` 判成「不是数字」。
+    const x = R.unwrap(x0);
+    if (typeof x === 'boolean' || typeof x !== 'number') {
+      throw R.typeErr(`「${name}」里第 ${i + 1} 个不是数字：${R.display(x0)}`);
+    }
+    return x;
+  });
+}
+function _need(name, xs) {
+  if (xs.length === 0) throw R.valueErr(`「${name}」要至少有一个数字，现在是空的`);
+  return xs;
+}
+function _isInt(v) {
+  const x = R.unwrap(v);
+  return typeof x === 'number' && Number.isInteger(x);
+}
+
+const STATS_FUNCS = {
+  '求和': new R.Builtin('求和', (d) => _numsFor('求和', d).reduce((a, b) => a + b, 0)),
+  '平均': new R.Builtin('平均', (d) => {
+    const xs = _need('平均', _numsFor('平均', d));
+    return new R.FloatBox(xs.reduce((a, b) => a + b, 0) / xs.length);
+  }),
+  '中位数': new R.Builtin('中位数', (d) => {
+    const xs = _need('中位数', _numsFor('中位数', d)).slice().sort((a, b) => a - b);
+    const n = xs.length; const mid = Math.floor(n / 2);
+    if (n % 2) return xs[mid];
+    return new R.FloatBox((xs[mid - 1] + xs[mid]) / 2);
+  }),
+  '众数': new R.Builtin('众数', (d) => {
+    const xs = _need('众数', _numsFor('众数', d));
+    const counts = new Map(); const order = [];
+    for (const v of xs) {
+      const k = R.setKey(v);
+      if (!counts.has(k)) { counts.set(k, { v, n: 0 }); order.push(k); }
+      counts.get(k).n += 1;
+    }
+    let best = counts.get(order[0]);
+    for (const k of order) { if (counts.get(k).n > best.n) best = counts.get(k); }
+    return best.v;
+  }),
+  '方差': new R.Builtin('方差', (d, sample = false) => {
+    const xs = _need('方差', _numsFor('方差', d));
+    const n = xs.length;
+    const m = xs.reduce((a, b) => a + b, 0) / n;
+    const ss = xs.reduce((a, b) => a + (b - m) ** 2, 0);
+    if (sample) {
+      if (n < 2) throw R.valueErr('样本方差至少要 2 个数（要除以 n-1）');
+      return new R.FloatBox(ss / (n - 1));
+    }
+    return new R.FloatBox(ss / n);
+  }),
+  '标准差': new R.Builtin('标准差', (d, sample = false) => {
+    const xs = _need('标准差', _numsFor('标准差', d));
+    const n = xs.length;
+    const m = xs.reduce((a, b) => a + b, 0) / n;
+    const ss = xs.reduce((a, b) => a + (b - m) ** 2, 0);
+    if (sample) {
+      if (n < 2) throw R.valueErr('样本方差至少要 2 个数（要除以 n-1）');
+      return new R.FloatBox(Math.sqrt(ss / (n - 1)));
+    }
+    return new R.FloatBox(Math.sqrt(ss / n));
+  }),
+  '极差': new R.Builtin('极差', (d) => {
+    const xs = _need('极差', _numsFor('极差', d));
+    return Math.max(...xs) - Math.min(...xs);
+  }),
+  '分位数': new R.Builtin('分位数', (d, p0) => {
+    // ⚠️ 数值参数要先 `R.unwrap`：JS 侧浮点是 `FloatBox` 包装的（为了
+    //    `0.1 + 0.2 == 0.3` 这类语义），直接 `typeof p === 'number'` 会误判。
+    const p = R.unwrap(p0);
+    if (typeof p !== 'number' || typeof p === 'boolean') {
+      throw R.typeErr('「分位数」的第二个参数要传 0 到 1 之间的小数');
+    }
+    if (!(p >= 0 && p <= 1)) throw R.valueErr(`分位数要在 0 到 1 之间，现在是 ${p}`);
+    const xs = _need('分位数', _numsFor('分位数', d)).slice().sort((a, b) => a - b);
+    if (xs.length === 1) return xs[0];
+    const pos = p * (xs.length - 1);
+    const lo = Math.floor(pos); const hi = Math.ceil(pos);
+    if (lo === hi) return xs[lo];
+    return new R.FloatBox(xs[lo] + (xs[hi] - xs[lo]) * (pos - lo));
+  }),
+  '去极值平均': new R.Builtin('去极值平均', (d, k = 1) => {
+    const kk = R.unwrap(k);
+    if (typeof kk === 'boolean' || !_isInt(kk)) throw R.typeErr('「去掉个数」要传整数');
+    if (kk < 0) throw R.valueErr('「去掉个数」不能是负数');
+    const xs = _need('去极值平均', _numsFor('去极值平均', d)).slice().sort((a, b) => a - b);
+    if (kk * 2 >= xs.length) {
+      throw R.valueErr(`去掉 ${kk} 个最高和最低之后就没数据了（一共 ${xs.length} 个）`);
+    }
+    const kept = xs.slice(kk, xs.length - kk);
+    return new R.FloatBox(kept.reduce((a, b) => a + b, 0) / kept.length);
+  }),
+  '加权平均': new R.Builtin('加权平均', (d, w) => {
+    const xs = _need('加权平均', _numsFor('加权平均', d));
+    const ws = _numsFor('加权平均的权重', w);
+    if (xs.length !== ws.length) {
+      throw R.valueErr(`数据和权重的个数不一样：${xs.length} 个数据、${ws.length} 个权重`);
+    }
+    const total = ws.reduce((a, b) => a + b, 0);
+    if (total === 0) throw R.valueErr('权重之和是 0，没法算加权平均');
+    let s = 0;
+    for (let i = 0; i < xs.length; i++) s += xs[i] * ws[i];
+    return new R.FloatBox(s / total);
+  }),
+};
+
+/** 编码：base64 / 十六进制 / URL（对齐 Python 侧 编码.py）。 */
+function _toBytesFor(name, v) {
+  if (typeof v === 'string') return Buffer.from(v, 'utf8');
+  if (Buffer.isBuffer(v)) return v;
+  const s = R.seqOf(v, true, undefined, undefined);
+  if (s === null) throw R.valueErr(`「${name}」要传文本、字节列表或 bytes`);
+  const out = [];
+  s.forEach((x, i) => {
+    if (typeof x === 'boolean' || !_isInt(x)) {
+      throw R.valueErr(`「${name}」里第 ${i + 1} 个不是 0-255 的整数`);
+    }
+    if (x < 0 || x > 255) {
+      throw R.valueErr(`「${name}」里第 ${i + 1} 个超出范围（要 0-255）：${x}`);
+    }
+    out.push(x);
+  });
+  return Buffer.from(out);
+}
+function _wantBytes(name, v) {
+  if (typeof v === 'string') {
+    if (!/^[\x00-\x7f]*$/.test(v)) {
+      throw R.valueErr(`「${name}」的内容应当是 base64 / 十六进制字符，但里面出现了非 ASCII 字符`);
+    }
+    return Buffer.from(v, 'ascii');
+  }
+  if (Buffer.isBuffer(v)) return v;
+  const s = R.seqOf(v, true, undefined, undefined);
+  if (s === null) throw R.valueErr(`「${name}」要传文本或字节列表`);
+  return _toBytesFor(name, v);
+}
+
+const ENCODE_FUNCS = {
+  'base64编码': new R.Builtin('base64编码', (v) =>
+    _toBytesFor('base64编码', v).toString('base64')),
+  'base64解码': new R.Builtin('base64解码', (v) => {
+    const raw = _wantBytes('base64解码', v);
+    const s = raw.toString('ascii');
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(s) || s.length % 4 !== 0) {
+      throw R.valueErr(`这不是合法的 base64 内容：${s}`);
+    }
+    return [...Buffer.from(s, 'base64')];
+  }),
+  '十六进制编码': new R.Builtin('十六进制编码', (v, upper = false) => {
+    const h = _toBytesFor('十六进制编码', v).toString('hex');
+    return upper ? h.toUpperCase() : h;
+  }),
+  '十六进制解码': new R.Builtin('十六进制解码', (v) => {
+    const raw = _wantBytes('十六进制解码', v);
+    let s = raw.toString('ascii').replace(/[ \t]/g, '')
+      .replace(/0[xX]/g, '').replace(/,/g, '');
+    if (s === '') return [];
+    if (s.length % 2) s = '0' + s;
+    if (!/^[0-9a-fA-F]*$/.test(s)) {
+      throw R.valueErr(`这不是合法的十六进制内容：${s}`);
+    }
+    return [...Buffer.from(s, 'hex')];
+  }),
+  'url编码': new R.Builtin('url编码', (v, keepSlash = true) => {
+    const safe = keepSlash ? '/' : '';
+    const s = encodeURIComponent(String(v));
+    return safe ? s.replace(/%2F/g, '/') : s;
+  }),
+  'url解码': new R.Builtin('url解码', (v) => {
+    if (typeof v !== 'string') throw R.valueErr('「url解码」要传文本');
+    try {
+      return decodeURIComponent(v);
+    } catch (e) {
+      throw R.valueErr(`这不是合法的 URL 编码内容：${e.message}`);
+    }
+  }),
+  '文本字节': new R.Builtin('文本字节', (v) => {
+    if (typeof v !== 'string') throw R.valueErr('「文本字节」要传文本');
+    return [...Buffer.from(v, 'utf8')];
+  }),
+  '字节文本': new R.Builtin('字节文本', (v) => {
+    const raw = _toBytesFor('字节文本', v);
+    const s = raw.toString('utf8');
+    if (Buffer.from(s, 'utf8').compare(raw) !== 0) {
+      throw R.valueErr('这些字节不是合法的 UTF-8 文本（可能被截断或本来就是二进制）');
+    }
+    return s;
+  }),
+};
+
+/** html：转义与生成片段（对齐 Python 侧 html.py）。 */
+function _escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
+//: 「原样」标记：与 Python 侧一样用**普通对象**（不用 str/String 子类）——
+//: 见 Python 侧 html.py 模块开头那段「实现上的一个坑」。
+class RawHtml {
+  constructor(s) { this.s = String(s); }
+  toString() { return this.s; }
+}
+function _htmlContent(v) {
+  return (v instanceof RawHtml) ? v.s : _escapeHtml(v);
+}
+const _ATTR_ALIAS = { '类名': 'class', '对应': 'for' };
+/** 属性字典（基石字典 = Map）→ 属性串；`空` 值只输出属性名（布尔属性）。
+ *  ⚠️ 用字典而不是关键字参数，理由见 Python 侧 html.py 的 `_属性串`。 */
+function _attrStr(attrs) {
+  if (attrs === null || attrs === undefined) return '';
+  if (!(attrs instanceof Map)) {
+    throw R.typeErr('属性要传字典，例如 标签("p", "内容", {"类名": "提示"})');
+  }
+  const parts = [];
+  for (const [k0, v] of attrs) {
+    const k = R.display(k0);
+    const key = (_ATTR_ALIAS[k] || k).replace(/_/g, '-');
+    if (v === null || v === undefined) parts.push(` ${key}`);
+    else parts.push(` ${key}="${_escapeHtml(v)}"`);
+  }
+  return parts.join('');
+}
+
+const HTML_FUNCS = {
+  '转义': new R.Builtin('转义', (v) => _escapeHtml(v)),
+  '原样': new R.Builtin('原样', (v) => (v instanceof RawHtml ? v : new RawHtml(v))),
+  '标签': new R.Builtin('标签', (tag, content = '', attrs = null) => {
+    if (typeof tag !== 'string' || tag === '') {
+      throw R.typeErr('「标签」的第一个参数要是标签名（非空文本）');
+    }
+    return `<${tag}${_attrStr(attrs)}>${_htmlContent(content)}</${tag}>`;
+  }),
+  '空元素': new R.Builtin('空元素', (tag, attrs = null) => {
+    if (typeof tag !== 'string' || tag === '') {
+      throw R.typeErr('「空元素」的第一个参数要是标签名（非空文本）');
+    }
+    return `<${tag}${_attrStr(attrs)} />`;
+  }),
+  '链接': new R.Builtin('链接', (text, href, attrs = null) => {
+    const merged = new Map();
+    merged.set('href', href);
+    if (attrs instanceof Map) for (const [k, v] of attrs) merged.set(k, v);
+    return HTML_FUNCS['标签'].fn('a', text, merged);
+  }),
+  '属性文本': new R.Builtin('属性文本', (v) => _escapeHtml(v)),
+  '有序列表': new R.Builtin('有序列表', (items, attrs = null) => {
+    const lis = seqFor('有序列表', items).map((x) => `<li>${_htmlContent(x)}</li>`).join('');
+    return `<ol${_attrStr(attrs)}>${lis}</ol>`;
+  }),
+  '无序列表': new R.Builtin('无序列表', (items, attrs = null) => {
+    const lis = seqFor('无序列表', items).map((x) => `<li>${_htmlContent(x)}</li>`).join('');
+    return `<ul${_attrStr(attrs)}>${lis}</ul>`;
+  }),
+};
+
+/** 对比：行级 diff（对齐 Python 侧 对比.py）。 */
+function _linesFor(name, v) {
+  if (typeof v === 'string') return v.split(/\r\n|\r|\n/).filter((_, i, a) => i < a.length - (v.endsWith('\n') || v.endsWith('\r') ? 1 : 0));
+  const s = R.seqOf(v, true, undefined, undefined);
+  if (s === null) throw R.typeErr(`「${name}」要传文本或文本列表`);
+  return s.map((x, i) => {
+    if (typeof x !== 'string') throw R.typeErr(`「${name}」的第 ${i + 1} 项不是文本：${R.display(x)}`);
+    return x;
+  });
+}
+/** 行级差异的 opcode 列表（等价 Python difflib.SequenceMatcher.get_opcodes）。 */
+function _opcodes(a, b) {
+  const n = a.length; const m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const out = [];
+  let i = 0; let j = 0;
+  const push = (tag, i1, i2, j1, j2) => {
+    const last = out[out.length - 1];
+    if (last && last.tag === tag && last.i2 === i1 && last.j2 === j1) {
+      last.i2 = i2; last.j2 = j2;
+    } else out.push({ tag, i1, i2, j1, j2 });
+  };
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { push('equal', i, i + 1, j, j + 1); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { push('delete', i, i + 1, j, j); i++; }
+    else { push('insert', i, i, j, j + 1); j++; }
+  }
+  while (i < n) { push('delete', i, i + 1, j, j); i++; }
+  while (j < m) { push('insert', i, i, j, j + 1); j++; }
+  // ⚠️ 相邻的 `delete` + `insert` 要合并成 `replace`——Python 的 `difflib`
+  //    就是这么给的。不合并会让 `对比.并排` 把「一行换一行」拆成两行、
+  //    让 `对比.统一` 的 `@@` 计数算错（实测踩到）。
+  const merged = [];
+  for (let k = 0; k < out.length; k++) {
+    const cur = out[k];
+    if (cur.tag === 'delete' && out[k + 1] && out[k + 1].tag === 'insert') {
+      const nxt = out[k + 1];
+      merged.push({ tag: 'replace', i1: cur.i1, i2: cur.i2, j1: nxt.j1, j2: nxt.j2 });
+      k++;
+    } else merged.push(cur);
+  }
+  return merged;
+}
+
+const DIFF_FUNCS = {
+  '逐行': new R.Builtin('逐行', (oldV, newV, numbered = false) => {
+    const a = _linesFor('逐行', oldV); const b = _linesFor('逐行', newV);
+    const out = [];
+    for (const { tag, i1, i2, j1, j2 } of _opcodes(a, b)) {
+      if (tag === 'equal') {
+        for (let k = i1; k < i2; k++) out.push([' ', numbered ? j1 + k - i1 + 1 : 0, a[k]]);
+      } else if (tag === 'delete') {
+        for (let k = i1; k < i2; k++) out.push(['-', numbered ? j1 + 1 : 0, a[k]]);
+      } else if (tag === 'insert') {
+        for (let k = j1; k < j2; k++) out.push(['+', numbered ? k + 1 : 0, b[k]]);
+      } else {
+        for (let k = i1; k < i2; k++) out.push(['-', numbered ? j1 + 1 : 0, a[k]]);
+        for (let k = j1; k < j2; k++) out.push(['+', numbered ? k + 1 : 0, b[k]]);
+      }
+    }
+    return out;
+  }),
+  '统一': new R.Builtin('统一', (oldV, newV, ctx0 = 3) => {
+    const a = _linesFor('统一', oldV); const b = _linesFor('统一', newV);
+    const n = R.unwrap(ctx0);
+    if (typeof n === 'boolean' || !_isInt(n) || n < 0) {
+      throw R.typeErr('「上下文」要传 0 或正整数');
+    }
+    // 照搬 Python `difflib.get_grouped_opcodes(n)` 的结构：
+    // 它**已经把上下文行并进组里**，组与组之间不再补上下文。
+    const ops = _opcodes(a, b);
+    const groups = [];
+    if (ops.length) {
+      let g = [];
+      // ⚠️ 空组要丢掉：n=0 时开头/结尾会出现「长度 0 的 equal」，
+      //    difflib 不会为它单独出一个 @@（实测踩到）。
+      const flush = () => {
+        const real = g.filter((o) => o.tag !== 'equal' || o.i2 > o.i1);
+        if (real.some((o) => o.tag !== 'equal')) groups.push(real);
+        g = [];
+      };
+      for (let k = 0; k < ops.length; k++) {
+        const op = ops[k];
+        if (op.tag === 'equal' && op.i2 - op.i1 > 2 * n) {
+          // 长串相同行：只留头 n 行；尾 n 行留给下一组当开头
+          const head = { tag: 'equal', i1: op.i1, i2: op.i1 + n, j1: op.j1, j2: op.j1 + n };
+          g.push(head); flush();
+          const tail = { tag: 'equal', i1: op.i2 - n, i2: op.i2, j1: op.j2 - n, j2: op.j2 };
+          g.push(tail);
+          continue;
+        }
+        g.push(op);
+      }
+      flush();
+    }
+    const out = [];
+    for (const g of groups) {
+      const first = g[0]; const last = g[g.length - 1];
+      const spanI = last.i2 - first.i1;
+      const spanJ = last.j2 - first.j1;
+      if (out.length === 0) { out.push('--- 旧'); out.push('+++ 新'); }
+      const rng = (start, span) => (span === 1 ? `${start}` : `${start},${span}`);
+      out.push(`@@ -${rng(first.i1 + 1, spanI)} +${rng(first.j1 + 1, spanJ)} @@`);
+      for (const { tag, i1, i2, j1, j2 } of g) {
+        if (tag === 'equal') {
+          for (let x = i1; x < i2; x++) out.push(' ' + a[x]);
+        } else {
+          if (tag === 'delete' || tag === 'replace') {
+            for (let x = i1; x < i2; x++) out.push('-' + a[x]);
+          }
+          if (tag === 'insert' || tag === 'replace') {
+            for (let x = j1; x < j2; x++) out.push('+' + b[x]);
+          }
+        }
+      }
+    }
+    return out.join('\n');
+  }),
+  '并排': new R.Builtin('并排', (oldV, newV, width0 = 30) => {
+    const a = _linesFor('并排', oldV); const b = _linesFor('并排', newV);
+    const width = R.unwrap(width0);
+    if (typeof width === 'boolean' || !_isInt(width) || width < 4) {
+      throw R.typeErr('「宽」要传不小于 4 的整数');
+    }
+    const cut = (s) => {
+      let w = 0;
+      for (const ch of s) w += ch.codePointAt(0) > 0x2e80 ? 2 : 1;
+      if (w <= width) return s + ' '.repeat(width - w);
+      let acc = 0; let res = '';
+      for (const ch of s) {
+        const cw = ch.codePointAt(0) > 0x2e80 ? 2 : 1;
+        if (acc + cw > width - 1) break;
+        res += ch; acc += cw;
+      }
+      return res + '…' + ' '.repeat(Math.max(0, width - acc - 1));
+    };
+    // ⚠️ 与 Python 侧一致：`replace` 块按「删 k 行 / 插 k 行」**成对**输出
+    //    （第 k 对是「删的第 k 行 / 插的第 k 行」），不是先全列左边再全列右边。
+    const out = [];
+    for (const { tag, i1, i2, j1, j2 } of _opcodes(a, b)) {
+      if (tag === 'equal') {
+        for (let k = i1; k < i2; k++) out.push(`${cut(a[k])} | ${cut(b[j1 + k - i1])}`);
+      } else {
+        const leftN = (tag === 'insert') ? 0 : i2 - i1;
+        const rightN = (tag === 'delete') ? 0 : j2 - j1;
+        const n = Math.max(leftN, rightN);
+        for (let k = 0; k < n; k++) {
+          const left = k < leftN ? a[i1 + k] : '';
+          const right = k < rightN ? b[j1 + k] : '';
+          out.push(`${cut(left)} ${left === right ? ' ' : '~'}| ${cut(right)}`);
+        }
+      }
+    }
+    return out.join('\n');
+  }),
+  '相似度': new R.Builtin('相似度', (x, y) => {
+    const a = _linesFor('相似度', x); const b = _linesFor('相似度', y);
+    if (a.length === 0 && b.length === 0) return new R.FloatBox(1);
+    const ops = _opcodes(a, b);
+    let same = 0;
+    for (const { tag, i1, i2 } of ops) if (tag === 'equal') same += i2 - i1;
+    return new R.FloatBox((2 * same) / (a.length + b.length));
+  }),
+  '最相似': new R.Builtin('最相似', (target, candidates) => {
+    if (typeof target !== 'string') throw R.typeErr('「最相似」的第一个参数要传文本');
+    const items = _linesFor('最相似', candidates);
+    if (items.length === 0) return '';
+    let best = items[0]; let bestR = -1;
+    for (const it of items) {
+      const a = target.split(''); const b = it.split('');
+      const ops = _opcodes(a, b);
+      let same = 0;
+      for (const { tag, i1, i2 } of ops) if (tag === 'equal') same += i2 - i1;
+      const r = (2 * same) / (a.length + b.length);
+      if (r > bestR) { best = it; bestR = r; }
+    }
+    return best;
+  }),
+};
+
+/** 标识：UUID 式唯一标识（对齐 Python 侧 标识.py）。 */
+const _B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+function _b64url(buf) {
+  const s = buf.toString('base64');
+  let out = '';
+  for (const ch of s) {
+    if (ch === '=') continue;
+    const i = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.indexOf(ch);
+    out += _B64URL[i];
+  }
+  return out;
+}
+
+const ID_FUNCS = {
+  '唯一标识': new R.Builtin('唯一标识', (noDash = false) => {
+    const u = _crypto.randomUUID();
+    return noDash ? u.replace(/-/g, '') : u;
+  }),
+  '唯一标识短': new R.Builtin('唯一标识短', () => _b64url(_crypto.randomBytes(16))),
+  '唯一标识字节': new R.Builtin('唯一标识字节', () => [..._crypto.randomBytes(16)]),
+};
+
+/** 配置：JSON 与键值文本（对齐 Python 侧 配置.py）。 */
+const _NOT_GIVEN = '\u0000未给\u0000';
+const CFG_FUNCS = {
+  '读JSON': new R.Builtin('读JSON', (path, dflt = _NOT_GIVEN) => {
+    const p = String(path);
+    if (!fs.existsSync(p)) {
+      if (dflt !== _NOT_GIVEN) return dflt;
+      throw R.fileErr(`配置文件「${p}」不存在`);
+    }
+    let text;
+    try { text = fs.readFileSync(p, 'utf8'); }
+    catch (e) { throw R.fileErr(`读配置文件「${p}」失败：${e.message}`); }
+    // 复用 json 模块的 jsonDecode（它会把普通对象转成基石字典、报错也更准）
+    try { return jsonDecode(text); }
+    catch (e) { throw R.fileErr(`配置文件「${p}」不是合法的 JSON：${e.message}`); }
+  }),
+  '写JSON': new R.Builtin('写JSON', (path, data, indent = 2) => {
+    const p = String(path);
+    if (typeof indent === 'boolean' || !_isInt(indent) || indent < 0) {
+      throw R.typeErr('「缩进」要传 0 或正整数');
+    }
+    // ⚠️ 复用 `json` 模块的 `jsonEncode`（它已经会处理 Map/集合/精确小数，
+    //    并且缩进规则与 Python 侧一致）。别在这里用 `JSON.stringify` +
+    //    自己写的转换——那个 `_jishiToPlain` 我一度写了但根本没定义。
+    let text;
+    try { text = jsonEncode(data, indent || 0); }
+    catch (e) { throw R.valueErr(`这份数据没法写成 JSON：${e.message}`); }
+    const dir = _path.dirname(p);
+    if (dir) fs.mkdirSync(dir, { recursive: true });
+    try { fs.writeFileSync(p, text + '\n', 'utf8'); }
+    catch (e) { throw R.fileErr(`写配置文件「${p}」失败：${e.message}`); }
+    return p;
+  }),
+  '读键值': new R.Builtin('读键值', (path, dflt = _NOT_GIVEN, sep = '=') => {
+    const p = String(path);
+    if (!fs.existsSync(p)) {
+      if (dflt !== _NOT_GIVEN) return dflt;
+      throw R.fileErr(`配置文件「${p}」不存在`);
+    }
+    if (typeof sep !== 'string' || sep === '') throw R.typeErr('「分隔符」要传非空文本');
+    let text;
+    try { text = fs.readFileSync(p, 'utf8'); }
+    catch (e) { throw R.fileErr(`读配置文件「${p}」失败：${e.message}`); }
+    const out = new Map();
+    text.split(/\r\n|\r|\n/).forEach((raw, idx) => {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) return;
+      if (!line.includes(sep)) {
+        throw R.fileErr(`配置文件「${p}」第 ${idx + 1} 行没有「${sep}」：${line}`);
+      }
+      const at = line.indexOf(sep);
+      const k = line.slice(0, at).trim();
+      const v = _stripComment(line.slice(at + sep.length).trim());
+      if (!k) throw R.fileErr(`配置文件「${p}」第 ${idx + 1} 行的键是空的`);
+      out.set(k, v);
+    });
+    return out;
+  }),
+  '写键值': new R.Builtin('写键值', (path, cfg, sep = ' = ') => {
+    const p = String(path);
+    const d = cfg instanceof Map ? cfg : null;
+    if (!d) throw R.typeErr('「写键值」的第二个参数要传字典');
+    const lines = [];
+    for (const [k, v] of d) {
+      let s = R.display(v);
+      if (s.includes('#') || s !== s.trim() || s.startsWith('"') || s.startsWith("'")) {
+        s = '"' + s.replace(/"/g, '\\"') + '"';
+      }
+      lines.push(`${k}${sep}${s}`);
+    }
+    const dir = _path.dirname(p);
+    if (dir) fs.mkdirSync(dir, { recursive: true });
+    try { fs.writeFileSync(p, lines.join('\n') + (lines.length ? '\n' : ''), 'utf8'); }
+    catch (e) { throw R.fileErr(`写配置文件「${p}」失败：${e.message}`); }
+    return p;
+  }),
+  '取': new R.Builtin('取', (cfg, path, dflt = _NOT_GIVEN) => {
+    if (typeof path !== 'string' || path === '') throw R.typeErr('「取」的路径要传非空文本');
+    let cur = cfg; const walked = [];
+    for (const seg of path.split('.')) {
+      walked.push(seg);
+      let ok = false;
+      if (cur instanceof Map) {
+        if (cur.has(seg)) { cur = cur.get(seg); ok = true; }
+      } else if (Array.isArray(cur)) {
+        if (/^\d+$/.test(seg) && Number(seg) < cur.length) { cur = cur[Number(seg)]; ok = true; }
+      }
+      if (!ok) {
+        if (dflt !== _NOT_GIVEN) return dflt;
+        const parent = walked.slice(0, -1).join('.') || '<根>';
+        throw R.valueErr(`配置里没有「${walked.join('.')}」这一段（「${parent}」下面是${_shapeOf(cur)}）`);
+      }
+    }
+    return cur;
+  }),
+  '设': new R.Builtin('设', (cfg, path, val) => {
+    if (!(cfg instanceof Map)) throw R.typeErr('「设」的第一个参数要传字典');
+    if (typeof path !== 'string' || path === '') throw R.typeErr('「设」的路径要传非空文本');
+    const segs = path.split('.');
+    const out = new Map(cfg);
+    let cur = out;
+    for (const seg of segs.slice(0, -1)) {
+      let nxt = cur.get(seg);
+      nxt = (nxt instanceof Map) ? new Map(nxt) : new Map();
+      cur.set(seg, nxt); cur = nxt;
+    }
+    cur.set(segs[segs.length - 1], val);
+    return out;
+  }),
+  '合并': new R.Builtin('合并', (base, over) => {
+    if (!(base instanceof Map) || !(over instanceof Map)) {
+      throw R.typeErr('「合并」的两个参数都要传字典');
+    }
+    const out = new Map(base);
+    for (const [k, v] of over) {
+      if (v instanceof Map && out.get(k) instanceof Map) out.set(k, CFG_FUNCS['合并'].fn(out.get(k), v));
+      else out.set(k, v);
+    }
+    return out;
+  }),
+  '展开': new R.Builtin('展开', (cfg, prefix = '') => {
+    if (!(cfg instanceof Map)) throw R.typeErr('「展开」的第一个参数要传字典');
+    const out = new Map();
+    for (const [k, v] of cfg) {
+      const key = `${prefix}${k}`;
+      if (v instanceof Map) {
+        if (v.size) for (const [kk, vv] of CFG_FUNCS['展开'].fn(v, key + '.')) out.set(kk, vv);
+        else out.set(key, new Map());
+      } else out.set(key, v);
+    }
+    return out;
+  }),
+};
+
+function _stripComment(s) {
+  const q0 = s[0];
+  if ((q0 === '"' || q0 === "'") && s[s.length - 1] === q0 && s.length >= 2) {
+    return s.slice(1, -1);
+  }
+  let q = null;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (q) { if (ch === q) q = null; }
+    else if (ch === '"' || ch === "'") q = ch;
+    else if (ch === '#') return s.slice(0, i).trim();
+  }
+  return s.trim();
+}
+function _shapeOf(v) {
+  if (v instanceof Map) {
+    const keys = [...v.keys()];
+    if (!keys.length) return '空字典';
+    const shown = keys.slice(0, 8).map((k) => R.display(k)).join('、');
+    return `这些键：${shown}${keys.length > 8 ? `…等 ${keys.length} 个` : ''}`;
+  }
+  if (Array.isArray(v)) return `一个 ${v.length} 项的列表`;
+  return `${R.typeName(v)} 类型`;
+}
+
 const STDLIB = {
   '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
@@ -2288,6 +2927,13 @@ const STDLIB = {
   '迭代': new R.Module('迭代', ITER_FUNCS),
   '参数': new R.Module('参数', ARG_FUNCS),
   '日志': new R.Module('日志', LOG_FUNCS),
+  // M50 新增的六个模块（与 Python 侧 jishi/stdlib/ 下同名文件对齐）
+  '统计': new R.Module('统计', STATS_FUNCS),
+  '编码': new R.Module('编码', ENCODE_FUNCS),
+  '配置': new R.Module('配置', CFG_FUNCS),
+  'html': new R.Module('html', HTML_FUNCS),
+  '对比': new R.Module('对比', DIFF_FUNCS),
+  '标识': new R.Module('标识', ID_FUNCS),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }

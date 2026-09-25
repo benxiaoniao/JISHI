@@ -11,6 +11,9 @@
 Python VM 里是 `真`、在 C VM 里是 `假`。那会让 C VM 把本该原样输出的片段**又转义
 一遍**（输出多出 `&amp;lt;`），而且是**静默的**（不报错、普通用例还过得去）。
 所以这里用**普通对象**+内部类型名——身份在三个执行器上都保得住。
+
+⚠️ **API 取舍：属性用「字典」传**——`标签("p", "内容", {"类名": "提示"})`。
+理由见 `_属性串`（关键字参数在两个宿主上会**静默丢失**）。
 """
 
 from __future__ import annotations
@@ -72,15 +75,37 @@ def _属性(值) -> str:
     return _py_html.escape(str(值), quote=True)
 
 
-#: 中文关键字 → HTML 属性名（`class` / `for` 与 Python 关键字冲突，另给中文化名）
+#: 中文属性名 → HTML 属性名（`class` / `for` 与 Python 关键字冲突，另给中文化名）
 _ATTR_ALIAS = {"类名": "class", "对应": "for"}
 
 
-def _属性串(属性: dict) -> str:
-    """把关键字参数拼成属性串。值为 `空` 时只输出属性名（HTML 布尔属性）。"""
+def _属性串(属性) -> str:
+    """把**属性字典**拼成属性串。值为 `空` 时只输出属性名（HTML 布尔属性）。
+
+    ⚠️ **为什么用字典、不用关键字参数**（M50 第二批实测的取舍）：
+
+    本模块最初写成 `标签("p", "内容", 类名="提示")`，在 Python 侧工作得很好
+    ——`_Builtin.__call__(*args, **kwargs)` 会把关键字透传下去。但**两个宿主
+    收不到关键字**：Node 侧是 `fn(...args)`、Rust 侧的类型是
+    `fn(&[Val], &mut VM)`——签名里**没有放关键字的位置**。于是同一份调用在
+    Node / Rust 上会**静默丢掉全部属性**，产出的 HTML 与 Python 侧不一样，
+    而且**不报错**。
+
+    要根治得改两个宿主的「内建函数」类型（Node 加 kwargs 参数、Rust 换成
+    带 kwargs 的签名），那是**跨宿主架构改动**，不该塞进标准库这一批。
+    所以这里降级成字典参数：`标签("p", "内容", {"类名": "提示"})`。
+
+    📌 **顺带记一笔同类既有缺口**：`加密.摘要("abc", 算法="md5")` 在
+    Node / Rust 上会静默用默认的 sha256（实测两个宿主都返回 sha256 摘要）。
+    同一个根因，等做「宿主 kwargs 支持」时一起修。
+    """
+    if 属性 is None:
+        return ""
+    if not isinstance(属性, dict):
+        raise RunTypeError('属性要传字典，例如 标签("p", "内容", {"类名": "提示"})')
     out = []
     for k, v in 属性.items():
-        key = _ATTR_ALIAS.get(k, k).replace("_", "-")
+        key = _ATTR_ALIAS.get(str(k), str(k)).replace("_", "-")
         if v is None:
             out.append(f" {key}")
         else:
@@ -88,12 +113,13 @@ def _属性串(属性: dict) -> str:
     return "".join(out)
 
 
-def 标签(名: str, 内容="", **属性) -> str:
-    """生成一个标签：`标签("p", "你好", 类名="提示")` → `<p class="提示">你好</p>`。
+def 标签(名: str, 内容="", 属性=None) -> str:
+    """生成一个标签：`标签("p", "你好", {"类名": "提示"})` → `<p class="提示">你好</p>`。
 
     - `内容` 会被**转义**；要放自己拼的片段就套 `原样(...)`。
-    - 关键字参数就是属性；`类名` / `对应` 会自动翻译成 `class` / `for`，
-      名字里的下划线会变成连字符（`数据_值` → `data-值`）。
+    - 第三个参数是**属性字典**（不是关键字参数——理由见 `_属性串`）；
+      `类名` / `对应` 自动翻译成 `class` / `for`，名字里的下划线变连字符
+      （`数据_值` → `data-值`）。
     - 属性值为 `空` 时只输出属性名（HTML 布尔属性，如 `disabled`）。
     """
     if not isinstance(名, str) or not 名:
@@ -101,16 +127,19 @@ def 标签(名: str, 内容="", **属性) -> str:
     return f"<{名}{_属性串(属性)}>{_内容(内容)}</{名}>"
 
 
-def 空元素(名: str, **属性) -> str:
-    """生成自闭合标签，如 `<img src="…" />`、`<br />`。"""
+def 空元素(名: str, 属性=None) -> str:
+    """生成自闭合标签：`空元素("img", {"src": "a.png"})` → `<img src="a.png" />`。"""
     if not isinstance(名, str) or not 名:
         raise RunTypeError("「空元素」的第一个参数要是标签名（非空文本）")
     return f"<{名}{_属性串(属性)} />"
 
 
-def 链接(文字, 地址: str, **属性) -> str:
+def 链接(文字, 地址: str, 属性=None) -> str:
     """生成 `<a href="…">文字</a>`。地址与文字都会被转义。"""
-    return 标签("a", 文字, href=地址, **属性)
+    attrs = {"href": 地址}
+    if 属性:
+        attrs = {**attrs, **属性}
+    return 标签("a", 文字, attrs)
 
 
 def 属性文本(值) -> str:
@@ -121,11 +150,11 @@ def 属性文本(值) -> str:
     return _属性(值)
 
 
-def 有序列表(项目, **属性) -> str:
+def 有序列表(项目, 属性=None) -> str:
     """生成 `<ol><li>…</li>…</ol>`；每项内容都会被转义。"""
-    return 标签("ol", 原样("".join(标签("li", x) for x in 项目)), **属性)
+    return 标签("ol", 原样("".join(标签("li", x) for x in 项目)), 属性)
 
 
-def 无序列表(项目, **属性) -> str:
+def 无序列表(项目, 属性=None) -> str:
     """生成 `<ul><li>…</li>…</ul>`；每项内容都会被转义。"""
-    return 标签("ul", 原样("".join(标签("li", x) for x in 项目)), **属性)
+    return 标签("ul", 原样("".join(标签("li", x) for x in 项目)), 属性)

@@ -187,11 +187,18 @@ def test_html_转义五个字符():
 
 
 def test_html_标签与属性():
+    """⚠️ 属性用**字典**传（M50 第二批改的 API）。
+
+    最初是关键字参数（`标签("p", "内容", 类名="提示")`），但**两个宿主的
+    「内建函数」类型都没有放关键字的位置**（Node `fn(...args)`、
+    Rust `fn(&[Val], &mut VM)`）——用关键字在那边会**静默丢失全部属性**。
+    改成字典后五引擎一致（跨宿主对拍在 `tests/test_m50_hosts.py`）。
+    """
     out = run_capture(
         "导入 html\n"
-        '打印(html.标签("p", "内容", 类名="提示", 编号=3))\n'
-        '打印(html.标签("button", "按", disabled=空))\n'
-        '打印(html.空元素("img", src="a.png", alt="图"))\n')
+        '打印(html.标签("p", "内容", {"类名": "提示", "编号": 3}))\n'
+        '打印(html.标签("button", "按", {"disabled": 空}))\n'
+        '打印(html.空元素("img", {"src": "a.png", "alt": "图"}))\n')
     lines = out.split("\n")
     assert lines[0] == '<p class="提示" 编号="3">内容</p>'
     assert lines[1] == "<button disabled>按</button>"
@@ -202,7 +209,7 @@ def test_html_内容与属性都转义():
     out = run_capture(
         "导入 html\n"
         '打印(html.标签("div", "<script>坏</script>"))\n'
-        '打印(html.标签("a", "x", href="a\\"b"))\n'
+        '打印(html.标签("a", "x", {"href": "a\\"b"}))\n'
         '打印(html.链接("点我", "https://x.cn/?a=1&b=2"))\n')
     lines = out.split("\n")
     assert lines[0] == "<div>&lt;script&gt;坏&lt;/script&gt;</div>"

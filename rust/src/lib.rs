@@ -87,6 +87,14 @@ pub(crate) enum Val {
     Module(String, HashMap<String, Val>),
     Builtin(&'static str, fn(&[Val], &mut VM) -> Result<Val, JishiError>),
     ExcType(String),
+    /// `html.原样` 的标记（M50）：这段内容是**已经生成好的 HTML**，
+    /// 放进标签里时不再转义。
+    ///
+    /// ⚠️ 为什么不是「字符串子类」：Python 侧最初用 `str` 子类实现，但 M47 把
+    /// 文本改成 C 侧原生字符串之后，**子类身份在 C VM 下会丢**（`c2py` 直接
+    /// 读字节再 decode 成普通 `str`）——于是 C VM 会把本该原样输出的片段
+    /// **再转义一遍**，而且不报错。三个执行器 + 两个宿主都统一用「独立类型」。
+    HtmlRaw(String),
     /// 循环信号（`中断`/`继续`）在「穿过 finally」时的临时载体。
     ///
     /// 与 Python 侧把 `RunBreak`/`RunContinue` 当异常对象在块栈里传递同一手法：
@@ -544,6 +552,8 @@ pub(crate) fn type_label(v: &Val) -> String {
         Val::Date(_) => "datetime".to_string(),
         Val::Table(_) => "表格".to_string(),
         Val::Slice(_) => "切片".to_string(),
+        // 原样片段（M50）：Python 侧给「原样片段」（）
+        Val::HtmlRaw(_) => "原样片段".to_string(),
         Val::List(_) => "列表".to_string(),
         Val::Dict(_) => "字典".to_string(),
         Val::Set(_) => "集合".to_string(),
@@ -1776,6 +1786,8 @@ pub(crate) fn display(v: &Val) -> String {
         Val::Int(i) => i.to_string(),
         Val::Float(f) => format_float(*f),
         Val::Str(s) => s.clone(),
+        // 原样片段显示成它本身（与 Python 侧 `_Raw.__str__` 同行为）
+        Val::HtmlRaw(s) => s.clone(),
         Val::Dec(d) => d.to_string(),
         // 与 Python 的 `str(datetime)` 一致：`2026-09-01 00:00:00`
         Val::Date(d) => d.to_display(),
