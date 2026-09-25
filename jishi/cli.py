@@ -172,15 +172,26 @@ def run_file(path: str, show_ast: bool = False,
         return 0 if result["ok"] else 1
 
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    try:
-        tokens = tokenize(source, filename)
-        program = parse(tokens, lines, filename)
-    except JishiError as e:
-        if json_errors:
-            _print_json_error(e)
-        else:
-            print(e.render(), file=sys.stderr)
-        return 1
+    # M47 ③：先查 AST 缓存（键 = 源码内容哈希 + 版本），命中就省掉分词与语法分析
+    # （360 行的真实项目实测省 ~12ms）。**只对真实文件用缓存**——stdin / 片段
+    # 没有稳定的路径当键，缓存了反而会串味。模块惰性导入，不拖慢 CLI 启动。
+    program = None
+    if not stdin:
+        from . import cache as _cache
+        program = _cache.load(source, filename)
+    if program is None:
+        try:
+            tokens = tokenize(source, filename)
+            program = parse(tokens, lines, filename)
+        except JishiError as e:
+            if json_errors:
+                _print_json_error(e)
+            else:
+                print(e.render(), file=sys.stderr)
+            return 1
+        if not stdin:
+            from . import cache as _cache
+            _cache.store(source, filename, program)
 
     if show_ast:
         print(dump_ast(program))
@@ -1050,6 +1061,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="沙箱超时秒数（默认 5）")
     parser.add_argument("--stdin", action="store_true",
                         help="从标准输入读取源码（配合 --sandbox 供 MCP 调用）")
+    parser.add_argument("--no-cache", action="store_true",
+                        help="本次不读也不写 AST 缓存（M47③；等价于 JISHI_NO_CACHE=1）")
     parser.add_argument("--dump-bytecode", action="store_true",
                         help="把脚本编译成跨语言字节码并输出 JSON（M13.1）")
     parser.add_argument("--load-bytecode", action="store_true",
@@ -1058,6 +1071,11 @@ def main(argv: Optional[list[str]] = None) -> int:
                         version=f"基石 jishi {VERSION}")
     # M18.2：用 parse_known_args 捕获脚本名之后的额外参数（传给 系统.参数()）
     args, rest = parser.parse_known_args(argv)
+
+    if args.no_cache:
+        # 走环境变量而不是层层传参：`cache.enabled()` 认这一个开关，
+        # 免得 run_file / 沙箱 / 字节码几条调用链各传一份（M47③）
+        os.environ["JISHI_NO_CACHE"] = "1"
 
     if args.ai_card:
         from .ai import render_ai_card
