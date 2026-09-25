@@ -1165,9 +1165,9 @@ def test_pinned_consts_cleared_on_close(monkeypatch):
 @pytest.mark.parametrize("name,tail", [
     ("正常跑完", "令 c = 0\n遍历 v 在 甲：\n    c = c + 1\n打印(c)\n"),
     ("中途 中断", "令 c = 0\n遍历 v 在 甲：\n    c = c + 1\n"
-                 "    如果 c >= 300：\n        中断\n打印(c)\n"),
+                 "    如果 c >= 60：\n        中断\n打印(c)\n"),
     ("中途抛错被接住", "令 c = 0\n尝试：\n    遍历 v 在 甲：\n"
-                       "        c = c + 1\n        如果 c >= 300：\n"
+                       "        c = c + 1\n        如果 c >= 60：\n"
                        "            抛出 值错误(\"x\")\n"
                        "捕获 值错误：\n    打印(\"接住\")\n打印(c)\n"),
     ("嵌套两层", "令 d = 0\n遍历 v 在 甲：\n    遍历 w 在 甲：\n"
@@ -1177,8 +1177,13 @@ def test_iter_buffer_releases_every_slot(name, tail, monkeypatch):
     """迭代器缓冲必须把每个槽位都放掉——各条退出路径都要放干净。"""
     from jishi import cvm_bind as CB
 
+    # ⚠️ 规模用 100 个元素（不是 400）：本测试验证的是「迭代器缓冲不漏引用」，
+    # 与元素个数无关——100 个元素就足以让「修复前 ~103 个句柄 / 修复后 3–6」
+    # 拉开差距。原先用 400，导致「嵌套两层」用例要跑 400×400=16 万次迭代、
+    # 实测 43.6s（M51 回归提速时定位到）。降到 100 后嵌套降到 1 万次，
+    # 语义与断言完全不变（`left < 30` 仍是几十倍的差距）。
     src = ('令 甲 = []\n'
-           '遍历 i 在 范围(400)：\n'
+           '遍历 i 在 范围(100)：\n'
            '    甲.追加([i])\n'      # 每个元素都是一个新列表 → 迭代时各建一个句柄
            + tail)
     runner = CB.CvmRunner(compile_source(src, f"<iter-ref-{name}>"),

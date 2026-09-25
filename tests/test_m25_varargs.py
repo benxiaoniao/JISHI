@@ -551,12 +551,9 @@ def test_node_host_supports_varargs_and_star_unpack():
            '打印(首, 中, 尾)\n')
     bc = tmp_bc_path(ROOT / "_tmp_m25_node.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    try:
-        r = subprocess.run([_NODE, str(ROOT / "node" / "index.js"), str(bc)],
-                           capture_output=True, text=True, encoding="utf-8",
-                           timeout=60)
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([_NODE, str(ROOT / "node" / "index.js"), str(bc)],
+                       capture_output=True, text=True, encoding="utf-8",
+                       timeout=60)
     assert r.returncode == 0, f"Node 崩溃：{r.stderr[:300]}"
     assert r.stdout == _pvm(src)
 

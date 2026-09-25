@@ -174,11 +174,8 @@ def test_effective_lines_counting_rule():
                    "    # 缩进的纯注释\n"     # 纯注释
                    "令 乙 = 2  # 行尾注释\n",  # 有效（行尾注释不算纯注释行）
                    encoding="utf-8")
-    try:
-        total, useful = loc.count_lines(tmp)
-        assert total == 5 and useful == 2
-    finally:
-        tmp.unlink()
+    total, useful = loc.count_lines(tmp)
+    assert total == 5 and useful == 2
 
 
 def test_every_project_has_python_reference():

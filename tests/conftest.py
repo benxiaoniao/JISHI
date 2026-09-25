@@ -60,6 +60,40 @@ def tmp_bc_path(filename: str) -> Path:
     return p.with_name(f"{p.stem}_{os.getpid()}{p.suffix}")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _cleanup_tmp_bytecode():
+    """测试**全部结束**后，统一清掉 `_tmp_*.json` 临时字节码文件。
+
+    M51 回归提速（2026-09-25）：各跨宿主对拍用例原先在 `finally` 里
+    `unlink` 临时字节码文件——每次删除后，下一个用例的 `write_text` 就是
+    **新建文件**，在 Windows 上触发实时扫描（实测**写+删 ≈ 0.53s/次**，
+    而覆盖写已存在文件只要 0.08s，快 6 倍）。
+
+    于是改成「**运行期间复用不删**」（文件名已带 pid，跨进程不撞、同进程
+    串行覆盖写），到这里（session 结束）再统一清一次。文件在项目根，
+    但 `.gitignore` 已挡 `_tmp_*.json`。
+    """
+    yield
+    for pattern in ("_tmp_*.json",):
+        for f in ROOT.glob(pattern):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+    # test_m33 等写进 build/（`.gitignore` 已挡，但也清一下）
+    for f in (ROOT / "build").glob("_m33_bc_*.json"):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+    # test_m40 的 _loc_probe.jsh
+    for f in (ROOT / "tests").glob("_loc_probe.jsh"):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+
+
 def _list_cases(directory: Path) -> list[str]:
     if not directory.exists():
         return []

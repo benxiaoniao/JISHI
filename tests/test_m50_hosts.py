@@ -51,23 +51,17 @@ def _py_run(src: str) -> str:
 def _node_run(src: str) -> tuple[int, str, str]:
     bc = tmp_bc_path(ROOT / "_tmp_m50_node.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    try:
-        r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
-                           capture_output=True, text=True, encoding="utf-8")
-        return r.returncode, r.stdout, r.stderr
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+                       capture_output=True, text=True, encoding="utf-8")
+    return r.returncode, r.stdout, r.stderr
 
 
 def _rust_run(src: str) -> tuple[int, str, str]:
     bc = tmp_bc_path(ROOT / "_tmp_m50_rust.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    try:
-        r = subprocess.run([str(RUST), str(bc)], capture_output=True, text=True,
-                           encoding="utf-8", timeout=120)
-        return r.returncode, r.stdout, r.stderr
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([str(RUST), str(bc)], capture_output=True, text=True,
+                       encoding="utf-8", timeout=120)
+    return r.returncode, r.stdout, r.stderr
 
 
 def _agree(src: str) -> str:

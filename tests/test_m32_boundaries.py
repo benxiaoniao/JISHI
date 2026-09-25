@@ -102,12 +102,9 @@ def _write_bc(src: str, name: str) -> Path:
 
 def _node_run(src: str) -> tuple[int, str, str]:
     bc = _write_bc(src, "_tmp_m32_bc.json")
-    try:
-        r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
-                           capture_output=True, text=True, encoding="utf-8")
-        return r.returncode, r.stdout, r.stderr
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+                       capture_output=True, text=True, encoding="utf-8")
+    return r.returncode, r.stdout, r.stderr
 
 
 def _agree(src: str) -> str:
@@ -160,12 +157,9 @@ def rust_exe() -> Path:
 
 def _rust_run(src: str, exe: Path) -> tuple[int, str, str]:
     bc = _write_bc(src, "_tmp_m32_rs.json")
-    try:
-        r = subprocess.run([str(exe), str(bc)], capture_output=True,
-                           text=True, encoding="utf-8")
-        return r.returncode, r.stdout, r.stderr
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([str(exe), str(bc)], capture_output=True,
+                       text=True, encoding="utf-8")
+    return r.returncode, r.stdout, r.stderr
 
 
 def _agree_rust(src: str, exe: Path) -> str:

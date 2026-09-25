@@ -80,13 +80,10 @@ def _node(src: str) -> str:
     bc = tmp_bc_path(ROOT / "_tmp_m41_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")),
                   encoding="utf-8", newline="\n")
-    try:
-        r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
-                           capture_output=True)
-        assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:400]
-        return r.stdout.decode("utf-8", "replace")
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+                       capture_output=True)
+    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:400]
+    return r.stdout.decode("utf-8", "replace")
 
 
 @pytest.fixture(scope="module")
@@ -102,12 +99,9 @@ def _rust(src: str, rust_exe: Path) -> str:
     bc = tmp_bc_path(ROOT / "_tmp_m41_rs.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")),
                   encoding="utf-8", newline="\n")
-    try:
-        r = subprocess.run([str(rust_exe), str(bc)], capture_output=True)
-        assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:400]
-        return r.stdout.decode("utf-8", "replace")
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([str(rust_exe), str(bc)], capture_output=True)
+    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:400]
+    return r.stdout.decode("utf-8", "replace")
 
 
 def _three(src: str) -> str:

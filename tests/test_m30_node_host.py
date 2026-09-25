@@ -83,12 +83,9 @@ def _c_run(src: str) -> str:
 def _node_run(src: str) -> tuple[int, str, str]:
     bc = tmp_bc_path(ROOT / "_tmp_m30_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    try:
-        r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
-                           capture_output=True, text=True, encoding="utf-8")
-        return r.returncode, r.stdout, r.stderr
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+                       capture_output=True, text=True, encoding="utf-8")
+    return r.returncode, r.stdout, r.stderr
 
 
 def _agree(src: str) -> str:
@@ -656,11 +653,8 @@ def test_node_stdlib_system_args():
     bc = tmp_bc_path(ROOT / "_tmp_m30_args.json")
     bc.write_text(serialize.dumps(compile_source("导入 系统\n打印(系统.参数())\n", "<t>")),
                   encoding="utf-8")
-    try:
-        r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc), "甲", "乙"],
-                           capture_output=True, text=True, encoding="utf-8")
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc), "甲", "乙"],
+                       capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr[:300]
     assert r.stdout == "['甲', '乙']\n"
 
@@ -676,12 +670,9 @@ def test_node_input_reads_stdin():
     bc.write_text(serialize.dumps(compile_source(
         '令 名字 = 输入("请输入名字：")\n打印("你好 " + 名字)\n', "<t>")),
         encoding="utf-8")
-    try:
-        r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
-                           capture_output=True, text=True, encoding="utf-8",
-                           input="小明\n")
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+                       capture_output=True, text=True, encoding="utf-8",
+                       input="小明\n")
     assert r.returncode == 0, r.stderr[:300]
     # 提示语与结果都在 stdout，中文完整（同步写，不会被吞字符）
     assert r.stdout == "请输入名字：你好 小明\n"
@@ -692,11 +683,8 @@ def test_node_input_eof_is_chinese():
     bc = tmp_bc_path(ROOT / "_tmp_m30_in2.json")
     bc.write_text(serialize.dumps(compile_source("令 x = 输入()\n打印(x)\n", "<t>")),
                   encoding="utf-8")
-    try:
-        r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
-                           capture_output=True, text=True, encoding="utf-8", input="")
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+                       capture_output=True, text=True, encoding="utf-8", input="")
     assert r.returncode != 0
     assert "输入结束" in r.stderr
 
@@ -715,17 +703,14 @@ def _run_project(project: str, script: str, arg: str, feed: str | None) -> None:
     bc = tmp_bc_path(ROOT / "_tmp_m30_proj.json")
     bc.write_text(serialize.dumps(compile_source(src, str(src_path))), encoding="utf-8")
     cwd = str(src_path.parent)
-    try:
-        r_py = subprocess.run(
-            [sys.executable, "-m", "jishi.cli", script, arg] if feed is None
-            else [sys.executable, "-m", "jishi.cli", script],
-            capture_output=True, text=True, encoding="utf-8", cwd=cwd, input=feed)
-        r_node = subprocess.run(
-            [NODE, str(ROOT / "node" / "index.js"), str(bc), arg] if feed is None
-            else [NODE, str(ROOT / "node" / "index.js"), str(bc)],
-            capture_output=True, text=True, encoding="utf-8", cwd=cwd, input=feed)
-    finally:
-        bc.unlink(missing_ok=True)
+    r_py = subprocess.run(
+        [sys.executable, "-m", "jishi.cli", script, arg] if feed is None
+        else [sys.executable, "-m", "jishi.cli", script],
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd, input=feed)
+    r_node = subprocess.run(
+        [NODE, str(ROOT / "node" / "index.js"), str(bc), arg] if feed is None
+        else [NODE, str(ROOT / "node" / "index.js"), str(bc)],
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd, input=feed)
     assert r_node.returncode == r_py.returncode, (
         f"退出码不同：py={r_py.returncode} node={r_node.returncode}\n"
         f"node stderr={r_node.stderr[:300]}")

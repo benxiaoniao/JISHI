@@ -33,13 +33,10 @@ pytestmark = pytest.mark.skipif(
 def _node_run(bytecode_text: str) -> tuple[int, str]:
     bc = tmp_bc_path(ROOT / "_tmp_bc.json")
     bc.write_text(bytecode_text, encoding="utf-8")
-    try:
-        r = subprocess.run(
-            [NODE, str(ROOT / "node" / "index.js"), str(bc)],
-            capture_output=True, text=True, encoding="utf-8")
-        return r.returncode, r.stdout
-    finally:
-        bc.unlink()
+    r = subprocess.run(
+        [NODE, str(ROOT / "node" / "index.js"), str(bc)],
+        capture_output=True, text=True, encoding="utf-8")
+    return r.returncode, r.stdout
 
 
 def _py_run(src: str) -> str:

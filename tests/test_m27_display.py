@@ -175,12 +175,9 @@ def _compare_host(src: str) -> None:
     text = serialize.dumps(compile_source(src, "<t>"))
     bc = tmp_bc_path(ROOT / "_tmp_m27_bc.json")
     bc.write_text(text, encoding="utf-8")
-    try:
-        r = subprocess.run(
-            [NODE, str(ROOT / "node" / "index.js"), str(bc)],
-            capture_output=True, text=True, encoding="utf-8")
-    finally:
-        bc.unlink()
+    r = subprocess.run(
+        [NODE, str(ROOT / "node" / "index.js"), str(bc)],
+        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, f"Node 崩溃：{r.stderr[:400]}"
     assert r.stdout == py_out, (
         f"输出不一致\nPython: {py_out!r}\nNode:   {r.stdout!r}")

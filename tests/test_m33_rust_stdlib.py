@@ -92,15 +92,12 @@ def _rs_run(exe: Path, src: str, feed: str = "",
     tmp = ROOT / "build" / f"_m33_bc_{os.getpid()}.json"
     tmp.parent.mkdir(parents=True, exist_ok=True)
     tmp.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    try:
-        r = subprocess.run([str(exe), str(tmp), *(args or [])],
-                           capture_output=True, input=feed.encode("utf-8"))
-        # 按字节收再自己解码——`text=True` 会做换行转换，见文件头说明
-        return (r.returncode,
-                r.stdout.decode("utf-8", errors="replace"),
-                r.stderr.decode("utf-8", errors="replace"))
-    finally:
-        tmp.unlink(missing_ok=True)
+    r = subprocess.run([str(exe), str(tmp), *(args or [])],
+                       capture_output=True, input=feed.encode("utf-8"))
+    # 按字节收再自己解码——`text=True` 会做换行转换，见文件头说明
+    return (r.returncode,
+            r.stdout.decode("utf-8", errors="replace"),
+            r.stderr.decode("utf-8", errors="replace"))
 
 
 def _agree(src: str, exe: Path, feed: str = "") -> str:

@@ -65,12 +65,9 @@ def _py_run(src: str) -> str:
 def _node_run(src: str) -> tuple[int, str, str]:
     bc = tmp_bc_path(ROOT / "_tmp_m31_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    try:
-        r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
-                           capture_output=True, text=True, encoding="utf-8")
-        return r.returncode, r.stdout, r.stderr
-    finally:
-        bc.unlink(missing_ok=True)
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+                       capture_output=True, text=True, encoding="utf-8")
+    return r.returncode, r.stdout, r.stderr
 
 
 def _agree(src: str) -> str:
@@ -639,13 +636,10 @@ def _run_project(name: str, script: str, arg: str, feed, tmp_path: Path):
     if arg:
         cmd_py.append(arg)
         cmd_node.append(arg)
-    try:
-        r_py = subprocess.run(cmd_py, capture_output=True, text=True,
-                              encoding="utf-8", cwd=str(tmp_path), input=feed)
-        r_node = subprocess.run(cmd_node, capture_output=True, text=True,
-                                encoding="utf-8", cwd=str(tmp_path), input=feed)
-    finally:
-        bc.unlink(missing_ok=True)
+    r_py = subprocess.run(cmd_py, capture_output=True, text=True,
+                          encoding="utf-8", cwd=str(tmp_path), input=feed)
+    r_node = subprocess.run(cmd_node, capture_output=True, text=True,
+                            encoding="utf-8", cwd=str(tmp_path), input=feed)
     assert r_node.returncode == r_py.returncode, (
         f"退出码不同：py={r_py.returncode} node={r_node.returncode}\n"
         f"node stderr={r_node.stderr[:300]}")
