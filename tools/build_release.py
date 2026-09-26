@@ -167,6 +167,10 @@ def _add_data_args() -> list[str]:
     args = []
     # 标准库源文件（ai.py 的 _stdlib_api 需要扫描源码）
     args += ["--add-data", f"{ROOT / 'jishi' / 'stdlib'}{sep}jishi/stdlib"]
+    # M52：**用基石写的标准库**（`stdlib-jishi/*.jsh`）。`jishilib.lib_dir()`
+    # 会优先找 `sys._MEIPASS` 下的这份，少了它打包版一 `导入 统计` 就报
+    # 「没有找到标准库模块」。
+    args += ["--add-data", f"{ROOT / 'jishi' / 'stdlib-jishi'}{sep}jishi/stdlib-jishi"]
     # C VM 动态库
     args += ["--add-data", f"{ROOT / 'jishi' / '_native'}{sep}jishi/_native"]
     # 品牌资产

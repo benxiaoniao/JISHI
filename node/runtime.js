@@ -1186,6 +1186,8 @@ function newBuiltins() {
     }),
     '进入上下文': new Builtin('进入上下文', (obj) => enterContext(obj)),
     '退出上下文': new Builtin('退出上下文', (obj) => exitContext(obj)),
+    // 内部用（M52）：命名以 `$` 开头，用户写不出来（词法器不认这个字符）。
+    '$造模块': new Builtin('$造模块', (name, attrs) => makeModule(name, attrs)),
     '长度': new Builtin('长度', (v) => {
       if (typeof v === 'string' || Array.isArray(v)) return v.length;
       if (v instanceof Map) return v.size;
@@ -1850,6 +1852,19 @@ function exitContext(obj, line, col) {
     if (fn) { fn(); return null; }
   }
   return null;
+}
+
+/** 内部用（M52）：把「用基石写的标准库」的导出字典包成模块对象。
+ *
+ * 与 Python 侧 `_b_make_module` 同义：`导入 统计` 在编译期被展开成
+ * 「调外壳函数、拿一个导出字典」，这一步把它包回**真正的模块** ——
+ * 于是 `统计.求和(...)` 的语法一个字都不用改，`打印(统计)` 也还是
+ * `<模块 统计>`（而不是一坨字典）。
+ */
+function makeModule(name, attrs) {
+  // 基石的字典在 JS 里是 Map（见 buildDict）
+  const table = (attrs instanceof Map) ? Object.fromEntries(attrs) : attrs;
+  return new Module(String(name), table);
 }
 
 function makeInstance(cls, args, line, col) {

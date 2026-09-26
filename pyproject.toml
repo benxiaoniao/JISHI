@@ -40,8 +40,12 @@ jishi-mcp = "jishi.mcp_server:main"
 packages = ["jishi", "jishi.stdlib", "jishi._native"]
 
 # M11：wheel 内带预编译 C VM 动态库（pip install 即含三执行器，无需本机 gcc）
+# M52：再加**用基石写的标准库**（`jishi/stdlib-jishi/*.jsh`）。它不是 Python 包
+# （目录名带连字符），所以进不了上面的 `packages`，只能走 package-data ——
+# 少了它，装 wheel 的人一 `导入 统计` 就会「找不到模块」。
 [tool.setuptools.package-data]
-jishi = ["_native/*.dll", "_native/*.so", "_native/*.dylib"]
+jishi = ["_native/*.dll", "_native/*.so", "_native/*.dylib",
+         "stdlib-jishi/*.jsh"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -2493,6 +2493,29 @@ fn new_builtins() -> HashMap<String, Val> {
         };
         Ok(Val::File(open_file(&path, &mode)?))
     }));
+    m.insert("$造模块".to_string(), Val::Builtin("$造模块", |args, _vm| {
+        // 内部用（M52）：把「用基石写的标准库」的导出字典包成模块对象。
+        // 与 Python 侧 `_b_make_module` 同义 —— `统计.求和(...)` 的语法
+        // 因此一个字都不用改，`打印(统计)` 也还是 `<模块 统计>`。
+        // 名字以 `$` 开头，用户写不出来（词法器不认这个字符）。
+        if args.len() != 2 {
+            return Err(err("类型错误", "$造模块 需要 2 个参数"));
+        }
+        let name = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
+        match &args[1] {
+            Val::Dict(d) => {
+                // 本宿主的字典是**有序 Vec**（保插入顺序），模块表要 HashMap
+                let mut table: HashMap<String, Val> = HashMap::new();
+                for (k, v) in d.borrow().iter() {
+                    let key = match k { Val::Str(s) => s.clone(), o => display(o) };
+                    table.insert(key, v.clone());
+                }
+                Ok(Val::Module(name, table))
+            }
+            o => Err(err("类型错误",
+                format!("$造模块 的第二个参数要传字典，得到了「{}」", display(o)))),
+        }
+    }));
     m.insert("进入上下文".to_string(), Val::Builtin("进入上下文", |args, vm| {
         if args.len() != 1 {
             return Err(err("类型错误", "进入上下文 需要 1 个参数"));

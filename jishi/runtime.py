@@ -532,6 +532,19 @@ def _b_exit_context(obj):
     return None
 
 
+def _b_make_module(name, attrs):
+    """内部用（M52）：`$造模块("统计", {…})` → 模块对象。
+
+    `jishilib` 把「用基石写的标准库」展开成「调用外壳函数、拿到一个导出字典」，
+    这一步再把它包成**真正的模块对象**——于是 `导入 统计` 之后 `统计.求和(...)`
+    照旧能用，用户看到的语法**一个字都没变**，`打印(统计)` 也还是
+    `<模块 统计>`（而不是一坨字典）。
+
+    只在编译器发射的代码里出现，用户写不出这个内建名（`$` 开头）。
+    """
+    return Module(str(name), dict(attrs))
+
+
 # -- 文件（M26.2）----------------------------------------------------------
 
 #: 「打开」的中文模式名 → Python 模式串
@@ -930,6 +943,9 @@ def new_builtins() -> dict[str, Any]:
         "退出上下文": _Builtin(
             "退出上下文", _b_exit_context,
             "供「用 … 为」脱糖使用：离开代码块时调用 退出 或 关闭"),
+        "$造模块": _Builtin(
+            "$造模块", _b_make_module,
+            "内部用：把「用基石写的标准库」的导出字典包成模块对象（M52）"),
         "长度": _Builtin("长度", _b_len, "取列表、文本等的长度"),
         "范围": _Builtin(
             "范围", _b_range,
@@ -1700,6 +1716,10 @@ def do_import(name: str, from_python: bool = False, from_local: bool = False,
                                      filename=filename)
     if from_python:
         return _import_python(name, line=line, col=col, filename=filename)
+    # M52：「用基石写的」标准库模块**不在这里加载** —— 它们在编译期就被
+    # `jishilib.expand` 展开成了普通的函数调用（见那个模块的文档）。
+    # 走到这里只有两种情况：该模块还没搬进基石库层，或者是动态拼出来的导入
+    # （`执行("导入 统计")` 那种）—— 那就照旧回落宿主层的 Python 实现。
     try:
         mod = importlib.import_module(f"jishi.stdlib.{name}")
     except ImportError:

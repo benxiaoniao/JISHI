@@ -1044,6 +1044,13 @@ def compile_program(program: A.Program, filename: str = "<输入>",
     Python VM 与 Node/Rust 宿主不认识那条指令。默认关闭，于是默认产物
     与之前逐字节相同。
     """
+    # M52：先把「用基石写的标准库」展开进本程序（`导入 统计` →
+    # `统计 = __基石库_统计__()`）。放在最前面，改写后的 AST 才参与
+    # 作用域分析与报错行列。详细设计见 `jishilib.py` 的模块文档。
+    from . import jishilib
+
+    program = jishilib.expand(program)
+
     cmod = O.CompiledModule(filename=filename)
     main = O.Code(name="<模块>", firstlineno=1)
     cmod.codes.append(main)

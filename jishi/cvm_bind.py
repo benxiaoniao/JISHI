@@ -945,8 +945,14 @@ class CvmHost:
     def _cb_iter_new(self, obj, out, batchable, line, col):
         try:
             o = self.c2py(obj[0])
-            wrapper = _Iter(o)
+            # ⚠️ `_Iter(o)` 的构造里就会 `iter(o)`（见 `_Iter.__init__`），
+            # 所以它必须在 try 里面 —— M52 抓到：原先只有下面那句
+            # `iter(wrapper.it)` 在 try 里，于是 `遍历 5` 的 TypeError
+            # 直接冒到 `_fail` 兜底，用户看到的是
+            # 「内部错误（宿主回调）：TypeError: 'int' object is not iterable」。
+            # 同一段代码在 Python VM / 树遍历 / 两个宿主上都是清楚的中文。
             try:
+                wrapper = _Iter(o)
                 if not wrapper.batchable:
                     iter(wrapper.it)      # 触发「不能遍历」检查
             except TypeError:

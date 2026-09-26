@@ -295,6 +295,12 @@ class Interpreter:
     # -- 顶层执行 -----------------------------------------------------------
 
     def run(self, program: A.Program) -> None:
+        # M52：先把「用基石写的标准库」展开进本程序（`导入 统计` →
+        # `统计 = __基石库_统计__()`）。没用到基石库时这一步是零开销的
+        # （`expand` 先探一遍，没命中就直接返回传入的对象）。见 `jishilib.py`。
+        from . import jishilib
+
+        program = jishilib.expand(program)
         try:
             self.exec_block(program.body, self.globals)
         except JishiError as e:
