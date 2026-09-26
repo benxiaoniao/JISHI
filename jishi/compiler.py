@@ -776,8 +776,20 @@ class _Emitter:
         handler_done: list[int] = []               # 各捕获体结束的 JUMP（回填到 fin_start）
         for h in st.handlers:
             if h.type is not None:
-                self.emit(O.Op.DUP_TOP, h)         # [err, err]
-                self.compile_expr(h.type)          # [err, err, cond]
+                # ⚠️ **这里原先有一句 `DUP_TOP`，是错的**（2026-09-26 修）：
+                # `MATCH_EXC` 的实现是「弹出 cond、**读**栈顶的 err（不弹）、压结果」，
+                # 所以 `DUP_TOP` 复制出来的那份 err **再没人弹**，会永久留在栈上。
+                # 平时看不出来，但只要「循环体里 `尝试/捕获`、捕获完**继续循环**」，
+                # 下一次 `FOR_ITER` 的 `stack[-1]` 就是那个异常对象 →
+                # `TypeError: 'RunTypeError' object is not an iterator`。
+                # 三执行器共用这份字节码，所以 Python VM / C VM / Node / Rust 一起崩，
+                # 只有树遍历（走 Python 的 try/except）是对的 —— 对拍才抓得住。
+                # 栈推演（现在的布局）：
+                #   [err] → compile_expr(type) → [err, cond]
+                #   MATCH_EXC                   → [err, bool]
+                #   POP_JUMP_IF_FALSE           → [err]
+                #   store_name / POP_TOP        → []        ✓ 干净
+                self.compile_expr(h.type)          # [err, cond]
                 self.emit(O.Op.MATCH_EXC, h)       # [err, bool]
                 to_next = self.emit(O.Op.POP_JUMP_IF_FALSE, h)
                 if h.name:                          # 匹配成功：绑定 e

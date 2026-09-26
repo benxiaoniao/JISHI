@@ -135,29 +135,37 @@ def _parse(source: str, filename: str):
 
 
 def _export_names(program) -> list:
-    """模块顶层**对外导出**的名字：非下划线开头的函数 / 类 / 赋值目标。
+    """模块顶层**对外导出**的名字：`[(导出名, 源码里的名字), …]`。
 
-    下划线开头的一律**不导出** —— 那是模块自己的私有函数，以及
-    `导入 X 为 _X` 留下的内部依赖（本目录的约定，见模块文档）。
+    命名规则（三条，与 Python 的 `__all__` 精神一致但更省事）：
+
+    - `__X` → 导出为 **`X`**（显式改名）。要它的原因很实在：**有的导出名是
+      关键字，写不成函数名** —— `参数.新建` 里的 `新建` 就是（`新建 类()` 的
+      `新建`），只能内部叫别的名字，导出时映射回去。
+    - `_X` → **私有，不导出**（模块自己的辅助函数、`导入 X 为 _X` 的内部依赖）。
+    - 其余 → 原名导出。
     """
     out: list = []
     for node in program.body:
-        if isinstance(node, A.FuncDef):
-            name = node.name
-        elif isinstance(node, A.ClassDef):
+        if isinstance(node, (A.FuncDef, A.ClassDef)):
             name = node.name
         elif isinstance(node, A.Assign) and isinstance(node.target, A.Name):
             name = node.target.id
         else:
             continue
-        if not name.startswith("_") and name not in out:
-            out.append(name)
+        if name.startswith("__") and len(name) > 2:
+            pair = (name[2:], name)
+        elif not name.startswith("_"):
+            pair = (name, name)
+        else:
+            continue
+        if pair not in out:
+            out.append(pair)
     return out
 
 
 def shell_source(name: str) -> str:
-    """把模块源码包成外壳函数源码（保留原行列的相对关系不好做，但报错里的
-    文件名指向 `.jsh` 本身，定位仍然清楚）。
+    """把模块源码包成外壳函数源码。
 
     缩进规则：**非空行整体再加一级缩进**，空行保持空（空行带空格虽然多半也能
     解析，但没必要给词法器的缩进栈添麻烦）。
@@ -172,8 +180,8 @@ def shell_source(name: str) -> str:
     body = []
     for line in source.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
         body.append(("    " + line) if line.strip() else "")
-    ret = "    返回 {" + ", ".join(f'"{n}": {n}' for n in exports) + "}"
-    return f"函数 {shell_name(name)}()：\n" + "\n".join(body) + "\n" + ret + "\n"
+    pairs = ", ".join(f'"{out}": {src}' for out, src in exports)
+    return f"函数 {shell_name(name)}()：\n" + "\n".join(body) + f"\n    返回 {{{pairs}}}\n"
 
 
 def shell_def(name: str) -> A.FuncDef:

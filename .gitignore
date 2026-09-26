@@ -62,3 +62,9 @@ _tmp_*.json
 ctx.txt
 /--vm/
 /--cvm/
+
+# 评测与行数探针的临时产物（tools/eval_ai.py 用 .tmp-eval/；
+# test_m40_projects.py 用 tests/_loc_probe.jsh）。正常情况它们会自己清理，
+# 这里是**崩溃/中断时的兜底** —— 别让临时文件混进提交（M53 观察到的残留）。
+.tmp-eval/
+tests/_loc_probe.jsh

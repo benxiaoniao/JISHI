@@ -392,6 +392,14 @@ def test_marks_match_ast_statement_lines(path):
     """
     src = path.read_text(encoding="utf-8")
     program, lines = _parse(src, str(path))
+    # ⚠️ M53：`compile_program` 内部会先把「用基石写的标准库」展开
+    # （`导入 容器` → `容器 = $造模块(...)`，见 jishilib），会往 AST 里插入
+    # 外壳函数的定义。这里**必须做同样的展开**，否则拿「原 AST 的语句行」
+    # 去比「展开后字节码的语句标记」，多出来的库行号会让不变式假红。
+    # `expand` 是幂等的（找不到 `导入` 就原样返回），所以不必担心叠加。
+    from jishi import jishilib
+
+    program = jishilib.expand(program)
     cmod = compile_program(program, str(path), lines)
     assert mark_lines(cmod) == statement_lines(program), str(path)
 
