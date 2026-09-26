@@ -1,0 +1,55 @@
+[build-system]
+# ⚠️ 必须 >=77：PEP 639 的 `license = "MIT-0"`（SPDX 字符串）+ `license-files`
+# 是 setuptools 77 才支持的写法。写 `>=68` 时，本地开发机装的是新版 setuptools
+# 所以看不出来，但 CI（干净环境按最低版本装）会直接失败：
+#   `license` 的校验只认 {'file': ...} / {'text': ...} → metadata-generation-failed。
+# 2026-09-21 把 license 改成 PEP 639 写法后，CI 连续 6 次全红就是这个原因
+# （四平台都倒在「安装项目（可编辑）」这一步）。M45 收尾时查到并修掉。
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jishi"
+version = "0.2.0"
+description = "基石 —— 一门像 Python 一样简单易用的中文编程语言"
+readme = "README.md"
+requires-python = ">=3.10"
+# SPDX 表达式 + license-files（PEP 639 的新写法）。旧的 `license = {file = ...}`
+# 被 setuptools 标为已弃用，并写明 2027-02-18 之后构建会失败。
+# MIT-0 = MIT No Attribution：保留 MIT 的免责声明，但**不要求署名**，
+# 最贴近原来 Unlicense 的「随便用、别找我」意图，同时是 OSI 认可的标准许可证。
+license = "MIT-0"
+license-files = ["LICENSE"]
+authors = [{ name = "jishi contributors" }]
+
+# 上架 / 发 PyPI 需要的对外链接（PEP 621）
+[project.urls]
+Homepage = "https://github.com/benxiaoniao/JISHI"
+Repository = "https://github.com/benxiaoniao/JISHI"
+Issues = "https://github.com/benxiaoniao/JISHI/issues"
+
+[project.scripts]
+jishi = "jishi.cli:main"
+jishi-mcp = "jishi.mcp_server:main"
+
+[tool.setuptools]
+# `jishi._native` 是**只放动态库的数据目录**（没有 .py）。这里显式列上它，
+# 是为了消掉 setuptools 的保守提醒「Package 'jishi._native' is absent from the
+# packages configuration」——它看到目录里有文件却不在 packages 里就会警告。
+# 真正决定哪些文件进包的是下面的 package-data。
+packages = ["jishi", "jishi.stdlib", "jishi._native"]
+
+# M11：wheel 内带预编译 C VM 动态库（pip install 即含三执行器，无需本机 gcc）
+# M52：再加**用基石写的标准库**（`jishi/stdlib-jishi/*.jsh`）。它不是 Python 包
+# （目录名带连字符），所以进不了上面的 `packages`，只能走 package-data ——
+# 少了它，装 wheel 的人一 `导入 统计` 就会「找不到模块」。
+[tool.setuptools.package-data]
+jishi = ["_native/*.dll", "_native/*.so", "_native/*.dylib",
+         "stdlib-jishi/*.jsh"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "网络: 需要联网的用例（离线可用 -m \"not 网络\" 跳过）",
+    "慢: 真跑几十次子进程的用例（如 AI 跑分题集自检；-m \"not 慢\" 跳过）",
+]
