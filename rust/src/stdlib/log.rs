@@ -61,7 +61,7 @@ fn 输出(vm: &mut VM, 级别: &str, 内容: &[Val]) {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "日志";
         "级别们" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("级别们", args, 0, 0)?;
             Ok(list_new(级别顺序.iter().map(|s| Val::Str(s.to_string())).collect()))

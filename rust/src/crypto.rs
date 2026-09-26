@@ -360,7 +360,7 @@ fn digest(algo: &str, data: &[u8]) -> String {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "加密";
         "摘要" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("摘要", args, 1, 2)?;
             let algo = if args.len() > 1 { normalize(&args[1])? } else { "sha256".to_string() };

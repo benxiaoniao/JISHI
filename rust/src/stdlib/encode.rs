@@ -160,7 +160,7 @@ fn url_unquote(s: &str) -> Result<String, crate::JishiError> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "编码";
         "base64编码" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("base64编码", args, 1, 1)?;
             Ok(Val::Str(b64_encode(&to_bytes("base64编码", &args[0])?)))

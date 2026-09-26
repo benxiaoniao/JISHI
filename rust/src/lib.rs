@@ -15,6 +15,9 @@ mod inflate;
 mod json;
 mod regex;
 mod stdlib;
+// M51：标准库函数签名表（由 `tools/gen_stdlib_sigs.py` 从 Python 侧
+// jishi/stdlib/*.py 生成）。命名参数要按「模块.函数」查它才能映射回位置参数。
+mod stdlib_sigs;
 mod zip;
 use json::Json;
 
@@ -946,10 +949,15 @@ impl VM {
                             return Ok(Flow::Call);
                         }
                         Val::Builtin(name, bfn) => {
-                            let out = bfn(&args, self)?;
+                            // 命名参数在这里映射回位置参数（M51）。以前是直接
+                            // `bfn(&args, self)` —— kwargs 被**静默丢掉**：
+                            // `加密.摘要("abc", 算法="md5")` 会悄悄用 sha256。
+                            let mapped = map_kwargs(name, &args, &knames, &kwvals)?;
+                            let out = bfn(&mapped, self)?;
                             self.stack.push(out);
                         }
                         Val::Class(c) => {
+                            reject_kwargs(&format!("类「{}」", c.name), &knames)?;
                             let inst = self.make_instance(c, &args)?;
                             self.stack.push(Val::Instance(inst));
                         }
@@ -967,12 +975,14 @@ impl VM {
                                     return Ok(Flow::Call);
                                 }
                                 builtin => {
+                                    reject_kwargs("这个方法", &knames)?;
                                     let out = self.call_bound(builtin, &args)?;
                                     self.stack.push(out);
                                 }
                             }
                         }
                         Val::ExcType(t) => {
+                            reject_kwargs("异常类型", &knames)?;
                             let msg = args.first().map(display).unwrap_or_default();
                             return Err(err(&t, msg));
                         }
@@ -2676,6 +2686,93 @@ fn b_sum(args: &[Val], _vm: &mut VM) -> Result<Val, JishiError> {
 /// 干脆按模块分文件（crypto.rs / regex.rs / zip.rs / http.rs / csv.rs）。
 fn stdlib_module(name: &str) -> Result<Val, JishiError> {
     stdlib::module(name)
+}
+
+/// `--dump-stdlib`：这个宿主**实际带的标准库模块与函数**，打成 JSON（M51）。
+///
+/// 用途只有一个：给 `tests/test_m51_consistency.py` 当事实源。「Python 侧有、
+/// 宿主没有」这种漂移以前是**静默**的 —— M50 第一批的宿主缺失就是手工测出来的。
+pub fn dump_stdlib() -> String {
+    stdlib::dump()
+}
+
+/// 目标不支持命名参数时**明确报错**（M51）。
+///
+/// 以前宿主对 kwargs 的态度是「收下、忘掉」：调用看着成功了，参数却没生效。
+/// 那比报错难查一百倍 —— 宁可报错，也不要静默。
+fn reject_kwargs(target: &str, knames: &[String]) -> Result<(), JishiError> {
+    if knames.is_empty() {
+        return Ok(());
+    }
+    Err(err("类型错误", format!(
+        "{target}暂不支持命名参数（{}）—— 请改用位置参数", knames.join("、"))))
+}
+
+/// 命名参数 → 位置参数（M51）。
+///
+/// 以前 `Val::Builtin` 是 `bfn(&args, self)` —— **命名参数被静默丢掉**：
+/// `加密.摘要("abc", 算法="md5")` 会悄悄用默认的 sha256，与 Python 侧结果不同
+/// 还不报错。现在按「模块.函数」查 `stdlib_sigs`（由 `tools/gen_stdlib_sigs.py`
+/// 从 Python 侧标准库源码生成，**零手抄、零漂移**）映射回位置参数；
+/// 映射不了一律**明确报错**。
+///
+/// 异常类型统一用「类型错误」—— Python 侧也是 TypeError（`jishi/runtime.py`
+/// 直接 `fn(*args, **kwargs)`），三执行器对拍才比得上。
+///
+/// 查不到 / 映射不了的四种情形与 Node 侧 `R.mapKwargs` 逐条对齐：
+/// 名字对不上、被给两次、缺必填、**跳过了前面的可选参数**（宿主按位置调用，
+/// 中间留空就得补 `空` 顶上，而 `空` 未必等价于「不给」，所以宁可报错也不猜）。
+fn map_kwargs(qualified: &str, args: &[Val], knames: &[String], kwvals: &[Val])
+    -> Result<Vec<Val>, JishiError> {
+    if knames.is_empty() {
+        return Ok(args.to_vec());
+    }
+    let (required, params) = match stdlib_sigs::sigof(qualified) {
+        Some(s) => s,
+        None => return Err(err("类型错误", format!(
+            "宿主上「{qualified}」暂不支持命名参数（{}）—— 请改用位置参数",
+            knames.join("、")))),
+    };
+    if args.len() > params.len() {
+        return Err(err("类型错误", format!(
+            "函数「{qualified}」最多接受 {} 个参数，但传了 {} 个",
+            params.len(), args.len())));
+    }
+    let mut slots: Vec<Option<Val>> = vec![None; params.len()];
+    for (i, v) in args.iter().enumerate() {
+        slots[i] = Some(v.clone());
+    }
+    for (k, v) in knames.iter().zip(kwvals.iter()) {
+        let i = match params.iter().position(|p| p == k) {
+            Some(i) => i,
+            None => return Err(err("类型错误", format!(
+                "函数「{qualified}」没有名为「{k}」的参数（可用：{}）",
+                if params.is_empty() { "无".to_string() } else { params.join("、") }))),
+        };
+        if slots[i].is_some() {
+            return Err(err("类型错误",
+                format!("函数「{qualified}」的参数「{k}」被给了两次")));
+        }
+        slots[i] = Some(v.clone());
+    }
+    for i in 0..required {
+        if slots[i].is_none() {
+            return Err(err("类型错误", format!(
+                "函数「{qualified}」缺少必填参数「{}」", params[i])));
+        }
+    }
+    // 尾部的空缺截掉 —— 让宿主实现自己的默认值生效
+    let mut n = params.len();
+    while n > 0 && slots[n - 1].is_none() { n -= 1; }
+    for i in 0..n {
+        if slots[i].is_none() {
+            return Err(err("类型错误", format!(
+                "函数「{qualified}」的命名参数跳过了「{}」（它没有给值），\
+                 而宿主是按位置调用的、中间不能留空 —— 请把「{}」也补上，\
+                 或全部改用位置参数", params[i], params[i])));
+        }
+    }
+    Ok(slots[..n].iter().map(|v| v.clone().unwrap()).collect())
 }
 
 /// 设置脚本收到的命令行参数（`jishi-rs 字节码.json 参数1 参数2`）。

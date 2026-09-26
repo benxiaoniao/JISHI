@@ -10,7 +10,8 @@
 'use strict';
 
 const fs = require('fs');
-const { VM } = require('./vm');
+const Runtime = require('./runtime');
+const { VM, STDLIB } = require('./vm');
 
 function decodeConst(c) {
   if (c.t === 'none') return null;
@@ -98,15 +99,36 @@ function selfTest() {
   return 0;
 }
 
+/**
+ * `--dump-stdlib`：把这个宿主**实际带的标准库模块与函数**打成 JSON。
+ *
+ * M51 加的，用途只有一个：给 `tests/test_m51_consistency.py` 当事实源。
+ * 由宿主自己报家底，比让测试去正则解析源码靠谱——解析一改就崩，
+ * 还会把注释里的名字也算进去。漂移检测（「Python 侧有、宿主没有」）靠它。
+ */
+function dumpStdlib() {
+  const out = {};
+  for (const name of Object.keys(STDLIB)) {
+    const m = STDLIB[name];
+    out[m.name] = Object.keys(m.attrs)
+      .filter((k) => m.attrs[k] instanceof Runtime.Builtin)
+      .sort();
+  }
+  process.stdout.write(JSON.stringify(out));
+  return 0;
+}
+
 function main() {
   const args = process.argv.slice(2);
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     console.log('用法：node node/index.js 字节码.json');
     console.log('      node node/index.js --self-test');
+    console.log('      node node/index.js --dump-stdlib');
     return 0;
   }
   try {
     if (args.includes('--self-test')) return selfTest();
+    if (args.includes('--dump-stdlib')) return dumpStdlib();
     return runFile(args[0]);
   } catch (e) {
     // 基石错误打印成人话（此前是直接抛给 Node，用户看到的是 JS 堆栈，
@@ -125,4 +147,4 @@ if (require.main === module) {
   process.exit(main());
 }
 
-module.exports = { loadPayload, runFile, VM };
+module.exports = { loadPayload, runFile, VM, dumpStdlib };

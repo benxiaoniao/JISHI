@@ -139,7 +139,7 @@ fn int_arg(name: &str, v: &crate::Val) -> Result<usize, crate::JishiError> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "对比";
         "逐行" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("逐行", args, 2, 3)?;
             let a = lines("逐行", &args[0])?;

@@ -51,7 +51,7 @@ fn b64url(data: &[u8]) -> String {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "标识";
         "唯一标识" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("唯一标识", args, 0, 1)?;
             let no_dash = if args.is_empty() {

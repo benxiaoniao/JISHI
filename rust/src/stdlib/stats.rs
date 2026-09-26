@@ -69,7 +69,7 @@ fn as_float_arg(name: &str, v: &Val) -> Result<f64, crate::JishiError> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "统计";
         "求和" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("求和", args, 1, 1)?;
             let xs = nums("求和", &args[0])?;

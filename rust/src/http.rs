@@ -405,7 +405,7 @@ fn timeout_of(args: &[Val], idx: usize) -> Result<f64, JishiError> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "网络";
         "获取" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("获取", args, 1, 2)?;
             let raw = as_text(&args[0]);

@@ -69,7 +69,7 @@ fn gcd(a: i128, b: i128) -> i128 {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    let m = table! {
+    let m = table! { "数学";
         "开方" => |args: &[Val], _vm: &mut VM| -> R {
             need("开方", args, 1)?;
             let x = as_num(&args[0]).map_err(|_| {

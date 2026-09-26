@@ -13,7 +13,7 @@
 use std::collections::HashMap;
 
 use super::{as_intish, need, need_range, table, R};
-use crate::{err, JishiError, Val, VM};
+use crate::{display, err, JishiError, Val, VM};
 
 /// `str.center` 的偏置公式（CPython 的 `unicode_center_impl`）。
 fn center_left(marg: usize, width: usize) -> usize {
@@ -368,7 +368,7 @@ fn format_template(tpl: &str, args: &[Val]) -> String {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "文本";
         "拼接" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("拼接", args, 1, 2)?;
             let items = super::to_vec(&args[0])?;
@@ -548,6 +548,51 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let s = super::as_text(&args[0]);
             let items: Vec<Val> = split_lines(&s).into_iter().map(Val::Str).collect();
             Ok(crate::list_new(items))
+        },
+        // M51 补：这两个是 M50 第一批加的（「既有模块补缺」），当时只做了
+        // Python 侧，宿主**静默缺失** —— 正是这个缺口促成 M51 的漂移检测。
+        "填充" => |args: &[Val], _vm: &mut VM| -> R {
+            need_range("填充", args, 2, 3)?;
+            let s = super::as_text(&args[0]);
+            let w = as_intish(&args[1])?.max(0) as usize;
+            let f = if args.len() > 2 { super::as_text(&args[2]) } else { " ".to_string() };
+            let fchars: Vec<char> = f.chars().collect();
+            if fchars.len() != 1 {
+                return Err(err("类型错误", "「填充」的填充字符要传一个字符"));
+            }
+            let n = s.chars().count();
+            if n >= w {
+                return Ok(Val::Str(s));
+            }
+            let total = w - n;
+            let left = total / 2;      // 与 Python str.center 同侧（左少右多）
+            let mut out = String::new();
+            for _ in 0..left { out.push(fchars[0]); }
+            out.push_str(&s);
+            for _ in 0..(total - left) { out.push(fchars[0]); }
+            Ok(Val::Str(out))
+        },
+        "截断" => |args: &[Val], _vm: &mut VM| -> R {
+            need_range("截断", args, 2, 3)?;
+            let s = super::as_text(&args[0]);
+            let w = as_intish(&args[1])?;
+            let e = if args.len() > 2 { super::as_text(&args[2]) } else { "…".to_string() };
+            if w < 0 {
+                return Err(err("类型错误",
+                    format!("「截断」的宽度不能是负数，得到了 {}", display(&args[1]))));
+            }
+            let w = w as usize;
+            let chars: Vec<char> = s.chars().collect();
+            if chars.len() <= w {
+                return Ok(Val::Str(s));
+            }
+            let ech: Vec<char> = e.chars().collect();
+            if w <= ech.len() {
+                return Ok(Val::Str(ech[..w].iter().collect()));
+            }
+            let mut out: String = chars[..w - ech.len()].iter().collect();
+            out.push_str(&e);
+            Ok(Val::Str(out))
         },
     }
 }

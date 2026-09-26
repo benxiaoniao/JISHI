@@ -839,7 +839,7 @@ fn build(pattern: &Val) -> Result<Prog, JishiError> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "正则";
         "匹配" => |args: &[Val], _vm: &mut VM| -> R {
             need("匹配", args, 2)?;
             let prog = build(&args[0])?;

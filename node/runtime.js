@@ -1313,9 +1313,100 @@ function range(a, b, step) {
 // 模块
 // ---------------------------------------------------------------------------
 class Module {
-  constructor(name, attrs) { this.name = name; this.attrs = attrs; }
+  constructor(name, attrs) {
+    // 给标准库函数补上「模块.」前缀（M51）：命名参数的映射表按
+    // 「模块.函数」索引 —— 全库有 19 组跨模块同名函数（`解析` 在
+    // json / 参数 / 日期 都有），只按函数名查会歧义。前缀在这里统一加，
+    // 省得在两百多处 `new R.Builtin(...)` 手写（手写就是「写三遍」+ 漂移源）。
+    // 名字只影响 `toString()` 的显示，不影响调用。
+    for (const k of Object.keys(attrs)) {
+      const v = attrs[k];
+      if (v instanceof Builtin) v.name = name + '.' + k;
+    }
+    this.name = name;
+    this.attrs = attrs;
+  }
 
   toString() { return `<模块 ${this.name}>`; }
+}
+
+// ---------------------------------------------------------------------------
+// 命名参数（kwargs）→ 位置参数（M51）
+// ---------------------------------------------------------------------------
+
+/** 标准库函数签名表：`{模块: {函数: [必填个数, [参数名…]]}}`。
+ *  由 `tools/gen_stdlib_sigs.py` 从 jishi/stdlib/*.py 生成 —— 参数叫什么名字
+ *  只有一份事实源，宿主不手抄。 */
+const SIGS = require('./stdlib_sigs');
+
+/**
+ * 把命名参数映射回位置参数。
+ *
+ * 以前宿主是**静默丢掉** kwargs 的：`加密.摘要("abc", 算法="md5")` 在里面变成
+ * `摘要("abc")`，悄悄用默认的 sha256 —— 与 Python 侧结果不同，还一声不响。
+ * 现在能安全映射的就映射，**不能安全映射的一律明确报错**（文案给出修法），
+ * 绝不再静默。
+ *
+ * 不能安全映射的四种情形：
+ *   - 该函数不在签名表里（宿主独有内建、纯 `*参数` 形式）
+ *   - 参数名对不上
+ *   - 同一个参数既给位置又给命名（给了两次）
+ *   - **命名参数跳过了前面的可选参数** —— 宿主按位置调用，中间空一位
+ *     就得补 `空` 顶上，而 `空` 未必等价于「不给」，所以宁可报错也不猜
+ */
+function mapKwargs(qualified, args, kwargs, line, col) {
+  const keys = kwargs ? Object.keys(kwargs) : [];
+  if (keys.length === 0) return args;
+
+  const dot = qualified.lastIndexOf('.');
+  const mod = dot < 0 ? '' : qualified.slice(0, dot);
+  const fn = dot < 0 ? qualified : qualified.slice(dot + 1);
+  const sig = mod && SIGS[mod] ? SIGS[mod][fn] : undefined;
+
+  if (!sig) {
+    throw typeErr(
+      `宿主上「${qualified}」暂不支持命名参数（${keys.join('、')}）—— `
+      + '请改用位置参数', line, col);
+  }
+
+  const required = sig[0];
+  const params = sig[1];
+  if (args.length > params.length) {
+    throw typeErr(
+      `函数「${qualified}」最多接受 ${params.length} 个参数，但传了 ${args.length} 个`,
+      line, col);
+  }
+  const slots = new Array(params.length).fill(UNSET);
+  for (let i = 0; i < args.length; i++) slots[i] = args[i];
+  for (const k of keys) {
+    const i = params.indexOf(k);
+    if (i < 0) {
+      throw typeErr(
+        `函数「${qualified}」没有名为「${k}」的参数`
+        + `（可用：${params.join('、') || '无'}）`, line, col);
+    }
+    if (slots[i] !== UNSET) {
+      throw typeErr(`函数「${qualified}」的参数「${k}」被给了两次`, line, col);
+    }
+    slots[i] = kwargs[k];
+  }
+  for (let i = 0; i < required; i++) {
+    if (slots[i] === UNSET) {
+      throw typeErr(
+        `函数「${qualified}」缺少必填参数「${params[i]}」`, line, col);
+    }
+  }
+  let n = params.length;
+  while (n > 0 && slots[n - 1] === UNSET) n--;   // 尾部的空缺截掉，让宿主默认值生效
+  for (let i = 0; i < n; i++) {
+    if (slots[i] === UNSET) {
+      throw typeErr(
+        `函数「${qualified}」的命名参数跳过了「${params[i]}」（它没有给值），`
+        + `而宿主是按位置调用的、中间不能留空 —— 请把「${params[i]}」也补上，`
+        + '或全部改用位置参数', line, col);
+    }
+  }
+  return slots.slice(0, n);
 }
 
 // ---------------------------------------------------------------------------
@@ -2143,6 +2234,8 @@ module.exports = {
   contains, identityKey, valueEq, callValue, ensureCallable,
   methodTable, getAttr, setAttr, getItem, setItem,
   BoundMethod, BoundUserMethod, makeInstance,
+  // M51：命名参数 → 位置参数的映射（vm.js 的 `_callValue` 用它）
+  mapKwargs, SIGS,
   unpackValues, buildDict, lookupName,
   isLoopSignal, exceptionMatches, makeException,
   nameErr, typeErr, valueErr, runErr, fileErr,

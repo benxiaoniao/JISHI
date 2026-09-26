@@ -99,7 +99,7 @@ fn 递归收(
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "路径";
         "连接" => |args: &[Val], _vm: &mut VM| -> R {
             if args.is_empty() {
                 return Ok(Val::Str(".".to_string()));

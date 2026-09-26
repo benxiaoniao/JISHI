@@ -516,7 +516,7 @@ fn monotonic() -> f64 {
 static SLEEP_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub(crate) fn date_module() -> HashMap<String, Val> {
-    table! {
+    table! { "日期";
         "今天" => |args: &[Val], _vm: &mut VM| -> R {
             need("今天", args, 0)?;
             let now = local_now();
@@ -589,7 +589,7 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
 }
 
 pub(crate) fn time_module() -> HashMap<String, Val> {
-    table! {
+    table! { "时间";
         "现在" => |args: &[Val], _vm: &mut VM| -> R {
             need("现在", args, 0)?;
             let n = local_now();

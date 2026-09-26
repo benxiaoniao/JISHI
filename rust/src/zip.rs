@@ -250,7 +250,7 @@ fn walk(dir: &str, prefix: &str, out: &mut Vec<(String, String)>) {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "压缩";
         "打包" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("打包", args, 2, usize::MAX)?;
             let zip_path = as_text(&args[0]);

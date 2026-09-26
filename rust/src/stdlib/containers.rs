@@ -31,7 +31,7 @@ fn count_pairs(items: &[Val]) -> Vec<(Val, i128)> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "容器";
         "计数" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("计数", args, 1, 1)?;
             let items = to_vec(&args[0])?;

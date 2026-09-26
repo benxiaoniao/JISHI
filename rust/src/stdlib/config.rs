@@ -113,7 +113,7 @@ fn shape_of(v: &Val) -> String {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "配置";
         "读JSON" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("读JSON", args, 1, 2)?;
             let p = as_path("读JSON", &args[0])?;

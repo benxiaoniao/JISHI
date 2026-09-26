@@ -172,7 +172,7 @@ fn sort_key(v: &Val) -> (u8, f64, String) {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "表格";
         "读表格" => |args: &[Val], _vm: &mut VM| -> R {
             need("读表格", args, 1)?;
             let p = as_text(&args[0]);

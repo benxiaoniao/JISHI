@@ -207,7 +207,7 @@ fn timeout_of(v: Option<&Val>) -> Result<f64, crate::JishiError> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "系统";
         "系统名" => |args: &[Val], _vm: &mut VM| -> R {
             need("系统名", args, 0)?;
             Ok(Val::Str(os_name()))

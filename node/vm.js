@@ -446,24 +446,40 @@ class VM {
 
   _callValue(fn, args, kwargs, line, col) {
     if (fn instanceof R.Builtin) {
-      return fn.fn(...args);
+      // 内建 / 标准库是**按位置**调用的 JS 函数：命名参数在这里映射回位置
+      // 参数（M51）。以前是 `fn.fn(...args)` 直接把 kwargs 丢掉 ——
+      // `加密.摘要("abc", 算法="md5")` 会悄悄用默认的 sha256。
+      return fn.fn(...R.mapKwargs(fn.name, args, kwargs, line, col));
     }
     if (fn instanceof R.Module) {
       throw R.typeErr(`模块「${fn.name}」不能直接调用`, line, col);
     }
     if (fn instanceof R.JishiClass) {
+      this._rejectKwargs(`类「${fn.name}」`, kwargs, line, col);
       return R.makeInstance(fn, args, line, col);
     }
     if (fn instanceof R.BoundMethod) {
+      this._rejectKwargs(`「${R.display(fn.obj)}」的方法`, kwargs, line, col);
       return fn.impl(fn.obj, args, line, col);
     }
     if (fn instanceof R.BoundUserMethod) {
       return this.callFunction(fn.fn, [fn.instance, ...args], kwargs, line, col);
     }
     if (fn instanceof R.ExcType) {
+      this._rejectKwargs(`异常类型「${fn.name}」`, kwargs, line, col);
       return fn.make(args[0] !== undefined ? args[0] : '', line, col);
     }
     throw R.runErr(`「${R.display(fn)}」不能调用`, line, col);
+  }
+
+  /** 宿主暂不支持命名参数时**明确报错**（M51）。以前 kwargs 会被静默丢掉，
+   *  调用「成功了」但参数根本没生效 —— 那比报错难查一百倍。 */
+  _rejectKwargs(target, kwargs, line, col) {
+    const keys = kwargs ? Object.keys(kwargs) : [];
+    if (keys.length === 0) return;
+    throw R.typeErr(
+      `${target}暂不支持命名参数（${keys.join('、')}）—— 请改用位置参数`,
+      line, col);
   }
 
   _callBoundMethod(m, args, line, col) {
@@ -1997,6 +2013,62 @@ const ITER_FUNCS = {
     for (const x of seqFor('计数', it)) if (R.truthy(R.callValue(cond, [x]))) n += 1;
     return n;
   }),
+  // M51 补：这四个是 M50 第一批加的（「既有模块补缺」），只做了 Python 侧。
+  '累积': new R.Builtin('累积', (it, init = 0) => {
+    const out = []; let acc = init;
+    // 用基石自己的 `+`（文本拼接、列表相加都算数），不是 JS 的 `+`
+    for (const x of seqFor('累积', it)) { acc = R.applyBinop('+', acc, x); out.push(acc); }
+    return out;
+  }),
+  '组合': new R.Builtin('组合', (it, k) => {
+    const n = Math.trunc(Number(k));
+    if (n < 0) throw R.typeErr(`「组合」要取的个数不能是负数，得到了 ${R.display(k)}`);
+    const all = seqFor('组合', it);
+    if (n > all.length) return [];
+    const out = [];
+    const pick = (start, cur) => {
+      if (cur.length === n) { out.push(cur.slice()); return; }
+      for (let i = start; i < all.length; i++) {
+        cur.push(all[i]); pick(i + 1, cur); cur.pop();
+      }
+    };
+    pick(0, []);
+    return out;                          // 顺序与 itertools.combinations 一致
+  }),
+  '排列': new R.Builtin('排列', (it, k = -1) => {
+    const all = seqFor('排列', it);
+    const n = Number(k) === -1 ? all.length : Math.trunc(Number(k));
+    if (n < 0) throw R.typeErr(`「排列」要取的个数不能是负数，得到了 ${R.display(k)}`);
+    if (n > all.length) return [];
+    const out = []; const used = new Array(all.length).fill(false); const cur = [];
+    const walk = () => {
+      if (cur.length === n) { out.push(cur.slice()); return; }
+      for (let i = 0; i < all.length; i++) {
+        if (used[i]) continue;           // 按**位置**去重，与 itertools 一致
+        used[i] = true; cur.push(all[i]); walk(); cur.pop(); used[i] = false;
+      }
+    };
+    walk();
+    return out;
+  }),
+  '笛卡尔积': new R.Builtin('笛卡尔积', (...seqs) => {
+    if (seqs.length === 0) return [];
+    const lists = seqs.map((s, i) => {
+      const got = R.seqOf(s, true, undefined, undefined);
+      if (got === null) {
+        throw R.typeErr(`「${R.display(s)}」不能当「笛卡尔积」第 ${i + 1} 个序列用`);
+      }
+      return got;
+    });
+    if (lists.some((l) => l.length === 0)) return [];
+    let out = [[]];
+    for (const l of lists) {
+      const next = [];
+      for (const prefix of out) for (const x of l) next.push([...prefix, x]);
+      out = next;
+    }
+    return out;
+  }),
 };
 
 /** 参数解析：与 Python 侧 参数.py 同一套规则（句柄式）。
@@ -2811,6 +2883,29 @@ const STDLIB = {
     '阶乘': new R.Builtin('阶乘', (n) => {
       let r = 1; for (let i = 2; i <= n; i++) r *= i; return r;
     }),
+    // M51 补：这六个一直只在 Python 侧有，宿主静默缺失（写 `数学.正弦(1)`
+    // 在 Python 上能跑、在宿主上报「模块里没有」）。三角函数收**弧度**，与
+    // Python 的 `math.sin` 同口径。
+    '正弦': new R.Builtin('正弦', (x) => new R.FloatBox(Math.sin(Number(x)))),
+    '余弦': new R.Builtin('余弦', (x) => new R.FloatBox(Math.cos(Number(x)))),
+    '正切': new R.Builtin('正切', (x) => new R.FloatBox(Math.tan(Number(x)))),
+    '角度转弧度': new R.Builtin('角度转弧度',
+      (x) => new R.FloatBox(Number(x) * Math.PI / 180)),
+    '对数': new R.Builtin('对数', (x, base = Math.E) => {
+      const v = Math.log(Number(x)) / Math.log(Number(base));
+      // Python 的 math.log 在 x<=0 / 底不合法时抛 ValueError，宿主得自己判
+      if (Number.isNaN(v) || !Number.isFinite(v)) {
+        throw R.typeErr(`「${R.display(x)}」不能求以 ${R.display(base)} 为底的对数`);
+      }
+      return new R.FloatBox(v);
+    }),
+    '常用对数': new R.Builtin('常用对数', (x) => {
+      const v = Math.log10(Number(x));
+      if (Number.isNaN(v) || !Number.isFinite(v)) {
+        throw R.typeErr(`「${R.display(x)}」不能求常用对数`);
+      }
+      return new R.FloatBox(v);
+    }),
   }),
   '文本': new R.Module('文本', {
     '拼接': new R.Builtin('拼接', (seq, sep = '') =>
@@ -2895,6 +2990,26 @@ const STDLIB = {
     '按行拆分': new R.Builtin('按行拆分', (s) =>
       String(s).split(/\r\n|\r|\n/).filter((x, _i, arr) =>
         !(x === '' && arr.length > 1 && arr[arr.length - 1] === ''))),
+    // M51 补：`填充` / `截断` 是 M50 第一批加的（「既有模块补缺」），
+    // 只做了 Python 侧，宿主静默缺失 —— 正是这个缺口促成 M51 的漂移检测。
+    '填充': new R.Builtin('填充', (s, width, fill = ' ') => {
+      const text = String(s); const w = Number(width); const f = String(fill);
+      if ([...f].length !== 1) throw R.typeErr('「填充」的填充字符要传一个字符');
+      const len = [...text].length;
+      if (len >= w) return text;
+      const total = w - len;
+      const left = Math.floor(total / 2);          // 与 Python str.center 同侧
+      return f.repeat(left) + text + f.repeat(total - left);
+    }),
+    '截断': new R.Builtin('截断', (s, width, ellipsis = '…') => {
+      const text = String(s); const w = Math.trunc(Number(width)); const e = String(ellipsis);
+      if (w < 0) throw R.typeErr(`「截断」的宽度不能是负数，得到了 ${R.display(width)}`);
+      const chars = [...text];
+      if (chars.length <= w) return text;
+      const ech = [...e];
+      if (w <= ech.length) return ech.slice(0, w).join('');
+      return chars.slice(0, w - ech.length).join('') + e;
+    }),
   }),
   '随机': new R.Module('随机', {
     '随机整数': new R.Builtin('随机整数', (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1))),
@@ -2938,4 +3053,4 @@ const STDLIB = {
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }
 
-module.exports = { VM, Op };
+module.exports = { VM, Op, STDLIB };

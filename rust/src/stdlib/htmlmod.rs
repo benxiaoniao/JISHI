@@ -86,7 +86,7 @@ fn check_tag(name: &str, v: &Val) -> Result<String, crate::JishiError> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "html";
         "转义" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("转义", args, 1, 1)?;
             Ok(Val::Str(escape_html(&crate::display(&args[0]))))

@@ -8,7 +8,15 @@ fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         eprintln!("用法：jishi-rs 字节码.json");
+        eprintln!("      jishi-rs --dump-stdlib");
         return ExitCode::from(2);
+    }
+    // M51：把宿主**实际带的标准库模块与函数**打成 JSON。
+    // 给 `tests/test_m51_consistency.py` 当事实源 —— 「Python 侧有、宿主没有」
+    // 这种漂移以前是静默的（M50 第一批的宿主缺失是手工测出来的）。
+    if args[1] == "--dump-stdlib" || args[1] == "--dump_stdlib" {
+        println!("{}", jishi_ffi::dump_stdlib());
+        return ExitCode::SUCCESS;
     }
     let path = &args[1];
     let text = match fs::read_to_string(path) {

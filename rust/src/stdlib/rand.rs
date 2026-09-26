@@ -55,7 +55,7 @@ fn below(bound: u64) -> u64 {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "随机";
         "随机整数" => |args: &[Val], _vm: &mut VM| -> R {
             need("随机整数", args, 2)?;
             let lo = as_intish(&args[0])?;

@@ -33,7 +33,7 @@ fn write_bytes(path: &str, data: &[u8]) -> Result<(), JishiError> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "文件";
         "写文本" => |args: &[Val], _vm: &mut VM| -> R {
             need("写文本", args, 2)?;
             let p = as_text(&args[0]);

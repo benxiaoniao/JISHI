@@ -141,7 +141,7 @@ fn 解析列表(p: &Parser, list: Vec<Val>) -> Result<Val, crate::JishiError> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "参数";
         "新建" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("新建", args, 1, 2)?;
             let 名 = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };

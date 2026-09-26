@@ -449,7 +449,7 @@ fn indent_of(args: &[Val], idx: usize) -> Option<usize> {
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
-    table! {
+    table! { "json";
         "转文本" => |args: &[Val], _vm: &mut VM| -> R {
             need_range("转文本", args, 1, 2)?;
             let ind = indent_of(args, 1);

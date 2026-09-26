@@ -56,44 +56,99 @@ mod log;
 /// 标准库函数的统一返回类型（省得每处都写一长串）。
 pub(crate) type R = Result<Val, JishiError>;
 
+/// 标准库模块的**唯一清单**（模块名 → 构造函数）。
+///
+/// 加新模块只改这里（外加一个实现文件）：`module()` 与 `--dump-stdlib`
+/// 都从它取，所以**不会出现「写了实现、忘了登记」的静默漂移**——
+/// 那种漂移在 M50 第一批上真发生过（宿主缺模块，是手工测出来的）。
+pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, Val>)] {
+    &[
+        ("数学", math::module),
+        ("文本", text::module),
+        ("随机", rand::module),
+        ("路径", path::module),
+        ("文件", files::module),
+        ("日期", datetime::date_module),
+        ("时间", datetime::time_module),
+        ("系统", system::module),
+        ("加密", crate::crypto::module),
+        ("压缩", crate::zip::module),
+        ("表格", tables::module),
+        ("json", jsonmod::module),
+        ("正则", crate::regex::module),
+        ("网络", crate::http::module),
+        // M41：容器 / 迭代 / 参数 / 日志
+        // 注意是「容器」不是「集合」——`集合` 是内建函数名，同名模块会遮蔽它
+        ("容器", containers::module),
+        ("迭代", iter::module),
+        ("参数", args::module),
+        ("日志", log::module),
+        // M50 新增的六个模块
+        ("统计", stats::module),
+        ("标识", ident::module),
+        ("编码", encode::module),
+        ("html", htmlmod::module),
+        ("对比", diffmod::module),
+        ("配置", config::module),
+    ]
+}
+
 /// 标准库模块的分发表。
 ///
 /// `Val::Builtin` 只能存**无捕获的函数指针**，所以这里只能是「名字 → 表」的
 /// 形式，模块表在每次 `导入` 时现场构造（与 Python 侧 `stdlib_module` 同构）。
 pub(crate) fn module(name: &str) -> Result<Val, JishiError> {
-    let table = match name {
-        "数学" => math::module(),
-        "文本" => text::module(),
-        "随机" => rand::module(),
-        "路径" => path::module(),
-        "文件" => files::module(),
-        "日期" => datetime::date_module(),
-        "时间" => datetime::time_module(),
-        "系统" => system::module(),
-        "加密" => crate::crypto::module(),
-        "压缩" => crate::zip::module(),
-        "表格" => tables::module(),
-        "json" => jsonmod::module(),
-        "正则" => crate::regex::module(),
-        "网络" => crate::http::module(),
-        // M41：容器 / 迭代 / 参数 / 日志
-        // 注意是「容器」不是「集合」——`集合` 是内建函数名，同名模块会遮蔽它
-        "容器" => containers::module(),
-        "迭代" => iter::module(),
-        "参数" => args::module(),
-        "日志" => log::module(),
-        // M50 新增的六个模块
-        "统计" => stats::module(),
-        "标识" => ident::module(),
-        "编码" => encode::module(),
-        "html" => htmlmod::module(),
-        "对比" => diffmod::module(),
-        "配置" => config::module(),
-        _ => {
-            return Err(err("异常", format!("没有找到标准库模块「{name}」")));
+    for (n, build) in all_modules() {
+        if *n == name {
+            return Ok(Val::Module((*n).to_string(), build()));
         }
-    };
-    Ok(Val::Module(name.to_string(), table))
+    }
+    Err(err("异常", format!("没有找到标准库模块「{name}」")))
+}
+
+/// 这个宿主**实际带的标准库模块与函数**，打成 JSON（M51）。
+///
+/// 用途只有一个：给 `tests/test_m51_consistency.py` 当事实源 ——
+/// 「Python 侧有、宿主没有」这种漂移以前是**静默**的（写 `数学.正弦(30)`
+/// 在 Python 上能跑、在宿主上报「模块里没有」）。由宿主自己报家底，
+/// 测试才抓得住；比让测试去正则解析源码靠谱（解析一改就崩）。
+///
+/// 只报 `Val::Builtin`（函数），与 Python 侧 `jishi --lang-spec` 的
+/// `stdlib[].functions` 对齐。`数学.圆周率` 这类**常量**不在对比范围内
+/// （三边都有，但 M51 未纳入检测 —— 已知边界，见 `AGENTS.md`）。
+pub fn dump() -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for (name, build) in all_modules() {
+        let table = build();
+        let mut keys: Vec<&str> = table
+            .iter()
+            .filter(|(_, v)| matches!(v, Val::Builtin(..)))
+            .map(|(k, _)| k.as_str())
+            .collect();
+        keys.sort_unstable();
+        let items: Vec<String> = keys.iter().map(|k| quote(k)).collect();
+        parts.push(format!("{}:[{}]", quote(name), items.join(",")));
+    }
+    format!("{{{}}}", parts.join(","))
+}
+
+/// 极简 JSON 字符串字面量（零依赖，模块名与函数名都是标识符）。
+fn quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -103,10 +158,16 @@ pub(crate) fn module(name: &str) -> Result<Val, JishiError> {
 /// 从 `"名字" => 函数` 列表造一个模块表。
 ///
 /// 直接用 `HashMap::insert` 写会变成一百多行样板，宏能省掉。
+///
+/// **第一个参数是模块名**，会拼进函数名（`concat!` 是编译期拼接，零运行时
+/// 开销）。理由：宿主要支持命名参数（`加密.摘要("abc", 算法="md5")`），就必须
+/// 按「模块.函数」查签名表 —— 全库有 19 组跨模块同名函数（`解析` 在
+/// json / 参数 / 日期 都有），只按函数名查会歧义。名字只影响 `display()`。
 macro_rules! table {
-    ($( $name:literal => $f:expr ),* $(,)?) => {{
+    ($modname:literal; $( $name:literal => $f:expr ),* $(,)?) => {{
         let mut m: HashMap<String, Val> = HashMap::new();
-        $( m.insert($name.to_string(), Val::Builtin($name, $f)); )*
+        $( m.insert($name.to_string(),
+                    Val::Builtin(concat!($modname, ".", $name), $f)); )*
         m
     }};
 }
