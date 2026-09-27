@@ -216,6 +216,126 @@ def test_签名表与标准库源码同步():
 
 
 # ---------------------------------------------------------------------------
+# 一之二、**对象方法**的漂移检测（M54 新建）
+# ---------------------------------------------------------------------------
+#
+# 为什么单开一节：M51 的漂移检测只比**标准库的模块与函数名**，而
+# `列表` / `字典` / `文本` / `集合` / `文件` / `小数` 的**方法表同样是五份实现**，
+# 却一条都没测。代价是两笔漏网：
+#   - **Rust 缺 `文本.查找`** —— M53 靠五引擎对拍偶然撞见；
+#   - **Node 缺 `文件.位置/定位/刷新`** —— M54 建检测时才发现（Python 侧 9 个，
+#     Node 只有 6 个，静默缺了三个）。
+# 两笔都是「宿主少个方法」这种最该被自动抓住的事。现在两边都补齐了。
+
+def _py_methods() -> dict[str, list[str]]:
+    """Python 侧的事实源：`--lang-spec` 的 `methods` 节（M54 起是 6 类）。"""
+    return {t: sorted(ms) for t, ms in ai.build_lang_spec()["methods"].items()}
+
+
+def _node_methods() -> dict[str, list[str]]:
+    if not NODE:
+        pytest.skip("没有 node")
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), "--dump-methods"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, f"Node --dump-methods 失败：{r.stderr[:300]}"
+    return json.loads(r.stdout)
+
+
+def _rust_methods() -> dict[str, list[str]]:
+    if not RUST.exists():
+        pytest.skip(f"没有 Rust 宿主：{RUST}（先 cargo build --release）")
+    r = subprocess.run([str(RUST), "--dump-methods"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, f"Rust --dump-methods 失败：{r.stderr[:300]}"
+    return json.loads(r.stdout)
+
+
+#: 对象方法的**已知缺口**。M54 建这套检测时抓到的两条**当场就补了**，
+#: 所以这里是空的 —— 但结构留着：缺口在就写出来（**带断言**，修好会报红提醒删），
+#: 绝不允许「宿主悄悄少一个方法」。
+#:
+#: ⚠️ 这里只管**方法名**。已知的**语义**差异（不是缺口、是还没统一的账）另记：
+#: `文件.位置` 在**非 ASCII** 上三方不同 —— Python 给的是它 `tell()` 的
+#: 字节式 cookie（Windows 上还叠加了 `\n`→`\r\n` 的翻译），Node 给**字符数**、
+#: Rust 给**字节偏移**。ASCII 下三方一致（`test_M54_补的方法真的能跑` 钉的是这个），
+#: 要彻底统一得把 `位置/定位` 的口径定成「字符位置」并改 Python 与 Rust 两侧 ——
+#: 属单独一笔账，**不塞进 M54**（详见 `docs/路线图.md` §九）。
+METHOD_KNOWN_GAPS: dict[str, set[str]] = {"Node": set(), "Rust": set()}
+
+
+def test_Node_覆盖_python_侧对象方法():
+    expected, actual = _py_methods(), _node_methods()
+    assert actual, "Node 报了个空方法表？"
+    assert _missing(expected, actual) == METHOD_KNOWN_GAPS["Node"], (
+        "Node 与 Python 侧的**对象方法**有漂移：\n" + _report("Node", expected, actual))
+    assert _extra(expected, actual) == set(), (
+        "Python 侧没有、Node 却有的方法：\n" + _report("Node", expected, actual))
+
+
+def test_Rust_覆盖_python_侧对象方法():
+    expected, actual = _py_methods(), _rust_methods()
+    assert actual, "Rust 报了个空方法表？"
+    assert _missing(expected, actual) == METHOD_KNOWN_GAPS["Rust"], (
+        "Rust 与 Python 侧的**对象方法**有漂移：\n" + _report("Rust", expected, actual))
+    assert _extra(expected, actual) == set(), (
+        "Python 侧没有、Rust 却有的方法：\n" + _report("Rust", expected, actual))
+
+
+def test_对象方法两个宿主彼此也不漂移():
+    """与 `test_两个宿主彼此也不漂移` 同一个道理：别只有一边被补上。"""
+    nd, rs = _node_methods(), _rust_methods()
+    assert _extra(nd, rs) == set(), _report("Rust 比 Node 多", nd, rs)
+    assert _extra(rs, nd) == set(), _report("Node 比 Rust 多", rs, nd)
+
+
+def test_方法表本身不是空的():
+    """给检测上保险：只有「6 张表、每张都非空」时，上面几条才是在说事。
+
+    没有这条，`_py_methods()` 万一返回 `{}`（比如规格的字段改了名），
+    上面那些断言会**全绿**——那才是真正的危险。
+    """
+    expected = _py_methods()
+    assert set(expected) == {"列表", "字典", "文本", "集合", "文件", "小数"}, (
+        f"Python 侧的方法表类目变了：{sorted(expected)}——"
+        "改了就得同步 `jishi/ai.py`、两个宿主的 dump、以及这里的断言")
+    for t, ms in expected.items():
+        assert ms, f"「{t}」的方法表是空的？"
+
+
+def test_M54_补的方法真的能跑(tmp_path):
+    """**表里有名字 ≠ 真的能用**。
+
+    上一条只比名字；这条把 M54 补/修的那几个方法真跑一遍，五个引擎逐字节一致 ——
+    免得出现「名字报上去了、调用还是崩」这种自欺。
+    只碰 M54 动过的那几个：`文本.查找`（Rust 补）、`文件.刷新/位置/定位`（Node 补）、
+    `小数.舍入/绝对值/转文本`（三侧都在）。
+    """
+    p = str(tmp_path / "m54.txt").replace("\\", "/")
+    src = ('打印("你好吗".查找("吗"), "abc".查找("z"))\n'
+           '令 d = 精确("1.2345")\n'
+           '打印(d.舍入(2), d.绝对值(), d.转文本())\n'
+           f'用 打开("{p}", "写") 为 f：\n'
+           '    f.写("abcdef")\n'
+           '    f.刷新()\n'
+           f'用 打开("{p}") 为 f：\n'
+           '    f.读(2)\n'
+           '    打印(f.位置())\n'
+           '    f.定位(0)\n'
+           '    打印(f.读(1))\n')
+    base_label, base = None, None
+    for label, run in _engines():
+        ok, out = run(src)
+        assert ok, f"{label} 跑不通 M54 补的方法：{out[:250]}"
+        if base is None:
+            base_label, base = label, out
+        else:
+            assert out == base, (
+                f"{label} 与 {base_label} 输出不一致\n"
+                f"{base_label}: {base!r}\n{label}: {out!r}")
+    assert base == "2 -1\n1.23 1.2345 1.2345\n2\na\n"
+
+
+# ---------------------------------------------------------------------------
 # 二、命名参数（kwargs）五个引擎一致
 # ---------------------------------------------------------------------------
 

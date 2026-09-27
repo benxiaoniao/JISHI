@@ -411,9 +411,19 @@ class CvmFunction:
         host.lib.jsvm_func_retain(host.vm, byref(self._raw))
 
     def __del__(self):
+        # ⚠️ **VM 已经销毁就不能再回调**（M54 修的真崩溃）：`destroy()` 把
+        # `host.vm` 置成 `None`，而 `ctypes` 会把 `None` 当成 NULL 传下去 ——
+        # C 侧解引用空指针就是 `Windows fatal exception: access violation`。
+        # 触发路径很日常：`run_source_c` 在 `finally` 里销毁 VM，而这次运行
+        # **返回出去的基石函数值**（`_CFunc`）还活着，等 Python 的 GC 哪天
+        # 顺手回收它，就崩在 `__del__` 里 —— 崩在 GC 里，跟出错的那行代码
+        # 八竿子打不着，极难查。
+        # 不用清引用计数：`jsvm_destroy` 已经把 VM 内部的计数一起释放了。
+        host = self._host
+        if host is None or getattr(host, "vm", None) is None:
+            return
         try:
-            self._host.lib.jsvm_func_release(self._host.vm,
-                                             byref(self._raw))
+            host.lib.jsvm_func_release(host.vm, byref(self._raw))
         except Exception:
             pass
 
@@ -1446,9 +1456,12 @@ class CvmHost:
             j = cell_idx - len(code.cellvars)
             name = (code.freevars[j]
                     if 0 <= j < len(code.freevars) else f"?单元{cell_idx}")
-        self.pending = RunError(
-            f"找不到名字「{name}」", line=line, col=col,
-            filename=self.filename)
+        # 文案与异常类型走 runtime 的**单一来源**（M54）：树遍历 / 字节码 VM 的
+        # `LOAD_DEREF` 未命中单元时报的就是这一条（`SemanticNameError` / E0301）。
+        # 以前这里自己造了个 `RunError`（「找不到名字…」，E2000）—— 同一条代码
+        # 在 C VM 与 Python VM 上**报的异常类型不同**，对拍测试却没覆盖单元未绑定。
+        self.pending = R.unbound_local_error(
+            name, line=line, col=col, filename=self.filename)
         return -1
 
     def _cb_raise_zero_div(self, line, col):

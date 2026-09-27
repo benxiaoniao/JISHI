@@ -9,6 +9,7 @@ fn main() -> ExitCode {
     if args.len() < 2 {
         eprintln!("用法：jishi-rs 字节码.json");
         eprintln!("      jishi-rs --dump-stdlib");
+        eprintln!("      jishi-rs --dump-methods");
         return ExitCode::from(2);
     }
     // M51：把宿主**实际带的标准库模块与函数**打成 JSON。
@@ -16,6 +17,13 @@ fn main() -> ExitCode {
     // 这种漂移以前是静默的（M50 第一批的宿主缺失是手工测出来的）。
     if args[1] == "--dump-stdlib" || args[1] == "--dump_stdlib" {
         println!("{}", jishi_ffi::dump_stdlib());
+        return ExitCode::SUCCESS;
+    }
+    // M54：同理，报**对象方法表**（列表/字典/文本/集合/文件/小数）。
+    // 以前方法表在五个引擎里各写一份却没人比对，Rust 缺 `文本.查找`、
+    // Node 缺 `文件.位置/定位/刷新` 都是偶然撞见的。
+    if args[1] == "--dump-methods" || args[1] == "--dump_methods" {
+        println!("{}", jishi_ffi::dump_methods());
         return ExitCode::SUCCESS;
     }
     let path = &args[1];

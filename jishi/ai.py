@@ -17,8 +17,11 @@ from . import parser as _parser
 from . import tokenizer as _tokenizer
 from .errors import EXCEPTION_TYPES, JishiError
 from .runtime import (
+    DECIMAL_METHODS,
     DICT_METHODS,
+    FILE_METHODS,
     LIST_METHODS,
+    SET_METHODS,
     STR_METHODS,
     is_internal_builtin,
     new_builtins,
@@ -215,10 +218,19 @@ def build_lang_spec() -> dict:
         if b is not None and hasattr(b, "doc")
         and not is_internal_builtin(name, b)
     ]
+    # 对象方法表（M54 补齐到 6 类）。
+    #
+    # ⚠️ 这**不只是给模型看的**：它是「对象方法」这件事在 Python 侧的**单一来源**，
+    # `tests/test_m51_consistency.py` 拿它当基准，去比 Node / Rust 宿主报上来的
+    # 方法表 —— M53 之前这里只有 3 类，害得「宿主缺方法」只能靠对拍偶然撞见
+    # （Rust 缺 `文本.查找` 就是这么漏过去的）。
     methods = {
         "列表": list(LIST_METHODS.keys()),
         "字典": list(DICT_METHODS.keys()),
         "文本": list(STR_METHODS.keys()),
+        "集合": list(SET_METHODS.keys()),
+        "文件": list(FILE_METHODS.keys()),
+        "小数": list(DECIMAL_METHODS.keys()),
     }
     return {
         "version": VERSION,

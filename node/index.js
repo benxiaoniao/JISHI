@@ -118,17 +118,32 @@ function dumpStdlib() {
   return 0;
 }
 
+/**
+ * `--dump-methods`：这个宿主**实际带的「对象方法」**，打成 JSON（M54）。
+ *
+ * 与 `--dump-stdlib` 同一个道理：以前「宿主缺方法」完全没人管
+ * （`列表`/`字典`/`文本`/`集合`/`文件`/`小数` 的方法表在五个引擎里各写一份），
+ * Rust 缺 `文本.查找`、Node 缺 `文件.位置/定位/刷新` 都是**偶然撞见**的。
+ * 数据源见 `Runtime.dumpMethods`（与分派同源，不是另抄的清单）。
+ */
+function dumpMethods() {
+  process.stdout.write(JSON.stringify(Runtime.dumpMethods()));
+  return 0;
+}
+
 function main() {
   const args = process.argv.slice(2);
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     console.log('用法：node node/index.js 字节码.json');
     console.log('      node node/index.js --self-test');
     console.log('      node node/index.js --dump-stdlib');
+    console.log('      node node/index.js --dump-methods');
     return 0;
   }
   try {
     if (args.includes('--self-test')) return selfTest();
     if (args.includes('--dump-stdlib')) return dumpStdlib();
+    if (args.includes('--dump-methods')) return dumpMethods();
     return runFile(args[0]);
   } catch (e) {
     // 基石错误打印成人话（此前是直接抛给 Node，用户看到的是 JS 堆栈，

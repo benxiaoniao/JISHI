@@ -49,6 +49,20 @@ pub(crate) type JSet = Rc<RefCell<Vec<Val>>>;
 /// 基石实例（共享可变）。必须是共享的：`自身.字段 = 值` 走 SET_ATTR，
 /// 拿到的是 `Val` 的一份拷贝——不共享的话就等于改副本，**不报错、静默失效**。
 type JInst = Rc<RefCell<Instance>>;
+/// 闭包单元（共享可变，M54 修）。
+///
+/// ⚠️ **必须共享**，与 `JList` / `JInst` 同一个道理，但踩的坑更深：
+/// Python / Node 侧 cell 是**对象**，`LOAD_CELL` 压的是它本身、
+/// `STORE_DEREF` 改的是**它里面的值**；Rust 侧原先是 `Vec<Cell>`（值语义），
+/// 于是 `LOAD_CELL` 克隆一份、`MAKE_FUNCTION` 把闭包单元的**值**拷进 `Func`、
+/// `STORE_DEREF` 又**整体替换**帧里的那个 —— 闭包拿着的是**独立快照**。
+///
+/// 后果：**「先创建闭包、后给它赋值」永远失效**。最典型的写法就是
+/// **嵌套的递归函数**（编译器先 `LOAD_CELL` 捕获自己的单元、再
+/// `STORE_DEREF` 填入函数体），于是内层函数看不见自己 →
+/// `「空」不能调用`。顶层递归没事（走 `LOAD_GLOBAL`），所以极难发现。
+/// 详见 `docs/设计决策.md` D46。
+pub(crate) type JCell = Rc<RefCell<Cell>>;
 
 #[derive(Clone)]
 pub(crate) enum Val {
@@ -105,7 +119,7 @@ pub(crate) enum Val {
     /// 1 = 中断，2 = 继续。
     LoopSignal(i64),
     BoundMethod(Box<BoundMethod>),
-    Cell(Box<Cell>),
+    Cell(JCell),
 }
 
 /// 造一个列表值（把裸 Vec 包成共享容器）。
@@ -231,6 +245,16 @@ struct Cell {
     set: bool,
 }
 
+/// 造一个空单元（`set=false` = 还没赋过值，`LOAD_DEREF` 要报「找不到名字」）。
+fn new_cell() -> JCell {
+    Rc::new(RefCell::new(Cell { value: Val::None_, set: false }))
+}
+
+/// `n` 个各自独立的空单元（**不是** `vec![new_cell(); n]` —— 那会共享一个）。
+fn new_cells(n: usize) -> Vec<JCell> {
+    (0..n).map(|_| new_cell()).collect()
+}
+
 /// 类与函数的身份序号（M32）。
 ///
 /// 它们在 Rust 里是值类型、`Clone` 是深拷贝，**没有指针身份**；但
@@ -247,7 +271,8 @@ fn next_obj_id() -> usize {
 struct Func {
     name: String,
     code_idx: usize,
-    cells: Vec<Cell>,
+    /// 闭包捕获的**自由变量单元**（共享，见 `JCell`）。`Rc` 克隆 = 共享同一个。
+    cells: Vec<JCell>,
     defaults: Option<Vec<Val>>,
     /// 身份序号（M32）：见 `NEXT_OBJ_ID`
     id: usize,
@@ -672,6 +697,8 @@ struct Code {
     param_cell: Vec<i64>,
     instrs: Vec<Instr>,
     nlocals: usize,
+    /// 局部槽位 → 名字（报「找不到名字」用；M54 起才解析）。
+    local_names: Vec<String>,
     cellvars: Vec<String>,
     freevars: Vec<String>,
 }
@@ -714,7 +741,16 @@ struct Frame {
     ip: usize,
     base: usize,
     locals: Vec<Val>,
-    cells: Vec<Cell>,
+    /// 局部槽「赋过值没有」（M54）。
+    ///
+    /// ⚠️ 为什么不能用 `Val::None_` 当哨兵（Python 侧用 `_UNSET` 就是这个道理）：
+    /// 基石里 `空` 是**合法值**，读一个尚未赋值的局部变量与读一个真的 `空`
+    /// 必须分得开。Rust 侧原先不分，于是
+    /// `函数 外(): 如果 假: 令 y = 1  返回 y` 在 Python 上报 E0301、
+    /// 在 Rust 上**静默给出 `空`** —— 那是「不报错的错答案」，比报错难查一百倍。
+    locals_set: Vec<bool>,
+    /// 本帧的单元表 = `[cellvars… , freevars…]`（共享，见 `JCell`）。
+    cells: Vec<JCell>,
     /// (记录时的栈深, 继续目标, 中断目标, 登记序号)
     loops: Vec<(usize, i64, i64, i64)>,
     handlers: Vec<Handler>,
@@ -769,7 +805,9 @@ impl VM {
             ip: 0,
             base: 0,
             locals: vec![Val::None_; nlocals],
-            cells: vec![Cell { value: Val::None_, set: false }; ncells],
+            // 模块级帧没有形参，所有槽都算「没赋过值」（首次 `STORE_FAST` / `LOOP_SETUP` 才置位）
+            locals_set: vec![false; nlocals],
+            cells: new_cells(ncells),
             loops: Vec::new(),
             handlers: Vec::new(),
             pending_return: None,
@@ -857,24 +895,54 @@ impl VM {
                     self.globals.insert(name, v);
                 }
                 op::LOAD_FAST => {
-                    let v = self.frames[fi].locals[ins.a as usize].clone();
+                    // 与 Python / Node 对齐：没赋过值就读 → 报「找不到名字」，
+                    // **不许静默给 `空`**（M54）。`空` 是合法值，两者必须分得开。
+                    let f = &self.frames[fi];
+                    let slot = ins.a as usize;
+                    if !f.locals_set.get(slot).copied().unwrap_or(false) {
+                        let code = &self.module.codes[f.code_idx];
+                        let name = code.local_names.get(slot)
+                            .cloned().unwrap_or_else(|| format!("?局部{slot}"));
+                        return Err(err("异常", format!("找不到名字「{name}」")));
+                    }
+                    let v = f.locals[slot].clone();
                     self.stack.push(v);
                 }
                 op::STORE_FAST => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    self.frames[fi].locals[ins.a as usize] = v;
+                    let slot = ins.a as usize;
+                    self.frames[fi].locals[slot] = v;
+                    self.frames[fi].locals_set[slot] = true;
                 }
                 op::LOAD_DEREF => {
-                    let v = self.frames[fi].cells[ins.a as usize].value.clone();
+                    // 读的是**单元里的值**（不是单元本身 —— 那是 `LOAD_CELL`）。
+                    // `set == false` = 还没赋过值：与 Python / Node 一样报
+                    // 「找不到名字」，**不许静默给 `空`**（M54 补齐的漂移）。
+                    let cell = self.frames[fi].cells[ins.a as usize].clone();
+                    let c = cell.borrow();
+                    if !c.set {
+                        let name = cell_name(&self.module.codes[self.frames[fi].code_idx],
+                                             ins.a as usize);
+                        return Err(err("异常", format!("找不到名字「{name}」")));
+                    }
+                    let v = c.value.clone();
+                    drop(c);
                     self.stack.push(v);
                 }
                 op::STORE_DEREF => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    self.frames[fi].cells[ins.a as usize] = Cell { value: v, set: true };
+                    // ⚠️ **改单元里的值，不是换掉单元**（M54）：闭包抓走的是同一个
+                    // `Rc<RefCell<Cell>>`，整体替换就断了 —— 见 `JCell` 的说明。
+                    let cell = self.frames[fi].cells[ins.a as usize].clone();
+                    let mut c = cell.borrow_mut();
+                    c.value = v;
+                    c.set = true;
                 }
                 op::LOAD_CELL => {
+                    // 压的是**单元本身**（共享的 `Rc`），好让 `MAKE_FUNCTION` 抓走
+                    // 同一个 —— 「先捕获、后赋值」才成立（嵌套递归函数就靠这个，M54）。
                     let cell = self.frames[fi].cells[ins.a as usize].clone();
-                    self.stack.push(Val::Cell(Box::new(cell)));
+                    self.stack.push(Val::Cell(cell));
                 }
                 op::BIN_OP => {
                     let r = self.stack.pop().unwrap_or(Val::None_);
@@ -1027,8 +1095,9 @@ impl VM {
                         let n = self.stack.len();
                         let c: Vec<Val> = self.stack.drain(n - ncells..).collect();
                         c.into_iter().map(|v| match v {
-                            Val::Cell(b) => (*b).clone(),
-                            _ => Cell { value: Val::None_, set: false },
+                            // 共享**同一个**单元（`Rc` 克隆），不是拷值 —— M54 修
+                            Val::Cell(rc) => rc,
+                            _ => new_cell(),
                         }).collect()
                     } else { Vec::new() };
                     let name = self.module.codes[code_idx].name.clone();
@@ -1181,6 +1250,7 @@ impl VM {
                     let v = self.stack.pop().unwrap_or(Val::None_);
                     let n = match v { Val::Int(i) => i, Val::Float(f) => f as i128, _ => return Err(err("类型错误", format!("「{}」不是有效的循环次数", display(&v)))) };
                     self.frames[fi].locals[ins.a as usize] = Val::Int(n);
+                    self.frames[fi].locals_set[ins.a as usize] = true;
                 }
                 op::SETUP_TRY => {
                     let seq = self.frames[fi].block_seq;
@@ -1334,17 +1404,17 @@ impl VM {
                        args: Vec<Val>, knames: &[String], kwvals: &[Val],
                        base: usize) -> Result<(), JishiError> {
         let sub_idx = func.code_idx;
-        let (locals, values) = {
+        let (locals, locals_set, values) = {
             let sub = &self.module.codes[sub_idx];
             bind_args(sub, &args, knames, kwvals, func.defaults.as_deref())?
         };
+        // 单元表布局 `[cellvars… , freevars…]`：`cellvars` 是本帧自己的（新造，
+        // **各自独立**），`freevars` 来自闭包 —— `Rc` 克隆 ⇒ **与捕获者共享**。
         let mut cells = {
             let sub = &self.module.codes[sub_idx];
-            sub.cellvars.iter()
-                .map(|_| Cell { value: Val::None_, set: false })
-                .collect::<Vec<_>>()
+            new_cells(sub.cellvars.len())
         };
-        cells.extend(func.cells.clone());
+        cells.extend(func.cells.iter().cloned());
         {
             let sub = &self.module.codes[sub_idx];
             store_cells(sub, &mut cells, &values);
@@ -1354,6 +1424,7 @@ impl VM {
             ip: 0,
             base,
             locals,
+            locals_set,
             cells,
             loops: Vec::new(),
             handlers: Vec::new(),
@@ -1563,6 +1634,23 @@ impl VM {
                 need_args(&name, args, 0, 1)?;
                 let sep = args.first().map(display).unwrap_or_default();
                 Ok(list_new(s.split(&sep).map(|p| Val::Str(p.to_string())).collect()))
+            }
+            (Val::Str(s), "查找") => {
+                // M54 补：以前 Rust 宿主**根本没有这个方法**（`文本` 少这一个，
+                // 是 M53 靠五引擎对拍偶然撞见的 —— 方法漂移检测就是为此建的）。
+                need_args(&name, args, 1, 1)?;
+                let needle = match &args[0] {
+                    Val::Str(n) => n.clone(),
+                    other => return Err(err("类型错误", format!(
+                        "「查找」需要文本参数，得到了「{}」", type_label(other)))),
+                };
+                // ⚠️ `str::find` 给的是**字节**偏移，而基石/Python 的口径是
+                // **字符**偏移（`"你好吗".查找("吗") == 2`）。含中文时两者不等，
+                // 得把前缀的字符数出来。
+                Ok(Val::Int(match s.find(&needle) {
+                    Some(b) => s[..b].chars().count() as i128,
+                    None => -1,
+                }))
             }
             (Val::Str(s), "替换") => { need_args(&name, args, 2, 2)?; let a = display(&args[0]); let b = display(&args[1]); Ok(Val::Str(s.replace(&a, &b))) }
             (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
@@ -2978,46 +3066,88 @@ fn need_args(name: &str, args: &[Val], lo: usize, hi: usize) -> Result<(), Jishi
 }
 
 // 简化：字符串/列表/字典方法直接返回 BoundMethod
-fn str_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
+//
+// ⚠️ **这 6 张 `*_METHOD_NAMES` 是「对象方法」在本宿主的单一事实源**（M54）：
+// ① 分派时用它挡不认识的名字；② `dump_methods()` 把它报给
+// `tests/test_m51_consistency.py` 做漂移检测。**两者读同一张表，所以不会各报各的**
+// —— 这是「宿主自报家底」能当真的前提（M51 定的规矩）。
+// 加/删方法只改这里一处，别在下面的 `match` 里偷偷多写一个分支。
+const LIST_METHOD_NAMES: &[&str] = &[
+    "追加", "插入", "移除", "弹出", "排序", "反转", "清空", "索引", "计数", "包含",
+    "映射", "过滤", "排序按", "归约",
+];
+const DICT_METHOD_NAMES: &[&str] = &[
+    "获取", "键", "值", "包含", "更新", "合并", "弹出", "清空",
+];
+const STR_METHOD_NAMES: &[&str] = &[
+    "拆分", "替换", "查找", "大写", "小写", "去空白", "开头是", "结尾是", "包含",
+    "转整数", "转小数",
+];
+const SET_METHOD_NAMES: &[&str] = &[
+    "添加", "移除", "丢弃", "包含", "并集", "交集", "差集", "对称差", "清空",
+    "转列表", "复制",
+];
+const FILE_METHOD_NAMES: &[&str] = &[
+    "读", "读行", "读所有行", "写", "写行", "关闭", "刷新", "位置", "定位",
+];
+const DEC_METHOD_NAMES: &[&str] = &["舍入", "绝对值", "转文本"];
+
+/// 认名字就包成 `BoundMethod`，不认识就**在取属性时**报错。
+///
+/// ⚠️ 为什么必须在这里挡：直接把任何名字包成 `BoundMethod`，`列表.不存在()` 就
+/// 变成「运行到调用时才报错」，**位置和措辞都差**（M30 的老坑，`set_method` 的注释
+/// 里记着）。以前只有 集合/文件/小数 三个有这道门，列表/字典/文本 是**到调用时**
+/// 才由 `call_builtin_method` 的兜底报「方法调用未实现」—— M54 统一了。
+fn gated_method(names: &[&str], kind: &str, name: &str, receiver: Val)
+    -> Result<Val, JishiError> {
+    if !names.contains(&name) {
+        return Err(err("类型错误", format!("{kind}没有方法「{name}」")));
+    }
     let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
     Ok(Val::BoundMethod(Box::new(bm)))
+}
+
+fn str_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
+    gated_method(STR_METHOD_NAMES, "文本", name, receiver)
 }
 fn list_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
-    let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
-    Ok(Val::BoundMethod(Box::new(bm)))
+    gated_method(LIST_METHOD_NAMES, "列表", name, receiver)
 }
 fn dict_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
-    let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
-    Ok(Val::BoundMethod(Box::new(bm)))
+    gated_method(DICT_METHOD_NAMES, "字典", name, receiver)
 }
 fn set_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
-    // 只认自己有的方法名，其余交给 get_attr 报「没有属性」——
-    // 直接把任何名字包成 BoundMethod 会让 `集合.不存在的方法()` 变成
-    // 运行到调用时才报错，位置和措辞都差
-    const NAMES: &[&str] = &["添加", "移除", "丢弃", "包含", "并集", "交集",
-                             "差集", "对称差", "清空", "转列表", "复制"];
-    if !NAMES.contains(&name) {
-        return Err(err("类型错误", format!("集合没有方法「{name}」")));
-    }
-    let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
-    Ok(Val::BoundMethod(Box::new(bm)))
+    gated_method(SET_METHOD_NAMES, "集合", name, receiver)
 }
 fn file_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
-    const NAMES: &[&str] = &["读", "读行", "读所有行", "写", "写行",
-                             "关闭", "刷新", "位置", "定位"];
-    if !NAMES.contains(&name) {
-        return Err(err("类型错误", format!("文件没有方法「{name}」")));
-    }
-    let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
-    Ok(Val::BoundMethod(Box::new(bm)))
+    gated_method(FILE_METHOD_NAMES, "文件", name, receiver)
 }
 fn dec_method(name: &str, d: Rc<Dec>) -> Result<Val, JishiError> {
-    const NAMES: &[&str] = &["舍入", "绝对值", "转文本"];
-    if !NAMES.contains(&name) {
-        return Err(err("类型错误", format!("精确小数没有方法「{name}」")));
+    gated_method(DEC_METHOD_NAMES, "精确小数", name, Val::Dec(d))
+}
+
+/// `--dump-methods`：本宿主**实际带的「对象方法」**，打成 JSON（M54）。
+///
+/// 数据源就是上面那 6 张 `*_METHOD_NAMES` —— **与分派同源**，不是另抄的清单。
+/// 所以这份「自报家底」报的是真的能力，不会糊弄检测。
+pub fn dump_methods() -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for (kind, names) in [
+        ("列表", LIST_METHOD_NAMES),
+        ("字典", DICT_METHOD_NAMES),
+        ("文本", STR_METHOD_NAMES),
+        ("集合", SET_METHOD_NAMES),
+        ("文件", FILE_METHOD_NAMES),
+        ("小数", DEC_METHOD_NAMES),
+    ] {
+        let mut sorted: Vec<&str> = names.to_vec();
+        sorted.sort_unstable();
+        let items: Vec<String> = sorted.iter()
+            .map(|n| format!("\"{n}\""))
+            .collect();
+        parts.push(format!("\"{kind}\":[{}]", items.join(",")));
     }
-    let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(Val::Dec(d)) };
-    Ok(Val::BoundMethod(Box::new(bm)))
+    format!("{{{}}}", parts.join(","))
 }
 
 /// 检查一个参数确实可调用（`映射`/`过滤`/`排序按`/`归约` 的报错要说清是哪个方法）。
@@ -3148,7 +3278,7 @@ fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
 // 参数绑定
 // ---------------------------------------------------------------------------
 
-fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defaults: Option<&[Val]>) -> Result<(Vec<Val>, Vec<Val>), JishiError> {
+fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defaults: Option<&[Val]>) -> Result<(Vec<Val>, Vec<bool>, Vec<Val>), JishiError> {
     let nparams = code.params.len();
     // 形参种类（M25）：0=普通 1=*参数 2=**选项
     let star_pos = code.param_kind.iter().position(|k| *k == 1);
@@ -3196,21 +3326,45 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defau
         return Err(err("类型错误", format!("函数「{}」缺少参数：{}", code.name, missing.join("、"))));
     }
     let mut locals = vec![Val::None_; code.nlocals];
+    // 形参落到的槽算「赋过值」——其余槽保持未赋值（读就报「找不到名字」，M54）
+    let mut locals_set = vec![false; code.nlocals];
     let mut values = Vec::new();
     for i in 0..nparams {
         let v = bound[&i].clone();
         values.push(v.clone());
         let slot = code.param_local[i];
-        if slot >= 0 { locals[slot as usize] = v; }
+        if slot >= 0 {
+            locals[slot as usize] = v;
+            locals_set[slot as usize] = true;
+        }
     }
-    Ok((locals, values))
+    Ok((locals, locals_set, values))
 }
 
-fn store_cells(code: &Code, cells: &mut [Cell], values: &[Val]) {
+fn store_cells(code: &Code, cells: &mut [JCell], values: &[Val]) {
     for (i, v) in values.iter().enumerate() {
         let ci = code.param_cell[i];
-        if ci >= 0 { cells[ci as usize] = Cell { value: v.clone(), set: true }; }
+        if ci >= 0 {
+            // 改**单元里的值**（不是换掉单元）：形参若是单元变量（被闭包捕获），
+            // 换掉单元就等于闭包看不见这次赋值了（M54）。
+            let mut c = cells[ci as usize].borrow_mut();
+            c.value = v.clone();
+            c.set = true;
+        }
     }
+}
+
+/// 单元号 → 名字（布局是 `[cellvars… , freevars…]`，与 Python 侧
+/// `VM._cell_name` / Node 侧 `_cellName` 逐条对齐）。
+fn cell_name(code: &Code, idx: usize) -> String {
+    if idx < code.cellvars.len() {
+        return code.cellvars[idx].clone();
+    }
+    let j = idx - code.cellvars.len();
+    if j < code.freevars.len() {
+        return code.freevars[j].clone();
+    }
+    format!("?单元{idx}")
 }
 
 /// 值的全序比较（排序、`最大`/`最小`、`<` 这类都用它）。
@@ -3333,6 +3487,7 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
             param_cell: cd.get("param_cell").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_i64()).collect()).unwrap_or_default(),
             instrs,
             nlocals: cd.get("nlocals").and_then(|v| v.as_i64()).unwrap_or(0) as usize,
+            local_names: cd.get("local_names").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
             cellvars: cd.get("cellvars").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
             freevars: cd.get("freevars").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
         });

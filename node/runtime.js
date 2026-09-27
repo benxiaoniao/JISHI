@@ -488,8 +488,17 @@ class JishiFile {
     this.path = path;
     this.mode = mode;
     this.closed = false;
-    this._buf = '';         // 按行读的缓冲
-    this._eof = false;
+    // M54：读侧改成「**懒加载全文 + 字符位置**」的模型。
+    //
+    // 原先用 `_buf`（按行读的残留）+ `_eof` 两个字段硬凑，结果是
+    // **没有位置概念** —— `文件.位置` / `文件.定位` 压根没法实现，
+    // 于是 Node 宿主**静默缺了这两个方法**（Python 侧 9 个文件方法，Node 只有 6 个），
+    // 直到 M54 的方法漂移检测才把它翻出来。
+    //
+    // 口径与 Python 侧对齐：`读(n)` 读 n 个**字符**、`位置` 给已消耗的**字符数**
+    // （`tests/test_m26_lang.py::test_file_position_and_seek` 就是这个语义）。
+    this._text = null;      // 懒加载的全文（只在可读模式下会去读）
+    this._pos = 0;          // 当前字符位置
   }
 
   toString() {
@@ -502,38 +511,41 @@ class JishiFile {
     }
   }
 
-  /** 读全部剩余内容（或前 n 个字符） */
+  /** 懒加载全文（只读模式；写模式下去读 fd 会报错）。 */
+  _load() {
+    if (this._text === null) {
+      if (!FILE_READABLE.has(this.mode)) return '';
+      this._text = fs.readFileSync(this.fd, { encoding: 'utf-8' });
+    }
+    return this._text;
+  }
+
+  /** 读全部剩余内容（或前 n 个字符）。 */
   readAll(n) {
     this._check('读');
-    if (this._eof && this._buf === '') return '';
-    let data;
-    if (this._buf !== '' || this._eof) {
-      data = this._buf;
-      this._buf = '';
-    } else {
-      const size = n === undefined || n === -1 ? 65536 : n;
-      data = fs.readFileSync(this.fd, { encoding: 'utf-8' });
-      this._eof = true;
+    const text = this._load();
+    if (n === undefined || n === -1) {
+      const out = text.slice(this._pos);
+      this._pos = text.length;
+      return out;
     }
-    if (n === undefined || n === -1) return data;
-    return data.slice(0, n);
+    const out = text.slice(this._pos, this._pos + n);
+    this._pos += out.length;
+    return out;
   }
 
   readLine() {
     this._check('读行');
-    if (this._buf === '' && !this._eof) {
-      this._buf = fs.readFileSync(this.fd, { encoding: 'utf-8' });
-      this._eof = true;
-    }
-    const idx = this._buf.indexOf('\n');
+    const text = this._load();
+    if (this._pos >= text.length) return null;
+    const idx = text.indexOf('\n', this._pos);
     if (idx < 0) {
-      if (this._buf === '') return null;
-      const rest = this._buf;
-      this._buf = '';
+      const rest = text.slice(this._pos);
+      this._pos = text.length;
       return rest.replace(/\r$/, '');
     }
-    const line = this._buf.slice(0, idx);
-    this._buf = this._buf.slice(idx + 1);
+    const line = text.slice(this._pos, idx);
+    this._pos = idx + 1;
     return line.replace(/\r$/, '');
   }
 
@@ -553,6 +565,7 @@ class JishiFile {
       throw typeErr(`「写」需要文本，得到了「${typeName(text)}」`);
     }
     fs.writeSync(this.fd, text);
+    this._pos += text.length;
   }
 
   writeLine(text) {
@@ -561,6 +574,25 @@ class JishiFile {
       throw typeErr(`「写行」需要文本，得到了「${typeName(text)}」`);
     }
     fs.writeSync(this.fd, text + '\n');
+    this._pos += text.length + 1;
+  }
+
+  /** 当前字符位置（M54；口径见构造函数里的说明）。 */
+  position() {
+    this._check('位置');
+    return this._pos;
+  }
+
+  /** 挪到指定字符位置（M54）。越界不报错，交给后续读自然读到空。 */
+  seek(p) {
+    this._check('定位');
+    this._load();                 // 先确保全文在手（可读模式下）
+    this._pos = p;
+  }
+
+  /** 刷新（M54）：Node 的 `fs.writeSync` **本来就无缓冲**，所以是空操作。 */
+  flush() {
+    this._check('刷新');
   }
 
   close() {
@@ -579,6 +611,9 @@ class JishiFile {
     };
   }
 }
+
+//: 能读的模式（`_load` 只在这些模式下去读 fd，写模式读会报错）
+const FILE_READABLE = new Set(['读', '读写', 'r', 'r+', 'w+', 'a+']);
 
 function isFile(v) { return v instanceof JishiFile; }
 
@@ -2167,6 +2202,22 @@ const FILE_METHODS = {
     obj.close();              // 重复关闭不报错，与 Python 侧一致
     return null;
   },
+  // M54 补上这三个 —— 以前 Node 的 `文件` 只有 6 个方法，Python 侧有 9 个，
+  // 「宿主静默缺方法」一直到方法漂移检测建起来才被看见。
+  '刷新': (obj, args, line, col) => {
+    needArgs('刷新', args, 0, 0, line, col);
+    obj.flush();
+    return null;
+  },
+  '位置': (obj, args, line, col) => {
+    needArgs('位置', args, 0, 0, line, col);
+    return obj.position();
+  },
+  '定位': (obj, args, line, col) => {
+    needArgs('定位', args, 1, 1, line, col);
+    obj.seek(args[0]);
+    return null;
+  },
 };
 
 // -- 精确小数方法（M26）----------------------------------------------------
@@ -2193,6 +2244,27 @@ const DECIMAL_METHODS = {
     return obj.toString();
   },
 };
+
+/**
+ * `--dump-methods` 用：**对象方法表**（M54）。
+ *
+ * ⚠️ 核心要求是「**与分派同源**」—— 这里直接读 `methodTable` 用的那几张表，
+ * 不是另抄一份清单。宿主自报家底必须报的是**实际能力**，否则这份检测
+ * 就成了摆设（M51 定下的规矩：宿主自报，测试比对，谁都不用去解析宿主源码）。
+ *
+ * ⚠️ 加新类型的方法表时，**这里和 `methodTable` 要一起改** —— 两处挨着放，
+ * 就是为了让漏改一眼看得见。
+ */
+function dumpMethods() {
+  const out = {};
+  for (const [type, table] of Object.entries({
+    列表: LIST_METHODS, 字典: DICT_METHODS, 文本: STR_METHODS,
+    集合: SET_METHODS, 文件: FILE_METHODS, 小数: DECIMAL_METHODS,
+  })) {
+    out[type] = Object.keys(table).sort();
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------------------
 // 异常匹配（`捕获 值错误`）
@@ -2248,6 +2320,8 @@ module.exports = {
   applyBinop, applyUnary, applyCompare,
   contains, identityKey, valueEq, callValue, ensureCallable,
   methodTable, getAttr, setAttr, getItem, setItem,
+  // M54：`--dump-methods` 的数据源（对象方法漂移检测用）
+  dumpMethods,
   BoundMethod, BoundUserMethod, makeInstance,
   // M51：命名参数 → 位置参数的映射（vm.js 的 `_callValue` 用它）
   mapKwargs, SIGS,
