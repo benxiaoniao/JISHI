@@ -31,6 +31,18 @@ class JishiError extends Error {
     this.line = line ?? null;
     this.col = col ?? null;
   }
+
+  /**
+   * `打印(接住的那个错误)` 打成**基石的样子**（M55）。
+   *
+   * ⚠️ 不覆盖的话走 `Error.prototype.toString` —— 用户会看到 `Error: 故意失败`：
+   * 一个**英文单词**混在中文报错里，与本宿主「未捕获错误」时的渲染
+   * （`错误（断言错误）：故意失败`，见 `index.js`）也对不上。
+   * 宿主没有 Python 侧那套错误码与标题，所以这里给的是「类型 + 消息」。
+   */
+  toString() {
+    return `错误（${this.typeName}）：${this.message}`;
+  }
 }
 
 // 循环控制信号（穿透函数调用，由最近的循环接住）
@@ -851,6 +863,39 @@ function asIterable(v, what, line, col) {
   return got;
 }
 
+// -- 文本的「按码点」口径（M55）-------------------------------------------
+//
+// ⚠️ **基石里「一个字符」= 一个 Unicode 码点**，不是 JS 的 UTF-16 码元。
+// JS 字符串原生是 UTF-16，所以 `"😀".length === 2`、`"😀"[0]` 只拿到半个
+// 代理项（打印出来是 `�`）—— 与 Python / Rust 都对不上。
+// M55 的实测：`长度("😀")` 在 Python / Rust 上给 1，在 Node 上给 2；
+// `"a😀b".查找("b")` 给 2 对 3。**同一份字节码、同样的源码，结果不一样。**
+//
+// 修法就是「凡是要按位置处理文本的地方，都先按码点拆」：
+//   - `[...s]` / `for (const c of s)` —— 迭代按码点（这两处本来就是对的）
+//   - `cpLen(s)` / `cpAt(s, i)` / `cpIndexOf(s, 子串)` —— 本文件下面这三个
+// 注意**不是**所有文本操作都要改：`拆分`/`替换`/`包含`/`大写` 这类是
+// 按**子串**工作的，跟码点位置无关，保持原样（改了对不上 Python 也不会更好）。
+
+/** 文本的码点个数（不分配中间数组）。 */
+function cpLen(s) {
+  let n = 0;
+  for (const _ of s) n += 1;      // eslint-disable-line no-unused-vars
+  return n;
+}
+
+/** 取第 `i` 个**码点**（对应基石的 `文本[i]`）。越界返回 undefined。 */
+function cpAt(s, i) {
+  return Array.from(s)[i];
+}
+
+/** 子串在文本里的**码点下标**（对应 Python 的 `str.find`；找不到给 -1）。 */
+function cpIndexOf(s, needle) {
+  const u16 = s.indexOf(needle);
+  if (u16 < 0) return -1;
+  return cpLen(s.slice(0, u16));
+}
+
 /**
  * 最值（`最大` / `最小`）：单参数是序列就按元素求，多参数就按参数求
  * ——与 Python 侧 `_b_max` / `_single_iterable_arg` 同一套规则。
@@ -1128,6 +1173,8 @@ class ExcType {
     if (this.name === '索引错误') return new JishiError('索引错误', '索引越界', message, line, col);
     if (this.name === '键错误') return new JishiError('键错误', '找不到这个键', message, line, col);
     if (this.name === '文件错误') return new JishiError('文件错误', '文件错误', message, line, col);
+    // 标题对齐 Python 侧 `RunAssertionError.title`
+    if (this.name === '断言错误') return new JishiError('断言错误', '断言没通过', message, line, col);
     return new JishiError(this.name, this.name, message, line, col);
   }
 }
@@ -1142,6 +1189,9 @@ const EXCEPTION_TYPES = {
   '键错误': new ExcType('键错误'),
   '除零错误': new ExcType('除零错误'),
   '文件错误': new ExcType('文件错误'),
+  // M55 补：以前漏了这一个，于是 `捕获 断言错误` 在 Node 上报「找不到名字」。
+  // 与 `断言` 一起被内建漂移检测（`--dump-builtins`）翻出来。
+  '断言错误': new ExcType('断言错误'),
 };
 
 function newBuiltins() {
@@ -1191,6 +1241,62 @@ function newBuiltins() {
     // 与 jishi/parser.py 的 INTERP_TO_TEXT 是同一个名字，语义同 `文本`。
     '$文本': new Builtin('$文本', (v) => pyStr(v)),
     '精确': new Builtin('精确', (v) => toDecimal(v)),
+    // M55 补的这两个：以前 Node 侧**根本没有** —— `断言(...)` / `是实例(...)`
+    // 直接报「找不到名字「断言」」。是内建漂移检测（`--dump-builtins`）抓出来的，
+    // 同一批还带出「`断言错误` 这个捕获类型也不存在」。
+    '断言': new Builtin('断言', (...args) => {
+      needBuiltinArgs('断言', args, 1, 2);
+      if (truthy(args[0])) return null;
+      // 消息走 `pyStr`（= Python 侧的 `jishi_repr`，M27 的「值→文本唯一实现」）
+      const msg = args.length > 1 ? pyStr(args[1]) : '条件不成立';
+      throw EXCEPTION_TYPES['断言错误'].make(msg);
+    }),
+    '是实例': new Builtin('是实例', (...args) => {
+      needBuiltinArgs('是实例', args, 2, 2);
+      const cls = args[1];
+      if (!(cls instanceof JishiClass)) {
+        // 常见误用：第二个参数写成转换函数（整数/文本…）。
+        // ⚠️ Python 侧这里还给一条 `hint`（「X 是转换函数，不是类…」），
+        // 但 Node 的 `JishiError` **没有 hint 字段** —— 属宿主错误信息模型的
+        // 既有边界（M54 记过：宿主没有 Python 侧那套错误码与提示目录）。
+        throw typeErr(`「是实例」的第二个参数要是一个类，但给的是「${typeName(cls)}」`);
+      }
+      const v = args[0];
+      if (!(v instanceof JishiInstance)) return false;
+      // 沿基类链找（上限 64 防环，与 Python 侧 `_instance_of` 一致）
+      let cur = v.cls;
+      for (let n = 0; cur && n < 64; n += 1) {
+        if (cur === cls) return true;
+        cur = cur.base;
+      }
+      return false;
+    }),
+    // -- 字符与码点（M55）--------------------------------------------------
+    // ⚠️ 口径：**「一个字符」= 一个 Unicode 码点**（不是 UTF-16 码元）。
+    // JS 的字符串是 UTF-16，所以 `"😀".length === 2`、`"😀"[0]` 只是半个
+    // 代理项 —— 必须用 `Array.from`（按码点拆）才对得上 Python / Rust。
+    // 详见 node/runtime.js 里 `码点数组` 的说明。
+    '序数': new Builtin('序数', (v) => {
+      if (typeof v !== 'string') {
+        throw typeErr(`「序数」要一个字符，得到了「${typeName(v)}」`);
+      }
+      const cps = Array.from(v);
+      if (cps.length !== 1) {
+        if (v === '') throw valueErr('「序数」要一个字符，但给的是空文本');
+        throw valueErr(`「序数」要**正好一个**字符，但给的是 ${cps.length} 个：「${v}」`);
+      }
+      return cps[0].codePointAt(0);
+    }),
+    '字符': new Builtin('字符', (v) => {
+      // 不收布尔（与位运算内建同一取舍）；也不收小数
+      if (typeof v === 'boolean' || !Number.isInteger(v)) {
+        throw typeErr(`「字符」要一个整数码点，得到了「${typeName(v)}」`);
+      }
+      if (v < 0 || v > 0x10FFFF) {
+        throw valueErr(`码点 ${v} 超出范围，合法范围是 0 到 1114111`);
+      }
+      return String.fromCodePoint(v);
+    }),
     '集合': new Builtin('集合', (...args) => {
       if (args.length > 1) {
         throw typeErr(`「集合」最多接受 1 个参数，但传了 ${args.length} 个`,
@@ -1224,7 +1330,9 @@ function newBuiltins() {
     // 内部用（M52）：命名以 `$` 开头，用户写不出来（词法器不认这个字符）。
     '$造模块': new Builtin('$造模块', (name, attrs) => makeModule(name, attrs)),
     '长度': new Builtin('长度', (v) => {
-      if (typeof v === 'string' || Array.isArray(v)) return v.length;
+      // ⚠️ 文本按**码点**数（M55）——`长度("😀")` 是 1，不是 2。见 `cpLen` 的说明。
+      if (typeof v === 'string') return cpLen(v);
+      if (Array.isArray(v)) return v.length;
       if (v instanceof Map) return v.size;
       if (v instanceof JishiSet) return v.size;
       // 定义了「迭代」的自定义对象也能求长度（M24）：既然能遍历，
@@ -1327,7 +1435,9 @@ function newBuiltins() {
     '检查实参': new Builtin('检查实参', (desc, values, funcName) =>
       checkArgs(desc, values, funcName)),
     '反转': new Builtin('反转', (v) => {
-      if (typeof v === 'string') return v.split('').reverse().join('');
+      // ⚠️ 文本按**码点**反转（M55）：`split('')` 是按 UTF-16 码元拆的，
+      // 会把 😀 拆成两个半代理项、反转后变成乱码。`Array.from` 才是按码点。
+      if (typeof v === 'string') return Array.from(v).reverse().join('');
       if (Array.isArray(v)) return [...v].reverse();
       throw typeErr(`「${display(v)}」不能反转，需要列表或文本`);
     }),
@@ -1793,11 +1903,13 @@ function getItem(obj, index, line, col) {
     return obj.get(index);
   }
   if (typeof obj === 'string') {
+    // ⚠️ 按**码点**取（M55）：`"😀"[0]` 必须是完整的 😀，不是半个代理项。
+    const chars = Array.from(obj);
     const i = index;
-    if (!Number.isInteger(i) || i < 0 || i >= obj.length) {
+    if (!Number.isInteger(i) || i < 0 || i >= chars.length) {
       throw indexErr(`下标「${display(index)}」越界`, line, col);
     }
-    return obj[i];
+    return chars[i];
   }
   throw typeErr(`「${typeName(obj)}」不能取下标`, line, col);
 }
@@ -2150,7 +2262,7 @@ const STR_METHODS = {
     return sep === undefined ? obj.trim().split(/\s+/) : obj.split(sep);
   },
   '替换': (obj, args, line, col) => { needArgs('替换', args, 2, 2, line, col); return obj.split(args[0]).join(args[1]); },
-  '查找': (obj, args, line, col) => { needArgs('查找', args, 1, 1, line, col); return obj.indexOf(args[0]); },
+  '查找': (obj, args, line, col) => { needArgs('查找', args, 1, 1, line, col); return cpIndexOf(obj, String(args[0])); },
   '大写': (obj, args, line, col) => { needArgs('大写', args, 0, 0, line, col); return obj.toUpperCase(); },
   '小写': (obj, args, line, col) => { needArgs('小写', args, 0, 0, line, col); return obj.toLowerCase(); },
   '去空白': (obj, args, line, col) => { needArgs('去空白', args, 0, 0, line, col); return obj.trim(); },
@@ -2266,6 +2378,29 @@ function dumpMethods() {
   return out;
 }
 
+//: 内部用内建（不该出现在用户可见清单里）。
+//:
+//: ⚠️ Python 侧靠**说明以「内部用」开头**判定（`runtime.is_internal_builtin`），
+//: 而宿主侧的内建**没有 doc 字段**，所以这里**显式列名**。漏列一个就会被
+//: `tests/test_m51_consistency.py` 的内建漂移检测抓住。
+const INTERNAL_BUILTIN_NAMES = new Set(['检查实参']);
+
+/**
+ * `--dump-builtins` 用：本宿主**实际带的「内建函数」**清单（M55）。
+ *
+ * 与 `--dump-stdlib` / `--dump-methods` 同一个模式（宿主自报家底）。
+ * M55 实测发现**内建也有漂移、而且一直没有检测**：加一个内建要同时动
+ * Python / Node / Rust 三处，漏一处就是「在某个引擎上没定义过这个名字」。
+ */
+function dumpBuiltins() {
+  const table = newBuiltins();
+  return Object.keys(table)
+    .filter((n) => !n.startsWith('$'))
+    .filter((n) => !INTERNAL_BUILTIN_NAMES.has(n))
+    .filter((n) => table[n] instanceof Builtin)
+    .sort();
+}
+
 // ---------------------------------------------------------------------------
 // 异常匹配（`捕获 值错误`）
 // ---------------------------------------------------------------------------
@@ -2322,6 +2457,8 @@ module.exports = {
   methodTable, getAttr, setAttr, getItem, setItem,
   // M54：`--dump-methods` 的数据源（对象方法漂移检测用）
   dumpMethods,
+  // M55：`--dump-builtins` 的数据源（内建漂移检测用）
+  dumpBuiltins,
   BoundMethod, BoundUserMethod, makeInstance,
   // M51：命名参数 → 位置参数的映射（vm.js 的 `_callValue` 用它）
   mapKwargs, SIGS,

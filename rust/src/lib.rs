@@ -289,6 +289,14 @@ struct Class {
     /// 实例看不到（Python 侧实例持的是类引用，看得见）。共享一份才一致
     /// ——与 M28/M29 给容器、实例换 `Rc<RefCell>` 是同一个理由。
     class_vars: Rc<RefCell<HashMap<String, Val>>>,
+    /// **祖先类的身份序号**（最近的在最前），M55 补。
+    ///
+    /// 为什么需要：Rust 侧建类时是「**把基类的方法表展开合并**」（见
+    /// `BUILD_CLASS`），基类指针**用完就丢** —— 于是 `是实例(对象, 基类)`
+    /// 没法沿继承链判断。`超()` 之所以一直没事，是因为它走合并后的方法表，
+    /// 压根不需要链。这里把链上的序号记下来（建类时算一次，之后是纯读），
+    /// 就能用 `id` 做身份比较 —— 与 Python 侧 `_instance_of` 同语义。
+    base_ids: Vec<usize>,
     /// 身份序号（M32）：见 `NEXT_OBJ_ID`
     id: usize,
 }
@@ -1206,9 +1214,13 @@ impl VM {
                     // `Rc`）——与 Python 侧「子类持有独立的类变量表」一致；
                     // 子类自己声明的随后由 SET_ATTR 覆盖上去。
                     let mut class_vars: HashMap<String, Val> = HashMap::new();
+                    // 祖先链的序号（M55）：最近的在最前，`是实例` 靠它走继承
+                    let mut base_ids: Vec<usize> = Vec::new();
                     if has_base {
                         // 基类方法合并（简化：直接展开基类）
                         if let Val::Class(base) = self.stack.pop().unwrap_or(Val::None_) {
+                            base_ids.push(base.id);
+                            base_ids.extend(base.base_ids.iter().copied());
                             for (k, v) in base.methods { methods.entry(k).or_insert(v); }
                             for (k, v) in base.class_vars.borrow().iter() {
                                 class_vars.insert(k.clone(), v.clone());
@@ -1219,6 +1231,7 @@ impl VM {
                         name,
                         methods,
                         class_vars: Rc::new(RefCell::new(class_vars)),
+                        base_ids,
                         id: next_obj_id(),
                     }));
                 }
@@ -2330,6 +2343,7 @@ fn new_builtins() -> HashMap<String, Val> {
         Ok(Val::None_)
     }));
     m.insert("输入".to_string(), Val::Builtin("输入", |args, vm| {
+        need_builtin_args("输入", args, 0, 1)?;
         // 提示语写到输出流（不换行），与 Python 的 `input(prompt)` 一致
         if let Some(p) = args.first() {
             if !matches!(p, Val::None_) {
@@ -2349,6 +2363,7 @@ fn new_builtins() -> HashMap<String, Val> {
         Ok(Val::Str(line.trim_end_matches(['\n', '\r']).to_string()))
     }));
     m.insert("整数".to_string(), Val::Builtin("整数", |args, _vm| {
+        need_builtin_args("整数", args, 1, 1)?;
         // 归类与 Python 侧 `_b_int` 一致（M41）：文本转不动 → **值错误**；
         // 类型本身不对（列表/字典/集合）→ **类型错误**。
         match &args[0] {
@@ -2364,6 +2379,7 @@ fn new_builtins() -> HashMap<String, Val> {
         }
     }));
     m.insert("小数".to_string(), Val::Builtin("小数", |args, _vm| {
+        need_builtin_args("小数", args, 1, 1)?;
         match &args[0] {
             Val::Int(i) => Ok(Val::Float(*i as f64)),
             Val::Float(f) => Ok(Val::Float(*f)),
@@ -2377,6 +2393,7 @@ fn new_builtins() -> HashMap<String, Val> {
         }
     }));
     m.insert("文本".to_string(), Val::Builtin("文本", |args, vm| {
+        need_builtin_args("文本", args, 1, 1)?;
         // 同样走 format_value：`文本(空)` 给「空」，`文本(对象)` 用「文本()」方法
         let mut out = String::new();
         for a in args {
@@ -2388,6 +2405,7 @@ fn new_builtins() -> HashMap<String, Val> {
     // 不认 `$`），所以不会被 `导入 文本` 遮蔽。与 jishi/parser.py 的
     // INTERP_TO_TEXT 同名，语义与 `文本` 一致。
     m.insert("$文本".to_string(), Val::Builtin("$文本", |args, vm| {
+        need_builtin_args("$文本", args, 1, 1)?;
         let mut out = String::new();
         for a in args {
             out.push_str(&vm.format_value(a, true)?);
@@ -2395,6 +2413,7 @@ fn new_builtins() -> HashMap<String, Val> {
         Ok(Val::Str(out))
     }));
     m.insert("长度".to_string(), Val::Builtin("长度", |args, vm| {
+        need_builtin_args("长度", args, 1, 1)?;
         match &args[0] {
             Val::Str(s) => Ok(Val::Int(s.chars().count() as i128)),
             Val::List(l) => Ok(Val::Int(l.borrow().len() as i128)),
@@ -2486,32 +2505,45 @@ fn new_builtins() -> HashMap<String, Val> {
             .collect();
         Ok(list_new(out))
     }));
-    m.insert("最大".to_string(), Val::Builtin("最大", b_max));    m.insert("最小".to_string(), Val::Builtin("最小", b_min));
-    m.insert("总和".to_string(), Val::Builtin("总和", b_sum));
+    // 变参：至少 1 个（M55 补检查 —— 以前 0 个参数走各自的兜底，
+    // 文案与另两个引擎对不上）
+    m.insert("最大".to_string(), Val::Builtin("最大", |args, vm| {
+        need_at_least_args("最大", args, 1)?;
+        b_max(args, vm)
+    }));
+    m.insert("最小".to_string(), Val::Builtin("最小", |args, vm| {
+        need_at_least_args("最小", args, 1)?;
+        b_min(args, vm)
+    }));
+    m.insert("总和".to_string(), Val::Builtin("总和", |args, vm| {
+        need_builtin_args("总和", args, 1, 1)?;
+        b_sum(args, vm)
+    }));
     m.insert("类型".to_string(), Val::Builtin("类型", |args, _vm| {
+        need_builtin_args("类型", args, 1, 1)?;
         Ok(Val::Str(type_label(&args[0])))
     }));
     // 位运算内建（M36）：Python 侧**不做 `& | ^ << >>` 语法**（日常罕见，
     // 加运算符要动三执行器 + 两宿主 + 词法器），改成一小组内建。
     m.insert("位与".to_string(), Val::Builtin("位与", |args, _vm| {
-        need_args("位与", args, 2, 2)?;
+        need_builtin_args("位与", args, 2, 2)?;
         Ok(Val::Int(as_bit_int(&args[0], "位与")? & as_bit_int(&args[1], "位与")?))
     }));
     m.insert("位或".to_string(), Val::Builtin("位或", |args, _vm| {
-        need_args("位或", args, 2, 2)?;
+        need_builtin_args("位或", args, 2, 2)?;
         Ok(Val::Int(as_bit_int(&args[0], "位或")? | as_bit_int(&args[1], "位或")?))
     }));
     m.insert("位异或".to_string(), Val::Builtin("位异或", |args, _vm| {
-        need_args("位异或", args, 2, 2)?;
+        need_builtin_args("位异或", args, 2, 2)?;
         Ok(Val::Int(as_bit_int(&args[0], "位异或")? ^ as_bit_int(&args[1], "位异或")?))
     }));
     m.insert("位取反".to_string(), Val::Builtin("位取反", |args, _vm| {
-        need_args("位取反", args, 1, 1)?;
+        need_builtin_args("位取反", args, 1, 1)?;
         // `!a`（补码取反）= `-a - 1`，与 Python 的 `~a` 一致
         Ok(Val::Int(!as_bit_int(&args[0], "位取反")?))
     }));
     m.insert("左移".to_string(), Val::Builtin("左移", |args, _vm| {
-        need_args("左移", args, 2, 2)?;
+        need_builtin_args("左移", args, 2, 2)?;
         let a = as_bit_int(&args[0], "左移")?;
         let n = shift_count(&args[1], "左移")?;
         if n >= 128 {
@@ -2525,7 +2557,7 @@ fn new_builtins() -> HashMap<String, Val> {
         })
     }));
     m.insert("右移".to_string(), Val::Builtin("右移", |args, _vm| {
-        need_args("右移", args, 2, 2)?;
+        need_builtin_args("右移", args, 2, 2)?;
         let a = as_bit_int(&args[0], "右移")?;
         let n = shift_count(&args[1], "右移")?;
         // 位数 ≥ 128 时 Python 给 0（或负数给 -1）——这里照做，别报错：
@@ -2538,14 +2570,52 @@ fn new_builtins() -> HashMap<String, Val> {
     // 类型标注的参数校验（M24.3）：编译器把校验发射成函数自己的前导字节码，
     // 宿主实现这个内建就自动获得这项能力（M32 补齐，JS 侧是 M30 补的）。
     m.insert("检查实参".to_string(), Val::Builtin("检查实参", |args, _vm| {
+        need_builtin_args("检查实参", args, 3, 3)?;
         check_args(&args[0], &args[1], &args[2])
     }));
     m.insert("反转".to_string(), Val::Builtin("反转", |args, _vm| {
+        need_builtin_args("反转", args, 1, 1)?;
         match &args[0] {
             Val::Str(s) => Ok(Val::Str(s.chars().rev().collect())),
             Val::List(l) => { let mut x = l.borrow().clone(); x.reverse(); Ok(list_new(x)) }
             _ => Err(err("类型错误", "「反转」需要列表或文本")),
         }
+    }));
+    // -- 字符与码点（M55）--
+    //
+    // 口径：**「一个字符」= 一个 Unicode 码点**。Rust 的 `String` 是 UTF-8，
+    // 所以不能按字节也不能按 `.len()` —— 一律走 `chars()`（迭代即码点）。
+    m.insert("序数".to_string(), Val::Builtin("序数", |args, _vm| {
+        need_builtin_args("序数", args, 1, 1)?;
+        let s = match &args[0] {
+            Val::Str(s) => s,
+            other => return Err(err("类型错误", format!(
+                "「序数」要一个字符，得到了「{}」", type_label(other)))),
+        };
+        let mut it = s.chars();
+        let first = match it.next() {
+            Some(c) => c,
+            None => return Err(err("值错误", "「序数」要一个字符，但给的是空文本")),
+        };
+        if it.next().is_some() {
+            return Err(err("值错误", format!(
+                "「序数」要**正好一个**字符，但给的是 {} 个：「{s}」", s.chars().count())));
+        }
+        Ok(Val::Int(first as i128))
+    }));
+    m.insert("字符".to_string(), Val::Builtin("字符", |args, _vm| {
+        need_builtin_args("字符", args, 1, 1)?;
+        // 不收布尔（与位运算内建同一取舍）
+        let n = match &args[0] {
+            Val::Int(i) => *i,
+            other => return Err(err("类型错误", format!(
+                "「字符」要一个整数码点，得到了「{}」", type_label(other)))),
+        };
+        let cp = u32::try_from(n).ok()
+            .and_then(char::from_u32)
+            .ok_or_else(|| err("值错误", format!(
+                "码点 {n} 超出范围，合法范围是 0 到 1114111")))?;
+        Ok(Val::Str(cp.to_string()))
     }));
     // -- 精确小数（M29）--
     m.insert("精确".to_string(), Val::Builtin("精确", |args, _vm| {
@@ -2565,9 +2635,8 @@ fn new_builtins() -> HashMap<String, Val> {
         set_new(items)
     }));
     m.insert("打开".to_string(), Val::Builtin("打开", |args, _vm| {
-        if args.is_empty() || args.len() > 2 {
-            return Err(err("类型错误", "「打开」需要 1 到 2 个参数"));
-        }
+        // M55：改用统一的检查 —— 文案与 Python / Node 侧逐字对齐
+        need_builtin_args("打开", args, 1, 2)?;
         let path = match &args[0] {
             Val::Str(s) => s.clone(),
             other => return Err(err("类型错误", format!(
@@ -2639,9 +2708,41 @@ fn new_builtins() -> HashMap<String, Val> {
         Ok(Val::None_)
     }));
     // 异常类型
-    for t in ["异常", "运行期错误", "类型错误", "值错误", "索引错误", "键错误", "除零错误", "文件错误"] {
+    // ⚠️ 这份清单要与 Python 侧 `errors.py` 的异常表、Node 的 `EXCEPTION_TYPES`
+    // 同宽 —— M55 补 `断言错误` 时发现它一直缺着（`捕获 断言错误` 在 Rust 上
+    // 报「找不到名字」）。lang-spec 的 `exceptions` 节是权威清单。
+    for t in ["异常", "运行期错误", "类型错误", "值错误", "索引错误", "键错误", "除零错误",
+              "文件错误", "断言错误"] {
         m.insert(t.to_string(), Val::ExcType(t.to_string()));
     }
+    // -- M55 补的两个内建（以前 Rust 侧根本没有，`--dump-builtins` 抓出来的）--
+    m.insert("断言".to_string(), Val::Builtin("断言", |args, _vm| {
+        need_builtin_args("断言", args, 1, 2)?;
+        if truthy(args[0].clone()) {
+            return Ok(Val::None_);
+        }
+        // 消息走「值→文本」的唯一实现（对齐 Python 侧 `jishi_repr(…, top=True)`）
+        let msg = if args.len() > 1 { display(&args[1]) }
+                  else { "条件不成立".to_string() };
+        Err(err("断言错误", msg))
+    }));
+    m.insert("是实例".to_string(), Val::Builtin("是实例", |args, _vm| {
+        need_builtin_args("是实例", args, 2, 2)?;
+        let cls = match &args[1] {
+            Val::Class(c) => c,
+            other => return Err(err("类型错误", format!(
+                "「是实例」的第二个参数要是一个类，但给的是「{}」", type_label(other)))),
+        };
+        Ok(Val::Bool(match &args[0] {
+            // 沿**祖先链的序号**找（`base_ids` 在建类时算好）——与 Python 侧
+            // `_instance_of` 同语义（那边是沿 `base` 指针走）
+            Val::Instance(inst) => {
+                let c = inst.borrow().class.clone();
+                c.id == cls.id || c.base_ids.contains(&cls.id)
+            }
+            _ => false,
+        }))
+    }));
     m
 }
 
@@ -3060,9 +3161,38 @@ fn set_item(obj: Val, idx: Val, val: Val) -> Result<(), JishiError> {
 
 
 fn need_args(name: &str, args: &[Val], lo: usize, hi: usize) -> Result<(), JishiError> {
+    // 文案与 Python / Node 侧逐字对齐（M55：以前少了「但传了 N 个」，
+    // 而且 lo == hi 时也说「1 到 1 个」，读起来像范围）。
     if args.len() < lo || args.len() > hi {
-        Err(err("类型错误", format!("方法「{name}」需要 {lo} 到 {hi} 个参数")))
+        Err(err("类型错误", format!(
+            "方法「{name}」需要 {}，但传了 {} 个", need_span(lo, hi), args.len())))
     } else { Ok(()) }
+}
+
+/// 内建的参数个数检查。
+///
+/// ⚠️ 与 `need_args`（对象方法）分开，因为**称呼不同**：内建说「「长度」」、
+/// 方法说「方法「追加」」。这与 Node 侧 `needBuiltinArgs` / `needArgs` 那一对
+/// 是同一设计（M55）。文案：`「X」需要 1 个参数，但传了 0 个`。
+fn need_builtin_args(name: &str, args: &[Val], lo: usize, hi: usize)
+    -> Result<(), JishiError> {
+    if args.len() < lo || args.len() > hi {
+        Err(err("类型错误", format!(
+            "「{name}」需要 {}，但传了 {} 个", need_span(lo, hi), args.len())))
+    } else { Ok(()) }
+}
+
+/// 只要下限的检查（`最大` / `最小` 是变参的）。
+fn need_at_least_args(name: &str, args: &[Val], lo: usize) -> Result<(), JishiError> {
+    if args.len() < lo {
+        Err(err("类型错误", format!(
+            "「{name}」至少要 {lo} 个参数，但传了 {} 个", args.len())))
+    } else { Ok(()) }
+}
+
+/// `1 个参数` / `1 到 2 个参数`
+fn need_span(lo: usize, hi: usize) -> String {
+    if lo == hi { format!("{lo} 个参数") } else { format!("{lo} 到 {hi} 个参数") }
 }
 
 // 简化：字符串/列表/字典方法直接返回 BoundMethod
@@ -3148,6 +3278,38 @@ pub fn dump_methods() -> String {
         parts.push(format!("\"{kind}\":[{}]", items.join(",")));
     }
     format!("{{{}}}", parts.join(","))
+}
+
+/// 内部用内建（不该出现在用户可见清单里）。
+///
+/// ⚠️ Python 侧靠**说明以「内部用」开头**判定（`runtime.is_internal_builtin`），
+/// 而宿主侧的内建**没有 doc 字段**，所以这里**显式列名**。
+/// 漏列一个就会被 `tests/test_m51_consistency.py` 的内建漂移检测抓住
+/// （报成「Python 侧没有、Rust 却有」）—— 这就是这份清单敢手写的原因。
+const INTERNAL_BUILTIN_NAMES: &[&str] = &["检查实参"];
+
+/// `--dump-builtins`：本宿主**实际带的「内建函数」**，打成 JSON（M55）。
+///
+/// 与 `--dump-stdlib` / `--dump-methods` 同一个模式（宿主自报家底）。
+/// 补这个是因为 M55 实测发现：**内建也有漂移，而且一直没有检测** ——
+/// 加一个内建要同时动 Python / Node / Rust 三处，漏一处就是
+/// 「在某个引擎上「没有定义过这个名字」」，而 M51/M54 的检测只覆盖
+/// 标准库函数与对象方法，**内建一条都没测**（M50 那批宿主缺失就是这么漏的）。
+///
+/// 过滤规则与 Python 侧 `is_internal_builtin` + `build_lang_spec` 对齐：
+/// 去掉 `$` 开头的（用户写不出来）、去掉内部用的、只留真正的内建函数
+/// （异常类型与 `空` 不是「函数」，不在内建函数清单里）。
+pub fn dump_builtins() -> String {
+    let table = new_builtins();
+    let mut names: Vec<String> = table.iter()
+        .filter(|(n, v)| !n.starts_with('$')
+            && !INTERNAL_BUILTIN_NAMES.contains(&n.as_str())
+            && matches!(v, Val::Builtin(_, _)))
+        .map(|(n, _)| n.clone())
+        .collect();
+    names.sort();
+    let items: Vec<String> = names.iter().map(|n| format!("\"{n}\"")).collect();
+    format!("[{}]", items.join(","))
 }
 
 /// 检查一个参数确实可调用（`映射`/`过滤`/`排序按`/`归约` 的报错要说清是哪个方法）。

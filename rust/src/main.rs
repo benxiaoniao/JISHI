@@ -10,6 +10,7 @@ fn main() -> ExitCode {
         eprintln!("用法：jishi-rs 字节码.json");
         eprintln!("      jishi-rs --dump-stdlib");
         eprintln!("      jishi-rs --dump-methods");
+        eprintln!("      jishi-rs --dump-builtins");
         return ExitCode::from(2);
     }
     // M51：把宿主**实际带的标准库模块与函数**打成 JSON。
@@ -24,6 +25,12 @@ fn main() -> ExitCode {
     // Node 缺 `文件.位置/定位/刷新` 都是偶然撞见的。
     if args[1] == "--dump-methods" || args[1] == "--dump_methods" {
         println!("{}", jishi_ffi::dump_methods());
+        return ExitCode::SUCCESS;
+    }
+    // M55：同理，报**内建函数**清单。加个内建要动三个引擎，而以前没有任何
+    // 检测盯着这件事（M51/M54 只覆盖标准库函数与对象方法）。
+    if args[1] == "--dump-builtins" || args[1] == "--dump_builtins" {
+        println!("{}", jishi_ffi::dump_builtins());
         return ExitCode::SUCCESS;
     }
     let path = &args[1];

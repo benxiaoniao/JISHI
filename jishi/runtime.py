@@ -89,18 +89,68 @@ class Module:
 class _Builtin:
     """基石内建函数（带中文名称与说明）。"""
 
-    __slots__ = ("name", "fn", "doc")
+    __slots__ = ("name", "fn", "doc", "_arity")
 
     def __init__(self, name, fn, doc=""):
         self.name = name
         self.fn = fn
         self.doc = doc
+        self._arity = _fn_arity(fn)
+
+    def check_arity(self, n: int) -> None:
+        """参数个数不对就报中文错（M55）。
+
+        ⚠️ 单独抽出来是因为**有两个入口**：`__call__`（直接调）与
+        `call_value`（三个执行器都走它，那里会把 `_Builtin` 拆成裸函数、
+        绕过 `__call__`）。检查只写一份，两处共用 —— 写在 `__call__` 里
+        是抓不到后者的（M55 实测踩过：改了 `__call__` 却毫无效果）。
+        """
+        lo, hi = self._arity
+        if n < lo or (hi is not None and n > hi):
+            span = f"{lo} 个参数" if hi == lo else (
+                f"{lo} 个参数以上" if hi is None else f"{lo} 到 {hi} 个参数")
+            raise RunTypeError(f"「{self.name}」需要 {span}，但传了 {n} 个")
 
     def __call__(self, *args, **kwargs):
+        # 参数个数不对就**在这里**报中文错（M55）。
+        #
+        # 以前是直接 `self.fn(*args)` —— 少给一个参数就漏出 Python 自己的
+        # `TypeError: _b_len() missing 1 required positional argument: 'v'`：
+        # 英文、带 Python 内部函数名，对用户和模型都是天书（违反设计核心二的
+        # 「报错必须可操作」）。而且这是**所有 30 个内建**的共同毛病 ——
+        # 在共用点统一收口，比每个内建自己写一遍可靠。
+        self.check_arity(len(args) + len(kwargs))
         return self.fn(*args, **kwargs)
 
     def __repr__(self):
         return f"<内建 {self.name}>"
+
+
+def _fn_arity(fn) -> tuple:
+    """从函数签名推出 `(最少参数, 最多参数或 None)`（M55）。
+
+    `None` 表示「不限」——对应 `*参数` 这种变参内建（`范围` / `最大` / `打印`…）。
+    取不到签名就返回 `(0, None)`（**宁可放过，不要误伤**）：内建表里还有
+    `空` 这类不是函数的值，它们根本不会走到 `__call__`。
+    """
+    import inspect
+
+    try:
+        sig = inspect.signature(fn)
+    except (TypeError, ValueError):      # pragma: no cover - 防御
+        return (0, None)
+    lo = hi = 0
+    variadic = False
+    for p in sig.parameters.values():
+        if p.kind == p.VAR_POSITIONAL:
+            variadic = True
+            continue
+        if p.kind == p.VAR_KEYWORD:
+            continue
+        hi += 1
+        if p.default is p.empty:
+            lo += 1
+    return (lo, None if variadic else hi)
 
 
 class ExcType:
@@ -460,6 +510,55 @@ def _b_exact(v):
     return JishiDecimal(_to_decimal(v))
 
 
+# -- 字符与码点（M55）------------------------------------------------------
+
+#: Unicode 码点上限（`字符(1114111)` 是最后一个合法值）
+_MAX_CODEPOINT = 0x10FFFF
+
+
+def _b_ordinal(v):
+    """`序数(字符)`：取一个字符的码点（M55）。
+
+    `序数("中")` 给 20013、`序数("A")` 给 65。
+
+    ⚠️ **「一个字符」= 一个 Unicode 码点**，不是「一个字节」也不是
+    「一个 UTF-16 码元」：`序数("😀")` 给 128512。
+    这条口径与 M47 给 C VM 定的文本模型一致（文本是**码点序列**），
+    也是 5 个引擎必须完全一致的那条线。
+    """
+    if not isinstance(v, str):
+        raise RunTypeError(
+            f"「序数」要一个字符，得到了「{type_name(v)}」",
+            hint='例如 序数("中") 给 20013')
+    if len(v) != 1:
+        if v == "":
+            raise RunValueError("「序数」要一个字符，但给的是空文本")
+        raise RunValueError(
+            f"「序数」要**正好一个**字符，但给的是 {len(v)} 个："
+            f"「{v}」",
+            hint="想取第几个字符的码点，就先用下标取出来：序数(文本[0])")
+    return ord(v)
+
+
+def _b_char(v):
+    """`字符(码点)`：由一个码点造出一个字符（M55）。
+
+    `字符(20013)` 给 `"中"`、`字符(65)` 给 `"A"` —— 与 `序数` 互为反函数。
+    `编码` 的 UTF-8 编解码就是靠这一对用基石写出来的。
+    """
+    # ⚠️ **不收布尔**：基石把布尔当独立类型（与 `位与` 等位运算内建同一取舍），
+    # 而 Python 里 `True` 是 `1`、`chr(True)` 会静默给出 `"\x01"` —— 那太意外了。
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise RunTypeError(
+            f"「字符」要一个整数码点，得到了「{type_name(v)}」",
+            hint="例如 字符(20013) 给「中」；要转换文本用 整数(…)，别用 字符(…)")
+    if not (0 <= v <= _MAX_CODEPOINT):
+        raise RunValueError(
+            f"码点 {v} 超出范围，合法范围是 0 到 {_MAX_CODEPOINT}",
+            hint="Unicode 的码点上限是 1114111（0x10FFFF）")
+    return chr(v)
+
+
 # -- 上下文管理器（M26.2）--------------------------------------------------
 
 def _ctx_lookup(obj, name: str):
@@ -659,6 +758,10 @@ def _single_iterable_arg(v):
 def _b_max(*args):
     # M18.3：单参数且是列表/元组 → max(序列)；多参数 → max(参数们)。
     # M24.1 扩展：集合、字典（按键）、定义了「迭代」的自定义对象同样按序列处理。
+    # M55：0 个参数单独报「至少要 1 个」——对齐 Rust 侧 `need_at_least_args`，
+    # 否则这里会走到 `max(())` 再被兜底成「()不能求最大值」，文案对不上。
+    if not args:
+        raise RunTypeError("「最大」至少要 1 个参数，但传了 0 个")
     try:
         if len(args) == 1:
             seq = _single_iterable_arg(args[0])
@@ -670,6 +773,8 @@ def _b_max(*args):
 
 
 def _b_min(*args):
+    if not args:
+        raise RunTypeError("「最小」至少要 1 个参数，但传了 0 个")
     try:
         if len(args) == 1:
             seq = _single_iterable_arg(args[0])
@@ -783,7 +888,11 @@ def _b_assert(condition, message=None):
         return None
     # 标题（「断言没通过」）由 RunAssertionError 提供，这里只放用户的消息，
     # 否则渲染出来会是「断言没通过（断言没通过：…）」。
-    raise RunAssertionError(str(message) if message is not None else "条件不成立")
+    # M55：消息走 `jishi_repr`（M27 的「值→文本唯一实现」）而不是 Python 的
+    # `str()` —— 后者对 `断言(假, 空)` 会给「None」，与基石里 `空` 的文本
+    # 表示（「空」）不一致；Node / Rust 侧也跟着这一条。
+    raise RunAssertionError(
+        jishi_repr(message, top=True) if message is not None else "条件不成立")
 
 
 #: 内建类型名（用于 `类型(值)` 比较，也用于「是实例」误用时给提示）
@@ -934,6 +1043,13 @@ def new_builtins() -> dict[str, Any]:
         "精确": _Builtin(
             "精确", _b_exact,
             "精确(\"19.99\")：转成精确小数，金额/对账用它避开浮点误差"),
+        "序数": _Builtin(
+            "序数", _b_ordinal,
+            '序数(字符)：取一个字符的 Unicode 码点，序数("中") 给 20013'),
+        "字符": _Builtin(
+            "字符", _b_char,
+            "字符(码点)：由一个码点造出字符，字符(20013) 给「中」"
+            "（与「序数」互为反函数）"),
         "打开": _Builtin(
             "打开", _b_open,
             "打开(路径, 模式=读)：返回文件对象，常配「用 … 为 f：」自动关闭"),
@@ -1590,6 +1706,9 @@ def call_value(fn, args, kwargs=None, *, line=None, col=None,
                filename="<输入>"):
     """调用一个非基石函数的可调用对象（内建 / 标准库 / Python 桥接）。"""
     if isinstance(fn, _Builtin):
+        # ⚠️ 参数个数**先在这里查**：下面立刻把 `_Builtin` 拆成裸函数，拆完就
+        # 绕过 `_Builtin.__call__` 了（M55：只改 `__call__` 会毫无效果）。
+        fn.check_arity(len(args) + len(kwargs or {}))
         fn = fn.fn
     if isinstance(fn, Module):
         raise SemanticFuncError(

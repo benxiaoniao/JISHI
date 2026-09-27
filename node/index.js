@@ -131,6 +131,16 @@ function dumpMethods() {
   return 0;
 }
 
+/**
+ * `--dump-builtins`：本宿主**实际带的「内建函数」**，打成 JSON（M55）。
+ * 数据源见 `Runtime.dumpBuiltins`（过滤规则与 Python 侧 `is_internal_builtin`
+ * 对齐：去 `$` 开头的、去内部用的、只留真正的内建函数）。
+ */
+function dumpBuiltins() {
+  process.stdout.write(JSON.stringify(Runtime.dumpBuiltins()));
+  return 0;
+}
+
 function main() {
   const args = process.argv.slice(2);
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
@@ -138,12 +148,14 @@ function main() {
     console.log('      node node/index.js --self-test');
     console.log('      node node/index.js --dump-stdlib');
     console.log('      node node/index.js --dump-methods');
+    console.log('      node node/index.js --dump-builtins');
     return 0;
   }
   try {
     if (args.includes('--self-test')) return selfTest();
     if (args.includes('--dump-stdlib')) return dumpStdlib();
     if (args.includes('--dump-methods')) return dumpMethods();
+    if (args.includes('--dump-builtins')) return dumpBuiltins();
     return runFile(args[0]);
   } catch (e) {
     // 基石错误打印成人话（此前是直接抛给 Node，用户看到的是 JS 堆栈，

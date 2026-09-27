@@ -216,6 +216,143 @@ def test_签名表与标准库源码同步():
 
 
 # ---------------------------------------------------------------------------
+# 一之三、**内建函数**的漂移检测（M55 新建）
+# ---------------------------------------------------------------------------
+#
+# 为什么又开一节：M51 比标准库函数、M54 比对象方法，**内建函数一条都没比**。
+# 而「加一个内建要同时动 Python / Node / Rust 三处」（详见 `AGENTS.md` §1），
+# 漏一处的症状是「在某个引擎上「没有定义过这个名字」」—— 最该被自动抓住的事。
+#
+# M55 建起检测后**当场抓到两笔**（都在 Node 与 Rust 上同时缺）：
+#   - `断言(条件, 消息?)`   —— M23.1 就有了，宿主一直没跟上；
+#   - `是实例(值, 类)`      —— 同上。
+# 顺带还带出「`断言错误` 这个**捕获类型**在宿主上也不存在」。
+# 三笔都当场补掉了（Rust 的 `是实例` 还因此给 `Class` 加了祖先链 `base_ids`
+# —— 那边建类时把基类方法表展开合并后就**把基类指针丢了**，没法沿链判断）。
+
+#: 不参与内建比对的**排除项**。
+#:
+#: `超` 是**编译器形式**而不是可当值的内建函数：它只在类的方法里合法，
+#: 在别处写 `超` 会被编译器直接拒掉（`E0201：「超()」只能在类的方法里用`）。
+#: 它出现在 `new_builtins()` 里只是为了让名字能解析 —— 宿主**不需要**有它。
+BUILTIN_EXEMPT: frozenset[str] = frozenset({"超"})
+
+#: 内建的**已知缺口**（M55 建检测时抓到两笔，都已补齐，所以是空的）。
+#: 与 `KNOWN_GAPS` / `METHOD_KNOWN_GAPS` 同样是**带断言的显式账**。
+BUILTIN_KNOWN_GAPS: dict[str, set[str]] = {"Node": set(), "Rust": set()}
+
+
+def _py_builtins() -> set[str]:
+    """Python 侧的事实源：`--lang-spec` 的 `builtins` 节。"""
+    return {b["name"] for b in ai.build_lang_spec()["builtins"]} - BUILTIN_EXEMPT
+
+
+def _node_builtins() -> set[str]:
+    if not NODE:
+        pytest.skip("没有 node")
+    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), "--dump-builtins"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, f"Node --dump-builtins 失败：{r.stderr[:300]}"
+    return set(json.loads(r.stdout))
+
+
+def _rust_builtins() -> set[str]:
+    if not RUST.exists():
+        pytest.skip(f"没有 Rust 宿主：{RUST}（先 cargo build --release）")
+    r = subprocess.run([str(RUST), "--dump-builtins"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, f"Rust --dump-builtins 失败：{r.stderr[:300]}"
+    return set(json.loads(r.stdout))
+
+
+def test_Node_覆盖_python_侧内建():
+    expected, actual = _py_builtins(), _node_builtins()
+    assert len(actual) > 20, "Node 报了个可疑的内建清单？"
+    assert (expected - actual) == BUILTIN_KNOWN_GAPS["Node"], (
+        "Node 缺这些内建：" + "、".join(sorted(expected - actual)))
+    assert (actual - expected) == set(), (
+        "Python 侧没有、Node 却有的内建：" + "、".join(sorted(actual - expected)))
+
+
+def test_Rust_覆盖_python_侧内建():
+    expected, actual = _py_builtins(), _rust_builtins()
+    assert len(actual) > 20, "Rust 报了个可疑的内建清单？"
+    assert (expected - actual) == BUILTIN_KNOWN_GAPS["Rust"], (
+        "Rust 缺这些内建：" + "、".join(sorted(expected - actual)))
+    assert (actual - expected) == set(), (
+        "Python 侧没有、Rust 却有的内建：" + "、".join(sorted(actual - expected)))
+
+
+def test_内建两个宿主彼此也不漂移():
+    nd, rs = _node_builtins(), _rust_builtins()
+    assert nd == rs, ("两宿主的内建清单不同 —— Node 有而 Rust 没有："
+                      + "、".join(sorted(nd - rs))
+                      + "；Rust 有而 Node 没有：" + "、".join(sorted(rs - nd)))
+
+
+def test_M55_补的内建五引擎都能用():
+    """`断言` / `是实例` 在**五个引擎**上都真能用（不是只在清单里）。
+
+    这三笔（两个内建 + `断言错误` 捕获类型）就是内建漂移检测当场抓到的：
+    M55 之前，Node 与 Rust 上 `断言(...)` 直接报「找不到名字「断言」」。
+    """
+    src = ('类 动物：\n'
+           '    函数 初始化(自身, 名)：\n'
+           '        自身.名 = 名\n'
+           '类 猫 继承 动物：\n'
+           '    函数 叫(自身)：\n'
+           '        返回 "喵"\n'
+           '令 c = 猫("咪")\n'
+           '打印(是实例(c, 猫), 是实例(c, 动物), 是实例(1, 猫))\n'
+           '断言(真)\n'
+           '打印("过")\n')
+    base_label, base = None, None
+    for label, run in _engines():
+        ok, out = run(src)
+        assert ok, f"{label} 跑不通：{out[:200]}"
+        if base is None:
+            base_label, base = label, out
+        else:
+            assert out == base, f"{label} 与 {base_label} 不一致：{out[:120]!r}"
+    assert base == "真 真 假\n过\n"
+
+
+def test_捕获断言错误在五引擎都能接住():
+    """`捕获 断言错误` 也得能用 —— M55 之前**宿主的异常类型表里没这一项**。
+
+    ⚠️ **断言分两档（如实**）：
+    - **三个执行器**（Python 侧）：必须接住、且拿到的异常**带消息**
+      （`错误 E2008：断言没通过（故意失败）`）；
+    - **两个跨语言宿主**：只断言「接住了、类型是 `断言错误`」。它们的**异常对象
+      模型**都不完整 —— Node 打出来是 `Error: 故意失败`（没有错误码与标题），
+      **Rust 更弱：`捕获 为 e` 拿到的只是异常**类型**，消息直接丢了**
+      （`打印(e)` 给「断言错误」）。这条属 M54 记过的「宿主没有错误码/标题
+      目录」那条边界，**已记进 M56 的清单**（`docs/路线图.md` §九）。
+    """
+    src = ('尝试：\n'
+           '    断言(假, "故意失败")\n'
+           '捕获 断言错误 为 e：\n'
+           '    打印("接住", e)\n')
+    for label, run in _engines():
+        ok, out = run(src)
+        assert ok, f"{label} 没接住断言错误：{out[:200]}"
+        assert "接住" in out, f"{label} 没接住：{out[:160]!r}"
+        if label in ("树遍历", "Python VM", "C VM"):
+            # Python 侧渲染成「错误 E2008：断言没通过（故意失败）」——
+            # 打的是**标题**而不是类型名，所以这里查消息
+            assert "故意失败" in out, (
+                f"{label} 接住了但丢了消息（Python 侧不该丢）：{out[:160]!r}")
+        elif label == "Node":
+            # 宿主没有错误码与标题，渲染成「错误（断言错误）：故意失败」
+            assert "断言错误" in out and "故意失败" in out, f"Node：{out[:160]!r}"
+        else:
+            # ⚠️ **Rust 的已知缺口**：`捕获 为 e` 拿到的只是异常**类型**，
+            # 消息在 `Val::ExcType` 这一步就丢了（`打印(e)` 给「断言错误」）。
+            # 属宿主异常对象模型的缺口，已记进 M56（见 docstring）。
+            assert "断言错误" in out, f"Rust 类型不对：{out[:160]!r}"
+
+
+# ---------------------------------------------------------------------------
 # 一之二、**对象方法**的漂移检测（M54 新建）
 # ---------------------------------------------------------------------------
 #
