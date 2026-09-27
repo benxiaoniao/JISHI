@@ -120,6 +120,8 @@ pub(crate) enum Val {
     LoopSignal(i64),
     BoundMethod(Box<BoundMethod>),
     Cell(JCell),
+    /// `超()` 的返回值（M56）。见 `SuperVal`。
+    Super(Rc<SuperVal>),
 }
 
 /// 造一个列表值（把裸 Vec 包成共享容器）。
@@ -293,12 +295,35 @@ struct Class {
     ///
     /// 为什么需要：Rust 侧建类时是「**把基类的方法表展开合并**」（见
     /// `BUILD_CLASS`），基类指针**用完就丢** —— 于是 `是实例(对象, 基类)`
-    /// 没法沿继承链判断。`超()` 之所以一直没事，是因为它走合并后的方法表，
-    /// 压根不需要链。这里把链上的序号记下来（建类时算一次，之后是纯读），
+    /// 没法沿继承链判断。这里把链上的序号记下来（建类时算一次，之后是纯读），
     /// 就能用 `id` 做身份比较 —— 与 Python 侧 `_instance_of` 同语义。
     base_ids: Vec<usize>,
+    /// 基类**本身**（M56 补 `超()`）。
+    ///
+    /// 为什么 M56 才加：`超()` 在 M55 之前**两个宿主根本没实现**（一写就报
+    /// 「找不到名字「超」」），所以「基类指针丢了」一直没人发现 —— M55 建
+    /// 内建漂移检测时还把它当成「编译器形式、宿主不需要有它」而**排除在比对
+    /// 之外**（见 `tests/test_m51_consistency.py` 的旧 `BUILTIN_EXEMPT`）。
+    /// 其实编译器把 `超().方法(x)` 脱糖成 `超(自身, "定义类名")`，字节码里
+    /// 就是 `LOAD_GLOBAL 超` + `CALL` —— 它是个**货真价实的运行期内建**。
+    ///
+    /// `超()` 的语义是「从**定义类的基类**起查方法」，所以必须有这条链。
+    /// 用 `Rc` 共享：子类与 `超` 视图拿的是同一个基类对象，不深拷贝。
+    base: Option<Rc<Class>>,
     /// 身份序号（M32）：见 `NEXT_OBJ_ID`
     id: usize,
+}
+
+/// `超()` 的返回值（M56）：从**定义类的基类**起查方法，方法绑定原实例。
+///
+/// ⚠️ 与 Python 侧 `JishiSuper` 同语义：在 `狗` 的方法里写 `超()`，
+/// 只会往 `动物` 及更上层找，**不会又回到 `狗` 自己**（否则就是自递归）。
+struct SuperVal {
+    instance: JInst,
+    /// 定义类的基类 —— 查找从这里开始
+    base: Rc<Class>,
+    /// 定义类的名字（只为报错文案）
+    defining: String,
 }
 
 #[derive(Clone)]
@@ -1216,15 +1241,23 @@ impl VM {
                     let mut class_vars: HashMap<String, Val> = HashMap::new();
                     // 祖先链的序号（M55）：最近的在最前，`是实例` 靠它走继承
                     let mut base_ids: Vec<usize> = Vec::new();
+                    // 基类**本身**（M56）：`超()` 要沿链找「定义类」再取它的基类，
+                    // 光有序号不够（序号没法反查回类对象）。用 `Rc` 共享。
+                    let mut base_rc: Option<Rc<Class>> = None;
                     if has_base {
                         // 基类方法合并（简化：直接展开基类）
                         if let Val::Class(base) = self.stack.pop().unwrap_or(Val::None_) {
                             base_ids.push(base.id);
                             base_ids.extend(base.base_ids.iter().copied());
-                            for (k, v) in base.methods { methods.entry(k).or_insert(v); }
+                            // ⚠️ 这里以前是**移动**（`for (k, v) in base.methods`）——
+                            // 一旦要保留 base 本身就不能再移动，改成借用迭代 + clone。
+                            for (k, v) in base.methods.iter() {
+                                methods.entry(k.clone()).or_insert_with(|| v.clone());
+                            }
                             for (k, v) in base.class_vars.borrow().iter() {
                                 class_vars.insert(k.clone(), v.clone());
                             }
+                            base_rc = Some(Rc::new(base));
                         }
                     }
                     self.stack.push(Val::Class(Class {
@@ -1232,6 +1265,7 @@ impl VM {
                         methods,
                         class_vars: Rc::new(RefCell::new(class_vars)),
                         base_ids,
+                        base: base_rc,
                         id: next_obj_id(),
                     }));
                 }
@@ -1939,6 +1973,8 @@ pub(crate) fn display(v: &Val) -> String {
         Val::LoopSignal(c) => if *c == 1 { "中断".to_string() } else { "继续".to_string() },
         Val::BoundMethod(_) => "<方法>".to_string(),
         Val::Cell(_) => "<单元>".to_string(),
+        // 与 Python 侧 `JishiSuper.__repr__` 一致
+        Val::Super(sp) => format!("<超 {}>", sp.defining),
     }
 }
 
@@ -2743,6 +2779,39 @@ fn new_builtins() -> HashMap<String, Val> {
             _ => false,
         }))
     }));
+    // `超()`（M56 补）：编译器把 `超().方法(x)` 脱糖成 `超(自身, "定义类名")`，
+    // 于是它是个**运行期内建** —— 两个宿主以前都没注册它，`超()` 在宿主上
+    // 一直报「找不到名字「超」」。
+    m.insert("超".to_string(), Val::Builtin("超", |args, _vm| {
+        need_builtin_args("超", args, 2, 2)?;
+        let inst = match &args[0] {
+            Val::Instance(i) => i.clone(),
+            other => return Err(err("类型错误", format!(
+                "「超()」只能用在自己的方法里（第一参数该是实例，现在拿到的是「{}」）",
+                type_label(other)))),
+        };
+        let want = display(&args[1]);
+        // 在继承链上按名字找「定义类」（上限 64 防环，与 Python 侧一致）
+        let (defining, base) = {
+            let borrowed = inst.borrow();
+            let mut cur: Option<&Class> = Some(&borrowed.class);
+            let mut found: Option<(&Class, Option<Rc<Class>>)> = None;
+            for _ in 0..64 {
+                let Some(c) = cur else { break };
+                if c.name == want { found = Some((c, c.base.clone())); break; }
+                cur = c.base.as_deref();
+            }
+            match found {
+                Some((c, b)) => (c.name.clone(), b),
+                None => return Err(err("类型错误", format!(
+                    "「超()」找不到定义类「{want}」——它不在「{}」的继承链上",
+                    borrowed.class.name))),
+            }
+        };
+        let base = base.ok_or_else(|| err("类型错误", format!(
+            "类「{defining}」没有基类，用不了「超()」——它用来调基类的方法")))?;
+        Ok(Val::Super(Rc::new(SuperVal { instance: inst, base, defining })))
+    }));
     m
 }
 
@@ -3024,6 +3093,17 @@ fn get_attr(obj: Val, attr: &str) -> Result<Val, JishiError> {
         Val::Class(c) => {
             if let Some(v) = c.class_vars.borrow().get(attr) { return Ok(v.clone()); }
             c.methods.get(attr).cloned().ok_or_else(|| err("类型错误", format!("类没有方法「{attr}」")))
+        }
+        // `超()`（M56）：从**定义类的基类**起找，方法绑定**原实例**。
+        // 与 Python 侧 `get_attr` 同语义（那边看 `obj.defining.base`）。
+        Val::Super(sp) => {
+            if let Some(Val::Func(fu)) = sp.base.methods.get(attr) {
+                return Ok(Val::BoundMethod(Box::new(BoundMethod::User {
+                    func: fu.clone(), instance: sp.instance.clone(),
+                    name: attr.to_string() })));
+            }
+            if let Some(v) = sp.base.class_vars.borrow().get(attr) { return Ok(v.clone()); }
+            Err(err("类型错误", format!("基类「{}」里没有「{attr}」", sp.base.name)))
         }
         Val::Str(s) => str_method(attr, Val::Str(s)),
         Val::List(l) => list_method(attr, Val::List(l)),

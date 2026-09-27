@@ -232,10 +232,19 @@ def test_签名表与标准库源码同步():
 
 #: 不参与内建比对的**排除项**。
 #:
-#: `超` 是**编译器形式**而不是可当值的内建函数：它只在类的方法里合法，
-#: 在别处写 `超` 会被编译器直接拒掉（`E0201：「超()」只能在类的方法里用`）。
-#: 它出现在 `new_builtins()` 里只是为了让名字能解析 —— 宿主**不需要**有它。
-BUILTIN_EXEMPT: frozenset[str] = frozenset({"超"})
+#: ⚠️ M55 建这个检测时，这里曾经是 `frozenset({"超"})`，理由是「`超` 是编译器
+#: 形式而不是可当值的内建，宿主不需要有它」。**那个判断是错的**，而且代价很实在：
+#: 编译器把 `超().方法(x)` 脱糖成 `超(自身, "定义类名")`，字节码里就是
+#: `LOAD_GLOBAL 超` + `CALL` —— 它就是个**运行期内建**。于是两个跨语言宿主
+#: **一直没注册它**，`超()` 在 Node 与 Rust 上报「找不到名字「超」」，
+#: 而三个 Python 执行器一切正常。
+#:
+#: 是 `tools/probe_builtins.py`（M56 的「内建体检」）把它抓出来的 ——
+#: **教训：豁免必须能被复核，否则它就是藏 bug 的地方。**
+#: M56 已给两宿主补上 `超`（Rust 还为它给 `Class` 加了 `base` 字段），
+#: 所以现在没有需要排除的项，但**保留这个常量**：以后真要豁免谁，
+#: 必须在这里写清理由。
+BUILTIN_EXEMPT: frozenset[str] = frozenset()
 
 #: 内建的**已知缺口**（M55 建检测时抓到两笔，都已补齐，所以是空的）。
 #: 与 `KNOWN_GAPS` / `METHOD_KNOWN_GAPS` 同样是**带断言的显式账**。
@@ -610,3 +619,169 @@ def test_不支持命名参数的目标也要响亮():
         ok, text = run(src)
         assert not ok, f"{label} 本该报错却正常退出：{text[:200]!r}"
         assert "类型错误" in text, f"{label} 报的不是「类型错误」：{text[:200]!r}"
+
+
+# ---------------------------------------------------------------------------
+# 四、M56 的「内建体检」抓到的：`超()` 两个宿主根本没有
+# ---------------------------------------------------------------------------
+
+def _超用例_不报错() -> str:
+    """多级继承 + `超()` 调 `初始化`：三处 `超()` 各查一层，答案必须一致。"""
+    return (
+        "类 甲：\n"
+        "    函数 初始化(自身, 名)：\n"
+        "        自身.名 = 名\n"
+        "    函数 说(自身)：\n"
+        '        返回 "甲"\n'
+        "类 乙 继承 甲：\n"
+        "    函数 说(自身)：\n"
+        '        返回 超().说() + "乙"\n'
+        "类 丙 继承 乙：\n"
+        "    函数 初始化(自身, 名)：\n"
+        "        超().初始化(名)\n"
+        "    函数 说(自身)：\n"
+        '        返回 超().说() + "丙"\n'
+        '令 p = 丙("小明")\n'
+        "打印(p.说(), p.名)\n"
+    )
+
+
+def test_M56_超在五引擎都能用():
+    """⚠️ **`超()` 在 M56 之前，两个跨语言宿主上根本不存在。**
+
+    这是 M55 留下的一个**判断错误**：当时建「内建漂移检测」，
+    把 `超` 当成「编译器形式、宿主不需要有它」而从比对里排除了
+    （旧 `BUILTIN_EXEMPT = {"超"}`）。可字节码里它就是
+    `LOAD_GLOBAL 超` + `CALL` —— 编译器把 `超().方法(x)` 脱糖成
+    `超(自身, "定义类名")`，**是个货真价实的运行期内建**。
+
+    于是 Node / Rust 一直报「找不到名字「超」」，三个 Python 执行器却全对；
+    而**五引擎对拍覆盖不到它**（因为被显式排除了）。
+
+    由 `tools/probe_builtins.py`（内建体检）抓出来。修法：两宿主补 `超`
+    （Rust 还为它给 `Class` 补了 `base` 字段 —— 那边建类时把基类展开合并后
+    **把基类指针丢了**）。教训写在 `BUILTIN_EXEMPT` 的注释里。
+
+    这条按**真实用法**跑：多级继承（`丙 → 乙 → 甲`）+ `超().初始化(...)` 链。
+    """
+    src = _超用例_不报错()
+    base_label, base = None, None
+    for label, run in _engines():
+        ok, out = run(src)
+        assert ok, f"{label} 用不了「超()」：{out[:250]}"
+        if base is None:
+            base_label, base = label, out
+        else:
+            assert out == base, (
+                f"{label} 与 {base_label} 输出不一致\n"
+                f"{base_label}: {base!r}\n{label}: {out!r}")
+    assert base == "甲乙丙 小明\n", f"多级继承的结果不对：{base!r}"
+
+
+def test_M56_超出错时五引擎都报类型错误():
+    """`超()` 用在**没有基类**的类里 → 三执行器给 `E2002 类型错误`，
+    两宿主首行彼此一致（宿主没有错误码/标题目录，是 M54 记过的边界）。"""
+    src = (
+        "类 孤儿：\n"
+        "    函数 试(自身)：\n"
+        "        返回 超().说()\n"
+        "孤儿().试()\n"
+    )
+    outs: dict[str, str] = {}
+    for label, run in _engines():
+        ok, out = run(src)
+        assert not ok, f"{label} 本该报错却跑通了：{out[:200]!r}"
+        outs[label] = out
+    for label in ("树遍历", "Python VM", "C VM"):
+        assert "E2002" in outs[label] and "没有基类" in outs[label], (
+            f"{label} 报的不是 E2002「没有基类」：{outs[label][:200]!r}")
+    hosts = {k: v for k, v in outs.items() if k in ("Node", "Rust")}
+    firsts = {k: v.strip().splitlines()[0] for k, v in hosts.items()}
+    if len(firsts) == 2:
+        assert firsts["Node"] == firsts["Rust"], (
+            f"两宿主报错首行不同\nNode: {firsts['Node']}\nRust: {firsts['Rust']}")
+    assert all("没有基类" in t for t in firsts.values()), (
+        f"宿主报错里没提「没有基类」：{firsts}")
+
+
+# ---------------------------------------------------------------------------
+# 四、M56 的「内建体检」抓到的：`超()` 两个宿主根本没有
+# ---------------------------------------------------------------------------
+
+def _超用例_不报错() -> str:
+    """多级继承 + `超()` 调 `初始化`：三处 `超()` 各查一层，答案必须一致。"""
+    return (
+        "类 甲：\n"
+        "    函数 初始化(自身, 名)：\n"
+        "        自身.名 = 名\n"
+        "    函数 说(自身)：\n"
+        '        返回 "甲"\n'
+        "类 乙 继承 甲：\n"
+        "    函数 说(自身)：\n"
+        '        返回 超().说() + "乙"\n'
+        "类 丙 继承 乙：\n"
+        "    函数 初始化(自身, 名)：\n"
+        "        超().初始化(名)\n"
+        "    函数 说(自身)：\n"
+        '        返回 超().说() + "丙"\n'
+        '令 p = 丙("小明")\n'
+        "打印(p.说(), p.名)\n"
+    )
+
+
+def test_M56_超在五引擎都能用():
+    """⚠️ **`超()` 在 M56 之前，两个跨语言宿主上根本不存在。**
+
+    这是 M55 留下的一个**判断错误**：当时建「内建漂移检测」，
+    把 `超` 当成「编译器形式、宿主不需要有它」而从比对里排除了
+    （旧 `BUILTIN_EXEMPT = {"超"}`）。可字节码里它就是
+    `LOAD_GLOBAL 超` + `CALL` —— 编译器把 `超().方法(x)` 脱糖成
+    `超(自身, "定义类名")`，**是个货真价实的运行期内建**。
+
+    于是 Node / Rust 一直报「找不到名字「超」」，三个 Python 执行器却全对；
+    而**五引擎对拍覆盖不到它**（因为被显式排除了）。
+
+    由 `tools/probe_builtins.py`（内建体检）抓出来。修法：两宿主补 `超`
+    （Rust 还为它给 `Class` 补了 `base` 字段 —— 那边建类时把基类展开合并后
+    **把基类指针丢了**）。教训写在 `BUILTIN_EXEMPT` 的注释里。
+
+    这条按**真实用法**跑：多级继承（`丙 → 乙 → 甲`）+ `超().初始化(...)` 链。
+    """
+    src = _超用例_不报错()
+    base_label, base = None, None
+    for label, run in _engines():
+        ok, out = run(src)
+        assert ok, f"{label} 用不了「超()」：{out[:250]}"
+        if base is None:
+            base_label, base = label, out
+        else:
+            assert out == base, (
+                f"{label} 与 {base_label} 输出不一致\n"
+                f"{base_label}: {base!r}\n{label}: {out!r}")
+    assert base == "甲乙丙 小明\n", f"多级继承的结果不对：{base!r}"
+
+
+def test_M56_超出错时五引擎都报类型错误():
+    """`超()` 用在**没有基类**的类里 → 三执行器给 `E2002 类型错误`，
+    两宿主首行彼此一致（宿主没有错误码/标题目录，是 M54 记过的边界）。"""
+    src = (
+        "类 孤儿：\n"
+        "    函数 试(自身)：\n"
+        "        返回 超().说()\n"
+        "孤儿().试()\n"
+    )
+    outs: dict[str, str] = {}
+    for label, run in _engines():
+        ok, out = run(src)
+        assert not ok, f"{label} 本该报错却跑通了：{out[:200]!r}"
+        outs[label] = out
+    for label in ("树遍历", "Python VM", "C VM"):
+        assert "E2002" in outs[label] and "没有基类" in outs[label], (
+            f"{label} 报的不是 E2002「没有基类」：{outs[label][:200]!r}")
+    hosts = {k: v for k, v in outs.items() if k in ("Node", "Rust")}
+    firsts = {k: v.strip().splitlines()[0] for k, v in hosts.items()}
+    if len(firsts) == 2:
+        assert firsts["Node"] == firsts["Rust"], (
+            f"两宿主报错首行不同\nNode: {firsts['Node']}\nRust: {firsts['Rust']}")
+    assert all("没有基类" in t for t in firsts.values()), (
+        f"宿主报错里没提「没有基类」：{firsts}")

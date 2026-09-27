@@ -1271,6 +1271,28 @@ function newBuiltins() {
       }
       return false;
     }),
+    // -- 类与反射（M56 补 `超`）--------------------------------------------
+    '超': new Builtin('超', (...args) => {
+      needBuiltinArgs('超', args, 2, 2);
+      const inst = args[0];
+      if (!(inst instanceof JishiInstance)) {
+        throw typeErr(
+          `「超()」只能用在自己的方法里（第一参数该是实例，现在拿到的是「${typeName(inst)}」）`);
+      }
+      const want = String(args[1]);
+      // 在继承链上按名字找「定义类」（上限 64 防环，与 Python 侧一致）
+      let cur = inst.cls;
+      let defining = null;
+      for (let n = 0; cur && n < 64; n += 1) {
+        if (cur.name === want) { defining = cur; break; }
+        cur = cur.base;
+      }
+      if (!defining) {
+        throw typeErr(
+          `「超()」找不到定义类「${want}」——它不在「${inst.cls.name}」的继承链上`);
+      }
+      return new JishiSuper(inst, defining);
+    }, '超()：在方法里调基类的同名方法，例如 超().初始化(名字)'),
     // -- 字符与码点（M55）--------------------------------------------------
     // ⚠️ 口径：**「一个字符」= 一个 Unicode 码点**（不是 UTF-16 码元）。
     // JS 的字符串是 UTF-16，所以 `"😀".length === 2`、`"😀"[0]` 只是半个
@@ -1842,6 +1864,24 @@ function getAttr(obj, attr, line, col) {
     if (attr in obj.attrs) return obj.attrs[attr];
     throw nameErr(`模块「${obj.name}」里没有「${attr}」`, line, col);
   }
+  if (obj instanceof JishiSuper) {
+    // 超()（M56）：从**定义类的基类**起找，方法绑定**原实例**。
+    // 文案与 Python 侧 `get_attr` 逐字对齐（含 hint 里的方法清单）。
+    const base = obj.defining.base;
+    if (!base) {
+      throw typeErr(
+        `类「${obj.defining.name}」没有基类，用不了「超()」——它用来调基类的方法`,
+        line, col);
+    }
+    if (base.methods.has(attr)) {
+      return new BoundUserMethod(base.methods.get(attr), obj.instance, attr, line, col);
+    }
+    if (base.classVars.has(attr)) return base.classVars.get(attr);
+    // ⚠️ Python 侧这里还给一条 `hint`（「基类「X」的方法：…」），
+    // 但 Node 的 `JishiError` **没有 hint 字段** —— 属宿主错误信息模型的
+    // 既有边界（M54 记过，M56 收）。所以这里只给正文。
+    throw typeErr(`基类「${base.name}」里没有「${attr}」`, line, col);
+  }
   if (obj instanceof JishiInstance) {
     // 查找顺序与 Python 一致：实例字段 → 类变量（含基类）→ 方法（绑定实例）
     if (obj.fields.has(attr)) return obj.fields.get(attr);
@@ -1955,6 +1995,31 @@ class BoundMethod {
 }
 
 // 绑定到实例的用户方法（自身 首参）
+class JishiSuper {
+  /**
+   * `超()` 的返回值（M56 补）：从**定义类**的基类起查方法，并绑定实例。
+   *
+   * ⚠️ 查找从「定义类的基类」开始，而不是从实例的类开始 —— 这是 Python
+   * `super()` 的关键语义：在 `狗` 的方法里写 `超()`，只会往 `动物` 及更上层
+   * 找，不会又回到 `狗` 自己（否则就是自递归）。
+   *
+   * 为什么 M56 才补：M55 建「内建漂移检测」时把 `超` 当成了「编译器形式、
+   * 宿主不需要有它」而**排除在比对之外** —— 这个判断是错的：编译器把
+   * `超().方法(x)` 脱糖成 `超(自身, "定义类名")`，字节码里就是
+   * `LOAD_GLOBAL 超` + `CALL`，**它是个货真价实的运行期内建**。
+   * 于是本宿主与 Rust 都一直缺它，`超()` 在两边报「找不到名字「超」」，
+   * 而三个 Python 执行器正常 —— 是 M56 的「内建体检」把它抓出来的。
+   */
+  constructor(instance, defining) {
+    this.instance = instance;
+    this.defining = defining;
+  }
+
+  toString() { return `<超 ${this.defining.name}>`; }
+
+  get __jishiType() { return '超'; }
+}
+
 class BoundUserMethod {
   constructor(fn, instance, name, line, col) { this.fn = fn; this.instance = instance; this.name = name; this.line = line; this.col = col; }
 

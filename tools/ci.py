@@ -12,6 +12,9 @@
   3. C VM 对拍可用性确认         tests/test_cvm.py 里的 C 用例是否真正在跑
   4. 评测集标准答案自测          bench/ai-eval/eval.py --self-test（50 题）
   5. 基准冒烟                    tools/benchmark.py --quick
+  6. 内建体检（--fast）          tools/probe_builtins.py —— 每个内建在三执行器
+                                 上真跑（只比名字的漂移检测抓不到「名字在表里
+                                 却用不了」，M56 的 `超` 就是这么漏的）
 """
 
 import subprocess
@@ -60,6 +63,14 @@ def main() -> int:
         if not _run([PYTHON, str(ROOT / "tools" / "benchmark.py"), "--quick"],
                     "基准冒烟（--quick）"):
             return 1
+
+    # 6) 内建体检（M56 建）：给**每个内建**一条最小程序，在真引擎上跑一遍 ——
+    #    只比名字的漂移检测抓不到「名字在表里、调用却不行」（M53 的 Rust
+    #    `文本.查找`、M56 的 `超` 都是这么漏的）。`--fast` 只跑三执行器；
+    #    两宿主那两位由 pytest 里的五引擎对拍覆盖。
+    if not _run([PYTHON, str(ROOT / "tools" / "probe_builtins.py"), "--fast"],
+                "内建体检（--fast）"):
+        return 1
 
     print("\n✓ 全检通过")
     return 0
