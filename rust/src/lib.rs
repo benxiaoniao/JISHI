@@ -122,6 +122,8 @@ pub(crate) enum Val {
     Cell(JCell),
     /// `超()` 的返回值（M56）。见 `SuperVal`。
     Super(Rc<SuperVal>),
+    /// 被 `捕获` 住的异常（M56）。见 `ExcValue`。
+    Exc(Rc<ExcValue>),
 }
 
 /// 造一个列表值（把裸 Vec 包成共享容器）。
@@ -324,6 +326,26 @@ struct SuperVal {
     base: Rc<Class>,
     /// 定义类的名字（只为报错文案）
     defining: String,
+}
+
+/// 被 `捕获` 住的异常（M56）。
+///
+/// 以前捕获时只压了一个 `Val::ExcType(类型名)`（源码注释自认是「简化为一个
+/// 字符串标记」），于是：
+///   · `打印(e)` 只给「类型错误」—— **消息丢了**；
+///   · `e.类型` / `e.消息` **报「没有属性」**（Python 与 Node 都能读）；
+///   · `类型(e)` 给「异常类型」而 Python / Node 给「异常」。
+///
+/// 与 Python 侧 `JishiError`、Node 侧 `JishiError` 对齐：异常在宿主里也该是
+/// **带内容的对象**，而不是一个类型名字符串。
+/// ⚠️ 仍与它们有差距（如实记）：Python 版渲染成多行「错误 E2002：…」+ 行列，
+/// 宿主这边是单行「错误（类型）：消息」。**Rust 侧行列本来就没有**
+/// （`JishiError` 只有 `type_name` / `message` 两个字段）—— 那是 M56 第 5 条
+/// 「宿主错误码与行列」的活，这里只把**消息**补回来。
+struct ExcValue {
+    /// 基石异常类型名（`类型错误` / `索引错误`…）—— `捕获 X` 与 `e.类型` 都用它。
+    type_name: String,
+    message: String,
 }
 
 #[derive(Clone)]
@@ -630,6 +652,8 @@ pub(crate) fn type_label(v: &Val) -> String {
         Val::Builtin(..) => "内建函数".to_string(),
         Val::Module(..) => "模块".to_string(),
         Val::ExcType(_) => "异常类型".to_string(),
+        // 被捕获的异常：Python / Node 的 `类型(e)` 都给「异常」（M56）
+        Val::Exc(_) => "异常".to_string(),
         Val::BoundMethod(bm) => match bm.as_ref() {
             BoundMethod::Builtin { .. } => "内建方法".to_string(),
             BoundMethod::User { .. } => "方法".to_string(),
@@ -1364,10 +1388,14 @@ impl VM {
                 let catch_ip = h.catch_ip;
                 self.frames[fi].handlers.pop();
                 self.stack.truncate(sp);
-                // 把异常作为特殊值压栈（这里简化为放一个字符串标记 + 异常类型）
-                // 实际 `捕获 X 为 e` 时 e.类型/e.消息 由 get_attr 处理，
-                // 这里压一个 ExcVal
-                self.stack.push(Val::ExcType(e.type_name.clone()));
+                // M56：把异常**连同消息**压栈 —— 以前只压一个 `Val::ExcType(类型名)`
+                // （源码注释自认是「简化为字符串标记」），于是 `打印(e)` 只给
+                // 「类型错误」、`e.消息` 直接报「没有属性」。现在 `e` 是带内容的
+                // 异常对象，与 Python / Node 侧对齐。
+                self.stack.push(Val::Exc(Rc::new(ExcValue {
+                    type_name: e.type_name.clone(),
+                    message: e.message.clone(),
+                })));
                 self.frames[fi].ip = catch_ip as usize;
                 return Ok(true);
             }
@@ -1975,6 +2003,8 @@ pub(crate) fn display(v: &Val) -> String {
         Val::Cell(_) => "<单元>".to_string(),
         // 与 Python 侧 `JishiSuper.__repr__` 一致
         Val::Super(sp) => format!("<超 {}>", sp.defining),
+        // 与 Node 侧 `JishiError.toString()` 一致（「错误（类型错误）：消息」）
+        Val::Exc(e) => format!("错误（{}）：{}", e.type_name, e.message),
     }
 }
 
@@ -2472,11 +2502,14 @@ fn new_builtins() -> HashMap<String, Val> {
         }
     }));
     m.insert("范围".to_string(), Val::Builtin("范围", |args, _vm| {
+        // M56：改用统一检查 —— 以前这里自己写了一句「范围需要 1 到 3 个参数」，
+        // 没书名号、也少了「但传了 N 个」，与另两个宿主对不上。
+        need_builtin_args("范围", args, 1, 3)?;
         let (a, b, step) = match args.len() {
             1 => (0, as_int(&args[0])?, 1i128),
             2 => (as_int(&args[0])?, as_int(&args[1])?, 1i128),
-            3 => (as_int(&args[0])?, as_int(&args[1])?, as_int(&args[2])?),
-            _ => return Err(err("类型错误", "范围需要 1 到 3 个参数")),
+            // 前面 need_builtin_args 已保证是 1~3 个，这里就是「3 个」
+            _ => (as_int(&args[0])?, as_int(&args[1])?, as_int(&args[2])?),
         };
         let mut out = Vec::new();
         if step > 0 { let mut i = a; while i < b { out.push(Val::Int(i)); i += step; } }
@@ -2655,9 +2688,8 @@ fn new_builtins() -> HashMap<String, Val> {
     }));
     // -- 精确小数（M29）--
     m.insert("精确".to_string(), Val::Builtin("精确", |args, _vm| {
-        if args.len() != 1 {
-            return Err(err("类型错误", "「精确」需要 1 个参数"));
-        }
+        // M56：改用统一检查（以前少「，但传了 N 个」）
+        need_builtin_args("精确", args, 1, 1)?;
         Ok(Val::Dec(Rc::new(to_dec(&args[0])?)))
     }));
     // -- 集合 / 文件 / 上下文（M29）--
@@ -2710,9 +2742,8 @@ fn new_builtins() -> HashMap<String, Val> {
         }
     }));
     m.insert("进入上下文".to_string(), Val::Builtin("进入上下文", |args, vm| {
-        if args.len() != 1 {
-            return Err(err("类型错误", "进入上下文 需要 1 个参数"));
-        }
+        // M56：改用统一检查（以前是「进入上下文 需要 1 个参数」—— 有空格、无书名号）
+        need_builtin_args("进入上下文", args, 1, 1)?;
         let obj = args[0].clone();
         // 有「进入」就用它的返回值绑定名字（对应 Python 的 __enter__）；
         // 否则只要它能自己收拾（有「退出」或「关闭」）就绑定对象本身。
@@ -2729,9 +2760,8 @@ fn new_builtins() -> HashMap<String, Val> {
             type_label(&obj))))
     }));
     m.insert("退出上下文".to_string(), Val::Builtin("退出上下文", |args, vm| {
-        if args.len() != 1 {
-            return Err(err("类型错误", "退出上下文 需要 1 个参数"));
-        }
+        // M56：改用统一检查（同「进入上下文」）
+        need_builtin_args("退出上下文", args, 1, 1)?;
         let obj = args[0].clone();
         // 优先「退出」，其次「关闭」。返回值忽略——不像 Python 那样能吞异常
         // （吞了会让「出问题快速找到」变难，有意不做）。
@@ -3105,6 +3135,13 @@ fn get_attr(obj: Val, attr: &str) -> Result<Val, JishiError> {
             if let Some(v) = sp.base.class_vars.borrow().get(attr) { return Ok(v.clone()); }
             Err(err("类型错误", format!("基类「{}」里没有「{attr}」", sp.base.name)))
         }
+        // 被捕获的异常（M56）：`e.类型` / `e.消息` 可读 —— 与 Python 侧
+        // `JishiError` 的属性、Node 侧 `getAttr` 的 `JishiError` 分支一致。
+        Val::Exc(e) => match attr {
+            "类型" => Ok(Val::Str(e.type_name.clone())),
+            "消息" => Ok(Val::Str(e.message.clone())),
+            other => Err(err("类型错误", format!("「异常」没有属性「{other}」"))),
+        },
         Val::Str(s) => str_method(attr, Val::Str(s)),
         Val::List(l) => list_method(attr, Val::List(l)),
         Val::Dict(d) => dict_method(attr, Val::Dict(d)),
@@ -3453,26 +3490,32 @@ fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, JishiError> {
 fn make_exception(v: Val) -> JishiError {
     match v {
         Val::ExcType(t) => err(&t, ""),
+        // 重抛一个**捕获到的**异常（`抛出 e` / `捕获 … 再 抛出`）：消息要保住，
+        // 否则一路丢成「错误（类型错误）：」（M56）
+        Val::Exc(e) => err(&e.type_name, &e.message),
         Val::Str(s) => err("异常", s),
         other => err("异常", display(&other)),
     }
 }
 
 fn exception_matches(exc: &Val, cond: &Val) -> bool {
-    match (exc, cond) {
-        (Val::ExcType(t), Val::ExcType(c)) => {
-            if c == "异常" { return true; }
-            let hierarchy: Vec<(&str, &str)> = vec![("除零错误", "运行期错误"), ("类型错误", "运行期错误"), ("值错误", "运行期错误"), ("运行期错误", "异常")];
-            let mut cur = t.as_str();
-            loop {
-                if cur == c { return true; }
-                match hierarchy.iter().find(|(child, _)| *child == cur) {
-                    Some((_, parent)) => cur = parent,
-                    None => return false,
-                }
-            }
+    // 右边（`捕获 X`）永远是异常**类型**
+    let Val::ExcType(c) = cond else { return false };
+    // 左边可能是类型本身，也可能是**捕获住的异常对象**（M56 起压的是后者）
+    let t: &str = match exc {
+        Val::ExcType(t) => t,
+        Val::Exc(e) => &e.type_name,
+        _ => return false,
+    };
+    if c == "异常" { return true; }
+    let hierarchy: Vec<(&str, &str)> = vec![("除零错误", "运行期错误"), ("类型错误", "运行期错误"), ("值错误", "运行期错误"), ("运行期错误", "异常")];
+    let mut cur = t;
+    loop {
+        if cur == c { return true; }
+        match hierarchy.iter().find(|(child, _)| *child == cur) {
+            Some((_, parent)) => cur = parent,
+            None => return false,
         }
-        _ => false,
     }
 }
 

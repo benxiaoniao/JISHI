@@ -61,6 +61,9 @@ NOT_PUBLIC = {"$文本", "$造模块", "检查实参"}
 #:   造空集合），拿去当「参数错」用例只会得到一个正常结果，没有意义。
 SKIP_ARITY = {"超", "打印", "输入", "集合"}
 
+#: 「**多给**参数」检查要跳过的：个数本来就没有上限的内建（多给是合法的）。
+SKIP_TOO_MANY = {"超", "打印", "最大", "最小"}
+
 
 def _norm(text: str) -> list[str]:
     """归一化输出：去尾随空白、去空行（行尾的 `\r` 也去掉）。"""
@@ -279,6 +282,48 @@ def check_arity(name: str, fast: bool) -> dict:
     return res
 
 
+def check_too_many(name: str, fast: bool) -> dict:
+    """**多给**参数：`名字(1,2,3,4,5)` —— 有上限的内建必须报「个数不对」。
+
+    ⚠️ 为什么单独立一节（M56 补）：体检原来只测「少给」。
+    而 **JS 的默认参数会把多给的实参静默忽略** ——
+    `(prompt = '')` 收到 5 个实参也不报错，函数体照跑。这与「少给」是**同一类**
+    「不报错的错答案」：M56 就是靠这一节又抓到 `输入` 的
+    （Python 报「需要 0 到 1 个参数，但传了 5 个」，Node 照跑）。
+    """
+    src = f"打印({name}(1, 2, 3, 4, 5))\n"
+    res: dict = {"name": name}
+    py = {e: run_python(e, src) for e in ENGINES_PY}
+    res["py_same"] = len(set(py.values())) == 1
+    res["py_text"] = next(iter(py.values()))[1]
+    res["py_err"] = next(iter(py.values()))[0] == "err"
+
+    bc = TMP / f"{name}_many.json"
+    _dump(src, bc)
+    host = {}
+    for h in ENGINES_HOST:
+        if fast and h == "Rust":
+            continue
+        host[h] = run_host(h, bc)
+    res["host"] = host
+    res["host_same"] = len(set(host.values())) <= 1 if host else True
+    res["panic"] = any("panic" in t for _, t in host.values())
+    return res
+
+
+def _collect_bad(label: str, checked: list[dict]) -> list[str]:
+    """把一组检查结果里没过的挑出来（「少给」与「多给」两节共用）。"""
+    out = []
+    for a in checked:
+        if not a["py_same"]:
+            out.append(f"{label}：{a['name']} 三执行器不一致 —— {a['py_text']}")
+        if not a["host_same"]:
+            out.append(f"{label}：{a['name']} 两宿主不一致 —— {a['host']}")
+        if a["panic"]:
+            out.append(f"{label}：{a['name']} 让 Rust host panic（崩溃级）")
+    return out
+
+
 # ---------------------------------------------------------------------------
 # 三、主流程
 # ---------------------------------------------------------------------------
@@ -359,18 +404,34 @@ def main(argv: list[str]) -> int:
               f"{flag(a['host_same']):<8} {pan:<11} {a['py_text'][:34]}")
     print()
 
+    # ---- 3.5 「多给」参数（M56 补：原来只测「少给」）----
+    print("【四】多给参数：`名字(1, 2, 3, 4, 5)` —— 有上限的内建应当报错")
+    print("      （JS 的默认参数会把多给的实参**静默忽略**，与「少给」同类）")
+    print(f"      {'内建':<10} {'三执行器':<10} {'两宿主':<8} {'Rust panic':<11} 报错")
+    print("      " + "-" * 70)
+    too_many = []
+    for name in public:
+        if name in SKIP_TOO_MANY:
+            too_many.append({"name": name, "py_same": True, "host_same": True,
+                             "host": {}, "panic": False,
+                             "py_text": "（个数本来无上限，多给是合法的）"})
+            print(f"      {name:<10} {'—':<10} {'—':<8} {'—':<11} 跳过（见 SKIP_TOO_MANY）")
+            continue
+        m = check_too_many(name, fast)
+        too_many.append(m)
+        flag = lambda ok: "✓" if ok else "✗"                     # noqa: E731
+        pan = ("🔴 是" if m["panic"] else "✓ 否") if "Rust" in m["host"] else "— 跳过"
+        print(f"      {name:<10} {flag(m['py_same']):<10} "
+              f"{flag(m['host_same']):<8} {pan:<11} {m['py_text'][:34]}")
+    print()
+
     # ---- 4. 汇总 ----
     bad = []
     for r in rows:
         if not (r["py_same"] and r["host_same"] and r["cross_ok"]):
             bad.append(f"用法：{r['name']}（{r.get('cross_note', '')}）")
-    for a in arity:
-        if not a["py_same"]:
-            bad.append(f"参数错：{a['name']} 三执行器不一致 —— {a['py_text']}")
-        if not a["host_same"]:
-            bad.append(f"参数错：{a['name']} 两宿主不一致 —— {a['host']}")
-        if a["panic"]:
-            bad.append(f"参数错：{a['name']} 让 Rust host panic（崩溃级）")
+    bad += _collect_bad("参数个数错", arity)
+    bad += _collect_bad("多给参数", too_many)
     bad += name_bad
 
     print("=" * 78)

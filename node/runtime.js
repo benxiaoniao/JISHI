@@ -214,6 +214,17 @@ function needBuiltinArgs(name, args, lo, hi) {
   }
 }
 
+/**
+ * 只要下限的检查（M56）：`最大` / `最小` 是**变参**的 —— 0 个不合法，
+ * 但个数不限。文案与 Python 侧 `_b_max`、Rust 侧 `need_at_least_args`
+ * 逐字一致（「至少要 N 个参数」）。
+ */
+function needBuiltinArgsAtLeast(name, args, lo) {
+  if (args.length < lo) {
+    throw typeErr(`「${name}」至少要 ${lo} 个参数，但传了 ${args.length} 个`);
+  }
+}
+
 function truthy(v) {
   if (v === null || v === undefined) return false;
   if (typeof v === 'bigint') return v !== 0n;
@@ -1203,14 +1214,21 @@ function newBuiltins() {
       fs.writeSync(1, args.map(pyStr).join(' ') + '\n');
       return null;
     }),
-    '输入': new Builtin('输入', (prompt = '') => {
+    '输入': new Builtin('输入', (...args) => {
+      // M56：**上限也是 1** —— 以前写成 `(prompt = '')`，多给的实参被静默忽略
+      // （`输入("提示", 多余)` 照跑），而 Python 侧报「需要 0 到 1 个参数」。
+      // 「静默忽略」和「静默成功」是同一类问题：不报错的错答案。
+      needBuiltinArgs('输入', args, 0, 1);
+      const prompt = args.length > 0 ? args[0] : '';
       // 提示语写到 stdout（不换行），与 Python 侧的 input(prompt) 一致（M30）
       if (prompt !== '' && prompt !== null && prompt !== undefined) {
         fs.writeSync(1, pyStr(prompt));
       }
       return stdinLine();
     }),
-    '整数': new Builtin('整数', (v) => {
+    '整数': new Builtin('整数', (...args) => {
+      needBuiltinArgs('整数', args, 1, 1);
+      const v = args[0];
       // 归类与 Python 侧 `_b_int` 一致（M41）：文本转不动 → **值错误**；
       // 类型本身不对（列表/字典/集合）→ **类型错误**。
       const x = unwrap(v);
@@ -1224,7 +1242,9 @@ function newBuiltins() {
       if (Number.isNaN(n)) throw valueErr(`「${display(v)}」不能转成整数`);
       return n;
     }),
-    '小数': new Builtin('小数', (v) => {
+    '小数': new Builtin('小数', (...args) => {
+      needBuiltinArgs('小数', args, 1, 1);
+      const v = args[0];
       const x = unwrap(v);
       if (x === null) return new FloatBox(0);
       if (typeof x === 'boolean') return new FloatBox(x ? 1 : 0);
@@ -1235,12 +1255,21 @@ function newBuiltins() {
       if (Number.isNaN(n)) throw valueErr(`「${display(v)}」不能转成小数`);
       return new FloatBox(n);
     }),
-    '文本': new Builtin('文本', (v) => pyStr(v)),
+    '文本': new Builtin('文本', (...args) => {
+      needBuiltinArgs('文本', args, 1, 1);
+      return pyStr(args[0]);
+    }),
     // 文本插值脱糖的目标（M40）：**内部保留名**。名字带 `$` 是因为 Python 侧
     // 词法器不认这个字符、用户写不出来，所以永远不会被 `导入 文本` 遮蔽。
     // 与 jishi/parser.py 的 INTERP_TO_TEXT 是同一个名字，语义同 `文本`。
-    '$文本': new Builtin('$文本', (v) => pyStr(v)),
-    '精确': new Builtin('精确', (v) => toDecimal(v)),
+    '$文本': new Builtin('$文本', (...args) => {
+      needBuiltinArgs('$文本', args, 1, 1);
+      return pyStr(args[0]);
+    }),
+    '精确': new Builtin('精确', (...args) => {
+      needBuiltinArgs('精确', args, 1, 1);
+      return toDecimal(args[0]);
+    }),
     // M55 补的这两个：以前 Node 侧**根本没有** —— `断言(...)` / `是实例(...)`
     // 直接报「找不到名字「断言」」。是内建漂移检测（`--dump-builtins`）抓出来的，
     // 同一批还带出「`断言错误` 这个捕获类型也不存在」。
@@ -1298,7 +1327,9 @@ function newBuiltins() {
     // JS 的字符串是 UTF-16，所以 `"😀".length === 2`、`"😀"[0]` 只是半个
     // 代理项 —— 必须用 `Array.from`（按码点拆）才对得上 Python / Rust。
     // 详见 node/runtime.js 里 `码点数组` 的说明。
-    '序数': new Builtin('序数', (v) => {
+    '序数': new Builtin('序数', (...args) => {
+      needBuiltinArgs('序数', args, 1, 1);
+      const v = args[0];
       if (typeof v !== 'string') {
         throw typeErr(`「序数」要一个字符，得到了「${typeName(v)}」`);
       }
@@ -1309,7 +1340,9 @@ function newBuiltins() {
       }
       return cps[0].codePointAt(0);
     }),
-    '字符': new Builtin('字符', (v) => {
+    '字符': new Builtin('字符', (...args) => {
+      needBuiltinArgs('字符', args, 1, 1);
+      const v = args[0];
       // 不收布尔（与位运算内建同一取舍）；也不收小数
       if (typeof v === 'boolean' || !Number.isInteger(v)) {
         throw typeErr(`「字符」要一个整数码点，得到了「${typeName(v)}」`);
@@ -1327,7 +1360,10 @@ function newBuiltins() {
       if (args.length === 0) return new JishiSet();
       return new JishiSet(asIterable(args[0], '集合的初始内容', undefined, undefined));
     }),
-    '打开': new Builtin('打开', (path, mode = '读') => {
+    '打开': new Builtin('打开', (...args) => {
+      needBuiltinArgs('打开', args, 1, 2);
+      const path = args[0];
+      const mode = args.length > 1 ? args[1] : '读';
       if (typeof path !== 'string') {
         throw typeErr(`「打开」的第一个参数要是文件路径，得到了「${typeName(path)}」`);
       }
@@ -1347,11 +1383,22 @@ function newBuiltins() {
       }
       return new JishiFile(fd, path, mode);
     }),
-    '进入上下文': new Builtin('进入上下文', (obj) => enterContext(obj)),
-    '退出上下文': new Builtin('退出上下文', (obj) => exitContext(obj)),
+    '进入上下文': new Builtin('进入上下文', (...args) => {
+      needBuiltinArgs('进入上下文', args, 1, 1);
+      return enterContext(args[0]);
+    }),
+    '退出上下文': new Builtin('退出上下文', (...args) => {
+      needBuiltinArgs('退出上下文', args, 1, 1);
+      return exitContext(args[0]);
+    }),
     // 内部用（M52）：命名以 `$` 开头，用户写不出来（词法器不认这个字符）。
-    '$造模块': new Builtin('$造模块', (name, attrs) => makeModule(name, attrs)),
-    '长度': new Builtin('长度', (v) => {
+    '$造模块': new Builtin('$造模块', (...args) => {
+      needBuiltinArgs('$造模块', args, 2, 2);
+      return makeModule(args[0], args[1]);
+    }),
+    '长度': new Builtin('长度', (...args) => {
+      needBuiltinArgs('长度', args, 1, 1);
+      const v = args[0];
       // ⚠️ 文本按**码点**数（M55）——`长度("😀")` 是 1，不是 2。见 `cpLen` 的说明。
       if (typeof v === 'string') return cpLen(v);
       if (Array.isArray(v)) return v.length;
@@ -1364,10 +1411,10 @@ function newBuiltins() {
       throw typeErr(`「${display(v)}」没有长度`);
     }),
     '范围': new Builtin('范围', (...args) => {
+      needBuiltinArgs('范围', args, 1, 3);
       if (args.length === 1) return range(0, args[0], 1);
       if (args.length === 2) return range(args[0], args[1], 1);
-      if (args.length === 3) return range(args[0], args[1], args[2]);
-      throw typeErr('「范围」需要 1 到 3 个整数参数');
+      return range(args[0], args[1], args[2]);
     }),
     // M41：`带下标` / `配对` 与 Python 的 enumerate / zip 同语义。
     // 立刻返回列表而不是惰性迭代器——与 Python 侧一致（见 runtime._b_enumerate）
@@ -1399,9 +1446,17 @@ function newBuiltins() {
       for (let i = 0; i < n; i++) out.push(seqs.map((s) => s[i]));
       return out;
     }),
-    '最大': new Builtin('最大', (...args) => extremum(args, true)),
-    '最小': new Builtin('最小', (...args) => extremum(args, false)),
-    '总和': new Builtin('总和', (v) => {
+    '最大': new Builtin('最大', (...args) => {
+      needBuiltinArgsAtLeast('最大', args, 1);
+      return extremum(args, true);
+    }),
+    '最小': new Builtin('最小', (...args) => {
+      needBuiltinArgsAtLeast('最小', args, 1);
+      return extremum(args, false);
+    }),
+    '总和': new Builtin('总和', (...args) => {
+      needBuiltinArgs('总和', args, 1, 1);
+      const v = args[0];
       const seq = seqOf(v, false, undefined, undefined);
       if (seq === null) throw typeErr(`「${display(v)}」不能求和，需要一个全是数字的列表`);
       // 精确小数要走十进制起点（与 Python 侧一致：sum 从整数 0 起算会出错）
@@ -1423,7 +1478,10 @@ function newBuiltins() {
       // 含小数则返回 FloatBox
       return seq.some(isFloatBox) ? new FloatBox(s) : s;
     }),
-    '类型': new Builtin('类型', (v) => typeName(v)),
+    '类型': new Builtin('类型', (...args) => {
+      needBuiltinArgs('类型', args, 1, 1);
+      return typeName(args[0]);
+    }),
     // 位运算内建（M36）：Python 侧**不做 `& | ^ << >>` 语法**（日常罕见，
     // 加运算符要动三执行器 + 两宿主 + 词法器），改成一小组内建。
     // ⚠️ JS 的位运算符是 **32 位**（`2 ** 40 & 1` 会被截断），所以必须先转
@@ -1454,9 +1512,13 @@ function newBuiltins() {
     }),
     // 类型标注的校验（M24.3）：编译器把校验发射成函数自己的前导字节码，
     // 调用这个内建。所以这里实现它，JS 侧就自动获得了类型标注支持（M30）。
-    '检查实参': new Builtin('检查实参', (desc, values, funcName) =>
-      checkArgs(desc, values, funcName)),
-    '反转': new Builtin('反转', (v) => {
+    '检查实参': new Builtin('检查实参', (...args) => {
+      needBuiltinArgs('检查实参', args, 3, 3);
+      return checkArgs(args[0], args[1], args[2]);
+    }),
+    '反转': new Builtin('反转', (...args) => {
+      needBuiltinArgs('反转', args, 1, 1);
+      const v = args[0];
       // ⚠️ 文本按**码点**反转（M55）：`split('')` 是按 UTF-16 码元拆的，
       // 会把 😀 拆成两个半代理项、反转后变成乱码。`Array.from` 才是按码点。
       if (typeof v === 'string') return Array.from(v).reverse().join('');

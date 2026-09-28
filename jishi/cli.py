@@ -459,6 +459,72 @@ def _cmd_tutorial(args) -> int:
     return 0
 
 
+def _all_error_codes() -> list:
+    """从 `errors.py` 抽 `(码, 标题)`（**单一来源在那里**），按码排序。"""
+    import inspect
+
+    from . import errors as E
+
+    out: dict = {}
+    for obj in vars(E).values():
+        if (inspect.isclass(obj) and issubclass(obj, E.JishiError)
+                and obj is not E.JishiError):
+            out.setdefault(obj.code, obj.title)
+    return sorted(out.items())
+
+
+def _cmd_errcode(args) -> int:
+    """`jishi 错误 [码]`：查错误码的含义 / 常见成因 / 怎么改（M56 第 7 条）。
+
+    码与标题从 `errors.py` **自动抽**（不另抄一份）；说明在 `jishi/errcodes.py`
+    —— 两边不许有对方没有的码，`tests/test_m56_errcodes.py` 钉着。
+    """
+    from . import errcodes
+
+    codes = _all_error_codes()
+    want = (args.code or "").strip().upper()
+
+    if not want:
+        print(f"基石错误码总览（{len(codes)} 个）\n")
+        for prefix, name, desc in errcodes.SECTIONS:
+            group = [(c, t) for c, t in codes if c.startswith(prefix)]
+            if not group:
+                continue
+            print(f"【{prefix}xx · {name}】{desc}")
+            for code, title in group:
+                print(f"  {code}  {title}")
+            print()
+        print("看某个码的详情：jishi 错误 E0301")
+        print("（报错里给的那串 `E0301` 就是可以直接贴进来的码）")
+        return 0
+
+    # 允许只写数字（用户从报错里抄的时候常常只抄了 0301）
+    if not want.startswith("E"):
+        want = "E" + want
+    if want[1:].isdigit() and len(want) < 5:
+        want = "E" + want[1:].zfill(4)      # E301 → E0301
+    title = dict(codes).get(want)
+    if title is None:
+        print(f"没有错误码「{want}」—— 跑 `jishi 错误` 看全部 {len(codes)} 个。",
+              file=sys.stderr)
+        return 2
+
+    info = errcodes.INFO.get(want)
+    print(f"{want}  {title}\n")
+    if info is None:                                            # pragma: no cover
+        print("（这个码还没有写说明 —— 请补 jishi/errcodes.py）")
+        return 0
+    print("什么意思")
+    print(f"  {info['what']}\n")
+    print("常见成因")
+    for reason in info["why"]:
+        print(f"  · {reason}")
+    print()
+    print("怎么改")
+    print(f"  {info['fix']}")
+    return 0
+
+
 def _cmd_format(args) -> int:
     """统一缩进与词间间距（M21.1）。
 
@@ -944,6 +1010,11 @@ def _run_tool_cmd(argv: list[str]) -> int:
     sub.add_parser("教程", help="打印本地教程索引").set_defaults(
         func=_cmd_tutorial)
 
+    p_err = sub.add_parser("错误", help="查错误码：什么意思/常见成因/怎么改（M56）")
+    p_err.add_argument("code", nargs="?", metavar="码",
+                       help="错误码（如 E0301）；不写则列出全部")
+    p_err.set_defaults(func=_cmd_errcode)
+
     p_fmt = sub.add_parser("格式化", help="统一缩进与间距（M21.1）")
     p_fmt.add_argument("file", nargs="?", help="要格式化的 .jsh 文件")
     p_fmt.add_argument("-w", "--write", action="store_true",
@@ -1034,8 +1105,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return _run_package_cmd(argv)
     # 工具子命令（医生/新项目/教程/格式化/lsp/调试/dap/源码静态检查，
     # M16 / M21 / M37 / M43 / M44）
-    if argv and argv[0] in ("医生", "新项目", "教程", "格式化", "lsp", "调试", "dap",
-                            "源码静态检查", "静态检查"):
+    if argv and argv[0] in ("医生", "新项目", "教程", "错误", "格式化", "lsp", "调试",
+                            "dap", "源码静态检查", "静态检查"):
         return _run_tool_cmd(argv)
 
     parser = argparse.ArgumentParser(
