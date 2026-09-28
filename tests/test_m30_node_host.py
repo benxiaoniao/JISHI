@@ -114,7 +114,9 @@ def _node_err(src: str) -> str:
     rc, _out, err = _node_run(src)
     assert rc != 0, "这段代码本该报错，但 Node 正常退出"
     assert "JishiError" not in err.splitlines()[0], f"错误没被接住：{err[:300]}"
-    assert err.startswith("错误（"), f"错误输出不规范：{err[:200]}"
+    # M56：有错误码的报错渲染成「错误 E2001：除零错误（不能除以零）」，
+    # 没有码的（类型是宽泛的「异常」）退回「错误（异常）：…」
+    assert err.startswith("错误"), f"错误输出不规范：{err[:200]}"
     return err
 
 
@@ -550,7 +552,7 @@ def test_node_power_float_boxing():
 
 def test_node_error_output_is_readable():
     err = _node_err("打印(1 / 0)\n")
-    assert "错误（除零错误）" in err
+    assert "错误 E2001：不能除以零" in err
     assert "第 1 行" in err
 
 

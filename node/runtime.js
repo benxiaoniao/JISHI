@@ -21,6 +21,26 @@ const PENDING_NONE = Symbol('pending-none');
 // ---------------------------------------------------------------------------
 // 异常
 // ---------------------------------------------------------------------------
+/** 类型名 → 错误码（M56）。
+ *
+ * 与 Python 侧 `errors.py` 是**同一张表**的事实来源。宿主只映射「能确定的」
+ * 那几个：宿主把多种语义错误（找不到名字、参数个数不对、属性不存在…）
+ * 都归到「异常」这一类，那个宽泛的名字**给不出准确的码**，所以宁可不给
+ * （输出退回「错误（异常）：…」，不瞎标一个）。
+ *
+ * 有了码，报错就能**直接接到 `jishi 错误 <码>`** 查「什么意思 / 常见成因 /
+ * 怎么改」—— 这条闭环是 M56 这两批合起来才有的价值。
+ */
+const ERROR_CODES = {
+  '除零错误': 'E2001',
+  '类型错误': 'E2002',
+  '索引错误': 'E2003',
+  '键错误': 'E2004',
+  '值错误': 'E2005',
+  '文件错误': 'E2007',
+  '断言错误': 'E2008',
+};
+
 class JishiError extends Error {
   constructor(typeName, title, message, line, col) {
     super(message);
@@ -30,18 +50,30 @@ class JishiError extends Error {
     this.title = title;
     this.line = line ?? null;
     this.col = col ?? null;
+    //: 错误码（M56）：能确定才给，确定不了是 null
+    this.code = ERROR_CODES[typeName] ?? null;
   }
 
   /**
-   * `打印(接住的那个错误)` 打成**基石的样子**（M55）。
+   * 未捕获（或 `打印(e)`）时的渲染（M55 建的，M56 加了错误码）。
+   * 宿主出口（`index.js`）与 `toString()` **共用这一套**，免得两处渲染漂移。
    *
-   * ⚠️ 不覆盖的话走 `Error.prototype.toString` —— 用户会看到 `Error: 故意失败`：
-   * 一个**英文单词**混在中文报错里，与本宿主「未捕获错误」时的渲染
-   * （`错误（断言错误）：故意失败`，见 `index.js`）也对不上。
-   * 宿主没有 Python 侧那套错误码与标题，所以这里给的是「类型 + 消息」。
+   * ⚠️ 不覆盖 `toString` 的话走 `Error.prototype.toString` ——
+   * 用户会看到 `Error: 故意失败`：一个**英文单词**混在中文报错里。
+   *
+   * 有码时与 Python 侧同形（`错误 E2002：类型错误（消息）`）；
+   * 没码（类型是宽泛的「异常」）退回「错误（异常）：消息」。
+   * 消息与标题重复时（如除零，两者都是「不能除以零」）不重复渲染括号。
    */
+  render() {
+    if (!this.code) return `错误（${this.typeName}）：${this.message}`;
+    const head = `错误 ${this.code}：${this.title}`;
+    return (this.message && this.message !== this.title)
+      ? `${head}（${this.message}）` : head;
+  }
+
   toString() {
-    return `错误（${this.typeName}）：${this.message}`;
+    return this.render();
   }
 }
 

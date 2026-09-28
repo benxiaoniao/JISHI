@@ -346,6 +346,8 @@ struct ExcValue {
     /// 基石异常类型名（`类型错误` / `索引错误`…）—— `捕获 X` 与 `e.类型` 都用它。
     type_name: String,
     message: String,
+    /// 错误码（M56）：从抛出的 `JishiError` 带过来，`打印(e)` 时与 Python 同形。
+    code: Option<String>,
 }
 
 #[derive(Clone)]
@@ -373,6 +375,14 @@ struct FileHandle {
     /// 读缓冲：按行遍历不必逐字节去要系统调用
     rbuf: Vec<u8>,
     rpos: usize,
+    /// 已消费的**字符**数（M56）—— `位置` / `定位` 的口径。
+    ///
+    /// 以前 `tell` 给的是**字节偏移**，于是非 ASCII 上三侧各给各的
+    /// （Python 给文本 cookie、Node 给字符数、这里给字节数）。
+    /// 口径按 M54 在 Node 侧定下的那个：**字符数**
+    /// （`tests/test_m26_lang.py::test_file_position_and_seek` 写的就是
+    /// 「读 2 个字符 → 位置 = 2」）。`读(n)` 读 n 个字符、位置数到 n，自洽。
+    cpos: i64,
     readable: bool,
     writable: bool,
 }
@@ -428,13 +438,18 @@ impl FileHandle {
                 let end = self.rpos + i;
                 let line = self.rbuf[self.rpos..end].to_vec();
                 self.rpos = end + 1;
-                return Ok(Some(strip_cr(decode_utf8(&line)?)));
+                let text = decode_utf8(&line)?;
+                // 消费的字符数 = 这一行的字符（可能含尾部的 `\r`）+ 那个 `\n`
+                self.cpos += text.chars().count() as i64 + 1;
+                return Ok(Some(strip_cr(text)));
             }
             if self.fill()? == 0 {
                 if self.rpos < self.rbuf.len() {
                     let rest = self.rbuf[self.rpos..].to_vec();
                     self.rpos = self.rbuf.len();
-                    return Ok(Some(strip_cr(decode_utf8(&rest)?)));
+                    let text = decode_utf8(&rest)?;
+                    self.cpos += text.chars().count() as i64;   // 末尾没有换行符
+                    return Ok(Some(strip_cr(text)));
                 }
                 return Ok(None);
             }
@@ -447,23 +462,38 @@ impl FileHandle {
         self.rpos = 0;
         std::io::Read::read_to_end(&mut self.file, &mut out)
             .map_err(|e| io_fail(&e, &self.path))?;
-        decode_utf8(&out)
+        let text = decode_utf8(&out)?;
+        self.cpos += text.chars().count() as i64;
+        Ok(text)
     }
 
     fn read_n(&mut self, n: i64) -> Result<String, JishiError> {
         if n < 0 { return self.read_all(); }
-        let mut out: Vec<u8> = Vec::new();
-        while (out.len() as i64) < n {
-            let avail = self.rbuf.len() - self.rpos;
-            if avail > 0 {
-                let take = std::cmp::min(avail, (n - out.len() as i64) as usize);
-                out.extend_from_slice(&self.rbuf[self.rpos..self.rpos + take]);
-                self.rpos += take;
-            } else if self.fill()? == 0 {
-                break;
+        // M56：n 是**字符**数，不是字节数。
+        //
+        // 以前这里按字节截：`读(4)` 在「abc中文」上只取到 `abc` + 汉字的前 1 个
+        // 字节，再解码就报「文件内容不是 UTF-8 文本，读不出来」——
+        // **而那个文件明明是合法的 UTF-8**（误导性报错）。Python 与 Node 都按字符。
+        let mut out = String::new();
+        let mut count = 0i64;
+        while count < n {
+            // 缓冲区里至少要有一个字节
+            if self.rpos >= self.rbuf.len() && self.fill()? == 0 {
+                break;                              // 到文件末尾
             }
+            // 凑齐一个完整字符（多字节字符可能跨块边界）
+            let mut need = utf8_seq_len(self.rbuf[self.rpos]);
+            while self.rbuf.len() - self.rpos < need {
+                if self.fill()? == 0 { break; }     // 末尾是截断的半字符：按现有字节解
+                need = utf8_seq_len(self.rbuf[self.rpos]);
+            }
+            let end = std::cmp::min(self.rpos + need, self.rbuf.len());
+            out.push_str(&String::from_utf8_lossy(&self.rbuf[self.rpos..end]));
+            self.rpos = end;
+            count += 1;
         }
-        decode_utf8(&out)
+        self.cpos += count;
+        Ok(out)
     }
 
     fn write_text(&mut self, s: &str) -> Result<(), JishiError> {
@@ -475,19 +505,26 @@ impl FileHandle {
         std::io::Write::flush(&mut self.file).map_err(|e| io_fail(&e, &self.path))
     }
 
-    /// 当前位置（把「已预读但还没消费」的部分减掉）。
+    /// 当前位置：**已消费的字符数**（M56，见 `cpos` 字段的说明）。
     fn tell(&mut self) -> Result<i64, JishiError> {
-        let pos = std::io::Seek::stream_position(&mut self.file)
-            .map_err(|e| io_fail(&e, &self.path))?;
-        Ok(pos as i64 - (self.rbuf.len() - self.rpos) as i64)
+        Ok(self.cpos)
     }
 
+    /// 挪到第 `pos` 个**字符**位置（M56）。
+    ///
+    /// 字符位置没法直接换成字节偏移（要扫全文），所以「回到开头 + 按字符走」。
+    /// 越界不报错 —— 与 Node 侧 `seek` 同一取舍（后续读自然给空）。
     fn seek(&mut self, pos: i64) -> Result<(), JishiError> {
         // 定位会作废预读缓冲，否则读出来的东西对不上位置
         self.rbuf.clear();
         self.rpos = 0;
-        std::io::Seek::seek(&mut self.file, std::io::SeekFrom::Start(pos.max(0) as u64))
+        std::io::Seek::seek(&mut self.file, std::io::SeekFrom::Start(0))
             .map_err(|e| io_fail(&e, &self.path))?;
+        let pos = pos.max(0);
+        if pos > 0 {
+            self.read_n(pos)?;      // 读掉（会推进 cpos）
+        }
+        self.cpos = pos;            // 越界时位置仍记 pos，与 Node 一致
         Ok(())
     }
 }
@@ -515,6 +552,7 @@ fn open_file(path: &str, mode: &str) -> Result<Rc<RefCell<FileHandle>>, JishiErr
         closed: false,
         rbuf: Vec::new(),
         rpos: 0,
+        cpos: 0,
         readable,
         writable,
     })))
@@ -538,6 +576,17 @@ fn decode_utf8(bytes: &[u8]) -> Result<String, JishiError> {
 
 fn strip_cr(s: String) -> String {
     s.strip_suffix('\r').map(|x| x.to_string()).unwrap_or(s)
+}
+
+/// UTF-8 首字节 → 这个字符占几个字节（1~4）。M56 起 `读(n)` 按字符读要用它。
+///
+/// 非法/续字节一律当 1 —— 不在切分这一层猜，交给后面的解码器去报错。
+fn utf8_seq_len(b: u8) -> usize {
+    if b < 0x80 { 1 }
+    else if b >> 5 == 0b110 { 2 }
+    else if b >> 4 == 0b1110 { 3 }
+    else if b >> 3 == 0b11110 { 4 }
+    else { 1 }
 }
 
 /// 文件方法分派（放进 `call_builtin_method` 的 `(Val::File, name)` 分支）。
@@ -738,6 +787,12 @@ struct Instr {
     a: i64,
     b: i64,
     c: i64,
+    /// 源码位置（M56）。字节码里**一直带着**（每条指令是 6 个数字：
+    /// `op,a,b,c,line,col`），但这里原来只解前 4 个、把位置丢了 ——
+    /// 那是「宿主报错说不出哪一行」的第二个根因（第一个是 `JishiError`
+    /// 没有这两个字段）。现在解出来 + 冒泡时统一填进错误。
+    line: i64,
+    col: i64,
 }
 
 // ---------------------------------------------------------------------------
@@ -777,12 +832,60 @@ struct Module {
 pub struct JishiError {
     pub type_name: String,
     pub message: String,
+    /// 错误码（M56）：与 Node 侧 `ERROR_CODES`、Python 侧 `errors.py` 同一张表。
+    /// 见 `error_code` —— **只映射能确定的**，宽泛的「异常」给不出准确的码。
+    pub code: Option<String>,
+    /// 出错位置（M56）。以前**完全没有行列** —— 根因有两个：
+    /// ① 这个结构体只有类型名与消息两个字段；
+    /// ② 反序列化时把指令里的 `line`/`col` **丢掉了**（字节码里一直带着，
+    ///    `Instr` 只解了前 4 个数字）。
+    /// 两处都补齐后，位置由 `execute` 在错误冒泡时统一填（`fill_error_loc`），
+    /// 而不是去改几百处 `err(...)` 调用点。
+    pub line: Option<i64>,
+    pub col: Option<i64>,
+}
+
+/// 类型名 → 错误码（M56）。
+///
+/// 与 Node 侧 `ERROR_CODES`、Python 侧 `errors.py` 是**同一张表**的事实来源。
+/// 宿主只映射「能确定的」那几个：宿主把多种语义错误（找不到名字、参数个数不对、
+/// 属性不存在…）都归到「异常」，那个宽泛的名字**给不出准确的码**，宁可不给。
+pub(crate) fn error_code(type_name: &str) -> Option<&'static str> {
+    Some(match type_name {
+        "除零错误" => "E2001",
+        "类型错误" => "E2002",
+        "索引错误" => "E2003",
+        "键错误" => "E2004",
+        "值错误" => "E2005",
+        "文件错误" => "E2007",
+        "断言错误" => "E2008",
+        _ => return None,
+    })
 }
 
 type JsResult<T> = Result<T, JishiError>;
 
+/// 类型名 → **显示用的标题**（M56）。与 Python 侧 `errors.py` 的 `title` 同一张表。
+///
+/// 为什么不直接显示 `type_name`：那是**捕获匹配**用的标识
+/// （`捕获 断言错误 为 e`），而 Python 侧的报错标题更口语 ——
+/// 「断言没通过」「不能除以零」「索引越界」。宿主对齐过去，报错才长得一样。
+pub fn error_title(type_name: &str) -> &str {
+    match type_name {
+        "除零错误" => "不能除以零",
+        "断言错误" => "断言没通过",
+        "值错误" => "数值不对",
+        "索引错误" => "索引越界",
+        "键错误" => "找不到这个键",
+        // 「类型错误」「文件错误」「运行期错误」「异常」：两边同名
+        _ => type_name,
+    }
+}
+
 pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
-    JishiError { type_name: t.to_string(), message: msg.into() }
+    JishiError { type_name: t.to_string(), message: msg.into(),
+                 code: error_code(t).map(|s| s.to_string()),
+                 line: None, col: None }
 }
 
 // 循环信号
@@ -896,8 +999,9 @@ impl VM {
                     self.frames.pop();
                     return Ok(());
                 }
-                Ok(Flow::Error(e)) => {
+                Ok(Flow::Error(mut e)) => {
                     // 异常分发
+                    self.fill_error_loc(&mut e, fi);
                     if !self.dispatch_exception(&e, stop_at)? {
                         return Err(e);
                     }
@@ -907,16 +1011,36 @@ impl VM {
                         return Err(err("运行期错误", "中断/继续没有对应的循环"));
                     }
                 }
-                Err(e) => {
+                Err(mut e) => {
                     // 出错（除零、类型不符、`抛出`…）也要走异常分发去找捕获/最终。
                     // 以前这里直接 `return Err(e)`，于是 try/捕获/最终 对「内置错误»
                     // 完全失效——只有 Flow::Error 才分发，而那个变体根本没人构造。
+                    //
+                    // M56：出错的**位置**在这里统一补 —— 不必去动几百处 `err(...)`
+                    // 调用点（内建与标准库也不知道自己在第几行）。
+                    self.fill_error_loc(&mut e, fi);
                     if !self.dispatch_exception(&e, stop_at)? {
                         return Err(e);
                     }
                 }
             }
         }
+    }
+
+    /// 给错误补上「出错位置」（M56）。
+    ///
+    /// 取「当前帧正跑到的那条指令」的 `line`/`col`（主循环每步把 `ip` 写回帧，
+    /// 见 `execute_frame`）。**只填还没填的** —— 内层若已给出更准的位置，
+    /// 不要被外层覆盖。
+    fn fill_error_loc(&self, e: &mut JishiError, fi: usize) {
+        if e.line.is_some() {
+            return;
+        }
+        let Some(frame) = self.frames.get(fi) else { return };
+        let Some(code) = self.module.codes.get(frame.code_idx) else { return };
+        let Some(ins) = code.instrs.get(frame.ip) else { return };
+        e.line = Some(ins.line);
+        e.col = Some(ins.col);
     }
 
     fn execute_frame(&mut self, fi: usize) -> Result<Flow, JishiError> {
@@ -931,6 +1055,10 @@ impl VM {
             if ip >= instrs.len() {
                 return Ok(Flow::Return);
             }
+            // M56：把「正跑到哪一条」写回帧 —— 出错冒泡到 `execute` 时，
+            // 靠它查「第几行第几列」（见 `fill_error_loc`）。
+            // 每步一次写回的代价可忽略，换来的是**全部**报错自动带位置。
+            self.frames[fi].ip = ip;
             let ins = &instrs[ip];
             ip += 1;
 
@@ -1395,6 +1523,7 @@ impl VM {
                 self.stack.push(Val::Exc(Rc::new(ExcValue {
                     type_name: e.type_name.clone(),
                     message: e.message.clone(),
+                    code: e.code.clone(),
                 })));
                 self.frames[fi].ip = catch_ip as usize;
                 return Ok(true);
@@ -2003,8 +2132,19 @@ pub(crate) fn display(v: &Val) -> String {
         Val::Cell(_) => "<单元>".to_string(),
         // 与 Python 侧 `JishiSuper.__repr__` 一致
         Val::Super(sp) => format!("<超 {}>", sp.defining),
-        // 与 Node 侧 `JishiError.toString()` 一致（「错误（类型错误）：消息」）
-        Val::Exc(e) => format!("错误（{}）：{}", e.type_name, e.message),
+        // 与 Node 侧 `JishiError.render()` 同一套（M56）：
+        // 有码时「错误 E2008：断言没通过（故意失败）」，没码时「错误（异常）：…」
+        Val::Exc(e) => match &e.code {
+            Some(code) => {
+                let title = error_title(&e.type_name);
+                if e.message.is_empty() || e.message == title {
+                    format!("错误 {code}：{title}")
+                } else {
+                    format!("错误 {code}：{title}（{}）", e.message)
+                }
+            }
+            None => format!("错误（{}）：{}", e.type_name, e.message),
+        },
     }
 }
 
@@ -3761,7 +3901,7 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
         let mut instrs = Vec::new();
         for chunk in flat.chunks(6) {
             if chunk.len() == 6 {
-                instrs.push(Instr { op: chunk[0], a: chunk[1], b: chunk[2], c: chunk[3] });
+                instrs.push(Instr { op: chunk[0], a: chunk[1], b: chunk[2], c: chunk[3], line: chunk[4], col: chunk[5] });
             }
         }
         codes.push(Code {

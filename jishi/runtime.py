@@ -678,7 +678,20 @@ def _b_open(path, mode="读"):
             f"不认识的打开模式「{mode}」",
             hint="可用的模式：读、写、追加、读写（也认 r/w/a/r+/w+/a+）")
     try:
-        handle = open(path, py_mode, encoding="utf-8")
+        # ⚠️ `newline="\n"`（M56）：**读写都原样，且只认 `\n` 为行尾**。
+        #
+        # 三种取值别搞混（Python 的文档写得很绕）：
+        #   `None`（默认）—— 读时 universal（`\r\n`/`\r`/`\n` 都算行尾并**翻译**
+        #                   成 `\n`）、写时把 `\n` 变成 `os.linesep`；
+        #   `""`          —— universal 仍然**开着**（孤立 `\r` 也算行尾），只是不翻译；
+        #   `"\n"`        —— **只认 `\n`**，且不翻译（正是这里要的）。
+        #
+        # 为什么必须统一：Windows 上同一段程序，Python 原来写出 `\r\n`、两个宿主
+        # 写出 `\n` —— **同一台机器上五个引擎产出的文件字节都不一样**。
+        # 现在三侧都「只认 `\n`、原样读写」，`\r\n` 的行尾由 `读行`/`读所有行`
+        # 的 `rstrip("\r\n")` 去掉，所以常见场景读到的行照样干净。
+        # 代价如实记：**单独的 `\r`（老 Mac 换行）不再算行尾**（与两个宿主一致）。
+        handle = open(path, py_mode, encoding="utf-8", newline="\n")
     except Exception as e:
         raise translate_python_exception(e)
     return JishiFile(handle, path, mode)
@@ -2413,19 +2426,61 @@ class JishiFile:
     （所以能 `遍历 行 在 f`）。打印时显示路径与状态，便于排错。
     """
 
-    __slots__ = ("handle", "path", "mode", "closed")
+    __slots__ = ("handle", "path", "mode", "closed", "cpos")
 
     def __init__(self, handle, path: str, mode: str):
         self.handle = handle
         self.path = path
         self.mode = mode
         self.closed = False
+        #: 已消费的**字符**数（M56）—— `位置`/`定位` 的口径。
+        self.cpos = 0
+
+    # -- 文件位置的口径：字符数，不是字节（M56）--------------------------------
+    #
+    # 为什么不能直接用 `handle.tell()`：文本模式下它给的是**不透明的字节 cookie**
+    # ——`读(4)` 读到 "abc中" 之后 `tell()` 给 6（3 个 ASCII + 3 字节的汉字），
+    # 不是 4。非 ASCII 上三侧各给各的（M54 记的账）。
+    #
+    # 而 M54 在 Node 侧已经把口径定成「字符数」：`tests/test_m26_lang.py::
+    # test_file_position_and_seek` 写的就是「读 2 个字符 → 位置 = 2」。
+    # 这里把 Python 对齐过去（Rust 同样对齐）。`读(n)` 读 n 个字符、位置数到 n，
+    # 两件事自洽，也和 M55 定的「一个字符 = 一个 Unicode 码点」一致。
+    def 读(self, n: int = -1) -> str:
+        got = self.handle.read(n)
+        self.cpos += len(got)
+        return got
+
+    def 读行(self) -> str:
+        line = self.handle.readline()
+        if line != "":
+            self.cpos += len(line)
+        return line
+
+    def 写(self, text: str) -> None:
+        self.handle.write(text)
+        self.cpos += len(text)
+
+    def 位置(self) -> int:
+        return self.cpos
+
+    def 定位(self, n: int) -> None:
+        """挪到第 n 个**字符**位置。
+
+        越界不报错（后续读自然给空）—— 与 Node 侧 `seek` 同一取舍。
+        文本模式不能用 `seek(n)` 按字符跳（那只认 `tell()` 给的 cookie），
+        所以「回到开头再按字符走 n 步」。
+        """
+        self.handle.seek(0)
+        if n > 0:
+            self.handle.read(n)
+        self.cpos = n
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        line = self.handle.readline()
+        line = self.读行()
         if line == "":
             raise StopIteration
         return line.rstrip("\r\n")
@@ -2448,14 +2503,14 @@ def _file_handle(obj, node, name: str):
 
 def _m_file_read(obj, args, node):
     _need_args("读", args, node, 0, 1)
-    h = _file_handle(obj, node, "读")
-    return h.read(args[0] if args else -1)
+    _file_handle(obj, node, "读")           # 关闭检查
+    return obj.读(args[0] if args else -1)
 
 
 def _m_file_read_line(obj, args, node):
     _need_args("读行", args, node, 0, 0)
-    h = _file_handle(obj, node, "读行")
-    line = h.readline()
+    _file_handle(obj, node, "读行")
+    line = obj.读行()
     if line == "":
         return None                     # 读到末尾：给「空」，便于判断
     return line.rstrip("\r\n")
@@ -2463,33 +2518,33 @@ def _m_file_read_line(obj, args, node):
 
 def _m_file_read_lines(obj, args, node):
     _need_args("读所有行", args, node, 0, 0)
-    h = _file_handle(obj, node, "读所有行")
-    return [ln.rstrip("\r\n") for ln in h]
+    _file_handle(obj, node, "读所有行")
+    return [ln.rstrip("\r\n") for ln in obj]
 
 
 def _m_file_write(obj, args, node):
     _need_args("写", args, node, 1, 1)
-    h = _file_handle(obj, node, "写")
+    _file_handle(obj, node, "写")
     text = args[0]
     if not isinstance(text, str):
         raise RunTypeError(
             f"「写」需要文本，得到了「{type_name(text)}」",
             line=node.line, col=node.col,
             hint="先用 文本(…) 转一下，例如 f.写(文本(42))")
-    h.write(text)
+    obj.写(text)
     return None
 
 
 def _m_file_write_line(obj, args, node):
     _need_args("写行", args, node, 1, 1)
-    h = _file_handle(obj, node, "写行")
+    _file_handle(obj, node, "写行")
     text = args[0]
     if not isinstance(text, str):
         raise RunTypeError(
             f"「写行」需要文本，得到了「{type_name(text)}」",
             line=node.line, col=node.col,
             hint="先用 文本(…) 转一下")
-    h.write(text + "\n")
+    obj.写(text + "\n")
     return None
 
 
@@ -2509,12 +2564,14 @@ def _m_file_flush(obj, args, node):
 
 def _m_file_tell(obj, args, node):
     _need_args("位置", args, node, 0, 0)
-    return _file_handle(obj, node, "位置").tell()
+    _file_handle(obj, node, "位置")
+    return obj.位置()
 
 
 def _m_file_seek(obj, args, node):
     _need_args("定位", args, node, 1, 1)
-    _file_handle(obj, node, "定位").seek(args[0])
+    _file_handle(obj, node, "定位")
+    obj.定位(args[0])
     return None
 
 

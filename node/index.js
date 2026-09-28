@@ -161,7 +161,9 @@ function main() {
     // 基石错误打印成人话（此前是直接抛给 Node，用户看到的是 JS 堆栈，
     // 既看不出是哪种错误也看不到行列——M30 规范化，与 Rust 宿主同风格）
     if (e && e.isJishiError) {
-      console.error(`错误（${e.typeName}）：${e.message}`);
+      // M56：走 `JishiError.render()`（与 `打印(e)` 同一套渲染，
+      // 有码就用码、与 Python 侧同形；「异常」这种宽泛类型不给码）
+      console.error(e.render ? e.render() : `错误（${e.typeName}）：${e.message}`);
       if (e.line != null) console.error(`  ← 第 ${e.line} 行第 ${e.col} 列`);
       return 1;
     }
