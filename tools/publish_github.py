@@ -155,23 +155,24 @@ def _sanitize(snapshot: Path) -> None:
     # 4. 内部规划文档不上传（2026-09-23 / 2026-09-25 作者定）：整个文件删掉
     #    + 抹掉指向它的引用。删文件会让其余文档里的引用变成死链，
     #    所以一并换成中性表述。
-    #    - `docs/路线图.md`（2026-09-23）：含自建分发服务器的实例 ID / 公网 IP /
-    #      地域与规格。
+    #    - `docs/路线图*.md`（2026-09-23 定，2026-09-29 扩成通配）：含自建分发
+    #      服务器的实例 ID / 公网 IP / 地域与规格。**按版本期归档的
+    #      `路线图-归档-*.md` 同样含这些信息**，所以这里用通配一网打尽，
+    #      以后再加归档文件也不会漏。
     #    - `docs/架构评估.md`（2026-09-25）：含里程碑编号规划（M51–M53）与
     #      「哪些不砍、哪些要迁移」的**未定稿**技术决策——属内部讨论材料，
     #      对外过早公开会绑住手脚（用户还没拍板）。
-    rm = snapshot / "docs" / "路线图.md"
-    if rm.exists():
+    for rm in sorted((snapshot / "docs").glob("路线图*.md")):
         rm.unlink()
     _arch = snapshot / "docs" / "架构评估.md"
     if _arch.exists():
         _arch.unlink()
-    _link = re.compile(r"\[[^\]]*?路线图[^\]]*?\]\((?:\.\./|docs/)?路线图\.md\)")
+    _link = re.compile(r"\[[^\]]*?路线图[^\]]*?\]\((?:\.\./|docs/)?路线图[\w\-]*\.md\)")
     _arch_link = re.compile(r"\[[^\]]*?架构评估[^\]]*?\]\((?:\.\./|docs/)?架构评估\.md\)")
     _arch_code = re.compile(r"`+(?:\.\./|docs/)?架构评估\.md`+")
     _arch_plain = re.compile(r"(?:\.\./|docs/)?架构评估\.md")
-    _code = re.compile(r"`+(?:\.\./|docs/)?路线图\.md`+")
-    _plain = re.compile(r"(?:\.\./|docs/)?路线图\.md")
+    _code = re.compile(r"`+(?:\.\./|docs/)?路线图[\w\-]*\.md`+")
+    _plain = re.compile(r"(?:\.\./|docs/)?路线图[\w\-]*\.md")
     for f in sorted(snapshot.rglob("*")):
         if not f.is_file() or f.name.startswith("publish_"):
             continue
