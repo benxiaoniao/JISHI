@@ -41,15 +41,36 @@ from typing import Any, Optional
 INDEX_FORMAT = "jishi-package-index"
 INDEX_VERSION = 1
 
-#: 默认远端索引（M22.1）。托管在本项目公开仓库里，是静态 JSON，
-#: 不需要任何服务端；可用 `--index` 或环境变量 `JISHI_INDEX` 覆盖。
-DEFAULT_INDEX_URL = (
+#: 默认索引源，**按顺序尝试**（M49c）。两个都是静态 JSON，不需要任何服务端。
+#:
+#: ① **自建源**（基石.cn，EdgeOne CDN + 大陆轻量云）—— 大陆直连、响应快，
+#:    而且部署时会把索引里的「下载地址」一并改写成同一个域名，
+#:    所以整条安装链（索引 + zip）都在境内；
+#: ② **GitHub 源** —— 备用。实测（2026-09-29，上海）：大陆访问 GitHub 的
+#:    `git fetch` 传 3MB 就 300 秒超时，`raw.githubusercontent.com` 也常超时。
+#:    它只当兜底，**不再是首选**（这正是 M49 这条主线要解决的事）。
+#:
+#: 📌 两个源各自「自洽」：谁给的索引，下载地址就指向谁的主机 ——
+#: 自建源故障时退到 GitHub，会拉到 GitHub 上的 zip（慢，但能用），
+#: 不会出现「索引拿到了、下载地址却是那台已经挂掉的机器」。
+#:
+#: 可用 `--index` 传单个地址，或用环境变量 `JISHI_INDEX` 覆盖（只用一个源）。
+DEFAULT_INDEX_URLS = (
+    "https://xn--3jsy75e.cn/packages/%E7%B4%A2%E5%BC%95.json",
     "https://raw.githubusercontent.com/benxiaoniao/JISHI/master/"
-    "packages/%E7%B4%A2%E5%BC%95.json"
+    "packages/%E7%B4%A2%E5%BC%95.json",
 )
+
+#: 首选索引（`DEFAULT_INDEX_URLS[0]`）。保留这个名字给旧调用点与文档。
+DEFAULT_INDEX_URL = DEFAULT_INDEX_URLS[0]
 
 #: 覆盖默认索引的环境变量名
 INDEX_ENV_VAR = "JISHI_INDEX"
+
+#: 单个索引源的读取超时（秒）。
+#: **要短** —— 源不可达时不能让用户干等，快速失败才来得及去试下一个源。
+#: （超时太长的教训：以前这里是 15 秒，两个源都不可达就要等半分钟。）
+INDEX_TIMEOUT = 6.0
 
 #: 包元信息里允许出现的字段（发布时校验，拼错字段名会被拦下）
 ALLOWED_META_KEYS = {
@@ -57,9 +78,18 @@ ALLOWED_META_KEYS = {
 }
 
 
+def default_index_urls() -> tuple[str, ...]:
+    """按优先级返回索引源列表（M49a）。
+
+    环境变量 ``JISHI_INDEX`` 给了就**只用**它（调试 / 内网镜像的用法）。
+    """
+    env = (os.environ.get(INDEX_ENV_VAR) or "").strip()
+    return (env,) if env else DEFAULT_INDEX_URLS
+
+
 def default_index_url() -> str:
-    """默认索引地址；环境变量 ``JISHI_INDEX`` 优先。"""
-    return (os.environ.get(INDEX_ENV_VAR) or "").strip() or DEFAULT_INDEX_URL
+    """首选索引地址（= ``default_index_urls()[0]``）。"""
+    return default_index_urls()[0]
 
 
 def _parse_version(v: str) -> tuple[int, int, int]:
@@ -264,7 +294,11 @@ def encode_url(url: str) -> str:
             netloc = f"{host}:{port}" if port else host
     # safe 里保留 "%"：调用方给的 base_url 可能已部分编码（如 file:// 的
     # as_uri()），再编一次会变成 %25 双重编码。
-    return urlunsplit((parts.scheme, netloc, quote(parts.path, safe="/%"),
+    # safe 里保留 ":"：**Windows 盘符的冒号不能被编码** —— `file:///C:/…`
+    # 编成 `file:///C%3A/…` 之后 urllib 就走不通了（报「文件名、目录名或
+    # 卷标语法不正确」）。`file://` 的 base_url 是预期用法（本地镜像），
+    # 所以这个冒号必须留着。（M49 写测试时踩到的，是既存问题。）
+    return urlunsplit((parts.scheme, netloc, quote(parts.path, safe="/%:"),
                        quote(parts.query, safe="%=&"), parts.fragment))
 
 

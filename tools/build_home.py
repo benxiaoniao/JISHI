@@ -4,8 +4,9 @@
 设计原则（用户要求「慎重考虑一个编程语言的站点需要什么」）：
 
 1. **每页回答一个读者问题**，而不是把 README 拆成几块 ——
-   `index` 这是什么/值得试吗 · `start` 怎么跑起来 · `features` 中文写起来什么样 ·
-   `stdlib` 有什么现成的 · `examples` 真能用吗 · `progress` 还在维护吗。
+   `index` 这是什么/值得试吗 · `start` 怎么跑起来 · `download` 去哪下（含版本历史）·
+   `features` 中文写起来什么样 · `stdlib` 有什么现成的 · `examples` 真能用吗 ·
+   `progress` 还在维护吗。
 2. **数字全部自动生成**：版本/关键字/内建/模块/函数从 `jishi --lang-spec` 读，
    里程碑从 `docs/里程碑.md` 与 `PROGRESS.md` 读，示例规模当场统计。
    手写的数字**一过期就是错的**，而这个项目最不能容忍「总结偏差」。
@@ -47,6 +48,7 @@ GITHUB = "https://github.com/benxiaoniao/JISHI"
 #: 导航（所有页共用）
 NAV = [
     ("start.html", "上手"),
+    ("download.html", "下载"),
     ("features.html", "语言"),
     ("stdlib.html", "标准库"),
     ("examples.html", "示例"),
@@ -137,6 +139,10 @@ padding:1px 10px;font-size:12.5px;color:var(--muted);margin-right:6px}
 border-radius:50%;background:var(--accent)}
 .timeline .item b{font-weight:600}
 .timeline .item .when{color:var(--muted);font-size:13.5px;margin-left:8px}
+.timeline .item ul{margin:6px 0 4px;padding-left:20px;font-size:14.3px;color:var(--muted)}
+.timeline .item ul li{margin:2px 0}
+.timeline .item .dl{margin:5px 0 0;font-size:13.5px}
+.timeline .item .dl a{margin-right:12px}
 @media(max-width:720px){h1{font-size:27px}h2{font-size:20px}.lead{font-size:16px}
 .wrap{padding:0 18px}header.top nav{gap:14px;font-size:14px}}
 """
@@ -279,8 +285,17 @@ def page(title: str, body: str, now: str, desc: str) -> str:
 
 
 def code(src: str, cap: str = "") -> str:
+    """代码块。
+
+    ⚠️ **调用点里的 `\\n` 是「换行」的意思**（不是要显示反斜杠 n）：
+    `code('令 a = 1\\n打印(a)')` 在 Python 里那两个是**字面字符** 反斜杠 + n，
+    直接输出到 HTML 的话浏览器会原样显示成 `\\n` —— 站点上**真的这么错了很久**
+    （「第一个程序」那段显示成 `令 名字 = "世界"\\n打印(...)`，一路看着像代码
+    写错了）。统一在这里还原成真换行：**一处修好，所有调用点都受益**。
+    """
     cap_html = f'<span class="cap">{cap}</span>' if cap else ""
-    return f'<pre>{cap_html}<code>{html.escape(src.rstrip())}</code></pre>'
+    text = src.replace("\\n", "\n")            # 字面 \n → 真换行
+    return f'<pre>{cap_html}<code>{html.escape(text.rstrip())}</code></pre>'
 
 
 # ---------------------------------------------------------------------------
@@ -446,10 +461,12 @@ def build_index(spec: dict, ver: str) -> str:
 </div>
 
 <h2>三分钟就能跑起来</h2>
-{code('pip install git+https://github.com/benxiaoniao/JISHI.git\\njishi 你好.jsh',
-      "装好之后，把上面的示例存成 你好.jsh，然后跑它")}
-<p class="lead">更详细的步骤（含编辑器配置、常见坑）在
-<a href="start.html">上手页</a>。</p>
+<p class="lead"><b>Windows</b> 下载 <code>jishi-{ver}-windows-x64-setup.exe</code>
+双击装（<b>不用先装 Python</b>）；Linux / macOS 有对应压缩包；
+想改代码的可以 <code>pip install git+…</code>。
+安装包<b>就放在本站</b>，不必去 GitHub —— <a href="download.html">下载页</a>
+有各平台的包和逐版本的升级说明。</p>
+{code('jishi 你好.jsh\\njishi 医生', "装好之后：跑程序、做一次环境自检")}
 """
     return page("基石（jishi）—— 一门中文编程语言", body, "index.html",
                 "基石是一门中文编程语言，关键字与报错都是中文。五个引擎语义一致，"
@@ -459,24 +476,40 @@ def build_index(spec: dict, ver: str) -> str:
 def build_start(ver: str) -> str:
     body = f"""
 <h1>五分钟上手</h1>
-<p class="lead">三种装法，挑一种；然后跑你的第一个程序。</p>
+<p class="lead">挑一种装法，然后跑你的第一个程序。</p>
 
 <h2>一、选一种装法</h2>
 <div class="grid">
-  <div class="card"><h3>① 编辑器里直接用</h3>
-    <p>在 VS Code 的扩展市场搜 <code>jishi</code>，或直接装
-    <code>jishi-lang.vscode-jishi</code>。装完就有语法高亮、补全、
-    跳转和调试器（断点、单步、看变量）。</p>
-    <p><b>适合：</b>想边写边看提示的人。</p></div>
-  <div class="card"><h3>② 从源码装（推荐）</h3>
-    <p>需要本机有 Python 3.10 以上。</p>
+  <div class="card"><h3>① Windows 安装程序（最省事）</h3>
+    <p>下载 <code>jishi-{ver}-windows-x64-setup.exe</code> 双击装。
+    <b>不用先装 Python</b> —— 发行包自带运行时；用户级安装、免管理员，
+    向导是中文的。</p>
+    <p><a href="download.html">去下载（本站，大陆直连）→</a>
+    　另有免安装的 <code>.zip</code>，旧版本在下载页的版本历史里。</p></div>
+  <div class="card"><h3>② Linux / macOS 压缩包</h3>
+    <p>解压后跑 <code>install.sh</code>。Linux 是 x64；macOS 目前<b>只有
+    Apple 芯片（arm64）</b>版，没有 Intel 版。</p>
+    {code('tar -xzf jishi-<版本>-linux-x64.tar.gz\\ncd jishi-<版本>-linux-x64 && bash install.sh')}</div>
+  <div class="card"><h3>③ 从源码装</h3>
+    <p>给想改代码的人：需要本机有 Python 3.10 以上。</p>
     {code('pip install git+https://github.com/benxiaoniao/JISHI.git')}
-    <p>装完命令行就有 <code>jishi</code> 命令；敲 <code>jishi</code>
-    不加参数会进交互式环境。</p></div>
-  <div class="card"><h3>③ 什么都不装</h3>
+    <p>⚠️ 这条路要连 GitHub，<b>大陆可能很慢甚至超时</b>。</p></div>
+  <div class="card"><h3>④ 什么都不装</h3>
     <p>用<a href="playground.html">在线试玩</a> —— 浏览器里直接写、直接跑，
     引擎跑在页面上。</p>
     <p><b>适合：</b>先看看这东西长什么样。</p></div>
+</div>
+
+<div class="note">
+<p><b>想在 VS Code 里写？</b>扩展市场搜 <code>jishi</code>，装
+<code>jishi-lang.vscode-jishi</code>：语法高亮、补全、跳转、调试器都有。
+⚠️ <b>但扩展不带运行时</b> —— 要先按上面 ①②③ 任意一种把
+<code>jishi</code> 命令装好，扩展才跑得起来（它默认调 PATH 上的
+<code>jishi</code>，也可以在设置里指到别处）。</p>
+</div>
+<div class="note">
+<p><b>装完先跑一次 <code>jishi 医生</code>：</b>它会查版本、C 虚拟机、终端编码，
+以及<b>包索引通不通</b>（装第三方包要用这一步）。哪一步有问题，它会直接说怎么修。</p>
 </div>
 
 <h2>二、第一个程序</h2>
@@ -776,8 +809,21 @@ def build_progress(ver: str) -> str:
 <p>完整的里程碑明细（M0 起逐条）在
 <a href="docs/语言规格.html">文档</a>与仓库的 <code>PROGRESS.md</code> 里。</p>
 
-<h2>最近一轮：把报错变成「能照着做」</h2>
-<p>刚过去的 M56 分了四批，全都围绕同一件事 —— <b>出问题的时候别让人猜</b>：</p>
+<h2>最近一轮：让「装得上」在中国大陆成立</h2>
+<p>M49 做的是分发。原先装包默认走 GitHub，<b>大陆访问时通时不通</b>
+（实测 <code>git</code> 拉取会整段超时）—— 这不算「能用」。</p>
+<ul>
+  <li><b>官网与自建源上线</b>：<a href="https://xn--3jsy75e.cn/">基石.cn</a>
+  用上了自己的域名，源站在大陆 —— <b>包索引和发行包都托管在这里</b>。</li>
+  <li><b>两个索引源按优先级回退</b>：自建源优先、GitHub 兜底；一个源读不到
+  就自动换下一个，不用你重试，也不用等一个长超时。</li>
+  <li><b>报错给做法</b>：全都连不上时，列清试过哪些地址（含失败原因），并给出
+  <code>--index</code> / <code>--local-zip</code> 两条能照做的路。</li>
+  <li><b><code>jishi 医生</code> 能体检索引</b>：装包之前先看清哪个源通、里面有多少包。</li>
+</ul>
+
+<h2>上一轮：把报错变成「能照着做」</h2>
+<p>M56 分了四批，全都围绕同一件事 —— <b>出问题的时候别让人猜</b>：</p>
 <ul>
   <li><b>内建体检</b>：给每一个内建写一条最小程序，在五个引擎上真跑一遍。
   建起来当场就抓到「<code>超()</code> 在两个宿主上根本不能用」。</li>
@@ -807,8 +853,6 @@ def build_progress(ver: str) -> str:
 
 <h2>接下来想做的</h2>
 <ul>
-  <li><b>分发</b>：在中国大陆有个稳定的下载源（现在默认走 GitHub，
-  大陆访问不稳），官网与包索引一起落地。</li>
   <li><b>性能</b>：先量再改 —— C 虚拟机的容器读侧是已知的短板。</li>
   <li><b>对模型更友好</b>：让大模型更容易写对基石（语言卡、示例库、错误码都已就位）。</li>
   <li><b>文档与教程</b>：继续补真实场景的写法。</li>
@@ -828,6 +872,172 @@ def build_progress(ver: str) -> str:
 # 六、主流程
 # ---------------------------------------------------------------------------
 
+#: 发行包的各平台后缀 → 友好名与说明（顺序就是页面上的顺序）
+PLATFORM_NAMES = (
+    ("windows-x64-setup.exe", "Windows 安装程序", "双击装好，**不用先装 Python**（最省事）"),
+    ("windows-x64.zip", "Windows 免安装包", "解压即用，不写注册表"),
+    ("linux-x64.tar.gz", "Linux（x64）", "解压后 `bash install.sh`"),
+    ("macos-arm64.tar.gz", "macOS（Apple 芯片）", "解压后 `bash install.sh`；**没有 Intel 版**"),
+)
+
+#: 发行包镜像目录：`tools/fetch_release_mirror.py` 拉到这儿，
+#: `tools/site_sync.sh` 再同步到网站上的 `download/`。
+MIRROR_DIR = ROOT / "dist" / "release"
+
+
+def human_size(n: int) -> str:
+    return f"{n / 1024 / 1024:.1f} MB" if n >= 1024 * 1024 else f"{max(1, n // 1024)} KB"
+
+
+def md_inline(s: str) -> str:
+    """极小的行内 markdown → HTML：只认 `**粗体**`、`` `代码` ``、`[文字](链接)`。
+
+    只用来渲染**我们自己写的说明**与 **CHANGELOG 的小标题**（那里确实有
+    `**4 个真 bug**`、`` `hint` `` 这种写法）。不引入 markdown 库、也不假装支持
+    完整语法：认不出来的**原样输出**（比乱转义安全）。
+
+    ⚠️ 顺序是**先转义、再套格式**：反过来的话，用户内容里的 `<b>` 会被当成
+    我们自己的标签放行。反向引用这里写成 `\1` / `\2`
+    （**别写成裸的八进制转义** —— 那会变成看不见的控制字符，页面看着少字）。
+    """
+    out = html.escape(s)
+    out = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", out)
+    out = re.sub(r"`(.+?)`", r"<code>\1</code>", out)
+    out = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', out)
+    return out
+
+def parse_changelog() -> list[dict]:
+    """从 `CHANGELOG.md` 抽版本历史。
+
+    **升级点不在这里另写一份**：每个版本下面的 `### 小标题` 就是「这一版改了什么」。
+    手抄到官网迟早会漂（这是本项目的老毛病，M56 就抓到过一次「待办描述过时」）。
+    """
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    out: list[dict] = []
+    cur = None
+    for line in text.splitlines():
+        m = re.match(r"^## \[(\d[^\]]*)\](?:\s*-\s*(\S+))?\s*(.*)$", line)
+        if m:
+            cur = {"版本": m.group(1), "日期": m.group(2) or "—",
+                   "里程碑": m.group(3).strip().strip("（）() "), "要点": []}
+            out.append(cur)
+            continue
+        if cur is None:
+            continue                                    # [未发布] 那段跳过
+        m2 = re.match(r"^###\s+(.+?)\s*$", line)
+        if m2:
+            cur["要点"].append(m2.group(1))
+    return out
+
+
+def mirrored_assets() -> dict:
+    """读镜像目录里**真实存在**的文件 → `{版本: [(平台后缀, 字节), …]}`。
+
+    「本站有没有这份包」以**磁盘上的文件**为准，不靠一份手写的清单 ——
+    清单会漏、会忘更新，而文件在就是在。文件名约定：`jishi-<版本>-<平台后缀>`。
+    """
+    got: dict = {}
+    if not MIRROR_DIR.is_dir():
+        return got
+    for f in sorted(MIRROR_DIR.iterdir()):
+        if not f.is_file() or f.suffix == ".part":
+            continue
+        m = re.match(r"^jishi-(\d[^-]*)-(.+)$", f.name)
+        if not m:
+            continue
+        got.setdefault(m.group(1), []).append((m.group(2), f.stat().st_size))
+    return got
+
+
+def build_download(ver: str) -> str:
+    """下载页：**本站镜像的安装包** + 逐版本升级点。
+
+    用户 2026-09-29 提的两件事，就是这一页的两个作用：
+    **拿得到**（安装包放官网，不必去 GitHub —— 大陆访问 GitHub 不稳）、
+    **看得清**（每个版本改了什么，一目了然）。
+    """
+    mirror = mirrored_assets()
+    hist = parse_changelog()
+    current = dict(mirror.get(ver, []))
+
+    # ---- 一、当前版本：四个平台的卡片 ----
+    cards = ""
+    for suffix, title, hint in PLATFORM_NAMES:
+        size = current.get(suffix)
+        if size is None:
+            link = (f'<a href="{GITHUB}/releases/tag/v{ver}">去 GitHub 下载</a>'
+                    '（本站暂未镜像）')
+        else:
+            link = (f'<a href="download/jishi-{ver}-{suffix}">下载'
+                    f'（{human_size(size)}）</a>')
+        cards += (f'  <div class="card"><h3>{title}</h3>'
+                  f'<p>{md_inline(hint)}</p><p>{link}</p></div>\n')
+
+    sums_html = ""
+    if (MIRROR_DIR / "SHA256SUMS").is_file():
+        sums_html = (
+            '<p class="lead">想核对完整性：本站也放了 '
+            '<a href="download/SHA256SUMS">SHA256SUMS</a>（与 GitHub 那份相同）。'
+            '下载后在同目录执行 <code>sha256sum -c SHA256SUMS</code>；'
+            'Windows 上用 <code>certutil -hashfile 文件名 SHA256</code> 手动比对。</p>')
+
+    # ---- 二、版本历史：升级点直接抽自 CHANGELOG ----
+    items = []
+    for v in hist:
+        points = "".join(f"<li>{md_inline(p)}</li>" for p in v["要点"])
+        files = mirror.get(v["版本"], [])
+        if files:
+            labels = {s: t for s, t, _ in PLATFORM_NAMES}
+            links = "".join(
+                f'<a href="download/jishi-{v["版本"]}-{s}">{labels.get(s, s)}</a>'
+                for s, _ in files)
+            dl = f'<p class="dl">本站下载：{links}</p>'
+        else:
+            dl = (f'<p class="dl">本站未镜像 —— <a href="{GITHUB}/releases/tag/'
+                  f'v{v["版本"]}">GitHub Releases</a></p>')
+        when = html.escape(v["日期"])
+        if v["里程碑"]:
+            when += " · " + html.escape(v["里程碑"])
+        items.append(
+            f'<div class="item"><b>{html.escape(v["版本"])}</b>'
+            f'<span class="when">{when}</span>'
+            f'<ul>{points}</ul>{dl}</div>')
+
+    body = f"""
+<h1>下载</h1>
+<p class="lead">安装包<b>就放在这个站上</b>（基石.cn，大陆直连）—— 不必去 GitHub 翻。
+与 GitHub Releases 上那份<b>逐字节相同</b>，附校验和可以核对
+（同一份文件换个地方放，不另起炉灶重编）。</p>
+
+<h2>当前版本 {ver}</h2>
+<div class="grid">
+{cards}</div>
+{sums_html}
+<div class="note">
+<p>三个平台都是 <b>自带运行时</b> 的发行包 —— <b>不用先装 Python</b>。
+装完命令行就有 <code>jishi</code>；先跑一次 <code>jishi 医生</code> 做环境自检。</p>
+</div>
+
+<h2>版本历史</h2>
+<p class="lead">每个版本做了什么。「升级点」是<b>从仓库的 <code>CHANGELOG.md</code> 抽的</b>，
+不是这里另写一份 —— 手抄的副本迟早会跟真实情况对不上。</p>
+<div class="timeline">
+{"".join(items)}</div>
+
+<h2>关于这些包</h2>
+<ul>
+<li><b>和 GitHub 上的是同一份吗？</b>是。校验和与 GitHub Releases 的
+<code>SHA256SUMS</code> 一致，可以自己核对。</li>
+<li><b>为什么放自己站上？</b>大陆访问 GitHub 不稳（实测拉取会整段超时）——
+「装不上」这件事不该由网络决定。</li>
+<li><b>旧版本呢？</b>打开发行包的版本本站都镜像了，其余版本见
+<a href="{GITHUB}/releases">GitHub Releases</a>。</li>
+</ul>
+"""
+    return page(f"下载 —— 基石（jishi）{ver}", body, "download.html",
+                "基石安装包下载（本站镜像，大陆直连可用）与逐版本升级说明。")
+
+
 def build_all() -> int:
     spec = load_spec()
     ver = load_version()
@@ -836,6 +1046,7 @@ def build_all() -> int:
     pages = [
         ("index.html", build_index(spec, ver)),
         ("start.html", build_start(ver)),
+        ("download.html", build_download(ver)),
         ("features.html", build_features(spec)),
         ("stdlib.html", build_stdlib(spec)),
         ("examples.html", build_examples(spec)),

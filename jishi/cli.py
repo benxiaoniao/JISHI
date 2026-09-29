@@ -265,40 +265,42 @@ def _cmd_install(args) -> int:
             print("用法：jishi 安装 包名 [--local-dir 目录 | --local-zip 包.zip | "
                   "--index 索引.json]", file=sys.stderr)
             return 1
-        url = PKG.default_index_url()
-        print(f"本地没有，尝试默认索引：{url}")
-        _install_from_index(args.package, url, force=args.force)
+        urls = PKG.default_index_urls()
+        print(f"本地没有包「{args.package}」，按优先级尝试 {len(urls)} 个索引源：")
+        _install_from_sources(args.package, urls, force=args.force)
         return 0
     except ValueError as e:
         print(f"安装失败：{e}", file=sys.stderr)
         return 1
 
 
-def _install_from_index(name: str, index_url: str, *, force: bool = False) -> None:
-    """从远端索引拉包：读索引 → 取下载地址 → 下载 zip → 解压安装。"""
+def _read_index_text(index_url: str) -> str:
+    """读索引文本：本地文件直接读，远端 URL 走 HTTP。
+
+    ⚠️ 超时用 ``PKG.INDEX_TIMEOUT``（**故意调短**）—— 源不可达时要快速失败，
+    否则用户会以为程序卡死了，而且没有时间去试下一个源（M49a）。
+    """
     import os
-    import tempfile
     import urllib.request
 
     from . import packages as PKG
 
     if os.path.isfile(index_url):
         with open(index_url, encoding="utf-8") as f:
-            text = f.read()
-    else:
-        # 索引地址本身也可能含中文（如 --index https://…/索引.json）
-        url = PKG.encode_url(index_url)
-        try:
-            with urllib.request.urlopen(url, timeout=15) as resp:
-                text = resp.read().decode("utf-8")
-        except Exception as e:  # noqa: BLE001
-            raise ValueError(f"读远端索引「{index_url}」失败：{e}") from e
+            return f.read()
+    # 索引地址本身也可能含中文（如 --index https://…/索引.json）
+    url = PKG.encode_url(index_url)
+    with urllib.request.urlopen(url, timeout=PKG.INDEX_TIMEOUT) as resp:
+        return resp.read().decode("utf-8")
 
-    try:
-        index = PKG.parse_index(text)
-        meta = PKG.resolve_package(index, name)
-    except ValueError as e:
-        raise ValueError(str(e)) from e
+
+def _install_one(name: str, meta: dict, *, source: str, force: bool) -> None:
+    """按索引条目下载 zip 并安装（含校验和比对）。"""
+    import os
+    import tempfile
+    import urllib.request
+
+    from . import packages as PKG
 
     url = meta.get("下载地址")
     if not url:
@@ -324,11 +326,75 @@ def _install_from_index(name: str, index_url: str, *, force: bool = False) -> No
     except ValueError:
         raise
     except Exception as e:  # noqa: BLE001
-        raise ValueError(f"下载或安装包「{name}」失败：{e}") from e
+        raise ValueError(
+            f"下载或安装包「{name}」失败：{e}\n"
+            f"  下载地址来自索引源：{source}\n"
+            f"  可换一个源再试：jishi 安装 {name} --index <索引地址>\n"
+            f"  或用手上的包文件：jishi 安装 {name} --local-zip 包.zip") from e
     finally:
         if os.path.isfile(tmp):
             os.remove(tmp)
-    print(f"已安装包「{name}」（版本 {meta.get('版本', '未知')}，来自索引）")
+    print(f"已安装包「{name}」（版本 {meta.get('版本', '未知')}）")
+
+
+def _unreachable_msg(name: str, unreachable: list) -> str:
+    """所有索引源都读不到时的中文提示（M49a ②：给可操作的办法，不甩堆栈）。"""
+    lines = [f"所有索引源都读不到（试了 {len(unreachable)} 个）："]
+    for url, err in unreachable:
+        lines.append(f"  ✗ {url}")
+        lines.append(f"      {err}")
+    lines += [
+        "可能的原因与办法：",
+        "  · 网络不通或被代理拦了 → 检查网络 / 代理设置后重试",
+        f"  · 想换别的索引 → jishi 安装 {name} --index <索引地址>",
+        f"  · 手上已有包文件 → jishi 安装 {name} --local-zip 包.zip",
+        f"  · 手上已有包目录 → jishi 安装 {name} --local-dir 目录",
+    ]
+    return "\n".join(lines)
+
+
+def _install_from_sources(name: str, urls: tuple, *, force: bool = False) -> None:
+    """按顺序试每个索引源，第一个能给包的就用它（M49a · 多源回退）。
+
+    为什么要回退：大陆访问 GitHub 不稳（实测 `git fetch` 传 3MB 就 300 秒超时），
+    所以默认「自建源优先、GitHub 兜底」。**只要有一个源不可达，体验就退化成
+    "时好时坏"** —— 这正是 M49 要修的东西。
+    """
+    from . import packages as PKG
+
+    unreachable: list[tuple[str, str]] = []   # 读不到索引的源
+    reached: list[str] = []                   # 读到了索引、但里面没有这个包
+    total = len(urls)
+
+    for i, url in enumerate(urls, 1):
+        if total > 1:
+            print(f"（{i}/{total}）索引源：{url}")
+        try:
+            text = _read_index_text(url)
+        except Exception as e:  # noqa: BLE001
+            unreachable.append((url, f"{type(e).__name__}: {e}"))
+            if total > 1 and i < total:
+                print("      读不到，换下一个源…")
+            continue
+        try:
+            meta = PKG.resolve_package(PKG.parse_index(text), name)
+        except ValueError as e:
+            reached.append(f"{url}（{e}）")
+            continue
+        _install_one(name, meta, source=url, force=force)
+        return
+
+    if reached:
+        # 至少有一个源读通了 —— 那不是网络问题，是「索引里确实没这个包」
+        raise ValueError(
+            f"索引里没有包「{name}」（已查 {len(reached)} 个源）：\n  "
+            + "\n  ".join(reached))
+    raise ValueError(_unreachable_msg(name, unreachable))
+
+
+def _install_from_index(name: str, index_url: str, *, force: bool = False) -> None:
+    """从**指定**索引拉包（`--index` / `--from-index`）。"""
+    _install_from_sources(name, (index_url,), force=force)
 
 
 def _cmd_uninstall(args) -> int:
@@ -401,6 +467,31 @@ def _cmd_doctor(args) -> int:
     except Exception as e:  # noqa: BLE001
         ok = False
         print(f"  MCP Server：异常 [异常]（{e}）")
+
+    # 7. 包索引可达性（M49a）：`jishi 安装` 能不能用，全看这一步
+    if getattr(args, "no_net", False):
+        print("  包索引：跳过联网检查（--no-net）")
+    else:
+        from . import packages as PKG
+        urls = PKG.default_index_urls()
+        good = 0
+        for i, url in enumerate(urls, 1):
+            try:
+                pkgs = PKG.parse_index(_read_index_text(url))["包"]
+                good += 1
+                print(f"  索引源 {i}：可达 [OK]（{len(pkgs)} 个包）")
+            except Exception as e:  # noqa: BLE001
+                # ⚠️ 单个源不通**不算环境异常**：备用源在大陆常常不通，
+                # 只要有一个源可达，`jishi 安装` 就能用 —— 只是别把「警告」
+                # 报成「异常」，否则用户会去修一个本来就不需要修的东西。
+                print(f"  索引源 {i}：不可达 [警告]（{type(e).__name__}: {e}）")
+            print(f"      {url}")
+        if not good:
+            ok = False
+            print("    建议：检查网络 / 代理；或用 `--index <索引地址>` 指定别的源")
+        elif good < len(urls):
+            print(f"    提示：{good}/{len(urls)} 个源可用 —— 主源不通时安装会变慢"
+                  "（会先等一个超时再去试下一个）")
 
     print()
     if ok:
@@ -1000,8 +1091,10 @@ def _run_tool_cmd(argv: list[str]) -> int:
         prog="jishi", description="基石工具")
     sub = parser.add_subparsers(dest="subcommand", metavar="命令", required=True)
 
-    sub.add_parser("医生", help="环境自检（安装位置/版本/C VM/编码/MCP）").set_defaults(
-        func=_cmd_doctor)
+    p_doctor = sub.add_parser("医生", help="环境自检（安装位置/版本/C VM/编码/MCP/包索引）")
+    p_doctor.add_argument("--no-net", action="store_true",
+                          help="跳过联网检查（包索引可达性）")
+    p_doctor.set_defaults(func=_cmd_doctor)
 
     p_new = sub.add_parser("新项目", help="生成脚手架项目")
     p_new.add_argument("name", help="项目名")

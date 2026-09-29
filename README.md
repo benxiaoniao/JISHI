@@ -6,6 +6,9 @@
 
 一门像 Python 一样简单易用的**中文编程语言**。
 
+`如果`、`遍历`、`函数`、`返回` 这些词**本身就是关键字** ——
+你写下的和你脑子里想说的，是同一句话，**中间少一层英译**。
+
 </div>
 
 > **技术栈声明（公开透明）**
@@ -22,30 +25,53 @@
 
 ## 安装
 
-**Windows**：下载 `jishi-<版本>-windows-x64-setup.exe`，双击安装即可
-（用户级安装、免管理员；简体中文向导，含开始菜单快捷方式、可选加入 PATH、
-标准卸载程序）。
+**三种装法，都是「自带运行时」，不用先装 Python。**
 
-**Linux / macOS**：下载对应压缩包，解压后运行 `install.sh`：
+**Windows** —— 从[下载页](https://基石.cn/download.html)取
+`jishi-<版本>-windows-x64-setup.exe`，双击安装即可
+（用户级安装、免管理员；简体中文向导，含开始菜单快捷方式、可选加入 PATH、
+标准卸载程序）。也有免安装的 `jishi-<版本>-windows-x64.zip`。
+
+**Linux（x64）/ macOS（Apple 芯片 arm64）** —— 下载对应压缩包，
+解压后运行 `install.sh`：
 
 ```bash
 tar -xzf jishi-<版本>-linux-x64.tar.gz
 cd jishi-<版本>-linux-x64 && bash install.sh
 ```
 
-**从源码安装**（需本机 Python 3.10+；这是目前唯一的方式）：
+> ⚠️ macOS **目前只有 arm64 版**（没有 Intel / x64 版）。
+
+**从源码安装** —— 给要改代码的人，需本机 Python 3.10+：
 
 ```bash
 pip install git+https://github.com/benxiaoniao/JISHI.git
 ```
 
-> **没有 `pip install jishi` 这条命令**：基石**不发布到 PyPI**——分发链路全押在
-> Python 生态上不合适。我们用自己的服务器做包管理与分发，并自带安装命令
-> （暂名 `下载`，规划中，见 `docs/路线图.md`「方向五 · 自主分发」）。
-> 源码安装的 wheel 构建细节见 `tools/build_wheel.py`。
+⚠️ **这条路要连 GitHub，大陆可能很慢甚至超时**（实测 `git fetch` 会整段超时）。
+能用安装程序就别用这条。
 
-发行包下载见 [GitHub Releases](https://github.com/benxiaoniao/JISHI/releases)，
-每个版本附 `SHA256SUMS` 便于校验完整性。
+**VS Code 扩展**（可选）：扩展市场装 `jishi-lang.vscode-jishi`，有语法高亮、
+补全、跳转与调试器（断点 / 单步 / 看变量）。⚠️ **扩展不自带运行时** ——
+要先按上面任意一种把 `jishi` 命令装好，它才跑得起来。
+
+装完先跑一次自检，它会顺手告诉你包索引通不通：
+
+```bash
+jishi 医生
+```
+
+**安装包在[本站下载](https://基石.cn/download.html)** —— 托管在自己的服务器上，
+大陆直连可用（不必翻 GitHub）。那一页还有 **逐版本的升级说明**（每个版本改了什么）
+与 `SHA256SUMS` 校验和。同一份文件也在
+[GitHub Releases](https://github.com/benxiaoniao/JISHI/releases) 上，**逐字节相同**。
+
+> **没有 `pip install jishi` 这条命令**：基石**不发布到 PyPI**。
+> 包管理走自己的链路 —— `jishi 安装 <包>`（M49 已落地）：
+> 索引与发行包托管在自己的服务器 <https://基石.cn/> 上（**大陆直连**，
+> 实测 0.11 秒），GitHub 那份留作**备用源**；两个源**按优先级依次尝试**，
+> 第一个通了就用它。索引格式与打包流程见 `docs/语言规格.md`，
+> wheel 构建细节见 `tools/build_wheel.py`。
 
 ## 快速上手
 
@@ -117,10 +143,10 @@ jishi examples/01_猜数字.jsh --ast
 
 ## 当前进度
 
-**M0–M55 全部完成**，逐里程碑的详细记录移到 **[`docs/里程碑.md`](docs/里程碑.md)**
+**M0–M56 全部完成，M49（自主分发）也已落地**，逐里程碑的详细记录移到 **[`docs/里程碑.md`](docs/里程碑.md)**
 （本 README 只讲「现在能做什么」，要查「哪一版加了什么」看那份）。
 
-**测试现状：2288 项，**2285 通过**（`python -m pytest tests/`），其中 240 余项是三执行器
+**测试现状：2300 项，**2297 通过**（`python -m pytest tests/`），其中 240 余项是三执行器
 对拍（树遍历 / Python VM / C VM 输出逐字节一致），另有跨语言宿主对拍
 （Rust 101 + 58 + 37 项、JS 62 + 43 项，都与 Python VM 逐字节一致，含三个真实示例
 项目的端到端对比）。
@@ -128,7 +154,24 @@ jishi examples/01_猜数字.jsh --ast
 宿主自己 spawn 自己时的占用问题，Linux / CI 不复现；把工作区回退到 M51 状态复跑
 同样失败）。跑到的这一轮它们**恰好没犯**（全绿），所以别把它当成「修好了」。
 
-**最近一轮（M56 第四批 · 宿主的 `hint`）做了什么**：
+**最近一轮（M49 · 自主分发：自建源 + 官网 + HTTPS）做了什么**：
+
+- **官网上了自己的域名**：<https://基石.cn/>。源站是大陆轻量云上的 Nginx，
+  前面挂 EdgeOne CDN；页脚按法定要求放了 **ICP 备案号并链到工信部**。
+- **`jishi 安装` 不再依赖 GitHub**：索引源改成**按优先级依次尝试** ——
+  ① 自建源（基石.cn）② GitHub 备用。自建源那份索引里的「下载地址」
+  也指向同一个域名，所以**整条安装链（索引 + 包）都在境内**，实测 0.11s。
+- 🔴 **修掉「HTTPS 打不开」（521）**：源站只听 80，而 CDN 对 **HTTPS 请求
+  走 HTTPS 回源**（443）—— HTTPS 必然失败。给源站配好证书、开 443 之后
+  两条路都通。诊断依据是**源站访问日志里有没有那条请求**（HTTP 有、HTTPS 没有）。
+- **报错给出可操作的办法**：全部源都读不到时，列清试过哪些地址，并给出
+  `--index` / `--local-zip` / `--local-dir` 三条具体做法；`jishi 医生`
+  新增**索引可达性自检**（`--no-net` 可跳过）。
+- **部署链路也进了仓库**：`tools/site_sync.sh`（服务器侧同步 + 装 Nginx）、
+  `tools/deploy_push.sh`（本地构建 + 推送）、`tools/nginx-jishi*.conf`。
+  🔒 **密钥路径与服务器地址只从环境变量读**，绝不写进文件。
+
+**M56 第四批 · 宿主的 `hint` 做了什么**：
 
 - **两个宿主也能给「你是不是想写「长度」？」了** —— 以前宿主的错误对象
   **没有 `hint` 字段**，报错只说「找不到名字」，不告诉人可能该写什么。
@@ -494,11 +537,17 @@ node/            Node.js 纯 JS 解释器（零依赖，消费 JSON 字节码；
                  M51 起有 `--dump-stdlib` 自报家底供一致性检测）
 rust/            Rust 绑定（M13.3，jishi-ffi crate + 自研零依赖 JSON 解析器，
                  零依赖标准库，M51 起同样有 `--dump-stdlib`）
-tests/           2288 项测试（含 250 余项三执行器对拍 + 跨宿主对拍 + M51/M54/M55 漂移检测）
+tests/           2300 项测试（含 250 余项三执行器对拍 + 跨宿主对拍 + M51/M54/M55 漂移检测）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例、packages/ 包管理示例）
 docs/            语言规格.md、设计决策.md、路线图.md、调试器.md、工具链.md、真实项目.md、embed.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 10 章
 assets/          品牌资产（基石_logo.png，源图 基石_logo.jpeg）
 tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文档站 /
+                 build_home.py 官网六页（数字从 --lang-spec 读、示例真跑自检）/
+                 build_index_mirror.py 索引改写（自建源那份的下载地址）/
+                 fetch_release_mirror.py 发行包镜像（从 GitHub Releases 取，校验和核对）/
+                 site_sync.sh 服务器侧部署（web 根 + Nginx + 隐私终检）/
+                 deploy_push.sh 本地构建 + 推送（密钥/地址只从环境变量读）/
+                 nginx-jishi.conf / -tls.conf / -locations.conf 站点配置（80/443/共用）/
                  loc_ratio.py 行数比统计（基石 vs Python 参考实现） /
                  gen_stdlib_sigs.py 标准库签名表生成（两宿主的命名参数靠它，M51） /
                  probe_builtins.py 内建体检（每个内建 × 五引擎真跑，M56） /
@@ -641,8 +690,9 @@ M46 起的明细在 [`CHANGELOG.md`](CHANGELOG.md)）。
   ⚠️ **标准库不做 C / Rust 化**（实测判定，见下）：161 个函数里 127 个是薄包装
   （底层 `math` / `re` / `hashlib` / `json` / `zlib` 本身就是 C），且一次调用的
   耗时里**编组开销占 90%+**（`数学.开方` 每次 5.69µs，`math.sqrt` 本体只 0.071µs）。
-- ⏸️ **自主分发（M49）—— 移出计划**（2026-09-25 用户定）：等作者 ICP 备案完成
-  后再启动，里程碑号保留。
+- ✅ **自主分发（M49）已落地**（2026-09-29）：ICP 备案完成（苏ICP备2026073372号），
+  官网 <https://基石.cn/> 与**自建分发源**上线 —— `jishi 安装` 现在
+  **自建源优先、GitHub 兜底**，索引与包都在境内。详见 `docs/路线图.md` §9.3.6。
 
 完整规划（三阶段明细、准入标准、不做清单、度量体系、遗留项逐条结论）见
 **[`docs/路线图.md`](docs/路线图.md)**——那是唯一的路线图。

@@ -1855,10 +1855,18 @@ def do_import(name: str, from_python: bool = False, from_local: bool = False,
     try:
         mod = importlib.import_module(f"jishi.stdlib.{name}")
     except ImportError:
+        # 📌 本地包与标准库是**两种导入语法**（本地包要写 `导入 X 从 本地包`），
+        # 所以「装了包却只写 `导入 X`」是很容易踩的一脚 —— 这时只说
+        # 「试试 导入 随机/数学」是**误导**（指向了完全不相干的模块）。
+        # 装了同名包，就直接把正确写法给他（M49a：提示要可操作）。
+        hint = "试试：导入 随机 / 导入 数学 / 导入 时间 / 导入 文本"
+        if _find_pkg_dir(name) is not None:
+            hint = (f"本地装了同名的包「{name}」；包要用这条语法："
+                    f"导入 {name} 从 本地包")
         raise SemanticFuncError(
             f"没有找到标准库模块「{name}」", line=line, col=col,
             filename=filename,
-            hint="试试：导入 随机 / 导入 数学 / 导入 时间 / 导入 文本")
+            hint=hint)
     attrs = {k: v for k, v in vars(mod).items() if not k.startswith("_")}
     # 有状态模块（`日志` / `测试`）声明这个钩子：**每次导入造一份新状态**。
     # 否则状态挂在模块级全局上，同一进程里跑第二个执行器（对拍、测试、
