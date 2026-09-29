@@ -165,6 +165,8 @@ function main() {
       // 有码就用码、与 Python 侧同形；「异常」这种宽泛类型不给码）
       console.error(e.render ? e.render() : `错误（${e.typeName}）：${e.message}`);
       if (e.line != null) console.error(`  ← 第 ${e.line} 行第 ${e.col} 列`);
+      // M56：与 Python 侧的「提示：…」同一格式（宿主原来没有 hint 字段）
+      if (e.hint) console.error(`  提示：${e.hint}`);
       return 1;
     }
     console.error(`内部错误：${(e && e.stack) || e}`);

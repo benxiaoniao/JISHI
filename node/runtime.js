@@ -42,7 +42,7 @@ const ERROR_CODES = {
 };
 
 class JishiError extends Error {
-  constructor(typeName, title, message, line, col) {
+  constructor(typeName, title, message, line, col, hint) {
     super(message);
     this.isJishiError = true;
     //: 基石异常类型名（「值错误」「除零错误」…），用于 `捕获` 匹配
@@ -52,6 +52,10 @@ class JishiError extends Error {
     this.col = col ?? null;
     //: 错误码（M56）：能确定才给，确定不了是 null
     this.code = ERROR_CODES[typeName] ?? null;
+    //: 修法 / 线索提示（M56）：宿主原来**没有**这个字段，于是 Python 侧那句
+    //: 「你是不是想写「长度」？」在宿主上给不出来。与 Python 的
+    //: `JishiError.hint` 同一语义。
+    this.hint = hint ?? null;
   }
 
   /**
@@ -87,7 +91,9 @@ class RunContinue extends JishiError {
 
 function typeErr(msg, line, col) { return new JishiError('类型错误', '类型错误', msg, line, col); }
 function valueErr(msg, line, col) { return new JishiError('值错误', '数值不对', msg, line, col); }
-function nameErr(msg, line, col) { return new JishiError('异常', '找不到名字', msg, line, col); }
+function nameErr(msg, line, col, hint) {
+  return new JishiError('异常', '找不到名字', msg, line, col, hint);
+}
 function zeroDiv(line, col) { return new JishiError('除零错误', '不能除以零', '不能除以零', line, col); }
 function keyErr(msg, line, col) { return new JishiError('键错误', '找不到这个键', msg, line, col); }
 function indexErr(msg, line, col) { return new JishiError('索引错误', '索引越界', msg, line, col); }
@@ -2223,11 +2229,127 @@ function buildDict(pairs, line, col) {
 }
 
 // ---------------------------------------------------------------------------
-// 名字查找（含"你是不是想写"建议）
+// 名字查找（含「你是不是想写」的建议）—— M56 补齐
 // ---------------------------------------------------------------------------
+//
+// 为什么要**逐字复刻** Python 的 difflib：三侧的候选名必须一样 ——
+// **不一致比不给候选更糟**（用户会以为另一侧是错的）。所以这里照 CPython 3.13
+// 的 `SequenceMatcher.ratio()` 与 `get_close_matches` 写了一份，
+// 并由 `tests/test_m51_consistency.py` 的五引擎对拍钉住。
+//
+// ⚠️ 两个最容易抄错的点（都实测踩过）：
+//   ① 最长公共块要用 difflib 的 **DP 版**（`j2len`），且按 `k > bestsize`
+//      **严格大于**保留先遇到的。换个等价的选法（比如暴力枚举取最长），
+//      同长度不同起点时会选出**另一个块**，递归下去 M 就不同了。
+//   ② `get_close_matches` 收集的是 `(分数, 名字)` 元组，所以**同分时按名字
+//      降序**排 —— 不是「保持名字池原序」。抄错这点，实测 3000 组随机对拍里
+//      有 103 组候选顺序不同（例：`e文` 该给 `['文本','中文']`）。
+//      另外 CPython 3.13 的 `_nlargest(n, result)` == `sorted(..., reverse=True)[:n]`。
+
+/** 名字池里全是中文标识符，用英文名一般是「从 Python 抄来的」。 */
+const PY_NAME_HINT = {
+  'True': '基石里布尔值写「真」，不是 Python 的 True',
+  'False': '基石里布尔值写「假」，不是 Python 的 False',
+  'None': '基石里空值写「空」，不是 Python 的 None',
+  'null': '基石里空值写「空」，不是 null',
+};
+
+/**
+ * 按**码点**比较两个字符串（与 Python 的字符串比较一致）。
+ *
+ * ⚠️ JS 的 `<` 是按 UTF-16 **码元**比 —— 补充平面的字符（emoji）会排错位，
+ * 而 Python 按码点。候选名几乎不会是 emoji，但既然 M55 定了「一个字符 = 一个
+ * 码点」，这里就照码点来，免得又留一个「只在特殊字符上分叉」的坑。
+ */
+function cpCompare(s, t) {
+  const a = Array.from(s), b = Array.from(t);
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    const ca = a[i].codePointAt(0), cb = b[i].codePointAt(0);
+    if (ca !== cb) return ca < cb ? -1 : 1;
+  }
+  return a.length - b.length;
+}
+
+/** `difflib.SequenceMatcher.ratio()`：`2*M / (len(a)+len(b))`，M = 匹配字符总数。 */
+function sequenceRatio(s1, s2) {
+  if (s1 === s2) return 1.0;
+  const a = Array.from(s1), b = Array.from(s2);
+  const n = a.length + b.length;
+  if (!n) return 1.0;                        // difflib 的 `_calculate_ratio`
+  if (!a.length || !b.length) return 0.0;
+  return 2.0 * matchingTotal(a, b) / n;
+}
+
+/** `get_matching_blocks` 的 size 之和（合并相邻块不改变和，所以直接累加）。 */
+function matchingTotal(a, b) {
+  const b2j = new Map();
+  for (let i = 0; i < b.length; i++) {
+    if (!b2j.has(b[i])) b2j.set(b[i], []);
+    b2j.get(b[i]).push(i);
+  }
+  let total = 0;
+  const queue = [[0, a.length, 0, b.length]];
+  while (queue.length) {
+    const [alo, ahi, blo, bhi] = queue.pop();
+    const [i, j, k] = findLongestMatch(a, b2j, alo, ahi, blo, bhi);
+    if (k) {
+      total += k;
+      if (alo < i && blo < j) queue.push([alo, i, blo, j]);
+      if (i + k < ahi && j + k < bhi) queue.push([i + k, ahi, j + k, bhi]);
+    }
+  }
+  return total;
+}
+
+/** 复刻 `SequenceMatcher.find_longest_match`（DP 版 `j2len`）。 */
+function findLongestMatch(a, b2j, alo, ahi, blo, bhi) {
+  let besti = alo, bestj = blo, bestsize = 0;
+  let j2len = new Map();
+  for (let i = alo; i < ahi; i++) {
+    const newj2len = new Map();
+    for (const j of (b2j.get(a[i]) || [])) {
+      if (j < blo) continue;
+      if (j >= bhi) break;
+      const k = (j2len.get(j - 1) || 0) + 1;
+      newj2len.set(j, k);
+      if (k > bestsize) {                    // ⚠️ 严格大于 = 并列取先遇到的
+        besti = i - k + 1; bestj = j - k + 1; bestsize = k;
+      }
+    }
+    j2len = newj2len;
+  }
+  return [besti, bestj, bestsize];
+}
+
+/** `difflib.get_close_matches(word, pool, n, cutoff)` 的等价实现。 */
+function closeMatches(word, pool, n = 3, cutoff = 0.5) {
+  const hits = [];
+  for (const x of pool) {
+    const r = sequenceRatio(x, word);
+    if (r >= cutoff) hits.push([r, x]);
+  }
+  // 元组降序：分数降，**同分时名字降**（difflib 收集的是 (分数, 名字)）
+  hits.sort((p, q) => (p[0] !== q[0] ? q[0] - p[0] : -cpCompare(p[1], q[1])));
+  return hits.slice(0, n).map((t) => t[1]);
+}
+
+/**
+ * 「找不到名字」的提示语（M56）。算不出候选就给 null（那就只报错、不带提示）。
+ *
+ * ⚠️ 与 Python 侧 `runtime.lookup_name` 的顺序一致：**先查英文名对照表**
+ * （那是确定的、比模糊候选更有用），再算候选名。
+ */
+function nameHint(name, pool) {
+  if (PY_NAME_HINT[name]) return PY_NAME_HINT[name];
+  const matches = closeMatches(name, Object.keys(pool));
+  if (matches.length) return '你是不是想写「' + matches.join('」或「') + '」？';
+  return null;
+}
+
 function lookupName(name, pool, line, col) {
   if (name in pool) return pool[name];
-  throw nameErr(`找不到名字「${name}」`, line, col);
+  throw nameErr(`找不到名字「${name}」`, line, col, nameHint(name, pool));
 }
 
 // ---------------------------------------------------------------------------
@@ -2622,6 +2744,8 @@ module.exports = {
   // M51：命名参数 → 位置参数的映射（vm.js 的 `_callValue` 用它）
   mapKwargs, SIGS,
   unpackValues, buildDict, lookupName,
+  // M56：「你是不是想写」的候选名（`vm.js` 在 LOAD_GLOBAL 的报错路径上用它）
+  nameHint, closeMatches, sequenceRatio,
   isLoopSignal, exceptionMatches, makeException,
   nameErr, typeErr, valueErr, runErr, fileErr,
   // M41：`容器` / `迭代` 两个模块要用它做「元素 → 字典键」的归键

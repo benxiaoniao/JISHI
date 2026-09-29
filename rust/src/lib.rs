@@ -843,6 +843,9 @@ pub struct JishiError {
     /// 而不是去改几百处 `err(...)` 调用点。
     pub line: Option<i64>,
     pub col: Option<i64>,
+    /// 修法 / 线索提示（M56）：宿主原来**没有**这个字段（M54 记的账），
+    /// 于是 Python 侧那句「你是不是想写「长度」？」在宿主上给不出来。
+    pub hint: Option<String>,
 }
 
 /// 类型名 → 错误码（M56）。
@@ -885,7 +888,147 @@ pub fn error_title(type_name: &str) -> &str {
 pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
-                 line: None, col: None }
+                 line: None, col: None, hint: None }
+}
+
+/// 带提示语的报错（M56）：`hint` 会渲染成「  提示：…」那一行。
+pub(crate) fn err_with_hint(t: &str, msg: impl Into<String>, hint: String) -> JishiError {
+    JishiError { type_name: t.to_string(), message: msg.into(),
+                 code: error_code(t).map(|s| s.to_string()),
+                 line: None, col: None, hint: Some(hint) }
+}
+
+// ---------------------------------------------------------------------------
+// 「你是不是想写」的候选名（M56）
+// ---------------------------------------------------------------------------
+//
+// 为什么要**逐字复刻** Python 的 difflib：三侧的候选名必须一样 ——
+// **不一致比不给候选更糟**（用户会以为另一侧是错的）。这里照 CPython 3.13 的
+// `SequenceMatcher.ratio()` 与 `get_close_matches` 写了一份，由
+// `tests/test_m51_consistency.py` 的五引擎对拍钉住（Node 侧是同一份算法的 JS 版）。
+//
+// ⚠️ 两个最容易抄错的点（都实测踩过）：
+//   ① 最长公共块要用 difflib 的 **DP 版**（`j2len`），且按 `k > bestsize`
+//      **严格大于**保留先遇到的。换个等价选法（暴力取最长），同长度不同起点时
+//      会选出**另一个块**，递归下去 M 就不同了。
+//   ② `get_close_matches` 收集的是 `(分数, 名字)` 元组，所以**同分时按名字降序**
+//      —— 不是「保持名字池原序」。抄错这点，3000 组随机对拍里有 103 组
+//      候选顺序不同（例：`e文` 该给 `['文本','中文']`）。
+//      ⚠️ Rust 的 `String` 比较按 UTF-8 **字节**序，恰好与 Python 的**码点**序
+//      一致（UTF-8 保序），所以这里能直接用 `cmp`。
+
+/// `difflib.SequenceMatcher.ratio()`：`2*M / (len(a)+len(b))`，M = 匹配字符总数。
+pub(crate) fn sequence_ratio(s1: &str, s2: &str) -> f64 {
+    if s1 == s2 {
+        return 1.0;
+    }
+    let a: Vec<char> = s1.chars().collect();
+    let b: Vec<char> = s2.chars().collect();
+    let n = a.len() + b.len();
+    if n == 0 {
+        return 1.0;                     // difflib 的 `_calculate_ratio`
+    }
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    2.0 * matching_total(&a, &b) as f64 / n as f64
+}
+
+/// `get_matching_blocks` 的 size 之和（合并相邻块不改变和，所以直接累加）。
+fn matching_total(a: &[char], b: &[char]) -> usize {
+    let mut b2j: HashMap<char, Vec<usize>> = HashMap::new();
+    for (i, c) in b.iter().enumerate() {
+        b2j.entry(*c).or_default().push(i);
+    }
+    let mut total = 0usize;
+    let mut queue: Vec<(usize, usize, usize, usize)> = vec![(0, a.len(), 0, b.len())];
+    while let Some((alo, ahi, blo, bhi)) = queue.pop() {
+        let (i, j, k) = find_longest_match(a, &b2j, alo, ahi, blo, bhi);
+        if k > 0 {
+            total += k;
+            if alo < i && blo < j {
+                queue.push((alo, i, blo, j));
+            }
+            if i + k < ahi && j + k < bhi {
+                queue.push((i + k, ahi, j + k, bhi));
+            }
+        }
+    }
+    total
+}
+
+/// 复刻 `SequenceMatcher.find_longest_match`（DP 版 `j2len`）。
+fn find_longest_match(a: &[char], b2j: &HashMap<char, Vec<usize>>,
+                      alo: usize, ahi: usize, blo: usize, bhi: usize)
+                      -> (usize, usize, usize) {
+    let (mut besti, mut bestj, mut bestsize) = (alo, blo, 0usize);
+    let mut j2len: HashMap<usize, usize> = HashMap::new();
+    for i in alo..ahi {
+        let mut newj2len: HashMap<usize, usize> = HashMap::new();
+        if let Some(js) = b2j.get(&a[i]) {
+            for &j in js {
+                if j < blo {
+                    continue;
+                }
+                if j >= bhi {
+                    break;
+                }
+                let prev = if j == 0 { 0 } else { j2len.get(&(j - 1)).copied().unwrap_or(0) };
+                let k = prev + 1;
+                newj2len.insert(j, k);
+                if k > bestsize {       // ⚠️ 严格大于 = 并列取先遇到的
+                    besti = i - k + 1;
+                    bestj = j - k + 1;
+                    bestsize = k;
+                }
+            }
+        }
+        j2len = newj2len;
+    }
+    (besti, bestj, bestsize)
+}
+
+/// `difflib.get_close_matches(word, pool, n, cutoff)` 的等价实现。
+pub(crate) fn close_matches(word: &str, pool: &[String], n: usize, cutoff: f64) -> Vec<String> {
+    let mut hits: Vec<(f64, String)> = Vec::new();
+    for x in pool {
+        let r = sequence_ratio(x, word);
+        if r >= cutoff {
+            hits.push((r, x.clone()));
+        }
+    }
+    // 元组降序：分数降，**同分时名字降**（difflib 收集的是 (分数, 名字)）
+    hits.sort_by(|p, q| {
+        q.0.partial_cmp(&p.0).unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| q.1.cmp(&p.1))
+    });
+    hits.into_iter().take(n).map(|(_, x)| x).collect()
+}
+
+/// 名字池里全是中文标识符，用英文名一般是「从 Python 抄来的」。
+fn py_name_hint(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "True" => "基石里布尔值写「真」，不是 Python 的 True",
+        "False" => "基石里布尔值写「假」，不是 Python 的 False",
+        "None" => "基石里空值写「空」，不是 Python 的 None",
+        "null" => "基石里空值写「空」，不是 null",
+        _ => return None,
+    })
+}
+
+/// 「找不到名字」的提示语（M56）。算不出候选就给 None（那就只报错、不带提示）。
+///
+/// ⚠️ 与 Python 侧 `runtime.lookup_name` 同一顺序：**先查英文名对照表**
+/// （那是确定的、比模糊候选更有用），再算相近候选。
+pub(crate) fn name_hint(name: &str, pool: &[String]) -> Option<String> {
+    if let Some(h) = py_name_hint(name) {
+        return Some(h.to_string());
+    }
+    let matches = close_matches(name, pool, 3, 0.5);
+    if matches.is_empty() {
+        return None;
+    }
+    Some(format!("你是不是想写「{}」？", matches.join("」或「")))
 }
 
 // 循环信号
@@ -1068,10 +1211,18 @@ impl VM {
                     self.stack.push(c);
                 }
                 op::LOAD_GLOBAL => {
-                    let name = &self.module.names[ins.a as usize];
-                    match self.globals.get(name) {
+                    let name = self.module.names[ins.a as usize].clone();
+                    match self.globals.get(&name) {
                         Some(v) => self.stack.push(v.clone()),
-                        None => return Err(err("异常", format!("找不到名字「{name}」"))),
+                        None => {
+                            // M56：只在报错路径上算候选名（正常路径零开销）
+                            let pool: Vec<String> = self.globals.keys().cloned().collect();
+                            let msg = format!("找不到名字「{name}」");
+                            return Err(match name_hint(&name, &pool) {
+                                Some(h) => err_with_hint("异常", msg, h),
+                                None => err("异常", msg),
+                            });
+                        }
                     }
                 }
                 op::STORE_GLOBAL => {

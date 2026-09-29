@@ -216,7 +216,12 @@ class VM {
             stack.pop();
           } else if (op === Op.LOAD_GLOBAL) {
             const name = names[ins.a];
-            if (!(name in globs)) throw R.nameErr(`找不到名字「${name}」`, ins.line, ins.col);
+            // M56：找不到时带上「你是不是想写「X」？」（只在报错路径上算候选，
+            // 正常路径仍是 `name in globs` 一次哈希查找，零开销）
+            if (!(name in globs)) {
+              throw R.nameErr(`找不到名字「${name}」`, ins.line, ins.col,
+                              R.nameHint(name, globs));
+            }
             stack.push(globs[name]);
           } else if (op === Op.STORE_GLOBAL) {
             globs[names[ins.a]] = stack.pop();

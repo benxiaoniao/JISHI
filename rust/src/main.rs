@@ -73,6 +73,10 @@ fn main() -> ExitCode {
             if let (Some(line), Some(col)) = (e.line, e.col) {
                 eprintln!("  ← 第 {line} 行第 {col} 列");
             }
+            // M56：提示语（与 Python 侧「提示：…」同格式）
+            if let Some(hint) = &e.hint {
+                eprintln!("  提示：{hint}");
+            }
             ExitCode::from(1)
         }
     }

@@ -904,3 +904,105 @@ def test_M56_宽泛的异常不给码():
         if label in ("Node", "Rust"):
             assert "错误（异常）" in out, f"{label} 的渲染变了：{out[:160]!r}"
             assert "第 1 行" in out, f"{label} 没给位置：{out[:160]!r}"
+
+
+# ---------------------------------------------------------------------------
+# 七、M56 第 5 条收尾：宿主也给「你是不是想写」的候选（hint）
+# ---------------------------------------------------------------------------
+#
+# 两宿主的 `JishiError` 原来**没有 hint 字段**（M54 记的账），所以 Python 侧那句
+# 「你是不是想写「长度」？」在宿主上一直给不出来 —— 报错只说「找不到名字」，
+# 不告诉人**可能该写什么**。
+#
+# 难点不在「加个字段」，而在**候选必须三侧一样**：Python 用 difflib，
+# 而 Node / Rust 都没有它，于是各复刻了一份 Ratcliff-Obershelp。
+# 抄错任何一处，候选就会不同，而**不一致比不给候选更糟**
+# （用户会以为另一侧给的才是对的）。所以这两条测试钉的就是「一样」。
+
+
+def test_M56_宿主也给候选名_且三侧一样():
+    """拼错内建：三侧都给「你是不是想写「X」？」。
+
+    两个用例分别覆盖**单候选**与**多候选**：
+    多候选的顺序也要一样 —— difflib 的 `get_close_matches` 收集的是
+    `(分数, 名字)`，所以**同分时按名字降序**（不是保持名字池原序）。
+    复刻时抄错这一点，实测 3000 组随机对拍里会有 103 组顺序不同。
+    """
+    cases = [
+        ('打印(长渡([1]))\n', "你是不是想写「长度」？"),
+        ('令 数据 = 1\n打印(打应(数据))\n', "你是不是想写「打开」或「打印」？"),
+    ]
+    for src, want in cases:
+        hints = {}
+        for label, run in _engines():
+            ok, out = run(src)
+            assert not ok, f"{label} 本该报错却跑通了"
+            line = next((x for x in out.splitlines() if "提示" in x), None)
+            assert line is not None, f"{label} 没给候选：{out[:200]!r}"
+            hints[label] = line.strip()
+        assert len(set(hints.values())) == 1, f"三侧候选不一致：{hints}"
+        assert want in hints["树遍历"], f"候选内容变了：{hints['树遍历']!r}"
+
+
+def test_M56_不像的名字不给假候选():
+    """`prnit` 跟名字池里谁都不像 → **不给提示行**。
+
+    「宁可少给，不要给错」：硬凑一个不相干的候选，用户会去改一个本来没错的名字。
+    Python 的 `get_close_matches(cutoff=0.5)` 在这里就是给空 —— 两侧照抄这一点。
+    """
+    src = 'prnit(1)\n'
+    for label, run in _engines():
+        ok, out = run(src)
+        assert not ok, f"{label} 本该报错却跑通了"
+        assert "提示" not in out, f"{label} 给了不该有的候选：{out[:200]!r}"
+
+
+# ---------------------------------------------------------------------------
+# 七、M56 第 5 条收尾：宿主也给「你是不是想写」的候选（hint）
+# ---------------------------------------------------------------------------
+#
+# 两宿主的 `JishiError` 原来**没有 hint 字段**（M54 记的账），所以 Python 侧那句
+# 「你是不是想写「长度」？」在宿主上一直给不出来 —— 报错只说「找不到名字」，
+# 不告诉人**可能该写什么**。
+#
+# 难点不在「加个字段」，而在**候选必须三侧一样**：Python 用 difflib，
+# 而 Node / Rust 都没有它，于是各复刻了一份 Ratcliff-Obershelp。
+# 抄错任何一处，候选就会不同，而**不一致比不给候选更糟**
+# （用户会以为另一侧给的才是对的）。所以这两条测试钉的就是「一样」。
+
+
+def test_M56_宿主也给候选名_且三侧一样():
+    """拼错内建：三侧都给「你是不是想写「X」？」。
+
+    两个用例分别覆盖**单候选**与**多候选**：
+    多候选的顺序也要一样 —— difflib 的 `get_close_matches` 收集的是
+    `(分数, 名字)`，所以**同分时按名字降序**（不是保持名字池原序）。
+    复刻时抄错这一点，实测 3000 组随机对拍里会有 103 组顺序不同。
+    """
+    cases = [
+        ('打印(长渡([1]))\n', "你是不是想写「长度」？"),
+        ('令 数据 = 1\n打印(打应(数据))\n', "你是不是想写「打开」或「打印」？"),
+    ]
+    for src, want in cases:
+        hints = {}
+        for label, run in _engines():
+            ok, out = run(src)
+            assert not ok, f"{label} 本该报错却跑通了"
+            line = next((x for x in out.splitlines() if "提示" in x), None)
+            assert line is not None, f"{label} 没给候选：{out[:200]!r}"
+            hints[label] = line.strip()
+        assert len(set(hints.values())) == 1, f"三侧候选不一致：{hints}"
+        assert want in hints["树遍历"], f"候选内容变了：{hints['树遍历']!r}"
+
+
+def test_M56_不像的名字不给假候选():
+    """`prnit` 跟名字池里谁都不像 → **不给提示行**。
+
+    「宁可少给，不要给错」：硬凑一个不相干的候选，用户会去改一个本来没错的名字。
+    Python 的 `get_close_matches(cutoff=0.5)` 在这里就是给空 —— 两侧照抄这一点。
+    """
+    src = 'prnit(1)\n'
+    for label, run in _engines():
+        ok, out = run(src)
+        assert not ok, f"{label} 本该报错却跑通了"
+        assert "提示" not in out, f"{label} 给了不该有的候选：{out[:200]!r}"
