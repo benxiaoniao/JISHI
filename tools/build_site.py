@@ -444,6 +444,22 @@ def main() -> int:
     except Exception as e:  # noqa: BLE001
         print(f"生成 Playground 失败（可忽略）：{e}")
 
+    # 基石自述站：**用它自己生成**（`examples/projects/基石自述站/生成.jsh`）。
+    #
+    # ⚠️ 这一步以前是手工跑的，于是踩过一次：`rm -rf site` 重建之后自述站没了，
+    # 打包部署上去就 404。**一键构建要能产出完整站点**，所以并进来。
+    # 部署时会把 `site/基石自述/` 改名成 `about/`（中文目录名在 URL 里要
+    # 百分号编码，换 ASCII 更好用）。
+    try:
+        import subprocess
+        subprocess.run(
+            [sys.executable, "-m", "jishi.cli",
+             str(ROOT / "examples" / "projects" / "基石自述站" / "生成.jsh")],
+            check=True, capture_output=True, cwd=ROOT)
+        print("生成 site/基石自述/（用基石自己跑的生成器）")
+    except Exception as e:  # noqa: BLE001
+        print(f"生成自述站失败（可忽略）：{e}")
+
     print(f"\n完成：{len(PAGES)} 个页面 → {OUT}")
     if "--open" in sys.argv:
         webbrowser.open((OUT / "README.html").as_uri())
