@@ -386,197 +386,6 @@ def build_llms_full() -> str:
     return "".join(parts)
 
 
-def _site_stats() -> dict:
-    """官网上要显示的数字 —— **从代码里读**，不手写（手写的一过期就是错的）。"""
-    sys.path.insert(0, str(ROOT))
-    from jishi.ai import build_lang_spec
-    from jishi.version import VERSION
-
-    spec = build_lang_spec()
-    return {
-        "版本": VERSION,
-        "模块数": len(spec["stdlib"]),
-        "函数数": sum(len(m["functions"]) for m in spec["stdlib"]),
-        "内建数": len(spec["builtins"]),
-        "关键字数": len(spec["keywords"]),
-    }
-
-
-#: ICP 备案号 —— **法定要求**：网站主页最下方必须展示，并链接到工信部备案系统。
-#: 这份信息是**公开**的（备案本身就是公开登记），所以进仓库没问题；
-#: 但**服务器地址 / 实例 ID / 备案主体信息**绝不能进仓库（见 `AGENTS.md` §8）。
-ICP_BEIAN = "苏ICP备2026073372号"
-ICP_URL = "https://beian.miit.gov.cn/"
-
-
-def build_home() -> str:
-    """官网首页（M49）——独立布局（不套文档站的侧边栏），带备案号页脚。"""
-    s = _site_stats()
-    return f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>基石（jishi）—— 一门中文编程语言</title>
-<meta name="description" content="基石是一门中文编程语言，语法对标 Python 的易用性：
-关键字、内建、报错全是中文。五个引擎（树遍历 / Python VM / C VM / Node / Rust）语义一致。">
-<style>
-:root{{--bg:#fff;--fg:#1f2430;--muted:#5c6370;--accent:#0b5fff;--code-bg:#f6f8fa;
---border:#e4e7ec;--nav-bg:#fafbfc;--radius:8px}}
-@media(prefers-color-scheme:dark){{:root{{--bg:#0f1218;--fg:#e6e9ef;--muted:#9aa4b2;
---accent:#6ea8ff;--code-bg:#161a22;--border:#242a35;--nav-bg:#131820}}}}
-*{{box-sizing:border-box}}
-body{{margin:0;font:16px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
-color:var(--fg);background:var(--bg);-webkit-font-smoothing:antialiased}}
-a{{color:var(--accent);text-decoration:none}}a:hover{{text-decoration:underline}}
-code,pre{{font-family:"JetBrains Mono",Consolas,monospace}}
-.wrap{{max-width:960px;margin:0 auto;padding:0 24px}}
-header.top{{border-bottom:1px solid var(--border);position:sticky;top:0;
-background:var(--bg);z-index:9}}
-header.top .wrap{{display:flex;align-items:center;justify-content:space-between;
-height:62px;gap:16px}}
-header.top .logo{{font-weight:700;font-size:19px;color:var(--fg)}}
-header.top .logo small{{color:var(--muted);font-weight:400;font-size:13px;margin-left:6px}}
-header.top nav{{display:flex;gap:20px;font-size:14.5px;flex-wrap:wrap}}
-header.top nav a{{color:var(--muted)}}
-header.top nav a:hover{{color:var(--accent)}}
-.hero{{padding:64px 0 40px;text-align:center}}
-.hero img{{width:88px;height:88px;border-radius:20px}}
-.hero h1{{font-size:40px;line-height:1.25;margin:22px 0 14px;letter-spacing:-.5px}}
-.hero .lead{{font-size:18px;color:var(--muted);max-width:640px;margin:0 auto 26px}}
-.btns{{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:34px}}
-.btn{{display:inline-block;padding:11px 24px;border:1px solid var(--border);
-border-radius:var(--radius);font-size:15px;color:var(--fg);background:var(--nav-bg)}}
-.btn:hover{{text-decoration:none;border-color:var(--accent)}}
-.btn.primary{{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}}
-.btn.primary:hover{{opacity:.9}}
-pre{{background:var(--code-bg);border:1px solid var(--border);border-radius:var(--radius);
-padding:18px 20px;overflow-x:auto;font-size:14px;line-height:1.7;text-align:left;
-max-width:640px;margin:0 auto}}
-p code,li code{{background:var(--code-bg);padding:2px 5px;border-radius:4px;font-size:.9em}}
-section{{padding:44px 0;border-top:1px solid var(--border)}}
-section h2{{font-size:24px;margin:0 0 22px}}
-.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}}
-.card{{border:1px solid var(--border);border-radius:var(--radius);padding:20px;
-background:var(--nav-bg)}}
-.card h3{{margin:0 0 8px;font-size:16px}}
-.card p{{margin:0;color:var(--muted);font-size:14.5px}}
-.installs{{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}}
-.installs .card pre{{margin:12px 0 0;font-size:13px;padding:12px 14px;max-width:none}}
-footer{{border-top:1px solid var(--border);padding:34px 0 46px;color:var(--muted);
-font-size:14px;text-align:center}}
-footer .links{{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;
-margin-bottom:16px}}
-footer .links a{{color:var(--muted)}}
-footer .icp{{margin-top:6px}}
-footer .icp a{{color:var(--muted);display:inline-flex;align-items:center;gap:6px}}
-footer .icp img{{height:16px}}
-@media(max-width:640px){{.hero h1{{font-size:30px}}.hero{{padding:40px 0 26px}}}}
-</style>
-</head>
-<body>
-
-<header class="top"><div class="wrap">
-  <a class="logo" href="./">基石<small>jishi</small></a>
-  <nav>
-    <a href="README.html">文档</a>
-    <a href="playground.html">在线试玩</a>
-    <a href="docs/语言规格.html">语言规格</a>
-    <a href="docs/tutorial/01-你好基石.html">教程</a>
-    <a href="about/index.html">自述</a>
-    <a href="https://github.com/benxiaoniao/JISHI">GitHub</a>
-  </nav>
-</div></header>
-
-<div class="wrap">
-  <div class="hero">
-    <img src="assets/基石_logo.png" alt="基石">
-    <h1>用中文写程序</h1>
-    <p class="lead">基石是一门<b>中文编程语言</b>，语法对标 Python 的易用性 ——
-      关键字、内建函数、报错提示都是中文。当前 <b>{s['版本']}</b>，
-      标准库 <b>{s['模块数']}</b> 个模块、<b>{s['函数数']}</b> 个函数，
-      <b>五个引擎</b>语义一致。</p>
-    <div class="btns">
-      <a class="btn primary" href="README.html">开始使用</a>
-      <a class="btn" href="playground.html">在线试玩（免安装）</a>
-    </div>
-    <pre><code>函数 问候(名字)：
-    返回 "你好，" + 名字 + "！"
-
-令 朋友们 = ["小明", "小红", "小刚"]
-遍历 名字 在 朋友们：
-    打印(问候(名字))</code></pre>
-  </div>
-</div>
-
-<div class="wrap">
-  <section>
-    <h2>为什么值得一试</h2>
-    <div class="grid">
-      <div class="card">
-        <h3>中文就是关键字</h3>
-        <p><code>如果</code> / <code>遍历</code> / <code>函数</code> / <code>返回</code>
-        —— 按中文语序取名，不照搬英文。{s['关键字数']} 个关键字、{s['内建数']} 个内建，
-        全是常用词。</p>
-      </div>
-      <div class="card">
-        <h3>五个引擎，行为一致</h3>
-        <p>树遍历、Python 字节码 VM、C 虚拟机，以及 Node / Rust 两个跨语言宿主 ——
-        同一段程序跑出来的结果**逐字节相同**（有对拍测试盯着）。</p>
-      </div>
-      <div class="card">
-        <h3>报错直接告诉你怎么办</h3>
-        <p>错误码 + 行列位置 + 修法提示，报错里带「你是不是想写「长度」？」。
-        错误码还能直接查：<code>jishi 错误 E0301</code>。</p>
-      </div>
-      <div class="card">
-        <h3>标准库与包管理</h3>
-        <p>{s['模块数']} 个中文模块（数学 / 时间 / 表格 / 正则 / 加密…），
-        外加 <code>jishi 安装</code> 装第三方包。</p>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <h2>三种方式开始</h2>
-    <div class="installs">
-      <div class="card">
-        <h3>① 编辑器里直接用</h3>
-        <p>装 VS Code 扩展，立刻有语法高亮、补全、调试器。</p>
-        <pre><code>扩展 ID：jishi-lang.vscode-jishi</code></pre>
-      </div>
-      <div class="card">
-        <h3>② 从源码安装</h3>
-        <p>需要本机有 Python 3.10+。</p>
-        <pre><code>pip install git+https://github.com/benxiaoniao/JISHI.git</code></pre>
-      </div>
-      <div class="card">
-        <h3>③ 装第三方包</h3>
-        <p>装好之后，用它自己的包管理。</p>
-        <pre><code>jishi 安装 基础库</code></pre>
-      </div>
-    </div>
-  </section>
-</div>
-
-<footer><div class="wrap">
-  <div class="links">
-    <a href="README.html">文档</a>
-    <a href="playground.html">试玩</a>
-    <a href="docs/语言规格.html">语言规格</a>
-    <a href="docs/tutorial/01-你好基石.html">教程</a>
-    <a href="llms.txt">llms.txt（给模型看的索引）</a>
-    <a href="https://github.com/benxiaoniao/JISHI">GitHub</a>
-  </div>
-  <div>基石（jishi）· 一门中文编程语言 · MIT-0 许可</div>
-  <div class="icp">
-    <a href="{ICP_URL}" target="_blank" rel="noopener noreferrer">{ICP_BEIAN}</a>
-  </div>
-</div></footer>
-
-</body>
-</html>
-"""
 
 
 def main() -> int:
@@ -603,9 +412,15 @@ def main() -> int:
             encoding="utf-8")
         print(f"生成 {rel_html}")
 
-    # 官网首页（M49）：独立布局，带 ICP 备案号页脚
-    (OUT / "index.html").write_text(build_home(), encoding="utf-8")
-    print("生成 site/index.html（官网首页，含备案号）")
+    # 官网六个页面（M49）——**生成器独立成 `tools/build_home.py`**。
+    #
+    # ⚠️ 以前这里内联过一份「单页官网」，两边都写 `site/index.html`，
+    # 谁后跑谁覆盖前面那个（服务器上实测撞过）。同一件事只留一个来源。
+    try:
+        from build_home import build_all as build_home_pages
+        build_home_pages()
+    except Exception as e:                                      # noqa: BLE001
+        print(f"生成官网失败（文档站不受影响）：{e}")
 
     # llms.txt（索引）+ llms-full.txt（全文），供 LLM 爬取结构化语料
     (OUT / "llms.txt").write_text(build_llms_txt(), encoding="utf-8")
