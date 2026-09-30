@@ -24,6 +24,8 @@ M51 建了标准库的漂移检测、M54 建了对象方法的，M55 才补上�
 
 import io
 import json
+import os
+import shutil
 import subprocess
 import sys
 from contextlib import redirect_stdout
@@ -43,8 +45,14 @@ from jishi.errors import JishiError  # noqa: E402
 from jishi.interpreter import run_source as tree_run  # noqa: E402
 
 PY = sys.executable
-NODE = "node"
-RUST = str(ROOT / "rust" / "target" / "release" / "jishi-rs.exe")
+# ⚠️ 两个宿主的**可执行名都别写死**：
+#   · `node` 要经 PATH 查找（找不到时如实报「跳过」，别让它抛 FileNotFoundError
+#     把整个体检弄崩 —— 2026-09-30 在没装 node 的服务器上真崩过）；
+#   · Rust 宿主的可执行**带不带 `.exe` 是分平台的**，写死 `.exe` 会让
+#     Linux / CI 上永远找不到它（哪怕真编译过）。
+NODE = shutil.which("node") or "node"
+_RUST_NAME = "jishi-rs.exe" if os.name == "nt" else "jishi-rs"
+RUST = str(ROOT / "rust" / "target" / "release" / _RUST_NAME)
 TMP = ROOT / ".tmp-probe" / "builtins"
 TMP.mkdir(parents=True, exist_ok=True)
 
@@ -209,6 +217,10 @@ def run_host(which: str, bc: Path, stdin: str = "") -> tuple[str, str]:
                            input=stdin, cwd=str(ROOT), timeout=120)
     except subprocess.TimeoutExpired:
         return ("err", "<超时>")
+    except FileNotFoundError as e:
+        # **宿主不存在**（没装 / 没编译）是「这一项没测」，不是「体检失败」——
+        # 所以报 `skip` 让调用方如实记一笔，而不是让整个体检崩掉。
+        return ("skip", f"<找不到 {e.filename or which}>")
     out = ((r.stdout or "") + (r.stderr or ""))
     lines = _norm(out)
     if r.returncode != 0 or (lines and ("错误" in lines[0] or "panic" in lines[0])):
@@ -232,10 +244,19 @@ def check_one(name: str, src: str, stdin: str, fast: bool) -> dict:
     bc = TMP / f"{name}.json"
     _dump(src, bc)
     host = {}
+    skipped: list[str] = []
     for h in ENGINES_HOST:
-        if fast and h == "Rust":
+        if fast:
+            # ⚠️ `--fast` 的语义是「**只跑三执行器**」—— 原先只跳过了 Rust、
+            # 照样去跑 Node，于是在没装 node 的机器上直接崩（2026-09-30）。
+            # 两宿主那两位由 pytest 里的五引擎对拍覆盖，这里跳掉是**说好的**。
             continue
-        host[h] = run_host(h, bc, stdin)
+        r = run_host(h, bc, stdin)
+        if r[0] == "skip":
+            skipped.append(f"{h}（{r[1][1:-1]}）")
+            continue
+        host[h] = r
+    res["skipped"] = skipped
     res["host_same"] = len(set(host.values())) <= 1 if host else True
 
     # 跨语言：kind 必须一致；都 ok 时输出也要一致
@@ -347,23 +368,38 @@ def main(argv: list[str]) -> int:
         except Exception:                                       # noqa: BLE001
             return None
 
-    node_names = dump([NODE, str(ROOT / "node" / "index.js"), "--dump-builtins"])
-    rust_names = dump([RUST, "--dump-builtins"])
-    # ⚠️ 这里**不再排除** `超`（M55 曾排除，注释在 `tests/test_m51_consistency.py`
-    # 的 `BUILTIN_EXEMPT` 里 —— 那个判断是错的）。`超` 是运行期内建，宿主必须有。
+    # ⚠️ **「宿主不存在」与「宿主家底不对」是两回事**（2026-09-30 修）：
+    #   · 没装 / 没编译 → **跳过**并如实报告 —— CI 上**故意不编译 Rust**，
+    #     那是说好的事，不该因此判体检失败（它曾让 ubuntu 两个任务一直红）；
+    #   · 存在但缺/多 → **失败** —— 那才是真问题（M55/M56 都抓到过）。
+    node_exe = NODE if os.path.isabs(NODE) else shutil.which(NODE)
     base = list(declared)
-    name_bad = []
-    for label, got in (("Node", node_names), ("Rust", rust_names)):
+    name_bad: list[str] = []
+    name_skip: list[str] = []
+    for label, exe, cmd in (
+        ("Node", node_exe, [NODE, str(ROOT / "node" / "index.js"), "--dump-builtins"]),
+        ("Rust", RUST, [RUST, "--dump-builtins"]),
+    ):
+        if not exe or not Path(exe).is_file():
+            name_skip.append(f"{label}（宿主不存在）")
+            continue
+        got = dump(cmd)
         if got is None:
             name_bad.append(f"{label} 拿不到 --dump-builtins")
             continue
+        # ⚠️ 这里**不排除** `超`（M55 曾排除，理由在
+        # `tests/test_m51_consistency.py` 的 `BUILTIN_EXEMPT` —— 那个判断是错的）。
+        # `超` 是运行期内建，宿主必须有。
         miss, extra = sorted(set(base) - set(got)), sorted(set(got) - set(base))
         if miss:
             name_bad.append(f"{label} 缺：{'、'.join(miss)}")
         if extra:
             name_bad.append(f"{label} 多：{'、'.join(extra)}")
     print("【一】名字清单（--dump-builtins，与分派同源）")
-    print("      " + ("✓ 三侧同宽（各 29）" if not name_bad else "\n      ".join(name_bad)))
+    line = "✓ 三侧同宽" if not name_bad else "\n      ".join(name_bad)
+    if name_skip:
+        line += f"（如实跳过：{'、'.join(name_skip)}）"
+    print("      " + line)
     print()
 
     # ---- 2. 正常用法 ----
@@ -442,7 +478,7 @@ def main(argv: list[str]) -> int:
         print("=" * 78)
         return 1
     print(f"✅ 无悬案：{len(public)} 个公开内建 × 5 引擎，用法与错误路径全部一致"
-          f"{'（已跳过 Rust 逐个扫描）' if fast else ''}")
+          f"{'（已跳过两宿主逐个扫描）' if fast else ''}")
     print("=" * 78)
     return 0
 

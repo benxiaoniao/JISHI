@@ -132,8 +132,10 @@ jobs:
           if [ ! -f ci.log ]; then
             exit 0     # 没跑到这里（多半是「全量测试」先挂了，已有另一条注解）
           fi
-          SUMMARY=$(grep -aE '^(FAILED|ERROR|E |.*Error:|Traceback|--- .*(失败|通过) ---)' ci.log \
-                    | tail -25 | tr -d '\r' | tr '\n' ' ')
+          # ⚠️ 也要抓 `✗` 与「悬案」这类行 —— ci.py 里几个体检工具**不输出
+          # `FAILED`**，它们的失败长这样（2026-09-30 白跑了一轮才补上）。
+          SUMMARY=$(grep -aE -B 1 -A 2 '(^FAILED|^ERROR|^E |.*Error:|Traceback|✗|悬案|不一致|--- .*(失败|通过) ---)' ci.log \
+                    | tail -30 | tr -d '\r' | tr '\n' ' ')
           if [ -z "$SUMMARY" ]; then
             SUMMARY="【无匹配行，退回日志末尾】$(tail -c 900 ci.log | tr -d '\r' | tr '\n' ' ')"
           fi
