@@ -386,6 +386,43 @@ def check_examples() -> int:
 # 五、六个页面
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# 内联示例的字符串常量
+# ---------------------------------------------------------------------------
+# ⚠️ **含反斜杠的字符串必须放在 f-string 外面**：Python 3.12+（PEP 701）才允许
+# f-string 的表达式部分里有反斜杠，**3.10 / 3.11 直接 SyntaxError** —— 而 CI 的
+# matrix 里有 3.10。2026-09-30 修：这条曾让 CI 的 3.10 任务**一直红**，
+# 而本地（3.13）完全看不出来。
+#
+# 这里的字符串里是**字面 `\n`**（`code()` 会把它还原成换行），所以单独取名、
+# 不写在 `{...}` 里。加新示例时照这个来。
+
+_S1 = code('令 分数 = 87\\n如果 分数 >= 90：\\n    打印("优秀")\\n否则如果 分数 >= 60：\\n'
+      '    打印("及格")\\n否则：\\n    打印("不及格")')
+
+_S2 = code('函数 算面积(长, 宽 = 1)：\\n    返回 长 * 宽\\n\\n'
+      '打印(算面积(5, 3))\\n打印(算面积(4))')
+
+_S3 = code('令 库存 = {"苹果": 12, "香蕉": 7}\\n库存["苹果"] = 库存["苹果"] - 2\\n'
+      '遍历 名字, 数量 在 库存.项目()：\\n    打印(名字, "还剩", 数量)')
+
+_S4 = code('错误 E0301：找不到这个名字（找不到名字「长渡」）\\n'
+      '  ┌─ 你好.jsh:2:6\\n'
+      '  │\\n'
+      '  2 │ 打印(长渡([1]))\\n'
+      '    │      ^\\n'
+      '  │\\n'
+      '  提示：你是不是想写「长度」？')
+
+_S5 = code('导入 数学\\n\\n打印(数学.开方(16))\\n打印(数学.最大公约数(12, 18))',
+      "先导入模块，再用 `模块名.函数名(...)` 调用")
+
+_S6 = code('错误 E2002：类型错误（「整数」和「文本」不能做「+」运算）\\n'
+      '  ┌─ 例子.jsh:3:6')
+
+_S7 = code('git clone https://github.com/benxiaoniao/JISHI.git\\ncd JISHI\\npython -m jishi.cli examples/projects/待办清单/待办.jsh',
+      "clone 下来直接跑仓库里的例子（不用装，源码即可运行）")
+
 def build_index(spec: dict, ver: str) -> str:
     total, passed = count_tests()
     test_cell = ""
@@ -399,6 +436,10 @@ def build_index(spec: dict, ver: str) -> str:
         f"<td class=\"code\">{ln} 行</td></tr>"
         for n, d, ln in projects)
 
+    # ⚠️ 含反斜杠的字符串必须放在 f-string **外面**：
+    # Python 3.12+（PEP 701）才允许 f-string 表达式里有反斜杠，
+    # 3.10/3.11 直接 SyntaxError —— 而 CI 的 matrix 里有 3.10。
+    _hero_cmd = "jishi 你好.jsh\\njishi 医生"
     body = f"""
 <h1>用中文写程序</h1>
 <p class="lead">基石是一门<b>中文编程语言</b>。<code>如果</code> <code>遍历</code>
@@ -466,7 +507,7 @@ def build_index(spec: dict, ver: str) -> str:
 想改代码的可以 <code>pip install git+…</code>。
 安装包<b>就放在本站</b>，不必去 GitHub —— <a href="download.html">下载页</a>
 有各平台的包和逐版本的升级说明。</p>
-{code('jishi 你好.jsh\\njishi 医生', "装好之后：跑程序、做一次环境自检")}
+{code(_hero_cmd, "装好之后：跑程序、做一次环境自检")}
 """
     return page("基石（jishi）—— 一门中文编程语言", body, "index.html",
                 "基石是一门中文编程语言，关键字与报错都是中文。五个引擎语义一致，"
@@ -474,6 +515,14 @@ def build_index(spec: dict, ver: str) -> str:
 
 
 def build_start(ver: str) -> str:
+    # ⚠️ **含反斜杠的字符串必须放在 f-string 外面**：Python 3.12+（PEP 701）
+    # 才允许 f-string 表达式里有反斜杠，3.10/3.11 直接 SyntaxError ——
+    # 而 CI 的 matrix 里有 3.10（2026-09-30 修：这条曾让 CI 的 3.10 一直红）。
+    _cmd_linux = 'tar -xzf jishi-<版本>-linux-x64.tar.gz\\ncd jishi-<版本>-linux-x64 && bash install.sh'
+    _ex_hello = '令 名字 = "世界"\\n打印("你好，" + 名字 + "！")'
+    _ex_calc = '令 单价 = 12.5\\n令 数量 = 3\\n打印(单价 * 数量)'
+    _ex_loop = '遍历 数 在 范围(1, 6)：\\n    打印(数, "的平方是", 数 * 数)'
+
     body = f"""
 <h1>五分钟上手</h1>
 <p class="lead">挑一种装法，然后跑你的第一个程序。</p>
@@ -489,7 +538,7 @@ def build_start(ver: str) -> str:
   <div class="card"><h3>② Linux / macOS 压缩包</h3>
     <p>解压后跑 <code>install.sh</code>。Linux 是 x64；macOS 目前<b>只有
     Apple 芯片（arm64）</b>版，没有 Intel 版。</p>
-    {code('tar -xzf jishi-<版本>-linux-x64.tar.gz\\ncd jishi-<版本>-linux-x64 && bash install.sh')}</div>
+{code(_cmd_linux)}</div>
   <div class="card"><h3>③ 从源码装</h3>
     <p>给想改代码的人：需要本机有 Python 3.10 以上。</p>
     {code('pip install git+https://github.com/benxiaoniao/JISHI.git')}
@@ -514,7 +563,7 @@ def build_start(ver: str) -> str:
 
 <h2>二、第一个程序</h2>
 <p>新建 <code>你好.jsh</code>，写三行：</p>
-{code('令 名字 = "世界"\\n打印("你好，" + 名字 + "！")')}
+{code(_ex_hello)}
 <p>然后：</p>
 {code('jishi 你好.jsh')}
 {code('你好，世界！', "应该看到这一行")}
@@ -528,22 +577,19 @@ def build_start(ver: str) -> str:
 <p>下面五段都可以直接存成文件跑，每段只加一个新东西。</p>
 
 <h3>1. 变量与运算</h3>
-{code('令 单价 = 12.5\\n令 数量 = 3\\n打印(单价 * 数量)')}
+{code(_ex_calc)}
 
 <h3>2. 判断</h3>
-{code('令 分数 = 87\\n如果 分数 >= 90：\\n    打印("优秀")\\n否则如果 分数 >= 60：\\n'
-      '    打印("及格")\\n否则：\\n    打印("不及格")')}
+{_S1}
 
 <h3>3. 循环</h3>
-{code('遍历 数 在 范围(1, 6)：\\n    打印(数, "的平方是", 数 * 数)')}
+{code(_ex_loop)}
 
 <h3>4. 函数</h3>
-{code('函数 算面积(长, 宽 = 1)：\\n    返回 长 * 宽\\n\\n'
-      '打印(算面积(5, 3))\\n打印(算面积(4))')}
+{_S2}
 
 <h3>5. 字典（键值对）</h3>
-{code('令 库存 = {"苹果": 12, "香蕉": 7}\\n库存["苹果"] = 库存["苹果"] - 2\\n'
-      '遍历 名字, 数量 在 库存.项目()：\\n    打印(名字, "还剩", 数量)')}
+{_S3}
 
 <h2>四、中文编程会遇到的坑</h2>
 <div class="note warn">
@@ -561,13 +607,7 @@ def build_start(ver: str) -> str:
 
 <h2>五、出错了怎么办</h2>
 <p>基石报错会尽量把「错在哪、错什么、怎么改」一次说清：</p>
-{code('错误 E0301：找不到这个名字（找不到名字「长渡」）\\n'
-      '  ┌─ 你好.jsh:2:6\\n'
-      '  │\\n'
-      '  2 │ 打印(长渡([1]))\\n'
-      '    │      ^\\n'
-      '  │\\n'
-      '  提示：你是不是想写「长度」？')}
+{_S4}
 <p>报错里的错误码可以直接查：</p>
 {code(f'jishi 错误 E0301')}
 <p>每个码都会给出「什么意思 / 常见成因 / 怎么改」三段。全部 32 个码用
@@ -693,8 +733,7 @@ def build_stdlib(spec: dict) -> str:
 所以查文档这件事，在基石里通常不需要。</p>
 
 <h2>怎么用</h2>
-{code('导入 数学\\n\\n打印(数学.开方(16))\\n打印(数学.最大公约数(12, 18))',
-      "先导入模块，再用 `模块名.函数名(...)` 调用")}
+{_S5}
 <div class="note">
 <p><b>内建不用导入。</b><code>打印</code>、<code>长度</code>、<code>范围</code>、
 <code>整数</code> 这些随时可用；只有标准库模块才要 <code>导入</code>。
@@ -714,8 +753,7 @@ def build_stdlib(spec: dict) -> str:
 <p>能被 <code>捕获</code> 的异常类型：{exc}。</p>
 <p>错误码按阶段分段（词法 <code>E01xx</code> / 语法 <code>E02xx</code> /
 语义 <code>E03xx</code> / 运行期 <code>E20xx</code>），报错里会带上码与行列：</p>
-{code('错误 E2002：类型错误（「整数」和「文本」不能做「+」运算）\\n'
-      '  ┌─ 例子.jsh:3:6')}
+{_S6}
 <p>拿不准某个码什么意思，直接查：</p>
 {code('jishi 错误 E2002', "会给出「什么意思 / 常见成因 / 怎么改」三段")}
 <table><tr><th class="code" style="width:18%">码</th><th>含义</th></tr>{code_rows}</table>
@@ -771,8 +809,7 @@ def build_examples(spec: dict) -> str:
 </div>
 
 <h2>自己动手</h2>
-{code('git clone https://github.com/benxiaoniao/JISHI.git\\ncd JISHI\\npython -m jishi.cli examples/projects/待办清单/待办.jsh',
-      "clone 下来直接跑仓库里的例子（不用装，源码即可运行）")}
+{_S7}
 """
     return page("示例与作品 · 基石（jishi）", body, "examples.html",
                 f"用基石写的东西：{len(projects)} 个完整项目（共 {total_lines} 行）、"

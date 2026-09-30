@@ -12,6 +12,7 @@ R0 立的是「**前端行为不许悄悄变**」这条规矩，所以这个文�
 - 语料覆盖面有没有缩水？（防止有人为了让测试变绿而删语料）
 """
 
+import ast
 import dataclasses
 import json
 import os
@@ -344,3 +345,147 @@ def test_前端行为不随_python_版本变():
     assert r.returncode == 0, (
         f"{exe} 跑出的前端产物与基线不同 —— 前端行为依赖了 Python 版本：\n"
         f"{(r.stdout or '')[-1200:]}\n{(r.stderr or '')[-400:]}")
+
+
+# ---------------------------------------------------------------------------
+# 七、写法约束：f-string 里不许有反斜杠（跨 Python 版本的坑）
+# ---------------------------------------------------------------------------
+
+#: 扫哪些目录找 `.py`（根目录下的 `*.py` 也扫）。
+_SCAN_ROOTS = ("jishi", "tools", "tests", "bench")
+_SKIP_PARTS = {".venv", "node_modules", "build", ".tmp-probe", "target",
+               "dist", "site", "__pycache__", ".git"}
+
+
+def _fstring_backslashes(base: Path | None = None,
+                         roots: tuple[str, ...] = _SCAN_ROOTS) -> list[str]:
+    """找出「f-string 的表达式部分里含反斜杠」的位置。
+
+    PEP 701（3.12+）才允许这么写，**3.10 / 3.11 直接 SyntaxError**。
+    所以用 AST 主动找 —— 不能等解释器报错：开发机是 3.13，永远不报。
+    """
+    root = base or ROOT
+    files = list(root.glob("*.py"))
+    for r in roots:
+        d = root / r
+        if d.is_dir():
+            files += list(d.rglob("*.py"))
+
+    bad: list[str] = []
+    for p in sorted(files):
+        if any(part in _SKIP_PARTS for part in p.parts):
+            continue
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except SyntaxError as e:
+            # 3.10/3.11 跑到这里：含反斜杠的 f-string 直接解析失败
+            bad.append(f"{p.relative_to(root)}:{e.lineno} 语法错误：{e.msg}")
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FormattedValue):
+                try:
+                    seg = ast.unparse(node)
+                except Exception:                              # noqa: BLE001
+                    continue
+                if "\\" in seg:
+                    bad.append(f"{p.relative_to(root)}:{node.lineno} "
+                               f"f-string 表达式里含反斜杠")
+    return bad
+
+
+def test_没有在_fstring_表达式里写反斜杠():
+    """**f-string 的表达式部分里不许出现反斜杠。**
+
+    2026-09-30 的实况：`tools/build_home.py` 里有 **12 处**
+    `{code('…\\n…')}`（字面反斜杠 n）。本地是 3.13，跑得好好的；
+    一到 CI 的 3.10 就**整片测试红** —— `import build_home` 直接 SyntaxError，
+    连带 7 个用到它的测试全挂。**这种错误开发机永远看不到。**
+
+    改法：把含反斜杠的字符串提到 f-string **外面**取个名字，在里面引用它。
+    """
+    bad = _fstring_backslashes()
+    assert not bad, (
+        "f-string 的表达式部分里不许有反斜杠（Python 3.12+ / PEP 701 才允许，\n"
+        "CI 里的 3.10 会直接 SyntaxError）：\n  " + "\n  ".join(bad) +
+        "\n\n改法：把含反斜杠的字符串提到 f-string 外面，先赋值给一个名字。")
+
+
+def test_fstring_检测本身能发现(tmp_path):
+    """**检测要真的能报红**（否则它就是一条永远绿的摆设）。"""
+    (tmp_path / "ok.py").write_text('x = f"{a}"\n', encoding="utf-8")
+    (tmp_path / "bad.py").write_text('x = f"{a(\'p\\nq\')}"\n', encoding="utf-8")
+    bad = _fstring_backslashes(base=tmp_path, roots=())
+    assert len(bad) == 1, f"期望只报 1 处，实际：{bad}"
+    assert "bad.py" in bad[0]
+
+
+# ---------------------------------------------------------------------------
+# 七、写法约束：f-string 里不许有反斜杠（跨 Python 版本的坑）
+# ---------------------------------------------------------------------------
+
+#: 扫哪些目录找 `.py`（根目录下的 `*.py` 也扫）。
+_SCAN_ROOTS = ("jishi", "tools", "tests", "bench")
+_SKIP_PARTS = {".venv", "node_modules", "build", ".tmp-probe", "target",
+               "dist", "site", "__pycache__", ".git"}
+
+
+def _fstring_backslashes(base: Path | None = None,
+                         roots: tuple[str, ...] = _SCAN_ROOTS) -> list[str]:
+    """找出「f-string 的表达式部分里含反斜杠」的位置。
+
+    PEP 701（3.12+）才允许这么写，**3.10 / 3.11 直接 SyntaxError**。
+    所以用 AST 主动找 —— 不能等解释器报错：开发机是 3.13，永远不报。
+    """
+    root = base or ROOT
+    files = list(root.glob("*.py"))
+    for r in roots:
+        d = root / r
+        if d.is_dir():
+            files += list(d.rglob("*.py"))
+
+    bad: list[str] = []
+    for p in sorted(files):
+        if any(part in _SKIP_PARTS for part in p.parts):
+            continue
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except SyntaxError as e:
+            # 3.10/3.11 跑到这里：含反斜杠的 f-string 直接解析失败
+            bad.append(f"{p.relative_to(root)}:{e.lineno} 语法错误：{e.msg}")
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FormattedValue):
+                try:
+                    seg = ast.unparse(node)
+                except Exception:                              # noqa: BLE001
+                    continue
+                if "\\" in seg:
+                    bad.append(f"{p.relative_to(root)}:{node.lineno} "
+                               f"f-string 表达式里含反斜杠")
+    return bad
+
+
+def test_没有在_fstring_表达式里写反斜杠():
+    """**f-string 的表达式部分里不许出现反斜杠。**
+
+    2026-09-30 的实况：`tools/build_home.py` 里有 **12 处**
+    `{code('…\n…')}`（字面反斜杠 n）。本地是 3.13，跑得好好的；
+    一到 CI 的 3.10 就**整片测试红** —— `import build_home` 直接 SyntaxError，
+    连带 7 个用到它的测试全挂。**这种错误开发机永远看不到。**
+
+    改法：把含反斜杠的字符串提到 f-string **外面**取个名字，在里面引用它。
+    """
+    bad = _fstring_backslashes()
+    assert not bad, (
+        "f-string 的表达式部分里不许有反斜杠（Python 3.12+ / PEP 701 才允许，\n"
+        "CI 里的 3.10 会直接 SyntaxError）：\n  " + "\n  ".join(bad) +
+        "\n\n改法：把含反斜杠的字符串提到 f-string 外面，先赋值给一个名字。")
+
+
+def test_fstring_检测本身能发现(tmp_path):
+    """**检测要真的能报红**（否则它就是一条永远绿的摆设）。"""
+    (tmp_path / "ok.py").write_text('x = f"{a}"\n', encoding="utf-8")
+    (tmp_path / "bad.py").write_text('x = f"{a(\'p\nq\')}"\n', encoding="utf-8")
+    bad = _fstring_backslashes(base=tmp_path, roots=())
+    assert len(bad) == 1, f"期望只报 1 处，实际：{bad}"
+    assert "bad.py" in bad[0]
