@@ -42,6 +42,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REPO_HTTPS = "https://github.com/benxiaoniao/JISHI.git"
 BRANCH = "master"
+
+#: **不上传的内部文档**：`(文件名, 抹引用时用的中性标签)`。
+#: 为什么不上传：它们含未定稿的规划与决策，过早公开会绑住手脚；
+#: 其中路线图还含自建分发服务器的实例 ID / 公网 IP。
+#: ⚠️ **按名字长度降序**排（长的先替换），否则短的会把长名字切掉一半。
+INTERNAL_DOCS = (
+    ("架构迁移评估.md", "内部架构迁移评估（未公开）"),
+    ("架构迁移路径.md", "内部架构迁移路径（未公开）"),
+    ("架构评估.md", "内部架构评估（未公开）"),
+)
 AUTHOR_NAME = "陈柏林"
 AUTHOR_EMAIL = "benxiaoniao@outlook.com"
 
@@ -164,13 +174,20 @@ def _sanitize(snapshot: Path) -> None:
     #      对外过早公开会绑住手脚（用户还没拍板）。
     for rm in sorted((snapshot / "docs").glob("路线图*.md")):
         rm.unlink()
-    _arch = snapshot / "docs" / "架构评估.md"
-    if _arch.exists():
-        _arch.unlink()
+    # ⚠️ 内部文档一律**两手**：删文件 + 抹掉别处指向它的引用（否则公开仓库里全是
+    #    死链）。以后新增内部文档**只改这一处**，别再散落着写正则。
+    _targets = []
+    for _name, _label in INTERNAL_DOCS:
+        _p = snapshot / "docs" / _name
+        if _p.exists():
+            _p.unlink()
+        _stem = _name[:-3]
+        _targets.append((
+            re.compile(r"\[[^\]]*?" + _stem + r"[^\]]*?\]\((?:\.\./|docs/)?" + _stem + r"\.md\)"),
+            re.compile(r"`+(?:\.\./|docs/)?" + _stem + r"\.md`+"),
+            re.compile(r"(?:\.\./|docs/)?" + _stem + r"\.md"),
+            _label))
     _link = re.compile(r"\[[^\]]*?路线图[^\]]*?\]\((?:\.\./|docs/)?路线图[\w\-]*\.md\)")
-    _arch_link = re.compile(r"\[[^\]]*?架构评估[^\]]*?\]\((?:\.\./|docs/)?架构评估\.md\)")
-    _arch_code = re.compile(r"`+(?:\.\./|docs/)?架构评估\.md`+")
-    _arch_plain = re.compile(r"(?:\.\./|docs/)?架构评估\.md")
     _code = re.compile(r"`+(?:\.\./|docs/)?路线图[\w\-]*\.md`+")
     _plain = re.compile(r"(?:\.\./|docs/)?路线图[\w\-]*\.md")
     for f in sorted(snapshot.rglob("*")):
@@ -186,9 +203,9 @@ def _sanitize(snapshot: Path) -> None:
         new = _plain.sub("内部路线图（未公开）",
                          _code.sub("内部路线图（未公开）",
                                    _link.sub("内部路线图（未公开）", s)))
-        new = _arch_plain.sub("内部架构评估（未公开）",
-                              _arch_code.sub("内部架构评估（未公开）",
-                                             _arch_link.sub("内部架构评估（未公开）", new)))
+        # _targets 按名字长度降序（长的先替换，避免短的把长名字切走）
+        for _link_re, _code_re, _plain_re, _label in _targets:
+            new = _plain_re.sub(_label, _code_re.sub(_label, _link_re.sub(_label, new)))
         if new != s:
             io.open(f, "w", encoding="utf-8", newline="\n").write(new)
 
@@ -206,8 +223,9 @@ def _sanitize(snapshot: Path) -> None:
     bad = []
     if rm.exists():
         bad.append("docs/路线图.md 仍在快照里（本文件不上传）")
-    if _arch.exists():
-        bad.append("docs/架构评估.md 仍在快照里（本文件不上传）")
+    for _name, _label in INTERNAL_DOCS:
+        if (snapshot / "docs" / _name).exists():
+            bad.append(f"docs/{_name} 仍在快照里（本文件不上传）")
     for f in snapshot.rglob("*"):
         if not f.is_file():
             continue
