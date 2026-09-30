@@ -37,9 +37,15 @@ def api(url: str):
         return json.load(r)
 
 
-def download(url: str, dest: Path, expect_size: int) -> None:
-    """下载到 dest（已存在且大小一致就跳过）。"""
-    if dest.is_file() and dest.stat().st_size == expect_size:
+def download(url: str, dest: Path, expect_size: int, *, force: bool = False) -> None:
+    """下载到 dest。
+
+    默认「已存在且大小一致就跳过」（大文件动辄 45 MB，每次重下没人受得了），
+    但 `force=True` 时**一律重下** —— 小元数据文件（如 `SHA256SUMS`）用得上：
+    它的文件名不随版本变，靠「大小一致」判断会把**上一版的清单**当成这一版的
+    （实测撞过：v0.2.1 的四个包都下好了，却拿 v0.2.0 的清单去校验）。
+    """
+    if not force and dest.is_file() and dest.stat().st_size == expect_size:
         print(f"   已存在，跳过：{dest.name}")
         return
     tmp = dest.with_suffix(dest.suffix + ".part")
@@ -90,9 +96,13 @@ def main() -> int:
         for a in assets:
             if a["name"] == "SHA256SUMS":
                 sums_name = a
-                download(a["browser_download_url"], OUT / a["name"], a["size"])
+                # ⚠️ `force=True`：这个文件名不随版本变，必须每次都取这一版的
+                download(a["browser_download_url"], OUT / a["name"], a["size"],
+                         force=True)
         if sums_name is None:
-            print("   ⚠️ 没有 SHA256SUMS，无法校验（仍会下载，但会提示）", file=sys.stderr)
+            # **没有清单就不发布**：一份没校验过的包，与 GitHub 上那份是不是
+            # 同一个东西无从得知 —— 宁可停下，也不要放一个「大概是吧」出去。
+            raise SystemExit(f"❌ {tag} 里没有 SHA256SUMS，无法校验，拒绝发布")
 
         wanted = [a for a in assets if a["name"] != "SHA256SUMS"]
         for a in wanted:
@@ -100,22 +110,25 @@ def main() -> int:
 
         # 逐个校验：官网那份必须与 GitHub 那份逐字节相同
         sums_file = OUT / "SHA256SUMS"
-        if sums_file.is_file():
-            want = {}
-            for line in sums_file.read_text(encoding="utf-8").splitlines():
-                parts = line.split()
-                if len(parts) >= 2:
-                    want[parts[-1].lstrip("*")] = parts[0]
-            for a in wanted:
-                name = a["name"]
-                if name not in want:
-                    print(f"   ⚠️ SHA256SUMS 里没有 {name}", file=sys.stderr)
-                    continue
-                got = sha256(OUT / name)
-                ok = got == want[name]
-                print(f"   {'✓' if ok else '❌'} {name}")
-                if not ok:
-                    raise SystemExit(f"❌ {name} 校验和不一致，别发布")
+        want: dict[str, str] = {}
+        for line in sums_file.read_text(encoding="utf-8").splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                want[parts[-1].lstrip("*")] = parts[0]
+        for a in wanted:
+            name = a["name"]
+            if name not in want:
+                # ⚠️ 这里**必须是硬错误**，不能只警告：清单里没有这个名字，
+                # 说明「手上这份清单不是这一版的」—— 校验已经被跳过了，
+                # 而「跳过校验」和「校验通过」看起来一模一样。
+                raise SystemExit(
+                    f"❌ {tag} 的 SHA256SUMS 里没有 {name} —— 清单与资产对不上，"
+                    f"拒绝发布（不能拿「没校验」充当「校验通过」）")
+            got = sha256(OUT / name)
+            ok = got == want[name]
+            print(f"   {'✓' if ok else '❌'} {name}")
+            if not ok:
+                raise SystemExit(f"❌ {name} 校验和不一致，别发布")
 
     total = sum(f.stat().st_size for f in OUT.glob("jishi-*"))
     print(f"\n✓ 就绪 → {OUT}（共 {total // 1024 // 1024} MB）")

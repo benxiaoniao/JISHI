@@ -1,0 +1,16 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "列": 1,
+    "提示": null,
+    "标题": "缩进错误",
+    "消息": "这个缩进层级对不上前面的代码",
+    "码": "E0101",
+    "行": 3,
+    "阶段": "词法"
+  },
+  "tokens": null,
+  "内容哈希": "sha256:a62c9aef1bfde265",
+  "语料": "tests/error_cases/03_缩进对不上.jsh"
+}

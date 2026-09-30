@@ -9,10 +9,15 @@
   1. C 虚拟机构建                cvm/build.py（gcc 可用时；放在最前是因为
                                  Windows 下已加载的 DLL 无法被覆盖写入）
   2. 单元/黄金/错误快照测试      pytest tests/
-  3. C VM 对拍可用性确认         tests/test_cvm.py 里的 C 用例是否真正在跑
-  4. 评测集标准答案自测          bench/ai-eval/eval.py --self-test（50 题）
-  5. 基准冒烟                    tools/benchmark.py --quick
-  6. 内建体检（--fast）          tools/probe_builtins.py —— 每个内建在三执行器
+  3. 一致性夹具（R0）            tools/conformance.py check —— 前端四个阶段
+                                 （tokens/AST/字节码/诊断）与冻结基线逐项比对。
+                                 它其实也在 pytest 里跑（`test_m57_conformance.py`），
+                                 这里单独一条是为了**失败时报告更聚焦**：
+                                 不用在两千多项测试里找那一行。
+  4. C VM 对拍可用性确认         tests/test_cvm.py 里的 C 用例是否真正在跑
+  5. 评测集标准答案自测          bench/ai-eval/eval.py --self-test（50 题）
+  6. 基准冒烟                    tools/benchmark.py --quick
+  7. 内建体检（--fast）          tools/probe_builtins.py —— 每个内建在三执行器
                                  上真跑（只比名字的漂移检测抓不到「名字在表里
                                  却用不了」，M56 的 `超` 就是这么漏的）
 """
@@ -46,25 +51,32 @@ def main() -> int:
                 "pytest 全量测试"):
         return 1
 
-    # 3) 确认 C VM 对拍真的在跑（HAS_CVM 必须为真）
+    # 3) 一致性夹具（R0 建）：前端四个阶段与冻结基线逐项比对。
+    #    为什么要单独一条（pytest 里也跑）：失败时报告更聚焦 —— 直接给出
+    #    「哪个语料的哪个阶段哪一项不同」，不必在两千多项测试里翻。
+    if not _run([PYTHON, str(ROOT / "tools" / "conformance.py"), "check"],
+                "一致性夹具（前端四阶段 vs 基线）"):
+        return 1
+
+    # 4) 确认 C VM 对拍真的在跑（HAS_CVM 必须为真）
     probe = ("import sys; sys.path.insert(0, r'%s'); "
              "from jishi import cvm_bind; cvm_bind.load_lib(); "
              "print('C VM 可用，对拍含 C 用例')") % str(ROOT)
     if not _run([PYTHON, "-c", probe], "C VM 对拍可用性确认"):
         return 1
 
-    # 4) 评测集标准答案自测（语法改动不得使通过率下降）
+    # 5) 评测集标准答案自测（语法改动不得使通过率下降）
     if not _run([PYTHON, str(ROOT / "bench" / "ai-eval" / "eval.py"),
                  "--self-test"], "评测集 JishiEval 标准答案自测"):
         return 1
 
-    # 5) 基准冒烟（可选跳过）
+    # 6) 基准冒烟（可选跳过）
     if not skip_bench:
         if not _run([PYTHON, str(ROOT / "tools" / "benchmark.py"), "--quick"],
                     "基准冒烟（--quick）"):
             return 1
 
-    # 6) 内建体检（M56 建）：给**每个内建**一条最小程序，在真引擎上跑一遍 ——
+    # 7) 内建体检（M56 建）：给**每个内建**一条最小程序，在真引擎上跑一遍 ——
     #    只比名字的漂移检测抓不到「名字在表里、调用却不行」（M53 的 Rust
     #    `文本.查找`、M56 的 `超` 都是这么漏的）。`--fast` 只跑三执行器；
     #    两宿主那两位由 pytest 里的五引擎对拍覆盖。
