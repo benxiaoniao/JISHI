@@ -14,9 +14,15 @@
 *.py   text
 *.md   text
 *.toml text
-*.json text
 *.yml  text
 *.iss  text
+
+# JSON：**强制 LF**。一致性夹具的基线在 `tests/conformance/baseline/`，
+# 它的核心判据是「逐字节确定」—— 而 `text`（不带 eol）会让 Windows 检出时
+# 转成 CRLF，于是「行尾必须是 LF」那条测试在 **Windows runner 上红**、
+# 本地却是绿的（2026-09-30 真撞上：CLI 的 3 个 job 因此全挂）。
+# JSON 本来就该是 LF，全仓统一。
+*.json text eol=lf
 
 # 二进制资产：别做任何转换（图标、图片、压缩包、原生库）
 *.png  binary

@@ -112,6 +112,31 @@ jobs:
           echo "::error file=.github/workflows/ci.yml,line=1::${DIAG}【失败】${SUMMARY}"
           exit 0
 
-      # 一键全检（含 C VM 构建 + 基准冒烟）
+      # 一键全检（含 C VM 构建 + 基准冒烟 + 一致性夹具 + 内建体检）
       - name: 一键全检
-        run: python tools/ci.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/ci.py 2>&1 | tee ci.log
+
+      # 一键全检失败时也要能看到「哪一步挂了」（M57 补）。
+      # 来由：ubuntu 两个任务一直是「全量测试✅、一键全检❌」，而 **ci.py 的
+      # 输出没有进注解** —— 公开 API 只能读到注解，于是等于「只知道红了、
+      # 不知道为什么」。这条把它的摘要也写成注解。
+      - name: 一键全检失败摘要（写成注解）
+        if: failure()
+        shell: bash
+        run: |
+          # `set +e`：这一步本身绝不能把 job 弄挂（M35 的教训）
+          set +e
+          if [ ! -f ci.log ]; then
+            exit 0     # 没跑到这里（多半是「全量测试」先挂了，已有另一条注解）
+          fi
+          SUMMARY=$(grep -aE '^(FAILED|ERROR|E |.*Error:|Traceback|--- .*(失败|通过) ---)' ci.log \
+                    | tail -25 | tr -d '\r' | tr '\n' ' ')
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY="【无匹配行，退回日志末尾】$(tail -c 900 ci.log | tr -d '\r' | tr '\n' ' ')"
+          fi
+          SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/%/%25/g')
+          echo "::error file=tools/ci.py,line=1::【一键全检失败】${SUMMARY}"
+          exit 0
