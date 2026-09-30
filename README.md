@@ -157,7 +157,7 @@ jishi examples/01_猜数字.jsh --ast
 先把「不许悄悄变」这条规矩立起来，再动手换实现。，逐里程碑的详细记录移到 **[`docs/里程碑.md`](docs/里程碑.md)**
 （本 README 只讲「现在能做什么」，要查「哪一版加了什么」看那份）。
 
-**测试现状：2325 项，**2322 通过**（`python -m pytest tests/`），其中 240 余项是三执行器
+**测试现状：2340 项，**2337 通过**（`python -m pytest tests/`），其中 240 余项是三执行器
 对拍（树遍历 / Python VM / C VM 输出逐字节一致），另有跨语言宿主对拍
 （Rust 101 + 58 + 37 项、JS 62 + 43 项，都与 Python VM 逐字节一致，含三个真实示例
 项目的端到端对比）。
@@ -548,7 +548,7 @@ node/            Node.js 纯 JS 解释器（零依赖，消费 JSON 字节码；
                  M51 起有 `--dump-stdlib` 自报家底供一致性检测）
 rust/            Rust 绑定（M13.3，jishi-ffi crate + 自研零依赖 JSON 解析器，
                  零依赖标准库，M51 起同样有 `--dump-stdlib`）
-tests/           2325 项测试（含 250 余项三执行器对拍 + 跨宿主对拍 + M51/M54/M55 漂移检测）
+tests/           2340 项测试（含 250 余项三执行器对拍 + 跨宿主对拍 + M51/M54/M55 漂移检测）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例、packages/ 包管理示例）
 docs/            语言规格.md、设计决策.md、路线图.md、调试器.md、工具链.md、真实项目.md、embed.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 10 章
 assets/          品牌资产（基石_logo.png，源图 基石_logo.jpeg）

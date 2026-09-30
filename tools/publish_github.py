@@ -55,6 +55,9 @@ INTERNAL_DOCS = (
     # 「CI 尚未修复的失败」不适合对外。工具本身（tools/conformance.py）与
     # 基线（tests/conformance/）是公开的 —— 内部的是**这份说明**。
     ("一致性夹具.md", "内部一致性夹具说明（未公开）"),
+    # 前端契约与迁移路径同族：它规定的是「R 线的接口」，R 线定型前不外发。
+    # （内容是纯技术规格、不含隐私；纯粹是「未定稿」的问题。）
+    ("前端契约.md", "内部前端契约（未公开）"),
 )
 AUTHOR_NAME = "陈柏林"
 AUTHOR_EMAIL = "benxiaoniao@outlook.com"

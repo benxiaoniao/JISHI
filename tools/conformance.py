@@ -52,6 +52,7 @@ import argparse
 import dataclasses
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -445,9 +446,12 @@ def compare_all() -> tuple[list[str], list[str], list[str]]:
         if d:
             path, exp, got = d
             mismatches.append(f"产物不一致：{rel} 在 `{path}`")
-            details.append(f"    {rel}\n"
-                           f"      基线：{_short(exp)}\n"
-                           f"      当前：{_short(got)}")
+            ctx = _context(base, path)
+            details.append(
+                f"    {rel}\n"
+                f"      「{path}」" + (f" —— {ctx}" if ctx else "") + "\n"
+                f"        基线：{_short(exp)}\n"
+                f"        当前：{_short(got)}")
 
     # ---- 2) 基线侧：孤儿 ----
     live = {r for _, r in corpus}
@@ -481,6 +485,153 @@ def cmd_check(args) -> int:
 
     manifest = _load_manifest()
     print(f"✅ 一致性夹具：{total}/{total} 个语料在四个阶段上全部一致")
+    print(f"   基线冻结于 Python {manifest['生成环境']['python']} · "
+          f"jishi {manifest['生成环境']['jishi']}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# 四之二、外部产物比对（R1）——「拿别人的产物来比」
+# ---------------------------------------------------------------------------
+
+_PARTS = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
+_MISS = object()
+
+
+def _walk(root: Any, path: str) -> Any:
+    """按 `a.b[0].c` 的形式取值；取不到返回 `_MISS`。"""
+    cur = root
+    for m in _PARTS.finditer(path):
+        key, idx = m.group(1), m.group(2)
+        try:
+            cur = cur[key] if key is not None else cur[int(idx)]
+        except Exception:                                       # noqa: BLE001
+            return _MISS
+    return cur
+
+
+def _context(base: Any, path: str) -> str:
+    """给出「出错的是哪个元素」的可读说明 —— 拿不到就返回空串（不硬凑）。
+
+    只报 `tokens[2].col 基线 5 / 当前 6` 还不够：人还得自己去数第 3 个 token
+    是什么。这里直接把它点出来：
+
+        tokens[2].col —— NUMBER「3」（第 2 行第 5 列）
+    """
+    parent = path.rsplit(".", 1)[0] if "." in path else ""
+    obj = _walk(base, parent) if parent else base
+    if obj is _MISS:
+        return ""
+    if isinstance(obj, list):
+        return f"{len(obj)} 项"
+    if isinstance(obj, dict):
+        if "语料" in obj:
+            return str(obj["语料"])
+        # ⚠️ token 要先判：它也有 `类型`（值是 "Token"），但**带行列的说明更有用**。
+        # 放在后面会被通用分支吃掉，输出退化成「Token「=」」—— 虽然也能定位，
+        # 但少了「第几行第几列」这条最直观的信息。
+        if "type" in obj and "value" in obj:     # token
+            return (f"{obj['type']}「{obj['value']}」"
+                    f"（第 {obj.get('line')} 行第 {obj.get('col')} 列）")
+        if "类型" in obj:                       # AST 节点 / 其它带类型标记的
+            extra = ""
+            for k in ("名字", "kind", "op", "value"):
+                v = obj.get(k)
+                if isinstance(v, (str, int, float, bool)):
+                    extra = f"「{v}」"
+                    break
+            return f"{obj['类型']}{extra}"
+        if "name" in obj:                        # 函数 / 代码块
+            return f"函数「{obj['name']}」"
+    return ""
+
+
+def cmd_compare(args) -> int:
+    """拿**外部实现**产出的产物，与基线逐项比（R1）。
+
+    为什么单独有这条：`check` 是「跑 **Python 前端** → 与基线比」——
+    那只验证「Python 还是老样子」。从 R2 起要验的是
+    **「Rust 产出的产物，与 Python 的行为一致吗」**，所以需要一个
+    「拿**任意来源**的产物来比」的入口。
+
+    外部产物的约定（见 `docs/前端契约.md`）：
+    - 目录里每个语料一个 JSON，文件名 = 基线那份的 id（`<相对路径>.jsh` →
+      `__` 连接、去掉后缀）；
+    - 结构与基线同构；**只提供部分阶段也可以**（R2 只做分词时就只给 `tokens`），
+      但**没提供的阶段会如实报「未提供」**，绝不静默当通过。
+
+    ⚠️ **「没测」与「测过了」必须能分开** —— 这是本项目反复踩过的坑
+    （M49 的校验被静默跳过、R0 的 bug 差点被冻成标准）。
+    """
+    src = Path(args.source)
+    if not src.is_dir():
+        print(f"❌ 找不到产物目录：{src}", file=sys.stderr)
+        return 1
+
+    manifest = _load_manifest()
+    if not manifest:
+        print("❌ 没有基线 —— 先跑 `python tools/conformance.py freeze`",
+              file=sys.stderr)
+        return 1
+
+    stage_filter = [args.stage] if args.stage else None
+    all_stages = ["tokens", "ast", "bytecode", "diagnostics"]
+    want_stages = stage_filter or all_stages
+
+    corpus = collect_corpus()
+    mism: list[str] = []
+    missing: list[str] = []
+    details: list[str] = []
+    compared = 0
+
+    for _cat, rel in corpus:
+        cid = corpus_id(rel)
+        ext_file = src / f"{cid}.json"
+        if not ext_file.is_file():
+            missing.append(f"外部未产出：{rel}")
+            continue
+        try:
+            got = json.loads(ext_file.read_text(encoding="utf-8"))
+        except Exception as e:                                  # noqa: BLE001
+            mism.append(f"外部产物读不动：{rel} → {type(e).__name__}: {e}")
+            continue
+        base = json.loads((BASELINE_DIR / f"{cid}.json").read_text(encoding="utf-8"))
+        compared += 1
+
+        for st in want_stages:
+            if st not in got:
+                missing.append(f"外部未提供「{st}」：{rel}")
+                continue
+            d = first_diff(base.get(st), got[st], st)
+            if d:
+                path, exp, gv = d
+                mism.append(f"产物不一致：{rel} 在 `{path}`")
+                ctx = _context(base, path)
+                details.append(
+                    f"    {rel}\n"
+                    f"      「{path}」" + (f" —— {ctx}" if ctx else "") + "\n"
+                    f"        基线：{_short(exp)}\n"
+                    f"        外部：{_short(gv)}")
+
+    problems = mism + missing
+    total = len(corpus)
+    if problems:
+        print(f"❌ 外部产物 vs 基线：{compared - len(mism)}/{total} 个语料一致；"
+              f"共 {len(problems)} 处问题\n")
+        limit = 10_000 if args.verbose else 12
+        for x in problems[:limit]:
+            print(f"  · {x}")
+        if len(problems) > limit:
+            print(f"  …还有 {len(problems) - limit} 处")
+        if details:
+            show = len(details) if args.verbose else 4
+            print(f"\n差异明细（前 {min(show, len(details))} 处）：")
+            for d in details[:show]:
+                print(d)
+        return 1
+
+    stages_desc = "、".join(want_stages)
+    print(f"✅ 外部产物 vs 基线：{compared}/{total} 个语料在「{stages_desc}」上全部一致")
     print(f"   基线冻结于 Python {manifest['生成环境']['python']} · "
           f"jishi {manifest['生成环境']['jishi']}")
     return 0
@@ -526,11 +677,21 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("list", help="列出语料与冻结状态")
     p.set_defaults(func=cmd_list)
 
+    p = sub.add_parser(
+        "compare",
+        help="拿**外部实现**的产物与基线比（R1；Rust 前端每写一步都用它验收）")
+    p.add_argument("--from", dest="source", required=True, metavar="目录",
+                   help="外地产物目录（每个语料一个 JSON，文件名 = 基线的 id）")
+    p.add_argument("--stage", choices=["tokens", "ast", "bytecode", "diagnostics"],
+                   help="只比这一阶段（如 R2 只做分词时就只比 tokens）")
+    p.add_argument("-v", "--verbose", action="store_true", help="多打几处差异")
+    p.set_defaults(func=cmd_compare)
+
     # 不写子命令时默认 check（CI 里少写一个词）；`-v` 这类选项也照常透传。
     # ⚠️ 但 `-h/--help` 例外：要看的是**顶层**帮助（三个子命令），
     # 塞进 check 之后就只看得见 check 自己的选项了。
     raw = list(argv) if argv is not None else sys.argv[1:]
-    if not raw or (raw[0] not in ("freeze", "check", "list")
+    if not raw or (raw[0] not in ("freeze", "check", "list", "compare")
                    and raw[0] not in ("-h", "--help")):
         raw = ["check"] + raw
     args = ap.parse_args(raw)
