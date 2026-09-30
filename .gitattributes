@@ -1,0 +1,31 @@
+# 行尾统一策略（M35 补：此前没有这个文件，全靠 core.autocrlf）
+#
+# 背景：仓库在 Windows 上开发（core.autocrlf=true），但对外发布 Linux 包时
+# 要保证 shell 脚本是 LF——带 CRLF 的 `#!/usr/bin/env bash` 在 Linux 上会
+# 报「bad interpreter」。这里显式钉住，不再依赖每个人的 git 配置。
+
+# 默认：由 git 判断文本/二进制，文本按 LF 存库（检出时按平台转换）
+* text=auto
+
+# shell 脚本：库里、工作区都必须是 LF（Windows 上也不许转 CRLF）
+*.sh text eol=lf
+
+# Python / Markdown / 配置：文本即可
+*.py   text
+*.md   text
+*.toml text
+*.json text
+*.yml  text
+*.iss  text
+
+# 二进制资产：别做任何转换（图标、图片、压缩包、原生库）
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ico  binary
+*.icns binary
+*.dll  binary
+*.so   binary
+*.dylib binary
+*.zip  binary
+*.tar.gz binary

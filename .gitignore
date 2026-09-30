@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# 构建产物
+cvm/build/
+cvm/*.exe
+dist/
+build/
+# 独立打包构建环境（tools 里跑 PyInstaller 用的隔离 venv）
+build-env/
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+
+# 例外：VS Code 扩展的 F5 启动配置是**扩展源码的一部分**（不是个人设置），
+# 少了它打开扩展目录按 F5 还得手选运行环境（M42）。
+!editors/vscode-jishi/.vscode/
+!editors/vscode-jishi/.vscode/launch.json
+
+# 打包产物
+*.whl
+
+# 文档站产物（tools/build_site.py 生成）
+site/
+
+# 本地工作区记忆（不进仓库）
+.workbuddy/
+
+# C VM 编译产物（cvm/build.py 会在需要时自动构建）
+cvm/bin/*.dll
+
+# wheel 内预编译动态库（tools/build_wheel.py 编译产物）
+jishi/_native/*.dll
+jishi/_native/*.so
+jishi/_native/*.dylib
+
+# 本地包缓存目录（.jishi/packages/）
+.jishi/
+
+# Rust 编译产物
+rust/target/
+rust/Cargo.lock
+
+# 临时探测脚本与日志（不进仓库）
+.tmp-probe/
+
+# 待办清单示例的运行时数据（跑起来会生成）
+examples/projects/待办清单/待办.json
+
+# 对拍测试的临时字节码文件（conftest.tmp_bc_path 写到项目根、带进程号）。
+# 正常情况下测试自己会清掉；这里是**中断/崩溃时的兜底**，别让它们进仓库。
+_tmp_*.json
+# 测试/手工跑项目时容易落在仓库根目录的临时产物（M50 踩过：把 --vm 当输出目录，
+# 于是生成了一个名叫 `--vm` 的站点目录，差点被提交进去）
+ctx.txt
+/--vm/
+/--cvm/
+
+# 评测与行数探针的临时产物（tools/eval_ai.py 用 .tmp-eval/；
+# test_m40_projects.py 用 tests/_loc_probe.jsh）。正常情况它们会自己清理，
+# 这里是**崩溃/中断时的兜底** —— 别让临时文件混进提交（M53 观察到的残留）。
+.tmp-eval/
+tests/_loc_probe.jsh

@@ -1,0 +1,176 @@
+name: Release
+
+# 打 tag（如 v0.2.0）自动触发；也可在 Actions 页面手动运行
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 需要创建 Release、上传文件
+
+jobs:
+  build:
+    name: 构建 · ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    env:
+      # Windows 上 Python stdout 默认非 UTF-8，打印中文会 UnicodeEncodeError
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: windows-x64
+          - os: ubuntu-latest
+            label: linux-x64
+          - os: macos-latest
+            label: macos-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pyinstaller pytest
+
+      # Windows 编译 C 虚拟机：用 MSYS2 工具链（runner 预装 MSYS2 但无 gcc）
+      - name: 准备 gcc（Windows）
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+          path-type: inherit
+
+      - name: 确认 gcc（Windows）
+        if: runner.os == 'Windows'
+        shell: bash
+        run: gcc --version | head -1
+
+      # Inno Setup 生成真正的 Windows 安装程序（M19.1）
+      - name: 安装 Inno Setup（Windows）
+        if: runner.os == 'Windows'
+        run: choco install innosetup -y --no-progress --timeout 600
+
+      - name: 构建 C 虚拟机
+        run: python cvm/build.py
+
+      # 全量测试：三执行器对拍（树遍历 / Python VM / C VM 逐字节一致）
+
+      # 环境诊断（M35 加）：时区/平台这类「开发机与 CI 不同」的事实，先打出来。
+      # 来由：时间格式化在 CI 上不一致，而本地（UTC+8）永远复现不了——与其猜，
+      # 不如让 CI 把自己的事实说清楚。
+      - name: 环境诊断
+        shell: bash
+        run: |
+          # 同时写进 env-diag.txt：job 日志只有登录网页能看，而「失败摘要」注解
+          # 可以带文件内容一起发出去（M35）
+          {
+            echo "date: $(date)"
+            echo "TZ=${TZ:-<未设置>}"
+            echo -n "python 本地时区: "
+            python -c "import time,datetime;print(time.tzname, datetime.datetime.fromtimestamp(0))"
+            echo -n "python utcfromtimestamp(0): "
+            python -c "import datetime;print(datetime.datetime.utcfromtimestamp(0))"
+            echo -n "node: "
+            node -e "console.log(new Date(0).toString(), '| offset', new Date(0).getTimezoneOffset(), '| TZ', process.env.TZ)"
+            echo -n "/etc/localtime: "
+            (ls -l /etc/localtime 2>/dev/null || echo "（无）")
+          } 2>&1 | tee env-diag.txt
+
+      - name: 全量测试
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest tests/ -q --tb=line -rf 2>&1 | tee pytest.log
+
+      # 失败时把「哪些用例挂了」写成 Actions 注解（M35 加）。
+      # 来由：CI 一直红，而 job 日志只能登录网页看、公开 API 下载要管理员权限，
+      # 排查时两眼一抹黑。注解可以用公开 API 读到（check-runs/annotations），
+      # 于是「失败摘要」变成可被工具直接取到的信息。
+      - name: 失败摘要（写成注解）
+        if: failure()
+        shell: bash
+        run: |
+          # 必须 set +e：pytest 被**中断**时（退出码 2）日志里没有 FAILED 行，
+          # grep 返回 1，在 -e 下会把这一步本身弄挂、注解反而写不出来
+          # （M35 实测踩到，白等一轮 CI）。
+          set +e
+          if [ ! -f pytest.log ]; then
+            echo "::error file=.github/workflows/ci.yml,line=1::pytest.log 不存在（测试步骤可能没执行到 tee）"
+            exit 0
+          fi
+          # 连 pytest 的 `E ` 行一起抓：多行的断言消息（含双方实际输出）
+          # 就藏在这些行里，只看 FAILED 行只能看到被截断的那一小段
+          SUMMARY=$(grep -aE '^(FAILED|ERROR|E )' pytest.log | head -40 | tr -d '\r' | tr '\n' ' ')
+          if [ -z "$SUMMARY" ]; then
+            # 没有 FAILED 行 —— 多半是进程被中断/崩溃，退回日志末尾
+            SUMMARY="【无 FAILED 行，退回日志末尾】(exit=$(tail -c 200 pytest.log | tr -d '\r\n' | tail -c 60)) $(tail -c 700 pytest.log | tr -d '\r' | tr '\n' ' ')"
+          fi
+          DIAG=""
+          if [ -f env-diag.txt ]; then
+            DIAG="【环境】$(tr -d '\r' < env-diag.txt | tr '\n' ' ') "
+          fi
+          SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/%/%25/g')
+          echo "::error file=.github/workflows/ci.yml,line=1::${DIAG}【失败】${SUMMARY}"
+          exit 0
+
+      # Windows 上会自动尝试调用 ISCC 生成 setup.exe
+      - name: 构建发行包
+        run: python tools/build_release.py
+
+      - name: 校验产物
+        shell: bash
+        run: |
+          echo "== dist/release =="
+          ls -la dist/release/
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.label }}
+          if-no-files-found: error
+          path: |
+            dist/release/*.zip
+            dist/release/*.tar.gz
+            dist/release/*.exe
+            dist/release/SHA256SUMS
+
+  release:
+    name: 发布 Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 下载全部构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 汇总产物并生成统一校验和
+        shell: bash
+        run: |
+          cd artifacts
+          rm -f SHA256SUMS
+          find . -maxdepth 1 -type f -exec sha256sum {} \; | sed 's|\./||' > SHA256SUMS
+          echo "== 发布文件 =="
+          ls -la
+          echo "== SHA256SUMS =="
+          cat SHA256SUMS
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false
