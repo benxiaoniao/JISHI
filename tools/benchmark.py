@@ -1,10 +1,23 @@
 # -*- coding: utf-8 -*-
-"""基石语言三执行器性能基准。
+"""基石语言执行器性能基准。
 
 场景全部用基石源码写就，同一份代码分别交给：
-  1. 树遍历解释器（M0，jishi/interpreter.py）
+  1. 树遍历解释器（M0，jishi/interpreter.py）—— 语义基准
   2. Python 字节码虚拟机（M4a，jishi/vm.py）
   3. C 字节码虚拟机（M4b，cvm/bin/jsvm.dll）
+  4. **Rust 字节码虚拟机（R6 起：`rust/target/release/jishi-rs`，独立二进制）**
+
+## 第 4 个执行器怎么量才算公平
+
+它是个**独立进程**，所以「跑一次」里必然含**进程启动**。这一点必须**摆在明面上**：
+
+* 本脚本在末尾**单独公布启动成本**（跑一个空程序的时间）；
+* 拿它跟 C VM 比时，只有**单轮耗时远大于启动成本**的场景才说明问题 ——
+  也就是「内建调用密集」那种：C VM 的墙是**宿主回调**（约 2.4 µs/次），
+  而同进程的 Rust 原生标准库**没有这道边界**。R6 要定「C VM 留不留」，量的就是这个。
+
+⚠️ **这是 R6 的度量起点，不是结论**：一次 subprocess 里含启动、含读文件、
+含进程初始化。本项目的老规矩：**先量再说，量完再定，不预设。**
 
 用法：
     python tools/benchmark.py            # 默认时长（每场景约 1 秒）
@@ -18,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import os
 import sys
 import time
 from contextlib import redirect_stdout
@@ -186,11 +200,38 @@ SCENARIOS = {
         3),
 }
 
-EXECUTORS = [
+#: 四个执行器。**C VM / Rust VM 缺了就自动少一列**（不假装它跑过）。
+EXECUTORS_ALL = [
     ("树遍历", "run_tree"),
     ("Python VM", "run_vm"),
     ("C VM", "run_cvm"),
+    ("Rust VM", "run_rust"),
 ]
+
+
+def _available_executors() -> list[tuple[str, str]]:
+    from jishi import tokenizer as _T
+
+    out = []
+    for label, key in EXECUTORS_ALL:
+        if key == "run_cvm":
+            try:
+                from jishi import cvm_bind
+                cvm_bind.load_lib()
+            except Exception:                                  # noqa: BLE001
+                print("C VM 动态库不可用，少了那一列")
+                continue
+        if key == "run_rust":
+            if not _rust_exe().exists():
+                print("Rust 宿主二进制不存在，少了那一列"
+                      "（先构建：cd rust && cargo build --release）")
+                continue
+            if not _T.rust_available():
+                print("Rust 前端扩展未构建，少了那一列"
+                      "（先跑 python core/build.py）")
+                continue
+        out.append((label, key))
+    return out
 
 
 def _run_tree(src: str) -> None:
@@ -213,7 +254,45 @@ def _run_cvm(src: str) -> None:
         cvm_bind.run_source_c(src, filename="<基准>")
 
 
-_RUNNERS = {"run_tree": _run_tree, "run_vm": _run_vm, "run_cvm": _run_cvm}
+#: Rust 宿主二进制（**按平台**取名 —— 见 `tests/conftest.py::rust_exe_path`）
+def _rust_exe() -> Path:
+    name = "jishi-rs.exe" if os.name == "nt" else "jishi-rs"
+    return ROOT / "rust" / "target" / "release" / name
+
+
+#: 编译产物缓存：`src → 字节码 JSON 路径`（**编译成本不算进 VM 的耗时里**）。
+#: ⚠️ 用 `JISHI_FRONTEND=rust` 编 —— 于是这条链路是**全程原生**的：
+#: Rust 前端产字节码 JSON → Rust VM 消费。正好是 R6/R8 要的那条路。
+_BC_CACHE: dict[str, Path] = {}
+
+
+def _run_rust(src: str) -> None:
+    import subprocess
+
+    path = _BC_CACHE.get(src)
+    if path is None:
+        from jishi import tokenizer as _T
+        from jishi.compiler import compile_to_json
+
+        out = ROOT / "build" / "_bench_rust_bc.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        old = os.environ.get(_T.FRONTEND_ENV)
+        os.environ[_T.FRONTEND_ENV] = "rust"
+        try:
+            body = compile_to_json(src, "<基准>")
+        finally:
+            if old is None:
+                os.environ.pop(_T.FRONTEND_ENV, None)
+            else:
+                os.environ[_T.FRONTEND_ENV] = old
+        out.write_text(body, encoding="utf-8")
+        _BC_CACHE[src] = path = out
+    subprocess.run([str(_rust_exe()), str(path)],
+                   capture_output=True, input=b"")
+
+
+_RUNNERS = {"run_tree": _run_tree, "run_vm": _run_vm, "run_cvm": _run_cvm,
+            "run_rust": _run_rust}
 
 
 def _best_time(fn, src: str, repeats: int, tries: int = 3) -> float:
@@ -227,44 +306,95 @@ def _best_time(fn, src: str, repeats: int, tries: int = 3) -> float:
     return best
 
 
+def _rust_startup() -> float:
+    """量 Rust VM 的**进程启动成本**（跑一个空程序，5 次取最优，单位秒）。
+
+    ⚠️ 为什么要单独量并**从那一列里扣掉**：Rust VM 是独立进程，一次 `subprocess`
+    里含进程创建 + 动态库加载 + 读文件 + 退出。不扣的话，「近 0 耗时」的场景
+    （比如只要 3 ms 的 C VM 场景）会显示成 10 ms 级的差距，
+    结论就从「VM 快慢」悄悄变成了「进程启动快慢」—— **指标选错，结论就会错**。
+    """
+    import subprocess
+
+    exe = _rust_exe()
+    tiny = ROOT / "build" / "_bench_rust_empty.json"
+    tiny.parent.mkdir(parents=True, exist_ok=True)
+    from jishi import tokenizer as _T
+    from jishi.compiler import compile_to_json
+
+    old = os.environ.get(_T.FRONTEND_ENV)
+    os.environ[_T.FRONTEND_ENV] = "rust"
+    try:
+        body = compile_to_json("令 空转 = 1\n", "<空>")
+    finally:
+        if old is None:
+            os.environ.pop(_T.FRONTEND_ENV, None)
+        else:
+            os.environ[_T.FRONTEND_ENV] = old
+    tiny.write_text(body, encoding="utf-8")
+
+    best = float("inf")
+    for _ in range(5):
+        t0 = time.perf_counter()
+        subprocess.run([str(exe), str(tiny)], capture_output=True, input=b"")
+        best = min(best, time.perf_counter() - t0)
+    return best
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="基石三执行器性能基准")
     ap.add_argument("--quick", action="store_true", help="快速摸底模式")
     args = ap.parse_args()
 
     tries = 2 if args.quick else 3
+    executors = _available_executors()
+    has_rust = any(k == "run_rust" for _, k in executors)
+    startup = _rust_startup() if has_rust else 0.0
     print(f"基石语言性能基准（每场景取 {tries} 轮最优）\n")
+    if has_rust:
+        print(f"⚠️ Rust VM 是**独立进程**，每轮含进程启动 —— 已从它那一列里"
+              f"**扣掉**：{startup * 1000:.1f} ms/轮（空程序实测）\n")
 
     header = f"{'场景':<10} {'遍数':>4}  " + "".join(
-        f"{name:>10} " for name, _ in EXECUTORS)
+        f"{name:>10} " for name, _ in executors)
     print(header)
     print("-" * len(header))
 
     speed_rows: list[tuple[str, list[float]]] = []
+    repeats_hint = 0
 
     for name, (src, repeats) in SCENARIOS.items():
         times: dict[str, float] = {}
-        for label, key in EXECUTORS:
-            times[label] = _best_time(_RUNNERS[key], src, repeats, tries)
+        for label, key in executors:
+            t = _best_time(_RUNNERS[key], src, repeats, tries)
+            if key == "run_rust":
+                # 扣掉 `repeats` 次进程启动（见 `_rust_startup` 的说明）
+                t = max(t - repeats * startup, 1e-9)
+            times[label] = t
         base = times["树遍历"]
         cells = []
         ratios = []
-        for label, _ in EXECUTORS:
+        for label, _ in executors:
             t = times[label]
             cells.append(f"{t * 1000:>8.1f}ms")
             ratios.append(base / t if t > 0 else 0.0)
         print(f"{name:<10} ×{repeats:<3} " + " ".join(cells))
         speed_rows.append((name, ratios))
+        repeats_hint = repeats
 
     print()
     print("相对树遍历的提速倍数（>1 = 更快）：")
-    print(f"{'场景':<10}  " + "".join(f"{name:>10} " for name, _ in EXECUTORS))
+    print(f"{'场景':<10}  " + "".join(f"{name:>10} " for name, _ in executors))
     print("-" * 46)
     for name, ratios in speed_rows:
         cells = []
         for r in ratios:
             cells.append(f"{r:>9.1f}x " if r >= 1 else f"{r:>9.2f}x ")
         print(f"{name:<10}  " + " ".join(cells))
+
+    if has_rust:
+        print(f"\n（Rust VM 那一列 = 实测总时长 − {repeats_hint}×启动成本；"
+              f"启动成本 {startup * 1000:.1f} ms/轮）")
 
     print("\n已知架构边界（透明记录，不是待修缺陷）：")
     print("  ① 文本下标 / 切片：必须回调宿主——C 侧看不见 Python 的切片协议，")

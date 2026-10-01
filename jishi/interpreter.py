@@ -590,15 +590,39 @@ class Interpreter:
             raise
         except BaseException as exc:
             err = self._as_jishi_error(exc)
+            # ⚠️ **调用链要在「捕获的那一刻」补拍**（R5.1）：`_eval_call` 只在
+            # 错误**跨出函数边界**时才挂 trace（M17.2），而 VM 是在错误**冒出来的
+            # 那一刻**就挂（`vm._dispatch_exception`）。于是「在同一个函数体里抛出、
+            # 又被自己的 `尝试` 接住」的错误，两边渲染不一致：
+            #     文本(e)   →  树遍历没有「调用链」，VM / C VM 有
+            # 在 `尝试` 接住时补一份，此刻栈还完整（`_eval_call` 的 finally 还没弹），
+            # 与 VM 的口径就对齐了。已有 trace 的不动（更内层的信息更准）。
+            if err.trace is None and self._call_stack:
+                err.trace = list(self._call_stack)
             for h in stmt.handlers:
                 if self._handler_catches(h, err, env):
+                    # ⚠️ **这里曾经给「捕获 为 名字」单独建了一个子作用域**
+                    # （`h_env = Environment(env)`），于是**捕获体里的赋值全被
+                    # 丢进那个子作用域、出了捕获体就没了**：
+                    #
+                    #     函数 f()：
+                    #         尝试：
+                    #             抛出 值错误("x")
+                    #         捕获 值错误 为 标记：
+                    #             令 结果 = 1        ← 进了子作用域
+                    #         返回 结果              ← 树遍历报「赋值之前被用到」，
+                    #                                  VM / C VM 给 1
+                    #
+                    # 全语言**只有这一处**是这样（`如果` / `循环` / `遍历` / `当` /
+                    # `尝试` 体 / `最终` 都直接用外层 `env`），文档也早已定了口径：
+                    # 「循环变量与「遍历」语句一致（**写入当前作用域**）」。
+                    # 所以捕获名就是**当前作用域里的一次赋值**，捕获体也在当前作用域跑
+                    # —— 与编译器（把 `h.name` 与捕获体里的赋值都算作本作用域的局部）
+                    # 以及两个 VM 一致。R5.1 修。
                     if h.name:
-                        h_env = Environment(env)
-                        h_env.set(h.name, err)
-                    else:
-                        h_env = env
+                        env.set(h.name, err)
                     try:
-                        self.exec_block(h.body, h_env)
+                        self.exec_block(h.body, env)
                     except (RunBreak, RunContinue, _ReturnSignal, DebugQuit):
                         if stmt.finalbody is not None:
                             self.exec_block(stmt.finalbody, env)

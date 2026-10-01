@@ -129,6 +129,32 @@ def _collect_stmt(st: A.Node, scope: _Scope,
             _collect_expr(st.value, scope, func_scopes)
     elif isinstance(st, A.Import):
         scope.bound.add(st.alias or st.name)
+    elif isinstance(st, A.Try):
+        # ⚠️ **这一支原先漏了**（R5 逐行移植时发现，R5.1 补上）。
+        # 后果比「少收集几个名字」严重得多：
+        #   ① `尝试` 体里**赋值**的名字进不了 `bound` → 编成 `STORE_GLOBAL`；
+        #   ② 体里**读**的名字进不了 `used` → 闭包捕获不到 → 运行期 E0301；
+        #   ③ 体里**定义函数/类**时连 `func_scopes` 都没登记 → 发射期 KeyError
+        #      —— **编译期直接崩**，用户写一个很自然的程序就撞上。
+        # 为什么以前没暴露：只有「外层有同名变量」时才看得出来（否则全局与局部
+        # 恰好等价），而语料里没有这种形状。详见 `docs/设计决策.md` D59。
+        _collect_stmts(st.body, scope, func_scopes)
+        for h in st.handlers:
+            if h.type is not None:            # `捕获 值错误 为 e：` 的类型也是表达式
+                _collect_expr(h.type, scope, func_scopes)
+            if h.name:
+                # 捕获名与「赋值」同级：它是所在作用域的局部（树遍历就是这么做的）
+                scope.bound.add(h.name)
+            _collect_stmts(h.body, scope, func_scopes)
+        if st.finalbody is not None:
+            _collect_stmts(st.finalbody, scope, func_scopes)
+    elif isinstance(st, A.Raise):
+        # `抛出 <表达式>`：值表达式里的名字同样要收集（闭包变量只在这里出现
+        # 时会漏掉 freevars —— 与上面 ② 同一个毛病）。
+        if st.value is not None:
+            _collect_expr(st.value, scope, func_scopes)
+    elif isinstance(st, (A.Break, A.Continue, A.Pass)):
+        pass        # 三种都没有子语句/子表达式 —— 显式写出来，免得下次又漏
 
 
 def _collect_expr(e: A.Node, scope: _Scope, func_scopes: dict[int, _Scope]):

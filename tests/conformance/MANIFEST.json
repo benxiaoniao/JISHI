@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 24,
     "frontend": 1,
-    "lang": 63,
+    "lang": 64,
     "stdlib": 4
   },
   "语料": [
@@ -128,35 +128,35 @@
     },
     {
       "id": "examples__projects__待办清单__待办",
-      "产物哈希": "sha256:01e1cb6833dbb37e",
+      "产物哈希": "sha256:a5e679622d0aa515",
       "内容哈希": "sha256:a301c5daf0f0e742",
       "类别": "examples",
       "路径": "examples/projects/待办清单/待办.jsh"
     },
     {
       "id": "examples__projects__成绩分析__分析",
-      "产物哈希": "sha256:566d51fd6f3ab004",
+      "产物哈希": "sha256:0c52596b6965297a",
       "内容哈希": "sha256:d87dd5dedc478a64",
       "类别": "examples",
       "路径": "examples/projects/成绩分析/分析.jsh"
     },
     {
       "id": "examples__projects__排序跑分__排序",
-      "产物哈希": "sha256:e737ed755de7c61a",
+      "产物哈希": "sha256:717d65a295c9422b",
       "内容哈希": "sha256:06495bf7c3ea34bf",
       "类别": "examples",
       "路径": "examples/projects/排序跑分/排序.jsh"
     },
     {
       "id": "examples__projects__日志统计__统计",
-      "产物哈希": "sha256:6df530f489cc8aa6",
+      "产物哈希": "sha256:41cf4e9bf5f895e5",
       "内容哈希": "sha256:b9c4f9ddb77647ed",
       "类别": "examples",
       "路径": "examples/projects/日志统计/统计.jsh"
     },
     {
       "id": "examples__projects__网页采集__采集",
-      "产物哈希": "sha256:149611dc329ab271",
+      "产物哈希": "sha256:5425c80ee060200a",
       "内容哈希": "sha256:8620e22e45f36a9c",
       "类别": "examples",
       "路径": "examples/projects/网页采集/采集.jsh"
@@ -233,28 +233,28 @@
     },
     {
       "id": "jishi__stdlib-jishi__参数",
-      "产物哈希": "sha256:e804d0d80516753c",
+      "产物哈希": "sha256:9900180b2f32b6f7",
       "内容哈希": "sha256:21e3acc6595ef03e",
       "类别": "stdlib",
       "路径": "jishi/stdlib-jishi/参数.jsh"
     },
     {
       "id": "jishi__stdlib-jishi__容器",
-      "产物哈希": "sha256:5dc29fb70dab0cab",
+      "产物哈希": "sha256:0df4b7a7eef4a5b3",
       "内容哈希": "sha256:0a7fe7c6a43a1cb1",
       "类别": "stdlib",
       "路径": "jishi/stdlib-jishi/容器.jsh"
     },
     {
       "id": "jishi__stdlib-jishi__统计",
-      "产物哈希": "sha256:6b0ce621d950ce3b",
+      "产物哈希": "sha256:aa4b4b3139f1736e",
       "内容哈希": "sha256:01769482d8647365",
       "类别": "stdlib",
       "路径": "jishi/stdlib-jishi/统计.jsh"
     },
     {
       "id": "jishi__stdlib-jishi__迭代",
-      "产物哈希": "sha256:d323419bf28b3fd4",
+      "产物哈希": "sha256:bc4254f381816ebc",
       "内容哈希": "sha256:1667156d9a1d9296",
       "类别": "stdlib",
       "路径": "jishi/stdlib-jishi/迭代.jsh"
@@ -370,6 +370,13 @@
       "内容哈希": "sha256:c9eb4424d8eb06bd",
       "类别": "lang",
       "路径": "tests/cases/16_插值字符串边界.jsh"
+    },
+    {
+      "id": "tests__cases__17_尝试块作用域",
+      "产物哈希": "sha256:ab61a4f9e1d66411",
+      "内容哈希": "sha256:de3afc766ee4df19",
+      "类别": "lang",
+      "路径": "tests/cases/17_尝试块作用域.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -708,5 +715,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 92
+  "语料数": 93
 }

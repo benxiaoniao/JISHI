@@ -503,6 +503,17 @@ class CvmHost:
         #: 影子全局表（报错建议 / do_import 用），初始为内建
         self.globals = R.new_builtins()
         self.pending: Optional[JishiError] = None
+        #: **刚由 `make_error` 造出来、还没等到调用链的异常对象**（R5.1）。
+        #:
+        #: 为什么要这个槽：C 侧的错误有两条来源 ——
+        #:   ① 宿主回调失败（除零、找不到名字…）→ 走 `_fail`，`self.pending` 被设上，
+        #:      紧接着 `note_frames` 把调用链挂到 `pending` 上 ✅；
+        #:   ② `抛出 <值>` → 走 C 的 `JS_OP_THROW`，异常对象由 `make_error` 回调**造出来**，
+        #:      宿主侧 `self.pending` 仍是 None，于是 `note_frames` 送来的调用链
+        #:      **挂了个空** —— 症状是「**显式抛出的错误没有调用链**」，而除零有的。
+        #: 这个槽就是补 ②：造对象时记一笔，`note_frames` 来了（若还没有 pending）
+        #: 就挂到它身上；用完即清，不留陈旧对象。
+        self._fresh_error: Optional[JishiError] = None
         #: 「延迟合并写的冲刷刚刚失败」的一次性标志（M46 阶段一④）——见 `_guard`。
         self._flush_failed = False
 
@@ -1160,10 +1171,14 @@ class CvmHost:
         try:
             v = self.c2py(value[0])
             if isinstance(v, DebugQuit):
+                self._fresh_error = None
                 out[0] = self.py2c(v)
                 return 0
             exc = R.make_exception(v, line=line, col=col,
                                    filename=self.filename)
+            # 记一笔：C 侧紧接着会调 `note_frames`（那时 self.pending 还是 None），
+            # 调用链要挂到这个对象上。见 `_fresh_error` 的说明。
+            self._fresh_error = exc
             out[0] = self.py2c(exc)
             return 0
         except BaseException as e:
@@ -1280,8 +1295,16 @@ class CvmHost:
                 if name.startswith("<"):
                     name = "匿名函数"
                 chain.append(Frame(name, line or None, col or None))
-            if self.pending is not None and self.pending.trace is None:
-                self.pending.trace = chain
+            if chain:
+                if self.pending is not None:
+                    if self.pending.trace is None:
+                        self.pending.trace = chain
+                elif (self._fresh_error is not None
+                        and self._fresh_error.trace is None):
+                    # `抛出` 那条路：异常对象是 `make_error` 造的，宿主侧还没有
+                    # pending —— 链挂到那个刚造的对象上（R5.1 修）。详见 `_fresh_error`。
+                    self._fresh_error.trace = chain
+            self._fresh_error = None
             return 0
         except BaseException:            # noqa: BLE001 - 记现场失败不该改变语义
             return 0

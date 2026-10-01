@@ -437,10 +437,47 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
             };
             c.scopes[scope].bound.insert(name);
         }
-        // ⚠️ Try / Raise / Break / Continue / Pass **没有分支** —— 与 Python 侧
-        // 一模一样（那里的 `_collect_stmt` 也没有）。也就是说「只在 `尝试` 里
-        // 赋过值的名字进不了 bound，会被当成全局」。这是**既有行为**，R5 逐字
-        // 复刻；是不是要改由作者定（见 docs/前端契约.md §12 的实测记录）。
+        "Try" => {
+            // ⚠️ **这一支原先漏了**（R5 逐行移植时发现并如实复刻，R5.1 补齐）。
+            // 后果比「少收集几个名字」严重得多：
+            //   ① 体里**赋值**的名字进不了 bound → 编成 STORE_GLOBAL；
+            //   ② 体里**读**的名字进不了 used → 闭包捕获不到 → 运行期 E0301；
+            //   ③ 体里**定义函数/类**时 `func_scopes` 没登记 → 发射期 KeyError，
+            //      **编译期直接崩**。
+            // 只有「外层有同名变量」时才看得出来（否则全局与局部恰好等价）。
+            // 与 Python 侧的 `_collect_stmt` **逐字对应**，改一处必须改另一处。
+            collect_stmts(as_list(nf(n, "body")), scope, c);
+            for h in as_list(nf(n, "handlers")) {
+                let hm = match node_of(h) {
+                    Some(m) => m,
+                    None => continue,
+                };
+                let ty = nf(hm, "type");
+                if !is_null(ty) {
+                    collect_expr(ty, scope, c);
+                }
+                let hname = nf(hm, "name");
+                if !is_null(hname) && !as_jstr(hname).is_empty() {
+                    // 捕获名与「赋值」同级：它是所在作用域的局部
+                    let s = as_jstr(hname).to_string();
+                    c.scopes[scope].bound.insert(s);
+                }
+                collect_stmts(as_list(nf(hm, "body")), scope, c);
+            }
+            let fin = nf(n, "finalbody");
+            if !is_null(fin) {
+                collect_stmts(as_list(fin), scope, c);
+            }
+        }
+        "Raise" => {
+            let v = nf(n, "value");
+            if !is_null(v) {
+                collect_expr(v, scope, c);
+            }
+        }
+        // Break / Continue / Pass 没有子语句与子表达式 —— 显式列出来，
+        // 免得下次往 AST 里加语句时又「悄悄落进 `_ => {}`」。
+        "Break" | "Continue" | "Pass" => {}
         _ => {}
     }
 }

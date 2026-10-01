@@ -558,10 +558,25 @@ class VM:
                             del stack[-n:]
                             for fn in fns:
                                 methods[fn.name] = fn
-                        base = None
+                        # ⚠️ **这两个名字曾经就叫 `base` / `has_base`，把帧的栈基址
+                        # 覆盖掉了**（R6 开工前查别的 bug 时顺手抓到）：
+                        # 外层 `while frames:` 每个帧只 `base = frame.base` 赋一次，
+                        # 而 `RETURN` / `END_FINALLY` 用的是那个 `base`
+                        # （`del stack[base:]`）。类一建，「基址」就变成了
+                        # 「类的基类」（无基类时是 `None`）—— `del stack[None:]`
+                        # 等价于 `del stack[0:]`，**把整个求值栈清空**。
+                        # 症状：「**在函数里定义类**」这个再普通不过的写法，
+                        # 函数返回后调用方拿到的是**上一个值**（错误信息还指着调用行，
+                        # 看起来像「打印不能调用」这种莫名其妙的话）。
+                        # 为什么一直没暴露：模块帧不收 RETURN（以 HALT 结束），
+                        # 所以「模块级定义类」侥幸没事；C VM / Node / Rust 各自实现，
+                        # 用的是 `baseCls` 这种不同名字，也都没事 ——
+                        # **只有 Python VM 中了**。现在改名叫 `cls_base`。
+                        # 守门：`tests/test_m63_vm_scope.py`。
+                        cls_base = None
                         if has_base:
-                            base = stack.pop()
-                        stack.append(R.JishiClass(name, methods, base=base))
+                            cls_base = stack.pop()
+                        stack.append(R.JishiClass(name, methods, base=cls_base))
 
                     # === 解包（M7）===
                     elif op == Op.UNPACK:
