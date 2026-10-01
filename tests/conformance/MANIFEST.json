@@ -51,7 +51,7 @@
     "BUILD_SLICE",
     "METHOD_CALL"
   ],
-  "格式版本": 1,
+  "格式版本": 2,
   "生成环境": {
     "jishi": "0.2.1",
     "python": "3.13.14"
@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 24,
     "frontend": 1,
-    "lang": 59,
+    "lang": 61,
     "stdlib": 4
   },
   "语料": [
@@ -387,35 +387,35 @@
     },
     {
       "id": "tests__error_cases__03_缩进对不上",
-      "产物哈希": "sha256:42f945e5497419ba",
+      "产物哈希": "sha256:c7486f3a1c08a456",
       "内容哈希": "sha256:a62c9aef1bfde265",
       "类别": "lang",
       "路径": "tests/error_cases/03_缩进对不上.jsh"
     },
     {
       "id": "tests__error_cases__04_少了冒号",
-      "产物哈希": "sha256:2db313b952eb8743",
+      "产物哈希": "sha256:a3a3b16f614a88ab",
       "内容哈希": "sha256:525758d6e089ae5e",
       "类别": "lang",
       "路径": "tests/error_cases/04_少了冒号.jsh"
     },
     {
       "id": "tests__error_cases__05_字符串没结束",
-      "产物哈希": "sha256:4bfe09ae457dee8d",
+      "产物哈希": "sha256:ccd7c88e68df221e",
       "内容哈希": "sha256:86c97a33fb28aade",
       "类别": "lang",
       "路径": "tests/error_cases/05_字符串没结束.jsh"
     },
     {
       "id": "tests__error_cases__06_关键字粘连",
-      "产物哈希": "sha256:1cb626245f114fc1",
+      "产物哈希": "sha256:21c75ee7329657c4",
       "内容哈希": "sha256:caa4e98ccbecc8e8",
       "类别": "lang",
       "路径": "tests/error_cases/06_关键字粘连.jsh"
     },
     {
       "id": "tests__error_cases__07_全角空格缩进",
-      "产物哈希": "sha256:3c782de788a74c19",
+      "产物哈希": "sha256:616e67ea42430f3b",
       "内容哈希": "sha256:865be0223e33fabb",
       "类别": "lang",
       "路径": "tests/error_cases/07_全角空格缩进.jsh"
@@ -429,7 +429,7 @@
     },
     {
       "id": "tests__error_cases__09_块缺失",
-      "产物哈希": "sha256:5992aa5b1287ef91",
+      "产物哈希": "sha256:d6fcde86714eba47",
       "内容哈希": "sha256:a34aff59da179627",
       "类别": "lang",
       "路径": "tests/error_cases/09_块缺失.jsh"
@@ -443,7 +443,7 @@
     },
     {
       "id": "tests__error_cases__11_Tab混用",
-      "产物哈希": "sha256:647dca67e2dd6f73",
+      "产物哈希": "sha256:9cbc4945bf42fd7c",
       "内容哈希": "sha256:52acf1b91d80e215",
       "类别": "lang",
       "路径": "tests/error_cases/11_Tab混用.jsh"
@@ -534,21 +534,21 @@
     },
     {
       "id": "tests__error_cases__24_捕获脱离尝试",
-      "产物哈希": "sha256:37a5ad8cf45d1800",
+      "产物哈希": "sha256:e45a13822e29bacb",
       "内容哈希": "sha256:af8a4914e27ce4ff",
       "类别": "lang",
       "路径": "tests/error_cases/24_捕获脱离尝试.jsh"
     },
     {
       "id": "tests__error_cases__25_尝试无捕获",
-      "产物哈希": "sha256:22cea03509afce39",
+      "产物哈希": "sha256:8f301f3c0e7f8ee7",
       "内容哈希": "sha256:35c5bd9d50f6b45b",
       "类别": "lang",
       "路径": "tests/error_cases/25_尝试无捕获.jsh"
     },
     {
       "id": "tests__error_cases__26_抛出无值",
-      "产物哈希": "sha256:16d32444ae07f34c",
+      "产物哈希": "sha256:d7340868c9464849",
       "内容哈希": "sha256:bcf1e7c7a6b84144",
       "类别": "lang",
       "路径": "tests/error_cases/26_抛出无值.jsh"
@@ -569,35 +569,35 @@
     },
     {
       "id": "tests__error_cases__29_默认参数位置",
-      "产物哈希": "sha256:b48eba8b3117ab00",
+      "产物哈希": "sha256:ad8f4ec1eb0cf54a",
       "内容哈希": "sha256:441899632f25ad4d",
       "类别": "lang",
       "路径": "tests/error_cases/29_默认参数位置.jsh"
     },
     {
       "id": "tests__error_cases__30_英文关键字def",
-      "产物哈希": "sha256:1402de9117f78279",
+      "产物哈希": "sha256:ee6f5cd03075c48e",
       "内容哈希": "sha256:72d3d5b08c2cf9d2",
       "类别": "lang",
       "路径": "tests/error_cases/30_英文关键字def.jsh"
     },
     {
       "id": "tests__error_cases__31_英文内建print",
-      "产物哈希": "sha256:9dadcbc02237fb99",
+      "产物哈希": "sha256:a39f1b24dbe0d8da",
       "内容哈希": "sha256:cc42155088fca573",
       "类别": "lang",
       "路径": "tests/error_cases/31_英文内建print.jsh"
     },
     {
       "id": "tests__error_cases__32_英文布尔True",
-      "产物哈希": "sha256:8afe5b8e3cd4dee8",
+      "产物哈希": "sha256:84a6a76a29e119ae",
       "内容哈希": "sha256:709cf0ca015ceef7",
       "类别": "lang",
       "路径": "tests/error_cases/32_英文布尔True.jsh"
     },
     {
       "id": "tests__error_cases__33_英文运算符and",
-      "产物哈希": "sha256:240e66324cd15442",
+      "产物哈希": "sha256:d2300a56d5bab226",
       "内容哈希": "sha256:35c7319c93d33724",
       "类别": "lang",
       "路径": "tests/error_cases/33_英文运算符and.jsh"
@@ -618,59 +618,73 @@
     },
     {
       "id": "tests__error_cases__36_无法识别的字符",
-      "产物哈希": "sha256:2a1babe2a03b7d8b",
+      "产物哈希": "sha256:40d175222cd86fdd",
       "内容哈希": "sha256:848ccea620fc1b77",
       "类别": "lang",
       "路径": "tests/error_cases/36_无法识别的字符.jsh"
     },
     {
       "id": "tests__error_cases__37_三引号没闭合",
-      "产物哈希": "sha256:404f27f6b3457457",
+      "产物哈希": "sha256:79d4fb21af98978d",
       "内容哈希": "sha256:200e6f47d411a3d8",
       "类别": "lang",
       "路径": "tests/error_cases/37_三引号没闭合.jsh"
     },
     {
       "id": "tests__error_cases__38_插值表达式没闭合",
-      "产物哈希": "sha256:686da21a1c128f73",
+      "产物哈希": "sha256:9578f938eecdeb91",
       "内容哈希": "sha256:5fab94fe6e7d97ef",
       "类别": "lang",
       "路径": "tests/error_cases/38_插值表达式没闭合.jsh"
     },
     {
       "id": "tests__error_cases__39_插值字符串没结束",
-      "产物哈希": "sha256:d688daacfc36ee37",
+      "产物哈希": "sha256:4ad7f34e649cff23",
       "内容哈希": "sha256:857f6ac9cd6cee8c",
       "类别": "lang",
       "路径": "tests/error_cases/39_插值字符串没结束.jsh"
     },
     {
       "id": "tests__error_cases__40_转义符没内容",
-      "产物哈希": "sha256:1c164ef978f78aa4",
+      "产物哈希": "sha256:ca61f33c5fe9f727",
       "内容哈希": "sha256:c0f490ab3387f164",
       "类别": "lang",
       "路径": "tests/error_cases/40_转义符没内容.jsh"
     },
     {
       "id": "tests__error_cases__41_块首后空行",
-      "产物哈希": "sha256:e3ba385459731354",
+      "产物哈希": "sha256:160c301e48e3094d",
       "内容哈希": "sha256:ebf84649fb3ea5b9",
       "类别": "lang",
       "路径": "tests/error_cases/41_块首后空行.jsh"
     },
     {
       "id": "tests__error_cases__42_类外超",
-      "产物哈希": "sha256:5f699c536dba08ec",
+      "产物哈希": "sha256:b701d66c954d11d7",
       "内容哈希": "sha256:dc06b5765a7bb07e",
       "类别": "lang",
       "路径": "tests/error_cases/42_类外超.jsh"
     },
     {
       "id": "tests__error_cases__43_整行插值字符串",
-      "产物哈希": "sha256:3f10589dcc349b19",
+      "产物哈希": "sha256:1c7142a02fb11e34",
       "内容哈希": "sha256:adbc975e79a6b0ac",
       "类别": "lang",
       "路径": "tests/error_cases/43_整行插值字符串.jsh"
+    },
+    {
+      "id": "tests__error_cases__44_缺变量名",
+      "产物哈希": "sha256:2a97b7c9f8b76cc9",
+      "内容哈希": "sha256:20aff2a90aae7adb",
+      "类别": "lang",
+      "路径": "tests/error_cases/44_缺变量名.jsh"
+    },
+    {
+      "id": "tests__error_cases__45_缺属性名",
+      "产物哈希": "sha256:aa937f54ab34ae3f",
+      "内容哈希": "sha256:b7fc093453ab1935",
+      "类别": "lang",
+      "路径": "tests/error_cases/45_缺属性名.jsh"
     },
     {
       "id": "tests__frontend_cases__01_超范围整数",
@@ -680,5 +694,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 88
+  "语料数": 90
 }

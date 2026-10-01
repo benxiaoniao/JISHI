@@ -602,7 +602,7 @@ def error_class(code: str, default: "type | None" = None) -> type:
     """按错误码查异常类。
 
     **R 线（前端换 Rust）的接口约定**：扩展只回传「码 / 消息 / 行 / 列 / 提示 /
-    下划线」这些**事实**，类由 Python 侧按码现查 —— 于是 Rust 那边**没有**
+    下划线 / 修正」这些**事实**，类由 Python 侧按码现查 —— 于是 Rust 那边**没有**
     「码 → 类」的映射表，也就不会与这里漂移。
 
     惰性建表；同码取先注册的那个（正常情况错误码不重复，M44 修过一次重码）。
@@ -613,3 +613,46 @@ def error_class(code: str, default: "type | None" = None) -> type:
                     and obj is not JishiError):
                 _ERROR_BY_CODE.setdefault(obj.code, obj)
     return _ERROR_BY_CODE.get(code, default or JishiError)
+
+
+#: Rust 前端扩展回传的**事实字段**（前端契约的一部分）。
+#:
+#: ⚠️ 这张表是「有哪些事实」的**单一来源**：`from_extension` 就照它解析，
+#: `tests/test_m61_frontend_errors.py` 还会拿它做一次「往返测试」——
+#: 往扩展异常上摆满这些字段，过一遍还原，断言一个都没丢。
+#:
+#: 「为什么要这么做」（R4 踩出来的）：R2/R3 时词法与语法**各抄了一份字段清单**，
+#: 而词法那份漏了「修正」。当时恰好**没有一个词法错误带 `fix`**，所以怎么测都是绿的
+#: —— 哪天有人给词法错误加个修复建议（比如全角标点→半角），两个前端就会静默分岔。
+#: 教训：**两份清单并存时，「恰好没用到」不等于「没问题」。**
+EXTENSION_FIELDS: tuple[str, ...] = (
+    "码", "消息", "行", "列", "提示", "下划线", "修正",
+)
+
+
+def from_extension(exc: BaseException, *, filename: str,
+                   lines: "list[str]", default_cls: "type | None" = None
+                   ) -> JishiError:
+    """把扩展回传的「事实」还原成一个 `JishiError` —— **唯一的还原出口**。
+
+    两条前端路径（`tokenizer._rust_tokenize` 与 `parser._make_parse_error`）
+    **都必须走这里**：多一个出口就多一份「谁忘了补」的机会（R3 已经栽过两次）。
+
+    * `码` → 异常类由 `error_class` 现查（Rust 侧没有那张表，也就漂不了）；
+    * `default_cls` 是「码查不到时兜底用谁」：词法那条传 `LexError`、语法那条传
+      `ParseError` —— **保留「词法错误必是词法类」这层家族保证**（码查得到时它不生效）；
+    * 源码行不跟着传，由 `with_source(lines)` 按 `行` 现取 —— 少传一份少一份漂移；
+    * `修正` 在扩展侧是 `(old, new)` 元组，到这里变成契约里的 `{"old","new"}`。
+    """
+    cls = error_class(getattr(exc, "码", ""), default_cls)
+    fix = getattr(exc, "修正", None)
+    err = cls(
+        getattr(exc, "消息", ""),
+        line=getattr(exc, "行", None),
+        col=getattr(exc, "列", None),
+        filename=filename,
+        hint=getattr(exc, "提示", None),
+        underline=getattr(exc, "下划线", None),
+        fix=({"old": fix[0], "new": fix[1]} if fix else None),
+    )
+    return err.with_source(list(lines))

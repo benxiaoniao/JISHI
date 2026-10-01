@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from . import errors
 from .errors import (
     LexCharError,
     LexFullWidthSpaceError,
@@ -789,19 +790,12 @@ def _rust_tokenize(text: str, filename: str) -> "list[Token]":
     try:
         return mod.tokenize(text, filename)
     except mod.LexError as exc:
-        # 扩展只回传「码 / 消息 / 行 / 列 / 提示 / 下划线」六个事实，
-        # **异常类由这里现查**；源码行也由这里按 `行` 现取
-        # （`with_source` 就是这么设计的，两边不会各说各话）。
-        cls = _lex_class(getattr(exc, "码", ""))
-        err = cls(
-            getattr(exc, "消息", ""),
-            line=getattr(exc, "行", None),
-            col=getattr(exc, "列", None),
-            filename=filename,
-            hint=getattr(exc, "提示", None),
-            underline=getattr(exc, "下划线", None),
-        )
-        raise err.with_source(Tokenizer(text, filename).lines)
+        # 走**统一的还原出口**（`errors.from_extension`）：事实字段有一份
+        # 单一来源，不在这里另抄一张清单 —— R4 之前这里漏了「修正」，
+        # 而当时没有词法错误带 `fix`，所以一直测不出来（见该函数注释）。
+        raise errors.from_extension(
+            exc, filename=filename, lines=Tokenizer(text, filename).lines,
+            default_cls=errors.LexError)
 
 
 # ---------------------------------------------------------------------------

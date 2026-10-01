@@ -13,12 +13,12 @@ import dataclasses
 from typing import Optional
 
 from . import ast_nodes as A
+from . import errors
 from .errors import (
     ParseBlockError,
     ParseMissingColonError,
     ParseMissingNameError,
     ParseUnexpectedError,
-    error_class,
 )
 #: 形参种类常量（M25）。从 opcodes 取，保证与 C 侧 JS_PARAM_* 同源；
 #: opcodes 是纯数据定义、不反向依赖 parser，没有循环导入风险。
@@ -2019,22 +2019,12 @@ def parse_expression(text: str, filename: str = "<调试>") -> A.Node:
 def _make_parse_error(exc, lines: "list[str]", filename: str):
     """把扩展的 `ParseError` 还原成对应的 `JishiError` 子类。
 
-    与词法错误同一套约定（见 `tokenizer._rust_tokenize`）：扩展只回传
-    「码 / 消息 / 行 / 列 / 提示 / 下划线 / 修正」这些**事实**，类由这里按码
-    现查，源码行由 `with_source` 按行现取 —— Rust 侧没有那份映射表，也就漂不了。
+    **薄壳**：真正干活的是 `errors.from_extension` —— 那里是「扩展事实 →
+    JishiError」的**唯一出口**（词法那条路也走它）。R4 之前这里是各写一份，
+    结果词法那份漏了「修正」，而恰好没有词法错误带 `fix`，一直测不出来。
     """
-    cls = error_class(getattr(exc, "码", ""))
-    fix = getattr(exc, "修正", None)
-    err = cls(
-        getattr(exc, "消息", ""),
-        line=getattr(exc, "行", None),
-        col=getattr(exc, "列", None),
-        filename=filename,
-        hint=getattr(exc, "提示", None),
-        underline=getattr(exc, "下划线", None),
-        fix=({"old": fix[0], "new": fix[1]} if fix else None),
-    )
-    return err.with_source(list(lines))
+    return errors.from_extension(exc, filename=filename, lines=list(lines),
+                                 default_cls=errors.ParseError)
 
 
 def parse_source(source: str, filename: str = "<输入>") -> A.Program:

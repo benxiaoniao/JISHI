@@ -71,7 +71,12 @@ MANIFEST = CONF_DIR / "MANIFEST.json"
 
 #: 基线格式版本。**产物结构**变了才动它（比如给 tokens 加一个字段），
 #: 动了之后所有旧基线都算过期 —— `check` 会提示重冻。
-FORMAT_VERSION = 1
+#:
+#: | 版本 | 变更 |
+#: |---|---|
+#: | 1 | R0 起：tokens / ast / bytecode / diagnostics（六个事实字段） |
+#: | **2** | **R4**：`diagnostics` 补 `下划线` / `修正` / `渲染` —— 见下表 |
+FORMAT_VERSION = 2
 
 #: 语料来源：`(类别, 相对 glob)`。顺序即报告顺序。
 #:
@@ -156,8 +161,24 @@ def _normalize_lines(src: str) -> list[str]:
     return src.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 
 
-def _err_json(err: Any, stage: str) -> dict[str, Any]:
-    """把一个**基石错误**记成结构化诊断（码 / 标题 / 消息 / 行列 / 提示）。"""
+def _err_json(err: Any, stage: str,
+              lines: "list[str] | None" = None) -> dict[str, Any]:
+    """把一个**基石错误**记成结构化诊断 —— 这是错误对外的**全部事实**。
+
+    | 字段 | 是什么 | v |
+    |---|---|---|
+    | `阶段` / `码` / `标题` / `消息` / `行` / `列` / `提示` | 基础事实 | 1 |
+    | `下划线` | `^` 指示的列区间 `[起, 止]`（1 起、闭区间），无则 null | **2** |
+    | `修正` | 机器可读的替换建议 `{"old","new"}`（给模型自愈用），无则 null | **2** |
+    | `渲染` | **用户真正看到的那段多行文本**（`render()` 的结果） | **2** |
+
+    ⚠️ **为什么要 `渲染`**：它是「事实」的下游产物，看着冗余，其实是**兜底**——
+    哪天给错误加了一个事实字段却忘了列进上面这张表，两者的渲染立刻不一样，
+    而「字段没进契约」这件事本身是**看不出来**的。（R3 的教训：漏了一个字段，
+    两个前端就会各渲染各的，而比对仍然是绿的。）
+    """
+    if lines is not None:
+        err.with_source(list(lines))        # 就地补全；`render()` 才有源码行
     return {
         "阶段": stage,
         "码": err.code,
@@ -166,6 +187,9 @@ def _err_json(err: Any, stage: str) -> dict[str, Any]:
         "行": err.line,
         "列": err.col,
         "提示": err.hint,
+        "下划线": list(err.underline) if err.underline else None,
+        "修正": err.fix,
+        "渲染": err.render(),
     }
 
 
@@ -225,7 +249,7 @@ def run_stages(rel: str, stages: tuple[str, ...] = ALL_STAGES) -> dict[str, Any]
         tokens = T.tokenize(src, rel)
         out["tokens"] = [jsonable(t) for t in tokens]
     except JishiError as e:
-        out["diagnostics"] = _err_json(e, "词法")
+        out["diagnostics"] = _err_json(e, "词法", lines)
         return out
     except Exception as e:                                      # noqa: BLE001
         raise ImplementationBug(rel, "词法", e) from e
@@ -235,7 +259,7 @@ def run_stages(rel: str, stages: tuple[str, ...] = ALL_STAGES) -> dict[str, Any]
         program = P.parse_source(src, rel)
         out["ast"] = jsonable(program)
     except JishiError as e:
-        out["diagnostics"] = _err_json(e, "语法")
+        out["diagnostics"] = _err_json(e, "语法", lines)
         return out
     except Exception as e:                                      # noqa: BLE001
         raise ImplementationBug(rel, "语法", e) from e
@@ -251,7 +275,7 @@ def run_stages(rel: str, stages: tuple[str, ...] = ALL_STAGES) -> dict[str, Any]
             body.pop("opcode_names", None)
             out["bytecode"] = body
         except JishiError as e:
-            out["diagnostics"] = _err_json(e, "编译")
+            out["diagnostics"] = _err_json(e, "编译", lines)
             return out
         except Exception as e:                                  # noqa: BLE001
             raise ImplementationBug(rel, "编译", e) from e
