@@ -61,7 +61,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **2602 项，2599 通过**）。
+3. **测试命令**：`python -m pytest tests/`（当前 **2612 项，2609 通过**）。
    ⚠️ 本机（Windows）上 3 个 Node 网络用例**偶发** `spawnSync … EBUSY` ——
    环境性的（Node 宿主自己 spawn 自己），Linux / CI 不复现，**别当成新问题查**。
    改完代码必须跑全量回归，不许留红。
@@ -132,6 +132,9 @@
   每次重算并**把推导印出来**。
   ✅ **2026-10-01 已拍板**：**「端到端 ≥5x」的验收在 R5**（那时下游不再要
   Python 对象）；R2/R3 这一层只认「**纯核心 ≥5x** + 产物逐项一致」。
+  ✅ **R5 已兑现**：把产物定成**字节码 JSON 文本**（不是对象）之后，
+  「源码 → 字节码 JSON」这条路上**没有地板** —— 实测 **5.37x**（`bench_frontend.py`
+  第三段）。⚠️ `compile_module()` 那条路（给 VM/CVM 的）仍要付地板，别拿它判 R5。
 - ⚠️ **`conformance.py emit` 必须先清空输出目录再写**（R2 踩到）：中途失败留下
   上一次的产物时，紧接着的 `compare` 会拿**旧产物**比出一个绿 ——
   「没跑成功」伪装成「通过」。这是 R0/M49 那个坑的第三副面孔。
@@ -955,8 +958,33 @@
       新建 `tests/test_m61_frontend_errors.py` 用**字段表往返**把这个缺口堵死。
     - 语料 **88 → 92**（补 E0204 两个形状 + E0205 两个形状），基线按 v2 **重冻**；
       两个前端在 92 个语料上 tokens / ast / diagnostics 三阶段全绿。
-  - 📌 **下一步：R5 编译器 → 字节码**（验收 = 字节码逐字节一致 **且
-    「端到端（源码→可执行）≥5x」** —— 这条验收线是 2026-10-01 从 R2 挪过来的）。
+  - ✅ **R5 编译器 → 字节码已交付（2026-10-02）**：`core/src/` 新增
+    `compiler.rs`（`jishi/compiler.py` 1151 行的逐行移植）、`jishilib.rs`
+    （基石库层展开）、`serialize.rs`（字节码 JSON + Python 的 `repr(float)`）、
+    `opcodes.rs`、`sha256.rs`。
+    - **四阶段全绿：92/92 语料**（tokens / ast / **bytecode** / diagnostics）；
+      **字节码逐字节相同**（连 `checksum` —— 它是 payload 的 SHA-256，
+      差一个字节就不一样），另 **3 万组随机源码对拍 0 分歧**。
+    - 🔴 **接口换了，这是 R5 最关键的一步**：产物定成 **JSON 文本**而不是
+      Python 对象 —— 「把对象交回 Python」正是 R2/R3 那堵天花板的来源，
+      **文本没有这个地板**。实测编译端到端 **2035 → 379 ms（5.37x）**，
+      「端到端 ≥5x」这条 2026-10-01 从 R2 挪过来的验收线**兑现了**。
+      Python 侧两个入口：`compile_to_json()`（原生，给 `--dump-bytecode` 与夹具）
+      与 `compile_source()`（仍给真对象，VM/CVM 那条路要用）。
+    - ⚠️ **`compile_module()` 不能省**（本可以「从 JSON 反序列化回来」了事）：
+      `local_hints` **不在字节码 JSON 里**，而字节码执行器报错要用它
+      （「赋值前读局部」那句提示）。只给 JSON 的话，rust 前端跑 VM/CVM 时
+      那句话会**静默消失** —— 两个前端就有了语义差异。有测试盯着。
+    - 顺带搬了两件「不能靠眼看」的：**指令表**（Rust 侧是那份编号的第三份拷贝，
+      `opcode_table()` 与 `OP_NAMES` 对拍）与 **`repr(float)`**（JSON 里的浮点文本，
+      拿 1 万多个值逐个比）。
+    - 🔴 **移植时抓到一个真 bug（既有、与 R5 无关）**：`_collect_stmt` **没有
+      `Try` 分支**，于是「只在 `尝试` 里赋过值的名字」进不了 `bound`，
+      编译成 `STORE_GLOBAL`／`LOAD_GLOBAL` —— **三个执行器当场分岔**
+      （树遍历 `1 100` vs 两个 VM `1 1`）。R5 **逐字复刻、没动它**（改它会
+      改变既有行为），已记进 `docs/前端契约.md` §12.4，**待拍板**。
+  - 📌 **下一步：R6 VM + 标准库（Rust 原生）**（验收 = 426 项对拍全绿；
+  **实测后定 C VM 去向**）。
   ⚠️ **M49b 那个「选型决策」已随备案完成而结掉**（方案 b：大陆服务器 + 域名）。
   📌 **（旧）M56 收完后，下一步**：`M49a 分发客户端收口` 或 **M57 性能**（C VM 容器读侧，
   先量再说）→ M58/M59。
@@ -1091,6 +1119,7 @@
   而是给**每个内建**一条最小程序，在五个引擎上真跑 —— 它一建起来就抓到
   「`超()` 两个宿主根本没有」这条 M55 漏掉的账。
   **加/改内建后跑它**（比 `--dump-builtins` 那种只比名字的检测强一级）；
+  `python tools/bench_frontend.py` 第三段量 **R5 的编译端到端**（源码 → 字节码 JSON）；
   `python tools/probe_errcodes.py` 做**错误码体检**（R4 建）：**「表里有这个码」
   ≠「这个码真的会出现」** —— 它一建起来就抓到「`E0205` 是死码」「`E0204` 没有语料」
   两笔。**加/改错误码后跑它**。
@@ -1099,7 +1128,7 @@
   默认先问「能不能用内建或标准库实现」。
 - 可按需补的遗留项（不阻塞）：短字符串内联、字节码执行器的调试器、
   LSP 增量同步、非 Windows 平台的 https。
-- 当前版本 **0.2.1**；全量测试 **2602 项**（2599 通过，3 个 Node 网络用例为环境性失败——`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题，Linux/CI 不复现）。
+- 当前版本 **0.2.1**；全量测试 **2612 项**（2609 通过，3 个 Node 网络用例为环境性失败——`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题，Linux/CI 不复现）。
   ⚠️ **本机跑全量回归要分段跑**（我这里是 3 段）：一次跑完全部时，会撞上
   **WorkBuddy 沙箱的「批量删除守卫」**（`sitecustomize.py` 在**单次工具调用**里
   累计删除超过阈值就 `SystemExit(1)`），而 pytest 自己的临时目录清理正好会触发它 ——
@@ -1120,7 +1149,7 @@ python tools/conformance.py freeze      # 重新冻结（⚠️ 改完先看 git
 python core/build.py                    # 需要 Rust 工具链；产物 jishi/_core.pyd
 JISHI_FRONTEND=rust python -m jishi.cli 程序.jsh    # 用 Rust 前端跑（默认 python）
 python tools/conformance.py emit --frontend rust --out build/产物目录
-python tools/conformance.py compare --from build/产物目录 --stage tokens   # 或 ast
+python tools/conformance.py compare --from build/产物目录 --stage tokens   # ast/bytecode/diagnostics
 python tools/bench_frontend.py          # 分词+语法吞吐（交错 A/B + 打印天花板推导）
 python tools/probe_errcodes.py          # 错误码体检（R4：可达性 + 语料覆盖）
 

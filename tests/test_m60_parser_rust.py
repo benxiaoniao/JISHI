@@ -142,10 +142,21 @@ def test_与冻结基线_ast_一致(tmp_path):
 
 @need_rust
 def test_未做到的阶段如实报未提供(tmp_path, capsys):
-    """R3 只做到语法，**编译器（bytecode）还没有** ——
-    `compare` 必须报「未提供」而不是**当通过**（契约 §3：跳过与通过要分得开）。"""
+    """`compare` 必须报「未提供」而不是**当通过**（契约 §3：跳过与通过要分得开）。
+
+    ⚠️ R3 时这条是拿「rust 前端还没做 bytecode」来验的；**R5 之后四个阶段
+    它全做了**，于是改成**人工构造**一份缺阶段的产物 —— 这样验的是
+    `compare` 的判据本身，而且**不会再被某一步的进度带歪**。
+    """
+    import json
+
     out = tmp_path / "rust_front"
     assert C.main(["emit", "--frontend", "rust", "--out", str(out)]) == 0
+    # 把 bytecode 那一段抹掉：模拟「这一步还没做」的实现
+    for f in out.glob("*.json"):
+        data = json.loads(f.read_text(encoding="utf-8"))
+        data.pop("bytecode", None)
+        f.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     rc = C.main(["compare", "--from", str(out), "--stage", "bytecode"])
     text = capsys.readouterr().out
     assert rc == 1, "bytecode 阶段没提供，compare 却退 0 —— 「没做」被当成「通过」了"

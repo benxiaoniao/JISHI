@@ -1080,10 +1080,71 @@ def compile_program(program: A.Program, filename: str = "<输入>",
     return cmod
 
 
+def _rust_core():
+    """Rust 扩展模块（拿不到会**明确报错**，不静默回落）。"""
+    from . import tokenizer as _T
+    return _T._core()
+
+
+def _rust_lib_dir() -> Optional[str]:
+    """基石库目录；`JISHI_NO_JISHILIB=1` 时传 `None`（整层关掉）。"""
+    import os
+    from . import jishilib
+    if os.environ.get("JISHI_NO_JISHILIB") == "1":
+        return None
+    return jishilib.lib_dir()
+
+
+def _rust_call(name: str, source: str, filename: str, fuse: bool):
+    """调扩展的 R5 入口，并把**词法/语法错**还原成 `JishiError`。
+
+    ⚠️ 扩展的 `compile*` 自己就要解析源码，所以解析错会以 `_core.ParseError`
+    （或 `LexError`）冒出来 —— 必须从 `errors.from_extension` **同一个出口**
+    还原（R4 立的规矩：报错只认一个出口）。不还原的话，调用方拿到的是扩展
+    自己的异常类，`except JishiError` 接不住，而 Python 前端下接得住 ——
+    同一个错在两个前端下**类型都不一样**。
+    """
+    from . import errors
+    mod = _rust_core()
+    try:
+        return getattr(mod, name)(source, filename, _rust_lib_dir(), fuse)
+    except (mod.LexError, mod.ParseError) as exc:
+        lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        raise errors.from_extension(exc, filename=filename, lines=lines) from None
+
+
+def compile_to_json(source: str, filename: str = "<输入>",
+                    fuse_method_call: bool = False) -> str:
+    """源码 → **字节码 JSON 文本**（跨语言中间格式）。
+
+    ⚠️ 这是 R5 的契约产物，也是**唯一能兑现「端到端 ≥5x」的那条路**：
+    rust 前端下全程原生（Rust 解析 + Rust 编译 + Rust 拼 JSON），**一个 Python
+    对象都不造**。而 `compile_source()` 要把产物变成 `CompiledModule`（一堆
+    Code/Instr 对象）交给调用方 —— 那正是 R2/R3 天花板（「把对象交回 Python」）
+    的来源。**产物是文本，就没有这个地板。**
+
+    Python 前端下当然是「先编译成对象、再序列化」。
+    """
+    from .tokenizer import frontend
+    if frontend() == "rust":
+        return _rust_call("compile", source, filename, fuse_method_call)
+    from .serialize import dumps
+    return dumps(compile_source(source, filename,
+                                fuse_method_call=fuse_method_call))
+
+
 def compile_source(source: str, filename: str = "<输入>",
                    fuse_method_call: bool = False) -> O.CompiledModule:
     """源码 → CompiledModule（含词法/语法分析）。"""
+    from .tokenizer import frontend
     from .parser import parse_source
+
+    if frontend() == "rust":
+        # Rust 侧也**同时**给一份真对象（而不是从 JSON 反序列化回来）：
+        # `local_hints` 不在字节码 JSON 里，而字节码执行器报错要用它 ——
+        # 从 JSON 还原会让那句提示静默消失，两个前端就有语义差异了。
+        return _rust_call("compile_module", source, filename,
+                          fuse_method_call)
 
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     program = parse_source(source, filename)

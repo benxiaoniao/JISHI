@@ -14,7 +14,12 @@
 // 这么绕一圈是为了「错误码 → 异常类」的映射只有一处（Python 侧从
 // `jishi.errors` 里按 `code` 现查），Rust 这边不抄一份类表、也就不会漂。
 
+mod compiler;
+mod jishilib;
+mod opcodes;
 mod parser;
+mod serialize;
+mod sha256;
 mod tokenizer;
 
 use std::sync::OnceLock;
@@ -293,6 +298,124 @@ fn core_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+// ---------------------------------------------------------------------------
+// R5：编译器 → 字节码
+// ---------------------------------------------------------------------------
+
+/// 常量池项 → Python 值。
+fn const_to_py(py: Python<'_>, c: &compiler::Const) -> PyResult<Py<PyAny>> {
+    use compiler::Const;
+    Ok(match c {
+        Const::None => py.None(),
+        Const::Bool(b) => pyo3::types::PyBool::new(py, *b).to_owned().into_any().unbind(),
+        Const::Int(i) => PyInt::new(py, *i).into_any().unbind(),
+        // 超出 i64 的整数交给 Python 的 `int()` 变任意精度（同 R2/R3）
+        Const::Big(x) => py.import("builtins")?.getattr("int")?.call1((x.as_str(),))?
+            .unbind(),
+        Const::Float(f) => pyo3::types::PyFloat::new(py, *f).into_any().unbind(),
+        Const::Str(x) => PyString::new(py, x).into_any().unbind(),
+    })
+}
+
+/// `compile::Module` → 真正的 `jishi.opcodes.CompiledModule`（含 `local_hints`）。
+///
+/// ⚠️ **为什么还要造 Python 对象**（明明 JSON 才是契约产物）：`local_hints`
+/// 不在字节码 JSON 里（格式没这个字段），而字节码执行器**报错时要用它**
+/// ——「赋值前读局部」那句「外层也有一个叫「x」的变量…」就是从这儿来的。
+/// 只给 JSON 的话，rust 前端跑 VM/CVM 时那句提示会**静默消失**，
+/// 两个前端就有了语义差异（R 线的红线）。
+fn to_py_module(py: Python<'_>, m: &compiler::Module) -> PyResult<Py<PyAny>> {
+    let ops = py.import("jishi.opcodes")?;
+    let mut consts: Vec<Py<PyAny>> = Vec::with_capacity(m.consts.len());
+    for c in &m.consts {
+        consts.push(const_to_py(py, c)?);
+    }
+
+    let mut codes: Vec<Py<PyAny>> = Vec::with_capacity(m.codes.len());
+    for c in &m.codes {
+        let mut instrs: Vec<Py<PyAny>> = Vec::with_capacity(c.instrs.len());
+        for i in &c.instrs {
+            let o = ops.getattr("Instr")?
+                .call1((i.op, i.a, i.b, i.c, i.line, i.col))?;
+            if i.stmt_line != 0 {
+                o.setattr("stmt_line", i.stmt_line)?;
+            }
+            instrs.push(o.unbind());
+        }
+        let hints = PyDict::new(py);
+        for (k, v) in &c.local_hints {
+            hints.set_item(*k, v)?;
+        }
+        let kwargs = PyDict::new(py);
+        kwargs.set_item("name", &c.name)?;
+        kwargs.set_item("params", c.params.clone())?;
+        kwargs.set_item("param_idx", c.param_idx.clone())?;
+        kwargs.set_item("param_local", c.param_local.clone())?;
+        kwargs.set_item("param_cell", c.param_cell.clone())?;
+        kwargs.set_item("param_kind", c.param_kind.clone())?;
+        kwargs.set_item("instrs", instrs)?;
+        kwargs.set_item("nlocals", c.nlocals)?;
+        kwargs.set_item("local_names", c.local_names.clone())?;
+        kwargs.set_item("cellvars", c.cellvars.clone())?;
+        kwargs.set_item("freevars", c.freevars.clone())?;
+        kwargs.set_item("local_hints", hints)?;
+        kwargs.set_item("firstlineno", c.firstlineno)?;
+        codes.push(ops.getattr("Code")?.call((), Some(&kwargs))?.unbind());
+    }
+
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("consts", consts)?;
+    kwargs.set_item("names", m.names.clone())?;
+    kwargs.set_item("kw_names", m.kw_names.clone())?;
+    kwargs.set_item("codes", codes)?;
+    kwargs.set_item("main", m.main)?;
+    kwargs.set_item("filename", &m.filename)?;
+    Ok(ops.getattr("CompiledModule")?.call((), Some(&kwargs))?.unbind())
+}
+
+/// 源码 → **字节码 JSON 文本**（R5 的契约产物；全程原生，不经 Python 对象）。
+#[pyfunction]
+#[pyo3(signature = (source, filename="<输入>", lib_dir=None,
+                    fuse_method_call=false))]
+fn compile(py: Python<'_>, source: &str, filename: &str,
+           lib_dir: Option<&str>, fuse_method_call: bool) -> PyResult<String> {
+    let prog = parser::parse(source, filename).map_err(|e| to_parse_err(py, e))?;
+    let m = compiler::compile_program(&prog, filename, lib_dir, fuse_method_call);
+    Ok(serialize::dump_json(&m))
+}
+
+/// 源码 → 真正的 `CompiledModule`（给 Python VM / C VM / 调试器用）。
+#[pyfunction]
+#[pyo3(signature = (source, filename="<输入>", lib_dir=None,
+                    fuse_method_call=false))]
+fn compile_module(py: Python<'_>, source: &str, filename: &str,
+                  lib_dir: Option<&str>, fuse_method_call: bool)
+    -> PyResult<Py<PyAny>> {
+    let prog = parser::parse(source, filename).map_err(|e| to_parse_err(py, e))?;
+    let m = compiler::compile_program(&prog, filename, lib_dir, fuse_method_call);
+    to_py_module(py, &m)
+}
+
+/// 指令表（号 → 名字）—— 给漂移检测用（与 Python 的 `OP_NAMES` 逐项比）。
+#[pyfunction]
+fn opcode_table() -> Vec<(String, i64)> {
+    opcodes::OP_NAMES
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.to_string(), i as i64))
+        .collect()
+}
+
+/// `repr(float)` 的 Rust 复刻 —— 暴露出来是为了让测试拿它**对拍**。
+///
+/// 为什么要专门对拍：字节码 JSON 里的浮点是 `repr` 文本，Rust 的 `{}` 不写
+/// 指数（`1e30` 会印成 30 个 0）、`{:e}` 的指数又没补零。这种东西**不能靠眼看**，
+/// 只能拿几千个值逐个比（`tests/test_m62_compiler_rust.py`）。
+#[pyfunction]
+fn float_repr(x: f64) -> String {
+    serialize::py_repr_float(x)
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(tokenize, m)?)?;
@@ -305,6 +428,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse, m)?)?;
     m.add_function(wrap_pyfunction!(parse_expression, m)?)?;
     m.add_function(wrap_pyfunction!(parse_node_count, m)?)?;
+    // R5
+    m.add_function(wrap_pyfunction!(compile, m)?)?;
+    m.add_function(wrap_pyfunction!(compile_module, m)?)?;
+    m.add_function(wrap_pyfunction!(opcode_table, m)?)?;
+    m.add_function(wrap_pyfunction!(float_repr, m)?)?;
     m.add("LexError", m.py().get_type::<LexError>())?;
     m.add("ParseError", m.py().get_type::<ParseError>())?;
     Ok(())

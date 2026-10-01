@@ -9,7 +9,7 @@
 所以这里每轮都「先 Python、再 Rust、再 Rust 核心」，取多轮的**最优值**
 （最优值抵掉偶发抢占；交错让两边吃到同一段负载）。
 
-## 两个阶段各报三个数，而不是一个
+## 三个阶段各报几个数
 
 | 量的是什么 | 为什么要它 |
 |---|---|
@@ -21,6 +21,17 @@
 **固定的 Python 对象构造开销**。把第三个一起报出来，读者才知道天花板在哪、
 下一步该往哪使劲 —— 于是 R2 量出来的结论是「**在这层接口上够不着 5 倍**」
 （不是实现不够好，是接口决定的），并把「端到端 ≥5x」挪到了 R5。
+
+## R5 的「端到端 ≥5x」为什么到这里才成立
+
+R2/R3 的端到端倍数额头撞在一堵墙上：**把产物做成 Python 对象**这件事本身就有地板
+（11.7 万 Token ≈ 39 ms、7 万 AST 节点 ≈ 28 ms），天花板 = 基线 ÷（核心 + 地板），
+**与实现无关**。
+
+R5 换了产物形态：**字节码 JSON 文本**。文本没有「对象构造」这一步，于是
+「源码 → 字节码 JSON」这条路上**没有地板** —— 5 倍才有得谈。
+（`compile_module()` 那条路仍要造对象，那是给 Python VM / C VM 用的，
+本脚本把它一并量出来当对照：那正是**还得付地板**的那条路。）
 
 用法：
     python tools/bench_frontend.py             # 默认 20700 行、5 轮
@@ -177,6 +188,51 @@ def bench_ast(src, rounds, core, n_nodes) -> None:
           f"（同一套算法：纯核心 + 纯造对象地板）")
 
 
+def bench_bytecode(src, rounds) -> None:
+    """R5：源码 → **字节码 JSON 文本**（编译期端到端）。"""
+    from jishi import compiler as C
+
+    def py_compile():
+        with _frontend("python"):
+            C.compile_to_json(src, "bench.jsh")
+
+    def rs_compile():
+        with _frontend("rust"):
+            C.compile_to_json(src, "bench.jsh")
+
+    def rs_objects():
+        """对照：把产物做成 Python 对象（`compile_module`，VM/CVM 那条路）。"""
+        with _frontend("rust"):
+            C.compile_source(src, "bench.jsh")
+
+    py_ms = rs_ms = obj_ms = float("inf")
+    for _ in range(rounds):
+        py_ms = min(py_ms, timed(py_compile))
+        rs_ms = min(rs_ms, timed(rs_compile))
+        obj_ms = min(obj_ms, timed(rs_objects))
+
+    n_codes = 0
+    n_instrs = 0
+    with _frontend("rust"):
+        import json as _json
+        body = _json.loads(C.compile_to_json(src, "bench.jsh"))["payload"]
+        n_codes = len(body["codes"])
+        n_instrs = sum(len(c["instrs"]) // 6 for c in body["codes"])
+
+    print("\n【三、编译（源码 → 字节码 JSON）】")
+    print(f"  {'实现':<26} {'耗时':>10}   相对基线")
+    print("  " + "-" * 58)
+    print(f"  {'Python（基线）':<26} {py_ms:8.2f} ms   1.00x")
+    print(f"  {'Rust（原生 JSON）':<26} {rs_ms:8.2f} ms   {py_ms / rs_ms:.2f}x")
+    print(f"  {'（对照）Rust 也做对象':<26} {obj_ms:8.2f} ms   {py_ms / obj_ms:.2f}x")
+    print(f"  {n_codes} 个代码对象 / {n_instrs} 条指令"
+          f"   ·   省下 {py_ms - rs_ms:.1f} ms/次（{-100 * (rs_ms - py_ms) / py_ms:.0f}%）")
+    print("  ✅ 这条路上**没有地板**：产物是**文本**，不是对象 ——"
+          "「端到端 ≥5x」（R5 的验收线）在该口径上成立。\n"
+          "     ⚠️ 上面那行「也做对象」是 VM/CVM 那条路：它仍要付 R2/R3 那份地板，\n"
+          "     所以那条路的倍数天然更低，**别拿它判 R5 的成败**。")
+
+
 def main(argv: "list[str] | None" = None) -> int:
     ap = argparse.ArgumentParser(
         prog="bench_frontend", description="R 线：Python vs Rust 前端吞吐")
@@ -184,7 +240,8 @@ def main(argv: "list[str] | None" = None) -> int:
                     help="目标行数（默认 20700，对齐评估文档的基线口径）")
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--quick", action="store_true", help="3 轮（快速摸底）")
-    ap.add_argument("--stage", choices=["tokens", "ast", "all"], default="all")
+    ap.add_argument("--stage", choices=["tokens", "ast", "bytecode", "all"],
+                    default="all")
     args = ap.parse_args(argv)
     rounds = 3 if args.quick else args.rounds
 
@@ -210,6 +267,9 @@ def main(argv: "list[str] | None" = None) -> int:
         n_nodes = core.parse_node_count(src, "bench.jsh")
         print(f"\nAST 节点数：{n_nodes}")
         bench_ast(src, rounds, core, n_nodes)
+
+    if args.stage in ("bytecode", "all"):
+        bench_bytecode(src, rounds)
     return 0
 
 

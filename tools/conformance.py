@@ -267,9 +267,9 @@ def run_stages(rel: str, stages: tuple[str, ...] = ALL_STAGES) -> dict[str, Any]
     # ---- 阶段 3：编译 ----
     if "bytecode" in stages:
         try:
-            cmod = C.compile_source(src, rel)
-            from jishi.serialize import dump_json
-            body = json.loads(dump_json(cmod))
+            # 走 `compile_to_json`：rust 前端下**全程原生**（不经 Python 对象），
+            # Python 前端下是「编译成对象再序列化」。两条路产出的都是同一份契约。
+            body = json.loads(C.compile_to_json(src, rel))
             # `opcode_names` 是引擎级常量表，73 个文件各抄一份纯属浪费 ——
             # 它在 MANIFEST 里记**一份**（加指令时那里会变，照样能被发现）。
             body.pop("opcode_names", None)
@@ -736,7 +736,7 @@ def cmd_emit(args) -> int:
 FRONTEND_STAGES: dict[str, tuple[str, ...]] = {
     "python": ALL_STAGES,
     # R2 分词 + R3 语法；编译器（bytecode）是 R5 的事
-    "rust": ("tokens", "ast", "diagnostics"),
+    "rust": ("tokens", "ast", "bytecode", "diagnostics"),
 }
 
 
