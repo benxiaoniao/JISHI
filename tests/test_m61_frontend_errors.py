@@ -11,10 +11,12 @@ R4 要证三件事：
    而恰好**没有一个词法错误带 `fix`**，于是怎么测都是绿的 —— 这类「两份清单并存、
    恰好没用到」的缺口，只有**照着字段表往返一遍**才抓得住。
 3. **两个前端逐字一致** —— 由 `conformance.py compare --stage diagnostics` 管
-   （契约 v2 起连 `下划线` / `修正` / **`渲染`** 一起比）。本文件补一条：
-   渲染出来的文本里**不许出现内部结构**。
+   （契约 v2 起连 `下划线` / `修正` / **`渲染`** 一起比）。本文件再补两条：
+   渲染出来的文本里**不许出现内部表示**；以及 **E0205 接上之后要真的会出现、
+   而且出现在对的地方**（它此前是死码 —— 见 `tools/probe_errcodes.py`）。
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -191,3 +193,126 @@ def test_新语料的渲染是完整的(rel):
     assert err.underline, "缺下划线"
     rendered = err.render()
     assert "~^" in rendered, f"渲染里没有下划线：\n{rendered}"
+
+
+# ---------------------------------------------------------------------------
+# 三、E0205：接上一个「死码」之后，要钉住它现在真的会出现、且出现在对的地方
+# ---------------------------------------------------------------------------
+
+#: `(源, 期望的右括号, 开括号所在列)` —— 都要求「一直读到文件末尾都没等到右括号」。
+_UNCLOSED_CASES = [
+    ("令 甲 = (1 + 2\n", ")", 7),         # 圆括号
+    ("令 甲 = [1, 2\n", "]", 7),          # 方括号
+    ("令 甲 = {“a”: 1\n", "}", 7),        # 花括号
+    ("打印((1)\n", ")", 3),               # 嵌套：内层是闭合的，没闭合的是**外层**那个
+    ("令 甲 = 【1, 2\n", "]", 7),         # 全角也要归一化后再判
+]
+
+
+@pytest.mark.parametrize("src,closing,col", _UNCLOSED_CASES)
+def test_括号没闭合报E0205并指向开括号(src, closing, col):
+    """E0205 以前是**死码**（见 `tools/probe_errcodes.py`），2026-10-01 接上。
+
+    两条硬要求：
+    1. **位置指在开括号上**，不是 EOF —— EOF 那个 token 的位置是「最后一行第 1 列」、
+       `source_line` 还是空的，指着它连源码行都显示不出来；
+    2. **提示要说人话**（指哪改哪），而不是让用户自己往回找。
+    """
+    with pytest.raises(E.JishiError) as ei:
+        P.parse_source(src, "冒烟.jsh")
+    err = ei.value
+    assert err.code == "E0205", f"应该报 E0205，实际 {err.code}：{err.message}"
+    assert err.line == 1 and err.col == col, (
+        f"应指向开括号（1:{col}），实际 {err.line}:{err.col}")
+    assert err.source_line, "没有源码行 —— 说明报在了 EOF 上"
+    assert f"「{closing}」" in err.message, f"消息里应说清缺的是哪个右括号：{err.message}"
+    assert err.hint and f"对应的「{closing}」" in err.hint, (
+        f"提示应告诉用户补哪个：{err.hint}")
+    assert "^" in err.render(), "渲染里没有下划线"
+
+
+def test_括号没闭合_两个前端逐字一致():
+    """新接的码必须在两个前端上逐字一致（这才是 R 线的验收方式）。"""
+    for src, _c, _col in _UNCLOSED_CASES:
+        got = {}
+        for front in ("python", "rust"):
+            old = os.environ.get(T.FRONTEND_ENV)
+            os.environ[T.FRONTEND_ENV] = front
+            try:
+                P.parse_source(src, "冒烟.jsh")
+                got[front] = "OK"
+            except E.JishiError as e:
+                got[front] = (e.code, e.message, e.line, e.col, e.underline, e.hint)
+            finally:
+                if old is None:
+                    os.environ.pop(T.FRONTEND_ENV, None)
+                else:
+                    os.environ[T.FRONTEND_ENV] = old
+        assert got["python"] == got["rust"], f"{src!r} 两个前端不一致：{got}"
+        assert got["python"] != "OK"
+
+
+def test_中途撞上别的token仍报E0201():
+    """⚠️ **别为了把码归拢而把信息丢掉**：只有「走到文件末尾都没等到」才算 E0205。
+
+    `[1, 2` 后面换行写了下一句时，报「需要「]」，但看到了「令」」比
+    「括号没闭合」更有用 —— 它直接指出**冲突发生在哪里**。
+    """
+    with pytest.raises(E.JishiError) as ei:
+        P.parse_source("令 甲 = [1, 2\n令 丙 = 3\n", "冒烟.jsh")
+    err = ei.value
+    assert err.code == "E0201", f"这条不该报 E0205：{err.message}"
+    assert "令" in err.message, "应说出「看到了什么」"
+
+
+# ---------------------------------------------------------------------------
+# 四、凡是内部表示，都不许落到用户眼前
+# ---------------------------------------------------------------------------
+
+def test_到文件末尾不再说None():
+    """`EOF` token 的 `value` 是 Python 的 `None` —— 不给它名字就会印进中文报错。
+
+    和 R3 那个「插值字符串把 `[('text', …)]` 泄出来」是同一类毛病。
+    """
+    with pytest.raises(E.JishiError) as ei:
+        P.parse_source("打印(\n", "冒烟.jsh")
+    err = ei.value
+    assert "None" not in err.message, f"把 `None` 泄给用户了：{err.message}"
+    assert "文件末尾" in err.message, f"应说人话：{err.message}"
+
+
+#: 「内部表示」的结构性标记 —— 中文报错里**不可能**有正当理由出现的东西。
+#:
+#: ⚠️ **故意不把 `None` / `True` / `False` 放进这张表**：它们可能是
+#: **用户在源码里写的字**（英文关键字容错提示会原样引用：`「True」是英文写法…`），
+#: 文本级扫描**分不清「引用用户写的字」与「泄漏内部表示」** —— 那就是误报。
+#: 误报比不报更糟：走对路的人被拦下之后，大家会把这条测试关掉。
+#: 「到文件末尾泄漏 `None`」那一条由 `test_到文件末尾不再说None` **精确**钉住。
+_BANNED_INTERNAL = (
+    "[('",          # list-of-tuples repr —— R3 抓到的那个「插值字符串分段表」
+    "<class '",     # 类 repr
+    " at 0x",       # 对象 repr 的地址
+    "Traceback",    # Python 回溯
+)
+
+
+def test_冻结的报错文案不许泄露内部表示():
+    """扫一遍**全部冻结基线**：标题 / 消息 / 提示里不许出现结构性的内部表示。
+
+    ⚠️ 只扫这三个字段，**不扫 `渲染`** —— 渲染里含用户自己的源码行，
+    用户写 `打印(None)` 完全合法，扫渲染会误报。
+    """
+    import json
+
+    banned = _BANNED_INTERNAL
+    bad: list[str] = []
+    for p in sorted((ROOT / "tests" / "conformance" / "baseline").glob("*.json")):
+        dg = json.loads(p.read_text(encoding="utf-8")).get("diagnostics")
+        if not dg:
+            continue
+        for field in ("标题", "消息", "提示"):
+            text = dg.get(field) or ""
+            for mark in banned:
+                if mark in text:
+                    bad.append(f"{p.stem.split('__')[-1]} 的「{field}」里有 {mark!r}：{text}")
+    assert not bad, "报错文案泄露内部表示：\n  · " + "\n  · ".join(bad)

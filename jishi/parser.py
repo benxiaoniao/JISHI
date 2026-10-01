@@ -19,6 +19,7 @@ from .errors import (
     ParseMissingColonError,
     ParseMissingNameError,
     ParseUnexpectedError,
+    ParseUnclosedError,
 )
 #: 形参种类常量（M25）。从 opcodes 取，保证与 C 侧 JS_PARAM_* 同源；
 #: opcodes 是纯数据定义、不反向依赖 parser，没有循环导入风险。
@@ -145,11 +146,20 @@ SUPER_NAME = "超"
 #: 用户看不懂；而这个 repr 的转义规则（`\t` / `\u3000` / 引号选择…）要在
 #: Rust 侧**逐字复刻**，是个填不满的坑。所以凡是要把 token 值写进文案的地方，
 #: 一律先过 `_tok_text`（R3 立的规矩）。
-_TOK_LABELS = {"FSTRING": "插值字符串"}
+_TOK_LABELS = {"FSTRING": "插值字符串", "EOF": "文件末尾"}
+
+#: 右括号（E0205 认这三样）。左边那个由 `_OPENERS` 反查。
+_OPENERS = {")": "(", "]": "[", "}": "{"}
 
 
 def _tok_text(t: "Token") -> str:
-    """token 的**值** → 给人看的文字（见 `_TOK_LABELS`）。"""
+    """token 的**值** → 给人看的文字（见 `_TOK_LABELS`）。
+
+    ⚠️ **`EOF` 必须在这里有名字**：它的 `value` 是 `None`，不给标签就会把
+    Python 的 `None` 印进中文报错（「这里需要一个值，但看到了「None」」）——
+    和 R3 那个「插值字符串把分段表泄出来」是同一类毛病。
+    凡是「内部表示」都不许直接落到用户眼前（R4）。
+    """
     return _TOK_LABELS.get(t.type) or str(t.value)
 
 
@@ -352,8 +362,46 @@ class Parser:
                 f"你是不是想写「{cn}」？",
                 hint=f"把「{_tok_text(t)}」换成「{cn}」即可",
                 tok=t, fix={"old": t.value, "new": cn})
+        # 期望右括号、而**已经到文件末尾** —— 这就是「括号没有闭合」（E0205）。
+        # ⚠️ 只有「走到末尾都没找到」才算：如果中途撞上了别的东西（`[1, 2` 后面
+        # 换行写了下一句），那时报 E0201 并说出「看到了什么」对用户更有用，
+        # 别为了把码归拢而把那条信息丢掉。
+        if op in _OPENERS and t.type == "EOF":
+            opener = self._find_unclosed_opener(op)
+            if opener is not None:
+                self._err(
+                    ParseUnclosedError,
+                    f"这里需要「{op}」，但已经到文件末尾了",
+                    hint=f"给这里这个「{_OPENERS[op]}」补上对应的「{op}」。",
+                    tok=opener)
+            self._err(ParseUnclosedError,
+                      f"这里需要「{op}」，但已经到文件末尾了",
+                      hint="往回找最近的那个没闭合的开括号，补上它对应的右括号。",
+                      tok=t)
         self._err(ParseUnexpectedError,
                   f"这里需要「{op}」，但看到了「{_tok_text(t)}」")
+
+    def _find_unclosed_opener(self, op: str) -> "Optional[Token]":
+        """从当前位置**往回**找最近的那个没闭合的开括号（给 E0205 定位用）。
+
+        为什么非要往回找：EOF 那个 token 的位置是「最后一行第 1 列」、
+        `source_line` 还是空的 —— 指着它对用户毫无帮助，连源码行都显示不出来。
+        而**没闭合的那个开括号**才是要动手改的地方。
+        这是错误路径上的 O(n) 扫描，正常解析走不到。
+        """
+        opener = _OPENERS[op]
+        depth = 0
+        for i in range(self.pos - 1, -1, -1):
+            t = self.tokens[i]
+            if t.type != "OP":
+                continue
+            if t.value == op:
+                depth += 1
+            elif t.value == opener:
+                if depth == 0:
+                    return t
+                depth -= 1
+        return None
 
     def _expect_kw(self, kw: str):
         if self._at_kw(kw):

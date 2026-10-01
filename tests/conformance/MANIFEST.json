@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 24,
     "frontend": 1,
-    "lang": 61,
+    "lang": 63,
     "stdlib": 4
   },
   "语料": [
@@ -687,6 +687,20 @@
       "路径": "tests/error_cases/45_缺属性名.jsh"
     },
     {
+      "id": "tests__error_cases__46_括号没闭合",
+      "产物哈希": "sha256:a5fccf47ab5d38c6",
+      "内容哈希": "sha256:eef2543957eec02e",
+      "类别": "lang",
+      "路径": "tests/error_cases/46_括号没闭合.jsh"
+    },
+    {
+      "id": "tests__error_cases__47_方括号没闭合",
+      "产物哈希": "sha256:ecc6381bdb71c01a",
+      "内容哈希": "sha256:205c5e7a6fa58483",
+      "类别": "lang",
+      "路径": "tests/error_cases/47_方括号没闭合.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:614aa058d735c0f8",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -694,5 +708,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 90
+  "语料数": 92
 }

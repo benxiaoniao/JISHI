@@ -113,6 +113,7 @@ const E_UNEXPECTED: &str = "E0201";
 const E_BLOCK: &str = "E0202";
 const E_COLON: &str = "E0203";
 const E_NAME: &str = "E0204";
+const E_UNCLOSED: &str = "E0205";
 
 // ---------------------------------------------------------------------------
 // 常量与提示表
@@ -264,8 +265,25 @@ fn tok_is_str(t: &Tok, v: &str) -> bool {
 /// 所以凡是要把 token 值写进文案的地方一律说人话 —— 与 Python 的
 /// `_TOK_LABELS` / `_tok_text` **同一份口径**（两边改要一起改）。
 pub const FSTRING_LABEL: &str = "插值字符串";
+pub const EOF_LABEL: &str = "文件末尾";
+
+/// 右括号 → 左括号（E0205 用）。不是右括号就是 `None`。
+fn opener_of(op: &str) -> Option<&'static str> {
+    match op {
+        ")" => Some("("),
+        "]" => Some("["),
+        "}" => Some("{"),
+        _ => None,
+    }
+}
 
 fn tok_text(t: &Tok) -> String {
+    // ⚠️ `EOF` 的 value 是 `None`，不给名字就会把 Python 的 `None` 印进中文报错
+    // （「这里需要一个值，但看到了「None」」）—— 与 Python 侧的 `_TOK_LABELS`
+    // 是同一张表的两份，改一处必须改另一处。
+    if t.kind == "EOF" {
+        return EOF_LABEL.to_string();
+    }
     match &t.value {
         Value::None => "None".to_string(),
         Value::Int(i) => i.to_string(),
@@ -490,9 +508,63 @@ impl Parser {
                     &t, Some((tv.clone(), cn.to_string()))));
             }
         }
+        // 期望右括号、而**已经到文件末尾** —— 这就是「括号没有闭合」（E0205）。
+        // ⚠️ 只有「走到末尾都没找到」才算：如果中途撞上了别的东西
+        // （`[1, 2` 后面换行写了下一句），那时报 E0201 并说出「看到了什么」
+        // 对用户更有用 —— 别为了把码归拢而把那条信息丢掉。
+        if let Some(opener) = opener_of(op) {
+            if t.kind == "EOF" {
+                match self.find_unclosed_opener(op) {
+                    Some(o) => {
+                        return Err(self.err_tok(
+                            E_UNCLOSED,
+                            format!("这里需要「{}」，但已经到文件末尾了", op),
+                            Some(format!("给这里这个「{}」补上对应的「{}」。",
+                                         opener, op)),
+                            &o, None));
+                    }
+                    None => {
+                        return Err(self.err_tok(
+                            E_UNCLOSED,
+                            format!("这里需要「{}」，但已经到文件末尾了", op),
+                            Some("往回找最近的那个没闭合的开括号，补上它对应的右括号。"
+                                 .to_string()),
+                            &t, None));
+                    }
+                }
+            }
+        }
         Err(self.err_tok(E_UNEXPECTED,
                          format!("这里需要「{}」，但看到了「{}」", op, tok_text(&t)),
                          None, &t, None))
+    }
+
+    /// 从当前位置**往回**找最近的那个没闭合的开括号（给 E0205 定位用）。
+    ///
+    /// 为什么非要往回找：EOF 那个 token 的位置是「最后一行第 1 列」、
+    /// `src` 还是空的 —— 指着它对用户毫无帮助，连源码行都显示不出来。
+    /// 而**没闭合的那个开括号**才是要动手改的地方。
+    /// 这是错误路径上的 O(n) 扫描，正常解析走不到。
+    fn find_unclosed_opener(&self, op: &str) -> Option<Tok> {
+        let opener = opener_of(op)?;
+        let mut depth = 0i32;
+        let mut i = self.pos;
+        while i > 0 {
+            i -= 1;
+            let t = &self.toks[i];
+            if t.kind != "OP" {
+                continue;
+            }
+            if tok_is_str(t, op) {
+                depth += 1;
+            } else if tok_is_str(t, opener) {
+                if depth == 0 {
+                    return Some(t.clone());
+                }
+                depth -= 1;
+            }
+        }
+        None
     }
 
     fn expect_kw(&mut self, kw: &str) -> R<()> {
