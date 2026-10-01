@@ -52,6 +52,7 @@ import argparse
 import dataclasses
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -75,11 +76,17 @@ FORMAT_VERSION = 1
 #: 语料来源：`(类别, 相对 glob)`。顺序即报告顺序。
 #:
 #: - `lang`   语言特性与诊断（最核心：语法/语义的各种写法都在这里）
+#: - `frontend` **只给前端看**的语料（R2 起）：这些程序**编译得过**，
+#:   但某个执行器可能有意拒绝（如超 i64 的整数 ⇒ C VM 报 E2005）。
+#:   放 `tests/cases/` 会破坏「三执行器都能跑」那条约定，所以单列一类；
+#:   它们对 **R3/R5 的产物比对**照样有效（而且是不可替代的：大整数常量
+#:   按字符串编码那条分支，只有这种语料才走得到）。
 #: - `examples` 真实程序（含 6 个完整项目 —— 光靠小样例测不出「真项目会不会崩」）
 #: - `stdlib` 基石库层源码（用基石写的标准库，前端必须能编译它）
 CORPUS_SOURCES: tuple[tuple[str, str], ...] = (
     ("lang", "tests/cases/*.jsh"),
     ("lang", "tests/error_cases/*.jsh"),
+    ("frontend", "tests/frontend_cases/*.jsh"),
     ("examples", "examples/**/*.jsh"),
     ("stdlib", "jishi/stdlib-jishi/*.jsh"),
 )
@@ -637,6 +644,80 @@ def cmd_compare(args) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# 四之三、产出「外地产物」（R2 起）—— 让 Rust 前端自己交出 round 的产物
+# ---------------------------------------------------------------------------
+
+def cmd_emit(args) -> int:
+    """按契约产出一份「外地产物目录」，供 `compare --from` 比对。
+
+    为什么要有它：R2 之后，被验的是 **Rust 前端**的产物。让 Rust 那边自己写
+    JSON 的话，「格式」就有两份实现（Python 一份、Rust 一份），一旦不一样，
+    `compare` 报出来的差异里会混着「实现错了」与「格式本来就不一样」——
+    分不开。所以这里让 **Rust 只负责算 token**，序列化仍旧走本文件这套
+    确定性 JSON（`jsonable` + `dumps`），**格式永远只有一份**。
+
+    R2 只有 `tokens` 这一阶段（R3 起再补 `ast` 等）。词法就失败的语料写出
+    `tokens: null` + `diagnostics`，与基线**同形**。
+    """
+    from jishi import tokenizer as T
+    from jishi.errors import JishiError
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    # ⚠️ **先清空**：本工具中途失败时若留下上一次的产物，紧接着的 `compare`
+    # 会拿**旧产物**比出一个绿 —— 「没跑成功」就伪装成了「通过」。
+    # 这正是 R0 那条「跳过校验与校验通过必须可区分」的同一个坑的另一副面孔。
+    for stale in out.glob("*.json"):
+        stale.unlink()
+
+    if args.frontend == "rust" and not T.rust_available():
+        print("❌ 要 Rust 前端，但扩展模块不在 —— 先跑 `python core/build.py`",
+              file=sys.stderr)
+        return 1
+
+    # ⚠️ 开关只在这段里生效，**退出前还原**。不还原的话，在 pytest 里跑过一次
+    #    `emit --frontend rust` 之后，**同一进程里后面所有测试**都会悄悄改走
+    #    Rust 前端 —— 那等于把「Python 侧仍是默认」这件事一并测掉了。
+    saved = os.environ.get(T.FRONTEND_ENV)
+    os.environ[T.FRONTEND_ENV] = args.frontend
+    try:
+        return _emit_files(T, JishiError, out, args.frontend)
+    finally:
+        if saved is None:
+            os.environ.pop(T.FRONTEND_ENV, None)
+        else:
+            os.environ[T.FRONTEND_ENV] = saved
+
+
+def _emit_files(T, JishiError, out: Path, frontend: str) -> int:
+    """真正干活的半截（开关与环境还原留给了 `cmd_emit`）。"""
+    wrote = 0
+    lex_errors = 0
+    for _cat, rel in collect_corpus():
+        src = (ROOT / rel).read_text(encoding="utf-8")
+        data: dict[str, Any] = {"语料": rel, "tokens": None, "diagnostics": None}
+        try:
+            data["tokens"] = [jsonable(t) for t in T.tokenize(src, rel)]
+        except JishiError as e:
+            data["diagnostics"] = _err_json(e, "词法")
+            lex_errors += 1
+        except Exception as e:                                  # noqa: BLE001
+            # 与 freeze 同一条闸门：非基石错误 = 实现有 bug，不许当成「产物」交出去
+            print(f"🚫 {rel} 让前端抛了非基石错误 {type(e).__name__}：{e}",
+                  file=sys.stderr)
+            return 1
+        (out / f"{corpus_id(rel)}.json").write_text(
+            dumps(data), encoding="utf-8", newline="\n")
+        wrote += 1
+
+    print(f"✅ 已产出 {wrote} 个语料的「{frontend}」前端 tokens → {out.as_posix()}")
+    print(f"   其中 {lex_errors} 个在词法阶段报错（写的是 tokens: null + 诊断）")
+    print(f"   下一步：python tools/conformance.py compare --from {out.as_posix()}"
+          f" --stage tokens")
+    return 0
+
+
 def cmd_list(_args) -> int:
     manifest = _load_manifest()
     corpus = collect_corpus()
@@ -678,6 +759,15 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_list)
 
     p = sub.add_parser(
+        "emit",
+        help="按契约产出一份「外地产物目录」（R2 起：让 Rust 前端自己交产物）")
+    p.add_argument("--frontend", choices=["python", "rust"], default="rust",
+                   help="用哪个前端产出（默认 rust）")
+    p.add_argument("--out", required=True, metavar="目录",
+                   help="产物写到哪里（**不要**写进 tests/conformance/）")
+    p.set_defaults(func=cmd_emit)
+
+    p = sub.add_parser(
         "compare",
         help="拿**外部实现**的产物与基线比（R1；Rust 前端每写一步都用它验收）")
     p.add_argument("--from", dest="source", required=True, metavar="目录",
@@ -691,7 +781,7 @@ def main(argv: list[str] | None = None) -> int:
     # ⚠️ 但 `-h/--help` 例外：要看的是**顶层**帮助（三个子命令），
     # 塞进 check 之后就只看得见 check 自己的选项了。
     raw = list(argv) if argv is not None else sys.argv[1:]
-    if not raw or (raw[0] not in ("freeze", "check", "list", "compare")
+    if not raw or (raw[0] not in ("freeze", "check", "list", "compare", "emit")
                    and raw[0] not in ("-h", "--help")):
         raw = ["check"] + raw
     args = ap.parse_args(raw)

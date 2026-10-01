@@ -58,7 +58,8 @@
   },
   "类别计数": {
     "examples": 24,
-    "lang": 45,
+    "frontend": 1,
+    "lang": 56,
     "stdlib": 4
   },
   "语料": [
@@ -329,6 +330,48 @@
       "路径": "tests/cases/10_复合赋值与逻辑.jsh"
     },
     {
+      "id": "tests__cases__11_emoji与码点",
+      "产物哈希": "sha256:1dd36bce6db4f4d0",
+      "内容哈希": "sha256:b1912746bcb75545",
+      "类别": "lang",
+      "路径": "tests/cases/11_emoji与码点.jsh"
+    },
+    {
+      "id": "tests__cases__12_多行注释",
+      "产物哈希": "sha256:8928ee6ff500eb7a",
+      "内容哈希": "sha256:91be08de7d301dc2",
+      "类别": "lang",
+      "路径": "tests/cases/12_多行注释.jsh"
+    },
+    {
+      "id": "tests__cases__13_全角标点归一化",
+      "产物哈希": "sha256:5aa0bba8697da15a",
+      "内容哈希": "sha256:9d87d03ffcd05c96",
+      "类别": "lang",
+      "路径": "tests/cases/13_全角标点归一化.jsh"
+    },
+    {
+      "id": "tests__cases__14_三引号独占行",
+      "产物哈希": "sha256:a54c2adca5fcdb0e",
+      "内容哈希": "sha256:af996ddbdc3756f8",
+      "类别": "lang",
+      "路径": "tests/cases/14_三引号独占行.jsh"
+    },
+    {
+      "id": "tests__cases__15_数字写法",
+      "产物哈希": "sha256:745429e2ce0ba357",
+      "内容哈希": "sha256:9cb852fdde884246",
+      "类别": "lang",
+      "路径": "tests/cases/15_数字写法.jsh"
+    },
+    {
+      "id": "tests__cases__16_插值字符串边界",
+      "产物哈希": "sha256:0868b68c1eb75384",
+      "内容哈希": "sha256:c9eb4424d8eb06bd",
+      "类别": "lang",
+      "路径": "tests/cases/16_插值字符串边界.jsh"
+    },
+    {
       "id": "tests__error_cases__01_未定义名字",
       "产物哈希": "sha256:ee8dd3968f6860a1",
       "内容哈希": "sha256:68b1a07032a25887",
@@ -572,7 +615,49 @@
       "内容哈希": "sha256:8c8aeb6ede3f3d3d",
       "类别": "lang",
       "路径": "tests/error_cases/35_赋值前读局部.jsh"
+    },
+    {
+      "id": "tests__error_cases__36_无法识别的字符",
+      "产物哈希": "sha256:2a1babe2a03b7d8b",
+      "内容哈希": "sha256:848ccea620fc1b77",
+      "类别": "lang",
+      "路径": "tests/error_cases/36_无法识别的字符.jsh"
+    },
+    {
+      "id": "tests__error_cases__37_三引号没闭合",
+      "产物哈希": "sha256:404f27f6b3457457",
+      "内容哈希": "sha256:200e6f47d411a3d8",
+      "类别": "lang",
+      "路径": "tests/error_cases/37_三引号没闭合.jsh"
+    },
+    {
+      "id": "tests__error_cases__38_插值表达式没闭合",
+      "产物哈希": "sha256:686da21a1c128f73",
+      "内容哈希": "sha256:5fab94fe6e7d97ef",
+      "类别": "lang",
+      "路径": "tests/error_cases/38_插值表达式没闭合.jsh"
+    },
+    {
+      "id": "tests__error_cases__39_插值字符串没结束",
+      "产物哈希": "sha256:d688daacfc36ee37",
+      "内容哈希": "sha256:857f6ac9cd6cee8c",
+      "类别": "lang",
+      "路径": "tests/error_cases/39_插值字符串没结束.jsh"
+    },
+    {
+      "id": "tests__error_cases__40_转义符没内容",
+      "产物哈希": "sha256:1c164ef978f78aa4",
+      "内容哈希": "sha256:c0f490ab3387f164",
+      "类别": "lang",
+      "路径": "tests/error_cases/40_转义符没内容.jsh"
+    },
+    {
+      "id": "tests__frontend_cases__01_超范围整数",
+      "产物哈希": "sha256:614aa058d735c0f8",
+      "内容哈希": "sha256:1561165ea3eb6425",
+      "类别": "frontend",
+      "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 73
+  "语料数": 85
 }

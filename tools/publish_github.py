@@ -141,11 +141,17 @@ def _sanitize(snapshot: Path) -> None:
     指向它的引用（理由见模块 docstring）。个人机器路径 / CLion / 令牌 /
     服务器地址等照旧屏蔽。
     """
-    # 1. build.py：移除个人机器的 CLion gcc 路径条目
-    p = snapshot / "cvm" / "build.py"
-    lines = io.open(p, encoding="utf-8").read().split("\n")
-    lines = [l for l in lines if "CLion" not in l]
-    io.open(p, "w", encoding="utf-8", newline="\n").write("\n".join(lines))
+    # 1. 构建脚本：移除个人机器的 CLion gcc 路径条目
+    #    ⚠️ **在这里集中列出**（2026-10-01 R2 起）：下次新加一个 crate
+    #    又要写一份 gcc/dlltool 候选路径时，**只改这一行** —— 漏了的话
+    #    终检会以「含 'CLion'」为由直接中止发布，等于白跑一趟。
+    for _rel in ("cvm/build.py", "core/build.py"):
+        p = snapshot / _rel
+        if not p.exists():
+            continue
+        lines = [l for l in io.open(p, encoding="utf-8").read().split("\n")
+                 if "CLion" not in l]
+        io.open(p, "w", encoding="utf-8", newline="\n").write("\n".join(lines))
 
     # 2. 设计决策.md：CLion 表述通用化
     p = snapshot / "docs" / "设计决策.md"

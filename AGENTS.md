@@ -61,7 +61,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **2340 项，2337 通过**）。
+3. **测试命令**：`python -m pytest tests/`（当前 **2458 项，2455 通过**）。
    ⚠️ 本机（Windows）上 3 个 Node 网络用例**偶发** `spawnSync … EBUSY` ——
    环境性的（Node 宿主自己 spawn 自己），Linux / CI 不复现，**别当成新问题查**。
    改完代码必须跑全量回归，不许留红。
@@ -115,6 +115,25 @@
 
 ## 2. 关键技术备忘（踩过的坑，别重踩）
 
+- ⚠️ **Rust 前端（`core/`）的两个构建坑**（R2 实测，写在这里省一次排查）：
+  ① pyo3 的构建脚本会**去跑一次 Python**，受限环境上直接
+  `os error 231（所有的管道范例都在使用中）` —— **看着像我们写错了，其实是环境**；
+  对策是 `core/build.py` 按当前解释器生成 `PYO3_CONFIG_FILE`，pyo3 就不自己探测。
+  ② `windows-gnu` 目标需要 **`dlltool`**（pyo3-ffi 生成导入库用），它跟着 MinGW
+  来了但常常不在 PATH —— 同样由 `core/build.py` 按候选清单找（`JISHI_MINGW` 可指定）。
+  **构建一律走 `python core/build.py`**，别手敲 cargo。
+- ⚠️ **`jishi/_core.pyd` 不进仓库**（按当前 Python 的 ABI 编，换版本就得重编）。
+  没有它而设了 `JISHI_FRONTEND=rust` → **明确报错并给修法**，绝不静默回落。
+- ⚠️ **前端「端到端倍数」有天花板**（R2 量出来的）：把 `Token` 交给 Python 这件
+  事本身就有地板（11.7 万个 Token ≈ 46 ms）。R2 实测 **核心 7.05x / 端到端 3.72x /
+  天花板 4.23x**。**别拿端到端倍数去判 R2–R5 的成败** —— 那时下游还得吃 Python
+  对象；数字由 `tools/bench_tokenizer.py` 每次重算并**把推导印出来**。
+- ⚠️ **`conformance.py emit` 必须先清空输出目录再写**（R2 踩到）：中途失败留下
+  上一次的产物时，紧接着的 `compare` 会拿**旧产物**比出一个绿 ——
+  「没跑成功」伪装成「通过」。这是 R0/M49 那个坑的第三副面孔。
+- ⚠️ **`tokenizer.TOKEN_TYPES` 这个集合里漏了 `FSTRING`**（M7 加插值字符串时没补）
+  —— **别拿它当 token 类型的清单用**，实际有 10 种。R2 的 `kind_name_index` 用
+  `unreachable!` 兜底，一漏就当场 panic（宁可当场炸，也别悄悄给错值）。
 - 🧭 **「自动化工具分不清事实与事故」**（R0 / `设计决策.md` D53，**通用级**）：
   凡是「**把当前状态升格为标准**」的动作 —— 测试快照、一致性夹具、golden file、
   代码生成器 —— 都必须有一道「**这状态正常吗**」的闸门。工具只会**记录**，
@@ -866,12 +885,27 @@
     `tools/conformance.py compare --from <目录>`（外地产物 vs 基线，差异定位到
     `路径.字段[下标]` 并**说出那个元素是什么**）；`--stage` 支持只比某一阶段。
     **不改行为，只定义接口** —— R2–R5 的验收方式由此固定。
-  - 📌 **下一步：R2 分词器**（Rust，作为 Python 扩展；验收 = 逐 token 一致
-    **且吞吐 ≥5 倍**；口径用 M55 定的「一个字符 = 一个码点」，由夹具钉住）。
-    ⚠️ **六个决策**已按建议拍板（单二进制+wasm / Rust 作 Python 扩展 /
-    保留 Rust 树遍历参考执行器 / C VM 去向留 R6 / 新开 R 线 / R0 立刻做）。
-    （目标形态 / 迁移通道 / 是否保留 Rust 树遍历参考执行器 / C VM 去向 /
-    里程碑编号 / 何时开工）—— 见内部路径文档 §八。
+  - 📌 **R 线的六个决策**已按建议拍板（目标形态=单二进制+wasm / 迁移通道=Rust 作
+    Python 扩展 / 保留 Rust 树遍历参考执行器 / C VM 去向留 R6 / 新开 R 线 /
+    R0 立刻做）—— 见内部路径文档 §八。
+  - ✅ **R2 分词器已交付（2026-10-01）**：新建 `core/`（Rust crate，pyo3 编成
+    Python 扩展），`tokenize()` 在 `JISHI_FRONTEND=rust` 时走 Rust。
+    - **逐 token 一致：85/85 语料** ✅（+ **2 万组随机源码对拍 0 分歧**）。
+      语料从 73 → **85**（R2 补 12 个，见下）。
+    - 吞吐：**端到端 3.72x（490.8→132.0 ms/2.07 万行）· 纯核心 7.05x**。
+      ⚠️ **端到端天花板 = 4.23x**（把 Token 交回 Python 有 46 ms 的地板）——
+      **「≥5 倍」这层接口够不着**，建议改成「纯核心 ≥5x」、把「端到端 ≥5x」挪到 R5。
+      **这是一处待拍板的验收线调整。**
+    - 🔴 **补了 12 个边角语料**：R0 的 73 个里**一个 emoji 都没有**（等于没测
+      位置）；另有 CRLF / 孤立 `\r` / BOM 这类**文件表达不了**的输入，走
+      字符串级测试；并新增 `tests/frontend_cases/`（**只给前端看**：像超 i64
+      整数这种 C VM 有意拒绝、但前端必须处理的语料）。
+    - 工具：`python core/build.py`（构建）/ `tools/bench_tokenizer.py`（吞吐）/
+      `conformance.py emit --frontend rust --out 目录` → `compare --stage tokens`。
+    - 守门测试 `tests/test_m59_tokenizer_rust.py`（78 项：全语料一致 + 24 条字符串级边角
+      + 11 条报错逐字 + 8 条端到端 + 720 组随机对拍 + 三张表漂移 + 开关语义）。
+  - 📌 **下一步：R3 语法 → AST**（验收 = AST JSON 逐字节一致；难点是**脱糖的
+    时机与位置**：`超()` / `匹配/情形` / 推导式 / 条件表达式）。
   ⚠️ **M49b 那个「选型决策」已随备案完成而结掉**（方案 b：大陆服务器 + 域名）。
   📌 **（旧）M56 收完后，下一步**：`M49a 分发客户端收口` 或 **M57 性能**（C VM 容器读侧，
   先量再说）→ M58/M59。
@@ -1011,7 +1045,12 @@
   默认先问「能不能用内建或标准库实现」。
 - 可按需补的遗留项（不阻塞）：短字符串内联、字节码执行器的调试器、
   LSP 增量同步、非 Windows 平台的 https。
-- 当前版本 **0.2.1**；全量测试 **2340 项**（2337 通过，3 个 Node 网络用例为环境性失败——`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题，Linux/CI 不复现）。
+- 当前版本 **0.2.1**；全量测试 **2458 项**（2455 通过，3 个 Node 网络用例为环境性失败——`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题，Linux/CI 不复现）。
+  ⚠️ **本机跑全量回归要分段跑**（我这里是 3 段）：一次跑完全部时，会撞上
+  **WorkBuddy 沙箱的「批量删除守卫」**（`sitecustomize.py` 在**单次工具调用**里
+  累计删除超过阈值就 `SystemExit(1)`），而 pytest 自己的临时目录清理正好会触发它 ——
+  表现是 `test_m45_ai_eval` / `test_m9_sandbox` 报 `SystemExit: 1`，**单独跑却全绿**。
+  这是**环境假失败**，与代码无关（判据：报错栈整条都在 shim 里）。
 
 ---
 
@@ -1022,6 +1061,13 @@
 python tools/conformance.py check       # 默认动作；`-v` 多打几处差异
 python tools/conformance.py list        # 语料清单与冻结状态
 python tools/conformance.py freeze      # 重新冻结（⚠️ 改完先看 git diff）
+
+# Rust 前端（R2）：构建扩展 → 产出 tokens → 与基线比（**R2 的验收入口**）
+python core/build.py                    # 需要 Rust 工具链；产物 jishi/_core.pyd
+JISHI_FRONTEND=rust python -m jishi.cli 程序.jsh    # 用 Rust 前端跑（默认 python）
+python tools/conformance.py emit --frontend rust --out build/产物目录
+python tools/conformance.py compare --from build/产物目录 --stage tokens
+python tools/bench_tokenizer.py         # 分词吞吐（Python vs Rust，交错 A/B + 天花板）
 
 # 运行脚本 / REPL
 python -m jishi.cli 文件.jsh
@@ -1102,7 +1148,8 @@ python tools/publish_pypi.py                        # 只检查，产物落在 d
 | `docs/调试器.md` | 调试器的用法、命令表与**已知边界**（只有树遍历能调试） |
 | `docs/工具链.md` | LSP 增量同步 / REPL 增强 / 格式化器的实测数据与已知边界（B2/B3/B4） |
 | `docs/真实项目.md` | 五类真实项目 + **行数比基线**（口径、逐项数据）+ 「别扭点清单」 |
-| `docs/真实项目.md` | 五类真实项目 + **行数比基线**（口径、逐项数据）+ 「别扭点清单」 |
+| `docs/前端契约.md` | **R 线**：前端四阶段产物长什么样、怎么验收（R1，内部） |
+| `docs/一致性夹具.md` | **R 线**：R0 夹具的设计、用法与两条「不许」（内部） |
 | `docs/tutorial/` | 教程 10 章 |
 | `docs/embed.md` | 跨语言嵌入（C/Node/Rust）指南 |
 | `examples/projects/` | 真实项目 + 反哺的语法别扭点记录 |

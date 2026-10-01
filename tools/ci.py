@@ -20,10 +20,15 @@
   7. 内建体检（--fast）          tools/probe_builtins.py —— 每个内建在三执行器
                                  上真跑（只比名字的漂移检测抓不到「名字在表里
                                  却用不了」，M56 的 `超` 就是这么漏的）
+  8. Rust 前端分词对拍（R2）     emit --frontend rust → compare --stage tokens
+                                 ⚠️ 需要 Rust 扩展已构建；没构建就**明确跳过**
+                                 （打印「跳过」而不是默默当通过 —— 这两件事
+                                 必须在输出里分得开）
 """
 
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,6 +88,28 @@ def main() -> int:
     if not _run([PYTHON, str(ROOT / "tools" / "probe_builtins.py"), "--fast"],
                 "内建体检（--fast）"):
         return 1
+
+    # 8) Rust 前端分词对拍（R2）：让 Rust 前端按契约产出 tokens，再拿基线比。
+    #    ⚠️ 扩展是按当前 Python 的 ABI 编出来的，CI 上不一定有（CI 不编译 Rust）。
+    #    没构建时**明确报「跳过」**，绝不静默当通过 —— 「跳过」与「通过」
+    #    在 CI 输出里长得一样是本项目反复踩过的坑（R0 的冻 bug、M49 的静默校验）。
+    probe = ("import sys; sys.path.insert(0, r'%s'); "
+             "from jishi import tokenizer as T; "
+             "print('YES' if T.rust_available() else 'NO')") % str(ROOT)
+    got = subprocess.run([PYTHON, "-c", probe], cwd=ROOT, capture_output=True)
+    if got.stdout.strip().endswith(b"YES"):
+        with tempfile.TemporaryDirectory() as tmp:
+            if not _run([PYTHON, str(ROOT / "tools" / "conformance.py"), "emit",
+                         "--frontend", "rust", "--out", tmp],
+                        "Rust 前端产出 tokens"):
+                return 1
+            if not _run([PYTHON, str(ROOT / "tools" / "conformance.py"),
+                         "compare", "--from", tmp, "--stage", "tokens"],
+                        "Rust 前端 tokens vs 基线（R2 验收）"):
+                return 1
+    else:
+        print("\n=== Rust 前端分词对拍（R2）：⏭ 跳过 —— 扩展未构建 ===")
+        print("    要跑它先 `python core/build.py`。**这里没跑，不是通过。**")
 
     print("\n✓ 全检通过")
     return 0

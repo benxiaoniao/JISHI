@@ -1,0 +1,197 @@
+// 基石前端核心 · Python 扩展入口（R2）。
+//
+// 这里**只做搬运**：调用 `tokenizer::tokenize`，把结果变成 Python 对象。
+// 语义一律在 `tokenizer.rs` 里，本文件不做任何语言判断。
+//
+// 为什么产出的是**真正的 `jishi.tokenizer.Token` 实例**（而不是元组或字典）：
+//   - 上层（parser / formatter / LSP）拿到的东西必须与 Python 版**同形**，
+//     否则「换实现」就变成了「换接口」；
+//   - 一致性夹具靠 `类型 == "Token"` 认节点（`conformance.jsonable` 取
+//     `type(obj).__name__`），用别的容器会直接改变冻结产物。
+//
+// ⚠️ 出错时抛的是本模块自己的 `LexError`（带 `码/消息/行/列/提示/下划线`
+// 六个属性）—— **由 `jishi/tokenizer.py` 还原成对应的 `JishiError` 子类**。
+// 这么绕一圈是为了「错误码 → 异常类」的映射只有一处（Python 侧从
+// `jishi.errors` 里按 `code` 现查），Rust 这边不抄一份类表、也就不会漂。
+
+mod tokenizer;
+
+use std::sync::OnceLock;
+
+use pyo3::create_exception;
+use pyo3::exceptions::PyException;
+use pyo3::prelude::*;
+use pyo3::types::{PyInt, PyList, PyModule, PyString, PyTuple};
+
+create_exception!(_core, LexError, PyException);
+
+/// token 类型的名字**只造一次**。
+///
+/// 为什么值得：一次 2 万行分词要产出约 12 万个 token，每个 token 的 `type`
+/// 都是一次 `PyString::new`。这些值只有 10 种 —— 缓存下来省掉的是
+/// **12 万次分配**（实测端到端能省下几个百分点，而这条路径上每一毫秒都算数）。
+/// `OnceLock` 在这里是安全的：所有访问都在持有 GIL 时发生。
+///
+/// ⚠️ 是 **10** 种不是 9 种：Python 的 `TOKEN_TYPES` 那个集合里**漏了
+/// `FSTRING`**（M7 加插值字符串时没补），实际会产出。少一种的后果是
+/// `unreachable!` 直接 panic —— 这是**故意的**：宁可当场炸，也别悄悄给错。
+static KINDS: OnceLock<[Py<PyString>; 10]> = OnceLock::new();
+static NEWLINE_VALUE: OnceLock<Py<PyString>> = OnceLock::new();
+
+fn kind_name_index(kind: &str) -> usize {
+    match kind {
+        "INDENT" => 0,
+        "DEDENT" => 1,
+        "NEWLINE" => 2,
+        "NUMBER" => 3,
+        "STRING" => 4,
+        "NAME" => 5,
+        "KEYWORD" => 6,
+        "OP" => 7,
+        "FSTRING" => 8,
+        "EOF" => 9,
+        other => unreachable!("未知 token 类型：{other}"),
+    }
+}
+
+fn kind_obj(py: Python<'_>, kind: &str) -> Py<PyString> {
+    let cache = KINDS.get_or_init(|| {
+        ["INDENT", "DEDENT", "NEWLINE", "NUMBER", "STRING", "NAME", "KEYWORD",
+         "OP", "FSTRING", "EOF"]
+            .map(|k| PyString::new(py, k).unbind())
+    });
+    cache[kind_name_index(kind)].clone_ref(py)
+}
+
+fn newline_obj(py: Python<'_>) -> Py<PyString> {
+    NEWLINE_VALUE.get_or_init(|| PyString::new(py, "\n").unbind()).clone_ref(py)
+}
+
+fn value_to_py(py: Python<'_>, v: &tokenizer::Value) -> PyResult<Py<PyAny>> {
+    use tokenizer::Value;
+    Ok(match v {
+        Value::None => py.None(),
+        Value::Int(i) => PyInt::new(py, *i).into_any().unbind(),
+        Value::Float(f) => pyo3::types::PyFloat::new(py, *f).into_any().unbind(),
+        Value::Str(s) => PyString::new(py, s).into_any().unbind(),
+        // 超出 i64 的整数字面量：交给 Python 的 `int()` 变任意精度整数，
+        // 与 Python 版分词的产物**逐位相同**（自己截断就是 M32 那类静默丢精度）。
+        Value::Big(s) => py
+            .import("builtins")?
+            .getattr("int")?
+            .call1((s.as_str(),))?
+            .unbind(),
+        Value::Parts(parts) => {
+            let list = PyList::empty(py);
+            for p in parts {
+                let (k, s) = match p {
+                    tokenizer::Part::Text(s) => ("text", s),
+                    tokenizer::Part::Expr(s) => ("expr", s),
+                };
+                list.append(PyTuple::new(py, [k, s.as_str()])?)?;
+            }
+            list.into_any().unbind()
+        }
+    })
+}
+
+fn to_py_err(py: Python<'_>, e: tokenizer::LexErr) -> PyErr {
+    let err = LexError::new_err(e.message.clone());
+    let v = err.value(py);
+    // ⚠️ 不送「源行」：它在 Python 侧一律由 `.with_source(lines)` 按
+    // `行` 现取（七个词法错误的 `line` 恒在范围内），少传一份就少一份漂移。
+    let _ = v.setattr("码", e.code);
+    let _ = v.setattr("消息", e.message);
+    let _ = v.setattr("行", e.line);
+    let _ = v.setattr("列", e.col);
+    let _ = v.setattr("提示", e.hint);
+    let _ = v.setattr("下划线", e.underline);
+    err
+}
+
+/// 分词：返回 `list[jishi.tokenizer.Token]`，与 Python 实现逐 token 一致。
+#[pyfunction]
+#[pyo3(signature = (source, filename="<输入>"))]
+fn tokenize(py: Python<'_>, source: &str, filename: &str)
+    -> PyResult<Py<PyAny>>
+{
+    let out = match tokenizer::tokenize(source, filename) {
+        Ok(o) => o,
+        Err(e) => return Err(to_py_err(py, e)),
+    };
+    let cls = py.import("jishi.tokenizer")?.getattr("Token")?;
+    let list = PyList::empty(py);
+
+    // 一行文本常被同一行的十几个 token 共用 —— 缓存一格就够
+    // （token 基本按行序产出），省下的是 12 万次 `PyString::new`。
+    let mut last_idx: Option<usize> = None;
+    let mut last_obj: Option<Py<PyString>> = None;
+
+    for t in &out.tokens {
+        let value: Py<PyAny> = if t.kind == "NEWLINE" {
+            newline_obj(py).into_any()
+        } else {
+            value_to_py(py, &t.value)?
+        };
+        let src_obj: Py<PyString> = match t.src {
+            None => PyString::new(py, "").unbind(),
+            Some(idx) => {
+                if last_idx != Some(idx) {
+                    last_obj = Some(PyString::new(py, &out.lines[idx]).unbind());
+                    last_idx = Some(idx);
+                }
+                last_obj.as_ref().expect("刚填过").clone_ref(py)
+            }
+        };
+        let obj = cls.call1((kind_obj(py, t.kind), value, t.line, t.col,
+                             t.end_col, src_obj))?;
+        list.append(obj)?;
+    }
+    Ok(list.into_any().unbind())
+}
+
+/// 关键字 / 粘连前缀 / 运算符三张表（供漂移检测逐项比对 Python 侧）。
+#[pyfunction]
+fn keyword_table(py: Python<'_>) -> Py<PyList> {
+    PyList::new(py, tokenizer::keyword_table()).expect("字面量列表").unbind()
+}
+
+#[pyfunction]
+fn glue_table(py: Python<'_>) -> Py<PyList> {
+    PyList::new(py, tokenizer::glue_table()).expect("字面量列表").unbind()
+}
+
+#[pyfunction]
+fn operator_table(py: Python<'_>) -> Py<PyList> {
+    PyList::new(py, tokenizer::operator_table()).expect("字面量列表").unbind()
+}
+
+/// 只跑分词核心、**不构造任何 Python 对象**，返回 token 个数。
+///
+/// 存在的理由：把「分词本身多快」与「转成 Python 对象多贵」分开量。
+/// 端到端倍数只有与核心倍数摆在一起，才知道瓶颈是在 Rust 还是在 FFI。
+#[pyfunction]
+#[pyo3(signature = (source, filename="<输入>"))]
+fn token_count(source: &str, filename: &str) -> PyResult<usize> {
+    match tokenizer::tokenize(source, filename) {
+        Ok(o) => Ok(o.tokens.len()),
+        Err(e) => Err(LexError::new_err(e.message)),
+    }
+}
+
+#[pyfunction]
+fn core_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+#[pymodule]
+fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(tokenize, m)?)?;
+    m.add_function(wrap_pyfunction!(token_count, m)?)?;
+    m.add_function(wrap_pyfunction!(core_version, m)?)?;
+    m.add_function(wrap_pyfunction!(keyword_table, m)?)?;
+    m.add_function(wrap_pyfunction!(glue_table, m)?)?;
+    m.add_function(wrap_pyfunction!(operator_table, m)?)?;
+    m.add("LexError", m.py().get_type::<LexError>())?;
+    Ok(())
+}

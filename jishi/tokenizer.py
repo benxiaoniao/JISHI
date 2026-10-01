@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Optional
@@ -704,8 +705,119 @@ class Tokenizer:
 
 
 # ---------------------------------------------------------------------------
+# 前端实现开关（R 线 · R2：前端换 Rust 的第一步）
+# ---------------------------------------------------------------------------
+#
+# 三条纪律（`docs/架构迁移路径.md` §一）里的第一条就是「有开关可回退」：
+# 新实现挂在环境变量后面，**默认值在它全绿之前不变**。所以这里默认 `python`，
+# 出了问题把变量去掉就回到今天的状态。
+#
+# ⚠️ R2 只换**这一条全量路径**（`tokenize`）。`Tokenizer` 类（以及依赖它
+# 内部状态的 `jishi.incremental` 增量分词、`formatter` 的按行复用）**仍是
+# Python 实现** —— 它们要的是 `LineAnchor` 那套行级状态，属 R3 之后的事。
+# 不假装「整条前端都换了」。
+
+#: 选哪个前端实现跑分词：`python`（默认）/ `rust`。
+FRONTEND_ENV = "JISHI_FRONTEND"
+
+_RUST_MISSING_HINT = (
+    "Rust 前端还没构建。先跑 `python core/build.py`（需要 Rust 工具链）；"
+    "或者把 JISHI_FRONTEND 去掉 / 设为 python，走原实现。"
+)
+
+
+def frontend() -> str:
+    """当前生效的前端实现：`"rust"` 或 `"python"`。"""
+    v = os.environ.get(FRONTEND_ENV, "").strip().lower()
+    return "rust" if v == "rust" else "python"
+
+
+def rust_available() -> bool:
+    """Rust 前端（扩展模块）装没装 —— 给工具与测试用来自动跳过/明确报错。"""
+    try:
+        _core()
+    except RuntimeError:
+        return False
+    return True
+
+
+def _core():
+    """取扩展模块。
+
+    ⚠️ 拿不到就**明确报错**，绝不静默回落到 Python —— 「跳过」与「通过」
+    长得一模一样是本项目反复踩过的坑（`docs/一致性夹具.md` §五）。
+    """
+    try:
+        from . import _core as mod
+    except ImportError as exc:                      # 没编 / 换了 Python 版本
+        raise RuntimeError(
+            f"JISHI_FRONTEND=rust，但加载 Rust 前端失败（{exc}）。"
+            f"{_RUST_MISSING_HINT}") from exc
+    if mod is None:                 # `sys.modules` 里被置空（测试模拟「没装」）
+        raise RuntimeError(
+            f"JISHI_FRONTEND=rust，但加载 Rust 前端失败（模块不可用）。"
+            f"{_RUST_MISSING_HINT}")
+    return mod
+
+
+#: 错误码 → 异常类。**惰性从 `jishi.errors` 现查**，不在这里另抄一份类表
+#: （抄一份就是又一个漂移源）。
+_LEX_BY_CODE: "Optional[dict[str, type]]" = None
+
+
+def _lex_class(code: str):
+    global _LEX_BY_CODE
+    if _LEX_BY_CODE is None:
+        from . import errors as _E
+        _LEX_BY_CODE = {
+            obj.code: obj for obj in vars(_E).values()
+            if isinstance(obj, type) and issubclass(obj, _E.LexError)
+            and obj is not _E.LexError
+        }
+    from .errors import LexError as _Base
+    return _LEX_BY_CODE.get(code, _Base)
+
+
+def lex_error_classes() -> "dict[str, type]":
+    """`{错误码: 异常类}`（给测试用：钉住 Rust 侧只报这几个码）。"""
+    _lex_class("")
+    return dict(_LEX_BY_CODE or {})
+
+
+def _rust_tokenize(text: str, filename: str) -> "list[Token]":
+    mod = _core()
+    try:
+        return mod.tokenize(text, filename)
+    except mod.LexError as exc:
+        # 扩展只回传「码 / 消息 / 行 / 列 / 提示 / 下划线」六个事实，
+        # **异常类由这里现查**；源码行也由这里按 `行` 现取
+        # （`with_source` 就是这么设计的，两边不会各说各话）。
+        cls = _lex_class(getattr(exc, "码", ""))
+        err = cls(
+            getattr(exc, "消息", ""),
+            line=getattr(exc, "行", None),
+            col=getattr(exc, "列", None),
+            filename=filename,
+            hint=getattr(exc, "提示", None),
+            underline=getattr(exc, "下划线", None),
+        )
+        raise err.with_source(Tokenizer(text, filename).lines)
+
+
+# ---------------------------------------------------------------------------
 # 便捷函数
 # ---------------------------------------------------------------------------
 
 def tokenize(text: str, filename: str = "<输入>") -> list[Token]:
+    """全量分词。
+
+    `JISHI_FRONTEND=rust` 时走 **Rust 前端**（R 线 · R2，见 `docs/前端契约.md`），
+    否则走本文件的 Python 实现。两边由
+    `python tools/conformance.py compare --from <目录> --stage tokens` 钉住
+    **逐 token 一致** —— 不是「看起来一样」。
+    """
+    if frontend() == "rust":
+        return _rust_tokenize(text, filename)
     return Tokenizer(text, filename).tokenize()
+
+

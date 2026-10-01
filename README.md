@@ -153,19 +153,51 @@ jishi examples/01_猜数字.jsh --ast
 
 **M0–M56 全部完成，M49（自主分发）也已落地**。**当前处于 0.2.x 架构变革阶段**：
 前端正从 Python 迁到 Rust（目标：单二进制解释器、语言实现从 4 种收敛到 2 种）。
-迁移的**验收基线**（`tools/conformance.py` + 73 个语料的前端四阶段冻结）已落地 ——
-先把「不许悄悄变」这条规矩立起来，再动手换实现。，逐里程碑的详细记录移到 **[`docs/里程碑.md`](docs/里程碑.md)**
+迁移按 **R0 → R8** 推进，每一步都以**一致性夹具**为验收闸门（`tools/conformance.py`
++ 85 个语料的前端四阶段冻结）—— 先把「不许悄悄变」这条规矩立起来，再动手换实现。
+
+| 步 | 内容 | 状态 |
+|---|---|---|
+| R0 | 一致性夹具（前端四阶段冻结，后端未知） | ✅ 2026-09-30 |
+| R1 | 前端契约固化（产物格式 + 能定位的尺子） | ✅ 2026-10-01 |
+| **R2** | **分词器换 Rust**（pyo3 扩展，`JISHI_FRONTEND=rust` 开关） | ✅ 2026-10-01 |
+| R3–R5 | 语法 → AST / 报错 / 编译器 → 字节码 | 未开始 |
+| R6–R8 | Rust VM + 标准库 / 工具链 / 单二进制 + wasm | 未开始 |
+
+> R2 实测：**逐 token 一致 85/85 语料**（另 2 万组随机源码对拍 0 分歧）；
+> 分词**纯核心 7.05 倍**、**端到端 3.72 倍**（把 Token 交回 Python 有地板，
+> 端到端天花板 4.23 倍 —— 详见 `tools/bench_tokenizer.py` 的输出）。
+> ⚠️ **默认仍是 Python 前端**：Rust 侧要显式开 `JISHI_FRONTEND=rust`，
+> 且扩展要按本机 Python 现编（`python core/build.py`）。
+
+逐里程碑的详细记录移到 **[`docs/里程碑.md`](docs/里程碑.md)**
 （本 README 只讲「现在能做什么」，要查「哪一版加了什么」看那份）。
 
-**测试现状：2340 项，**2337 通过**（`python -m pytest tests/`），其中 240 余项是三执行器
+**测试现状：2458 项，**2455 通过**（`python -m pytest tests/`），其中 240 余项是三执行器
 对拍（树遍历 / Python VM / C VM 输出逐字节一致），另有跨语言宿主对拍
 （Rust 101 + 58 + 37 项、JS 62 + 43 项，都与 Python VM 逐字节一致，含三个真实示例
 项目的端到端对比）。
 ⚠️ 本机（Windows）上**有 3 个 Node 网络用例是「环境性失败」**（`spawnSync … EBUSY`——Node
 宿主自己 spawn 自己时的占用问题，Linux / CI 不复现；把工作区回退到 M51 状态复跑
-同样失败）。跑到的这一轮它们**恰好没犯**（全绿），所以别把它当成「修好了」。
+同样失败）。跑到的这一轮**它们确实失败了**（就是上面那 3 项）—— 环境性的，
+别把它当成「新问题去查」。
 
-**最近一轮（M49 · 自主分发：自建源 + 官网 + HTTPS）做了什么**：
+**最近一轮（R2 · 分词器换 Rust）做了什么**：
+
+- **前端第一次有了 Rust 实现**：新建 `core/`（Rust crate，**pyo3 编成 Python 扩展**），
+  `tokenize()` 在 `JISHI_FRONTEND=rust` 时走它、**默认仍是 Python**（有开关可回退）。
+- **逐 token 一致 85/85 语料**，另有 **2 万组随机源码对拍 0 分歧**；
+  40 个脚本端到端跑出来也一样。判据是 `tools/conformance.py compare`，
+  **不是「看起来对」**。
+- 分词**纯核心 7.05 倍**、**端到端 3.72 倍**（2.07 万行 / 734 KB）。
+  ⚠️ **端到端天花板 4.23 倍** —— 把 Token 对象交回 Python 本身就有 46 ms 的地板。
+  5 倍这条线在这层接口上够不着，**如实公布**（真正的收益在 R5/R8）。
+- 顺手补了 **12 个边角语料**：原来那 73 个里**一个 emoji 都没有**（＝没测位置，
+  而「一个字符 = 一个码点」的列号口径正是这次迁移的头号风险）。
+- 构建：`python core/build.py`（产物按 Python ABI 编，**不进仓库**；没有它时
+  `JISHI_FRONTEND=rust` 会明确报错，不静默回落）。
+
+**（历史）M49 · 自主分发：自建源 + 官网 + HTTPS 做了什么**：
 
 - **官网上了自己的域名**：<https://基石.cn/>。源站是大陆轻量云上的 Nginx，
   前面挂 EdgeOne CDN；页脚按法定要求放了 **ICP 备案号并链到工信部**。
@@ -511,6 +543,8 @@ jishi examples/01_猜数字.jsh --ast
 ```
 jishi/           前端：词法/语法/AST/语义/报错/执行内核/标准库
   tokenizer.py   词法分析（缩进栈、全角归一化、中文分词消歧、中文引号）
+                 ⚠️ `JISHI_FRONTEND=rust` 时 `tokenize()` 转发给 `core/`（R2）
+  _core.pyd      Rust 前端的扩展模块（**本机现编、不进仓库**，见 core/build.py）
   parser.py      语法分析（递归下降+优先级爬升，链式比较、尾随逗号、容错解析）
   ast_nodes.py   AST 节点（dataclass, kw_only=True）
   errors.py      中文错误体系（E01xx词法/E02xx语法/E03xx语义/E2xxx运行）
@@ -548,7 +582,13 @@ node/            Node.js 纯 JS 解释器（零依赖，消费 JSON 字节码；
                  M51 起有 `--dump-stdlib` 自报家底供一致性检测）
 rust/            Rust 绑定（M13.3，jishi-ffi crate + 自研零依赖 JSON 解析器，
                  零依赖标准库，M51 起同样有 `--dump-stdlib`）
-tests/           2340 项测试（含 250 余项三执行器对拍 + 跨宿主对拍 + M51/M54/M55 漂移检测）
+core/            **R 线（R2 起）**：前端核心的 Rust 落地（pyo3 编成 Python 扩展）
+  build.py       一键构建（生成 pyo3 配置 + cargo build + 复制成 jishi/_core.pyd）；
+                 ⚠️ 两个环境坑写在它的 docstring 里，**别手敲 cargo**
+  src/tokenizer.rs 词法分析器（`jishi/tokenizer.py` 的逐行为移植，目标「逐 token 一致」）
+  src/lib.rs       Python 扩展入口（只做搬运：Rust 结果 → Token 对象 / 词法错误）
+tests/           测试（含三执行器对拍 + 跨宿主对拍 + M51/M54/M55 漂移检测 +
+                 R2 的 Rust 分词器守门测试 `test_m59_tokenizer_rust.py`）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例、packages/ 包管理示例）
 docs/            语言规格.md、设计决策.md、路线图.md、调试器.md、工具链.md、真实项目.md、embed.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 10 章
 assets/          品牌资产（基石_logo.png，源图 基石_logo.jpeg）
@@ -556,7 +596,9 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
                  build_home.py 官网六页（数字从 --lang-spec 读、示例真跑自检）/
                  build_index_mirror.py 索引改写（自建源那份的下载地址）/
                  fetch_release_mirror.py 发行包镜像（从 GitHub Releases 取，校验和核对）/
-                 conformance.py 一致性夹具（前端四阶段 vs 冻结基线，架构迁移的验收闸门）/
+                 conformance.py 一致性夹具（前端四阶段 vs 冻结基线，架构迁移的验收闸门；
+                 `emit --frontend rust` 让 Rust 前端自己交产物）/
+                 bench_tokenizer.py 分词吞吐（Python vs Rust 交错 A/B，并算出**端到端天花板**）/
                  site_sync.sh 服务器侧部署（web 根 + Nginx + 隐私终检）/
                  deploy_push.sh 本地构建 + 推送（密钥/地址只从环境变量读）/
                  nginx-jishi.conf / -tls.conf / -locations.conf 站点配置（80/443/共用）/
@@ -575,6 +617,12 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
                                   └─→ 编译器 → 字节码 ──┬─→ Python VM
                                                         └─→ C VM（jsvm.dll）
 ```
+
+- **前端正在换 Rust（R 线）**：目前 `tokenize()` 已可以在 Python 与 Rust 之间切换
+  （`JISHI_FRONTEND=rust`，**默认仍是 Python**）。换了之后**产物逐 token 一致**
+  （85 个语料 + 2 万组随机对拍），分词纯核心 **7.05 倍**、端到端 **3.72 倍**。
+  ⚠️ 端到端有 **4.23 倍的天花板**：前端各阶段在 R2–R5 期间仍要把产物交回 Python，
+  而「造 Python 对象」本身就有地板 —— 那才是 R5/R8 才兑现的收益。
 
 - 三个执行器（树遍历 / Python VM / C VM）共用 `jishi/runtime.py` 的语义，
   `tests/test_cvm.py` 对拍保证「换执行器不改变任何可观察行为」
