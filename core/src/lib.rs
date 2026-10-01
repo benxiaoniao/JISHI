@@ -14,6 +14,7 @@
 // 这么绕一圈是为了「错误码 → 异常类」的映射只有一处（Python 侧从
 // `jishi.errors` 里按 `code` 现查），Rust 这边不抄一份类表、也就不会漂。
 
+mod parser;
 mod tokenizer;
 
 use std::sync::OnceLock;
@@ -21,9 +22,10 @@ use std::sync::OnceLock;
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
-use pyo3::types::{PyInt, PyList, PyModule, PyString, PyTuple};
+use pyo3::types::{PyDict, PyInt, PyList, PyModule, PyString, PyTuple};
 
 create_exception!(_core, LexError, PyException);
+create_exception!(_core, ParseError, PyException);
 
 /// token 类型的名字**只造一次**。
 ///
@@ -150,6 +152,113 @@ fn tokenize(py: Python<'_>, source: &str, filename: &str)
     Ok(list.into_any().unbind())
 }
 
+// ---------------------------------------------------------------------------
+// R3：语法 → AST
+// ---------------------------------------------------------------------------
+
+/// 把通用 AST（`parser::J`）变成 Python 对象。
+///
+/// 节点按 `kind` 去 `jishi.ast_nodes` 里找同名 dataclass，**全部字段走 kwargs**
+/// （`kw_only=True` 的 dataclass 正好只接受关键字实参）—— 于是 34 个节点类
+/// 共用这一段转换，Rust 侧不必为每个类各写一遍结构体。
+fn j_to_py(py: Python<'_>, v: &parser::J) -> PyResult<Py<PyAny>> {
+    use parser::J;
+    Ok(match v {
+        J::Null => py.None(),
+        J::Bool(b) => pyo3::types::PyBool::new(py, *b).to_owned().into_any()
+            .unbind(),
+        J::Int(i) => PyInt::new(py, *i).into_any().unbind(),
+        // 超出 i64 的整数交给 Python 的 `int()` 变任意精度（同 R2 的 NUMBER）
+        J::Big(x) => py.import("builtins")?.getattr("int")?.call1((x.as_str(),))?
+            .unbind(),
+        J::Float(f) => pyo3::types::PyFloat::new(py, *f).into_any().unbind(),
+        J::Str(x) => PyString::new(py, x).into_any().unbind(),
+        J::List(items) => {
+            let list = PyList::empty(py);
+            for it in items {
+                list.append(j_to_py(py, it)?)?;
+            }
+            list.into_any().unbind()
+        }
+        J::Node(n) => {
+            let cls = py.import("jishi.ast_nodes")?.getattr(n.kind)?;
+            let kwargs = PyDict::new(py);
+            for (k, fv) in &n.fields {
+                kwargs.set_item(*k, j_to_py(py, fv)?)?;
+            }
+            cls.call((), Some(&kwargs))?.unbind()
+        }
+    })
+}
+
+fn to_parse_err(py: Python<'_>, e: parser::ParseErr) -> PyErr {
+    let err = ParseError::new_err(e.message.clone());
+    let v = err.value(py);
+    // 与词法错误同一套：只回传事实，异常类由 Python 侧按 `码` 现查
+    let _ = v.setattr("码", e.code);
+    let _ = v.setattr("消息", e.message);
+    let _ = v.setattr("行", e.line);
+    let _ = v.setattr("列", e.col);
+    let _ = v.setattr("提示", e.hint);
+    let _ = v.setattr("下划线", e.underline);
+    let _ = v.setattr("修正", e.fix);
+    err
+}
+
+/// 语法分析：吃**源码文本**，产出真正的 `jishi.ast_nodes` 节点树。
+///
+/// ⚠️ 参数是文本、不是「源码行」：行是有损载体（各家切分口径不同，见
+/// `parser::parse` 的注释）。Python 侧的壳负责保证交过来的就是原文。
+#[pyfunction]
+#[pyo3(signature = (source, filename="<输入>"))]
+fn parse(py: Python<'_>, source: &str, filename: &str)
+    -> PyResult<Py<PyAny>>
+{
+    match parser::parse(source, filename) {
+        Ok(program) => {
+            let n = parser::J::Node(Box::new(program));
+            j_to_py(py, &n)
+        }
+        Err(e) => Err(to_parse_err(py, e)),
+    }
+}
+
+/// 把一段文本解析成**单个表达式**（`parser.parse_expression`，调试器「查看」用）
+#[pyfunction]
+#[pyo3(signature = (text, filename="<调试>"))]
+fn parse_expression(py: Python<'_>, text: &str, filename: &str)
+    -> PyResult<Py<PyAny>>
+{
+    match parser::parse_expression(text, filename) {
+        Ok(node) => {
+            let n = parser::J::Node(Box::new(node));
+            j_to_py(py, &n)
+        }
+        Err(e) => Err(to_parse_err(py, e)),
+    }
+}
+
+/// 只跑语法核心、**不构造任何 Python 对象**，返回 AST 节点个数（用来把
+/// 「语法本身多快」与「转成 Python 对象多贵」分开量，同 `token_count`）。
+#[pyfunction]
+#[pyo3(signature = (source, filename="<输入>"))]
+fn parse_node_count(source: &str, filename: &str) -> PyResult<usize> {
+    match parser::parse(source, filename) {
+        Ok(p) => Ok(count_nodes(&parser::J::Node(Box::new(p)))),
+        Err(e) => Err(ParseError::new_err(e.message)),
+    }
+}
+
+fn count_nodes(v: &parser::J) -> usize {
+    match v {
+        parser::J::Node(n) => {
+            1 + n.fields.iter().map(|(_, f)| count_nodes(f)).sum::<usize>()
+        }
+        parser::J::List(items) => items.iter().map(count_nodes).sum(),
+        _ => 0,
+    }
+}
+
 /// 关键字 / 粘连前缀 / 运算符三张表（供漂移检测逐项比对 Python 侧）。
 #[pyfunction]
 fn keyword_table(py: Python<'_>) -> Py<PyList> {
@@ -192,6 +301,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(keyword_table, m)?)?;
     m.add_function(wrap_pyfunction!(glue_table, m)?)?;
     m.add_function(wrap_pyfunction!(operator_table, m)?)?;
+    // R3
+    m.add_function(wrap_pyfunction!(parse, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_expression, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_node_count, m)?)?;
     m.add("LexError", m.py().get_type::<LexError>())?;
+    m.add("ParseError", m.py().get_type::<ParseError>())?;
     Ok(())
 }

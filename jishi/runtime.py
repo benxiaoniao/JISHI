@@ -2013,8 +2013,7 @@ def _import_local_package(name: str, *, line=None, col=None,
 
     # 决定要执行的模块：有「入口」只跑入口，否则跑全部 .jsh
     from .interpreter import Interpreter
-    from .parser import parse
-    from .tokenizer import tokenize
+    from .parser import parse_source
 
     entry = (meta.get("入口") or "").strip()
     jsh_files = sorted(f for f in os.listdir(pkg_dir) if f.endswith(".jsh"))
@@ -2043,9 +2042,7 @@ def _import_local_package(name: str, *, line=None, col=None,
         # 注入依赖包，供本包模块直接引用（`依赖名.成员`）
         for dep_name, dep_mod in deps.items():
             interp.globals.set(dep_name, dep_mod)
-        tokens = tokenize(source, path)
-        lines = source.replace("\r\n", "\n").split("\n")
-        program = parse(tokens, lines, path)
+        program = parse_source(source, path)
         interp.run(program)
         for k, v in interp.globals.vars.items():
             if k not in builtin_names and not k.startswith("_"):

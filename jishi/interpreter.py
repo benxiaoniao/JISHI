@@ -823,10 +823,7 @@ class Interpreter:
 
 def run_source(source: str, filename: str = "<输入>") -> None:
     """便捷入口：源码 → 执行。"""
-    from .tokenizer import tokenize
-    from .parser import parse
+    from .parser import parse_source
 
-    tokens = tokenize(source, filename)
-    lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    program = parse(tokens, lines, filename)
+    program = parse_source(source, filename)
     Interpreter(filename=filename).run(program)

@@ -35,7 +35,7 @@ from . import ast_nodes as A
 from .errors import JishiError
 from .incremental import IncrementalDocument
 from .langdata import LangData
-from .parser import parse
+from .parser import parse, parse_source
 # 作用域分析只有一份实现（M44 抽到 scope.py）：编辑器诊断与命令行
 # `jishi 源码静态检查` 共用，免得两边漂移成「编辑器不报、命令行报」。
 # 这里保留原有的下划线私有名，既有调用点一个字都不用改。
@@ -826,7 +826,9 @@ class LspServer:
                 # 增量分词：文本没变是空操作，改了只重算改动行之后的部分
                 inc.update(text)
                 tokens, lines = inc.tokens, inc.lines
-            program = parse(tokens, lines, uri)
+            # ⚠️ `lines` 来自增量分词（`split_lines` **会去掉末尾空行**），
+            # 反拼不回原文；把原文一起给出去，Rust 前端才不会算错行号。
+            program = parse(tokens, lines, uri, source=text)
         except JishiError as e:
             rng = _range_from_error(e)
             diags.append({
@@ -1459,8 +1461,7 @@ class LspServer:
                 continue
             try:
                 text = p.read_text(encoding="utf-8")
-                program = parse(tokenize(text, str(p)), text.split("\n"),
-                                str(p))
+                program = parse_source(text, str(p))
                 syms = _collect_symbols(program)
             except (JishiError, OSError, UnicodeDecodeError):
                 syms = []

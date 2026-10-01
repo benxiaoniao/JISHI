@@ -21,8 +21,7 @@ from typing import Optional
 
 from .errors import JishiError
 from .interpreter import Interpreter, run_source
-from .parser import parse
-from .tokenizer import tokenize
+from .parser import parse_source
 from .version import VERSION
 
 BANNER = f"""基石 jishi {VERSION} —— 一门像 Python 一样简单易用的中文编程语言
@@ -181,8 +180,7 @@ def run_file(path: str, show_ast: bool = False,
         program = _cache.load(source, filename)
     if program is None:
         try:
-            tokens = tokenize(source, filename)
-            program = parse(tokens, lines, filename)
+            program = parse_source(source, filename)
         except JishiError as e:
             if json_errors:
                 _print_json_error(e)
@@ -751,7 +749,7 @@ def build_debug_session(engine: str, source: str, filename: str,
     from .debugger import CvmDebugger, Debugger, VmDebugger
 
     if program is None:
-        program = parse(tokenize(source, filename), lines, filename)
+        program = parse_source(source, filename)
     common = dict(source_lines=lines, filename=filename, breakpoints=breakpoints,
                   stop_on_entry=stop_on_entry, read_line=read_line, write=write,
                   script=script, interactive=interactive)
@@ -795,7 +793,7 @@ def _cmd_debug(args) -> int:
     source, filename = _read_source(args.file)
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     try:
-        program = parse(tokenize(source, filename), lines, filename)
+        program = parse_source(source, filename)
     except JishiError as e:
         e.with_source(lines)
         print(e.render(), file=sys.stderr)

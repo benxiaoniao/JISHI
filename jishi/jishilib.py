@@ -127,11 +127,9 @@ def shell_name(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _parse(source: str, filename: str):
-    from .parser import parse
-    from .tokenizer import tokenize
+    from .parser import parse_source
 
-    lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    return parse(tokenize(source, filename), lines, filename)
+    return parse_source(source, filename)
 
 
 def _export_names(program) -> list:

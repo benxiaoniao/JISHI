@@ -176,8 +176,7 @@ def eval_sandboxed(expr: str, opts: Optional[SandboxOpts] = None,
                    filename: str = "<输入>") -> dict:
     """在沙箱里求值一个表达式，返回 protocol 结果（value 为表达式结果）。"""
     from .interpreter import Interpreter, _NO_VALUE
-    from .parser import parse
-    from .tokenizer import tokenize
+    from .parser import parse_source
 
     opts = opts or SandboxOpts()
     start = time.perf_counter()
@@ -187,9 +186,7 @@ def eval_sandboxed(expr: str, opts: Optional[SandboxOpts] = None,
     def target():
         try:
             with redirect_stdout(buf):
-                tokens = tokenize(expr, filename)
-                lines = expr.replace("\r\n", "\n").split("\n")
-                program = parse(tokens, lines, filename)
+                program = parse_source(expr, filename)
                 interp = Interpreter(filename=filename)
                 value = None
                 for stmt in program.body:

@@ -154,26 +154,28 @@ jishi examples/01_猜数字.jsh --ast
 **M0–M56 全部完成，M49（自主分发）也已落地**。**当前处于 0.2.x 架构变革阶段**：
 前端正从 Python 迁到 Rust（目标：单二进制解释器、语言实现从 4 种收敛到 2 种）。
 迁移按 **R0 → R8** 推进，每一步都以**一致性夹具**为验收闸门（`tools/conformance.py`
-+ 85 个语料的前端四阶段冻结）—— 先把「不许悄悄变」这条规矩立起来，再动手换实现。
++ 88 个语料的前端四阶段冻结）—— 先把「不许悄悄变」这条规矩立起来，再动手换实现。
 
 | 步 | 内容 | 状态 |
 |---|---|---|
 | R0 | 一致性夹具（前端四阶段冻结，后端未知） | ✅ 2026-09-30 |
 | R1 | 前端契约固化（产物格式 + 能定位的尺子） | ✅ 2026-10-01 |
 | **R2** | **分词器换 Rust**（pyo3 扩展，`JISHI_FRONTEND=rust` 开关） | ✅ 2026-10-01 |
-| R3–R5 | 语法 → AST / 报错 / 编译器 → 字节码 | 未开始 |
+| **R3** | **语法 → AST 换 Rust**（含全部解析期脱糖） | ✅ 2026-10-01 |
+| R4–R5 | 报错 / 编译器 → 字节码 | 未开始 |
 | R6–R8 | Rust VM + 标准库 / 工具链 / 单二进制 + wasm | 未开始 |
 
-> R2 实测：**逐 token 一致 85/85 语料**（另 2 万组随机源码对拍 0 分歧）；
-> 分词**纯核心 7.05 倍**、**端到端 3.72 倍**（把 Token 交回 Python 有地板，
-> 端到端天花板 4.23 倍 —— 详见 `tools/bench_tokenizer.py` 的输出）。
+> R2/R3 实测：**逐 token 一致 88/88 语料**、**AST 逐项一致 88/88**
+> （另 2 万 / 5 万组随机源码对拍 0 分歧）。分词**纯核心 7.05 倍**、**端到端 3.72 倍**；
+> 语法**纯核心 5.64 倍**、**端到端 3.04 倍**（把 Token / AST 对象交回 Python 有地板，
+> 端到端天花板 4.23 / 4.73 倍 —— 详见 `tools/bench_frontend.py` 的输出）。
 > ⚠️ **默认仍是 Python 前端**：Rust 侧要显式开 `JISHI_FRONTEND=rust`，
 > 且扩展要按本机 Python 现编（`python core/build.py`）。
 
 逐里程碑的详细记录移到 **[`docs/里程碑.md`](docs/里程碑.md)**
 （本 README 只讲「现在能做什么」，要查「哪一版加了什么」看那份）。
 
-**测试现状：2458 项，**2455 通过**（`python -m pytest tests/`），其中 240 余项是三执行器
+**测试现状：2575 项，**2572 通过**（`python -m pytest tests/`），其中 240 余项是三执行器
 对拍（树遍历 / Python VM / C VM 输出逐字节一致），另有跨语言宿主对拍
 （Rust 101 + 58 + 37 项、JS 62 + 43 项，都与 Python VM 逐字节一致，含三个真实示例
 项目的端到端对比）。
@@ -182,18 +184,24 @@ jishi examples/01_猜数字.jsh --ast
 同样失败）。跑到的这一轮**它们确实失败了**（就是上面那 3 项）—— 环境性的，
 别把它当成「新问题去查」。
 
-**最近一轮（R2 · 分词器换 Rust）做了什么**：
+**最近一轮（R3 · 语法 → AST 换 Rust）做了什么**：
 
-- **前端第一次有了 Rust 实现**：新建 `core/`（Rust crate，**pyo3 编成 Python 扩展**），
-  `tokenize()` 在 `JISHI_FRONTEND=rust` 时走它、**默认仍是 Python**（有开关可回退）。
-- **逐 token 一致 85/85 语料**，另有 **2 万组随机源码对拍 0 分歧**；
-  40 个脚本端到端跑出来也一样。判据是 `tools/conformance.py compare`，
-  **不是「看起来对」**。
-- 分词**纯核心 7.05 倍**、**端到端 3.72 倍**（2.07 万行 / 734 KB）。
-  ⚠️ **端到端天花板 4.23 倍** —— 把 Token 对象交回 Python 本身就有 46 ms 的地板。
-  5 倍这条线在这层接口上够不着，**如实公布**（真正的收益在 R5/R8）。
-- 顺手补了 **12 个边角语料**：原来那 73 个里**一个 emoji 都没有**（＝没测位置，
-  而「一个字符 = 一个码点」的列号口径正是这次迁移的头号风险）。
+- **`core/src/parser.rs`**（2600 行）：把 1968 行的 Python 解析器**逐行移植**到 Rust，
+  含全部**解析期脱糖**（条件表达式 / `超()` / `匹配` / `枚举` / 推导式 / f-string），
+  脱糖发生在与 Python **同一位置**。`parse_source()` 在 `JISHI_FRONTEND=rust` 时走它。
+- **AST 逐项一致 88/88 语料** ✅，另 **5 万组随机源码对拍 0 分歧**、40 个脚本
+  端到端跑出来也一样。判据是 `tools/conformance.py compare --stage ast`
+  （连**语法阶段的报错**也逐字比过），**不是「看起来对」**。
+- 语法**纯核心 5.64 倍**、**端到端 3.04 倍**（2.07 万行 / 735 KB）。
+  ⚠️ 端到端天花板 **4.73 倍** —— 同 R2 的道理：把 AST 节点对象交回 Python
+  本身要 125 ms（其中纯构造地板 28 ms）。**收益的兑现要等 R5/R8。**
+- 🔴 **中途改了接口**（这一条比性能重要）：Rust 侧 `parse` 现在吃**源码文本**。
+  原做法是从 `source_lines` 反拼，而那是个**有损**载体（增量分词的行列表会
+  去掉末尾空行）→ **报错行号整体少一行**（实测 9 例错 4 例）。于是新增
+  `parse_source(源码)` 作生产入口（顺带省掉一次重复分词），旧入口留给 LSP
+  增量分词并加**精确守卫**：丢了内容**当场报错**，不猜、不静默。
+- 顺手修了两处**面向用户**的毛病：插值字符串的报错不再把内部**分段表**
+  （`[('text', …)]`）泄给用户；类外 `超()` 那条错补上了源码行与 `^` 下划线。
 - 构建：`python core/build.py`（产物按 Python ABI 编，**不进仓库**；没有它时
   `JISHI_FRONTEND=rust` 会明确报错，不静默回落）。
 
@@ -546,6 +554,9 @@ jishi/           前端：词法/语法/AST/语义/报错/执行内核/标准库
                  ⚠️ `JISHI_FRONTEND=rust` 时 `tokenize()` 转发给 `core/`（R2）
   _core.pyd      Rust 前端的扩展模块（**本机现编、不进仓库**，见 core/build.py）
   parser.py      语法分析（递归下降+优先级爬升，链式比较、尾随逗号、容错解析）
+                 ⚠️ `JISHI_FRONTEND=rust` 时 `parse_source()` 转发给 `core/`（R3）；
+                 生产入口是 `parse_source(源码)`，`parse(tokens, lines, f)` 留给
+                 LSP 增量分词（见 docs/前端契约.md §10.3）
   ast_nodes.py   AST 节点（dataclass, kw_only=True）
   errors.py      中文错误体系（E01xx词法/E02xx语法/E03xx语义/E2xxx运行）
   interpreter.py 树遍历解释器（作用域链/闭包/对象方法分派/内建函数，默认执行器）
@@ -586,9 +597,11 @@ core/            **R 线（R2 起）**：前端核心的 Rust 落地（pyo3 编�
   build.py       一键构建（生成 pyo3 配置 + cargo build + 复制成 jishi/_core.pyd）；
                  ⚠️ 两个环境坑写在它的 docstring 里，**别手敲 cargo**
   src/tokenizer.rs 词法分析器（`jishi/tokenizer.py` 的逐行为移植，目标「逐 token 一致」）
-  src/lib.rs       Python 扩展入口（只做搬运：Rust 结果 → Token 对象 / 词法错误）
+  src/parser.rs   语法分析器（`jishi/parser.py` 的逐行移植，含全部解析期脱糖）
+  src/lib.rs       Python 扩展入口（只做搬运：Rust 结果 → Token / AST 对象 / 错误）
 tests/           测试（含三执行器对拍 + 跨宿主对拍 + M51/M54/M55 漂移检测 +
-                 R2 的 Rust 分词器守门测试 `test_m59_tokenizer_rust.py`）
+                 R2/R3 的 Rust 前端守门测试 `test_m59_tokenizer_rust.py` /
+                 `test_m60_parser_rust.py`）
 examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例、packages/ 包管理示例）
 docs/            语言规格.md、设计决策.md、路线图.md、调试器.md、工具链.md、真实项目.md、embed.md、ai/（系统提示词/提示词指南）、tutorial/ 教程 10 章
 assets/          品牌资产（基石_logo.png，源图 基石_logo.jpeg）
@@ -598,7 +611,7 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
                  fetch_release_mirror.py 发行包镜像（从 GitHub Releases 取，校验和核对）/
                  conformance.py 一致性夹具（前端四阶段 vs 冻结基线，架构迁移的验收闸门；
                  `emit --frontend rust` 让 Rust 前端自己交产物）/
-                 bench_tokenizer.py 分词吞吐（Python vs Rust 交错 A/B，并算出**端到端天花板**）/
+                 bench_frontend.py 分词+语法吞吐（Python vs Rust 交错 A/B，算出**端到端天花板**）/
                  site_sync.sh 服务器侧部署（web 根 + Nginx + 隐私终检）/
                  deploy_push.sh 本地构建 + 推送（密钥/地址只从环境变量读）/
                  nginx-jishi.conf / -tls.conf / -locations.conf 站点配置（80/443/共用）/
@@ -618,11 +631,12 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
                                                         └─→ C VM（jsvm.dll）
 ```
 
-- **前端正在换 Rust（R 线）**：目前 `tokenize()` 已可以在 Python 与 Rust 之间切换
-  （`JISHI_FRONTEND=rust`，**默认仍是 Python**）。换了之后**产物逐 token 一致**
-  （85 个语料 + 2 万组随机对拍），分词纯核心 **7.05 倍**、端到端 **3.72 倍**。
-  ⚠️ 端到端有 **4.23 倍的天花板**：前端各阶段在 R2–R5 期间仍要把产物交回 Python，
-  而「造 Python 对象」本身就有地板 —— 那才是 R5/R8 才兑现的收益。
+- **前端正在换 Rust（R 线）**：`tokenize()`（R2）与 `parse_source()`（R3）都已可以
+  在 Python 与 Rust 之间切换（`JISHI_FRONTEND=rust`，**默认仍是 Python**）。
+  换了之后**产物逐项一致**（88 个语料 + 2 万/5 万组随机对拍）：分词纯核心
+  **7.05 倍**、端到端 **3.72 倍**；语法纯核心 **5.64 倍**、端到端 **3.04 倍**。
+  ⚠️ 端到端有 **4.23 / 4.73 倍的天花板**：前端各阶段在 R2–R5 期间仍要把产物
+  交回 Python，而「造 Python 对象」本身就有地板 —— 那才是 R5/R8 才兑现的收益。
 
 - 三个执行器（树遍历 / Python VM / C VM）共用 `jishi/runtime.py` 的语义，
   `tests/test_cvm.py` 对拍保证「换执行器不改变任何可观察行为」

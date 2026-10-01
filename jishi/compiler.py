@@ -1083,12 +1083,10 @@ def compile_program(program: A.Program, filename: str = "<输入>",
 def compile_source(source: str, filename: str = "<输入>",
                    fuse_method_call: bool = False) -> O.CompiledModule:
     """源码 → CompiledModule（含词法/语法分析）。"""
-    from .tokenizer import tokenize
-    from .parser import parse
+    from .parser import parse_source
 
-    tokens = tokenize(source, filename)
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    program = parse(tokens, lines, filename)
+    program = parse_source(source, filename)
     return compile_program(program, filename, lines,
                            fuse_method_call=fuse_method_call)
 

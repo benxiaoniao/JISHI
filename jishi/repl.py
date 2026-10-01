@@ -25,7 +25,7 @@ from .cli import BANNER
 from .errors import JishiError, LexStringError
 from .interpreter import Interpreter, _NO_VALUE
 from .lineedit import Completer, History, read_line
-from .parser import parse
+from .parser import parse_source
 from .runtime import jishi_repr
 from .tokenizer import tokenize
 
@@ -158,8 +158,7 @@ def _exec_source(interp: Interpreter, source: str,
     """执行一段输入；成功且顶层表达式有值时返回 True（用于回显）。"""
     interp._last_value = _NO_VALUE
     try:
-        lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-        program = parse(tokenize(source, filename), lines, filename)
+        program = parse_source(source, filename)
     except JishiError as e:
         # M17.4：补源码行上下文，让 REPL 报错也能显示源码行 + ^ 指示
         e.with_source(source.replace("\r\n", "\n").replace("\r", "\n").split("\n"))

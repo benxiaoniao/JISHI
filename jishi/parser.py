@@ -18,11 +18,12 @@ from .errors import (
     ParseMissingColonError,
     ParseMissingNameError,
     ParseUnexpectedError,
+    error_class,
 )
 #: 形参种类常量（M25）。从 opcodes 取，保证与 C 侧 JS_PARAM_* 同源；
 #: opcodes 是纯数据定义、不反向依赖 parser，没有循环导入风险。
 from .opcodes import ParamKind
-from .tokenizer import Token, tokenize
+from .tokenizer import Token, frontend, tokenize
 
 #: 文本插值脱糖用的**内部保留名**（M40）。见 `_parse_fstring`：
 #: 用 `$` 前缀是因为词法器把 `$` 判成「无法识别的字符」，用户**写不出**这个名字，
@@ -138,6 +139,19 @@ _NOT_PREC = 3
 #: `超()` 在 AST 里的名字（M23.4，非关键字，靠解析期脱糖识别）
 SUPER_NAME = "超"
 
+#: 有些 token 的 `value` **不是给人看的**：插值字符串（FSTRING）存的是一张
+#: 分段表 `[('text', …), ('expr', …)]`。直接 `f"{t.value}"` 会把 Python 的
+#: `repr` 泄进中文报错里（实测漏出来过：`「[('text', '导\t!=…')]」`），
+#: 用户看不懂；而这个 repr 的转义规则（`\t` / `\u3000` / 引号选择…）要在
+#: Rust 侧**逐字复刻**，是个填不满的坑。所以凡是要把 token 值写进文案的地方，
+#: 一律先过 `_tok_text`（R3 立的规矩）。
+_TOK_LABELS = {"FSTRING": "插值字符串"}
+
+
+def _tok_text(t: "Token") -> str:
+    """token 的**值** → 给人看的文字（见 `_TOK_LABELS`）。"""
+    return _TOK_LABELS.get(t.type) or str(t.value)
+
 
 # ---------------------------------------------------------------------------
 # `超()` 脱糖（M23.4）
@@ -202,18 +216,28 @@ def _desugar_super(root: A.Node, defining: str, self_param: Optional[str],
         stack.extend(_child_nodes(node))
 
 
-def _check_no_stray_super(program: A.Program, filename: str) -> None:
-    """检查有没有漏在类方法外的 `超`，给一句能照着改的提示。"""
+def _check_no_stray_super(program: A.Program, filename: str,
+                          source_lines: list[str]) -> None:
+    """检查有没有漏在类方法外的 `超`，给一句能照着改的提示。
+
+    ⚠️ 这条错**也要 `with_source` + `underline`** —— 它是解析**之后**由本函数
+    补的检查，不走 `Parser._err`，所以一开始漏了两样：报错块里没有源码行、
+    也没有 `^` 指着那个 `超`。R3 拿两个前端对拍时才露出来（Rust 侧统一走
+    「回传事实 → Python 侧 `with_source`」那条路，于是两边渲染不一样）。
+    教训：**报错的补全逻辑要认「一个出口」**，别按「谁抛的」分岔。
+    """
     stack: list[A.Node] = [program]
     while stack:
         node = stack.pop()
         if (isinstance(node, A.Name) and node.id == SUPER_NAME
                 and not getattr(node, "_super_ok", False)):
+            col = node.col or 1
             raise ParseUnexpectedError(
                 f"「{SUPER_NAME}()」只能在类的方法里用（用它调基类的同名方法）",
                 line=node.line, col=node.col, filename=filename,
+                underline=(col, col),
                 hint="写法：在方法里写 超().方法名(参数)"
-                     "——例如 超().初始化(名字)")
+                     "——例如 超().初始化(名字)").with_source(source_lines)
         stack.extend(_child_nodes(node))
 
 
@@ -324,18 +348,19 @@ class Parser:
             cn = _EN_VALUE_HINTS[t.value]
             self._err(
                 ParseUnexpectedError,
-                f"「{t.value}」是英文运算符，基石用中文——"
+                f"「{_tok_text(t)}」是英文运算符，基石用中文——"
                 f"你是不是想写「{cn}」？",
-                hint=f"把「{t.value}」换成「{cn}」即可",
+                hint=f"把「{_tok_text(t)}」换成「{cn}」即可",
                 tok=t, fix={"old": t.value, "new": cn})
         self._err(ParseUnexpectedError,
-                  f"这里需要「{op}」，但看到了「{t.value}」")
+                  f"这里需要「{op}」，但看到了「{_tok_text(t)}」")
 
     def _expect_kw(self, kw: str):
         if self._at_kw(kw):
             return self._next()
         self._err(ParseUnexpectedError,
-                  f"这里需要关键字「{kw}」，但看到了「{self._peek().value}」")
+                  f"这里需要关键字「{kw}」，"
+                  f"但看到了「{_tok_text(self._peek())}」")
 
     def _expect_name(self, what: str = "名字") -> Token:
         if self._peek().type == "NAME":
@@ -493,12 +518,12 @@ class Parser:
 
     def _describe(self, t: Token) -> str:
         if t.type == "KEYWORD":
-            return f"关键字「{t.value}」"
+            return f"关键字「{_tok_text(t)}」"
         if t.type == "NAME":
-            return f"名字「{t.value}」"
+            return f"名字「{_tok_text(t)}」"
         if t.type == "OP":
-            return f"符号「{t.value}」"
-        return f"「{t.value}」"
+            return f"符号「{_tok_text(t)}」"
+        return f"「{_tok_text(t)}」"
 
     # 前瞻：判断从当前位置开始是否是「名字 + 下标/属性 + 赋值符」的赋值语句
     def _looks_like_assign(self) -> bool:
@@ -573,7 +598,7 @@ class Parser:
         if op_tok.type != "OP" or op_tok.value not in _ASSIGN_OPS:
             self._err(ParseUnexpectedError,
                       f"这里需要一个赋值符号（=、+= 等），但看到了"
-                      f"「{op_tok.value}」", tok=op_tok)
+                      f"「{_tok_text(op_tok)}」", tok=op_tok)
         if isinstance(target, A.TargetList) and op_tok.value != "=":
             self._err(ParseUnexpectedError,
                       "多赋值（解包）只能用「=」，不能用复合赋值", tok=op_tok)
@@ -866,7 +891,7 @@ class Parser:
                     self._err(
                         ParseUnexpectedError,
                         f"「{'**' if kind == ParamKind.VARKW else '*'}"
-                        f"{p.value}」是收集参数，不能写类型标注",
+                        f"{_tok_text(p)}」是收集参数，不能写类型标注",
                         tok=p,
                         hint="它收进来的元素类型不固定；"
                              "要检查请在函数体里用 断言")
@@ -877,7 +902,7 @@ class Parser:
                         self._err(
                             ParseUnexpectedError,
                             f"「{'**' if kind == ParamKind.VARKW else '*'}"
-                            f"{p.value}」是收集参数，不能有默认值",
+                            f"{_tok_text(p)}」是收集参数，不能有默认值",
                             tok=p,
                             hint="它没收到东西时自然是空列表/空字典")
                     self._next()
@@ -1084,7 +1109,7 @@ class Parser:
             else:
                 self._err(ParseUnexpectedError,
                           f"只能「从 python」或「从 本地包」导入，"
-                          f"看到了「{src.value}」", tok=src)
+                          f"看到了「{_tok_text(src)}」", tok=src)
             if self._at_kw("为"):
                 self._next()
                 alias_tok = self._expect_name("别名")
@@ -1387,7 +1412,7 @@ class Parser:
             else:
                 if next_auto is None:
                     self._err(ParseUnexpectedError,
-                              f"成员「{mtok.value}」要写值",
+                              f"成员「{_tok_text(mtok)}」要写值",
                               hint="上一个成员的值不是整数，没法自动编号，"
                                    "所以这里要写成「名字 = 值」",
                               tok=mtok)
@@ -1864,7 +1889,7 @@ class Parser:
                 # 匿名函数表达式（M24.4）：函数(x)：x * 2
                 return self._parse_lambda()
             self._err(ParseUnexpectedError,
-                      f"表达式里不能直接用关键字「{t.value}」", tok=t)
+                      f"表达式里不能直接用关键字「{_tok_text(t)}」", tok=t)
         if t.type == "NAME":
             self._next()
             # 容错解析（M7.5）：值关键字（True/False/None）、内建函数、lambda 等
@@ -1934,11 +1959,28 @@ class Parser:
 
 
 def parse(tokens: list[Token], source_lines: list[str],
-          filename: str = "<输入>") -> A.Program:
+          filename: str = "<输入>", *, source: "str | None" = None
+          ) -> A.Program:
+    """语法分析：tokens → AST。
+
+    `JISHI_FRONTEND=rust` 时走 **Rust 解析器**（R 线 · R3，见 `docs/前端契约.md`），
+    否则走本文件的 Python 实现。两边由
+    `python tools/conformance.py compare --from <目录> --stage ast` 钉住
+    **逐字节一致**。
+
+    ⚠️ **`source` 是把原文交给 Rust 前端的正路**（内部调用点都传它）。
+    为什么要这么绕：Rust 侧只吃**源码文本**（AST 只由文本决定），而 Python 这个
+    入口给的是 `tokens` + `source_lines` —— 后者是**有损**的载体：`split_lines`
+    （增量分词那条路）会去掉末尾空行，反拼出来的文本比原文短，于是 **EOF 行号
+    偏移、报错行号少一行**。不传 `source` 时按 `"\\n".join(source_lines)` 反拼，
+    并用 `_check_rebuild_lossless` **当场核对**有没有丢内容 —— 丢了就报错，不猜。
+    """
+    if frontend() == "rust":
+        return _rust_parse(source_lines, filename, source=source, tokens=tokens)
     program = Parser(tokens, source_lines, filename).parse()
     # 类方法里的 `超()` 已在 _parse_classdef 里脱糖；剩下还叫 `超` 的
     # 就是写在类外用错了，给一句能照着改的提示（M23.4）。
-    _check_no_stray_super(program, filename)
+    _check_no_stray_super(program, filename, source_lines)
     return program
 
 
@@ -1953,6 +1995,8 @@ def parse_expression(text: str, filename: str = "<调试>") -> A.Node:
     多余的内容（`查看 x y`）**明确报错**：静默只看前半截会让人以为整句都算过了。
     """
     source = text.replace("\r\n", "\n").replace("\r", "\n")
+    if frontend() == "rust":
+        return _rust_parse_expression(source, filename)
     tokens = tokenize(source, filename)
     p = Parser(tokens, source.split("\n"), filename)
     node = p._parse_expr()
@@ -1966,3 +2010,127 @@ def parse_expression(text: str, filename: str = "<调试>") -> A.Node:
                "「查看」后面只能写一个表达式",
                hint="例如：查看 单价 * 数量 —— 想看多句话请改脚本后重新跑一次")
     return node
+
+
+# ---------------------------------------------------------------------------
+# Rust 前端（R 线 · R3）
+# ---------------------------------------------------------------------------
+
+def _make_parse_error(exc, lines: "list[str]", filename: str):
+    """把扩展的 `ParseError` 还原成对应的 `JishiError` 子类。
+
+    与词法错误同一套约定（见 `tokenizer._rust_tokenize`）：扩展只回传
+    「码 / 消息 / 行 / 列 / 提示 / 下划线 / 修正」这些**事实**，类由这里按码
+    现查，源码行由 `with_source` 按行现取 —— Rust 侧没有那份映射表，也就漂不了。
+    """
+    cls = error_class(getattr(exc, "码", ""))
+    fix = getattr(exc, "修正", None)
+    err = cls(
+        getattr(exc, "消息", ""),
+        line=getattr(exc, "行", None),
+        col=getattr(exc, "列", None),
+        filename=filename,
+        hint=getattr(exc, "提示", None),
+        underline=getattr(exc, "下划线", None),
+        fix=({"old": fix[0], "new": fix[1]} if fix else None),
+    )
+    return err.with_source(list(lines))
+
+
+def parse_source(source: str, filename: str = "<输入>") -> A.Program:
+    """源码文本 → AST（**推荐入口**，R3 起新增）。
+
+    为什么要有它，而不是让大家都写 `parse(tokenize(x), x.split("\\n"), f)`：
+
+    * **少一次分词**：Rust 侧的 `parse` 本来就吃文本、自己分词。调用方先
+      `tokenize` 再把 tokens 递进来，同一次分词就要跑两遍 —— 而这条路正是
+      编译期（CLI / 检查 / LSP / 格式化）的主路，白跑一遍不划算。
+    * **没有「行切分口径」这个坑**：`parse()` 要 `source_lines`，而它是个
+      **有损**载体（`incremental.split_lines` 会去掉末尾空行）—— 反拼不回原文，
+      报错行号会整体偏一位。这个入口内部自己切，口径只有一份。
+    """
+    lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    if frontend() == "rust":
+        return _rust_parse_source(source, lines, filename)
+    return parse(tokenize(source, filename), lines, filename)
+
+
+def _rebuild_lines(text: str) -> list[str]:
+    """与 `Tokenizer` 一致的行切分（**归一化换行 + 剥开头 BOM + 去掉末尾空行**）
+    —— 用来数「原文有几行」。
+
+    ⚠️ 这三步必须与 `Tokenizer.__init__` **逐条对应**，少一步就会误判：
+    只做 `split` 的话，`"\\ufeff"` 这种「只有 BOM」的输入会被算成 1 行，
+    而词法器剥掉 BOM 后是 0 行 —— 守卫就会对着**合法**输入喊「你丢了内容」。
+    误报比不报更糟：它会让走对路的人被拦住，然后大家把守卫关掉。
+    """
+    src = text.replace("\r\n", "\n").replace("\r", "\n")
+    if src.startswith("\ufeff"):
+        src = src[1:]
+    lines = src.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+def _check_rebuild_lossless(tokens, text: str, filename: str) -> None:
+    """反拼出来的文本必须与「产出 `tokens` 的那份文本」**一样长**，否则报错。
+
+    判据是**精确**的，不是猜的：词法器给 EOF 记的行号恒等于
+    `len(原文的行列表)`（末尾空行去掉，见 `Tokenizer.__init__`）——
+    而 `_rebuild_lines` 算的是反拼文本的行数。两者不等，就说明**丢了内容**
+    （`incremental.split_lines` 会去掉末尾空行，正是这种情形），
+    此时 Rust 侧算出来的 EOF 行号与报错行号会**少掉丢掉的那几行**。
+
+    为什么宁可当场炸：R3 实测过，这种偏移不会报错，只会让**编辑器里的红线
+    画错一行** —— 「悄悄给错值」比「跑不起来」难查得多（M56 的规矩）。
+    """
+    eof = tokens[-1] if tokens else None
+    if eof is None or getattr(eof, "type", None) != "EOF":
+        return
+    want = getattr(eof, "line", None)
+    got = len(_rebuild_lines(text))
+    if want is not None and want != got:
+        raise RuntimeError(
+            f"Rust 前端的 `parse()` 只能拿到「反拼 / 传入」出来的源码，"
+            f"但它与产出 tokens 的那份原文**行数不一致**"
+            f"（原文 {want} 行、这份 {got} 行，{'少' if got < want else '多'}了）"
+            f"—— 行号会在报错时整体偏移。请把原文用 `source=` 一起传进来"
+            f"（{filename}）。")
+
+
+def _rust_parse_source(source: str, lines: list[str], filename: str
+                       ) -> A.Program:
+    """`parse_source` 的 Rust 分支：把原文交给扩展即可（行只在报错时用）。"""
+    from . import tokenizer as _T
+    mod = _T._core()
+    try:
+        return mod.parse(source, filename)
+    except mod.ParseError as exc:
+        raise _make_parse_error(exc, lines, filename)
+
+
+def _rust_parse(source_lines, filename: str, *, source=None, tokens=None
+                ) -> A.Program:
+    from . import tokenizer as _T
+    mod = _T._core()
+    text = "\n".join(source_lines) if source is None else source
+    _check_rebuild_lossless(tokens, text, filename)
+    try:
+        # ⚠️ 报错上下文用**调用方给的那份 `source_lines`**（与 Python 实现一致）：
+        # 用别的口径会让两个前端在 `source_line` 上产生差异。
+        return mod.parse(text, filename)
+    except mod.ParseError as exc:
+        raise _make_parse_error(exc, list(source_lines), filename)
+
+
+def _rust_parse_expression(source: str, filename: str) -> A.Node:
+    from . import tokenizer as _T
+    mod = _T._core()
+    # ⚠️ `parse_expression` 不含换行归一化，得在对齐的文本上与 Python 一致：
+    # Python 那边先做 `\r\n`/`\r` → `\n`，这里照做。
+    text = source.replace("\r\n", "\n").replace("\r", "\n")
+    try:
+        return mod.parse_expression(text, filename)
+    except mod.ParseError as exc:
+        raise _make_parse_error(exc, text.split("\n"), filename)

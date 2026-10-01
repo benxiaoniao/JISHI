@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 24,
     "frontend": 1,
-    "lang": 56,
+    "lang": 59,
     "stdlib": 4
   },
   "语料": [
@@ -652,6 +652,27 @@
       "路径": "tests/error_cases/40_转义符没内容.jsh"
     },
     {
+      "id": "tests__error_cases__41_块首后空行",
+      "产物哈希": "sha256:e3ba385459731354",
+      "内容哈希": "sha256:ebf84649fb3ea5b9",
+      "类别": "lang",
+      "路径": "tests/error_cases/41_块首后空行.jsh"
+    },
+    {
+      "id": "tests__error_cases__42_类外超",
+      "产物哈希": "sha256:5f699c536dba08ec",
+      "内容哈希": "sha256:dc06b5765a7bb07e",
+      "类别": "lang",
+      "路径": "tests/error_cases/42_类外超.jsh"
+    },
+    {
+      "id": "tests__error_cases__43_整行插值字符串",
+      "产物哈希": "sha256:3f10589dcc349b19",
+      "内容哈希": "sha256:adbc975e79a6b0ac",
+      "类别": "lang",
+      "路径": "tests/error_cases/43_整行插值字符串.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:614aa058d735c0f8",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -659,5 +680,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 85
+  "语料数": 88
 }

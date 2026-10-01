@@ -50,8 +50,7 @@ from . import ast_nodes as A
 from . import scope
 from .errors import JishiError
 from .langdata import LangData
-from .parser import parse
-from .tokenizer import tokenize
+from .parser import parse_source as _parse_source
 
 __all__ = [
     "Issue", "LEVEL_ERROR", "LEVEL_WARNING", "CHECK_CATALOG",
@@ -168,7 +167,7 @@ class Issue:
 
 def parse_source(text: str, filename: str = "<检查>") -> A.Program:
     """把源码文本解析成 AST（词法 + 语法）。"""
-    return parse(tokenize(text, filename), text.split("\n"), filename)
+    return _parse_source(text, filename)
 
 
 # ---------------------------------------------------------------------------

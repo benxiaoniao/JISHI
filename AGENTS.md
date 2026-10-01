@@ -61,7 +61,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **2458 项，2455 通过**）。
+3. **测试命令**：`python -m pytest tests/`（当前 **2575 项，2572 通过**）。
    ⚠️ 本机（Windows）上 3 个 Node 网络用例**偶发** `spawnSync … EBUSY` ——
    环境性的（Node 宿主自己 spawn 自己），Linux / CI 不复现，**别当成新问题查**。
    改完代码必须跑全量回归，不许留红。
@@ -124,10 +124,12 @@
   **构建一律走 `python core/build.py`**，别手敲 cargo。
 - ⚠️ **`jishi/_core.pyd` 不进仓库**（按当前 Python 的 ABI 编，换版本就得重编）。
   没有它而设了 `JISHI_FRONTEND=rust` → **明确报错并给修法**，绝不静默回落。
-- ⚠️ **前端「端到端倍数」有天花板**（R2 量出来的）：把 `Token` 交给 Python 这件
-  事本身就有地板（11.7 万个 Token ≈ 46 ms）。R2 实测 **核心 7.05x / 端到端 3.72x /
-  天花板 4.23x**。**别拿端到端倍数去判 R2–R5 的成败** —— 那时下游还得吃 Python
-  对象；数字由 `tools/bench_tokenizer.py` 每次重算并**把推导印出来**。
+- ⚠️ **前端「端到端倍数」有天花板**（R2/R3 量出来的）：把 `Token` / AST 节点
+  交给 Python 这件事本身就有地板（11.7 万 Token ≈ 39 ms、7 万 AST 节点 ≈ 28 ms）。
+  R2 实测分词 **核心 7.05x / 端到端 3.72x / 天花板 4.23x**；R3 实测语法
+  **核心 5.64x / 端到端 3.04x / 天花板 4.73x**。**别拿端到端倍数去判 R2–R5 的
+  成败** —— 那时下游还得吃 Python 对象；数字由 `tools/bench_frontend.py`
+  每次重算并**把推导印出来**。
 - ⚠️ **`conformance.py emit` 必须先清空输出目录再写**（R2 踩到）：中途失败留下
   上一次的产物时，紧接着的 `compare` 会拿**旧产物**比出一个绿 ——
   「没跑成功」伪装成「通过」。这是 R0/M49 那个坑的第三副面孔。
@@ -891,7 +893,7 @@
   - ✅ **R2 分词器已交付（2026-10-01）**：新建 `core/`（Rust crate，pyo3 编成
     Python 扩展），`tokenize()` 在 `JISHI_FRONTEND=rust` 时走 Rust。
     - **逐 token 一致：85/85 语料** ✅（+ **2 万组随机源码对拍 0 分歧**）。
-      语料从 73 → **85**（R2 补 12 个，见下）。
+      语料从 73 → **85**（R2 补 12 个，见下；R3 又补 3 个 → **88**）。
     - 吞吐：**端到端 3.72x（490.8→132.0 ms/2.07 万行）· 纯核心 7.05x**。
       ⚠️ **端到端天花板 = 4.23x**（把 Token 交回 Python 有 46 ms 的地板）——
       **「≥5 倍」这层接口够不着**，建议改成「纯核心 ≥5x」、把「端到端 ≥5x」挪到 R5。
@@ -900,12 +902,33 @@
       位置）；另有 CRLF / 孤立 `\r` / BOM 这类**文件表达不了**的输入，走
       字符串级测试；并新增 `tests/frontend_cases/`（**只给前端看**：像超 i64
       整数这种 C VM 有意拒绝、但前端必须处理的语料）。
-    - 工具：`python core/build.py`（构建）/ `tools/bench_tokenizer.py`（吞吐）/
+    - 工具：`python core/build.py`（构建）/ `tools/bench_frontend.py`（吞吐）/
       `conformance.py emit --frontend rust --out 目录` → `compare --stage tokens`。
     - 守门测试 `tests/test_m59_tokenizer_rust.py`（78 项：全语料一致 + 24 条字符串级边角
       + 11 条报错逐字 + 8 条端到端 + 720 组随机对拍 + 三张表漂移 + 开关语义）。
-  - 📌 **下一步：R3 语法 → AST**（验收 = AST JSON 逐字节一致；难点是**脱糖的
-    时机与位置**：`超()` / `匹配/情形` / 推导式 / 条件表达式）。
+  - ✅ **R3 语法 → AST 已交付（2026-10-01）**：`core/src/parser.rs`（2600 行，逐行
+    移植 `jishi/parser.py`），`parse_source()` 在 `JISHI_FRONTEND=rust` 时走 Rust。
+    - **AST 一致：88/88 语料** ✅（+ **5 万组随机源码对拍 0 分歧**；40 个脚本端到端
+      跑出来也一样）。`compare --stage ast` 与 `--stage diagnostics` 都全绿。
+    - 吞吐（2.07 万行 / 735 KB）：语法 **端到端 823→271 ms（3.04x）· 纯核心 5.64x**
+      （天花板 4.73x）；分词仍是 3.63x / 6.47x。
+    - 🔴 **接口改了一次（这是 R3 最有价值的一条）**：Rust 侧 `parse` **吃源码文本**，
+      而 Python 入口原来只有 `tokens + source_lines` —— 后者是**有损**的载体
+      （`incremental.split_lines` 去掉末尾空行），反拼回去**报错行号整体偏一位**
+      （实测 9 个样例错 4 个）。于是新增 `parse_source(源码)` 作为**生产入口**，
+      `parse(tokens, lines, f)` 保留给 LSP 增量分词，并加**精确守卫**
+      （拿 EOF 行号当标尺）——**丢了内容就当场报错，不猜**。
+    - 🔴 **顺手抓到的两处「泄内部结构 / 两套口径」**：① 插值字符串的 `value` 是
+      分段表，直接插进中文报错会把 Python 的 `repr` 泄给用户 → 两侧统一说
+      「插值字符串」（`_tok_text` / `tok_text`）；② 类外 `超()` 那条错**漏了
+      `with_source` 与下划线**（它是解析**之后**补的检查，不走 `_err`）→ 已补齐，
+      **报错的补全要认「一个出口」，别按「谁抛的」分岔**。
+    - 守门测试 `tests/test_m60_parser_rust.py`（111 项）+ 3 个新错误语料
+      （`41_块首后空行` / `42_类外超` / `43_整行插值字符串`，都被冻结进基线）。
+  - 📌 **下一步：R4 报错**（验收 = 码 / 行列 / 文案 / 提示 / 下划线逐字一致）。
+    ⚠️ R3 已经把**语法**阶段的 `diagnostics` 一起纳入比对了（同一个 parse 出口），
+    所以 R4 的实际范围是「**执行期/编译期**的报错 + 词法语法那些够不到的分支」——
+    开工前先跟作者核一下范围，别把已经绿的再报一遍。
   ⚠️ **M49b 那个「选型决策」已随备案完成而结掉**（方案 b：大陆服务器 + 域名）。
   📌 **（旧）M56 收完后，下一步**：`M49a 分发客户端收口` 或 **M57 性能**（C VM 容器读侧，
   先量再说）→ M58/M59。
@@ -1045,7 +1068,7 @@
   默认先问「能不能用内建或标准库实现」。
 - 可按需补的遗留项（不阻塞）：短字符串内联、字节码执行器的调试器、
   LSP 增量同步、非 Windows 平台的 https。
-- 当前版本 **0.2.1**；全量测试 **2458 项**（2455 通过，3 个 Node 网络用例为环境性失败——`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题，Linux/CI 不复现）。
+- 当前版本 **0.2.1**；全量测试 **2575 项**（2572 通过，3 个 Node 网络用例为环境性失败——`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题，Linux/CI 不复现）。
   ⚠️ **本机跑全量回归要分段跑**（我这里是 3 段）：一次跑完全部时，会撞上
   **WorkBuddy 沙箱的「批量删除守卫」**（`sitecustomize.py` 在**单次工具调用**里
   累计删除超过阈值就 `SystemExit(1)`），而 pytest 自己的临时目录清理正好会触发它 ——
@@ -1062,12 +1085,12 @@ python tools/conformance.py check       # 默认动作；`-v` 多打几处差异
 python tools/conformance.py list        # 语料清单与冻结状态
 python tools/conformance.py freeze      # 重新冻结（⚠️ 改完先看 git diff）
 
-# Rust 前端（R2）：构建扩展 → 产出 tokens → 与基线比（**R2 的验收入口**）
+# Rust 前端（R2 分词 / R3 语法）：构建扩展 → 产出产物 → 与基线比（验收入口）
 python core/build.py                    # 需要 Rust 工具链；产物 jishi/_core.pyd
 JISHI_FRONTEND=rust python -m jishi.cli 程序.jsh    # 用 Rust 前端跑（默认 python）
 python tools/conformance.py emit --frontend rust --out build/产物目录
-python tools/conformance.py compare --from build/产物目录 --stage tokens
-python tools/bench_tokenizer.py         # 分词吞吐（Python vs Rust，交错 A/B + 天花板）
+python tools/conformance.py compare --from build/产物目录 --stage tokens   # 或 ast
+python tools/bench_frontend.py          # 分词+语法吞吐（交错 A/B + 打印天花板推导）
 
 # 运行脚本 / REPL
 python -m jishi.cli 文件.jsh

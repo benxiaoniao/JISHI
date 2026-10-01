@@ -185,11 +185,22 @@ class ImplementationBug(RuntimeError):
         self.rel, self.stage, self.err = rel, stage, err
 
 
-def run_stages(rel: str) -> dict[str, Any]:
+#: 四个阶段的固定顺序（报告、`--stage` 取值都按它）
+ALL_STAGES: tuple[str, ...] = ("tokens", "ast", "bytecode", "diagnostics")
+
+
+def run_stages(rel: str, stages: tuple[str, ...] = ALL_STAGES) -> dict[str, Any]:
     """跑一个语料的四个阶段，返回待冻结的产物。
 
     阶段内抛 `JishiError` → 记进 `diagnostics`（这是语言行为，要冻结）；
     抛别的 → 抛 `ImplementationBug`（这是实现 bug，不许冻结）。
+
+    `stages` 用来**只跑某个实现已经做到的那几步**（R2 只做分词、R3 只做到语法）：
+    没要的阶段**连算都不算**，键由调用方抹掉 —— 「这一阶段没提供」必须在产物里
+    看得出来（键不存在），不能拿另一份实现算出来的值顶上。
+    ⚠️ 注意 `stages` 里**没有 `bytecode` 时不会跑编译器**，所以 `diagnostics`
+    自然只会是词法/语法那两种 —— R3 的 `--stage diagnostics` 因此**覆盖面是
+    「语法及以前」**，不是「全部报错」（R4 的范围因此缩小，见 `docs/前端契约.md` §10.4）。
     """
     from jishi import compiler as C
     from jishi import parser as P
@@ -221,7 +232,7 @@ def run_stages(rel: str) -> dict[str, Any]:
 
     # ---- 阶段 2：语法 ----
     try:
-        program = P.parse(tokens, lines, rel)
+        program = P.parse_source(src, rel)
         out["ast"] = jsonable(program)
     except JishiError as e:
         out["diagnostics"] = _err_json(e, "语法")
@@ -230,19 +241,20 @@ def run_stages(rel: str) -> dict[str, Any]:
         raise ImplementationBug(rel, "语法", e) from e
 
     # ---- 阶段 3：编译 ----
-    try:
-        cmod = C.compile_source(src, rel)
-        from jishi.serialize import dump_json
-        body = json.loads(dump_json(cmod))
-        # `opcode_names` 是引擎级常量表，73 个文件各抄一份纯属浪费 ——
-        # 它在 MANIFEST 里记**一份**（加指令时那里会变，照样能被发现）。
-        body.pop("opcode_names", None)
-        out["bytecode"] = body
-    except JishiError as e:
-        out["diagnostics"] = _err_json(e, "编译")
-        return out
-    except Exception as e:                                      # noqa: BLE001
-        raise ImplementationBug(rel, "编译", e) from e
+    if "bytecode" in stages:
+        try:
+            cmod = C.compile_source(src, rel)
+            from jishi.serialize import dump_json
+            body = json.loads(dump_json(cmod))
+            # `opcode_names` 是引擎级常量表，73 个文件各抄一份纯属浪费 ——
+            # 它在 MANIFEST 里记**一份**（加指令时那里会变，照样能被发现）。
+            body.pop("opcode_names", None)
+            out["bytecode"] = body
+        except JishiError as e:
+            out["diagnostics"] = _err_json(e, "编译")
+            return out
+        except Exception as e:                                  # noqa: BLE001
+            raise ImplementationBug(rel, "编译", e) from e
 
     return out
 
@@ -657,8 +669,13 @@ def cmd_emit(args) -> int:
     分不开。所以这里让 **Rust 只负责算 token**，序列化仍旧走本文件这套
     确定性 JSON（`jsonable` + `dumps`），**格式永远只有一份**。
 
-    R2 只有 `tokens` 这一阶段（R3 起再补 `ast` 等）。词法就失败的语料写出
-    `tokens: null` + `diagnostics`，与基线**同形**。
+    前端**已经做到哪几个阶段**由 `FRONTEND_STAGES` 决定（R2 交付时只有 `tokens`，
+    R3 之后加 `ast` + `diagnostics`）。在词法/语法阶段失败的语料写出
+    `null` + `diagnostics`，与基线**同形**。
+
+    ⚠️ **只产出该前端真正做到了的阶段，其余键直接不写** —— 「没提供」与
+    「提供了但值不对」必须分得开（契约 §3）：前者 `compare` 会报「未提供」，
+    后者才是不一致。
     """
     from jishi import tokenizer as T
     from jishi.errors import JishiError
@@ -682,7 +699,7 @@ def cmd_emit(args) -> int:
     saved = os.environ.get(T.FRONTEND_ENV)
     os.environ[T.FRONTEND_ENV] = args.frontend
     try:
-        return _emit_files(T, JishiError, out, args.frontend)
+        return _emit_files(T, out, args.frontend)
     finally:
         if saved is None:
             os.environ.pop(T.FRONTEND_ENV, None)
@@ -690,29 +707,40 @@ def cmd_emit(args) -> int:
             os.environ[T.FRONTEND_ENV] = saved
 
 
-def _emit_files(T, JishiError, out: Path, frontend: str) -> int:
+#: 各前端**已经做到**的阶段。R 线每推进一步，这里加一格 ——
+#: 产物里不写没做到的阶段，于是 `compare` 会如实报「未提供」而不是假通过。
+FRONTEND_STAGES: dict[str, tuple[str, ...]] = {
+    "python": ALL_STAGES,
+    # R2 分词 + R3 语法；编译器（bytecode）是 R5 的事
+    "rust": ("tokens", "ast", "diagnostics"),
+}
+
+
+def _emit_files(T, out: Path, frontend: str) -> int:
     """真正干活的半截（开关与环境还原留给了 `cmd_emit`）。"""
+    stages = FRONTEND_STAGES[frontend]
     wrote = 0
-    lex_errors = 0
+    parse_errors = 0
     for _cat, rel in collect_corpus():
-        src = (ROOT / rel).read_text(encoding="utf-8")
-        data: dict[str, Any] = {"语料": rel, "tokens": None, "diagnostics": None}
         try:
-            data["tokens"] = [jsonable(t) for t in T.tokenize(src, rel)]
-        except JishiError as e:
-            data["diagnostics"] = _err_json(e, "词法")
-            lex_errors += 1
-        except Exception as e:                                  # noqa: BLE001
+            data = run_stages(rel, stages)
+        except ImplementationBug as b:
             # 与 freeze 同一条闸门：非基石错误 = 实现有 bug，不许当成「产物」交出去
-            print(f"🚫 {rel} 让前端抛了非基石错误 {type(e).__name__}：{e}",
-                  file=sys.stderr)
+            print(f"🚫 {b}", file=sys.stderr)
             return 1
+        for st in ALL_STAGES:
+            if st not in stages:
+                data.pop(st, None)
+        if data.get("diagnostics") and data["diagnostics"]["阶段"] == "语法":
+            parse_errors += 1
         (out / f"{corpus_id(rel)}.json").write_text(
             dumps(data), encoding="utf-8", newline="\n")
         wrote += 1
 
-    print(f"✅ 已产出 {wrote} 个语料的「{frontend}」前端 tokens → {out.as_posix()}")
-    print(f"   其中 {lex_errors} 个在词法阶段报错（写的是 tokens: null + 诊断）")
+    print(f"✅ 已产出 {wrote} 个语料的「{frontend}」前端产物 → {out.as_posix()}")
+    print(f"   阶段：{'、'.join(stages)}（**其余阶段不写键**，compare 会报「未提供」）")
+    if parse_errors:
+        print(f"   其中 {parse_errors} 个在语法阶段报错")
     print(f"   下一步：python tools/conformance.py compare --from {out.as_posix()}"
           f" --stage tokens")
     return 0

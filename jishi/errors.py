@@ -65,7 +65,6 @@ class JishiError(Exception):
     """所有基石错误的基类。携带错误码、中文标题、行列位置与修正建议。"""
     code = "E0000"
     title = "未知错误"
-
     def __init__(
         self,
         message: str = "",
@@ -590,3 +589,27 @@ def char_display_width(ch: str) -> int:
     if unicodedata.east_asian_width(ch) in ("F", "W"):
         return 2
     return 1
+
+
+# ---------------------------------------------------------------------------
+# 错误码 → 异常类（R 线用）
+# ---------------------------------------------------------------------------
+
+_ERROR_BY_CODE: "dict[str, type]" = {}
+
+
+def error_class(code: str, default: "type | None" = None) -> type:
+    """按错误码查异常类。
+
+    **R 线（前端换 Rust）的接口约定**：扩展只回传「码 / 消息 / 行 / 列 / 提示 /
+    下划线」这些**事实**，类由 Python 侧按码现查 —— 于是 Rust 那边**没有**
+    「码 → 类」的映射表，也就不会与这里漂移。
+
+    惰性建表；同码取先注册的那个（正常情况错误码不重复，M44 修过一次重码）。
+    """
+    if not _ERROR_BY_CODE:
+        for obj in list(globals().values()):
+            if (isinstance(obj, type) and issubclass(obj, JishiError)
+                    and obj is not JishiError):
+                _ERROR_BY_CODE.setdefault(obj.code, obj)
+    return _ERROR_BY_CODE.get(code, default or JishiError)
