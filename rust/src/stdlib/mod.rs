@@ -204,12 +204,18 @@ pub(crate) fn need(name: &str, args: &[Val], n: usize) -> Result<(), JishiError>
 /// 参数个数落在 `[lo, hi]` 区间。
 pub(crate) fn need_range(name: &str, args: &[Val], lo: usize, hi: usize) -> Result<(), JishiError> {
     if args.len() < lo || args.len() > hi {
+        // ⚠️ `lo == hi` 时说「N 个」而不是「N 到 N 个」（R6.4）——「1 到 1 个」
+        // 虽然不算错，但读起来绕；而且 Python 侧的标准库是真 Python 函数、
+        // 由 Python 自己抛 TypeError（`takes 1 positional argument but 2 were
+        // given`），翻译过来只可能是「需要 1 个」。**两边要说得一样。**
+        let want = if lo == hi {
+            format!("{lo} 个")
+        } else {
+            format!("{lo} 到 {hi} 个")
+        };
         return Err(err(
             "类型错误",
-            format!(
-                "函数「{name}」需要 {lo} 到 {hi} 个参数，但传了 {} 个",
-                args.len()
-            ),
+            format!("函数「{name}」需要 {want}参数，但传了 {} 个", args.len()),
         ));
     }
     Ok(())

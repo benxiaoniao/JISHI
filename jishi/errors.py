@@ -441,6 +441,22 @@ def _type_error_zh(msg: str) -> str:
         a = _PY_TYPE_ZH.get(m.group(2), m.group(2))
         b = _PY_TYPE_ZH.get(m.group(3), m.group(3))
         return f"「{a}」和「{b}」不能做「{m.group(1)}」运算"
+    # 标准库函数的**参数个数**错（R6.4 补）。原文两种：
+    #   `属性文本() takes 1 positional argument but 2 were given`（多给）
+    #   `写表格() missing 1 required positional argument: '行列表'`（少给）
+    # ⚠️ 标准库函数是**真 Python 函数**，靠 Python 自己抛 TypeError —— 于是
+    # 这两句**一直漏成英文**（内建那条路 M55 已经改成 `check_arity` 了，
+    # 标准库这条路没人管）。文案与 Rust 的 `need` / `need_range` 对齐。
+    m = re.search(
+        r"(\w+)\(\) takes (\d+) positional arguments? but (\d+) (?:were|was) given",
+        msg)
+    if m:
+        return f"函数「{m.group(1)}」需要 {m.group(2)} 个参数，但传了 {m.group(3)} 个"
+    m = re.search(r"(\w+)\(\) missing (\d+) required positional arguments?", msg)
+    if m:
+        # ⚠️ 「少给」时 Python 只说**缺几个**、不说「一共传了几个」——
+        # 所以这句只能给到「缺少 N 个必填参数」（宿主能给出更全的说法）。
+        return f"函数「{m.group(1)}」缺少 {m.group(2)} 个必填参数"
     m = re.search(r"can't multiply sequence by non-int of type '(\w+)'", msg)
     if m:
         a = _PY_TYPE_ZH.get(m.group(1), m.group(1))

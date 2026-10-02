@@ -2948,7 +2948,14 @@ const STDLIB = {
     '向上取整': new R.Builtin('向上取整', (x) => Math.ceil(x)),
     '向下取整': new R.Builtin('向下取整', (x) => Math.floor(x)),
     '四舍五入': new R.Builtin('四舍五入', (x, d = 0) => {
-      const f = 10 ** d; return Math.round(x * f) / f;
+      // ⚠️ **银行家舍入**（半值向偶数），与 Python 的 `round` 一致 —— R6.4 修。
+      // 原来是 `Math.round(x * f) / f`（**半值向上**），于是
+      // `四舍五入(2.5)` 在 Node 给 `3`、其它四个执行器给 `2`。
+      // 📌 二进制浮点下「先加 0.5 再取整」会**系统性偏大**，所以要走专门的
+      // `roundHalfEven`（f-string 那边一直用的就是它）。
+      const n = Number(R.unwrap(d)) | 0;
+      const r = roundHalfEven(Number(R.unwrap(x)), n);
+      return n <= 0 ? Math.trunc(r) : r;
     }),
     '圆周率': Math.PI,
     '自然常数': Math.E,
