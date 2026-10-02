@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import io
 import re
+import os
 import subprocess
 import sys
 import tarfile
@@ -126,11 +127,53 @@ def cli_message(argv: "list[str]") -> "str | None":
 # git 与隐私屏蔽
 # ---------------------------------------------------------------------------
 
+#: 证书校验过不去时的可操作提示（实测踩过的两种）
+_TLS_HINTS = (
+    "CRYPT_E_NO_REVOCATION_CHECK", "吊销",
+    "unable to get local issuer certificate", "SSL certificate problem",
+    "CONNECT tunnel failed", "Connection was reset",
+)
+
+
+def _insecure() -> bool:
+    """是否关掉 git 的 TLS 校验（`JISHI_GIT_INSECURE=1`）。"""
+    return os.environ.get("JISHI_GIT_INSECURE", "").strip().lower() in (
+        "1", "true", "yes", "on")
+
+
+def _git_env() -> dict:
+    """git 子进程的环境。
+
+    ⚠️ **本机（Windows）的 GitHub 走一个 TLS 中转代理**（`127.0.0.1:9066`，
+    SteamTools）：schannel 的**证书吊销检查**过不去
+    （`CRYPT_E_NO_REVOCATION_CHECK`），换 openssl 后端则报
+    「找不到签发者」。实测 **`GIT_SSL_NO_VERIFY=1` 能通**。
+
+    **默认不开**（关掉校验 = 降低安全性，不该是默认行为；CI/Linux 上也不需要）：
+    要开就 `JISHI_GIT_INSECURE=1 python tools/publish_github.py`。
+    """
+    env = dict(os.environ)
+    if _insecure():
+        env["GIT_SSL_NO_VERIFY"] = "true"
+    return env
+
+
+def _push_hint(stderr: str) -> str:
+    """把 git 的英文报错翻成「下一步做什么」。"""
+    if any(h in stderr for h in _TLS_HINTS):
+        return ("\n💡 看着像**证书/代理**问题（本机 GitHub 走 TLS 中转代理）。"
+                "试：JISHI_GIT_INSECURE=1 python tools/publish_github.py"
+                "\n   —— 它只是关掉证书校验，快照与屏蔽逻辑不变。")
+    return ""
+
+
 def _git(*args: str, cwd: Path | None = None) -> str:
     r = subprocess.run(["git", *args], cwd=cwd, capture_output=True,
-                       text=True, encoding="utf-8", errors="replace")
+                       text=True, encoding="utf-8", errors="replace",
+                       env=_git_env())
     if r.returncode != 0:
-        raise SystemExit(f"git {' '.join(args[:2])} 失败：\n{r.stderr}")
+        raise SystemExit(f"git {' '.join(args[:2])} 失败：\n"
+                         f"{r.stderr}{_push_hint(r.stderr)}")
     return r.stdout
 
 
@@ -330,12 +373,15 @@ def main() -> int:
 
     _notify_push()
     print(f"[4/4] force push 到 GitHub（{REPO_HTTPS}）")
+    if _insecure():
+        print("⚠️ JISHI_GIT_INSECURE=1：本次**关掉了 git 的证书校验**"
+              "（代理做 TLS 中转时的应急手段；不影响快照与屏蔽逻辑）")
     r = subprocess.run(
         ["git", "push", "-f", REPO_HTTPS, f"{BRANCH}:{BRANCH}"],
         cwd=snapshot, capture_output=True, text=True,
-        encoding="utf-8", errors="replace")
+        encoding="utf-8", errors="replace", env=_git_env())
     if r.returncode != 0:
-        raise SystemExit(f"推送失败：\n{r.stderr}")
+        raise SystemExit(f"推送失败：\n{r.stderr}{_push_hint(r.stderr)}")
     print("    ✓ 代码已同步")
 
     # 可选：在屏蔽版快照的孤儿提交上打 tag，触发 Release 工作流
@@ -344,9 +390,10 @@ def main() -> int:
         r = subprocess.run(
             ["git", "push", "-f", REPO_HTTPS, f"refs/tags/{tag}"],
             cwd=snapshot, capture_output=True, text=True,
-            encoding="utf-8", errors="replace")
+            encoding="utf-8", errors="replace", env=_git_env())
         if r.returncode != 0:
-            raise SystemExit(f"推送 tag 失败：\n{r.stderr}")
+            raise SystemExit(f"推送 tag 失败：\n{r.stderr}"
+                             f"{_push_hint(r.stderr)}")
         print(f"    ✓ 已打 tag {tag}（将触发 GitHub Actions 构建三平台发行包）")
 
     import shutil

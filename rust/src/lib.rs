@@ -3814,17 +3814,39 @@ fn exception_matches(exc: &Val, cond: &Val) -> bool {
 // 迭代器
 // ---------------------------------------------------------------------------
 
+/// 把一个**快照**包成迭代器：**反转**后存进列表。
+///
+/// ⚠️ **为什么要反转**（R6.1 修，R6.0 量出来的）：迭代器的列表是「每次取一个、
+/// 取完就弹」的，而**从头部弹（`Vec::remove(0)`）是 O(n)** —— 整趟遍历就是
+/// **O(n²)**。实测：n = 2500/5000/10000/20000 → 35 / 151 / 636 / 2499 ms，
+/// **规模翻倍、耗时 ×4**，2 万次空循环要 2.5 秒（对照：同一份基准里 `当` 循环
+/// 是 7.1x，说明不是「循环都慢」，就是这一处）。
+///
+/// 反转之后 `pop()` 从头到尾**每步 O(1)**，而弹出的顺序**与原顺序完全一致**。
+/// 安全性：这个列表是 `GET_ITER` 造出来的**私有快照**，除了 `FOR_ITER` 与
+/// 循环的清理路径（`POP_TOP`）**没有任何人看它** —— 所以「里面是反的」
+/// 不可能被观察到。
+fn reversed_iter(items: Vec<Val>) -> Val {
+    let mut v = items;
+    v.reverse();
+    list_new(v)
+}
+
 fn make_iterator(obj: Val) -> Result<Val, JishiError> {
-    // 迭代器就是「一个会被逐个弹掉的列表」，FOR_ITER 每次 remove(0)。
+    // 迭代器 = 「快照列表 + 从**尾部**弹」。
     //
     // 关键：**必须做快照拷贝**。以前列表是值类型，`Val::List(l)` 天然就是
     // 独立副本，所以「遍历不消耗原列表」是白捡的；换成共享容器后如果直接把
     // `l` 递出去，`遍历 x 在 a` 会把 `a` 逐元素搬空——那是错的。
+    //
+    // ⚠️ 顺序：`iter_next` 从**尾部**弹，所以这里必须**反转**（见 `reversed_iter`）。
     match obj {
-        Val::List(l) => Ok(list_new(l.borrow().clone())),
-        Val::Set(s) => Ok(list_new(s.borrow().clone())),
-        Val::Str(s) => Ok(list_new(s.chars().map(|c| Val::Str(c.to_string())).collect())),
-        Val::Dict(d) => Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())),
+        Val::List(l) => Ok(reversed_iter(l.borrow().clone())),
+        Val::Set(s) => Ok(reversed_iter(s.borrow().clone())),
+        Val::Str(s) => Ok(reversed_iter(
+            s.chars().map(|c| Val::Str(c.to_string())).collect())),
+        Val::Dict(d) => Ok(reversed_iter(
+            d.borrow().iter().map(|(k, _)| k.clone()).collect())),
         // 文件是**惰性**迭代：真句柄不能快照（那等于整读进内存），
         // 所以迭代器就是文件自己，每次 next 读一行。
         Val::File(_) => Ok(obj),
@@ -3834,12 +3856,14 @@ fn make_iterator(obj: Val) -> Result<Val, JishiError> {
     }
 }
 
-/// 取下一个元素：列表迭代器弹头，文件迭代器读一行。
+/// 取下一个元素：列表迭代器弹**尾**（快照是反转的，所以顺序正确、每步 O(1)），
+/// 文件迭代器读一行。
 fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
     match it {
         Val::List(l) => {
-            let mut l = l.borrow_mut();
-            if l.is_empty() { Ok(None) } else { Ok(Some(l.remove(0))) }
+            // ⚠️ `pop()` 而不是 `remove(0)` —— 后者每次搬移整个 Vec（O(n)），
+            // 整趟遍历 O(n²)。见 `reversed_iter` 的说明与实测数据。
+            Ok(l.borrow_mut().pop())
         }
         Val::File(f) => {
             let mut h = f.borrow_mut();
