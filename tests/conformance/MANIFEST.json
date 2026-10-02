@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 24,
     "frontend": 1,
-    "lang": 64,
+    "lang": 65,
     "stdlib": 4
   },
   "语料": [
@@ -624,6 +624,13 @@
       "路径": "tests/error_cases/35_赋值前读局部.jsh"
     },
     {
+      "id": "tests__error_cases__36_实例方法参数个数",
+      "产物哈希": "sha256:12bbabb062ee9957",
+      "内容哈希": "sha256:df1fb18f42a3fd8c",
+      "类别": "lang",
+      "路径": "tests/error_cases/36_实例方法参数个数.jsh"
+    },
+    {
       "id": "tests__error_cases__36_无法识别的字符",
       "产物哈希": "sha256:40d175222cd86fdd",
       "内容哈希": "sha256:848ccea620fc1b77",
@@ -715,5 +722,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 93
+  "语料数": 94
 }

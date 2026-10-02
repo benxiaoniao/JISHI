@@ -2300,7 +2300,12 @@ JSVM_API int jsvm_call_function(JsVm *vm, JVal *fv,
                   kwname_idx, ckwv, nkw, locals,
                   cells, ncellvars + nfreevars,
                   jfn->defaults, jfn->ndefaults,
-                  0, 0) != 0)
+                  /* ⚠️ **参数绑定的报错位置用调用点**（R6.7）：宿主传下来的
+                     `call_line, call_col` 就是「谁触发了这次回流」。以前写
+                     0,0 → 报错退回函数的**定义处**（`line or code.firstlineno`），
+                     而树遍历/Python VM/Node/Rust 都报**调用点**。
+                     同一件事三个执行器给两个答案，违反「三执行器语义必须一致」。 */
+                  call_line, call_col) != 0)
         goto fail;
 
     int base = vm->sp;

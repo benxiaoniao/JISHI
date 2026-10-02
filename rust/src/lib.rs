@@ -1494,8 +1494,13 @@ impl VM {
                                     let mut all = Vec::with_capacity(args.len() + 1);
                                     all.push(Val::Instance(instance));
                                     all.extend(args.into_iter());
+                                    // ⚠️ **关键字参数要一起传下去**（R6.7）：以前这里
+                                    // 写的是 `&[]`，于是 `o.方法(不存在的名=1)` 的 kwargs
+                                    // 被**静默丢掉**、报成「缺少参数：x」（看着像另一件事），
+                                    // 而 Python / Node 报「函数「方法」没有叫「不存在」的参数」。
+                                    // 宿主静默丢参数是本项目最恨的一类 bug（M51 修过同款）。
                                     self.push_func_frame(Some((fi, ip)), func, all,
-                                                         &[], &[], fn_base,
+                                                         &knames, &kwvals, fn_base,
                                                          (ins.line, ins.col))?;
                                     return Ok(Flow::Call);
                                 }

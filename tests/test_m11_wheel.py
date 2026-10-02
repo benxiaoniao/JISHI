@@ -20,17 +20,43 @@ def test_lib_name_platform():
         assert name == "libjsvm.so"
 
 
-def test_lib_path_prefers_package_native(monkeypatch, tmp_path):
-    """包内 _native 优先于源码树 cvm/bin。"""
-    # 伪造一个包内 native 目录，塞一个假 DLL 文件
-    fake_pkg = tmp_path / "_native"
-    fake_pkg.mkdir()
-    fake_lib = fake_pkg / CB._lib_name()
-    fake_lib.write_bytes(b"fake")
-    monkeypatch.setattr(CB, "_NATIVE", fake_pkg)
+def test_lib_path_prefers_dev_in_source_tree(monkeypatch, tmp_path):
+    """**源码树里 `cvm/bin/` 优先**（判据：`cvm/src/` 在）。
 
-    # 源码树 cvm/bin 也存在（开发模式），但包内应优先
-    assert CB._lib_path() == fake_lib
+    ⚠️ M11 时这条是反的（包内 `_native` 固定优先），判据只写了「包内存在」——
+    于是**开发仓库里也走包内那份**。R6.7 真踩到：改了 `cvm/src/jsvm.c`、
+    跑了 `cvm/build.py`，Python 加载的仍是 `_native/` 里那份**九天前的** dll，
+    **改了没生效、一句提示都没有**（而且这个坑 M40 已经踩过一次）。
+    → 判据改成「**这是不是源码树**」：`cvm/src/` 在才算，安装版里没有它。
+    """
+    fake_root = tmp_path / "src"
+    fake_bin = fake_root / "cvm" / "bin"
+    fake_native = fake_root / "jishi" / "_native"
+    (fake_root / "cvm" / "src").mkdir(parents=True)     # ← 源码树标志
+    fake_bin.mkdir(parents=True)
+    fake_native.mkdir(parents=True)
+    dev_lib = fake_bin / CB._lib_name()
+    dev_lib.write_bytes(b"fake-dev")
+    (fake_native / CB._lib_name()).write_bytes(b"fake-native")
+    monkeypatch.setattr(CB, "_ROOT", fake_root)
+    monkeypatch.setattr(CB, "_BIN", fake_bin)
+    monkeypatch.setattr(CB, "_NATIVE", fake_native)
+    assert CB._lib_path() == dev_lib
+
+
+def test_lib_path_installed_falls_back_to_package_native(monkeypatch, tmp_path):
+    """**安装版**（没有 `cvm/src/`）才用包内的 `_native` —— 老语义只在这半边成立。"""
+    fake_root = tmp_path / "installed"
+    fake_bin = fake_root / "cvm" / "bin"
+    fake_native = fake_root / "jishi" / "_native"
+    fake_bin.mkdir(parents=True)                        # 有产物、但**没有** cvm/src
+    fake_native.mkdir(parents=True)
+    pkg_lib = fake_native / CB._lib_name()
+    pkg_lib.write_bytes(b"fake-native")
+    monkeypatch.setattr(CB, "_ROOT", fake_root)
+    monkeypatch.setattr(CB, "_BIN", fake_bin)
+    monkeypatch.setattr(CB, "_NATIVE", fake_native)
+    assert CB._lib_path() == pkg_lib
 
 
 def test_lib_path_fallback_to_dev(monkeypatch, tmp_path):

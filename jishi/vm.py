@@ -218,14 +218,26 @@ class VM:
         循环控制信号不在此拦截 —— 与树遍历一致，让它穿透回最近的循环。
         """
         code = fn.code
+        # ⚠️ **参数绑定的报错位置用「调用点」，不是函数定义处**（R6.7）。
+        #
+        # `call_function` 是「Python 侧回流」的入口：内建方法回调（`列表.映射(f)`）、
+        # 用户类方法（`o.方法()`）都从这里进来。此时 `_pending_call_site` 正是
+        # 「谁触发了这次回流」——把它当绑定位置，报错就落在**用户写的那一行**上。
+        #
+        # 以前写死 `code.firstlineno, col=1`：`o.方法()` 少给参数时，VM 报函数
+        # **定义处**（`2:1`），而树遍历与两个宿主报**调用点**（`5:5`）——
+        # 同一件事三个执行器给两个答案（R6.6 登记，R6.7 修）。
+        bind_line, bind_col = self._pending_call_site
+        if not bind_line:
+            bind_line, bind_col = code.firstlineno, 1
         locals_, values = self._bind(code, args, kwargs or {},
-                                     line=code.firstlineno, col=1,
+                                     line=bind_line, col=bind_col,
                                      defaults=fn.defaults)
         frame_cells = [Cell() for _ in code.cellvars] + list(fn.cells)
         self._store_cells(code, frame_cells, values)
         base = len(self.stack)
         self.stack.append(None)                     # 返回值占位
-        line, col = self._pending_call_site
+        line, col = bind_line, bind_col
         frame = _Frame(code, 0, base, locals_, frame_cells,
                        call_line=line, call_col=col)
         self.frames.append(frame)

@@ -1860,7 +1860,19 @@ def make_instance(cls: JishiClass, args: list, kwargs: dict, *,
     inst = JishiInstance(cls)
     init = cls.methods.get("初始化")
     if init is not None:
-        init(inst, *args, **kwargs)
+        try:
+            init(inst, *args, **kwargs)
+        except JishiError as e:
+            # ⚠️ **参数绑定的错要带「调用点」**（R6.7）：`甲()` 写在哪一行，
+            # 与 VM / C VM / 两个宿主报的**是同一处**。
+            #
+            # 树遍历的类构造走这条共享路径，而下面那个 `init` 是普通函数对象、
+            # 拿不到「谁在调用它」——所以位置只能由这里补。
+            # ⚠️ 只补**还没填的**：VM / C VM 那条路上 `init` 是字节码函数，
+            # 它自己已经带了更准的位置，不许被覆盖。
+            if e.line is None and line:
+                e.line, e.col = line, col
+            raise
     elif args or kwargs:
         raise RunTypeError(
             f"类「{cls.name}」没有构造方法「初始化」，不能传参数",

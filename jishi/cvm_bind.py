@@ -61,12 +61,26 @@ def _lib_path() -> Path:
         cand = Path(meipass) / _lib_name()
         if cand.exists():
             return cand
-    # 2. 包内预编译（wheel 安装后，pip install 即含 C VM）
+
+    dev = _BIN / _lib_name()
+    # 2. ✅ **源码树里 `cvm/bin/` 优先**（R6.7）：判据是「**这是不是源码树**」
+    #    —— `cvm/src/` 在，说明这是开发仓库，`python cvm/build.py` 刚编出来的
+    #    那份就该被用上。
+    #
+    # ⚠️ **以前这里是反的**（包内预编译的 `jishi/_native/` 固定排前面），于是出现
+    # 「改了 `cvm/src/jsvm.c`、也跑了 `cvm/build.py`，但 Python 加载的仍是
+    # `_native/` 那份**旧** dll」——**改了没生效，而且一句提示都没有**。
+    # ⚠️ 而且这个坑**踩过两次**（M40 一次、R6.7 一次），中间那次还把它写进了笔记
+    # —— 「记得建两份」这种经验没人会在动手前翻。**所以这次改的是机制**。
+    #
+    # 安装版（wheel）里没有 `cvm/src/`，自然走下一档；PyInstaller 走第 1 档。
+    if dev.exists() and (_ROOT / "cvm" / "src").is_dir():
+        return dev
+    # 3. 包内预编译（wheel 安装后，pip install 即含 C VM）
     pkg = _NATIVE / _lib_name()
     if pkg.exists():
         return pkg
-    # 3. 回退：源码树开发模式（cvm/bin/，由 python cvm/build.py 构建）
-    dev = _BIN / _lib_name()
+    # 4. 兜底：源码树的产物（哪怕没有 `cvm/src`，比如只拷了产物过去）
     if dev.exists():
         return dev
     raise FileNotFoundError(
@@ -1380,6 +1394,12 @@ class CvmHost:
             c2py = self.c2py
             o = c2py(obj[0])
             name = self.names[name_idx]
+            # ⚠️ **也要记下调用点**（R6.7）：`call_value` 里若进了基石函数
+            # （用户类方法 `o.方法()`），C 侧重入建帧与**参数绑定**要用它当位置。
+            # 以前这里没记 → 重入时读到的是**上一次** `_cb_call` 留下的值（或 0），
+            # 于是「参数个数错」报到函数定义处（`2:1`），与树遍历/Python VM
+            # 报的调用点（`5:5`）不一致。
+            self._pending_call_site = (line, col)
             m = R.get_attr(o, name, line=gline, col=gcol,
                            filename=self.filename)
             arglist = [c2py(args[i]) for i in range(nargs)]
