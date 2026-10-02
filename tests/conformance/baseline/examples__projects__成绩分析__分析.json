@@ -2016,7 +2016,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "19ef4c4a651ea45e9e2e6a3ed263b844c5b3f0dfa04dc4e6e55d64957531a794",
+    "checksum": "676a4110fb9c1069bb03350a1c6a6876ec5769acda28b2b037ab9870cb1500ca",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -2122,6 +2122,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -2245,6 +2246,7 @@
             7,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "值"
           ],
@@ -2458,6 +2460,7 @@
             14,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "行",
             "科目",
@@ -3951,6 +3954,7 @@
             21,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "文件路径",
             "i",
@@ -4365,6 +4369,7 @@
             64,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "e",
             "参数们",
@@ -4510,7 +4515,7 @@
         "主程序"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

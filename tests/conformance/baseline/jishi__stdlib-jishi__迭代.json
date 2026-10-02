@@ -5694,7 +5694,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "9508001e7da9200f382bf0962ffe1e9f8290e44198eb4742ab65cbe22fe41d83",
+    "checksum": "c6c973611d3d92fd60c37f07b697375e84cedfd7c6ed909bc59a1bcccf88f341",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -5926,6 +5926,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -6217,6 +6218,7 @@
             16,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "名字",
@@ -6517,6 +6519,7 @@
             27,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "全部",
             "起",
@@ -6648,6 +6651,7 @@
             39,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "值",
             "名字",
@@ -7090,6 +7094,7 @@
             46,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "每组个数",
@@ -7572,6 +7577,7 @@
             63,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "窗口大小",
@@ -7988,6 +7994,7 @@
             80,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "出",
@@ -8463,6 +8470,7 @@
             96,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "嵌套",
             "_e",
@@ -8682,6 +8690,7 @@
             116,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "个数",
@@ -8939,6 +8948,7 @@
             125,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "个数",
@@ -9022,6 +9032,7 @@
             134,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代"
           ],
@@ -9229,6 +9240,7 @@
             139,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "条件",
@@ -9450,6 +9462,7 @@
             148,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "初值",
@@ -9804,6 +9817,7 @@
             158,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "取几个"
@@ -10155,6 +10169,7 @@
             170,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "起",
             "k"
@@ -10695,6 +10710,7 @@
             184,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "取几个",
@@ -11109,6 +11125,7 @@
             204,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "k"
           ],
@@ -12098,6 +12115,7 @@
             221,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "序列",
             "_e",
@@ -12344,7 +12362,7 @@
         "笛卡尔积"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

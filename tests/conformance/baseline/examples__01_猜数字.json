@@ -322,7 +322,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "c37a799fbfeee921615b52e0b9ee1a6b3b4707bfc3aed25a834f7f5ca87eaceb",
+    "checksum": "69ffbdee31afcd031a026a222695d34f45468010e46627d831b0f3a5849e9996",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -698,6 +698,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "$tmp1"
           ],
@@ -765,7 +766,7 @@
         "猜测"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

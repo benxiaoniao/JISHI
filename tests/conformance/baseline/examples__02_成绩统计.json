@@ -548,7 +548,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "184d6fb6e447ee4053af69ecbfde0404ee0a8da33bdf82275af80701803a27d2",
+    "checksum": "0b5d64849e6fd9e1828a298f4632bb44a38d49b5a3aeacbdc0b2293e79a55eb7",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -906,6 +906,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -1065,6 +1066,9 @@
             4,
             1
           ],
+          "local_hints": {
+            "1": "外层也有一个叫「分数」的变量。在这个函数里给它赋过值，它就成了这个函数的局部变量，赋值之前不能读取"
+          },
           "local_names": [
             "分数们",
             "分数",
@@ -1244,6 +1248,9 @@
             10,
             1
           ],
+          "local_hints": {
+            "1": "外层也有一个叫「分数」的变量。在这个函数里给它赋过值，它就成了这个函数的局部变量，赋值之前不能读取"
+          },
           "local_names": [
             "分数们",
             "分数",
@@ -1339,7 +1346,7 @@
         "分数"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

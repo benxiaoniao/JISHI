@@ -357,7 +357,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "a56970bf099fbdfc5aeebef866fc9fe11f0fe30326205b4aad09df0ccb9d3a4a",
+    "checksum": "a4554b7aadf0d3a68c69aed8333c14e3ca133d0acc443357e0886e875951816c",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -757,6 +757,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "$tmp1"
           ],
@@ -827,7 +828,7 @@
         "打印"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

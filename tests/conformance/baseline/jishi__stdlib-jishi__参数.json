@@ -5146,7 +5146,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "318410d8d306113d515072b77491b99c38249484754bb7187c30b6d7777d0de5",
+    "checksum": "28b14a5026cf4e4ef7bf86f65ad3158b85996cd663303bb73c4532862fe7d04a",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -5384,6 +5384,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -5447,6 +5448,7 @@
             19,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "v"
           ],
@@ -5702,6 +5704,7 @@
             25,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "句柄"
           ],
@@ -5777,6 +5780,7 @@
             33,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "_报解析错误",
           "nlocals": 0,
@@ -6050,6 +6054,7 @@
             38,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "_e",
@@ -6380,6 +6385,7 @@
             50,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "选项表",
             "名",
@@ -6565,6 +6571,7 @@
             62,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "选项表",
             "名",
@@ -8165,6 +8172,7 @@
             70,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "选项表",
             "参数们",
@@ -8344,6 +8352,7 @@
             127,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "名字",
             "说明"
@@ -8545,6 +8554,7 @@
             133,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "句柄",
             "名",
@@ -8759,6 +8769,7 @@
             141,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "句柄",
             "名",
@@ -8985,6 +8996,7 @@
             149,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "文",
             "i"
@@ -9139,6 +9151,7 @@
             164,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "文",
             "宽",
@@ -9971,6 +9984,7 @@
             172,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "句柄",
             "o",
@@ -10430,6 +10444,7 @@
             196,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "参数们",
             "声明",
@@ -10694,6 +10709,7 @@
             210,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "句柄",
             "参数们",
@@ -10986,7 +11002,7 @@
         "解析"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

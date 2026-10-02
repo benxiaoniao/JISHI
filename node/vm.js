@@ -207,9 +207,14 @@ class VM {
             // `vm._unbound` → `runtime.unbound_local_error`，三个执行器共用）。
             // 以前这里报「找不到名字「X」」+ 类型「异常」，两处都不对。
             if (v === R.UNSET) {
+              // ⚠️ **按槽位的具体提示**（R6.6，字节码 v3）：外层也有同名变量时，
+              // Python 侧给的是「外层也有一个叫「X」的变量…」（编译器按槽位
+              // 存进 `Code.local_hints`）—— 以前这份数据**不在字节码 JSON 里**，
+              // 宿主只能说通用那句，同一个错误两处提示不同。
               throw R.unboundErr(
                 ins.a < localNames.length ? localNames[ins.a] : '$' + ins.a,
-                ins.line, ins.col);
+                ins.line, ins.col,
+                (code.localHints || {})[ins.a]);
             }
             stack.push(v);
           } else if (op === Op.LOAD_CONST) {
@@ -505,7 +510,15 @@ class VM {
     }
     if (fn instanceof R.BoundMethod) {
       this._rejectKwargs(`「${R.display(fn.obj)}」的方法`, kwargs, line, col);
-      return fn.impl(fn.obj, args, line, col);
+      // ⚠️ **报错位置用方法值携带的那一对**（取属性时记下的，见 `getAttr`）——
+      // 与 Python 的 `_BoundMethod.__call__` 同源：方法内部的错落在 `X.方法`
+      // 上（`a.追加()` 指第 2 列那个 `.`），而不是调用点（`(` 那一列）。
+      // 以前一路用的是指令位置 → 四种方法相关的错都比 Python 差三列（R6.6）。
+      // 模块属性（`数.开方`）不是 `BoundMethod`，仍走指令位置 —— 那边 Python
+      // 也用调用点，两边本来就一致。
+      const ml = fn.line != null ? fn.line : line;
+      const mc = fn.col != null ? fn.col : col;
+      return fn.impl(fn.obj, args, ml, mc);
     }
     if (fn instanceof R.BoundUserMethod) {
       return this.callFunction(fn.fn, [fn.instance, ...args], kwargs, line, col);

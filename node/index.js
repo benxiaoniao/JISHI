@@ -13,6 +13,11 @@ const fs = require('fs');
 const Runtime = require('./runtime');
 const { VM, STDLIB } = require('./vm');
 
+//: 宿主认的字节码格式版本 —— **与 `jishi/serialize.py` 的 `FORMAT_VERSION`、
+//: `core/src/serialize.rs` 的 `FORMAT_VERSION` 三处同步**，改一处就要改三处。
+//: 3: R6.6 起 Code 增加 `local_hints`（按槽位的「赋值前读局部」提示）
+const FORMAT_VERSION = 3;
+
 function decodeConst(c) {
   if (c.t === 'none') return null;
   if (c.t === 'true') return true;
@@ -40,7 +45,14 @@ function decodePayload(payload) {
     }
     // param_kind（M25）：形参种类 0=普通 1=*参数 2=**选项；
     // 旧产物没这个字段时按「全普通」处理
-    return { ...cd, paramKind: cd.param_kind ?? [], instrs };
+    // local_hints（v3）：按槽位的报错提示（「赋值前读局部」那句具体说法）。
+    // JSON 的键是**字符串**，JS 对象照样用数字索引取（`hints[slot]`）。
+    return {
+      ...cd,
+      paramKind: cd.param_kind ?? [],
+      localHints: cd.local_hints ?? {},
+      instrs,
+    };
   });
   return { ...payload, consts, codes };
 }
@@ -50,8 +62,8 @@ function loadPayload(text) {
   if (body.format !== 'jishi-bytecode') {
     throw new Error('不是基石字节码格式');
   }
-  if (body.version !== 2) {
-    throw new Error(`字节码版本 ${body.version} 与 JS 引擎 2 不兼容`);
+  if (body.version !== FORMAT_VERSION) {
+    throw new Error(`字节码版本 ${body.version} 与 JS 引擎 ${FORMAT_VERSION} 不兼容`);
   }
   return decodePayload(body.payload);
 }

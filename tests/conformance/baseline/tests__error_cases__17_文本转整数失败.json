@@ -31,7 +31,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "3d592365a37bc60b3494639074e2bdd91691c44e609ad6c2a0a2f384c592d6e1",
+    "checksum": "58048b8188a62195aef59bb0c0eb95eb95ef06fd310fa3f923a22695e4c41f62",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -71,6 +71,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -94,7 +95,7 @@
         "转整数"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

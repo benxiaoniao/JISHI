@@ -11,6 +11,7 @@
 """
 
 import io
+import re
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -559,6 +560,36 @@ def test_node_host_supports_varargs_and_star_unpack():
 
 
 def test_node_host_version_check_matches_engine():
-    """字节码格式版本两端必须一致，否则 Node 会拒绝加载。"""
+    """字节码格式版本两端必须一致，否则 Node 会拒绝加载。
+
+    ⚠️ R6.6 起 Node 侧**不再写死数字**，而是用一个 `FORMAT_VERSION` 常量
+    —— 版本号本来散在四处，改一处忘三处正是这类检查最容易失效的地方。
+    所以这条判据改成两句：**它确实读那个常量** + **常量值与本侧一致**。
+    """
     node_js = (ROOT / "node" / "index.js").read_text(encoding="utf-8")
-    assert f"body.version !== {serialize.FORMAT_VERSION}" in node_js
+    assert "body.version !== FORMAT_VERSION" in node_js
+    m = re.search(r"const FORMAT_VERSION = (\d+)", node_js)
+    assert m, "Node 侧应该有 `const FORMAT_VERSION = <数字>`"
+    assert int(m.group(1)) == serialize.FORMAT_VERSION, (
+        f"Node 侧的 {m.group(1)} 与 serialize.FORMAT_VERSION "
+        f"（{serialize.FORMAT_VERSION}）不一致")
+
+
+def test_字节码格式版本四处同步():
+    """同一个版本号写在**四处**：Python 前端 / Rust 前端 / 两个宿主。
+
+    改一处忘三处的症状是「宿主静默拒绝加载」或「按旧格式错误解析」——
+    两种都难查。所以直接把它们钉在同一根线上（R6.6 立的规矩）。
+    """
+    src = serialize.FORMAT_VERSION
+    node_js = (ROOT / "node" / "index.js").read_text(encoding="utf-8")
+    rust_lib = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
+    core_ser = (ROOT / "core" / "src" / "serialize.rs").read_text(encoding="utf-8")
+    m_node = re.search(r"const FORMAT_VERSION = (\d+)", node_js)
+    m_rust = re.search(r"pub const BYTECODE_VERSION: i64 = (\d+)", rust_lib)
+    m_core = re.search(r"pub const FORMAT_VERSION: i64 = (\d+)", core_ser)
+    assert m_node and m_rust and m_core, "四处各自应该声明一个版本常量"
+    got = {"node": int(m_node.group(1)), "rust": int(m_rust.group(1)),
+           "core": int(m_core.group(1))}
+    assert all(v == src for v in got.values()), (
+        f"版本号不同步：Python={src} {got}")

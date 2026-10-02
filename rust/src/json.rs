@@ -63,6 +63,13 @@ impl Json {
             _ => None,
         }
     }
+    /// 取对象（`local_hints` 这种「键是字符串的映射」用，见 R6.6）。
+    pub fn as_obj(&self) -> Option<&BTreeMap<String, Json>> {
+        match self {
+            Json::Obj(m) => Some(m),
+            _ => None,
+        }
+    }
 }
 
 pub fn parse(text: &str) -> Result<Json, String> {

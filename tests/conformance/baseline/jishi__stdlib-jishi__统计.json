@@ -4606,7 +4606,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "574c976c966ed7f89b15120305b37a36ea8aab7aaace55bdbb79f1f2f855464e",
+    "checksum": "45366e1cb1c03b9d2c91f80642efaead086e145bafb494fb5c875b18334de475",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -4808,6 +4808,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -5495,6 +5496,7 @@
             23,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "名字",
@@ -5648,6 +5650,7 @@
             49,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "序",
             "名字"
@@ -5777,6 +5780,7 @@
             55,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "名字",
@@ -6027,6 +6031,7 @@
             61,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "x",
@@ -6261,6 +6266,7 @@
             72,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "x",
@@ -6531,6 +6537,7 @@
             81,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "n",
@@ -7053,6 +7060,7 @@
             91,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "v",
@@ -7602,6 +7610,7 @@
             110,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "样本",
@@ -7713,6 +7722,7 @@
             128,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "样本"
@@ -7866,6 +7876,7 @@
             133,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "序"
@@ -8524,6 +8535,7 @@
             139,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "p",
@@ -9090,6 +9102,7 @@
             157,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "去掉个数",
@@ -9739,6 +9752,7 @@
             174,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "权重",
@@ -10003,7 +10017,7 @@
         "加权平均"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

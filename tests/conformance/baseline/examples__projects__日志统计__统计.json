@@ -1945,7 +1945,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "517387f8de388e80c00c9c84dbfa84bd422171e93486cabf37f70391afe30054",
+    "checksum": "a58e2b6f37c2aed77eade85d608e916ce7319922ee2f6c7414ebd7a33838c712",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -2063,6 +2063,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -2377,6 +2378,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "分块",
             "分组",
@@ -2675,6 +2677,7 @@
             14,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "数据",
             "名字",
@@ -2941,6 +2944,7 @@
             29,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "出",
@@ -3144,6 +3148,7 @@
             40,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "表",
             "键",
@@ -3221,6 +3226,7 @@
             51,
             18
           ],
+          "local_hints": {},
           "local_names": [
             "对"
           ],
@@ -3731,6 +3737,7 @@
             54,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "个数",
@@ -4092,6 +4099,7 @@
             75,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "频次字典",
             "降序",
@@ -4175,6 +4183,7 @@
             85,
             22
           ],
+          "local_hints": {},
           "local_names": [
             "对"
           ],
@@ -4238,6 +4247,7 @@
             85,
             18
           ],
+          "local_hints": {},
           "local_names": [
             "对"
           ],
@@ -4507,6 +4517,7 @@
             88,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "键函数",
@@ -4693,6 +4704,7 @@
             99,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "全部",
             "n",
@@ -4947,6 +4959,7 @@
             108,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "个数",
@@ -5356,6 +5369,7 @@
             119,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "个数",
@@ -5823,6 +5837,7 @@
             136,
             5
           ],
+          "local_hints": {},
           "local_names": [
             "可迭代",
             "每块个数",
@@ -6023,6 +6038,7 @@
             5,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "行",
             "段"
@@ -7767,6 +7783,7 @@
             13,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "日志路径",
             "__用_1__",
@@ -8047,6 +8064,7 @@
             63,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "e",
             "路径"
@@ -8309,7 +8327,7 @@
         "主程序"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

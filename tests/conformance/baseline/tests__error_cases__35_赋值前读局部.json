@@ -114,7 +114,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "7b0d5500c9022e9a0d0c0b91748b1045a7863981617ceb9c14b9c60b551d8fc7",
+    "checksum": "e73cac2a1bd203a2fcdd2a8e387758fa35d72711b1c6591d4cd97872bf9b94a4",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -178,6 +178,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -241,6 +242,9 @@
             3,
             1
           ],
+          "local_hints": {
+            "1": "外层也有一个叫「全局」的变量。在这个函数里给它赋过值，它就成了这个函数的局部变量，赋值之前不能读取"
+          },
           "local_names": [
             "值",
             "全局"
@@ -287,7 +291,7 @@
         "读"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

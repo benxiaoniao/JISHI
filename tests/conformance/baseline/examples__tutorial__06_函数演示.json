@@ -544,7 +544,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "1acb06cc4d6294eb5ea8d7b3f75a7a1d1dd88ba6639b9f9a95eff65e786a6582",
+    "checksum": "bc8b658fb405a404d9d65dcf95ca309f1a0e3834b7d192895946b56a4dd3ec3a",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -824,6 +824,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -887,6 +888,7 @@
             2,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "名字"
           ],
@@ -974,6 +976,7 @@
             8,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "分数们"
           ],
@@ -1127,6 +1130,7 @@
             14,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "n"
           ],
@@ -1190,6 +1194,7 @@
             22,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "打印横线",
           "nlocals": 0,
@@ -1277,7 +1282,7 @@
         "打印横线"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

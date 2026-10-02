@@ -21,6 +21,12 @@ mod stdlib_sigs;
 mod zip;
 use json::Json;
 
+/// 宿主认的字节码格式版本 —— **四处同步**：`jishi/serialize.py` 的
+/// `FORMAT_VERSION`、`core/src/serialize.rs` 的 `FORMAT_VERSION`、
+/// `node/index.js` 的 `FORMAT_VERSION`，以及这里。改一处就要改四处。
+/// 3: R6.6 起 Code 增加 `local_hints`（按槽位的「赋值前读局部」提示）
+pub const BYTECODE_VERSION: i64 = 3;
+
 mod decimal;
 use decimal::{BigInt, Dec, Round};
 
@@ -715,7 +721,10 @@ pub(crate) fn type_label(v: &Val) -> String {
 
 #[derive(Clone)]
 enum BoundMethod {
-    Builtin { name: String, receiver: Box<Val> },
+    /// 内建类型（列表 / 文本 / 字典 / 集合 / 文件 / 精确小数）的方法。
+    /// `line`/`col` 是**取属性时**的位置（`X.方法` 那一处）—— 方法内部报错
+    /// 用它，与 Python 的 `_BoundMethod.__call__` 同源（R6.6）。
+    Builtin { name: String, receiver: Box<Val>, line: i64, col: i64 },
     User { func: Func, instance: JInst, name: String },
 }
 
@@ -813,6 +822,11 @@ struct Code {
     local_names: Vec<String>,
     cellvars: Vec<String>,
     freevars: Vec<String>,
+    /// 局部槽位 → **按槽位的报错提示**（v3，R6.6）。只给「本函数赋过值、
+    /// 外层也有同名变量」的槽位 —— 报「赋值前读局部」时用它替掉通用那句，
+    /// 与 Python 的 `Code.local_hints` 同源（以前这份数据**不在字节码 JSON 里**，
+    /// 宿主只能说通用说法，同一个错误在两处提示不同）。
+    local_hints: Vec<(i64, String)>,
 }
 
 #[derive(Clone)]
@@ -1325,8 +1339,14 @@ impl VM {
                         // 文案与类型名都要照 Python 的 `runtime.unbound_local`：
                         // 「**赋值之前被用到**」而不是「找不到名字」—— 后者会让人以为
                         // 名字写错了。宿主原来两样都不一样（R6.2 对齐）。
-                        return Err(err_with_hint(
-                            T_NAME, unbound_msg(&name), unbound_hint(&name)));
+                        // ⚠️ **提示语**：外层也有同名变量时用**按槽位**的那句
+                        // （字节码 v3 的 `local_hints`，与 Python 同源）；没有就用
+                        // 通用那句。R6.2 时这份数据不在格式里，只能给通用的（R6.6 收）。
+                        let hint = code.local_hints.iter()
+                            .find(|(k, _)| *k == slot as i64)
+                            .map(|(_, v)| v.clone())
+                            .unwrap_or_else(|| unbound_hint(&name));
+                        return Err(err_with_hint(T_NAME, unbound_msg(&name), hint));
                     }
                     let v = f.locals[slot].clone();
                     self.stack.push(v);
@@ -1456,6 +1476,16 @@ impl VM {
                             self.stack.push(Val::Instance(inst));
                         }
                         Val::BoundMethod(bm) => {
+                            // ⚠️ **内建方法携带的「取属性位置」**（R6.6）：方法内部的
+                            // 错要落在 `X.方法` 上（`a.追加()` 指那一列 `.`），
+                            // 与 Python 的 `_BoundMethod.__call__` 同源。宿主以前
+                            // 一路用指令位置（`(` 那一列），四种方法相关的错全差三列。
+                            // 📌 模块属性（`数.开方`）走的是裸 `Builtin`、不是这里 ——
+                            // 那边 Python 也用调用点，本来就一致。
+                            let bm_pos = match bm.as_ref() {
+                                BoundMethod::Builtin { line, col, .. } => Some((*line, *col)),
+                                BoundMethod::User { .. } => None,
+                            };
                             match *bm {
                                 BoundMethod::User { func, instance, .. } => {
                                     // 用户方法：把实例放进第一个形参（自身），再压新帧。
@@ -1471,8 +1501,20 @@ impl VM {
                                 }
                                 builtin => {
                                     reject_kwargs("这个方法", &knames)?;
-                                    let out = self.call_bound(builtin, &args)?;
-                                    self.stack.push(out);
+                                    match self.call_bound(builtin, &args) {
+                                        Ok(out) => self.stack.push(out),
+                                        Err(mut e) => {
+                                            // 只补「还没填过」的 —— 与 `fill_error_loc`
+                                            // 同一条规矩（内层更准的不许被覆盖）。
+                                            if let Some((l, c)) = bm_pos {
+                                                if e.line.is_none() && l > 0 {
+                                                    e.line = Some(l);
+                                                    e.col = Some(c);
+                                                }
+                                            }
+                                            return Err(e);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1573,7 +1615,7 @@ impl VM {
                 op::GET_ATTR => {
                     let name = self.module.names[ins.a as usize].clone();
                     let obj = self.stack.pop().unwrap_or(Val::None_);
-                    let out = get_attr(obj, &name)?;
+                    let out = get_attr(obj, &name, ins.line, ins.col)?;
                     self.stack.push(out);
                 }
                 op::SET_ATTR => {
@@ -1617,7 +1659,7 @@ impl VM {
                 op::LIST_APPEND => {
                     let val = self.stack.pop().unwrap_or(Val::None_);
                     let obj = self.stack.pop().unwrap_or(Val::None_);
-                    let bm = get_attr(obj, "追加")?;
+                    let bm = get_attr(obj, "追加", ins.line, ins.col)?;
                     if let Val::BoundMethod(bm) = bm {
                         self.call_bound(*bm, &[val])?;
                     }
@@ -1977,7 +2019,7 @@ impl VM {
 
     /// 取属性（`get_attr` 的方法版：`self` 仅为将来可能需要的 VM 相关属性留位）。
     fn get_attr_on(&mut self, obj: Val, attr: &str) -> Result<Val, JishiError> {
-        get_attr(obj, attr)
+        get_attr(obj, attr, 0, 0)
     }
 
     /// 调用一个「已绑定」的方法（内建方法 + 用户函数回调）。
@@ -1989,7 +2031,7 @@ impl VM {
         match bm {
             BoundMethod::User { func, instance, .. } =>
                 self.call_frame(func, args.to_vec(), Some(Val::Instance(instance))),
-            BoundMethod::Builtin { name, receiver } => {
+            BoundMethod::Builtin { name, receiver, .. } => {
                 self.call_builtin_method(name, *receiver, args)
             }
         }
@@ -2303,7 +2345,7 @@ impl VM {
                 }
             }
             _ => match name {
-                "退出" | "关闭" => match get_attr(obj.clone(), name) {
+                "退出" | "关闭" => match get_attr(obj.clone(), name, 0, 0) {
                     Ok(v @ Val::BoundMethod(_)) => Some(v),
                     _ => None,
                 },
@@ -3573,7 +3615,7 @@ pub fn set_args(args: Vec<String>) {
 // 属性 / 下标 / 调用
 // ---------------------------------------------------------------------------
 
-fn get_attr(obj: Val, attr: &str) -> Result<Val, JishiError> {
+fn get_attr(obj: Val, attr: &str, line: i64, col: i64) -> Result<Val, JishiError> {
     match obj {
         Val::Module(_, attrs) => attrs.get(attr).cloned().ok_or_else(|| err("异常", format!("模块里没有「{attr}」"))),
         Val::Instance(inst_rc) => {
@@ -3616,12 +3658,12 @@ fn get_attr(obj: Val, attr: &str) -> Result<Val, JishiError> {
             "消息" => Ok(Val::Str(e.message.clone())),
             other => Err(err("类型错误", format!("「异常」没有属性「{other}」"))),
         },
-        Val::Str(s) => str_method(attr, Val::Str(s)),
-        Val::List(l) => list_method(attr, Val::List(l)),
-        Val::Dict(d) => dict_method(attr, Val::Dict(d)),
-        Val::Set(s) => set_method(attr, Val::Set(s)),
-        Val::Dec(d) => dec_method(attr, d),
-        Val::File(f) => file_method(attr, Val::File(f)),
+        Val::Str(s) => str_method(attr, Val::Str(s), line, col),
+        Val::List(l) => list_method(attr, Val::List(l), line, col),
+        Val::Dict(d) => dict_method(attr, Val::Dict(d), line, col),
+        Val::Set(s) => set_method(attr, Val::Set(s), line, col),
+        Val::Dec(d) => dec_method(attr, d, line, col),
+        Val::File(f) => file_method(attr, Val::File(f), line, col),
         // ⚠️ 显示**类型名**而不是值：Python 侧是 `type_name(obj)`，所以
         // `1.某某` 报的是「「整数」没有属性「某某」」；宿主原来打的是值
         // （「「1」没有属性…」），两个引擎连报错都不像（R6.2 对齐）。
@@ -3869,7 +3911,8 @@ const DEC_METHOD_NAMES: &[&str] = &["舍入", "绝对值", "转文本"];
 /// 变成「运行到调用时才报错」，**位置和措辞都差**（M30 的老坑，`set_method` 的注释
 /// 里记着）。以前只有 集合/文件/小数 三个有这道门，列表/字典/文本 是**到调用时**
 /// 才由 `call_builtin_method` 的兜底报「方法调用未实现」—— M54 统一了。
-fn gated_method(names: &[&str], kind: &str, name: &str, receiver: Val)
+fn gated_method(names: &[&str], kind: &str, name: &str, receiver: Val,
+                line: i64, col: i64)
     -> Result<Val, JishiError> {
     if !names.contains(&name) {
         // 文案与提示都照 Python 的 `runtime.get_attr`：
@@ -3882,27 +3925,28 @@ fn gated_method(names: &[&str], kind: &str, name: &str, receiver: Val)
             format!("「{kind}」没有方法「{name}」"),
             format!("可用的方法：{}", avail.join("、"))));
     }
-    let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
+    let bm = BoundMethod::Builtin {
+        name: name.to_string(), receiver: Box::new(receiver), line, col };
     Ok(Val::BoundMethod(Box::new(bm)))
 }
 
-fn str_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
-    gated_method(STR_METHOD_NAMES, "文本", name, receiver)
+fn str_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
+    gated_method(STR_METHOD_NAMES, "文本", name, receiver, line, col)
 }
-fn list_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
-    gated_method(LIST_METHOD_NAMES, "列表", name, receiver)
+fn list_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
+    gated_method(LIST_METHOD_NAMES, "列表", name, receiver, line, col)
 }
-fn dict_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
-    gated_method(DICT_METHOD_NAMES, "字典", name, receiver)
+fn dict_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
+    gated_method(DICT_METHOD_NAMES, "字典", name, receiver, line, col)
 }
-fn set_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
-    gated_method(SET_METHOD_NAMES, "集合", name, receiver)
+fn set_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
+    gated_method(SET_METHOD_NAMES, "集合", name, receiver, line, col)
 }
-fn file_method(name: &str, receiver: Val) -> Result<Val, JishiError> {
-    gated_method(FILE_METHOD_NAMES, "文件", name, receiver)
+fn file_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
+    gated_method(FILE_METHOD_NAMES, "文件", name, receiver, line, col)
 }
-fn dec_method(name: &str, d: Rc<Dec>) -> Result<Val, JishiError> {
-    gated_method(DEC_METHOD_NAMES, "精确小数", name, Val::Dec(d))
+fn dec_method(name: &str, d: Rc<Dec>, line: i64, col: i64) -> Result<Val, JishiError> {
+    gated_method(DEC_METHOD_NAMES, "精确小数", name, Val::Dec(d), line, col)
 }
 
 /// `--dump-methods`：本宿主**实际带的「对象方法」**，打成 JSON（M54）。
@@ -4376,11 +4420,13 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
     if body.get("format").and_then(|v| v.as_str()) != Some("jishi-bytecode") {
         return Err("不是基石字节码格式".to_string());
     }
-    // 字节码格式版本：2 = M25 起（Code 增加 param_kind，UNPACK 的 b 表示星号位置）。
-    // 与 Python 侧 serialize.FORMAT_VERSION、Node 侧 index.js 的检查保持一致；
+    // 字节码格式版本：**四处同步**（`jishi/serialize.py` / `core/src/serialize.rs`
+    // / `node/index.js` / 这里），改一处就要改四处。
+    // 3 = R6.6 起（Code 增加 local_hints）；2 = M25 起（Code 增加 param_kind）。
     // 版本不同宁可直接拒绝，也不要按旧格式错误解析（那会静默算错）。
-    if body.get("version").and_then(|v| v.as_i64()) != Some(2) {
-        return Err("字节码版本不兼容（本引擎需要 2）".to_string());
+    if body.get("version").and_then(|v| v.as_i64()) != Some(crate::BYTECODE_VERSION) {
+        return Err(format!(
+            "字节码版本不兼容（本引擎需要 {}）", crate::BYTECODE_VERSION));
     }
     let payload = body.get("payload").ok_or("缺少 payload")?;
 
@@ -4436,6 +4482,12 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
             local_names: cd.get("local_names").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
             cellvars: cd.get("cellvars").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
             freevars: cd.get("freevars").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+            // v3：`local_hints` 是 **JSON 对象**（键是槽位号的字符串形式）
+            local_hints: cd.get("local_hints").and_then(|v| v.as_obj())
+                .map(|o| o.iter().filter_map(|(k, v)| {
+                    Some((k.parse::<i64>().ok()?, v.as_str()?.to_string()))
+                }).collect())
+                .unwrap_or_default(),
         });
     }
 

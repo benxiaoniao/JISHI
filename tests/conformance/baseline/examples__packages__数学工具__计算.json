@@ -190,7 +190,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "8987dcdb52feef773bb5c2d7ca63a25e3b561fefc5f2ebf3dcd0d93fe55738be",
+    "checksum": "fceba7217c269ec26abe34d0db31ff215976ddb5bb4c295549c461ba07092f5f",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -230,6 +230,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -299,6 +300,7 @@
             2,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "x"
           ],
@@ -464,6 +466,7 @@
             5,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "列表",
             "总",
@@ -509,7 +512,7 @@
         "平方和"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

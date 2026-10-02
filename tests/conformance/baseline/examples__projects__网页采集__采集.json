@@ -1506,7 +1506,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "17ea06441506baa516db706c59d189d3e86d7e251ed8161629cba68343259461",
+    "checksum": "959348d94aae7078818aed9b73a2bead20aca2108723d5b8493c09c40b3b4c83",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -1624,6 +1624,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -1957,6 +1958,7 @@
             8,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "html",
             "匹配组",
@@ -2098,6 +2100,7 @@
             22,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "网址",
             "分段",
@@ -2367,6 +2370,7 @@
             28,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "链接们",
             "域",
@@ -3183,6 +3187,7 @@
             38,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "e",
             "html",
@@ -3327,7 +3332,7 @@
         "主程序"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

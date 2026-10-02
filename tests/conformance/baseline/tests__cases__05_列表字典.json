@@ -256,7 +256,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "39c7452ff71c3c1eb4914089d86ed69843515ce62d292cd31c84cbaaca1437ee",
+    "checksum": "f83641dc515abeb006bbcb8f55b66a6152fddbe5de21c24e84f112fa47aa5149",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -494,6 +494,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -548,7 +549,7 @@
         "字典"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

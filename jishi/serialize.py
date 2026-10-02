@@ -20,7 +20,8 @@ from typing import Any
 from . import opcodes as O
 
 #: 序列化格式版本号。格式变更（增删字段、改编码）时 +1，宿主据此拒绝不兼容产物。
-FORMAT_VERSION = 2   # 2: M25 起 Code 增加 param_kind（形参种类），且 UNPACK 的 b 表示星号位置
+FORMAT_VERSION = 3   # 3: R6.6 起 Code 增加 local_hints（按槽位的「赋值前读局部」提示）
+#                    2: M25 起 Code 增加 param_kind（形参种类），且 UNPACK 的 b 表示星号位置
 
 #: JavaScript 的安全整数上界（2^53 - 1）。宿主侧的 JSON 解析只能精确表示到这个数，
 #: 再大就会**静默丢精度**（`9223372036854775807` 变 `9223372036854776000`）。
@@ -87,6 +88,13 @@ def _payload_json(cmod: O.CompiledModule) -> dict:
             "cellvars": code.cellvars,
             "freevars": code.freevars,
             "firstlineno": code.firstlineno,
+            # 按槽位的报错提示（v3）。**只给「本函数赋过值、外层也有同名变量」
+            # 的槽位**（R6.2 起 Python 侧用 `Code.local_hints`，宿主以前手里
+            # 没有这份数据、只能给通用说法 → 同一个错误在两处的提示语不同）。
+            # 键是槽位号，JSON 的对象键只能是字符串 —— 宿主读的时候转回来。
+            # ⚠️ 排序输出：产物要**逐字节确定**，否则一致性夹具比不出东西。
+            "local_hints": {str(k): v
+                            for k, v in sorted(code.local_hints.items())},
             # 指令流：扁平数组，每条指令 6 个 int32（op,a,b,c,line,col）
             "instrs": [x for ins in code.instrs for x in ins.as_tuple()],
         })
@@ -153,6 +161,9 @@ def payload_to_cmod(payload: dict) -> O.CompiledModule:
             nlocals=cd["nlocals"], local_names=cd["local_names"],
             cellvars=cd["cellvars"], freevars=cd["freevars"],
             firstlineno=cd["firstlineno"],
+            # v3：按槽位的报错提示（JSON 键是字符串，转回 int 槽位）
+            local_hints={int(k): v
+                         for k, v in (cd.get("local_hints") or {}).items()},
         ))
     return O.CompiledModule(
         consts=consts, names=payload["names"],

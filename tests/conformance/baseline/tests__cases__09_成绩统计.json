@@ -196,7 +196,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "dba667273e7347096cb0f88ba31271fcf563074c08b0d8a2af38e28cc63571f1",
+    "checksum": "b3ef1ec4f076034ca3ab381708432bf94b24e5b170fbe845e9218b1d5e1cc484",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -290,6 +290,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -449,6 +450,7 @@
             2,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "分数们",
             "分数",
@@ -505,7 +507,7 @@
         "打印"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

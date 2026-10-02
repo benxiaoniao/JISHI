@@ -110,7 +110,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "6be85fb36406fb440a70403267cc3ca8647a35561559193876a9bf97f4b4b255",
+    "checksum": "cbee6caa3175d64d775c64d8c814b065c5fffbd8d655d4c164b19ad08b1b4a7a",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -186,6 +186,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -237,6 +238,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "a",
             "b"
@@ -296,7 +298,7 @@
         "打印"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

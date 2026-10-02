@@ -3703,7 +3703,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "4f5ded78d2cbb26f8bc702384ddd16c374e95a6e3bbe4744cce00e47c96dbce8",
+    "checksum": "f6bd6840aa18ed7036a63d523426fed33d16653b12db347188648cecb55efc56",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -3905,6 +3905,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -4214,6 +4215,7 @@
             24,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "内容"
           ],
@@ -4285,6 +4287,7 @@
             37,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "任务们"
           ],
@@ -4516,6 +4519,7 @@
             40,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "用法",
           "nlocals": 0,
@@ -5169,6 +5173,7 @@
             50,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "任务们",
             "__遍历项_57_5__",
@@ -5280,6 +5285,7 @@
             58,
             20
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "匿名函数",
           "nlocals": 0,
@@ -5589,6 +5595,7 @@
             65,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "参数们"
           ],
@@ -5856,6 +5863,7 @@
             78,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "下标",
             "任务们"
@@ -7575,6 +7583,7 @@
             86,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "下标",
             "任务们",
@@ -7649,6 +7658,7 @@
             141,
             1
           ],
+          "local_hints": {},
           "local_names": [
             "词们"
           ],
@@ -7931,7 +7941,7 @@
         "拼接"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

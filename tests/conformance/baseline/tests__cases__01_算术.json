@@ -302,7 +302,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "3f5f7f5af0e7876df3bf7af85d9c64cd38ddf670f1c37ac2e77e2c03a026db0f",
+    "checksum": "680713ddd29745c03560915f8b3e15547c29a9e42de42b73a870cb77a7875dda",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -594,6 +594,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -623,7 +624,7 @@
         "打印"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [

@@ -16,7 +16,7 @@ use crate::sha256;
 
 /// 序列化格式版本。**与 `jishi/serialize.py` 的 `FORMAT_VERSION` 同步**，
 /// 格式一变两边一起动，宿主据此拒绝不兼容产物。
-pub const FORMAT_VERSION: i64 = 2;
+pub const FORMAT_VERSION: i64 = 3;
 
 /// JavaScript 的安全整数上界（2^53 - 1）：超出就写成十进制字符串，
 /// 免得宿主侧 JSON 解析**静默丢精度**。
@@ -122,6 +122,21 @@ fn json_int_list(items: &[i64]) -> String {
     format!("[{}]", parts.join(","))
 }
 
+/// `local_hints`（v3）：按槽位的报错提示 → JSON **对象**（键是槽位号）。
+///
+/// ⚠️ 与 Python 的 `serialize._payload_json` 逐字对应 —— 那边是
+/// `sorted(code.local_hints.items())`（**按槽位排序**），这里也要排，
+/// 否则同一份源码两个前端产出的 JSON 文本不同，一致性夹具立马报红。
+fn json_local_hints(items: &[(i64, String)]) -> String {
+    let mut sorted: Vec<&(i64, String)> = items.iter().collect();
+    sorted.sort_by_key(|(k, _)| *k);
+    let parts: Vec<String> = sorted
+        .iter()
+        .map(|(k, v)| format!("{}:{}", json_str(&k.to_string()), json_str(v)))
+        .collect();
+    format!("{{{}}}", parts.join(","))
+}
+
 /// 常量池里的一项 → JSON（与 `serialize._const_to_json` 逐字对应）。
 fn const_json(c: &crate::compiler::Const) -> String {
     use crate::compiler::Const;
@@ -162,7 +177,8 @@ pub fn payload_json(m: &Module) -> String {
             concat!(
                 "{{\"name\":{},\"params\":{},\"param_idx\":{},\"param_local\":{},",
                 "\"param_cell\":{},\"param_kind\":{},\"nlocals\":{},\"local_names\":{},",
-                "\"cellvars\":{},\"freevars\":{},\"firstlineno\":{},\"instrs\":[{}]}}"
+                "\"cellvars\":{},\"freevars\":{},\"firstlineno\":{},\"local_hints\":{},",
+                "\"instrs\":[{}]}}"
             ),
             json_str(&c.name),
             json_str_list(&c.params),
@@ -175,6 +191,7 @@ pub fn payload_json(m: &Module) -> String {
             json_str_list(&c.cellvars),
             json_str_list(&c.freevars),
             c.firstlineno,
+            json_local_hints(&c.local_hints),
             instrs.join(","),
         ));
     }

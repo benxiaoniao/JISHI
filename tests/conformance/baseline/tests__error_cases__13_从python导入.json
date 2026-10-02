@@ -16,7 +16,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "3531a9fd4e6819b69d8ecd015cf001b4a43c11b6f937f1653e317d9807f62818",
+    "checksum": "0b2839c684fd1ebd8197c528b443a1554d24e45f00bb6bfa8c1ff97cc73ef1db",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -44,6 +44,7 @@
             1,
             1
           ],
+          "local_hints": {},
           "local_names": [],
           "name": "<模块>",
           "nlocals": 0,
@@ -62,7 +63,7 @@
         "量子计算"
       ]
     },
-    "version": 2
+    "version": 3
   },
   "diagnostics": null,
   "tokens": [
