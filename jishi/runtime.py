@@ -1579,7 +1579,17 @@ def get_attr(obj, attr, *, line=None, col=None, filename="<输入>"):
             hint=f"基类「{base.name}」的方法：{'、'.join(sorted(base.methods))}")
     if isinstance(obj, Module):
         if attr in obj.attrs:
-            return obj.attrs[attr]
+            v = obj.attrs[attr]
+            # 给标准库函数打个「模块.函数」标记（R6.4）：`call_value` 里拿到的
+            # 只是一个**裸函数**，没有模块信息，没法查签名做参数个数检查。
+            # ⚠️ 同一个函数可能被两个模块共用（`时间.星期名` 与 `日期.星期名`）——
+            # 那也无妨：报错只用**短名**（`rsplit(".")[-1]`），第一个标记就够。
+            if callable(v) and not hasattr(v, "_jishi_qualified"):
+                try:
+                    v._jishi_qualified = f"{obj.name}.{attr}"
+                except (AttributeError, TypeError):   # 有些内建不支持设属性
+                    pass
+            return v
         raise SemanticFuncError(
             f"模块「{obj.name}」里没有「{attr}」", line=line, col=col,
             filename=filename,
@@ -1738,6 +1748,69 @@ class _BoundMethod:
 # 调用
 # ---------------------------------------------------------------------------
 
+def _stdlib_arity(fn):
+    """标准库函数的 `(位置参数名, 必填个数, 是否变参)`（R6.4）。
+
+    ⚠️ Python 侧的标准库就是**真 Python 函数**，所以这里直接反射签名 ——
+    **不需要**那份由 `tools/gen_stdlib_sigs.py` 生成的表（两个宿主没有反射，
+    才需要生成物）。**事实源仍然是函数本身**，两边不会漂。
+    """
+    import inspect
+    try:
+        sig = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return None
+    pos_names: list[str] = []
+    n_req = 0
+    star = False
+    for p in sig.parameters.values():
+        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD):
+            pos_names.append(p.name)
+            if p.default is p.empty:
+                n_req += 1
+        elif p.kind is p.VAR_POSITIONAL:
+            star = True
+    return pos_names, n_req, star
+
+
+def check_stdlib_arity(qualified: str, fn, args, kwargs=None, *, line=None,
+                       col=None, filename: str = "<输入>") -> None:
+    """标准库函数的**参数个数**检查 —— 文案与两个宿主**逐字对齐**（R6.4）。
+
+    ⚠️ 为什么要有它：标准库是真 Python 函数，原先靠 Python 自己抛 `TypeError`、
+    再由 `_type_error_zh` 翻译。但 Python 的「少给」原文只说了缺几个
+    （`missing 1 required positional argument`）—— **拿不到「一共传了几个」**，
+    于是同一件事在三个 Python 执行器上给「缺少 1 个必填参数」、
+    在两个宿主上给「需要 1 个参数，但传了 0 个」。**改成主动检查之后三处一致。**
+
+    ⚠️ **命名参数要分情况算**（这条踩过两次，被 `test_bridge.py` /
+    `test_m25_varargs.py` / `test_m51_consistency.py` 各抓一次）：
+
+    * `文本.截断("很长的话", 宽度=6)` —— `宽度` 是 **positional-or-keyword**，
+      按名字传**等价于**按位置传 ⇒ **算进个数**（否则会误报「只传了 1 个」）；
+    * `json.dumps(对象, 缩进=2)` —— `缩进` 是 **keyword-only**，
+      **落不到位置参数上** ⇒ **不算**（算进去就成「传了 2 个、只要 1 个」）。
+
+    所以判据是「这个命名参数的名字**在不在位置参数表里**」。
+
+    ⚠️ 变参函数（`路径.连接(*部分)`）**没有上限** —— 这条要认，否则会把
+    合法的调用拦下来（比不检查更糟）。
+    """
+    info = _stdlib_arity(fn)
+    if info is None:
+        return
+    pos_names, n_req, star = info
+    n_pos = len(pos_names)
+    nargs = len(args) + sum(1 for k in (kwargs or {}) if k in pos_names)
+    if nargs >= n_req and (star or nargs <= n_pos):
+        return
+    short = qualified.rsplit(".", 1)[-1]
+    want = f"{n_req} 个" if n_req == n_pos else f"{n_req} 到 {n_pos} 个"
+    raise RunTypeError(
+        f"函数「{short}」需要 {want}参数，但传了 {nargs} 个",
+        line=line, col=col, filename=filename)
+
+
 def call_value(fn, args, kwargs=None, *, line=None, col=None,
                filename="<输入>"):
     """调用一个非基石函数的可调用对象（内建 / 标准库 / Python 桥接）。"""
@@ -1755,6 +1828,13 @@ def call_value(fn, args, kwargs=None, *, line=None, col=None,
         return make_instance(fn, args, kwargs or {}, line=line, col=col,
                              filename=filename)
     if callable(fn):
+        # ⚠️ **标准库函数的参数个数先在这里查**（R6.4）：标准库是真 Python 函数，
+        # 光靠 Python 的 `TypeError` 翻不出「一共传了几个」（见 `check_stdlib_arity`）。
+        # 标记是取属性时打的（`get_attr` 的模块分支）。
+        qualified = getattr(fn, "_jishi_qualified", None)
+        if qualified is not None:
+            check_stdlib_arity(qualified, fn, args, kwargs,
+                               line=line, col=col, filename=filename)
         try:
             return fn(*args, **(kwargs or {}))
         except JishiError as e:

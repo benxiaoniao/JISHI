@@ -92,7 +92,7 @@ def collect() -> dict[str, dict[str, list]]:
 class _Sig:
     """一个公开函数的签名要点。"""
 
-    __slots__ = ("name", "required", "params")
+    __slots__ = ("name", "required", "params", "vararg")
 
     def __init__(self, node: ast.FunctionDef) -> None:
         a = node.args
@@ -105,9 +105,14 @@ class _Sig:
         self.name = node.name
         self.required = n_req
         self.params = names
+        # ⚠️ `*参数`（R6.4 补）：`压缩.打包(zip路径, *文件或目录)`、
+        # `文本.格式化(模板, *参数)`、`路径.连接(*部分)`… —— 这类函数
+        # **位置参数的个数没有上限**。以前这张表不记它，于是「上限 =
+        # 参数名个数」这条规则**会把合法的变参调用拦下来**（比不检查更糟）。
+        self.vararg = a.vararg.arg if a.vararg is not None else None
 
     def as_entry(self) -> list:
-        return [self.required, self.params]
+        return [self.required, self.params, self.vararg]
 
 
 def _collect_sigs(nodes: list) -> list[_Sig]:
@@ -140,7 +145,11 @@ NODE_HEAD = """\
 // 键带模块前缀是必须的：全库有 19 组跨模块同名函数（`解析` 在 json / 参数 /
 // 日期 都有），只按函数名查会歧义。
 //
-// 值 = [必填参数个数, [参数名…]]；参数名顺序即位置参数顺序。
+// 值 = [必填参数个数, [参数名…], 变参名或 null]；参数名顺序即位置参数顺序。
+// 第三项不是 null 时说明这个函数**位置参数个数没有上限**
+// （`压缩.打包(zip路径, *文件或目录)`）—— 检查参数个数时**别拦它**。
+// 它的存在是有教训的：`*参数` 以前不记，而「上限 = 参数名个数」这条规则
+// 会**把合法的变参调用拦下来**（比不检查更糟）。
 
 'use strict';
 
@@ -153,9 +162,10 @@ def render_node(table: dict[str, dict[str, list]]) -> str:
     for mod in sorted(table):
         lines.append(f"  {_js_str(mod)}: {{\n")
         for name in sorted(table[mod]):
-            req, params = table[mod][name]
+            req, params, vararg = table[mod][name]
             plist = ", ".join(_js_str(p) for p in params)
-            lines.append(f"    {_js_str(name)}: [{req}, [{plist}]],\n")
+            va = _js_str(vararg) if vararg else "null"
+            lines.append(f"    {_js_str(name)}: [{req}, [{plist}], {va}],\n")
         lines.append("  },\n")
     lines.append("};\n")
     return "".join(lines)
@@ -180,12 +190,15 @@ RUST_HEAD = """\
 //! 键带模块前缀是必须的：全库有 19 组跨模块同名函数（`解析` 在 json / 参数 /
 //! 日期 都有），只按函数名查会歧义。
 //!
-//! 值 = (必填参数个数, 参数名切片)；参数名顺序即位置参数顺序。
+//! 值 = (必填参数个数, 参数名切片, `*参数` 的名字)；参数名顺序即位置参数顺序。
+//! 第三项是 `Some("名")` 时说明这个函数**位置参数个数没有上限**
+//! （`压缩.打包(zip路径, *文件或目录)`）—— 检查参数个数时**别拦它**。
 
-/// 查「模块.函数」的签名。返回 `(必填参数个数, 参数名)`，没收录则 `None`
-/// （没收录 = 纯 `*参数` / `**选项` 形式，或该函数不存在；两种情况宿主都会
-/// 在有命名参数时报错，不会静默丢）。
-pub(crate) fn sigof(qualified: &str) -> Option<(usize, &'static [&'static str])> {
+/// 查「模块.函数」的签名。返回 `(必填参数个数, 参数名, 变参名)`，没收录则 `None`
+/// （没收录 = 该函数不存在；宿主会在有命名参数时报错，不会静默丢）。
+pub(crate) fn sigof(
+    qualified: &str,
+) -> Option<(usize, &'static [&'static str], Option<&'static str>)> {
     Some(match qualified {
 """
 
@@ -194,9 +207,10 @@ def render_rust(table: dict[str, dict[str, list]]) -> str:
     lines = [RUST_HEAD]
     for mod in sorted(table):
         for name in sorted(table[mod]):
-            req, params = table[mod][name]
+            req, params, vararg = table[mod][name]
             plist = ", ".join('"' + p + '"' for p in params)
-            lines.append(f'        "{mod}.{name}" => ({req}, &[{plist}]),\n')
+            va = f'Some("{vararg}")' if vararg else "None"
+            lines.append(f'        "{mod}.{name}" => ({req}, &[{plist}], {va}),\n')
     lines.append("        _ => return None,\n")
     lines.append("    })\n}\n")
     return "".join(lines)
@@ -215,7 +229,8 @@ def main(argv: list[str]) -> int:
 
     n_mod = len(table)
     n_fn = sum(len(v) for v in table.values())
-    n_opt = sum(1 for m in table.values() for _, (req, p) in m.items() if req < len(p))
+    n_opt = sum(1 for m in table.values() for _, (req, p, _va) in m.items() if req < len(p))
+    n_va = sum(1 for m in table.values() for _, (_r, _p, va) in m.items() if va)
 
     if check:
         stale = []
@@ -228,13 +243,15 @@ def main(argv: list[str]) -> int:
                 print(f"  - {s}")
             print("跑 `python tools/gen_stdlib_sigs.py` 重新生成。")
             return 1
-        print(f"标准库签名表已同步（{n_mod} 模块 / {n_fn} 函数，其中 {n_opt} 个带可选参数）")
+        print(f"标准库签名表已同步（{n_mod} 模块 / {n_fn} 函数，其中 {n_opt} 个带可选参数、"
+              f"{n_va} 个变参）")
         return 0
 
     for path, text in generated.items():
         path.write_text(text, encoding="utf-8")
         print(f"写出 {path.relative_to(ROOT).as_posix()}（{len(text.splitlines())} 行）")
-    print(f"共 {n_mod} 模块 / {n_fn} 函数，其中 {n_opt} 个带可选参数可被命名调用")
+    print(f"共 {n_mod} 模块 / {n_fn} 函数，其中 {n_opt} 个带可选参数可被命名调用，"
+          f"{n_va} 个是变参（`*参数`）")
     return 0
 
 

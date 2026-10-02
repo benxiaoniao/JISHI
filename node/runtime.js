@@ -1786,13 +1786,17 @@ function mapKwargs(qualified, args, kwargs, line, col) {
 
   const required = sig[0];
   const params = sig[1];
-  if (args.length > params.length) {
+  const vararg = sig[2] || null;      // `*参数` 的名字（没有就是 null）
+  // ⚠️ **变参函数没有上限**（R6.4 补）：`压缩.打包(zip路径, *文件或目录)` 的
+  // 参数名表里只有 `zip路径`，但合法调用可以给很多个 —— 不认这一条就会把
+  // 正常的调用拦下来（比不检查更糟）。
+  if (!vararg && args.length > params.length) {
     throw typeErr(
       `函数「${qualified}」最多接受 ${params.length} 个参数，但传了 ${args.length} 个`,
       line, col);
   }
   const slots = new Array(params.length).fill(UNSET);
-  for (let i = 0; i < args.length; i++) slots[i] = args[i];
+  for (let i = 0; i < Math.min(args.length, slots.length); i++) slots[i] = args[i];
   for (const k of keys) {
     const i = params.indexOf(k);
     if (i < 0) {
@@ -1821,7 +1825,50 @@ function mapKwargs(qualified, args, kwargs, line, col) {
         + '或全部改用位置参数', line, col);
     }
   }
-  return slots.slice(0, n);
+  const out = slots.slice(0, n);
+  // 变参多出来的位置参数（`压缩.打包("a.zip", "f1", "f2")`）拼在**尾部** ——
+  // 命名参数映射只覆盖前 `params.length` 个位置槽。
+  if (vararg && args.length > params.length) out.push(...args.slice(params.length));
+  return out;
+}
+
+/**
+ * 标准库函数的**参数个数**检查（R6.4）。
+ *
+ * ⚠️ 为什么放在**调用点**而不是每个函数里：Node 侧的标准库是
+ * `new R.Builtin(名, (x) => …)` —— **固定形参**，多给的实参被**静默忽略**
+ * （`html.属性文本("a","b")` 给 `a`、`日期.今年(1)` 给年份），少给则拿到
+ * `undefined` 一路算下去。230 个函数逐个加检查既写不完也会漂，
+ * 而**签名表已经存在**（`node/stdlib_sigs.js`，由 Python 侧生成），
+ * 在这里查一次就全覆盖了。
+ *
+ * 文案与 Python 侧翻译 `TypeError` 得到的那句、以及 Rust 的
+ * `need` / `need_range` **逐字对齐**：
+ * `函数「属性文本」需要 1 个参数，但传了 2 个`。
+ *
+ * ⚠️ `nargs` 是**位置参数 + 命名参数的总数** —— 调用点要先加起来再传进来。
+ * 只数位置参数会**误报**：`文本.截断("很长的话", 宽度=6)` 只给了 1 个位置参数，
+ * 但函数收的是 2 个（这一条踩过，被 `test_命名参数可用于多个模块` 抓住）。
+ *
+ * ⚠️ 内建（不带 `.` 的名字）不归这里管 —— 它们走 `needBuiltinArgs`，
+ * 文案是「「长度」需要 1 个参数」（内建是语言的一部分，用户直接写 `长度(x)`）。
+ */
+function needStdlibArgs(qualified, nargs, line, col) {
+  const dot = qualified.lastIndexOf('.');
+  if (dot < 0) return;                       // 内建：不归这里管
+  const mod = qualified.slice(0, dot);
+  const fn = qualified.slice(dot + 1);
+  const sig = SIGS[mod] ? SIGS[mod][fn] : undefined;
+  if (!sig) return;                          // 表里没有：不擅自拦
+  const lo = sig[0];
+  const hi = sig[1].length;
+  const vararg = sig[2] || null;
+  const tooFew = nargs < lo;
+  const tooMany = !vararg && nargs > hi;
+  if (!tooFew && !tooMany) return;
+  const want = lo === hi ? `${lo} 个` : `${lo} 到 ${hi} 个`;
+  throw typeErr(
+    `函数「${fn}」需要 ${want}参数，但传了 ${nargs} 个`, line, col);
 }
 
 // ---------------------------------------------------------------------------
@@ -2238,6 +2285,20 @@ function setAttr(obj, attr, value, line, col) {
   throw typeErr(`不能给「${display(obj)}」的属性「${attr}」赋值`, line, col);
 }
 
+/**
+ * **负下标折算**（R6.5）：`列[-1]` 是最后一个元素 —— 与 Python 一致。
+ *
+ * ⚠️ 计数的「长度」必须是**元素的个数**：文本要按**码点**数（`Array.from`），
+ * 不能用 `.length`（那是 UTF-16 码元数，`"😀"[-1]` 会算错）。
+ *
+ * 折算完仍越界就**原样返回**（让调用方照常报「下标越界」）——
+ * `列[-9]` 在长度 3 的列表上该报越界，而不是绕回开头。
+ */
+function normIndex(i, len) {
+  if (typeof i === 'bigint') i = toIndexNum(i);
+  return (typeof i === 'number' && i < 0) ? len + i : i;
+}
+
 function getItem(obj, index, line, col) {
   // 大整数下标（`a[2 ** 62]`）先收敛成 number，越界由下面的检查照常报错（M32）
   if (typeof index === 'bigint') index = toIndexNum(index);
@@ -2255,7 +2316,7 @@ function getItem(obj, index, line, col) {
     throw typeErr(`「${typeName(obj)}」不能切片，切片需要列表或文本`, line, col);
   }
   if (Array.isArray(obj)) {
-    const i = index;
+    const i = normIndex(index, obj.length);
     if (!Number.isInteger(i) || i < 0 || i >= obj.length) {
       throw indexErr('列表下标越界', line, col);
     }
@@ -2268,7 +2329,7 @@ function getItem(obj, index, line, col) {
   if (typeof obj === 'string') {
     // ⚠️ 按**码点**取（M55）：`"😀"[0]` 必须是完整的 😀，不是半个代理项。
     const chars = Array.from(obj);
-    const i = index;
+    const i = normIndex(index, chars.length);
     if (!Number.isInteger(i) || i < 0 || i >= chars.length) {
       throw indexErr('文本下标越界', line, col);
     }
@@ -2303,10 +2364,12 @@ function setItem(obj, index, value, line, col) {
     // ⚠️ **越界必须报错，不能静默扩容**（R6.4）：JS 数组 `a[9] = x` 会自动补长，
     // 于是 `列[9] = 3` **静默成功**——而 Python 侧报「索引错误 / 列表下标越界」。
     // 「不报错的错答案」是本项目最恨的一类 bug（M56 的教训）。
-    if (!Number.isInteger(index) || index < 0 || index >= obj.length) {
+    // ⚠️ 负下标先折算（R6.5）：`列[-1] = 9` 改最后一个元素（Python 语义）。
+    const i = normIndex(index, obj.length);
+    if (!Number.isInteger(i) || i < 0 || i >= obj.length) {
       throw indexErr('列表下标越界', line, col);
     }
-    obj[index] = value;
+    obj[i] = value;
     return;
   }
   if (obj instanceof Map) { obj.set(index, value); return; }
@@ -2614,7 +2677,7 @@ const LIST_METHODS = {
       if (obj.length === 0) throw valueErr('列表是空的，没有东西可以弹出', line, col);
       return obj.pop();
     }
-    const i = args[0];
+    const i = normIndex(args[0], obj.length);   // 负下标先折算（R6.5）
     if (!Number.isInteger(i) || i < 0 || i >= obj.length) {
       if (obj.length === 0) throw valueErr('列表是空的，没有东西可以弹出', line, col);
       throw indexErr('列表下标越界', line, col);
@@ -2996,7 +3059,7 @@ module.exports = {
   dumpBuiltins,
   BoundMethod, BoundUserMethod, makeInstance,
   // M51：命名参数 → 位置参数的映射（vm.js 的 `_callValue` 用它）
-  mapKwargs, SIGS,
+  mapKwargs, SIGS, needStdlibArgs,
   unpackValues, buildDict, lookupName,
   // M56：「你是不是想写」的候选名（`vm.js` 在 LOAD_GLOBAL 的报错路径上用它）
   nameHint, closeMatches, sequenceRatio,

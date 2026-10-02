@@ -480,6 +480,17 @@ class VM {
 
   _callValue(fn, args, kwargs, line, col) {
     if (fn instanceof R.Builtin) {
+      // ⚠️ **参数个数检查**（R6.4）：标准库是固定形参，多给的实参以前被
+      // 静默忽略、少给则拿到 `undefined`。查的是 `node/stdlib_sigs.js`
+      // 那张由 Python 侧生成的签名表（内建不走这条路）。
+      // ⚠️ 传的是**位置 + 命名参数的总数**：`文本.截断("很长的话", 宽度=6)` 只给了
+      // 1 个**位置**参数，但 `宽度` 是 positional-or-keyword、按名字传等价于按位置传
+      // ⇒ 实际收了 2 个。只数位置参数会误报（这条踩过）。
+      // ⚠️ 与 Python 侧的口径**刻意不同**：那边要**排除 keyword-only** 的命名参数
+      // （`json.dumps(对象, 缩进=2)` 的 `缩进` 落不到位置参数上）；宿主这边
+      // `SIGS` 的参数名表本来就含 keyword-only 的名字、上限宽松，所以直接加即可。
+      R.needStdlibArgs(fn.name, args.length + Object.keys(kwargs || {}).length,
+                       line, col);
       // 内建 / 标准库是**按位置**调用的 JS 函数：命名参数在这里映射回位置
       // 参数（M51）。以前是 `fn.fn(...args)` 直接把 kwargs 丢掉 ——
       // `加密.摘要("abc", 算法="md5")` 会悄悄用默认的 sha256。

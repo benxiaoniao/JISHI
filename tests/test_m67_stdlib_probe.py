@@ -143,7 +143,9 @@ def test_标准库参数个数错的文案是中文():
 
     ok, out = _py('导入 表格\n表格.写表格()\n')
     assert not ok, "本该报错"
-    assert "函数「写表格」缺少" in out, out[:200]
+    # ⚠️ 改成**主动检查**之后，「少给」也能说出「一共传了几个」
+    # （以前靠 Python 的 `missing 1 required positional argument` 只说得出缺几个）
+    assert "函数「写表格」需要 2 个参数，但传了 0 个" in out, out[:200]
     assert "missing" not in out and "required positional" not in out, out[:200]
 
 
@@ -160,15 +162,82 @@ def test_内建的参数个数错也还是中文():
 
 
 @pytest.mark.skipif(not HAS_NODE, reason="本机无 Node.js")
-def test_Node的标准库参数个数缺口仍登记在案():
-    """⚠️ **记录在案的缺口**（`tools/probe_stdlib.py` 的 `KNOWN_GAPS`）。
+def test_Node的标准库也会检查参数个数了():
+    """⚠️ 这条测试**上一版是反着写的** —— 它当时断言「缺口还在」。
 
-    这条测试的写法有点特别：它**断言缺口还在**。理由是 ——
-    Node 侧标准库是固定形参（`(x) => …`），多给的实参被**静默忽略**；
-    要修得先让签名表记录 `*args`（否则会把合法的变参调用拦下来），
-    那是**下一轮**的活。
-    **修好之后这条会红**，那时把它反过来断言、并去 `KNOWN_GAPS` 删一行。
+    R6.4 建这个探针时，Node 的标准库不检查参数个数（`html.属性文本("a","b")`
+    静默返回 `a`、`日期.今年(1)` 静默返回年份），于是登记在 `KNOWN_GAPS` 里。
+    修好之后**探针自己报了「登记过期」**，就把这条测试翻了过来 ——
+    这正是「登记必须能过期」的用法：修好了不会静悄悄留着。
+
+    修法：签名表补记 `*参数`（`tools/gen_stdlib_sigs.py`）→
+    `needStdlibArgs` 在**调用点**统一查（230 个函数逐个加检查既写不完也会漂）。
     """
+    # 多给：以前静默忽略
     ok, out = _node('导入 html\n打印(html.属性文本("a", "b"))\n')
-    assert ok and out.strip() == "a", (
-        f"Node 的行为变了（缺口补上了？）—— 该去改这条测试了：{out!r}")
+    assert not ok, f"本该报错却跑通了：{out!r}"
+    assert "函数「属性文本」需要 1 个参数，但传了 2 个" in out, out[:200]
+
+    # 少给：Node 的固定形参会拿到 `undefined` 一路算下去（`数学.开方()` 给 NaN）
+    ok, out = _node('导入 数学\n打印(数学.开方())\n')
+    assert not ok, f"本该报错却跑通了：{out!r}"
+    assert "函数「开方」需要 1 个参数，但传了 0 个" in out, out[:200]
+
+
+@pytest.mark.skipif(not HAS_NODE, reason="本机无 Node.js")
+def test_变参函数不会被参数个数检查拦住():
+    """⚠️ **这条是那次修复最容易踩的坑**：签名表里 `路径.连接` 一个参数名都
+    没有（`连接(*部分)`），拿「参数名个数」当上限就会把**合法调用**拦下来
+    —— 比不检查更糟。所以表里要记 `*参数`（`sig[2]`）。
+    """
+    import os
+    for src, want in (
+        # ⚠️ 分隔符是**平台相关**的（Windows `\`、其它 `/`）—— 别写死
+        ('导入 路径\n打印(路径.连接("甲", "乙", "丙", "丁"))\n',
+         os.sep.join(["甲", "乙", "丙", "丁"]) + "\n"),
+        ('导入 压缩\n打印(压缩.打包)\n', None),      # 只要求「能取到属性、不报参数错」
+    ):
+        ok, out = _node(src)
+        assert ok, f"变参调用被拦了：{out!r}"
+        if want is not None:
+            assert out.strip() == want.strip(), out
+
+
+def test_命名参数调用不该被参数个数检查误拦():
+    """⚠️ 这条来自一次**真实的假报** —— 新加的参数个数检查**只数了位置参数**：
+
+    `文本.截断("这是一段很长的话", 宽度=6)` 只给了 1 个**位置**参数，
+    但函数收的是 2 个（另一个是命名参数）→ 检查判成「只传了 1 个」→ 误报。
+    被 `test_m51_consistency.py::test_命名参数可用于多个模块` 抓住。
+
+    📌 教训：**新加的检查必须过一遍「命名参数」那条路** ——
+    「位置参数个数」和「实参总数」在这里不是一回事。
+    """
+    src = ('导入 文本 为 T\n'
+           '打印(T.截断("这是一段很长的话", 宽度=6))\n'
+           '打印(T.填充("abc", 宽度=7, 填充字符="-"))\n')
+    ok, out = _py(src)
+    assert ok, f"Python 侧误报：{out[:200]}"
+    want = out
+    if HAS_NODE:
+        ok, out = _node(src)
+        assert ok, f"Node 侧误报：{out[:200]}"
+        assert out == want, f"两侧不一致\npy={want!r}\nnd={out!r}"
+
+
+def test_命名参数里keyword_only的不算进位置个数():
+    """⚠️ **与上一条相对的另一种形状** —— 两次假报是**同一条检查**的两个方向：
+
+    * `文本.截断("很长的话", 宽度=6)`：`宽度` 是 **positional-or-keyword**，
+      按名字传**等价于**按位置传 ⇒ **要算进个数**；
+    * `json.dumps(对象, 缩进=2)`：`缩进` 是 **keyword-only**，
+      **落不到位置参数上** ⇒ **不能算**（算进去就成「传了 2 个、只要 1 个」，
+      被 `test_bridge.py` 抓住）。
+
+    判据是「这个命名参数的名字**在不在位置参数表里**」。
+    ⚠️ 桥接（`从 python 导入`）两个宿主都不支持，所以这条只测 Python 侧。
+    """
+    src = ('导入 json 从 python\n'
+           '打印(json.dumps({"甲": 1}, ensure_ascii=假))\n')
+    ok, out = _py(src)
+    assert ok, f"keyword-only 的命名参数被误算成位置参数了：{out[:200]}"

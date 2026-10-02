@@ -2008,9 +2008,16 @@ impl VM {
             (Val::List(l), "追加") => { need_args(&name, args, 1, 1)?; l.borrow_mut().push(args[0].clone()); Ok(Val::None_) }
             (Val::List(l), "插入") => {
                 need_args(&name, args, 2, 2)?;
-                let i = as_int(&args[0])? as usize;
+                let i = as_int(&args[0])?;
                 let mut l = l.borrow_mut();
-                let at = i.min(l.len());      // 先算好下标，再插入（避免同时可变+不可变借用）
+                // ⚠️ Python 的 `list.insert(i, v)` 的**夹取规则**（R6.5）：
+                // 负数先 `i + len`，再夹到 `[0, len]` —— 所以
+                // `[1,2,3].插入(-1, 9)` 给 `[1, 2, 9, 3]`。
+                // 以前这里是 `as_int(...) as usize` —— 负数直接变成巨大的 usize、
+                // 再被 `min(len)` 夹到**末尾**，于是同一个程序在 Rust 上给
+                // `[1, 2, 3, 9]`、在其它四个执行器上给 `[1, 2, 9, 3]`。
+                let n = l.len() as i128;
+                let at = if i < 0 { (n + i).max(0) } else { i.min(n) } as usize;
                 l.insert(at, args[1].clone());
                 Ok(Val::None_)
             }
@@ -2022,7 +2029,13 @@ impl VM {
                 if l.is_empty() {
                     return Err(err("值错误", "列表是空的，没有东西可以弹出"));
                 }
-                let v = if args.is_empty() { l.pop() } else { let i = as_int(&args[0])? as usize; if i < l.len() { Some(l.remove(i)) } else { None } };
+                // 负下标先折算（R6.5）：`列.弹出(-1)` 弹最后一个
+                let v = if args.is_empty() {
+                    l.pop()
+                } else {
+                    let i = as_int(&args[0])?;
+                    norm_index(i, l.len()).map(|j| l.remove(j))
+                };
                 v.ok_or_else(|| err("索引错误", INDEX_MSG))
             }
             (Val::List(l), "排序") => { need_args(&name, args, 0, 0)?; l.borrow_mut().sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
@@ -3487,19 +3500,25 @@ fn map_kwargs(qualified: &str, args: &[Val], knames: &[String], kwvals: &[Val])
     if knames.is_empty() {
         return Ok(args.to_vec());
     }
-    let (required, params) = match stdlib_sigs::sigof(qualified) {
+    let (required, params, vararg) = match stdlib_sigs::sigof(qualified) {
         Some(s) => s,
         None => return Err(err("类型错误", format!(
             "宿主上「{qualified}」暂不支持命名参数（{}）—— 请改用位置参数",
             knames.join("、")))),
     };
-    if args.len() > params.len() {
+    // ⚠️ **变参函数没有上限**（R6.4 补）：`压缩.打包(zip路径, *文件或目录)` 的
+    // 参数名表里只有 `zip路径`，但合法调用可以给很多个 —— 不认这一条就会把
+    // 正常的调用拦下来（比不检查更糟）。
+    if vararg.is_none() && args.len() > params.len() {
         return Err(err("类型错误", format!(
             "函数「{qualified}」最多接受 {} 个参数，但传了 {} 个",
             params.len(), args.len())));
     }
     let mut slots: Vec<Option<Val>> = vec![None; params.len()];
     for (i, v) in args.iter().enumerate() {
+        if i >= slots.len() {
+            break;                       // 变参多出来的部分：下面拼到尾部
+        }
         slots[i] = Some(v.clone());
     }
     for (k, v) in knames.iter().zip(kwvals.iter()) {
@@ -3532,7 +3551,13 @@ fn map_kwargs(qualified: &str, args: &[Val], knames: &[String], kwvals: &[Val])
                  或全部改用位置参数", params[i], params[i])));
         }
     }
-    Ok(slots[..n].iter().map(|v| v.clone().unwrap()).collect())
+    // 变参多出来的位置参数（`压缩.打包("a.zip", "f1", "f2")`）拼在**尾部** ——
+    // 命名参数映射只覆盖前 `params.len()` 个位置槽。
+    let mut out: Vec<Val> = slots[..n].iter().map(|v| v.clone().unwrap()).collect();
+    if vararg.is_some() && args.len() > params.len() {
+        out.extend(args[params.len()..].iter().cloned());
+    }
+    Ok(out)
 }
 
 /// 设置脚本收到的命令行参数（`jishi-rs 字节码.json 参数1 参数2`）。
@@ -3621,6 +3646,24 @@ fn set_attr(obj: Val, attr: &str, val: Val) -> Result<(), JishiError> {
     }
 }
 
+/// **负下标折算**（R6.5）：`列[-1]` 是最后一个元素 —— 与 Python 一致。
+///
+/// ⚠️ 计数用的是**元素的个数**：文本要按**码点**（`chars().count()`），
+/// 不是字节数、也不是 UTF-16 码元数（`"😀"[-1]` 要拿到完整的 😀）。
+///
+/// 折算后仍越界就返回 `None`（调用方照常报「下标越界」）——
+/// `列[-9]` 在长度 3 的列表上该报越界，而不是绕回开头。
+/// 三个 Python 执行器底下就是 Python 的 list/str，行为天然一致。
+fn norm_index(i: i128, len: usize) -> Option<usize> {
+    let n = len as i128;
+    let j = if i < 0 { n + i } else { i };
+    if (0..n).contains(&j) {
+        Some(j as usize)
+    } else {
+        None
+    }
+}
+
 fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
     // 切片（M33）：列表按元素切、文本按字符切（与 Python 的 str 索引一致）
     if let Val::Slice(sl) = &idx {
@@ -3652,9 +3695,21 @@ fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
         };
     }
     match (obj, idx) {
-        (Val::List(l), Val::Int(i)) => l.borrow().get(i as usize).cloned().ok_or_else(|| err("索引错误", INDEX_MSG)),
+        (Val::List(l), Val::Int(i)) => {
+            let l = l.borrow();
+            match norm_index(i, l.len()) {
+                Some(j) => Ok(l[j].clone()),
+                None => Err(err("索引错误", INDEX_MSG)),
+            }
+        }
         (Val::Dict(d), k) => d.borrow().iter().find(|(key, _)| *key == k).map(|(_, v)| v.clone()).ok_or_else(|| err("键错误", missing_key_msg(&k))),
-        (Val::Str(s), Val::Int(i)) => s.chars().nth(i as usize).map(|c| Val::Str(c.to_string())).ok_or_else(|| err("索引错误", STR_INDEX_MSG)),
+        (Val::Str(s), Val::Int(i)) => {
+            let n = s.chars().count();
+            match norm_index(i, n) {
+                Some(j) => Ok(Val::Str(s.chars().nth(j).unwrap().to_string())),
+                None => Err(err("索引错误", STR_INDEX_MSG)),
+            }
+        }
         // 照 Python 的 `_type_error_zh`：`'int' object is not subscriptable`
         // 翻成「「整数」不能取下标」——宿主原来只有一句「不能取下标」，
         // 没说清是**哪个**东西不能取下标（R6.2 对齐）。
@@ -3721,15 +3776,27 @@ fn set_item(obj: Val, idx: Val, val: Val) -> Result<(), JishiError> {
         // 注意是 `borrow_mut`：改的是共享容器本身，调用者（原变量）能看见
         (Val::List(l), Val::Int(i)) => {
             let mut l = l.borrow_mut();
-            let i = i as usize;
-            if i < l.len() { l[i] = val; Ok(()) } else { Err(err("索引错误", INDEX_MSG)) }
+            // 负下标先折算（R6.5）：`列[-1] = 9` 改最后一个元素（Python 语义）
+            match norm_index(i, l.len()) {
+                Some(j) => {
+                    l[j] = val;
+                    Ok(())
+                }
+                None => Err(err("索引错误", INDEX_MSG)),
+            }
         }
         (Val::Dict(d), k) => {
             let mut d = d.borrow_mut();
             if let Some(v) = d.iter_mut().find(|(key, _)| *key == k) { v.1 = val; } else { d.push((k, val)); }
             Ok(())
         }
-        _ => Err(err("类型错误", "不能按下标赋值")),
+        // ⚠️ 要说清**是哪个东西**不能按下标赋值（R6.5）：原来只有一句
+        // 「不能按下标赋值」，与 Python / Node 的「「文本」不能按下标赋值」
+        // 对不上（R6.2 在「不能取下标」上修过同一类问题，这处当时漏了）。
+        (o, _) => Err(err(
+            "类型错误",
+            format!("「{}」不能按下标赋值", type_label(&o)),
+        )),
     }
 }
 
