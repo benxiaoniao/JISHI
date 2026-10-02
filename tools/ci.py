@@ -20,10 +20,17 @@
   7. 内建体检（--fast）          tools/probe_builtins.py —— 每个内建在三执行器
                                  上真跑（只比名字的漂移检测抓不到「名字在表里
                                  却用不了」，M56 的 `超` 就是这么漏的）
-  8. Rust 前端分词对拍（R2）     emit --frontend rust → compare --stage tokens
+  8. Rust 前端四阶段对拍（R2–R5） emit --frontend rust → compare 四个阶段
+                                 （tokens / ast / bytecode / diagnostics）
                                  ⚠️ 需要 Rust 扩展已构建；没构建就**明确跳过**
                                  （打印「跳过」而不是默默当通过 —— 这两件事
                                  必须在输出里分得开）
+  9. 执行器体检（R5.1）          tools/check_engines.py —— 全语料
+                                 （**含 error_cases**）在各执行器上真跑，
+                                 逐字节比「树遍历 vs 各 VM」。
+                                 ⚠️ 为什么非它不可：一致性夹具比的是**前端产物**，
+                                 而**「产物一样 ≠ 跑起来一样」** —— R5.1 修掉的四个
+                                 既有 bug 里有三个是夹具全程绿的情况下存在的。
 """
 
 import subprocess
@@ -89,7 +96,8 @@ def main() -> int:
                 "内建体检（--fast）"):
         return 1
 
-    # 8) Rust 前端分词对拍（R2）：让 Rust 前端按契约产出 tokens，再拿基线比。
+    # 8) Rust 前端四阶段对拍（R2–R5）：让 Rust 前端按契约产出四个阶段的产物，
+    #    再拿基线逐项比（R2 只比 tokens，R3 加 ast、R5 加 bytecode+diagnostics）。
     #    ⚠️ 扩展是按当前 Python 的 ABI 编出来的，CI 上不一定有（CI 不编译 Rust）。
     #    没构建时**明确报「跳过」**，绝不静默当通过 —— 「跳过」与「通过」
     #    在 CI 输出里长得一样是本项目反复踩过的坑（R0 的冻 bug、M49 的静默校验）。
@@ -103,13 +111,24 @@ def main() -> int:
                          "--frontend", "rust", "--out", tmp],
                         "Rust 前端产出 tokens"):
                 return 1
-            if not _run([PYTHON, str(ROOT / "tools" / "conformance.py"),
-                         "compare", "--from", tmp, "--stage", "tokens"],
-                        "Rust 前端 tokens vs 基线（R2 验收）"):
-                return 1
+            for stage in ("tokens", "ast", "bytecode", "diagnostics"):
+                if not _run([PYTHON, str(ROOT / "tools" / "conformance.py"),
+                             "compare", "--from", tmp, "--stage", stage],
+                            f"Rust 前端 {stage} vs 基线（R2–R5 验收）"):
+                    return 1
     else:
         print("\n=== Rust 前端分词对拍（R2）：⏭ 跳过 —— 扩展未构建 ===")
         print("    要跑它先 `python core/build.py`。**这里没跑，不是通过。**")
+
+    # 9) 执行器体检（R5.1 建）：全语料（**含 error_cases** —— 报错文本也是
+    #    可观察行为）在各执行器上真跑，逐字节比「树遍历 vs 各 VM」。
+    #    ⚠️ **它管的是一致性夹具管不到的那一半**：夹具比「前端产物」，
+    #    而「产物一样 ≠ 跑起来一样」—— R5.1 修掉的四个既有 bug 里有三个
+    #    是夹具全程绿的情况下存在的（VM 撞掉帧栈基址 / 解释器的作用域 /
+    #    报错里的调用链）。Rust VM 有已知缺口登记表，登记过期会报红。
+    if not _run([PYTHON, str(ROOT / "tools" / "check_engines.py")],
+                "执行器体检（全语料 × 各执行器，含 error_cases）"):
+        return 1
 
     print("\n✓ 全检通过")
     return 0
