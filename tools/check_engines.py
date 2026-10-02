@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""执行器体检：**全部语料**在四个执行器上跑出来逐字节相同。
+"""执行器体检：**全部语料**在五个执行器上跑出来逐字节相同。
 
-四个执行器 = 树遍历（语义基准）/ Python VM / C VM / **Rust VM**（R6 起）。
+五个执行器 = 树遍历（语义基准）/ Python VM / C VM / **Rust VM**（R6 起）
+/ **Node 宿主**（R6.4 起）。
 
 为什么需要它（这是本项目第 1 条硬约束的日常闸门）：
 
@@ -19,7 +20,17 @@
 于是「`打印` 几行之后崩掉」这个形状比不出来 —— 而 Rust VM 的缺口 ③
 （报错时一个字都不吐）恰恰只在那个形状下可见。**判据变了，才看得见东西。**
 
-## Rust VM（第四个执行器）的两条注意事项
+## 两个跨语言宿主（Rust VM / Node 宿主）的注意事项
+
+### Node 宿主（R6.4 加入）
+
+它和 Rust VM 是同一类：**独立进程、吃字节码 JSON**。以前它不在这个工具的视野里
+—— 于是它那些问题（越界赋值**静默成功**、报错渲染只有一行、类型名笼统成「异常」）
+**一个都没被抓到**，只有 `tests/test_m13_node.py` 那批手写用例覆盖到的地方才有人管。
+📌 **把一份实现拉进判据，本身就是一次升级**：拉进来的当天就冒出 11 个不一致
+（见 `tools/probe_runtime_errors.py` 的 R6.4 小节）。
+
+### Rust VM
 
 1. 它是**独立进程**（`rust/target/release/jishi-rs`），吃的是**字节码 JSON** ——
    正好接上 R5 的产物：`JISHI_FRONTEND=rust` 编出 JSON → 交给它跑，
@@ -30,10 +41,11 @@
    和另外三个执行器一视同仁。
 
 用法：
-    python tools/check_engines.py            # 全量（含 Rust VM，有就自动带上）
+    python tools/check_engines.py            # 全量（含 Rust VM / Node，有就自动带上）
     python tools/check_engines.py -v         # 每个语料都报一行
     python tools/check_engines.py --frontend rust   # 换前端编（默认 python）
     python tools/check_engines.py --no-rust-vm      # 明确不要 Rust VM
+    python tools/check_engines.py --no-node         # 明确不要 Node 宿主
 """
 
 from __future__ import annotations
@@ -42,6 +54,7 @@ import argparse
 import glob
 import io
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -78,7 +91,12 @@ EXEMPT: dict[str, str] = {
 }
 
 
-#: ⚠️ **Rust VM（第四个执行器）的已知缺口登记** —— R6.0 摸出来的，键是语料路径。
+#: ⚠️ **跨语言宿主（Rust VM / Node 宿主）共用的已知缺口登记**，键是语料路径。
+#:
+#: 📌 **为什么合成一张**（R6.4）：R6.0 摸 Rust VM 的缺口、R6.4 把 Node 也拉进判据，
+#: 两边剩下的**完全同构** —— 同一批语料、同一个原因（宿主手里没有 AST、没有
+#: `local_hints`、单二进制里没有 Python）。**两张表迟早会漂**，而它们说的本是
+#: 同一件事。以后哪个宿主先修好，这条登记会在**两边都对上之后**才报「过期」。
 #:
 #: 为什么逐个登记、而不是「凡是报错的语料都不比」：那样会把**将来新出现的问题**
 #: 一起盖住。登记表的好处是**它会过期**：某个语料哪天好了，工具会说「登记过期」，
@@ -92,18 +110,18 @@ _POS_WHY = (
     "要对齐只有一条路：让编译器把「调用节点的位置」也发进字节码"
     "（**动格式**）。**待拍板**——在那之前，宿主的位置是「指到这个调用上」，可用但不完全等同。")
 
-RUST_VM_KNOWN_GAPS: dict[str, str] = {
+HOST_KNOWN_GAPS: dict[str, str] = {
     "examples/03_调python生态.jsh":
         "**有意的边界**：这个示例演示「导入 Python 生态（pandas 等）」，"
-        "而 Rust 引擎明确不支持 `从 python/本地包` 导入 —— 单二进制里没有 Python。"
-        "R 线的既定方向是「用 Rust 原生标准库替掉对 Python 生态的依赖」。",
+        "而跨语言宿主明确不支持 `从 python/本地包` 导入 —— 单二进制里没有 Python。"
+        "R 线的既定方向是「用宿主原生标准库替掉对 Python 生态的依赖」。",
     "examples/11_Python桥接演示.jsh":
-        "同 03：演示的是 Python 桥接，Rust 引擎有意不支持。",
-    # -- R6.3：宿主报错渲染对齐之后剩下的三类（都记着「为什么」）-------------
+        "同 03：演示的是 Python 桥接，跨语言宿主有意不支持。",
+    # -- R6.3/R6.4：宿主报错渲染对齐之后剩下的三类（都记着「为什么」）---------
     "tests/error_cases/13_从python导入.jsh":
         "**有意的边界**（同 03 / 11）：这个语料考的正是 `从 python 导入`，"
-        "而 Rust 引擎明确不支持 —— 单二进制里没有 Python。"
-        "它报的是「Rust 引擎不支持…」，这句本身是**给用户看的正确信息**。",
+        "而跨语言宿主明确不支持 —— 单二进制里没有 Python。"
+        "它报的是「宿主不支持…」，这句本身是**给用户看的正确信息**。",
     "tests/error_cases/15_方法参数个数.jsh":
         _POS_WHY,
     "tests/error_cases/16_移除不存在.jsh":
@@ -127,7 +145,7 @@ RUST_VM_KNOWN_GAPS: dict[str, str] = {
 
 
 def _registered(rel: str) -> bool:
-    return rel in RUST_VM_KNOWN_GAPS
+    return rel in HOST_KNOWN_GAPS
 
 
 def _is_exempt(rel: str) -> bool:
@@ -154,6 +172,31 @@ def _run_rust_vm(src: str, rel: str) -> tuple[str, str]:
     tmp = Path(tempfile.gettempdir()) / f"_check_engines_{os.getpid()}.json"
     tmp.write_text(body, encoding="utf-8")
     r = subprocess.run([str(_rust_exe()), str(tmp)],
+                       capture_output=True, input=b"")
+    return (r.stdout.decode("utf-8", errors="replace"),
+            r.stderr.decode("utf-8", errors="replace"))
+
+
+def _node_exe() -> "str | None":
+    """Node 可执行文件（PATH 上没有就返回 None）。"""
+    return shutil.which("node")
+
+
+def _node_index() -> Path:
+    return ROOT / "node" / "index.js"
+
+
+def _run_node_vm(src: str, rel: str) -> tuple[str, str]:
+    """Node 宿主跑一遍 → `(stdout, 报错文本)`。
+
+    与 Rust VM 同一形状：独立进程、吃**字节码 JSON**（当前前端编的）。
+    ⚠️ Node 的报错渲染包含**源码行**（它按 `filename` 现读源文件），
+    所以这里给的 `rel` 必须是**相对仓库根的真路径** —— 工作目录就是仓库根。
+    """
+    body = compile_to_json(src, rel)
+    tmp = Path(tempfile.gettempdir()) / f"_check_engines_node_{os.getpid()}.json"
+    tmp.write_text(body, encoding="utf-8")
+    r = subprocess.run([_node_exe(), str(_node_index()), str(tmp)],
                        capture_output=True, input=b"")
     return (r.stdout.decode("utf-8", errors="replace"),
             r.stderr.decode("utf-8", errors="replace"))
@@ -200,7 +243,13 @@ def main(argv: "list[str] | None" = None) -> int:
                     help="用哪个前端编译（默认 python）")
     ap.add_argument("--no-rust-vm", action="store_true",
                     help="不把 Rust VM（独立二进制）算作第四个执行器")
+    ap.add_argument("--no-node", action="store_true",
+                    help="不把 Node 宿主算作第五个执行器")
     args = ap.parse_args(argv)
+
+    use_node = not args.no_node and _node_exe() is not None
+    if not args.no_node and not use_node:
+        print("（注：PATH 上没有 node，本次不带 Node 宿主）")
 
     use_rust_vm = not args.no_rust_vm
     if use_rust_vm and not _rust_exe().exists():
@@ -217,12 +266,14 @@ def main(argv: "list[str] | None" = None) -> int:
     sys.stdin = io.StringIO("")
 
     files = _corpora()
-    stale: list[str] = []                   # 登记过期：登记说「有缺口」，实际已经好了
     bad: list[tuple] = []
     exempted: list[str] = []
     rust_stdout_bad: list[tuple] = []
-    rust_registered: list[str] = []         # 命中已知缺口登记（不是失败）
     rust_render_gap = 0                     # 报错渲染不一致的次数（已登记的缺口）
+    node_bad: list[tuple] = []              # Node 宿主不一致（未登记的）
+    #: 命中登记：语料 → 还差哪个宿主没对齐（登记「过期」要两边都好了才算）
+    registered: dict[str, set[str]] = {}
+    node_render_gap = 0                     # Node 报错渲染不一致的次数
     for path in files:
         rel = os.path.relpath(path, ROOT).replace("\\", "/")
         if _is_exempt(rel):
@@ -248,36 +299,67 @@ def main(argv: "list[str] | None" = None) -> int:
                 # 那份，与 Python 的 `render()` 同形）。
                 if r_out != tree_out or (tree_err and r_err.rstrip("\n") != tree_err):
                     if _registered(rel):
-                        rust_registered.append(rel)
+                        # 命中登记：**不是失败**（原因写在 `HOST_KNOWN_GAPS` 里，
+                        # 每条都能复核），但记下「这个宿主还没对齐」——
+                        # 两个宿主都对齐了才叫「登记过期」。
+                        registered.setdefault(rel, set()).add("Rust VM")
                     else:
                         rust_stdout_bad.append((rel, tree_out, r_out, tree_err, r_err))
                         ok = False
-                elif _registered(rel):
-                    stale.append(rel)
                 if tree_err and r_err.strip() and r_err.rstrip("\n") != tree_err:
                     rust_render_gap += 1
+        if use_node:
+            # ⚠️ 与 Rust VM 同样：编译不过的语料（`error_cases` 里一堆）没有字节码，
+            # 宿主无从跑起，直接跳过（**不是**不一致）。
+            try:
+                n_out, n_err = _run_node_vm(src, rel)
+            except Exception:                                      # noqa: BLE001
+                n_out = n_err = None
+            if n_out is not None:
+                # 两段都比：stdout 与**报错渲染**（Node 自己渲染那份，与 Python 同形）
+                if n_out != tree_out or (tree_err and n_err.rstrip("\n") != tree_err):
+                    if _registered(rel):
+                        registered.setdefault(rel, set()).add("Node")
+                    else:
+                        node_bad.append((rel, tree_out, n_out, tree_err, n_err))
+                        ok = False
+                if tree_err and n_err.strip() and n_err.rstrip("\n") != tree_err:
+                    node_render_gap += 1
         if args.verbose:
             print(("✅ " if ok else "❌ ") + rel)
         if not ok and not any(b[0] == rel for b in bad):
             bad.append((rel, tree_out, tree_err, vm_out, vm_err, cvm_out, cvm_err))
 
     total = len(files)
+    also = []
+    if use_rust_vm:
+        also.append("Rust VM")
+    if use_node:
+        also.append("Node")
     print(f"\n语料 {total} 个 · 对拍 {total - len(exempted)} 个 · "
           f"豁免 {len(exempted)} 个 · **不一致 {len(bad)} 个**"
           f"（前端：{args.frontend}"
-          f"{'，含 Rust VM' if use_rust_vm else ''}）")
+          f"{('，含 ' + ' / '.join(also)) if also else ''}）")
+    if use_node:
+        print(f"  · **Node 宿主**不一致（stdout 或报错渲染）：**{len(node_bad)}** 个"
+              f"（R6.4 起进判据）")
+        print(f"  · Node 报错渲染不一致：{node_render_gap} 个")
     if use_rust_vm:
         print(f"  · Rust VM 不一致（stdout 或报错渲染）：**{len(rust_stdout_bad)}** 个")
         print(f"  · Rust VM **报错渲染**不一致：{rust_render_gap} 个"
               f"（R6.3 前这一项是「已登记的缺口」，现在是**真判据**）")
-        print(f"  · 命中「Rust VM 已知缺口」登记：**{len(rust_registered)}** 个"
-              f"（共登记 {len(RUST_VM_KNOWN_GAPS)} 条）")
-        for rel in rust_registered[:6]:
-            print(f"      · {rel} —— {RUST_VM_KNOWN_GAPS[rel]}")
-        if len(rust_registered) > 6:
-            print(f"      · …另 {len(rust_registered) - 6} 个")
+    if use_rust_vm or use_node:
+        hosts = ([h for h in ("Rust VM", "Node") if (h == "Rust VM") == use_rust_vm
+                  or (h == "Node") == use_node])
+        print(f"  · 命中「宿主已知缺口」登记：**{len(registered)}** 个"
+              f"（共登记 {len(HOST_KNOWN_GAPS)} 条）")
+        for rel, missing in list(registered.items())[:6]:
+            print(f"      · {rel} —— {HOST_KNOWN_GAPS[rel]}")
+        if len(registered) > 6:
+            print(f"      · …另 {len(registered) - 6} 个")
+        stale = [r for r in HOST_KNOWN_GAPS if r not in registered]
         if stale:
-            print(f"  ⚠️ **登记过期**（这些已经好了，去 `RUST_VM_KNOWN_GAPS` 里删掉）：")
+            print("  ⚠️ **登记过期**（所有宿主都对齐了，去 `HOST_KNOWN_GAPS` 里删掉）：")
             for rel in stale:
                 print(f"      · {rel}")
     for rel, *outs in bad[:8]:
@@ -285,6 +367,10 @@ def main(argv: "list[str] | None" = None) -> int:
         for nm, o in zip(("树遍历.stdout", "树遍历.报错", "PythonVM.stdout",
                           "PythonVM.报错", "CVM.stdout", "CVM.报错"), outs):
             print(f"   {nm}: {o[:220]!r}")
+    for rel, t_out, n_out, t_err, n_err in node_bad:
+        print(f"\n❌ Node 宿主：{rel}\n   stdout 树遍历: {t_out[:160]!r}"
+              f"\n   stdout Node  : {n_out[:160]!r}")
+        print(f"   报错 树遍历: {t_err[:240]!r}\n   报错 Node  : {n_err[:240]!r}")
     for item in rust_stdout_bad[:4]:
         rel, a, b = item[0], item[1], item[2]
         print(f"\n❌ Rust VM：{rel}\n   stdout 树遍历: {a[:160]!r}"
@@ -295,10 +381,11 @@ def main(argv: "list[str] | None" = None) -> int:
         print("\n（豁免）")
         for rel in exempted:
             print(f"   · {rel} —— {EXEMPT.get(rel, '计时类噪声（文件名带「跑分/基准」）')}")
+    # 登记过期也当失败：留着它就等于给将来的问题留了张通行证
+    stale = [r for r in HOST_KNOWN_GAPS if r not in registered] if (use_rust_vm or use_node) else []
     if stale:
-        # 登记过期也当失败：留着它就等于给将来的问题留了张通行证
         return 1
-    return 1 if bad else 0
+    return 1 if (bad or node_bad or rust_stdout_bad) else 0
 
 
 if __name__ == "__main__":

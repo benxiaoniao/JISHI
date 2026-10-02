@@ -46,7 +46,7 @@ class Handler {
 }
 
 class Frame {
-  constructor(code, ip, base, locals, cells) {
+  constructor(code, ip, base, locals, cells, callLine, callCol) {
     this.code = code;
     this.ip = ip;
     this.base = base;
@@ -56,6 +56,11 @@ class Frame {
     this.handlers = [];    // Handler[]
     this.pendingReturn = R.PENDING_NONE;
     this.blockSeq = 0;
+    //: **本帧是在哪被调用的**（R6.4）—— 调用链要的是这个，不是「当前跑到第几行」。
+    //: 口径照 Python `vm._frames_to_trace`（每帧记 `call_line`）；模块主帧没有
+    //: 调用点，也不该进链。见 `_snapshotTrace`。
+    this.callLine = callLine ?? null;
+    this.callCol = callCol ?? null;
   }
 }
 
@@ -96,7 +101,7 @@ class VM {
     this._storeCells(code, frameCells, values);
     const base = this.stack.length;
     this.stack.push(null);
-    const frame = new Frame(code, 0, base, locals, frameCells);
+    const frame = new Frame(code, 0, base, locals, frameCells, line, col);
     this.frames.push(frame);
     try {
       this._execute(frame);
@@ -131,7 +136,11 @@ class VM {
     for (const [k, v] of Object.entries(kwargs)) {
       if (params.slice(0, npos).includes(k)) bound.set(k, v);
       else if (dstarPos >= 0) extra.set(k, v);
-      else throw R.typeErr(`函数「${code.name}」没有叫「${k}」的参数`, line, col);
+      // ⚠️ 带一句「它的参数是：…」（R6.4，照 Python 的 `interpreter._do_call` /
+      // `vm`）：只列**普通位置参数**（`*参数` 之前的那些），别把 `*余`/`**选项`
+      // 也列进去 —— 那不是用户能按名字传的。
+      else throw R.typeErr(`函数「${code.name}」没有叫「${k}」的参数`, line, col,
+                           `它的参数是：${params.slice(0, npos).join('、')}`);
     }
     if (dstarPos >= 0) bound.set(params[dstarPos], extra);
     if (defaults) {
@@ -194,7 +203,14 @@ class VM {
 
           if (op === Op.LOAD_FAST) {
             const v = frameLocals[ins.a];
-            if (v === R.UNSET) throw R.nameErr(`找不到名字「${ins.a < localNames.length ? localNames[ins.a] : '$' + ins.a}」`, ins.line, ins.col);
+            // 未赋值的局部槽：走**统一文案**（R6.4，Python 侧是
+            // `vm._unbound` → `runtime.unbound_local_error`，三个执行器共用）。
+            // 以前这里报「找不到名字「X」」+ 类型「异常」，两处都不对。
+            if (v === R.UNSET) {
+              throw R.unboundErr(
+                ins.a < localNames.length ? localNames[ins.a] : '$' + ins.a,
+                ins.line, ins.col);
+            }
             stack.push(v);
           } else if (op === Op.LOAD_CONST) {
             stack.push(consts[ins.a]);
@@ -227,7 +243,9 @@ class VM {
             globs[names[ins.a]] = stack.pop();
           } else if (op === Op.LOAD_DEREF) {
             const v = frameCells[ins.a].value;
-            if (v === R.UNSET) throw R.nameErr(`找不到名字「${this._cellName(code, ins.a)}」`, ins.line, ins.col);
+            if (v === R.UNSET) {
+              throw R.unboundErr(this._cellName(code, ins.a), ins.line, ins.col);
+            }
             stack.push(v);
           } else if (op === Op.STORE_DEREF) {
             frameCells[ins.a].value = stack.pop();
@@ -413,11 +431,22 @@ class VM {
           frame.ip = ip;
         }
       } catch (exc) {
+        // 出错的就是**刚跑过的那条**指令：`ip` 进入本轮时已 `+1`，所以是 `ip - 1`。
+        // （原来这里用的是上一轮写回帧里的 `frame.ip`，会偏一条。）
+        const badIns = instrs[Math.max(0, Math.min(ip - 1, instrs.length - 1))];
         if (!(exc instanceof R.JishiError)) {
           // JS 原生异常：包装成基石异常
-          exc = R.runErr(String(exc && exc.message ? exc.message : exc), frame.ip >= 0 ? instrs[Math.min(frame.ip, instrs.length - 1)]?.line : null, null);
+          exc = R.runErr(String(exc && exc.message ? exc.message : exc),
+                         badIns ? badIns.line : null, badIns ? badIns.col : null);
         }
+        this._fillErrorLoc(exc, badIns);
+        // 报错渲染要打 `┌─ 文件:行:列`，还要按它去读源文件画源码行 —— 宿主
+        // 得知道自己在跑哪个文件（R6.4，与 Rust 的 `Module.filename` 同义）。
+        if (!exc.filename) exc.filename = this.filename;
         frame.ip = ip;
+        // 拍调用链的时机与 Python 侧一样：**错误第一次冒出来那一刻**
+        // （再往外抛的路上帧早就被弹干净了）。见 `_snapshotTrace`。
+        this._snapshotTrace(exc);
         if (this._dispatchException(exc, stopAt)) continue;
         throw exc;
       }
@@ -440,7 +469,7 @@ class VM {
       stack.length = fnBase;
       const subCells = sub.cellvars.map(() => new R.Cell()).concat(fn.cells);
       this._storeCells(sub, subCells, values);
-      this.frames.push(new Frame(sub, 0, fnBase, locals, subCells));
+      this.frames.push(new Frame(sub, 0, fnBase, locals, subCells, ins.line, ins.col));
       return null;
     }
 
@@ -474,7 +503,9 @@ class VM {
       this._rejectKwargs(`异常类型「${fn.name}」`, kwargs, line, col);
       return fn.make(args[0] !== undefined ? args[0] : '', line, col);
     }
-    throw R.runErr(`「${R.display(fn)}」不能调用`, line, col);
+    // Python 侧是 `RunNotCallableError`（E2006「这个东西不能调用」）——
+    // 以前这里报宽泛的「运行期错误」，`e.类型` 与错误码都跟着漂（R6.4）
+    throw R.notCallableErr(`「${R.display(fn)}」不能调用`, line, col);
   }
 
   /** 宿主暂不支持命名参数时**明确报错**（M51）。以前 kwargs 会被静默丢掉，
@@ -489,6 +520,43 @@ class VM {
 
   _callBoundMethod(m, args, line, col) {
     m.impl(m.obj, args, line, col);
+  }
+
+  /**
+   * 给错误补上「出错位置」（R6.4）。
+   *
+   * 与 Python 的 `errors.py`/`vm` 同义：**只填还没填的** —— 内层若已给出更准的
+   * 位置（内建/标准库手里有调用点），不要被外层覆盖。
+   */
+  _fillErrorLoc(exc, ins) {
+    if (!ins || exc.line != null) return;
+    exc.line = ins.line;
+    exc.col = ins.col;
+  }
+
+  /**
+   * 把当前帧栈拍成调用链（只拍一次；已经有链就不动）。
+   *
+   * ⚠️ 口径照 Python 的 `vm._frames_to_trace`（否则同一个错误在两个执行器里
+   * 回溯长得不一样）：
+   * * **跳过 frames[0]**（模块主帧 —— 它的名字是 `<模块>`，不是用户写的函数）；
+   * * 每帧记「函数名 + **它的调用点**」（`callLine`），不是「当前跑到第几行」；
+   * * 匿名函数（`函数(x)：…` 脱糖出来的）的 code 名以 `<` 开头，
+   *   报错里显示成「匿名函数」更好认；
+   * * 调用点是 0（没记到）就当 `null`（Python 是 `fr.call_line or None`）。
+   */
+  _snapshotTrace(exc) {
+    if (exc.trace) return;
+    const chain = [];
+    for (let i = 1; i < this.frames.length; i++) {
+      const fr = this.frames[i];
+      const nm = fr.code && fr.code.name;
+      chain.push({
+        func: (nm && nm.startsWith('<')) ? '匿名函数' : nm,
+        line: fr.callLine > 0 ? fr.callLine : null,
+      });
+    }
+    exc.trace = chain;
   }
 
   _dispatchException(exc, stopAt) {
@@ -550,7 +618,10 @@ class VM {
     if (src === 1) throw R.runErr(`JS 引擎不支持「从 python」导入「${name}」`, line, col);
     if (src === 2) throw R.runErr(`JS 引擎不支持「从 本地包」导入「${name}」`, line, col);
     const mod = STDLIB[name];
-    if (!mod) throw R.nameErr(`没有找到标准库模块「${name}」`, line, col);
+    if (!mod) {
+      throw R.funcErr(`没有找到标准库模块「${name}」`, line, col,
+                      '试试：导入 随机 / 导入 数学 / 导入 时间 / 导入 文本');
+    }
     return mod;
   }
 }

@@ -39,6 +39,17 @@ const ERROR_CODES = {
   '值错误': 'E2005',
   '文件错误': 'E2007',
   '断言错误': 'E2008',
+  // R6.4：这三个在 Python 侧是**具体的错误类**
+  // （`SemanticNameError` E0301 / `SemanticFuncError` E0302 /
+  //  `RunNotCallableError` E2006）—— 以前 Node 把它们笼统报成「异常」
+  // 「运行期错误」，于是 `e.类型`、`捕获 X` 的匹配、错误码**三处一起错**。
+  '找不到这个名字': 'E0301',
+  '找不到这个函数': 'E0302',
+  '这个东西不能调用': 'E2006',
+  // R6.4：`输入()` 读到流末尾（Python 侧是 `JishiError` + `CODE_INPUT_END`）。
+  // 以前这条报错**没有码**，用户看到一个「错误（输入结束）」——
+  // 而 Python 侧是 `错误 E2010：输入结束`，查不到码就接不上 `jishi 错误`。
+  '输入结束': 'E2010',
 };
 
 class JishiError extends Error {
@@ -56,24 +67,107 @@ class JishiError extends Error {
     //: 「你是不是想写「长度」？」在宿主上给不出来。与 Python 的
     //: `JishiError.hint` 同一语义。
     this.hint = hint ?? null;
+    //: 源文件名（R6.4）：渲染要打 `┌─ 文件:行:列`。由 VM 在错误冒泡时填
+    //: （见 `vm.js` 的 catch），对应 Python 的 `JishiError.filename`。
+    this.filename = null;
+    //: 出错那一行的源码（R6.4）：与 Python 的 `JishiError.source_line` 同义。
+    //: ⚠️ **只在出口补**（`attachSource()`，对应 Python CLI 的 `with_source`），
+    //: 程序内部 `打印(e)` 时不补 —— 于是「打印出来的错误」两边长得一样
+    //: （都只有标题 + 位置框，没有源码行）。
+    this.sourceLine = null;
+    //: 调用链（R6.4）：**从外到内**，最外层模块主帧不算（与 Python 的
+    //: `JishiError.trace` 同形，每项 `{func, line}`）。
+    this.trace = null;
+    //: 多字符下划线区间 `[起, 止]`（1 起）。宿主手里只有单个 line/col，
+    //: 所以一直是 null —— 与 Python 侧**运行期错误**走的正是那条路
+    //: （`underline=None` ⇒ `^` 宽 1），因此这一处不差分毫。
+    this.underline = null;
   }
 
   /**
-   * 未捕获（或 `打印(e)`）时的渲染（M55 建的，M56 加了错误码）。
+   * 出口处补上「出错那一行的源码」（R6.4）。
+   *
+   * 对应 Python 侧的 `errors.JishiError.with_source(source_lines)` —— **只有
+   * 出口（CLI / REPL）手上才有整份源文件**。程序内部 `打印(e)` 不经过这里，
+   * 于是两边渲染一致。
+   *
+   * ⚠️ **按 `filename` 现读**（与 Rust 宿主同一取舍 R6.3）：不把源码塞进字节码
+   * （每份 `.json` 背上整份源码、还和源文件两份）；读不到（嵌入场景 / 文件被删）
+   * 就保持 null、退回「没有源码行」—— **不崩、也不报 IO 错**。
+   */
+  attachSource() {
+    if (this.sourceLine != null || this.line == null) return this;
+    try {
+      const text = fs.readFileSync(this.filename || '', 'utf-8');
+      const lines = text.split('\n');
+      if (this.line >= 1 && this.line <= lines.length) {
+        this.sourceLine = lines[this.line - 1].replace(/\r$/, '');
+      }
+    } catch (e) { /* 读不到就算了：位置照样打得出来 */ }
+    return this;
+  }
+
+  /**
+   * 未捕获（或 `打印(e)`）时的渲染（M55 建的，M56 加错误码，R6.4 补齐多行）。
+   *
    * 宿主出口（`index.js`）与 `toString()` **共用这一套**，免得两处渲染漂移。
    *
    * ⚠️ 不覆盖 `toString` 的话走 `Error.prototype.toString` ——
    * 用户会看到 `Error: 故意失败`：一个**英文单词**混在中文报错里。
    *
-   * 有码时与 Python 侧同形（`错误 E2002：类型错误（消息）`）；
-   * 没码（类型是宽泛的「异常」）退回「错误（异常）：消息」。
-   * 消息与标题重复时（如除零，两者都是「不能除以零」）不重复渲染括号。
+   * **逐项对齐 Python 的 `errors.JishiError.render()`**（R6.4）：
+   * * 标题行：有码 `错误 E2002：类型错误（消息）`；没码 `错误（异常）：消息`；
+   * * `  ┌─ 文件:行:列` + `  │` + `行号 │ 源码` + `    │ ^` + `  │`；
+   * * 调用链 `名字 ← 第 N 行`（最多 20 帧，从外到内）；
+   * * 提示语 `  提示：…`。
+   *
+   * ⚠️ 为什么要一模一样（而不是「大致像」）：报错是**用户可见的行为**，
+   * 三个 Python 执行器共用 `render()`，宿主是 R7/R8 之后**唯一的形态**
+   * —— 它必须自己长出完整的那一份，否则单二进制的报错会**退步**。
    */
   render() {
-    if (!this.code) return `错误（${this.typeName}）：${this.message}`;
-    const head = `错误 ${this.code}：${this.title}`;
-    return (this.message && this.message !== this.title)
-      ? `${head}（${this.message}）` : head;
+    let head;
+    if (!this.code) {
+      head = `错误（${this.typeName}）：${this.message}`;
+    } else {
+      head = `错误 ${this.code}：${this.title}`;
+      if (this.message) head += `（${this.message}）`;
+    }
+    const parts = [];
+    if (this.line == null) {
+      parts.push(head);
+    } else {
+      const col = this.col || 1;
+      parts.push(head);
+      parts.push(`  ┌─ ${this.filename || '<输入>'}:${this.line}:${col}`);
+      parts.push('  │');
+      if (this.sourceLine) {
+        const src = this.sourceLine.replace(/\n$/, '').replace(/\r$/, '');
+        parts.push(`${String(this.line).padStart(3)} │ ${src}`);
+        const [start, end] = this.underline || [col, col];
+        const caretCol = Math.max(1, start == null ? col : start);
+        const stop = end == null ? caretCol : end;
+        const width = Math.max(1, stop - caretCol + 1);
+        parts.push(`    │ ${' '.repeat(caretCol - 1)}${'~'.repeat(Math.max(0, width - 1))}^`);
+      }
+      parts.push('  │');
+    }
+    const trace = this._renderTrace();
+    if (trace) parts.push(trace);
+    if (this.hint) parts.push(`  提示：${this.hint}`);
+    return parts.join('\n');
+  }
+
+  /** 调用链块：`从外到内`，取最近 20 帧；没有链返回空串（与 Python 一致）。 */
+  _renderTrace() {
+    if (!this.trace || !this.trace.length) return '';
+    const frames = this.trace.length > 20 ? this.trace.slice(-20) : this.trace;
+    const lines = ['调用链（从外到内）：'];
+    for (const fr of frames) {
+      const where = fr.line == null ? '未知位置' : `第 ${fr.line} 行`;
+      lines.push(`  ${fr.func} ← ${where}`);
+    }
+    return lines.join('\n');
   }
 
   toString() {
@@ -89,12 +183,52 @@ class RunContinue extends JishiError {
   constructor(line, col) { super('继续', '继续', '继续', line, col); }
 }
 
-function typeErr(msg, line, col) { return new JishiError('类型错误', '类型错误', msg, line, col); }
-function valueErr(msg, line, col) { return new JishiError('值错误', '数值不对', msg, line, col); }
-function nameErr(msg, line, col, hint) {
-  return new JishiError('异常', '找不到名字', msg, line, col, hint);
+// `hint` 是 R6.4 加的（可选）：有的类型错误要带一句「怎么改」
+// （如「没有方法「排续」」后面跟「可用的方法：…」），与 Python 侧同形。
+function typeErr(msg, line, col, hint) {
+  return new JishiError('类型错误', '类型错误', msg, line, col, hint);
 }
-function zeroDiv(line, col) { return new JishiError('除零错误', '不能除以零', '不能除以零', line, col); }
+// `hint` 是 R6.4 加的（可选），与 typeErr 同理。
+function valueErr(msg, line, col, hint) {
+  return new JishiError('值错误', '数值不对', msg, line, col, hint);
+}
+// ⚠️ **类型名必须与 Python 侧的具体错误类对齐**（R6.4）：以前这里一律 `异常`，
+// 而 Python 给的是 `找不到这个名字`（`SemanticNameError` E0301）——
+// `e.类型` 不一样、`捕获` 的可见范围也跟着变。
+function nameErr(msg, line, col, hint) {
+  return new JishiError('找不到这个名字', '找不到这个名字', msg, line, col, hint);
+}
+/** 模块/函数找不到（Python 侧 `SemanticFuncError` E0302）。 */
+function funcErr(msg, line, col, hint) {
+  return new JishiError('找不到这个函数', '找不到这个函数', msg, line, col, hint);
+}
+/** 拿一个不能调用的东西去调用（Python 侧 `RunNotCallableError` E2006）。 */
+function notCallableErr(msg, line, col) {
+  return new JishiError('这个东西不能调用', '这个东西不能调用', msg, line, col);
+}
+/**
+ * 「局部变量还没赋过值就被读」（R6.4）。
+ *
+ * 文案与 Python 侧的 `runtime.unbound_local_error` **逐字对齐**（那是三个执行器
+ * 共用的单一来源）：消息是「名字「X」在赋值之前被用到了」，**类型是
+ * `找不到这个名字`**（`SemanticNameError` E0301）—— 以前 Node 报的是
+ * 「找不到名字「X」」+ 宽泛的「异常」，两处都不一样。
+ *
+ * `hint` 给不出时用通用说法（Python 那句）。⚠️ 更具体的那句来自
+ * `Code.local_hints`，它**不在字节码 JSON 里** —— 所以宿主给不出，
+ * 这与 Rust 宿主是同一处登记在案的边界（见 `tools/check_engines.py`）。
+ */
+function unboundErr(name, line, col, hint) {
+  return new JishiError(
+    '找不到这个名字', '找不到这个名字',
+    `名字「${name}」在赋值之前被用到了`, line, col,
+    hint || (`「${name}」在这个函数里被赋过值，所以它是局部变量；`
+      + '函数一进来它还没值。想读外层同名的那个，就换个名字。'));
+}
+// ⚠️ **消息是空串**（R6.4）：Python 侧 `RunZeroDivisionError("")` 就是空的
+// （标题本身就是「不能除以零」，再塞一遍进消息会在渲染里重复成
+// `（不能除以零）`）。口径以 Python 为准 → `e.消息` 两边一致为空。
+function zeroDiv(line, col) { return new JishiError('除零错误', '不能除以零', '', line, col); }
 function keyErr(msg, line, col) { return new JishiError('键错误', '找不到这个键', msg, line, col); }
 function indexErr(msg, line, col) { return new JishiError('索引错误', '索引越界', msg, line, col); }
 function runErr(msg, line, col) { return new JishiError('运行期错误', '运行期错误', msg, line, col); }
@@ -376,7 +510,7 @@ class JishiDecimal {
 
   /** 除法：算到 28 位有效数字，ROUND_HALF_EVEN（与 Python Decimal 一致）。 */
   div(o) {
-    if (o.coef === 0n) throw new JishiError('除零错误', '不能除以零', '不能除以零');
+    if (o.coef === 0n) throw new JishiError('除零错误', '不能除以零', '');
     // 目标：商的有效数字达到 28 位。被除数放大后做整数除法，再按余数决定进位。
     const extra = DEC_PRECISION + 2;
     const shift = BigInt(10) ** BigInt(extra);
@@ -953,15 +1087,22 @@ function cpIndexOf(s, needle) {
 function extremum(args, wantMax) {
   const seq = args.length === 1 ? seqOf(args[0], false, undefined, undefined) : null;
   const items = seq !== null ? seq : args;
-  const who = wantMax ? '最大' : '最小';
+  // 文案照 Python 的 `_b_max` / `_b_min`（R6.4）：单参用**那个值本身**、
+  // 多参用「、」连起来，然后说「不能求最大/最小值，需要一个非空列表或若干数字」。
+  // ⚠️ 不能把参数元组直接插进文案（R6.3 的老教训：元组的 repr 会把
+  // `([],)` 这种内部表示漏到用户眼前）。
+  const 动作 = wantMax ? '求最大' : '求最小';
+  const 描述 = () => (args.length === 1
+    ? display(args[0])
+    : args.map(display).join('、'));
   if (items.length === 0) {
-    throw typeErr(`「${who}」需要一个非空列表或若干数字`);
+    throw typeErr(`「${描述()}」不能${动作}值，需要一个非空列表或若干数字`);
   }
   let best = items[0];
   for (let i = 1; i < items.length; i++) {
     const x = items[i];
     if (!comparable(x, best)) {
-      throw typeErr(`「${who}」里混了不能互相比较的值——数字和文本不能比大小`);
+      throw typeErr(`「${描述()}」不能${动作}值，需要一个非空列表或若干数字`);
     }
     const c = cmpVals(x, best);
     if (wantMax ? c > 0 : c < 0) best = x;
@@ -1216,7 +1357,7 @@ class ExcType {
   toString() { return `<异常类型 ${this.name}>`; }
   // 构造异常实例
   make(message, line, col) {
-    if (this.name === '除零错误') return new JishiError('除零错误', '不能除以零', '不能除以零', line, col);
+    if (this.name === '除零错误') return new JishiError('除零错误', '不能除以零', '', line, col);
     if (this.name === '类型错误') return new JishiError('类型错误', '类型错误', message, line, col);
     if (this.name === '值错误') return new JishiError('值错误', '数值不对', message, line, col);
     if (this.name === '索引错误') return new JishiError('索引错误', '索引越界', message, line, col);
@@ -1449,7 +1590,12 @@ function newBuiltins() {
       throw typeErr(`「${display(v)}」没有长度`);
     }),
     '范围': new Builtin('范围', (...args) => {
-      needBuiltinArgs('范围', args, 1, 3);
+      // ⚠️ 参数个数照 Python 的 `_b_range` 口径（R6.4）：它是「先试 1/2/3 个，
+      // 都不匹配才报『最多接受 3 个参数』」—— 所以 0 个与 4 个都是这一句。
+      // 以前走 `needBuiltinArgs`，报的是「需要 1 到 3 个参数，但传了 4 个」。
+      if (args.length < 1 || args.length > 3) {
+        throw typeErr('「范围」最多接受 3 个参数');
+      }
       if (args.length === 1) return range(0, args[0], 1);
       if (args.length === 2) return range(args[0], args[1], 1);
       return range(args[0], args[1], args[2]);
@@ -1817,8 +1963,14 @@ function applyBinop(op, l, r, line, col) {
     if (op === '*' && lList) return repeatSeq(l, intMulOf(rv, line, col));
     if (op === '*' && rList) return repeatSeq(r, intMulOf(lv, line, col));
     if (op === '+') {
-      const other = lList ? r : l;
-      throw typeErr(`「列表」只能和「列表」相加，不能和「${typeName(other)}」相加`, line, col);
+      // ⚠️ **只有左边是列表**才说「只能和列表相加」（R6.4）。Python 侧这类错
+      // 分成两句：左边是列表 → `can only concatenate list (not "int") to list`；
+      // 否则 → `unsupported operand type(s)`（「A 和 B 不能做「+」运算」）。
+      // 以前这里不管左右都报「列表只能和列表相加」—— `1 + [1]` 就**说反了**。
+      if (lList) {
+        throw typeErr(`「列表」只能和「列表」相加，不能和「${typeName(r)}」相加`, line, col);
+      }
+      throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
     }
     throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
   }
@@ -1828,8 +1980,13 @@ function applyBinop(op, l, r, line, col) {
     if (op === '*' && lStr) return repeatSeq(lv, intMulOf(rv, line, col));
     if (op === '*' && rStr) return repeatSeq(rv, intMulOf(lv, line, col));
     if (op === '+') {
-      const other = lStr ? r : l;
-      throw typeErr(`「文本」只能和「文本」相加，不能和「${typeName(other)}」相加`, line, col);
+      // 同列表：只有左边是文本才说「只能和文本相加」（R6.4）。
+      // `1 + "a"` 该报「「整数」和「文本」不能做「+」运算」，以前说成
+      // 「「文本」只能和「文本」相加」—— 左边明明是整数。
+      if (lStr) {
+        throw typeErr(`「文本」只能和「文本」相加，不能和「${typeName(r)}」相加`, line, col);
+      }
+      throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
     }
     throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
   }
@@ -1903,6 +2060,54 @@ function applyUnary(op, v, line, col) {
   throw runErr(`不支持的一元运算符「${op}」`, line, col);
 }
 
+/** 数值类（整数/小数/布尔/大整数/FloatBox）—— Python 里它们互相可比。 */
+function isNumLike(v) {
+  return typeof v === 'number' || typeof v === 'boolean'
+    || typeof v === 'bigint' || isFloatBox(v);
+}
+
+/**
+ * 定序比较（`<` `>` `<=` `>=`）→ `-1` / `0` / `1`；**不可比返回 `null`**（R6.4）。
+ *
+ * ⚠️ **不能直接交给 JS 的运算符**：
+ * * `1 < "a"` 在 JS 里给 `false` —— **静默**，而 Python 报「类型错误：不能比较」；
+ * * `[1] < [2]` 在 JS 里比的是**转成字符串之后**的结果，与 Python 的
+ *   逐元素字典序也不是一回事。
+ * 「不报错的错答案」是本项目最恨的一类 bug（M56 的教训），所以这里显式分派。
+ *
+ * 可比的三类（照 Python 的语义）：数值之间 / 文本之间（按**码点**）/
+ * 列表之间（逐元素递归，先短后长）。其余一律 `null` → 调用方报「不能比较」。
+ */
+function orderCompare(a, b) {
+  if (isNumLike(a) && isNumLike(b)) {
+    const x = isFloatBox(a) ? a.value : (typeof a === 'boolean' ? (a ? 1 : 0) : a);
+    const y = isFloatBox(b) ? b.value : (typeof b === 'boolean' ? (b ? 1 : 0) : b);
+    if (x === y) return 0;
+    // ⚠️ 不转成 Number：`2n ** 62n > 1` 这种大整数比较在 JS 里是**精确**的
+    return x < y ? -1 : 1;
+  }
+  if (typeof a === 'string' && typeof b === 'string') {
+    // ⚠️ 按**码点**比（M55 的老坑：JS 直接 `<` 比的是 UTF-16 码元，
+    // `😀` 会落到代理区，与 Python 的码点序不一致）
+    const ca = Array.from(a), cb = Array.from(b);
+    const n = Math.min(ca.length, cb.length);
+    for (let i = 0; i < n; i++) {
+      if (ca[i] !== cb[i]) return ca[i] < cb[i] ? -1 : 1;
+    }
+    return ca.length === cb.length ? 0 : (ca.length < cb.length ? -1 : 1);
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+      const c = orderCompare(a[i], b[i]);
+      if (c === null) return null;
+      if (c !== 0) return c;
+    }
+    return a.length === b.length ? 0 : (a.length < b.length ? -1 : 1);
+  }
+  return null;
+}
+
 function applyCompare(op, l, r, line, col) {
   // 精确小数：算术比较走十进制（混合 0.3 也能相等）；成员测试/同一性
   // （在·不在·是·不是）不走这里——`精确("1") 在 [1]` 该按元素比较，
@@ -1925,18 +2130,26 @@ function applyCompare(op, l, r, line, col) {
   // 同一性（M30）
   if (op === '是') return identityKey(l) === identityKey(r);
   if (op === '不是') return identityKey(l) !== identityKey(r);
-  const lv = unwrap(l), rv = unwrap(r);
-  // 大整数与 number 的大小比较在 JS 里是**精确**的（`2n ** 62n > 1` 不会因
-  // 双精度而失真），直接用就行；`==`/`!=` 走 valueEq（M32）
+  // 大小比较（R6.4）：显式分派 + **不可比就报错** —— 见 `orderCompare`。
+  // 以前这里是 `lv < rv` 等四条裸 JS 比较，`1 < "a"` 会**静默给「假」**。
   switch (op) {
     // `==` 走值相等：列表/字典/集合按内容递归比，数字与布尔按数值比
     // （`[1, 2] == [1, 2]` 为真、`1 == 真` 为真，与 Python 一致）
     case '==': return valueEq(l, r);
     case '!=': return !valueEq(l, r);
-    case '<': return lv < rv;
-    case '>': return lv > rv;
-    case '<=': return lv <= rv;
-    case '>=': return lv >= rv;
+    case '<': case '>': case '<=': case '>=': {
+      const c = orderCompare(l, r);
+      if (c === null) {
+        // ⚠️ 用 `pyStr`（= Python 的 `jishi_repr(top=True)`，`打印` 用的那一套）
+        // 而不是 `display`（R6.4）：`display` 对 `空` 给「空」但嵌套容器里的
+        // 字符串会丢掉引号，与 Python 侧的 `不能比较「[['a']]」和…` 差一个字。
+        throw typeErr(`不能比较「${pyStr(l)}」和「${pyStr(r)}」`, line, col);
+      }
+      if (op === '<') return c < 0;
+      if (op === '>') return c > 0;
+      if (op === '<=') return c <= 0;
+      return c >= 0;
+    }
   }
   throw runErr(`不支持的比较「${op}」`, line, col);
 }
@@ -1962,7 +2175,9 @@ function getAttr(obj, attr, line, col) {
   }
   if (obj instanceof Module) {
     if (attr in obj.attrs) return obj.attrs[attr];
-    throw nameErr(`模块「${obj.name}」里没有「${attr}」`, line, col);
+    // Python 侧是 `SemanticFuncError`（E0302），且带一句提示（R6.4 一起对齐）
+    throw funcErr(`模块「${obj.name}」里没有「${attr}」`, line, col,
+                  '可以看看模块里有哪些函数，例如：打印(dir(模块名)) 在后续版本可用');
   }
   if (obj instanceof JishiSuper) {
     // 超()（M56）：从**定义类的基类**起找，方法绑定**原实例**。
@@ -2000,6 +2215,14 @@ function getAttr(obj, attr, line, col) {
   if (table && attr in table) {
     return new BoundMethod(table[attr], obj, attr, line, col);
   }
+  // ⚠️ **有方法表的对象要说「没有方法」并列出可用的那些**（R6.4，照 Python
+  // `get_attr`）：`a.排续()` 该报「「列表」没有方法「排续」」+ 可用方法清单，
+  // 而不是笼统的「没有属性」——「属性」这个词对列表没有意义，
+  // 用户要的是「我是不是打错方法名了」。
+  if (table) {
+    throw typeErr(`「${typeName(obj)}」没有方法「${attr}」`, line, col,
+                  `可用的方法：${Object.keys(table).sort().join('、')}`);
+  }
   throw typeErr(`「${typeName(obj)}」没有属性「${attr}」`, line, col);
 }
 
@@ -2034,7 +2257,7 @@ function getItem(obj, index, line, col) {
   if (Array.isArray(obj)) {
     const i = index;
     if (!Number.isInteger(i) || i < 0 || i >= obj.length) {
-      throw indexErr(`下标「${display(index)}」越界`, line, col);
+      throw indexErr('列表下标越界', line, col);
     }
     return obj[i];
   }
@@ -2047,7 +2270,7 @@ function getItem(obj, index, line, col) {
     const chars = Array.from(obj);
     const i = index;
     if (!Number.isInteger(i) || i < 0 || i >= chars.length) {
-      throw indexErr(`下标「${display(index)}」越界`, line, col);
+      throw indexErr('文本下标越界', line, col);
     }
     return chars[i];
   }
@@ -2077,6 +2300,12 @@ function setItem(obj, index, value, line, col) {
     return;
   }
   if (Array.isArray(obj)) {
+    // ⚠️ **越界必须报错，不能静默扩容**（R6.4）：JS 数组 `a[9] = x` 会自动补长，
+    // 于是 `列[9] = 3` **静默成功**——而 Python 侧报「索引错误 / 列表下标越界」。
+    // 「不报错的错答案」是本项目最恨的一类 bug（M56 的教训）。
+    if (!Number.isInteger(index) || index < 0 || index >= obj.length) {
+      throw indexErr('列表下标越界', line, col);
+    }
     obj[index] = value;
     return;
   }
@@ -2199,11 +2428,13 @@ function unpackValues(value, n, star, line, col) {
   // 都能解包，与 Python 侧 `_as_iterable` 取同一套口径（M30）
   const seq = seqOf(value, true, line, col);
   if (seq === null) {
-    throw typeErr(`解包赋值需要列表，得到了「${typeName(value)}」`, line, col);
+    throw typeErr(`解包赋值需要列表，得到了「${typeName(value)}」`, line, col,
+                  '列表、文本、集合都能解包（字典解出来的是键）');
   }
   if (star == null || star < 0) {
     if (seq.length !== n) {
-      throw valueErr(`解包需要 ${n} 个值，实际有 ${seq.length} 个`, line, col);
+      throw valueErr(`解包需要 ${n} 个值，实际有 ${seq.length} 个`, line, col,
+                     '想「收剩下的」可以写「*余」，例如 令 甲, *余 = 列表');
     }
     return [...seq];
   }
@@ -2375,8 +2606,20 @@ const LIST_METHODS = {
   },
   '弹出': (obj, args, line, col) => {
     needArgs('弹出', args, 0, 1, line, col);
-    if (obj.length === 0) throw valueErr('列表是空的，没有东西可以弹出', line, col);
-    return args.length ? obj.splice(args[0], 1)[0] : obj.pop();
+    // ⚠️ **两种情形要分开**（R6.2 在 Python/Rust 上分开了，R6.4 补 Node）：
+    // 空列表 → 值错误（「列表是空的」）；下标越界 → 索引错误 + 越界文案。
+    // 以前这里 `obj.splice(9, 1)[0]` 越界时给 `undefined` —— **静默成功**，
+    // 而 `[1].弹出(9)` 里列表**压根不空**，报「列表是空的」也是句错话。
+    if (args.length === 0) {
+      if (obj.length === 0) throw valueErr('列表是空的，没有东西可以弹出', line, col);
+      return obj.pop();
+    }
+    const i = args[0];
+    if (!Number.isInteger(i) || i < 0 || i >= obj.length) {
+      if (obj.length === 0) throw valueErr('列表是空的，没有东西可以弹出', line, col);
+      throw indexErr('列表下标越界', line, col);
+    }
+    return obj.splice(i, 1)[0];
   },
   '排序': (obj, args, line, col) => { needArgs('排序', args, 0, 0, line, col); obj.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)); return null; },
   '反转': (obj, args, line, col) => { needArgs('反转', args, 0, 0, line, col); obj.reverse(); return null; },
@@ -2694,7 +2937,18 @@ const EXC_HIERARCHY = {
   '键错误': '运行期错误',
   '值错误': '运行期错误',
   '文件错误': '运行期错误',
+  // ⚠️ **M55 起 `捕获 断言错误` 能用了，但这里一直漏着这一支** ——
+  // 于是「`捕获 运行期错误` 接不住断言错误」，而 Python 侧
+  // `RunAssertionError` 是 `RunError` 的子类、接得住。R6.4 补上。
+  '断言错误': '运行期错误',
   '运行期错误': '异常',
+  // R6.4：与 Python 的类继承逐项对齐 ——
+  // * `SemanticNameError` / `SemanticFuncError` 挂在 `JishiError` 下
+  //   （**不是** `RunError`），所以 `捕获 运行期错误` **接不住**它们；
+  // * `RunNotCallableError` 挂在 `RunError` 下，接得住。
+  '找不到这个名字': '异常',
+  '找不到这个函数': '异常',
+  '这个东西不能调用': '运行期错误',
 };
 
 function excIsInstance(excTypeName, condName) {
@@ -2747,7 +3001,8 @@ module.exports = {
   // M56：「你是不是想写」的候选名（`vm.js` 在 LOAD_GLOBAL 的报错路径上用它）
   nameHint, closeMatches, sequenceRatio,
   isLoopSignal, exceptionMatches, makeException,
-  nameErr, typeErr, valueErr, runErr, fileErr,
+  nameErr, funcErr, notCallableErr, unboundErr,
+  typeErr, valueErr, runErr, fileErr,
   // M41：`容器` / `迭代` 两个模块要用它做「元素 → 字典键」的归键
   setKey,
 };

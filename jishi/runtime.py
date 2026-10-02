@@ -1398,8 +1398,14 @@ def apply_compare(op: str, left, right, *, line=None, col=None,
         if op == "不是":
             return _identity_snapshot(left) != _identity_snapshot(right)
     except TypeError:
-        raise RunTypeError(f"不能比较「{left}」和「{right}」",
-                           line=line, col=col, filename=filename)
+        # ⚠️ 用 `jishi_repr(top=True)` 而不是裸 f-string（R6.4）：裸的会漏出
+        # `None`（英文！）—— 中文语言里的报错不该混英文；而且嵌套容器里的
+        # 字符串会**丢掉引号**（`[['a']]` 显示成 `[[a]]`），与 `打印` 的
+        # 口径也不一致。宿主侧（Node/Rust）照这个口径对齐。
+        raise RunTypeError(
+            f"不能比较「{jishi_repr(left, top=True)}」"
+            f"和「{jishi_repr(right, top=True)}」",
+            line=line, col=col, filename=filename)
     raise RunError(f"不支持的比较「{op}」", line=line, col=col,
                    filename=filename)
 

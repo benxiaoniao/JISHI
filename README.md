@@ -184,7 +184,7 @@ jishi examples/01_猜数字.jsh --ast
 逐里程碑的详细记录移到 **[`docs/里程碑.md`](docs/里程碑.md)**
 （本 README 只讲「现在能做什么」，要查「哪一版加了什么」看那份）。
 
-**测试现状：2685 项**（`python -m pytest tests/`），其中 240 余项是三执行器
+**测试现状：2703 项**（`python -m pytest tests/`），其中 240 余项是三执行器
 对拍（树遍历 / Python VM / C VM 输出逐字节一致），另有跨语言宿主对拍
 （Rust 101 + 58 + 37 项、JS 62 + 43 项，都与 Python VM 逐字节一致，含三个真实示例
 项目的端到端对比）。

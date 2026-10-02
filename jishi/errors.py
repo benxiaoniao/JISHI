@@ -425,6 +425,16 @@ def _type_error_zh(msg: str) -> str:
         a = _PY_TYPE_ZH.get(m.group(1), m.group(1))
         b = _PY_TYPE_ZH.get(m.group(2), m.group(2))
         return f"「{a}」只能和「{a}」相加，不能和「{b}」相加"
+    # ⚠️ `**` 的原文是**另一个格式**（R6.4 补）：
+    # `unsupported operand type(s) for ** or pow(): 'int' and 'str'` ——
+    # 运算符后面跟着 ` or pow()`，所以下面那条 `(\S+):` 匹配不到，
+    # 于是 `1 ** "a"` 一直漏英文。**先试这一条，再试通用那条。**
+    m = re.search(
+        r"unsupported operand type\(s\) for (\S+) or \w+\(\): '(\w+)' and '(\w+)'", msg)
+    if m:
+        a = _PY_TYPE_ZH.get(m.group(2), m.group(2))
+        b = _PY_TYPE_ZH.get(m.group(3), m.group(3))
+        return f"「{a}」和「{b}」不能做「{m.group(1)}」运算"
     m = re.search(
         r"unsupported operand type\(s\) for (\S+): '(\w+)' and '(\w+)'", msg)
     if m:

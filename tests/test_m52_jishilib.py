@@ -492,10 +492,12 @@ def test_未绑定局部与单元的报错一致():
     - Rust 两条路径都**静默返回 `空`**。`空` 是合法值，跟「没赋过值」
       必须分得开 —— 静默给个错答案，比报错难查一百倍。
 
-    ⚠️ **跨语言宿主的边界（如实记）**：**Node** 没有 Python 侧那套错误码目录，
-    报的是「错误（异常）：找不到名字「y」」。
-    ✅ **Rust 宿主 R6.2/R6.3 起已经对齐**（E0301 + 同样的文案 + 源码行 + 调用链），
-    所以判据按宿主分开写 —— **别把「宿主」当成同一个东西**。
+    ⚠️ **宿主也不是「铁板一块」**（如实记）：两个宿主都在 R6.2/R6.4 之后对齐了
+    —— E0301 + 同样的文案 + 源码行 + 调用链。**唯一还差的一句是「提示语」**：
+    Python 那句来自 `Code.local_hints`（按槽位、能说出「外层也有一个叫「x」的
+    变量」），而它**不在字节码 JSON 里**，宿主手里只有通用说法。
+    那是登记在案的边界（`tools/check_engines.py` 的 `HOST_KNOWN_GAPS`），
+    要对齐得**动字节码格式**。
     """
     cases = {
         "局部": ('函数 外()：\n'
@@ -517,8 +519,8 @@ def test_未绑定局部与单元的报错一致():
             ok, out = run(src)
             assert not ok, f"{label} 本该报「找不到名字」却跑通了（{kind}）"
             outs[label] = out
-        # 三个 Python 执行器 + Rust 宿主：码、类型名、**消息**都要一样
-        for label in ("树遍历", "Python VM", "C VM", "Rust"):
+        # 三个 Python 执行器 + **两个宿主**：码、类型名、**消息**都要一样
+        for label in ("树遍历", "Python VM", "C VM", "Rust", "Node"):
             if label not in outs:
                 continue
             assert "E0301" in outs[label] and "找不到这个名字" in outs[label], (
@@ -527,10 +529,11 @@ def test_未绑定局部与单元的报错一致():
             assert "赋值之前被用到了" in outs[label], (
                 f"{kind}：{label} 的消息不对（R6.2 起口径是「赋值之前被用到了」）"
                 f"—— {outs[label][:160]!r}")
-        # Node 还是老样子（记录在案的边界）：它笼统报「异常」，没有错误码
-        if "Node" in outs:
-            assert "错误（异常）" in outs["Node"], (
-                f"{kind}：Node 的渲染变了 —— {outs['Node'][:160]!r}")
+        # ⚠️ R6.4 起 **Node 也走到这条判据里**了（它以前笼统报「异常」、
+        # 消息是「找不到名字「y」」——`e.类型`、`捕获 X`、错误码三处一起错）。
+        # 唯一还差的是**提示语**：Python 那句来自 `Code.local_hints`（**不在
+        # 字节码 JSON 里**，见 `docs/前端契约.md` §12.3），宿主手里只有通用说法
+        # —— 这是登记在案的边界（`tools/check_engines.py` 的 `HOST_KNOWN_GAPS`）。
 
 
 def test_虚拟机销毁后回收函数值不崩():

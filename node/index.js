@@ -161,12 +161,15 @@ function main() {
     // 基石错误打印成人话（此前是直接抛给 Node，用户看到的是 JS 堆栈，
     // 既看不出是哪种错误也看不到行列——M30 规范化，与 Rust 宿主同风格）
     if (e && e.isJishiError) {
-      // M56：走 `JishiError.render()`（与 `打印(e)` 同一套渲染，
-      // 有码就用码、与 Python 侧同形；「异常」这种宽泛类型不给码）
+      // R6.4：渲染与 Python 的 `JishiError.render()` **逐字相同**（标题 + 位置 +
+      // 源码行 + `^` + 调用链 + 提示）。以前这里是「一行标题 + 一行位置」，
+      // 用户**看不到自己写的那一行** —— 而宿主是 R7/R8 之后**唯一的形态**，
+      // 那样等于没报错。
+      //
+      // ⚠️ 源码行**只在出口补**（对应 Python CLI 的 `with_source`）：按
+      // `filename` 现读一次源文件；读不到就退回「没有源码行」，不崩。
+      if (e.attachSource) e.attachSource();
       console.error(e.render ? e.render() : `错误（${e.typeName}）：${e.message}`);
-      if (e.line != null) console.error(`  ← 第 ${e.line} 行第 ${e.col} 列`);
-      // M56：与 Python 侧的「提示：…」同一格式（宿主原来没有 hint 字段）
-      if (e.hint) console.error(`  提示：${e.hint}`);
       return 1;
     }
     console.error(`内部错误：${(e && e.stack) || e}`);

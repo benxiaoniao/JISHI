@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""运行期错误体检：**常见运行期错误的 (类型, 消息) 在四个执行器上必须一致**。
+"""运行期错误体检：**常见运行期错误的 (类型, 消息) 在五个执行器上必须一致**。
 
 ## 为什么要有它
 
@@ -30,13 +30,34 @@ R6.2 第一次跑这个探针，**19 个形状里 18 个不一致**：
 这样连「Rust VM 画不出源码行」那件事都不影响它（那是另一个缺口，见
 `tools/check_engines.py` 的登记）。
 
-⚠️ **加运行期错误时跑它。** Python 侧（`errors.py` / `runtime.py`）与宿主侧
-（`rust/src/lib.rs` 的 `T_NAME` / `T_NOT_CALLABLE` / `INDEX_MSG` / …）各有一份
-文案，**两边要一起改** —— 这份探针就是那份「一起改」的凭证。
+## R6.4：把 **Node 宿主**也拉进来
+
+以前这里只比四个执行器（三个 Python + Rust VM）—— **Node 宿主从头到尾不在视野里**。
+把它拉进来之后（判据照旧：自己接住再打印 `类型` 与 `消息`），
+**19 个形状里有 11 个不一致**，其中两条还是**静默成功**：
+
+| 形状 | Node（改之前） | Python 基准 |
+|---|---|---|
+| `列[9] = 3`（越界赋值） | **什么都不报，还把列表撑长了** | 索引错误 / 列表下标越界 |
+| `[1].弹出(9)` | `undefined`（静默） | 索引错误 / 列表下标越界 |
+| `1 / 0` | 消息 `不能除以零` | 消息**空**（标题里已经有了） |
+| `列[9]` | `下标「9」越界` | `列表下标越界` |
+| `甲()`（非函数） | 类型 `运行期错误` | `这个东西不能调用`（E2006） |
+| `没定义过的东西` | 类型 `异常` | `找不到这个名字`（E0301） |
+| `导入 不存在的模块` | 类型 `异常` | `找不到这个函数`（E0302） |
+
+📌 「静默成功」那一类最要命：**JS 数组 `a[9] = x` 会自动补长**，于是越界赋值
+不报错、还悄悄改了列表 —— 而 Python 侧报错。这就是本项目那句「不报错的错答案最难查」。
+
+⚠️ **加运行期错误时跑它。** Python 侧（`errors.py` / `runtime.py`）、Rust 宿主
+（`rust/src/lib.rs` 的 `T_NAME` / `T_NOT_CALLABLE` / `INDEX_MSG` / …）、
+Node 宿主（`node/runtime.js` 的 `ERROR_CODES` / `node/vm.js`）**各有一份文案**，
+**都要一起改** —— 这份探针就是那份「一起改」的凭证。
 
 用法：
     python tools/probe_runtime_errors.py        # 全部形状
     python tools/probe_runtime_errors.py -v     # 每个形状都打一行
+    python tools/probe_runtime_errors.py --no-node   # 不带 Node 宿主
 """
 
 from __future__ import annotations
@@ -45,6 +66,7 @@ import argparse
 import contextlib
 import io
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -101,6 +123,15 @@ def _rust_exe() -> Path:
     return ROOT / "rust" / "target" / "release" / name
 
 
+def _node_exe() -> "str | None":
+    """Node 可执行文件（PATH 上没有就返回 None）。"""
+    return shutil.which("node")
+
+
+def _node_index() -> Path:
+    return ROOT / "node" / "index.js"
+
+
 def _cap(fn) -> str:
     buf = io.StringIO()
     try:
@@ -112,8 +143,13 @@ def _cap(fn) -> str:
         return "【没人接住】" + type(e).__name__ + ":" + str(e).splitlines()[0]
 
 
-def engine_outputs(src: str, rel: str = "形状.jsh") -> dict[str, str]:
-    """四个执行器各跑一遍 → `{执行器名: 输出}`。"""
+def engine_outputs(src: str, rel: str = "形状.jsh",
+                   with_node: bool = True) -> dict[str, str]:
+    """五个执行器各跑一遍 → `{执行器名: 输出}`。
+
+    ⚠️ Node 宿主**只比 stdout**（「自己接住再打印」的那份，与判据一致）——
+    它吃的是字节码 JSON，所以这里是「当前前端编出的字节码交给它跑」。
+    """
     out = {
         "树遍历": _cap(lambda: run_tree(src, rel)),
         "Python VM": _cap(lambda: VM(compile_source(src, rel), rel).run()),
@@ -126,22 +162,34 @@ def engine_outputs(src: str, rel: str = "形状.jsh") -> dict[str, str]:
         r = subprocess.run([str(exe), str(tmp)], capture_output=True, input=b"")
         out["Rust VM"] = (r.stdout.decode("utf-8", "replace")
                           .strip().replace("\n", " | "))
+    node = _node_exe()
+    if with_node and node:
+        tmp = Path(tempfile.gettempdir()) / f"_probe_err_node_{os.getpid()}.json"
+        tmp.write_text(compile_to_json(src, rel), encoding="utf-8")
+        r = subprocess.run([node, str(_node_index()), str(tmp)],
+                           capture_output=True, input=b"")
+        out["Node"] = (r.stdout.decode("utf-8", "replace")
+                       .strip().replace("\n", " | "))
     return out
 
 
 def main(argv: "list[str] | None" = None) -> int:
-    ap = argparse.ArgumentParser(description="运行期错误 (类型, 消息) 四执行器体检")
+    ap = argparse.ArgumentParser(description="运行期错误 (类型, 消息) 五执行器体检")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="每个形状都打印一行（默认只报不一致的）")
+    ap.add_argument("--no-node", action="store_true",
+                    help="不把 Node 宿主算作执行器")
     args = ap.parse_args(argv)
 
     if not _rust_exe().exists():
         print(f"（注：{_rust_exe().name} 不存在，本次只比三个执行器；"
               f"要带上它先 `cd rust && cargo build --release`）")
+    if not args.no_node and not _node_exe():
+        print("（注：PATH 上没有 node，本次不带 Node 宿主）")
 
     diff = 0
     for tag, body in SHAPES.items():
-        outs = engine_outputs(build_source(body))
+        outs = engine_outputs(build_source(body), with_node=not args.no_node)
         vals = list(outs.values())
         same = all(v == vals[0] for v in vals)
         if not same:
