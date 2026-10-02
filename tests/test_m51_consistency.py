@@ -876,34 +876,57 @@ def test_M56_读CRLF文件不翻译(tmp_path):
 
 
 def test_M56_宿主报错带错误码与位置():
-    """除零：三执行器给 `错误 E2001：不能除以零` + `:3:6`，
-    两宿主给 `错误 E2001：不能除以零` + `← 第 3 行第 6 列`。"""
+    """除零：四个执行器给 `错误 E2001：不能除以零` + `:3:6`，
+    **Node 宿主**给 `← 第 3 行第 6 列`（它的渲染还是老样子，见下）。
+
+    ⚠️ **R6.3 起 Rust 宿主也走 `┌─ 文件:行:列` 那一套**（与 Python 的 `render()`
+    同形，连源码行/`^`/调用链都有）。所以这条的判据按宿主分开写 ——
+    「宿主」不等于「都一样」。
+    """
     src = '令 a = 1\n令 b = 0\n打印(a / b)\n'
     for label, run in _engines():
         ok, out = run(src)
         assert not ok, f"{label} 本该报错却跑通了"
         assert "E2001" in out, f"{label} 报错里没有错误码：{out[:160]!r}"
-        if label in ("树遍历", "Python VM", "C VM"):
-            assert ":3:6" in out, f"{label} 报错里没有行列：{out[:160]!r}"
-        else:
+        if label == "Node":
             assert "第 3 行第 6 列" in out, f"{label} 报错里没有行列：{out[:160]!r}"
+        else:
+            assert ":3:6" in out, f"{label} 报错里没有行列：{out[:160]!r}"
 
 
 def test_M56_宽泛的异常不给码():
-    """宿主的「异常」是**笼统**的一类（找不到名字、属性不存在…都归它），
+    """**Node 宿主**的「异常」是**笼统**的一类（找不到名字、属性不存在…都归它），
     给不出准确的码 —— **宁可不给**，也不瞎标一个。
 
-    ⚠️ 这条是有意为之的边界：要让「找不到名字」在宿主上也拿到 E0301，
-    得先细分宿主的错误分类（那是一片更大的改动）。
-    在此之前，报错照样带**位置**，只是不带码。
+    ⚠️ **R6.2 起这条只对 Node 成立**：Rust 宿主把类型名细分了
+    （`找不到这个名字` / `找不到这个函数` / `这个东西不能调用`），
+    于是它给得出 `E0301` —— 见下面的姊妹测试。
     """
     src = '打印(不存在的名字)\n'
     for label, run in _engines():
         ok, out = run(src)
         assert not ok, f"{label} 本该报错却跑通了"
-        if label in ("Node", "Rust"):
+        if label == "Node":
             assert "错误（异常）" in out, f"{label} 的渲染变了：{out[:160]!r}"
             assert "第 1 行" in out, f"{label} 没给位置：{out[:160]!r}"
+
+
+def test_M56_Rust宿主已细分类型名并给得出码():
+    """R6.2：Rust 宿主不再把多种语义错误笼统报成「异常」。
+
+    ⚠️ 「笼统」不只是文案差 —— **`e.类型`、`捕获 X` 的匹配、错误码**三处一起错。
+    """
+    for src, code, title in (
+            ('打印(不存在的名字)\n', "E0301", "找不到这个名字"),
+            ('导入 不存在的模块\n', "E0302", "找不到这个函数"),
+            ('令 甲 = 5\n甲()\n', "E2006", "这个东西不能调用")):
+        for label, run in _engines():
+            if label != "Rust":
+                continue
+            ok, out = run(src)
+            assert not ok, f"{label} 本该报错却跑通了"
+            assert code in out, f"{label} 没给码：{out[:160]!r}"
+            assert title in out, f"{label} 类型名不对：{out[:160]!r}"
 
 
 # ---------------------------------------------------------------------------

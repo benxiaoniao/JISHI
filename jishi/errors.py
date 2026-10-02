@@ -439,7 +439,49 @@ def _type_error_zh(msg: str) -> str:
     if m:
         a = _PY_TYPE_ZH.get(m.group(1), m.group(1))
         return f"「{a}」不能按下标赋值"
+    # R6.2：`整数[0]` 这类原来整个漏成英文（`'int' object is not subscriptable`）
+    m = re.search(r"'(\w+)' object is not subscriptable", msg)
+    if m:
+        a = _PY_TYPE_ZH.get(m.group(1), m.group(1))
+        return f"「{a}」不能取下标"
     return ""
+
+
+#: Python 的越界消息 → 中文。「认不出就保留原文」——与 `_type_error_zh` 同一条规矩。
+_INDEX_ZH = {
+    "list index out of range": "列表下标越界",
+    "list assignment index out of range": "列表下标越界",
+    "string index out of range": "文本下标越界",
+    "tuple index out of range": "元组下标越界",
+}
+
+
+def _index_error_zh(msg: str) -> str:
+    """`IndexError` 的消息 → 中文（认不出就原样返回）。"""
+    return _INDEX_ZH.get(msg.strip(), msg)
+
+
+def _key_error_zh(exc: KeyError) -> str:
+    """`KeyError` → `字典里没有键「乙」`。
+
+    ⚠️ 不能直接用 `str(exc)`：那是**键的 repr**（文本键会带一层引号：
+    `'乙'`），而 repr 的转义规则又是「另一门语言要整套复刻」的那种东西
+    （与 R3 那个「插值字符串把分段表泄出来」同一个家族）。
+    """
+    if not exc.args:
+        return "字典里没有这个键"
+    k = exc.args[0]
+    if isinstance(k, str):
+        return f"字典里没有键「{k}」"
+    if k is True:
+        return "字典里没有键「真」"
+    if k is False:
+        return "字典里没有键「假」"
+    if k is None:
+        return "字典里没有键「空」"
+    if isinstance(k, (int, float)):
+        return f"字典里没有键「{k}」"
+    return "字典里没有这个键"
 
 
 def translate_python_exception(
@@ -478,9 +520,15 @@ def translate_python_exception(
         # 二元运算的类型不匹配：Python 的原文是英文，这里翻成人话（M30）
         return wrap(RunTypeError, _type_error_zh(detail) or detail)
     if isinstance(exc, IndexError):
-        return wrap(RunIndexError, str(exc) or "")
+        # ⚠️ **R6.2 起翻成中文**：以前直接把 Python 的英文往上传，
+        # 于是 `e.消息` 是 `list index out of range` —— 一门中文教学语言里漏
+        # 英文，正是 `_type_error_zh` 上面那段注释说的「中英混排读起来更费劲」。
+        # 认不出的模式仍然保留原文（**宁可不翻，也不要翻错**）。
+        return wrap(RunIndexError, _index_error_zh(str(exc)))
     if isinstance(exc, KeyError):
-        return wrap(RunKeyError, str(exc) or "")
+        # KeyError 的 `str()` 是**键的 repr**（`'乙'`，带引号），所以不能沿用
+        # 原文，要自己拼。与宿主侧 `字典里没有键「乙」` 逐字对齐。
+        return wrap(RunKeyError, _key_error_zh(exc))
     if isinstance(exc, ValueError):
         msg = str(exc) or ""
         # 切片赋值长度不匹配：Python 的原文是英文，这里翻成人话（M24.2）

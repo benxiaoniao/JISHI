@@ -103,7 +103,9 @@ pub(crate) fn module(name: &str) -> Result<Val, JishiError> {
             return Ok(Val::Module((*n).to_string(), build()));
         }
     }
-    Err(err("异常", format!("没有找到标准库模块「{name}」")))
+    // ⚠️ 类型名要写 Python 侧那个真名（`SemanticFuncError` 的 title，
+    // E0302）—— 见 `lib.rs` 顶部「运行期错误的类型名」那段说明（R6.2）。
+    Err(err("找不到这个函数", format!("没有找到标准库模块「{name}」")))
 }
 
 /// 这个宿主**实际带的标准库模块与函数**，打成 JSON（M51）。

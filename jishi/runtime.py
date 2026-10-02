@@ -782,7 +782,13 @@ def _b_max(*args):
                 return max(seq)
         return max(args)
     except (TypeError, ValueError):
-        raise RunTypeError(f"「{args}」不能求最大值，需要一个非空列表或若干数字")
+        # ⚠️ **别把 `args` 这个元组直接插进文案**（R6.3 修）：`f"「{args}」"` 会
+        # 走元组的 `repr`，于是用户看到的是 `「([],)」` —— 既有 Python 的括号，
+        # 又有个莫名其妙的多余逗号（单元素元组的特征）。这就是
+        # 「内部表示落到用户眼前」那一类（同 R3 的分段表 / R4 的 `None`）。
+        shown = (_display(args[0]) if len(args) == 1
+                 else "、".join(_display(a) for a in args))
+        raise RunTypeError(f"「{shown}」不能求最大值，需要一个非空列表或若干数字")
 
 
 def _b_min(*args):
@@ -1701,7 +1707,18 @@ class _BoundMethod:
     def __call__(self, *args):
         try:
             return self.impl(self.obj, list(args), self)
-        except JishiError:
+        except JishiError as e:
+            # ⚠️ **补上文件名与位置**（R6.3）：方法实现（`_m_*`）是在
+            # `_need_args` 那种小工具里直接造错误的，它们手里只有 `node`，
+            # **没有 filename** —— 于是 `a.追加()` 这种报错的方框里印的是
+            # `<输入>` 而不是真实文件名（同一个错误在 CLI 上看着莫名其妙）。
+            # 位置同理：绑定时记下的行列（`self.line/col`）比 node 里的更全。
+            # 只补**默认值**，已经给过的不动。
+            if e.filename == "<输入>" and self.filename:
+                e.filename = self.filename
+            if e.line is None and self.line is not None:
+                e.line = self.line
+                e.col = self.col
             raise
         except Exception as e:
             raise translate_python_exception(
@@ -2108,7 +2125,13 @@ def _m_list_pop(obj, args, node):
             return obj.pop(args[0])
         return obj.pop()
     except IndexError:
-        raise RunValueError("列表是空的，没有东西可以弹出",
+        # ⚠️ **R6.2 分开了两种**：以前不管哪种都报「列表是空的」—— 而
+        # `[1].弹出(9)` 里列表**并不空**，那句话是错的（也会让人往错的方向查）。
+        # 现在：空列表 → 值错误（保持原话）；下标越界 → 索引错误 + 越界文案。
+        if not obj:
+            raise RunValueError("列表是空的，没有东西可以弹出",
+                                line=node.line, col=node.col)
+        raise RunIndexError("列表下标越界",
                             line=node.line, col=node.col)
 
 

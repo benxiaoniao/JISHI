@@ -822,6 +822,37 @@ struct Module {
     kw_names: Vec<Vec<String>>,
     codes: Vec<Code>,
     main: usize,
+    /// 源文件名（R6.3）：报错渲染要 `  ┌─ 文件:行:列`，还要**按它去读源文件**
+    /// 才能画出源码行与 `^`。字节码里一直带着（payload.filename），
+    /// 以前宿主没解出来 —— 于是宿主画不出源码行。
+    filename: String,
+}
+
+/// 调用链上的一帧：函数名 + **它的调用点**（第几行）。
+///
+/// ⚠️ 口径与 Python 侧 `vm._frames_to_trace` 逐字对齐（否则同一个错误在两个
+/// 执行器里回溯长得不一样）：记的是**调用点**，不是「当前执行到第几行」；
+/// 最外层那个模块主帧不进链（它的「函数名」是 `<模块>`，不是用户写的函数）。
+#[derive(Debug, Clone)]
+pub struct TraceFrame {
+    pub func: String,
+    pub line: Option<i64>,
+}
+
+impl Module {
+    /// 源文件的行（1 起）：按需从磁盘读。
+    ///
+    /// 📌 **为什么不把源码塞进字节码**：那会让每个 `.json` 都背上整份源码
+    /// （还和源码文件本身两份、容易不同步）。报错**只在出错那一刻**读一次，
+    /// 正常路径零成本。文件读不到（嵌入场景 / 文件被删）就退回「没有源码行」——
+    /// 位置那一行照样打得出来。
+    fn source_line(&self, line: i64) -> Option<String> {
+        if line < 1 {
+            return None;
+        }
+        let text = std::fs::read_to_string(&self.filename).ok()?;
+        text.lines().nth((line - 1) as usize).map(|s| s.to_string())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -846,6 +877,9 @@ pub struct JishiError {
     /// 修法 / 线索提示（M56）：宿主原来**没有**这个字段（M54 记的账），
     /// 于是 Python 侧那句「你是不是想写「长度」？」在宿主上给不出来。
     pub hint: Option<String>,
+    /// 调用链（R6.3）：**从外到内**，最外层模块帧不算。
+    /// 没进过函数调用就是空（那种情况 Python 侧也不印回溯块）。
+    pub trace: Vec<TraceFrame>,
 }
 
 /// 类型名 → 错误码（M56）。
@@ -862,6 +896,15 @@ pub(crate) fn error_code(type_name: &str) -> Option<&'static str> {
         "值错误" => "E2005",
         "文件错误" => "E2007",
         "断言错误" => "E2008",
+        // R6.2：这三个也是**运行期真会出现**的类型名（Python 侧分别是
+        // `SemanticNameError` E0301 / `SemanticFuncError` E0302 /
+        // `RunNotCallableError` E2006）—— 以前宿主把它们笼统写成「异常」，
+        // 于是连错误码都给不出。
+        "输入结束" => "E2010",
+        "程序被中断" => "E2100",
+        T_NAME => "E0301",
+        T_FUNC => "E0302",
+        T_NOT_CALLABLE => "E2006",
         _ => return None,
     })
 }
@@ -880,7 +923,8 @@ pub fn error_title(type_name: &str) -> &str {
         "值错误" => "数值不对",
         "索引错误" => "索引越界",
         "键错误" => "找不到这个键",
-        // 「类型错误」「文件错误」「运行期错误」「异常」：两边同名
+        // 这几个在 Python 侧 `title` 就是类型名本身（找不到这个名字 /
+        // 找不到这个函数 / 这个东西不能调用 / 类型错误 / 文件错误…）
         _ => type_name,
     }
 }
@@ -888,14 +932,14 @@ pub fn error_title(type_name: &str) -> &str {
 pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
-                 line: None, col: None, hint: None }
+                 line: None, col: None, hint: None, trace: Vec::new() }
 }
 
 /// 带提示语的报错（M56）：`hint` 会渲染成「  提示：…」那一行。
 pub(crate) fn err_with_hint(t: &str, msg: impl Into<String>, hint: String) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
-                 line: None, col: None, hint: Some(hint) }
+                 line: None, col: None, hint: Some(hint), trace: Vec::new() }
 }
 
 // ---------------------------------------------------------------------------
@@ -1043,6 +1087,10 @@ struct Frame {
     code_idx: usize,
     ip: usize,
     base: usize,
+    /// **本帧是在哪被调用的**（R6.3）—— 调用链要的就是这个，不是「当前跑到哪」。
+    /// 主帧没有调用点（`None`），它也不进链。
+    call_line: Option<i64>,
+    call_col: Option<i64>,
     locals: Vec<Val>,
     /// 局部槽「赋过值没有」（M54）。
     ///
@@ -1107,6 +1155,8 @@ impl VM {
             code_idx: main_idx,
             ip: 0,
             base: 0,
+            call_line: None,        // 模块主帧没有调用点（也不进调用链）
+            call_col: None,
             locals: vec![Val::None_; nlocals],
             // 模块级帧没有形参，所有槽都算「没赋过值」（首次 `STORE_FAST` / `LOOP_SETUP` 才置位）
             locals_set: vec![false; nlocals],
@@ -1145,6 +1195,9 @@ impl VM {
                 Ok(Flow::Error(mut e)) => {
                     // 异常分发
                     self.fill_error_loc(&mut e, fi);
+                    // 拍调用链的时机与 Python 侧一样：**错误第一次冒出来那一刻**
+                    // （再往外抛的路上帧早就被弹干净了）。见 `snapshot_trace`。
+                    self.snapshot_trace(&mut e);
                     if !self.dispatch_exception(&e, stop_at)? {
                         return Err(e);
                     }
@@ -1162,6 +1215,9 @@ impl VM {
                     // M56：出错的**位置**在这里统一补 —— 不必去动几百处 `err(...)`
                     // 调用点（内建与标准库也不知道自己在第几行）。
                     self.fill_error_loc(&mut e, fi);
+                    // 拍调用链的时机与 Python 侧一样：**错误第一次冒出来那一刻**
+                    // （再往外抛的路上帧早就被弹干净了）。见 `snapshot_trace`。
+                    self.snapshot_trace(&mut e);
                     if !self.dispatch_exception(&e, stop_at)? {
                         return Err(e);
                     }
@@ -1184,6 +1240,30 @@ impl VM {
         let Some(ins) = code.instrs.get(frame.ip) else { return };
         e.line = Some(ins.line);
         e.col = Some(ins.col);
+    }
+
+    /// 把当前帧栈拍成调用链（只拍一次；已经有链就不动）。
+    ///
+    /// ⚠️ 口径照 Python 的 `vm._frames_to_trace`：
+    /// * **跳过 frames[0]**（模块主帧 —— 它的名字是 `<模块>`，不是用户写的函数）；
+    /// * 每帧记「函数名 + **它的调用点**」（`call_line`），不是「当前跑到第几行」；
+    /// * 匿名函数（`函数(x)：…` 脱糖出来的）的 code 名以 `<` 开头，
+    ///   报错里显示成「匿名函数」更好认。
+    fn snapshot_trace(&self, e: &mut JishiError) {
+        if !e.trace.is_empty() {
+            return;
+        }
+        let mut chain = Vec::new();
+        for fr in self.frames.iter().skip(1) {
+            let Some(code) = self.module.codes.get(fr.code_idx) else { continue };
+            let name = if code.name.starts_with('<') {
+                "匿名函数".to_string()
+            } else {
+                code.name.clone()
+            };
+            chain.push(TraceFrame { func: name, line: fr.call_line });
+        }
+        e.trace = chain;
     }
 
     fn execute_frame(&mut self, fi: usize) -> Result<Flow, JishiError> {
@@ -1218,9 +1298,12 @@ impl VM {
                             // M56：只在报错路径上算候选名（正常路径零开销）
                             let pool: Vec<String> = self.globals.keys().cloned().collect();
                             let msg = format!("找不到名字「{name}」");
+                            // ⚠️ 类型名要写 Python 侧那个**真名**（`SemanticNameError`
+                            // 的 title「找不到这个名字」，E0301）：写「异常」的话
+                            // `e.类型` 与 `捕获` 的匹配都对不上（R6.2 对齐）。
                             return Err(match name_hint(&name, &pool) {
-                                Some(h) => err_with_hint("异常", msg, h),
-                                None => err("异常", msg),
+                                Some(h) => err_with_hint(T_NAME, msg, h),
+                                None => err(T_NAME, msg),
                             });
                         }
                     }
@@ -1239,7 +1322,11 @@ impl VM {
                         let code = &self.module.codes[f.code_idx];
                         let name = code.local_names.get(slot)
                             .cloned().unwrap_or_else(|| format!("?局部{slot}"));
-                        return Err(err("异常", format!("找不到名字「{name}」")));
+                        // 文案与类型名都要照 Python 的 `runtime.unbound_local`：
+                        // 「**赋值之前被用到**」而不是「找不到名字」—— 后者会让人以为
+                        // 名字写错了。宿主原来两样都不一样（R6.2 对齐）。
+                        return Err(err_with_hint(
+                            T_NAME, unbound_msg(&name), unbound_hint(&name)));
                     }
                     let v = f.locals[slot].clone();
                     self.stack.push(v);
@@ -1259,7 +1346,9 @@ impl VM {
                     if !c.set {
                         let name = cell_name(&self.module.codes[self.frames[fi].code_idx],
                                              ins.a as usize);
-                        return Err(err("异常", format!("找不到名字「{name}」")));
+                        // 同 LOAD_FAST：单元没赋过值时 Python 也报「赋值之前被用到」
+                        return Err(err_with_hint(
+                            T_NAME, unbound_msg(&name), unbound_hint(&name)));
                     }
                     let v = c.value.clone();
                     drop(c);
@@ -1349,7 +1438,8 @@ impl VM {
                     match fn_val {
                         Val::Func(f) => {
                             self.push_func_frame(Some((fi, ip)), f, args, &knames,
-                                                 &kwvals, fn_base)?;
+                                                 &kwvals, fn_base,
+                                                 (ins.line, ins.col))?;
                             return Ok(Flow::Call);
                         }
                         Val::Builtin(name, bfn) => {
@@ -1375,7 +1465,8 @@ impl VM {
                                     all.push(Val::Instance(instance));
                                     all.extend(args.into_iter());
                                     self.push_func_frame(Some((fi, ip)), func, all,
-                                                         &[], &[], fn_base)?;
+                                                         &[], &[], fn_base,
+                                                         (ins.line, ins.col))?;
                                     return Ok(Flow::Call);
                                 }
                                 builtin => {
@@ -1390,7 +1481,13 @@ impl VM {
                             let msg = args.first().map(display).unwrap_or_default();
                             return Err(err(&t, msg));
                         }
-                        other => return Err(err("运行期错误", format!("「{}」不能调用", display(&other)))),
+                        // 类型名与提示都照 Python 的 `runtime.call_value`：
+                        // 「这个东西不能调用」是 `RunNotCallableError` 的 title（E2006），
+                        // 写「运行期错误」会让 `e.类型` / `捕获` 都对不上（R6.2 对齐）。
+                        other => return Err(err_with_hint(
+                            T_NOT_CALLABLE,
+                            format!("「{}」不能调用", display(&other)),
+                            "只有函数或带括号的对象才能调用".to_string())),
                     }
                 }
                 op::RETURN => {
@@ -1755,9 +1852,12 @@ impl VM {
     /// `CALL` 指令进来才需要（`execute` 靠帧里的 ip 回到调用点）。从内建里
     /// 回调（见 `call_value`）不需要：调用者的 `execute_frame` 还在 Rust 栈上、
     /// 用它自己的局部 ip 继续跑。
+    /// `call_site` = 这次调用发生在哪（`ins.line` / `ins.col`）——
+    /// 调用链要的是**这个**（不是新帧里跑到第几行）。
     fn push_func_frame(&mut self, set_ip: Option<(usize, usize)>, func: Func,
                        args: Vec<Val>, knames: &[String], kwvals: &[Val],
-                       base: usize) -> Result<(), JishiError> {
+                       base: usize, call_site: (i64, i64))
+        -> Result<(), JishiError> {
         let sub_idx = func.code_idx;
         let (locals, locals_set, values) = {
             let sub = &self.module.codes[sub_idx];
@@ -1778,6 +1878,8 @@ impl VM {
             code_idx: sub_idx,
             ip: 0,
             base,
+            call_line: if call_site.0 > 0 { Some(call_site.0) } else { None },
+            call_col: if call_site.0 > 0 { Some(call_site.1) } else { None },
             locals,
             locals_set,
             cells,
@@ -1823,7 +1925,9 @@ impl VM {
         all.extend(args);
         let depth = self.frames.len();
         let base = self.stack.len();
-        self.push_func_frame(None, func, all, &[], &[], base)?;
+        // 同步调用（内建里回调基石函数）没有源码位置 —— 记 (0, 0)。
+        // 这一帧本来也不会出现在用户看的报错里（它没有对应的源码行）。
+        self.push_func_frame(None, func, all, &[], &[], base, (0, 0))?;
         self.execute(Some(depth))?;
         Ok(if self.stack.len() > base {
             self.stack.pop().unwrap_or(Val::None_)
@@ -1913,9 +2017,13 @@ impl VM {
             (Val::List(l), "弹出") => {
                 need_args(&name, args, 0, 1)?;
                 let mut l = l.borrow_mut();
-                if l.is_empty() { return Err(err("值错误", "列表是空的")); }
+                // 文案照 Python 的 `_m_list_pop`：空列表与下标越界**是两回事**
+                // （`[1].弹出(9)` 里列表并不空）。R6.2 起两边都分开并逐字对齐。
+                if l.is_empty() {
+                    return Err(err("值错误", "列表是空的，没有东西可以弹出"));
+                }
                 let v = if args.is_empty() { l.pop() } else { let i = as_int(&args[0])? as usize; if i < l.len() { Some(l.remove(i)) } else { None } };
-                v.ok_or_else(|| err("索引错误", "越界"))
+                v.ok_or_else(|| err("索引错误", INDEX_MSG))
             }
             (Val::List(l), "排序") => { need_args(&name, args, 0, 0)?; l.borrow_mut().sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
             (Val::List(l), "反转") => { need_args(&name, args, 0, 0)?; l.borrow_mut().reverse(); Ok(Val::None_) }
@@ -1927,7 +2035,12 @@ impl VM {
                 need_args(&name, args, 1, 1)?;
                 let mut l = l.borrow_mut();
                 if let Some(pos) = l.iter().position(|x| *x == args[0]) { l.remove(pos); Ok(Val::None_) }
-                else { Err(err("值错误", "列表里没有这个元素")) }
+                else {
+                    // 照 Python 的 `_m_list_remove`：**要说清是哪个元素**
+                    // （「列表里没有这个元素」查起来得自己猜是哪一个）
+                    Err(err("值错误",
+                            format!("列表里没有「{}」，没法移除", display(&args[0]))))
+                }
             }
             // -- 字典方法 --
             (Val::Dict(d), "获取") => {
@@ -1977,7 +2090,7 @@ impl VM {
                 } else if args.len() == 2 {
                     Ok(args[1].clone())
                 } else {
-                    Err(err("键错误", format!("字典里没有键「{}」", display(&args[0]))))
+                    Err(err("键错误", missing_key_msg(&args[0])))
                 }
             }
             (Val::Dict(d), "清空") => { need_args(&name, args, 0, 0)?; d.borrow_mut().clear(); Ok(Val::None_) }
@@ -2011,7 +2124,7 @@ impl VM {
             (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
             (Val::Str(s), "开头是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.starts_with(&display(&args[0])))) }
             (Val::Str(s), "结尾是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.ends_with(&display(&args[0])))) }
-            (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i128>().map(Val::Int).map_err(|_| err("值错误", "不能转成整数")) }
+            (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i128>().map(Val::Int).map_err(|_| err("值错误", format!("「{s}」不能转成整数"))) }
             (Val::Str(s), "转小数") => { need_args(&name, args, 0, 0)?; s.parse::<f64>().map(Val::Float).map_err(|_| err("值错误", "不能转成小数")) }
             // -- 列表高阶方法（数据流水线，M29）--
             (Val::List(l), "映射") => {
@@ -2327,9 +2440,12 @@ pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
         0 => match (l, r) { (Int(a), Int(b)) => Int(big_ok(a.checked_add(b))?), (a, b) => numeric_add(a, b)? },
         1 => match (l, r) { (Int(a), Int(b)) => Int(big_ok(a.checked_sub(b))?), (a, b) => numeric_sub(a, b)? },
         2 => match (l, r) { (Int(a), Int(b)) => Int(big_ok(a.checked_mul(b))?), (a, b) => numeric_mul(a, b)? },
-        3 => { let (a, b) = to_num_pair(l, r)?; if b == 0.0 { return Err(err("除零错误", "不能除以零")); } Float(a / b) }
-        4 => { let (a, b) = to_num_pair(l, r)?; if b == 0.0 { return Err(err("除零错误", "不能除以零")); } Int((a / b).floor() as i128) }
-        5 => { let (a, b) = to_num_pair(l, r)?; if b == 0.0 { return Err(err("除零错误", "不能除以零")); } Int(a as i128 % b as i128) }
+        // ⚠️ 除零的**消息是空的**（Python 侧就是 `RunZeroDivisionError("")`）：
+        // 标题已经是「不能除以零」，再来一条同义的消息会让 `e.消息` 与三个
+        // Python 执行器不一样（R6.2 对齐）。渲染那边本来就会跳过空消息。
+        3 => { let (a, b) = to_num_pair_op(l, r, "/")?; if b == 0.0 { return Err(err("除零错误", "")); } Float(a / b) }
+        4 => { let (a, b) = to_num_pair_op(l, r, "//")?; if b == 0.0 { return Err(err("除零错误", "")); } Int((a / b).floor() as i128) }
+        5 => { let (a, b) = to_num_pair_op(l, r, "%")?; if b == 0.0 { return Err(err("除零错误", "")); } Int(a as i128 % b as i128) }
         6 => {
             // 整数底数 + 非负整数指数 → 走整数幂：Python 里 `2 ** 64` 是 int
             // 而不是 float（M32）。用快速幂，免得 `1 ** 1000000000` 这类
@@ -2356,6 +2472,9 @@ pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
 }
 
 fn numeric_add(a: Val, b: Val) -> Result<Val, JishiError> {
+    // 报错分支要用到两个操作数，而 `match (a, b)` 会把它们移走 —— 先留一份
+    // 副本（只在出错的那条路上才会用到）。
+    let (la, lb) = (a.clone(), b.clone());
     match (a, b) {
         (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x as f64 + y)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x + y)),
@@ -2366,7 +2485,7 @@ fn numeric_add(a: Val, b: Val) -> Result<Val, JishiError> {
             out.extend(y.borrow().iter().cloned());
             Ok(list_new(out))
         }
-        _ => Err(err("类型错误", "不支持的加法")),
+        _ => Err(err("类型错误", add_type_msg(&la, &lb))),
     }
 }
 
@@ -2395,10 +2514,36 @@ fn numeric_mul(a: Val, b: Val) -> Result<Val, JishiError> {
     }
 }
 
+/// `不能比较「1」和「a」` —— 照 Python 的 `runtime.compare_values`
+/// （它把 Python 的 `TypeError` 翻译成这条；宿主原来只有一句「需要数字」，
+/// 既没说是**哪两个值**，也没说是在**比较**）。R6.3 对齐。
+pub(crate) fn cmp_type_msg(a: &Val, b: &Val) -> String {
+    format!("不能比较「{}」和「{}」", display(a), display(b))
+}
+
 pub(crate) fn to_num_pair(a: Val, b: Val) -> Result<(f64, f64), JishiError> {
-    let x = match a { Val::Int(i) => i as f64, Val::Float(f) => f, _ => return Err(err("类型错误", "需要数字")) };
-    let y = match b { Val::Int(i) => i as f64, Val::Float(f) => f, _ => return Err(err("类型错误", "需要数字")) };
+    to_num_pair_op(a, b, "+")
+}
+
+/// 同上，但出错时的文案**带上运算符**。
+///
+/// 照 Python 的 `_type_error_zh` 认的那条
+/// `unsupported operand type(s) for -: 'int' and 'str'` →
+/// 「「整数」和「文本」不能做「-」运算」。宿主原来只有一句「需要数字」，
+/// 既没说是哪两个值、也没说是在做哪个运算（R6.3 对齐）。
+pub(crate) fn to_num_pair_op(a: Val, b: Val, op: &str) -> Result<(f64, f64), JishiError> {
+    let la = a.clone();
+    let lb = b.clone();
+    let x = match a { Val::Int(i) => i as f64, Val::Float(f) => f,
+        _ => return Err(err("类型错误", arith_type_msg(&la, &lb, op))) };
+    let y = match b { Val::Int(i) => i as f64, Val::Float(f) => f,
+        _ => return Err(err("类型错误", arith_type_msg(&la, &lb, op))) };
     Ok((x, y))
+}
+
+/// `「整数」和「文本」不能做「-」运算`（Python 侧 `_type_error_zh` 的那条）。
+pub(crate) fn arith_type_msg(a: &Val, b: &Val, op: &str) -> String {
+    format!("「{}」和「{}」不能做「{op}」运算", type_label(a), type_label(b))
 }
 
 // ---------------------------------------------------------------------------
@@ -2438,7 +2583,7 @@ fn dec_binop(op: i64, l: &Val, r: &Val) -> Result<Val, JishiError> {
         1 => a.sub(&b),
         2 => a.mul(&b),
         3 | 4 | 5 => {
-            if zero { return Err(err("除零错误", "不能除以零")); }
+            if zero { return Err(err("除零错误", "")); }
             let (q, rem) = a.divmod_floor(&b).unwrap();
             if op == 4 { q } else if op == 5 { rem } else { a.div(&b).unwrap() }
         }
@@ -2514,7 +2659,9 @@ fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
         8 => identity_key(&l)? == identity_key(&r)?,               // `l 是 r`
         9 => identity_key(&l)? != identity_key(&r)?,               // `l 不是 r`
         _ => {
-            let (a, b) = to_num_pair(l, r)?;
+            let (la, lb) = (l.clone(), r.clone());
+            let (a, b) = to_num_pair(l, r)
+                .map_err(|_| err("类型错误", cmp_type_msg(&la, &lb)))?;
             match op {
                 2 => a < b,
                 3 => a > b,
@@ -2795,7 +2942,11 @@ fn new_builtins() -> HashMap<String, Val> {
     m.insert("范围".to_string(), Val::Builtin("范围", |args, _vm| {
         // M56：改用统一检查 —— 以前这里自己写了一句「范围需要 1 到 3 个参数」，
         // 没书名号、也少了「但传了 N 个」，与另两个宿主对不上。
-        need_builtin_args("范围", args, 1, 3)?;
+        // ⚠️ 这个内建**不走**通用的 `need_builtin_args` 文案：Python 侧
+        // `range` 那条单独写的是「最多接受 3 个参数」（R6.3 对齐）。
+        if args.is_empty() || args.len() > 3 {
+            return Err(err("类型错误", "「范围」最多接受 3 个参数"));
+        }
         let (a, b, step) = match args.len() {
             1 => (0, as_int(&args[0])?, 1i128),
             2 => (as_int(&args[0])?, as_int(&args[1])?, 1i128),
@@ -3233,8 +3384,15 @@ fn seq_of(args: &[Val], vm: &mut VM) -> Result<Option<Vec<Val>>, JishiError> {
 
 fn b_max(args: &[Val], vm: &mut VM) -> Result<Val, JishiError> {
     if let Some(seq) = seq_of(args, vm)? {
-        return seq.into_iter().max_by(cmp_vals)
-            .ok_or_else(|| err("值错误", "空序列求不了最大值"));
+        // 照 Python 的 `_b_max`：**类型与文案都对齐**（Python 侧是
+        // `RunTypeError` + 「「[]」不能求最大值，需要一个非空列表或若干数字」）。
+        // ⚠️ 那条文案原来在 Python 侧是 `f"「{args}」"`（元组的 repr，单元素会
+        // 多一个逗号：`「([],)」`）—— R6.3 两侧一起改成了 `_display(实参)`。
+        return seq.into_iter().max_by(cmp_vals).ok_or_else(|| {
+            err("类型错误", format!(
+                "「{}」不能求最大值，需要一个非空列表或若干数字",
+                display(&args[0])))
+        });
     }
     args.iter().cloned().max_by(cmp_vals)
         .ok_or_else(|| err("类型错误", "「最大」至少要有一个参数"))
@@ -3439,7 +3597,11 @@ fn get_attr(obj: Val, attr: &str) -> Result<Val, JishiError> {
         Val::Set(s) => set_method(attr, Val::Set(s)),
         Val::Dec(d) => dec_method(attr, d),
         Val::File(f) => file_method(attr, Val::File(f)),
-        _ => Err(err("类型错误", format!("「{}」没有属性「{attr}」", display(&obj)))),
+        // ⚠️ 显示**类型名**而不是值：Python 侧是 `type_name(obj)`，所以
+        // `1.某某` 报的是「「整数」没有属性「某某」」；宿主原来打的是值
+        // （「「1」没有属性…」），两个引擎连报错都不像（R6.2 对齐）。
+        _ => Err(err("类型错误",
+                     format!("「{}」没有属性「{attr}」", type_label(&obj)))),
     }
 }
 
@@ -3490,10 +3652,14 @@ fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
         };
     }
     match (obj, idx) {
-        (Val::List(l), Val::Int(i)) => l.borrow().get(i as usize).cloned().ok_or_else(|| err("索引错误", "越界")),
-        (Val::Dict(d), k) => d.borrow().iter().find(|(key, _)| *key == k).map(|(_, v)| v.clone()).ok_or_else(|| err("键错误", "找不到这个键")),
-        (Val::Str(s), Val::Int(i)) => s.chars().nth(i as usize).map(|c| Val::Str(c.to_string())).ok_or_else(|| err("索引错误", "越界")),
-        _ => Err(err("类型错误", "不能取下标")),
+        (Val::List(l), Val::Int(i)) => l.borrow().get(i as usize).cloned().ok_or_else(|| err("索引错误", INDEX_MSG)),
+        (Val::Dict(d), k) => d.borrow().iter().find(|(key, _)| *key == k).map(|(_, v)| v.clone()).ok_or_else(|| err("键错误", missing_key_msg(&k))),
+        (Val::Str(s), Val::Int(i)) => s.chars().nth(i as usize).map(|c| Val::Str(c.to_string())).ok_or_else(|| err("索引错误", STR_INDEX_MSG)),
+        // 照 Python 的 `_type_error_zh`：`'int' object is not subscriptable`
+        // 翻成「「整数」不能取下标」——宿主原来只有一句「不能取下标」，
+        // 没说清是**哪个**东西不能取下标（R6.2 对齐）。
+        (o, _) => Err(err("类型错误",
+                          format!("「{}」不能取下标", type_label(&o)))),
     }
 }
 
@@ -3556,7 +3722,7 @@ fn set_item(obj: Val, idx: Val, val: Val) -> Result<(), JishiError> {
         (Val::List(l), Val::Int(i)) => {
             let mut l = l.borrow_mut();
             let i = i as usize;
-            if i < l.len() { l[i] = val; Ok(()) } else { Err(err("索引错误", "越界")) }
+            if i < l.len() { l[i] = val; Ok(()) } else { Err(err("索引错误", INDEX_MSG)) }
         }
         (Val::Dict(d), k) => {
             let mut d = d.borrow_mut();
@@ -3639,7 +3805,15 @@ const DEC_METHOD_NAMES: &[&str] = &["舍入", "绝对值", "转文本"];
 fn gated_method(names: &[&str], kind: &str, name: &str, receiver: Val)
     -> Result<Val, JishiError> {
     if !names.contains(&name) {
-        return Err(err("类型错误", format!("{kind}没有方法「{name}」")));
+        // 文案与提示都照 Python 的 `runtime.get_attr`：
+        // 类型名要带「」（`「列表」没有方法「排续」`），而且**要告诉用户有哪些**——
+        // 拼错方法名是最常见的错，提示里直接列出可用方法最省事（R6.3 对齐）。
+        let mut avail: Vec<&str> = names.to_vec();
+        avail.sort_unstable();
+        return Err(err_with_hint(
+            "类型错误",
+            format!("「{kind}」没有方法「{name}」"),
+            format!("可用的方法：{}", avail.join("、"))));
     }
     let bm = BoundMethod::Builtin { name: name.to_string(), receiver: Box::new(receiver) };
     Ok(Val::BoundMethod(Box::new(bm)))
@@ -3751,12 +3925,17 @@ fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, JishiError> {
         Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string())).collect(),
         // 字典解出来的是键（与 Python 侧一致）
         Val::Dict(d) => d.borrow().iter().map(|(k, _)| k.clone()).collect(),
-        _ => return Err(err("类型错误", "解包赋值需要列表")),
+        other => return Err(err_with_hint(
+            "类型错误",
+            format!("解包赋值需要列表，得到了「{}」", type_label(&other)),
+            "列表、文本、集合都能解包（字典解出来的是键）".to_string())),
     };
     if star < 0 {
         if seq.len() != n {
-            return Err(err("值错误",
-                format!("解包需要 {n} 个值，实际有 {} 个", seq.len())));
+            return Err(err_with_hint(
+                "值错误",
+                format!("解包需要 {n} 个值，实际有 {} 个", seq.len()),
+                "想「收剩下的」可以写「*余」，例如 令 甲, *余 = 列表".to_string()));
         }
         return Ok(seq);
     }
@@ -3799,16 +3978,111 @@ fn exception_matches(exc: &Val, cond: &Val) -> bool {
         _ => return false,
     };
     if c == "异常" { return true; }
-    let hierarchy: Vec<(&str, &str)> = vec![("除零错误", "运行期错误"), ("类型错误", "运行期错误"), ("值错误", "运行期错误"), ("运行期错误", "异常")];
     let mut cur = t;
     loop {
         if cur == c { return true; }
-        match hierarchy.iter().find(|(child, _)| *child == cur) {
+        match EXC_PARENT.iter().find(|(child, _)| *child == cur) {
             Some((_, parent)) => cur = parent,
             None => return false,
         }
     }
 }
+
+/// 异常类型的**父子表**（子, 父）。R6.2 补全。
+///
+/// ⚠️ 这张表以前只写了三支（除零 / 类型 / 值错误），于是
+/// **`捕获 运行期错误` 接不住 `键错误` / `索引错误`** —— 而语言规格 §8.9
+/// 明写「基类能抓子类」，Python 侧又是拿真类继承（`isinstance`）判的，
+/// 所以只有 Rust VM 一个引擎表现不同。
+///
+/// 📌 **这张表要跟 `jishi/errors.py` 的类继承逐项对齐**（Python 侧是
+/// `RunError` 一家：除零 / 类型 / 值 / 索引 / 键 / 文件 / 断言 / 不可调用
+/// 全是它的子类）。**加异常类型时两个地方都要动**，
+/// `tests/test_m64_rust_vm_iter.py` 有一条对拍盯着它。
+// ---------------------------------------------------------------------------
+// 运行期错误的**类型名与文案**（R6.2）
+// ---------------------------------------------------------------------------
+//
+// ⚠️ 这些字符串在 Python 侧是**错误类**，在宿主里没有类可用，只能写字面量。
+// 于是它们成了一份「隐式的拷贝」—— 漂了就是「同一个程序在两个引擎里
+// `e.类型` 不一样」，而 `捕获 X` 的匹配也跟着变。R6.2 实测：19 个常见运行期
+// 错误形状里 **18 个**在四个引擎之间不一致（见 `build/_errshape.py` 与
+// `tests/test_m65_runtime_errors.py`）。
+//
+// 📌 **加/改运行期错误时，Python 侧与这里要一起动。**
+
+/// 下标越界的文案（Python 侧 `_INDEX_ZH` 那张表：列表 / 文本分开说）。
+pub(crate) const INDEX_MSG: &str = "列表下标越界";
+pub(crate) const STR_INDEX_MSG: &str = "文本下标越界";
+
+/// `字典里没有键「x」` —— 与 Python 侧 `_key_error_zh` 逐字对齐。
+///
+/// ⚠️ 不能用 `display(&k)` 之外的**默认字符串化**（比如 debug 格式）：文本键
+/// 会多一层引号，那就成了「另一门语言的 repr」问题（R3 的教训）。
+pub(crate) fn missing_key_msg(k: &Val) -> String {
+    match k {
+        Val::Str(x) => format!("字典里没有键「{x}」"),
+        Val::Bool(true) => "字典里没有键「真」".to_string(),
+        Val::Bool(false) => "字典里没有键「假」".to_string(),
+        Val::None_ => "字典里没有键「空」".to_string(),
+        Val::Int(i) => format!("字典里没有键「{i}」"),
+        // 浮点也走 `display`（与 `打印` 同一个写法）—— 不自己拼格式，
+        // 免得又出现一份「浮点怎么写」的口径
+        Val::Float(_) => format!("字典里没有键「{}」", display(k)),
+        _ => "字典里没有这个键".to_string(),
+    }
+}
+
+/// `「列表」只能和「列表」相加，不能和「整数」相加` —— 与 Python 侧
+/// `_type_error_zh` 认出的那条 `can only concatenate X (not "Y") to X` 对齐。
+///
+/// 📌 这是**认得出的**那一种；认不出的另一半 Python 会保留英文原文，
+/// 宿主这边给不出原文，只能也走这条 —— 探针里只钉可复现的那几个形状。
+pub(crate) fn add_type_msg(a: &Val, b: &Val) -> String {
+    let ta = type_label(a);
+    let tb = type_label(b);
+    // ⚠️ **两种形态都要认**（Python 侧由 `_type_error_zh` 认两套模式）：
+    // * 左边是文本/列表 ⇒ Python 走的是 `can only concatenate X (not "Y") to X`
+    //   → 「「列表」只能和「列表」相加，不能和「文本」相加」；
+    // * 其它 ⇒ Python 走的是 `unsupported operand type(s) for +: 'int' and 'str'`
+    //   → 「「整数」和「文本」不能做「+」运算」。
+    // 第一版只写了前者，于是 `1 + "a"` 的文案两边不一样（R6.3 抓到）。
+    match a {
+        Val::Str(_) | Val::List(_) =>
+            format!("「{ta}」只能和「{ta}」相加，不能和「{tb}」相加"),
+        _ => format!("「{ta}」和「{tb}」不能做「+」运算"),
+    }
+}
+
+/// 「找不到这个名字」（Python 侧 `SemanticNameError.title`，E0301）。
+pub(crate) const T_NAME: &str = "找不到这个名字";
+/// 「找不到这个函数」（Python 侧 `SemanticFuncError.title`，E0302）。
+pub(crate) const T_FUNC: &str = "找不到这个函数";
+/// 「这个东西不能调用」（Python 侧 `RunNotCallableError.title`，E2006）。
+pub(crate) const T_NOT_CALLABLE: &str = "这个东西不能调用";
+
+/// 「赋值之前被用到了」的统一文案（Python 侧 `runtime.unbound_local`）。
+pub(crate) fn unbound_msg(name: &str) -> String {
+    format!("名字「{name}」在赋值之前被用到了")
+}
+
+/// 通用提示语（Python 侧同一处的兜底 hint）—— **要带名字**，
+/// 逐字对齐 `runtime.unbound_local` 的 f-string。
+pub(crate) fn unbound_hint(name: &str) -> String {
+    format!("「{name}」在这个函数里被赋过值，所以它是局部变量；\
+函数一进来它还没值。想读外层同名的那个，就换个名字。")
+}
+
+pub(crate) const EXC_PARENT: &[(&str, &str)] = &[
+    ("除零错误", "运行期错误"),
+    ("类型错误", "运行期错误"),
+    ("值错误", "运行期错误"),
+    ("索引错误", "运行期错误"),
+    ("键错误", "运行期错误"),
+    ("文件错误", "运行期错误"),
+    ("断言错误", "运行期错误"),
+    ("运行期错误", "异常"),
+];
 
 // ---------------------------------------------------------------------------
 // 迭代器
@@ -3907,7 +4181,12 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defau
         } else if let Some(dp) = dstar_pos {
             extra.push((Val::Str(k.clone()), v.clone()));
         } else {
-            return Err(err("类型错误", format!("函数没有参数「{k}」")));
+            // 照 Python 的 `vm._bind_args`：要说清是**哪个函数**、以及
+            // **它有哪些参数**（只报「没有参数」等于让用户去翻定义）。
+            return Err(err_with_hint(
+                "类型错误",
+                format!("函数「{}」没有叫「{k}」的参数", code.name),
+                format!("它的参数是：{}", code.params.join("、"))));
         }
     }
     if let Some(dp) = dstar_pos {
@@ -4094,9 +4373,78 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
     }
 
     let main = payload.get("main").and_then(|v| v.as_i64()).unwrap_or(0) as usize;
-    Ok(VM::new(Module { consts, names, kw_names, codes, main }))
+    let filename = payload.get("filename").and_then(|v| v.as_str())
+        .unwrap_or("<输入>").to_string();
+    Ok(VM::new(Module { consts, names, kw_names, codes, main, filename }))
 }
 
 pub fn get_output(vm: &VM) -> &str {
     &vm.output
+}
+
+/// 源文件名（R6.3）—— 报错渲染要打 `  ┌─ 文件:行:列`。
+pub fn module_filename(vm: &VM) -> &str {
+    &vm.module.filename
+}
+
+/// 源文件第 `line` 行的内容（R6.3，1 起）。读不到就给 `None`。
+pub fn source_line_of(vm: &VM, line: i64) -> Option<String> {
+    vm.module.source_line(line)
+}
+
+/// 把错误渲染成**与 Python 侧 `JishiError.render()` 同形**的多行文本（R6.3）。
+///
+/// ⚠️ 为什么要一模一样（而不是「大致像」）：报错是**用户可见的行为**，
+/// 四个执行器里三个（树遍历 / Python VM / C VM）共用 Python 的 `render()`，
+/// 只有宿主是自己拼的。宿主是 R7/R8 之后**唯一的形态**，所以它必须自己长出
+/// 完整的那一份 —— 否则「单二进制的报错」会比今天的体验**退步**。
+///
+/// 与 Python 侧的逐项对齐：
+/// * 标题行：有空消息才带括号（`错误 E2001：不能除以零`）；
+/// * `  ┌─ 文件:行:列` + `  │` + `行号 │ 源码` + `    │   ^` + `  │`；
+/// * 调用链 `name ← 第 N 行`（最多 20 帧）；
+/// * 提示语 `  提示：…`。
+/// ⚠️ **`^` 的宽度固定 1**：Python 侧有时带 `underline`（多字符区间），
+/// 那是**词法/语法错**才有的（解析器手里有 token 的跨度）；宿主收到的只有
+/// `line/col`。运行期错误在 Python 侧走的也正是 `underline = None` 那条路
+/// （`start = end = col`），所以这一处**不差分毫**。
+pub fn render_error(vm: &VM, e: &JishiError) -> String {
+    let mut out = String::new();
+    let title = error_title(&e.type_name);
+    match &e.code {
+        Some(code) => {
+            out.push_str(&format!("错误 {code}：{title}"));
+            if !e.message.is_empty() && e.message != title {
+                out.push_str(&format!("（{}）", e.message));
+            }
+        }
+        None => out.push_str(&format!("错误（{}）：{}", e.type_name, e.message)),
+    }
+    if let Some(line) = e.line {
+        let col = e.col.unwrap_or(1);
+        out.push_str(&format!("\n  ┌─ {}:{}:{}", vm.module.filename, line, col));
+        out.push_str("\n  │");
+        if let Some(src) = vm.module.source_line(line) {
+            let src = src.trim_end_matches(['\n', '\r']);
+            out.push_str(&format!("\n{line:>3} │ {src}"));
+            let pad = " ".repeat((col.max(1) - 1) as usize);
+            out.push_str(&format!("\n    │ {pad}^"));
+        }
+        out.push_str("\n  │");
+    }
+    if !e.trace.is_empty() {
+        out.push_str("\n调用链（从外到内）：");
+        for fr in e.trace.iter().rev().take(20).rev() {
+            let where_ = match fr.line {
+                Some(l) => format!("第 {l} 行"),
+                None => "未知位置".to_string(),
+            };
+            out.push_str(&format!("\n  {} ← {}", fr.func, where_));
+        }
+    }
+    if let Some(hint) = &e.hint {
+        out.push_str(&format!("\n  提示：{hint}"));
+    }
+    out.push('\n');
+    out
 }

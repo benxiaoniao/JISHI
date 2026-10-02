@@ -55,28 +55,17 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => {
-            // M56：有错误码就与 Python 侧同形（`错误 E2002：类型错误（消息）`），
-            // 没有（类型是宽泛的「异常」）退回「错误（异常）：消息」。
-            // 标题用 `error_title`（与 Python 的 title 同一张表：「断言没通过」…）。
-            match &e.code {
-                Some(code) => {
-                    let title = jishi_ffi::error_title(&e.type_name);
-                    if e.message.is_empty() || e.message == title {
-                        eprintln!("错误 {code}：{title}");
-                    } else {
-                        eprintln!("错误 {code}：{title}（{}）", e.message);
-                    }
-                }
-                None => eprintln!("错误（{}）：{}", e.type_name, e.message),
-            }
-            // 位置另起一行，格式与 Node 宿主一致
-            if let (Some(line), Some(col)) = (e.line, e.col) {
-                eprintln!("  ← 第 {line} 行第 {col} 列");
-            }
-            // M56：提示语（与 Python 侧「提示：…」同格式）
-            if let Some(hint) = &e.hint {
-                eprintln!("  提示：{hint}");
-            }
+            // ⚠️ **先把程序已经打印的东西吐出来**（R6.2）：以前只在 `Ok` 分支打
+            // `get_output`，于是**报错时前面所有 `打印` 全丢** —— 崩了看不到跑到哪。
+            // 三个 Python 执行器是边跑边出，只有宿主不吐；而宿主报错渲染本来就更简，
+            // 再把 stdout 丢掉，用户就一点线索都没有了。
+            // 顺序：stdout → 报错块（与 Python 侧一致：报错在末尾）。
+            print!("{}", jishi_ffi::get_output(&vm));
+            // R6.3：渲染成与 Python 的 `JishiError.render()` **同形**的多行文本
+            // （标题 + 位置 + 源码行 + `^` + 调用链 + 提示）。以前是「一行标题
+            // + 一行位置」，用户看不到自己写的那一行 —— 单二进制是唯一形态之后
+            // （R7/R8）那就等于没报错。见 `docs/embed.md`。
+            eprint!("{}", jishi_ffi::render_error(&vm, &e));
             ExitCode::from(1)
         }
     }
