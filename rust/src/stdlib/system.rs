@@ -11,13 +11,14 @@
 //! `执行` 的输出按 Python 的顺序拼：**先 stdout、再 stderr**，都用
 //! UTF-8（非法字节替换成 `\u{FFFD}`，与 Python 的 `errors="replace"` 同）。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::io::Read;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use super::{as_num, as_text, need, need_range, script_args, table, to_vec, R};
-use crate::{err, Val, VM};
+use crate::{err, Val};
 
 // ---------------------------------------------------------------------------
 // 系统版本
@@ -208,30 +209,30 @@ fn timeout_of(v: Option<&Val>) -> Result<f64, crate::JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "系统";
-        "系统名" => |args: &[Val], _vm: &mut VM| -> R {
+        "系统名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("系统名", args, 0)?;
             Ok(Val::Str(os_name()))
         },
-        "系统版本" => |args: &[Val], _vm: &mut VM| -> R {
+        "系统版本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("系统版本", args, 0)?;
             Ok(Val::Str(ver::version()))
         },
-        "机器架构" => |args: &[Val], _vm: &mut VM| -> R {
+        "机器架构" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("机器架构", args, 0)?;
             Ok(Val::Str(machine()))
         },
-        "处理器" => |args: &[Val], _vm: &mut VM| -> R {
+        "处理器" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("处理器", args, 0)?;
             let p = processor();
             Ok(Val::Str(if p.is_empty() { "未知".to_string() } else { p }))
         },
-        "当前目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "当前目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("当前目录", args, 0)?;
             let d = std::env::current_dir()
                 .map_err(|e| err("运行期错误", format!("取当前目录失败：{e}")))?;
             Ok(Val::Str(d.to_string_lossy().to_string()))
         },
-        "改目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "改目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("改目录", args, 1)?;
             let p = as_text(&args[0]);
             if !std::path::Path::new(&p).is_dir() {
@@ -243,35 +244,35 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("运行期错误", format!("取当前目录失败：{e}")))?;
             Ok(Val::Str(d.to_string_lossy().to_string()))
         },
-        "环境变量" => |args: &[Val], _vm: &mut VM| -> R {
+        "环境变量" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("环境变量", args, 1, 2)?;
             let name = as_text(&args[0]);
             let default = if args.len() > 1 { as_text(&args[1]) } else { String::new() };
             Ok(Val::Str(std::env::var(&name).unwrap_or(default)))
         },
-        "设环境变量" => |args: &[Val], _vm: &mut VM| -> R {
+        "设环境变量" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("设环境变量", args, 2)?;
             std::env::set_var(as_text(&args[0]), as_text(&args[1]));
             Ok(Val::None_)
         },
-        "执行" => |args: &[Val], _vm: &mut VM| -> R {
+        "执行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("执行", args, 1, 2)?;
             let t = timeout_of(args.get(1))?;
             let (_code, out, errout) = run_capture(&args[0], t)?;
             // Python 侧是 `(r.stdout or "") + (r.stderr or "")`
             Ok(Val::Str(format!("{out}{errout}")))
         },
-        "退出码" => |args: &[Val], _vm: &mut VM| -> R {
+        "退出码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("退出码", args, 1, 2)?;
             let t = timeout_of(args.get(1))?;
             let (code, _, _) = run_capture(&args[0], t)?;
             Ok(Val::Int(code as i128))
         },
-        "主机名" => |args: &[Val], _vm: &mut VM| -> R {
+        "主机名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("主机名", args, 0)?;
             Ok(Val::Str(hostname()))
         },
-        "参数" => |args: &[Val], _vm: &mut VM| -> R {
+        "参数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("参数", args, 0)?;
             let items: Vec<Val> = script_args().into_iter().map(Val::Str).collect();
             Ok(crate::list_new(items))

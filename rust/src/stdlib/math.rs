@@ -7,10 +7,11 @@
 //! - `四舍五入` 与 Python 的 `round` 一样用**银行家舍入**
 //!   （`四舍五入(2.5)` 给 `2` 而不是 `3`），且位数 ≤ 0 时返回整数。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{as_intish, as_num, need, need_range, table, with_values, R};
-use crate::{display, err, JishiError, Val, VM};
+use crate::{display, err, JishiError, Val};
 
 /// `round` 的银行家舍入（半值向偶数），与 Python 的 `round` 一致。
 ///
@@ -70,7 +71,7 @@ fn gcd(a: i128, b: i128) -> i128 {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     let m = table! { "数学";
-        "开方" => |args: &[Val], _vm: &mut VM| -> R {
+        "开方" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("开方", args, 1)?;
             let x = as_num(&args[0]).map_err(|_| {
                 err("类型错误", format!("「{}」不能开平方（需要数字）", display(&args[0])))
@@ -83,7 +84,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Float(x.sqrt()))
         },
-        "平方" => |args: &[Val], _vm: &mut VM| -> R {
+        "平方" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("平方", args, 1)?;
             match &args[0] {
                 Val::Int(i) => Ok(Val::Int(crate::big_ok(i.checked_mul(*i))?)),
@@ -95,13 +96,13 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 v => Ok(Val::Float(as_num(v)? * as_num(v)?)),
             }
         },
-        "幂" => |args: &[Val], _vm: &mut VM| -> R {
+        "幂" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("幂", args, 2)?;
             // 交给通用的 `**`：整数底数 + 非负整数指数会走整数快速幂、
             // 精确小数走十进制，两边行为与 `2 ** 10` 这种写法完全一致
             crate::binop(6, args[0].clone(), args[1].clone())
         },
-        "绝对值" => |args: &[Val], _vm: &mut VM| -> R {
+        "绝对值" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("绝对值", args, 1)?;
             match &args[0] {
                 Val::Int(i) => Ok(Val::Int(crate::big_ok(i.checked_abs())?)),
@@ -111,17 +112,17 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 v => Err(err("类型错误", format!("「{}」不能求绝对值", display(v)))),
             }
         },
-        "向上取整" => |args: &[Val], _vm: &mut VM| -> R {
+        "向上取整" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("向上取整", args, 1)?;
             let x = as_num(&args[0])?;
             Ok(Val::Int(to_big(x.ceil())?))
         },
-        "向下取整" => |args: &[Val], _vm: &mut VM| -> R {
+        "向下取整" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("向下取整", args, 1)?;
             let x = as_num(&args[0])?;
             Ok(Val::Int(to_big(x.floor())?))
         },
-        "四舍五入" => |args: &[Val], _vm: &mut VM| -> R {
+        "四舍五入" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("四舍五入", args, 1, 2)?;
             let n = if args.len() > 1 { as_intish(&args[1])? as i32 } else { 0 };
             match &args[0] {
@@ -144,23 +145,23 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             }
         },
-        "正弦" => |args: &[Val], _vm: &mut VM| -> R {
+        "正弦" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("正弦", args, 1)?;
             Ok(Val::Float(as_num(&args[0])?.sin()))
         },
-        "余弦" => |args: &[Val], _vm: &mut VM| -> R {
+        "余弦" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("余弦", args, 1)?;
             Ok(Val::Float(as_num(&args[0])?.cos()))
         },
-        "正切" => |args: &[Val], _vm: &mut VM| -> R {
+        "正切" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("正切", args, 1)?;
             Ok(Val::Float(as_num(&args[0])?.tan()))
         },
-        "角度转弧度" => |args: &[Val], _vm: &mut VM| -> R {
+        "角度转弧度" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("角度转弧度", args, 1)?;
             Ok(Val::Float(as_num(&args[0])?.to_radians()))
         },
-        "对数" => |args: &[Val], _vm: &mut VM| -> R {
+        "对数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("对数", args, 1, 2)?;
             let x = as_num(&args[0])?;
             let base = if args.len() > 1 { as_num(&args[1])? } else { std::f64::consts::E };
@@ -173,7 +174,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Float(x.ln() / base.ln()))
         },
-        "常用对数" => |args: &[Val], _vm: &mut VM| -> R {
+        "常用对数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("常用对数", args, 1)?;
             let x = as_num(&args[0])?;
             if x <= 0.0 {
@@ -184,11 +185,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Float(x.log10()))
         },
-        "最大公约数" => |args: &[Val], _vm: &mut VM| -> R {
+        "最大公约数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("最大公约数", args, 2)?;
             Ok(Val::Int(gcd(as_intish(&args[0])?, as_intish(&args[1])?)))
         },
-        "最小公倍数" => |args: &[Val], _vm: &mut VM| -> R {
+        "最小公倍数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("最小公倍数", args, 2)?;
             let a = as_intish(&args[0])?;
             let b = as_intish(&args[1])?;
@@ -198,7 +199,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // 先除后乘，免得中间结果白白溢出（Python 的 lcm 也是这么算的）
             Ok(Val::Int(crate::big_ok((a / gcd(a, b)).checked_mul(b.abs()))?))
         },
-        "阶乘" => |args: &[Val], _vm: &mut VM| -> R {
+        "阶乘" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("阶乘", args, 1)?;
             let n = as_intish(&args[0])?;
             if n < 0 {

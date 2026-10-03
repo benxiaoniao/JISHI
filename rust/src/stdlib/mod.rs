@@ -29,7 +29,7 @@
 
 use std::collections::HashMap;
 
-use crate::{display, err, JishiError, Val, VM};
+use crate::{display, err, JishiError, Val};
 
 pub(crate) mod datetime;
 mod files;

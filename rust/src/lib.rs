@@ -333,7 +333,11 @@ pub(crate) enum Val {
     Class(Class),
     Instance(JInst),
     Module(String, HashMap<String, Val>),
-    Builtin(&'static str, fn(&[Val], &mut VM) -> Result<Val, JishiError>),
+    /// ⚠️ 第二个字段是 **`&mut dyn BuiltinHost`** 而不是 `&mut VM` ——
+    /// 这样**树遍历参考执行器**（`walk.rs`）能跑**同一张**内建表
+    /// （R6 主体；见 `BuiltinHost` 的文档注释）。内建只通过这个接口碰宿主，
+    /// 于是「内建语义」只有一份实现，不会在两个执行器之间漂。
+    Builtin(&'static str, fn(&[Val], &mut dyn BuiltinHost) -> Result<Val, JishiError>),
     ExcType(String),
     /// `html.原样` 的标记（M50）：这段内容是**已经生成好的 HTML**，
     /// 放进标签里时不再转义。
@@ -2763,47 +2767,31 @@ impl VM {
     /// 要跑用户代码，`display` 拿不到 VM。容器里的对象也因此不再掉回
     /// `<甲 实例>`。
     fn format_value(&mut self, v: &Val, top: bool) -> Result<String, JishiError> {
-        match v {
-            Val::Instance(inst_rc) => {
-                let has_text = inst_rc.borrow().class.methods.contains_key("文本");
-                if !has_text {
-                    return Ok(display(v));
-                }
-                let m = self.get_attr_on(v.clone(), "文本")?;
-                let got = self.call_value(m, Vec::new())?;
-                match got {
-                    Val::Str(s) => Ok(s),
-                    other => {
-                        let cls = inst_rc.borrow().class.name.clone();
-                        Err(err("类型错误", format!(
-                            "类「{cls}」的「文本」方法返回了「{}」，要返回文本",
-                            type_label(&other))))
-                    }
-                }
+        // 容器递归 + 标量显示那部分在自由函数 `format_value_with` 里
+        // （**与树遍历参考执行器共用** —— 见它的注释）；只有「自定义对象怎么算
+        // 文本」这一步要 VM 自己来，因为那要调用户方法。
+        format_value_with(v, top, &mut |obj| self.text_hook(obj))
+    }
+
+    /// 自定义对象的「文本()」钩子（给 `format_value_with` 用）。
+    /// `Ok(None)` = 没有「文本」方法，让调用方按 `display` 显示。
+    fn text_hook(&mut self, v: &Val) -> Result<Option<String>, JishiError> {
+        let inst_rc = match v {
+            Val::Instance(inst_rc) => inst_rc,
+            _ => return Ok(None),
+        };
+        if !inst_rc.borrow().class.methods.contains_key("文本") {
+            return Ok(None);
+        }
+        let m = self.get_attr_on(v.clone(), "文本")?;
+        match self.call_value(m, Vec::new())? {
+            Val::Str(s) => Ok(Some(s)),
+            other => {
+                let cls = inst_rc.borrow().class.name.clone();
+                Err(err("类型错误", format!(
+                    "类「{cls}」的「文本」方法返回了「{}」，要返回文本",
+                    type_label(&other))))
             }
-            Val::List(l) => {
-                let items = l.borrow().clone();
-                let mut parts = Vec::with_capacity(items.len());
-                for x in &items { parts.push(self.format_value(x, false)?); }
-                Ok(format!("[{}]", parts.join(", ")))
-            }
-            Val::Dict(d) => {
-                let pairs = d.borrow().clone();
-                let mut parts = Vec::with_capacity(pairs.len());
-                for (k, val) in &pairs {
-                    parts.push(format!("{}: {}",
-                        self.format_value(k, false)?, self.format_value(val, false)?));
-                }
-                Ok(format!("{{{}}}", parts.join(", ")))
-            }
-            Val::Set(s) => {
-                let items = s.borrow().to_items();
-                let mut parts = Vec::with_capacity(items.len());
-                for x in &items { parts.push(self.format_value(x, false)?); }
-                if parts.is_empty() { Ok("集合()".to_string()) }
-                else { Ok(format!("{{{}}}", parts.join(", "))) }
-            }
-            other => Ok(if top { display(other) } else { py_repr(other) }),
         }
     }
 
@@ -2829,6 +2817,99 @@ impl VM {
                 _ => None,
             },
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 内建宿主的接口（R6 主体）
+// ---------------------------------------------------------------------------
+
+/// **内建函数能看到的「宿主能力」**。
+///
+/// 内建表的签名原来是 `fn(&[Val], &mut VM)` —— 于是内建**只能在字节码 VM 里跑**，
+/// 树遍历参考执行器（`walk.rs`）就用不上，只能另写一份（两份一定会漂）。
+/// 改成 `&mut dyn BuiltinHost` 之后，`VM` 与 `Walker` 各自实现这个接口，
+/// **内建语义只有一份实现**（`docs/设计决策.md` D68 §四的拍板：选 (a)）。
+///
+/// ⚠️ 这个接口**故意做小**：只放内建**真正用到**的那几个能力
+/// （我是先把内建里出现过的 `vm.xxx` 全列出来、再照着定的这张表）。
+/// 多一个方法，树遍历侧就多一处「实现不出来」的负担 —— 它现在只实现了其中两个。
+pub(crate) trait BuiltinHost {
+    /// 格式化一个值用于显示（顶层文本不带引号；自定义对象走「文本()」）。
+    fn format_value(&mut self, v: &Val, top: bool) -> Result<String, JishiError>;
+    /// 找对象上名为 `name` 的「无参可调用」；没有则 `None`（`进入/退出上下文` 用）。
+    fn lookup_method(&mut self, obj: &Val, name: &str) -> Option<Val>;
+    /// 取迭代器（自定义对象有「迭代()」就先调它）。
+    fn make_iter(&mut self, obj: Val) -> Result<Val, JishiError>;
+    /// 调用一个值（内建回调用户函数、自定义对象的「文本()」「进入()」都要它）。
+    fn call_value(&mut self, callee: Val, args: Vec<Val>) -> Result<Val, JishiError>;
+    /// 往输出流写文本（`打印` / `输入` 的提示语）。
+    fn write_output(&mut self, s: &str);
+}
+
+/// 格式化一个值 —— **与宿主无关的那部分**（容器递归 + 标量显示）。
+///
+/// `instance_text`：遇到自定义对象时由宿主提供「文本()」的结果；
+/// `Ok(None)` = 它没有「文本」方法，按 `display` 显示。
+///
+/// ⚠️ 为什么抽成自由函数：`VM` 与 `Walker` 都要格式化值，**容器那部分必须共用**
+/// —— 否则 `[1, {2: 3}]` 在两个执行器上可能长得不一样（正是本项目最恨的漂移）。
+/// 只有「自定义对象怎么算文本」这一小步是宿主特有的。
+fn format_value_with(
+    v: &Val, top: bool,
+    instance_text: &mut dyn FnMut(&Val) -> Result<Option<String>, JishiError>,
+) -> Result<String, JishiError> {
+    match v {
+        Val::Instance(_) => match instance_text(v)? {
+            Some(s) => Ok(s),
+            None => Ok(display(v)),
+        },
+        Val::List(l) => {
+            let items = l.borrow().clone();
+            let mut parts = Vec::with_capacity(items.len());
+            for x in &items { parts.push(format_value_with(x, false, instance_text)?); }
+            Ok(format!("[{}]", parts.join(", ")))
+        }
+        Val::Dict(d) => {
+            let pairs = d.borrow().clone();
+            let mut parts = Vec::with_capacity(pairs.len());
+            for (k, val) in &pairs {
+                parts.push(format!("{}: {}",
+                    format_value_with(k, false, instance_text)?,
+                    format_value_with(val, false, instance_text)?));
+            }
+            Ok(format!("{{{}}}", parts.join(", ")))
+        }
+        Val::Set(s) => {
+            let items = s.borrow().to_items();
+            let mut parts = Vec::with_capacity(items.len());
+            for x in &items { parts.push(format_value_with(x, false, instance_text)?); }
+            if parts.is_empty() { Ok("集合()".to_string()) }
+            else { Ok(format!("{{{}}}", parts.join(", "))) }
+        }
+        other => Ok(if top { display(other) } else { py_repr(other) }),
+    }
+}
+
+/// `VM` 在字节码执行器上实现这套接口 —— 直接转发给它已有的那几个**固有方法**。
+///
+/// ⚠️ 用 `VM::xxx(self, …)` 全限定写法：`VM` 自己也有同名固有方法，
+/// 全限定能钉住「调的是固有那一份」，免得读的人以为是递归。
+impl BuiltinHost for VM {
+    fn format_value(&mut self, v: &Val, top: bool) -> Result<String, JishiError> {
+        VM::format_value(self, v, top)
+    }
+    fn lookup_method(&mut self, obj: &Val, name: &str) -> Option<Val> {
+        VM::lookup_method(self, obj, name)
+    }
+    fn make_iter(&mut self, obj: Val) -> Result<Val, JishiError> {
+        VM::make_iter(self, obj)
+    }
+    fn call_value(&mut self, callee: Val, args: Vec<Val>) -> Result<Val, JishiError> {
+        VM::call_value(self, callee, args)
+    }
+    fn write_output(&mut self, s: &str) {
+        self.output.push_str(s);
     }
 }
 
@@ -3392,7 +3473,7 @@ fn shift_count(v: &Val, func: &str) -> Result<i128, JishiError> {
     Ok(n)
 }
 
-fn new_builtins() -> HashMap<String, Val> {
+pub(crate) fn new_builtins() -> HashMap<String, Val> {
     let mut m = HashMap::new();
     m.insert("打印".to_string(), Val::Builtin("打印", |args, vm| {
         // 走 format_value（不是 display）：顶层文本**不带引号**、空/真/假中文，
@@ -3401,8 +3482,8 @@ fn new_builtins() -> HashMap<String, Val> {
         for a in args {
             parts.push(vm.format_value(a, true)?);
         }
-        vm.output.push_str(&parts.join(" "));
-        vm.output.push('\n');
+        vm.write_output(&parts.join(" "));
+        vm.write_output("\n");
         Ok(Val::None_)
     }));
     m.insert("输入".to_string(), Val::Builtin("输入", |args, vm| {
@@ -3412,7 +3493,7 @@ fn new_builtins() -> HashMap<String, Val> {
             if !matches!(p, Val::None_) {
                 let text = vm.format_value(p, true)?;
                 if !text.is_empty() {
-                    vm.output.push_str(&text);
+                    vm.write_output(&text);
                 }
             }
         }
@@ -3921,7 +4002,7 @@ pub(crate) fn cmp_vals(a: &Val, b: &Val) -> std::cmp::Ordering {
 ///
 /// 与 Python 侧 `_single_iterable_arg` 一致：文本刻意当**标量**处理
 /// （`最大("abc")` 是那一个文本，不是三个字符）。
-fn seq_of(args: &[Val], vm: &mut VM) -> Result<Option<Vec<Val>>, JishiError> {
+fn seq_of(args: &[Val], vm: &mut dyn BuiltinHost) -> Result<Option<Vec<Val>>, JishiError> {
     if args.len() != 1 { return Ok(None); }
     match &args[0] {
         Val::List(l) => Ok(Some(l.borrow().clone())),
@@ -3941,7 +4022,7 @@ fn seq_of(args: &[Val], vm: &mut VM) -> Result<Option<Vec<Val>>, JishiError> {
     }
 }
 
-fn b_max(args: &[Val], vm: &mut VM) -> Result<Val, JishiError> {
+fn b_max(args: &[Val], vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
     if let Some(seq) = seq_of(args, vm)? {
         // 照 Python 的 `_b_max`：**类型与文案都对齐**（Python 侧是
         // `RunTypeError` + 「「[]」不能求最大值，需要一个非空列表或若干数字」）。
@@ -3957,7 +4038,7 @@ fn b_max(args: &[Val], vm: &mut VM) -> Result<Val, JishiError> {
         .ok_or_else(|| err("类型错误", "「最大」至少要有一个参数"))
 }
 
-fn b_min(args: &[Val], vm: &mut VM) -> Result<Val, JishiError> {
+fn b_min(args: &[Val], vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
     if let Some(seq) = seq_of(args, vm)? {
         return seq.into_iter().min_by(cmp_vals)
             .ok_or_else(|| err("值错误", "空序列求不了最小值"));
@@ -3970,7 +4051,7 @@ fn b_min(args: &[Val], vm: &mut VM) -> Result<Val, JishiError> {
 ///
 /// 精确小数那条要单独起算：`0 + Decimal` 在 Python 侧会 TypeError，
 /// 而 `总和([精确("0.1"), …])` 不该因此失败（对齐 Python 侧 `_b_sum`）。
-fn b_sum(args: &[Val], _vm: &mut VM) -> Result<Val, JishiError> {
+fn b_sum(args: &[Val], _vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
     let v = args.first().ok_or_else(|| err("类型错误", "「总和」需要一个列表"))?;
     let items = as_iterable(v, "总和的参数")?;
     let has_dec = items.iter().any(|x| matches!(x, Val::Dec(_)));
@@ -4720,7 +4801,7 @@ fn reversed_iter(items: Vec<Val>) -> Val {
     list_new(v)
 }
 
-fn make_iterator(obj: Val) -> Result<Val, JishiError> {
+pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
     // 迭代器 = 「快照列表 + 从**尾部**弹」。
     //
     // 关键：**必须做快照拷贝**。以前列表是值类型，`Val::List(l)` 天然就是
@@ -4930,14 +5011,23 @@ impl PartialOrd for Val {
 // ---------------------------------------------------------------------------
 
 /// 跑**树遍历参考执行器**：吃 **AST JSON 文本**（`conformance.py emit --stage ast`
-/// 的产物），返回它打印的内容。
+/// 的产物）。
 ///
 /// ⚠️ 它与字节码 VM 是**两个独立实现**，跑同一段源码必须一致 —— 差异就是
 /// 「编译器 / 字节码生成」的问题（字节码 VM 自己抓不出来）。
-/// 进度与边界见 `walk.rs` 的文档注释（现在只实现了一个切片，未实现的节点
-/// **明确报错**，不静默给错值）。
-pub fn run_walk(ast_text: &str) -> Result<String, String> {
-    let ast = json::parse(ast_text).map_err(|e| format!("AST JSON 解析失败：{e}"))?;
+/// 进度与边界见 `walk.rs` 的文档注释（未实现的节点**明确报错**，不静默给错值）。
+///
+/// 返回 `(输出, 报错渲染)`。
+///
+/// ⚠️ 为什么返回元组而不是 `Result`：**报错时也要把出错前已经打印的东西带回来**。
+/// 字节码 VM 在 R6.2 就统一了「出错前写进输出流的内容要吐出来」，参考执行器
+/// 必须一致 —— 否则互拍工具会把「少了半截输出」当成不一致（D68 §四第 ⑥ 步
+/// 「报错渲染对齐」之前，这里先把输出这一半对齐）。
+pub fn run_walk(ast_text: &str) -> Result<String, (String, String)> {
+    let ast = match json::parse(ast_text) {
+        Ok(a) => a,
+        Err(e) => return Err((String::new(), format!("AST JSON 解析失败：{e}"))),
+    };
     let mut w = walk::Walker::new();
     match w.run(&ast) {
         Ok(()) => Ok(w.output),
@@ -4948,10 +5038,18 @@ pub fn run_walk(ast_text: &str) -> Result<String, String> {
                 Some(c) => format!("错误 {c}：{}（{}）", e.type_name, e.message),
                 None => format!("错误（{}）：{}", e.type_name, e.message),
             };
-            Err(match (e.line, e.col) {
+            let mut rendered = match (e.line, e.col) {
                 (Some(l), Some(c)) => format!("{head}\n  ┌─ {l}:{c}"),
                 _ => head,
-            })
+            };
+            // 提示语（M56）能渲染就渲染 —— 它**不需要源码**，与 `render_error`
+            // 同一行格式（所以「候选名池」这一条在宿主上也看得见了）。
+            // ⚠️ 还差「源码行 + `^` + 调用链」那一块：那要**源文件名与源码**，
+            // 而树遍历的输入是 AST JSON（里面没有它们）——见 D68 §四第 ⑥ 步。
+            if let Some(hint) = &e.hint {
+                rendered.push_str(&format!("\n  提示：{hint}"));
+            }
+            Err((w.output, rendered))
         }
     }
 }

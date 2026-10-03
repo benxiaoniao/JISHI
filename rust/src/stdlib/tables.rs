@@ -12,11 +12,12 @@
 //! （Python 侧 `"92" == 92` 就是假）。这不是缺陷而是如实对齐——
 //! 想按数字比就先 `整数(...)` 转换再比。`排序按` 则是**数值感知**的。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::{as_text, need, need_range, table, to_vec, R};
-use crate::{err, JishiError, Val, VM};
+use crate::{err, JishiError, Val};
 
 /// 表格对象：表头 + 数据行。
 ///
@@ -173,7 +174,7 @@ fn sort_key(v: &Val) -> (u8, f64, String) {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "表格";
-        "读表格" => |args: &[Val], _vm: &mut VM| -> R {
+        "读表格" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("读表格", args, 1)?;
             let p = as_text(&args[0]);
             let bytes = std::fs::read(&p)
@@ -190,7 +191,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .collect();
             Ok(table_new(headers, data))
         },
-        "写表格" => |args: &[Val], _vm: &mut VM| -> R {
+        "写表格" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("写表格", args, 2)?;
             let p = as_text(&args[0]);
             let rows = to_vec(&args[1])?;
@@ -203,7 +204,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|_| err("文件错误", format!("没法写入文件「{p}」")))?;
             Ok(Val::None_)
         },
-        "写字典表格" => |args: &[Val], _vm: &mut VM| -> R {
+        "写字典表格" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("写字典表格", args, 2)?;
             let p = as_text(&args[0]);
             let items = to_vec(&args[1])?;
@@ -238,7 +239,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|_| err("文件错误", format!("没法写入文件「{p}」")))?;
             Ok(Val::None_)
         },
-        "读字典表格" => |args: &[Val], _vm: &mut VM| -> R {
+        "读字典表格" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("读字典表格", args, 1)?;
             let p = as_text(&args[0]);
             let bytes = std::fs::read(&p)
@@ -262,7 +263,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(crate::list_new(out))
         },
-        "追加" => |args: &[Val], _vm: &mut VM| -> R {
+        "追加" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("追加", args, 2)?;
             let p = as_text(&args[0]);
             let fields: Vec<String> = to_vec(&args[1])?.iter().map(as_text).collect();
@@ -283,12 +284,12 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|_| err("文件错误", format!("没法写入文件「{p}」")))?;
             Ok(Val::None_)
         },
-        "表头" => |args: &[Val], _vm: &mut VM| -> R {
+        "表头" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("表头", args, 1)?;
             let t = as_table(&args[0])?;
             Ok(crate::list_new(t.headers.clone()))
         },
-        "数据行" => |args: &[Val], _vm: &mut VM| -> R {
+        "数据行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("数据行", args, 1)?;
             let t = as_table(&args[0])?;
             let out: Vec<Val> = t
@@ -298,7 +299,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .collect();
             Ok(crate::list_new(out))
         },
-        "挑选" => |args: &[Val], _vm: &mut VM| -> R {
+        "挑选" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("挑选", args, 2)?;
             let t = as_table(&args[0])?;
             if matches!(args[1], Val::List(_)) {
@@ -328,7 +329,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .collect();
             Ok(crate::list_new(out))
         },
-        "筛选" => |args: &[Val], _vm: &mut VM| -> R {
+        "筛选" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("筛选", args, 3)?;
             let t = as_table(&args[0])?;
             let i = column_index(&t, &args[1])?;
@@ -342,7 +343,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .collect();
             Ok(table_new(t.headers.clone(), rows))
         },
-        "排序按" => |args: &[Val], _vm: &mut VM| -> R {
+        "排序按" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("排序按", args, 2, 3)?;
             let t = as_table(&args[0])?;
             let i = column_index(&t, &args[1])?;
@@ -365,7 +366,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             });
             Ok(table_new(t.headers.clone(), rows))
         },
-        "汇总" => |args: &[Val], _vm: &mut VM| -> R {
+        "汇总" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("汇总", args, 2)?;
             let t = as_table(&args[0])?;
             let i = column_index(&t, &args[1])?;
@@ -403,7 +404,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             ];
             Ok(crate::dict_new(pairs))
         },
-        "转置" => |args: &[Val], _vm: &mut VM| -> R {
+        "转置" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("转置", args, 1)?;
             let rows = to_vec(&args[0])?;
             if rows.is_empty() {

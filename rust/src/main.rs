@@ -47,7 +47,8 @@ fn main() -> ExitCode {
         };
         return match jishi_ffi::run_walk(&text) {
             Ok(out) => { print!("{out}"); ExitCode::SUCCESS }
-            Err(e) => { eprintln!("{e}"); ExitCode::from(1) }
+            // ⚠️ 先把**出错前已经打印的内容**吐出来，再报错（与字节码 VM 一致）。
+            Err((out, e)) => { print!("{out}"); eprintln!("{e}"); ExitCode::from(1) }
         };
     }
     let path = &args[1];

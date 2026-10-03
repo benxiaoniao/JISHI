@@ -25,10 +25,11 @@
 //! 一个分组给「那个分组」，两个以上给元组（基石这边是列表）。
 //! 分组没参与匹配时 Python 给 `None`，这里给空文本——这一点不同，见下。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use crate::stdlib::{as_text, need, table, R};
-use crate::{err, JishiError, Val, VM};
+use crate::{err, JishiError, Val};
 
 // ---------------------------------------------------------------------------
 // 语法树
@@ -840,12 +841,12 @@ fn build(pattern: &Val) -> Result<Prog, JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "正则";
-        "匹配" => |args: &[Val], _vm: &mut VM| -> R {
+        "匹配" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("匹配", args, 2)?;
             let prog = build(&args[0])?;
             Ok(Val::Bool(matches_from_start(&prog, &as_text(&args[1]))))
         },
-        "搜索" => |args: &[Val], _vm: &mut VM| -> R {
+        "搜索" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("搜索", args, 2)?;
             let prog = build(&args[0])?;
             let text = as_text(&args[1]);
@@ -854,7 +855,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 None => String::new(),
             }))
         },
-        "查找全部" => |args: &[Val], _vm: &mut VM| -> R {
+        "查找全部" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("查找全部", args, 2)?;
             let prog = build(&args[0])?;
             let text = as_text(&args[1]);
@@ -878,7 +879,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .collect();
             Ok(crate::list_new(items))
         },
-        "替换" => |args: &[Val], _vm: &mut VM| -> R {
+        "替换" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("替换", args, 3)?;
             let prog = build(&args[0])?;
             let tpl = as_text(&args[1]);
@@ -897,7 +898,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Str(out))
         },
-        "拆分" => |args: &[Val], _vm: &mut VM| -> R {
+        "拆分" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("拆分", args, 2)?;
             let prog = build(&args[0])?;
             let text = as_text(&args[1]);
@@ -919,7 +920,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             out.push(Val::Str(slice(&inp, Some((last, inp.len())))));
             Ok(crate::list_new(out))
         },
-        "分组" => |args: &[Val], _vm: &mut VM| -> R {
+        "分组" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("分组", args, 2)?;
             let prog = build(&args[0])?;
             let text = as_text(&args[1]);

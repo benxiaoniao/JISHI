@@ -13,10 +13,11 @@
 //! 序列化的浮点用 Python 的 `repr` 规则：整数形态保留 `.0`（`2.0`），
 //! 指数在 `[-4, 16)` 之外才用科学计数法（`1e+20`）。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{as_text, need, need_range, table, R};
-use crate::{err, JishiError, Val, VM};
+use crate::{err, JishiError, Val};
 
 // ---------------------------------------------------------------------------
 // 序列化
@@ -450,23 +451,23 @@ fn indent_of(args: &[Val], idx: usize) -> Option<usize> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "json";
-        "转文本" => |args: &[Val], _vm: &mut VM| -> R {
+        "转文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("转文本", args, 1, 2)?;
             let ind = indent_of(args, 1);
             Ok(Val::Str(to_text(&args[0], ind)))
         },
-        "解析" => |args: &[Val], _vm: &mut VM| -> R {
+        "解析" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("解析", args, 1)?;
             parse(&as_text(&args[0]))
         },
-        "读文件" => |args: &[Val], _vm: &mut VM| -> R {
+        "读文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("读文件", args, 1)?;
             let p = as_text(&args[0]);
             let text = std::fs::read_to_string(&p)
                 .map_err(|e| err("值错误", format!("读文件「{p}」失败：{e}")))?;
             parse(&text)
         },
-        "写文件" => |args: &[Val], _vm: &mut VM| -> R {
+        "写文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("写文件", args, 2, 3)?;
             let p = as_text(&args[0]);
             let ind = indent_of(args, 2);

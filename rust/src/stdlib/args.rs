@@ -9,11 +9,12 @@
 //! 写法完全一致，统一「`新建` 拿句柄 → 句柄当第一个参数传回去」。
 //! 状态放全局表，句柄是下标 + 1（0 表示无效）。
 
+use crate::BuiltinHost;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 use super::{need_range, table, to_vec, R};
-use crate::{dict_new, display, err, list_new, Val, VM};
+use crate::{dict_new, display, err, list_new, Val};
 
 /// 一个选项的声明。
 struct Spec {
@@ -142,7 +143,7 @@ fn 解析列表(p: &Parser, list: Vec<Val>) -> Result<Val, crate::JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "参数";
-        "新建" => |args: &[Val], _vm: &mut VM| -> R {
+        "新建" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("新建", args, 1, 2)?;
             let 名 = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
             let 说明 = if args.len() == 2 {
@@ -156,7 +157,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             });
             Ok(Val::Int(n as i128))
         },
-        "选项" => |args: &[Val], _vm: &mut VM| -> R {
+        "选项" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("选项", args, 2, 4)?;
             let idx = 取下标(&args[0])?;
             let 名 = match &args[1] { Val::Str(s) => s.clone(), o => display(o) };
@@ -173,7 +174,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             })?;
             Ok(args[0].clone())
         },
-        "标志" => |args: &[Val], _vm: &mut VM| -> R {
+        "标志" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("标志", args, 2, 3)?;
             let idx = 取下标(&args[0])?;
             let 名 = match &args[1] { Val::Str(s) => s.clone(), o => display(o) };
@@ -189,7 +190,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             })?;
             Ok(args[0].clone())
         },
-        "用法" => |args: &[Val], _vm: &mut VM| -> R {
+        "用法" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("用法", args, 1, 1)?;
             let idx = 取下标(&args[0])?;
             表(|t| {
@@ -197,7 +198,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Ok(Val::Str(用法文本(p)))
             })
         },
-        "解析" => |args: &[Val], _vm: &mut VM| -> R {
+        "解析" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("解析", args, 2, 2)?;
             // 一次式：第一个参数不是句柄（是列表）时，第二个是「选项 → 默认值」字典
             if !matches!(&args[0], Val::Int(i) if *i >= 1) {

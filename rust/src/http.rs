@@ -13,10 +13,11 @@
 //! 默认超时 10 秒、`User-Agent: jishi/0.1`、自动跟随重定向（WinHTTP 默认行为，
 //! 与 Python 的 `urllib` 一致）。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use crate::stdlib::{as_num, as_text, need, need_range, table, R};
-use crate::{err, JishiError, Val, VM};
+use crate::{err, JishiError, Val};
 
 const DEFAULT_TIMEOUT: f64 = 10.0;
 const AGENT: &str = "jishi/0.1";
@@ -406,7 +407,7 @@ fn timeout_of(args: &[Val], idx: usize) -> Result<f64, JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "网络";
-        "获取" => |args: &[Val], _vm: &mut VM| -> R {
+        "获取" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("获取", args, 1, 2)?;
             let raw = as_text(&args[0]);
             let t = timeout_of(args, 1)?;
@@ -415,7 +416,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 err("运行期错误", format!("访问「{raw}」失败：{}", e.message))
             })?))
         },
-        "提交" => |args: &[Val], _vm: &mut VM| -> R {
+        "提交" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("提交", args, 1, 3)?;
             let raw = as_text(&args[0]);
             let t = timeout_of(args, 2)?;
@@ -429,7 +430,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 err("运行期错误", format!("提交到「{raw}」失败：{}", e.message))
             })?))
         },
-        "获取JSON" => |args: &[Val], _vm: &mut VM| -> R {
+        "获取JSON" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("获取JSON", args, 1, 2)?;
             let raw = as_text(&args[0]);
             let t = timeout_of(args, 1)?;

@@ -11,10 +11,11 @@
 //!
 //! 上面三条都是 Node 侧实现时踩出来的（那边先做，教训搬过来）。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{need_range, table, to_vec, R};
-use crate::{err, list_new, Val, VM};
+use crate::{err, list_new, Val};
 
 type Op = (String, usize, usize, usize, usize); // tag, i1, i2, j1, j2
 
@@ -140,7 +141,7 @@ fn int_arg(name: &str, v: &crate::Val) -> Result<usize, crate::JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "对比";
-        "逐行" => |args: &[Val], _vm: &mut VM| -> R {
+        "逐行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("逐行", args, 2, 3)?;
             let a = lines("逐行", &args[0])?;
             let b = lines("逐行", &args[1])?;
@@ -182,7 +183,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(list_new(out))
         },
-        "统一" => |args: &[Val], _vm: &mut VM| -> R {
+        "统一" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("统一", args, 2, 3)?;
             let a = lines("统一", &args[0])?;
             let b = lines("统一", &args[1])?;
@@ -251,7 +252,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Str(out.join("\n")))
         },
-        "并排" => |args: &[Val], _vm: &mut VM| -> R {
+        "并排" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("并排", args, 2, 3)?;
             let a = lines("并排", &args[0])?;
             let b = lines("并排", &args[1])?;
@@ -309,7 +310,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Str(out.join("\n")))
         },
-        "相似度" => |args: &[Val], _vm: &mut VM| -> R {
+        "相似度" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("相似度", args, 2, 2)?;
             let a = lines("相似度", &args[0])?;
             let b = lines("相似度", &args[1])?;
@@ -323,7 +324,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .sum();
             Ok(Val::Float(2.0 * same as f64 / (a.len() + b.len()) as f64))
         },
-        "最相似" => |args: &[Val], _vm: &mut VM| -> R {
+        "最相似" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("最相似", args, 2, 2)?;
             let target = match &args[0] {
                 Val::Str(s) => s.clone(),

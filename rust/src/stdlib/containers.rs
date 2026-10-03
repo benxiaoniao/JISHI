@@ -8,10 +8,11 @@
 //! Rust 侧的字典是 `Vec<(Val, Val)>`（保插入序，见 `JDict`），所以
 //! 「保序」这件事天然成立，不需要额外记位置。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{as_intish, need_range, table, to_vec, R};
-use crate::{dict_new, display, err, list_new, Val, VM};
+use crate::{dict_new, display, err, list_new, Val};
 
 /// 计数：返回 [[元素, 次数], …]，按首次出现的先后排。
 fn count_pairs(items: &[Val]) -> Vec<(Val, i128)> {
@@ -32,7 +33,7 @@ fn count_pairs(items: &[Val]) -> Vec<(Val, i128)> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "容器";
-        "计数" => |args: &[Val], _vm: &mut VM| -> R {
+        "计数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("计数", args, 1, 1)?;
             let items = to_vec(&args[0])?;
             Ok(dict_new(
@@ -42,7 +43,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     .collect(),
             ))
         },
-        "最多" => |args: &[Val], _vm: &mut VM| -> R {
+        "最多" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("最多", args, 1, 2)?;
             let items = to_vec(&args[0])?;
             let n = if args.len() == 2 { as_intish(&args[1])? } else { 1 };
@@ -66,7 +67,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     .collect(),
             ))
         },
-        "按值排序" => |args: &[Val], _vm: &mut VM| -> R {
+        "按值排序" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("按值排序", args, 1, 2)?;
             let desc = if args.len() == 2 { crate::truthy(args[1].clone()) } else { true };
             let pairs = match &args[0] {
@@ -93,7 +94,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     .collect(),
             ))
         },
-        "分组" => |args: &[Val], vm: &mut VM| -> R {
+        "分组" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
             need_range("分组", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let f = args[1].clone();
@@ -117,20 +118,20 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     .collect(),
             ))
         },
-        "取前" => |args: &[Val], _vm: &mut VM| -> R {
+        "取前" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取前", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let n = as_intish(&args[1])?.max(0) as usize;
             Ok(list_new(items.into_iter().take(n).collect()))
         },
-        "取后" => |args: &[Val], _vm: &mut VM| -> R {
+        "取后" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取后", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let n = as_intish(&args[1])?.max(0) as usize;
             let skip = items.len().saturating_sub(n);
             Ok(list_new(items.into_iter().skip(skip).collect()))
         },
-        "分块" => |args: &[Val], _vm: &mut VM| -> R {
+        "分块" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("分块", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let n = as_intish(&args[1])?;

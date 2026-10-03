@@ -18,13 +18,14 @@
 //! 与 Python 侧的行为差异只有一处、且不影响正确性：`打包` 出来的
 //! **字节不同**（stored vs deflate），但**解出来的内容完全一样**。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
 use crate::inflate::inflate_raw;
 use crate::stdlib::{as_text, need, need_range, table, R};
-use crate::{err, JishiError, Val, VM};
+use crate::{err, JishiError, Val};
 
 // ---------------------------------------------------------------------------
 // CRC-32
@@ -251,7 +252,7 @@ fn walk(dir: &str, prefix: &str, out: &mut Vec<(String, String)>) {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "压缩";
-        "打包" => |args: &[Val], _vm: &mut VM| -> R {
+        "打包" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("打包", args, 2, usize::MAX)?;
             let zip_path = as_text(&args[0]);
             // 允许第一个参数是列表（基石调用常传列表）
@@ -298,7 +299,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("运行期错误", format!("打包到「{zip_path}」失败：{e}")))?;
             Ok(Val::Str(zip_path))
         },
-        "解压" => |args: &[Val], _vm: &mut VM| -> R {
+        "解压" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("解压", args, 1, 2)?;
             let zip_path = as_text(&args[0]);
             let target = if args.len() > 1 && !matches!(args[1], Val::None_) {
@@ -331,7 +332,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Str(target))
         },
-        "列出内容" => |args: &[Val], _vm: &mut VM| -> R {
+        "列出内容" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("列出内容", args, 1)?;
             let zip_path = as_text(&args[0]);
             if !Path::new(&zip_path).is_file() {

@@ -14,13 +14,14 @@
 //! `列出` 返回的是条目名、`文件名`/`后缀`/`无后缀名` 只看最后一段，
 //! 都不受分隔符规范化影响。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::{as_text, need, need_range, table, R};
 use crate::stdlib::datetime::format_system_time;
-use crate::{err, list_new, Val, VM};
+use crate::{err, list_new, Val};
 
 /// 把路径里的 `/` 换成平台分隔符（Windows 上 pathlib 总吐 `\`）。
 pub(crate) fn norm_sep(p: &Path) -> String {
@@ -100,7 +101,7 @@ fn 递归收(
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "路径";
-        "连接" => |args: &[Val], _vm: &mut VM| -> R {
+        "连接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             if args.is_empty() {
                 return Ok(Val::Str(".".to_string()));
             }
@@ -110,19 +111,19 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Str(norm_sep(&buf)))
         },
-        "存在" => |args: &[Val], _vm: &mut VM| -> R {
+        "存在" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("存在", args, 1)?;
             Ok(Val::Bool(Path::new(&as_text(&args[0])).exists()))
         },
-        "是文件" => |args: &[Val], _vm: &mut VM| -> R {
+        "是文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是文件", args, 1)?;
             Ok(Val::Bool(Path::new(&as_text(&args[0])).is_file()))
         },
-        "是目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "是目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是目录", args, 1)?;
             Ok(Val::Bool(Path::new(&as_text(&args[0])).is_dir()))
         },
-        "绝对路径" => |args: &[Val], _vm: &mut VM| -> R {
+        "绝对路径" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("绝对路径", args, 1)?;
             let p = as_text(&args[0]);
             // `std::path::absolute` 只做词法规范化（不解析符号链接、不加
@@ -131,7 +132,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("值错误", format!("「{p}」转不成绝对路径：{e}")))?;
             Ok(Val::Str(norm_sep(&abs)))
         },
-        "父目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "父目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("父目录", args, 1)?;
             let p = as_text(&args[0]);
             let parent = Path::new(&p)
@@ -144,29 +145,29 @@ pub(crate) fn module() -> HashMap<String, Val> {
             };
             Ok(Val::Str(if cfg!(windows) { out } else { out.replace('\\', "/") }))
         },
-        "文件名" => |args: &[Val], _vm: &mut VM| -> R {
+        "文件名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("文件名", args, 1)?;
             Ok(Val::Str(file_name_of(&as_text(&args[0]))))
         },
-        "后缀" => |args: &[Val], _vm: &mut VM| -> R {
+        "后缀" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("后缀", args, 1)?;
             Ok(Val::Str(suffix_of(&file_name_of(&as_text(&args[0])))))
         },
-        "无后缀名" => |args: &[Val], _vm: &mut VM| -> R {
+        "无后缀名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("无后缀名", args, 1)?;
             Ok(Val::Str(stem_of(&file_name_of(&as_text(&args[0])))))
         },
-        "当前目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "当前目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("当前目录", args, 0)?;
             let d = std::env::current_dir()
                 .map_err(|e| err("文件错误", format!("取当前目录失败：{e}")))?;
             Ok(Val::Str(norm_sep(&d)))
         },
-        "主目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "主目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("主目录", args, 0)?;
             Ok(Val::Str(home_dir()))
         },
-        "创建目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "创建目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("创建目录", args, 1, 2)?;
             let p = as_text(&args[0]);
             let recursive = matches!(args.get(1), Some(Val::Bool(true)));
@@ -184,7 +185,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Err(e) => Err(err("文件错误", format!("创建目录「{p}」失败：{e}"))),
             }
         },
-        "删除" => |args: &[Val], _vm: &mut VM| -> R {
+        "删除" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("删除", args, 1)?;
             let p = as_text(&args[0]);
             let path = Path::new(&p);
@@ -203,7 +204,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Bool(false))
         },
-        "列出" => |args: &[Val], _vm: &mut VM| -> R {
+        "列出" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("列出", args, 1)?;
             let p = as_text(&args[0]);
             let path = Path::new(&p);
@@ -221,7 +222,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             names.sort();
             Ok(crate::list_new(names.into_iter().map(Val::Str).collect()))
         },
-        "递归列出" => |args: &[Val], _vm: &mut VM| -> R {
+        "递归列出" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("递归列出", args, 1, 2)?;
             let p = as_text(&args[0]);
             let suffix = if args.len() == 2 { as_text(&args[1]) } else { String::new() };
@@ -234,7 +235,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             out.sort();
             Ok(list_new(out.into_iter().map(Val::Str).collect()))
         },
-        "重命名" => |args: &[Val], _vm: &mut VM| -> R {
+        "重命名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("重命名", args, 2)?;
             let old = as_text(&args[0]);
             let new = as_text(&args[1]);
@@ -245,7 +246,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("文件错误", format!("把「{old}」重命名成「{new}」失败：{e}")))?;
             Ok(Val::Str(new))
         },
-        "大小" => |args: &[Val], _vm: &mut VM| -> R {
+        "大小" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("大小", args, 1)?;
             let p = as_text(&args[0]);
             let meta = fs::metadata(&p)
@@ -255,7 +256,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Int(meta.len() as i128))
         },
-        "修改时间" => |args: &[Val], _vm: &mut VM| -> R {
+        "修改时间" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("修改时间", args, 1)?;
             let p = as_text(&args[0]);
             let meta = fs::metadata(&p)

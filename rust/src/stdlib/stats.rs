@@ -3,10 +3,11 @@
 //! 一组数据的集中趋势与离散程度。**报错措辞与 Python 侧逐字一致**——
 //! 对拍会逐字节比 stdout 与报错文本。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{as_num, need_range, table, to_vec, R};
-use crate::{err, Val, VM};
+use crate::{err, Val};
 
 /// 把输入统一成数字列表（与 Python 侧 `_nums` 同规则）。
 /// 数值结果：**整数就返回 、否则 **。
@@ -70,18 +71,18 @@ fn as_float_arg(name: &str, v: &Val) -> Result<f64, crate::JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "统计";
-        "求和" => |args: &[Val], _vm: &mut VM| -> R {
+        "求和" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("求和", args, 1, 1)?;
             let xs = nums("求和", &args[0])?;
             let s: f64 = xs.iter().sum();
             Ok(f64v(s))
         },
-        "平均" => |args: &[Val], _vm: &mut VM| -> R {
+        "平均" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("平均", args, 1, 1)?;
             let xs = need_nonempty("平均", nums("平均", &args[0])?)?;
             Ok(Val::Float(xs.iter().sum::<f64>() / xs.len() as f64))
         },
-        "中位数" => |args: &[Val], _vm: &mut VM| -> R {
+        "中位数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("中位数", args, 1, 1)?;
             let mut xs = need_nonempty("中位数", nums("中位数", &args[0])?)?;
             xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -93,7 +94,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Ok(Val::Float((xs[mid - 1] + xs[mid]) / 2.0))
             }
         },
-        "众数" => |args: &[Val], _vm: &mut VM| -> R {
+        "众数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("众数", args, 1, 1)?;
             let xs = need_nonempty("众数", nums("众数", &args[0])?)?;
             // 并列最多取**最先出现**的：按首次出现顺序扫，只在严格更多时替换
@@ -120,26 +121,26 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(f64v(best))
         },
-        "方差" => |args: &[Val], _vm: &mut VM| -> R {
+        "方差" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("方差", args, 1, 2)?;
             let xs = need_nonempty("方差", nums("方差", &args[0])?)?;
             let sample = matches!(args.get(1), Some(Val::Bool(true)));
             Ok(Val::Float(variance(&xs, sample)?))
         },
-        "标准差" => |args: &[Val], _vm: &mut VM| -> R {
+        "标准差" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("标准差", args, 1, 2)?;
             let xs = need_nonempty("标准差", nums("标准差", &args[0])?)?;
             let sample = matches!(args.get(1), Some(Val::Bool(true)));
             Ok(Val::Float(variance(&xs, sample)?.sqrt()))
         },
-        "极差" => |args: &[Val], _vm: &mut VM| -> R {
+        "极差" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("极差", args, 1, 1)?;
             let xs = need_nonempty("极差", nums("极差", &args[0])?)?;
             let mx = xs.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
             let mn = xs.iter().cloned().fold(f64::INFINITY, f64::min);
             Ok(f64v(mx - mn))
         },
-        "分位数" => |args: &[Val], _vm: &mut VM| -> R {
+        "分位数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("分位数", args, 2, 2)?;
             let p = as_float_arg("分位数", &args[1]).map_err(|_| {
                 err("类型错误", "「分位数」的第二个参数要传 0 到 1 之间的小数")
@@ -163,7 +164,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Float(xs[lo] + (xs[hi] - xs[lo]) * (pos - lo as f64)))
         },
-        "去极值平均" => |args: &[Val], _vm: &mut VM| -> R {
+        "去极值平均" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("去极值平均", args, 1, 2)?;
             let k = if args.len() == 2 { as_int_arg("去掉个数", &args[1])? } else { 1 };
             if k < 0 {
@@ -181,7 +182,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let kept = &xs[k..xs.len() - k];
             Ok(Val::Float(kept.iter().sum::<f64>() / kept.len() as f64))
         },
-        "加权平均" => |args: &[Val], _vm: &mut VM| -> R {
+        "加权平均" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("加权平均", args, 2, 2)?;
             let xs = need_nonempty("加权平均", nums("加权平均", &args[0])?)?;
             let ws = nums("加权平均的权重", &args[1])?;

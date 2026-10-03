@@ -6,11 +6,12 @@
 //! 级别与前缀是**进程级全局**（Python 侧也是模块级全局），所以这里用
 //! `OnceLock<Mutex<…>>` 存。
 
+use crate::BuiltinHost;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 use super::{need_range, table, R};
-use crate::{display, err, list_new, Val, VM};
+use crate::{display, err, list_new, Val};
 
 /// 级别名 → 序号（越大越严重）。`静默` 比 `错误` 还大，用来彻底闭嘴。
 fn 级别序号(名: &str) -> Option<i32> {
@@ -38,7 +39,7 @@ fn 取状态<R>(f: impl FnOnce(&mut (String, String)) -> R) -> R {
     状态.with(|s| f(&mut s.borrow_mut()))
 }
 
-fn 输出(vm: &mut VM, 级别: &str, 内容: &[Val]) {
+fn 输出(vm: &mut dyn BuiltinHost, 级别: &str, 内容: &[Val]) {
     let (当前, 前缀) = 取状态(|s| (s.0.clone(), s.1.clone()));
     let 阈值 = 级别序号(&当前).unwrap_or(20);
     if 级别序号(级别).unwrap_or(0) < 阈值 {
@@ -56,17 +57,17 @@ fn 输出(vm: &mut VM, 级别: &str, 内容: &[Val]) {
     // **写进 vm.output**（与 `打印` 同一条缓冲），不要直接 println!/eprintln!：
     // 宿主的 stdout 有缓冲、stderr 没有，两者混着写会让「日志行」跑到
     // 「打印行」前面去——五路对拍立刻暴露（M41 踩到）。
-    vm.output.push_str(&行);
-    vm.output.push('\n');
+    vm.write_output(&行);
+    vm.write_output("\n");
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "日志";
-        "级别们" => |args: &[Val], _vm: &mut VM| -> R {
+        "级别们" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("级别们", args, 0, 0)?;
             Ok(list_new(级别顺序.iter().map(|s| Val::Str(s.to_string())).collect()))
         },
-        "设级别" => |args: &[Val], _vm: &mut VM| -> R {
+        "设级别" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设级别", args, 1, 1)?;
             let 名 = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
             if 级别序号(&名).is_none() {
@@ -78,29 +79,29 @@ pub(crate) fn module() -> HashMap<String, Val> {
             取状态(|s| s.0 = 名);
             Ok(Val::None_)
         },
-        "取级别" => |args: &[Val], _vm: &mut VM| -> R {
+        "取级别" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取级别", args, 0, 0)?;
             Ok(Val::Str(取状态(|s| s.0.clone())))
         },
-        "设前缀" => |args: &[Val], _vm: &mut VM| -> R {
+        "设前缀" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设前缀", args, 1, 1)?;
             let 名 = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
             取状态(|s| s.1 = 名);
             Ok(Val::None_)
         },
-        "调试" => |args: &[Val], vm: &mut VM| -> R {
+        "调试" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
             输出(vm, "调试", args);
             Ok(Val::None_)
         },
-        "信息" => |args: &[Val], vm: &mut VM| -> R {
+        "信息" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
             输出(vm, "信息", args);
             Ok(Val::None_)
         },
-        "警告" => |args: &[Val], vm: &mut VM| -> R {
+        "警告" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
             输出(vm, "警告", args);
             Ok(Val::None_)
         },
-        "错误" => |args: &[Val], vm: &mut VM| -> R {
+        "错误" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
             输出(vm, "错误", args);
             Ok(Val::None_)
         },

@@ -15,8 +15,9 @@ AST 已经是**契约产物**（`docs/前端契约.md` §4.2，两个前端都�
 
 ## 现在的进度（如实记）
 
-第一个切片只实现：`Program` / `Assign`(`=`) / `ExprStmt` / `Name` / `Num` /
-`Str` / `BinOp` / `Call`（含 `打印`）。
+已实现：`Program` / `Assign`(`=`) / `ExprStmt` / `Name` / `Num` / `Str` /
+`BinOp` / `Call`（**调用**——目标必须是名字，内建走**共用**的那张表，
+见 `tests/test_m76_walk_builtins.py`）。
 **未实现的节点明确报「还没实现「X」」** —— 不静默给错值。
 进度与待办清单随时可查：`python tools/check_walk.py`。
 

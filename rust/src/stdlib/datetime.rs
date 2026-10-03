@@ -16,13 +16,14 @@
 //! 所以 `Val` 里加了 `Date` 这一支——显示成 `2026-09-01 00:00:00`、
 //! `类型()` 给 `datetime`，与另外两个宿主一致。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use super::{as_intish, as_text, need, need_range, table, R};
-use crate::{err, JishiError, Val, VM};
+use crate::{err, JishiError, Val};
 
 // ---------------------------------------------------------------------------
 // 本地时间
@@ -517,33 +518,33 @@ static SLEEP_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub(crate) fn date_module() -> HashMap<String, Val> {
     table! { "日期";
-        "今天" => |args: &[Val], _vm: &mut VM| -> R {
+        "今天" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("今天", args, 0)?;
             let now = local_now();
             Ok(Val::Str(format!("{:04}-{:02}-{:02}", now.year, now.month, now.day)))
         },
-        "解析" => |args: &[Val], _vm: &mut VM| -> R {
+        "解析" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("解析", args, 1)?;
             let (y, m, d) = parse_date(&args[0])?;
             Ok(Val::Date(Rc::new(date_dt(y, m, d))))
         },
-        "格式化" => |args: &[Val], _vm: &mut VM| -> R {
+        "格式化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("格式化", args, 1, 2)?;
             let (y, m, d) = parse_date(&args[0])?;
             let fmt = if args.len() > 1 { as_text(&args[1]) } else { "%Y-%m-%d".to_string() };
             Ok(Val::Str(strftime(&date_dt(y, m, d), &fmt)))
         },
-        "加天数" => |args: &[Val], _vm: &mut VM| -> R {
+        "加天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("加天数", args, 2)?;
             let n = as_intish(&args[0])?;
             Ok(Val::Str(shift_days(&args[1], n as i64)?))
         },
-        "减天数" => |args: &[Val], _vm: &mut VM| -> R {
+        "减天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("减天数", args, 2)?;
             let n = as_intish(&args[0])?;
             Ok(Val::Str(shift_days(&args[1], -(n as i64))?))
         },
-        "相差天数" => |args: &[Val], _vm: &mut VM| -> R {
+        "相差天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("相差天数", args, 2)?;
             let (y1, m1, d1) = parse_date(&args[0])?;
             let (y2, m2, d2) = parse_date(&args[1])?;
@@ -551,37 +552,37 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
                 (days_from_civil(y1, m1, d1) - days_from_civil(y2, m2, d2)) as i128,
             ))
         },
-        "早于" => |args: &[Val], _vm: &mut VM| -> R {
+        "早于" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("早于", args, 2)?;
             let a = parse_date(&args[0])?;
             let b = parse_date(&args[1])?;
             Ok(Val::Bool(days_from_civil(a.0, a.1, a.2) < days_from_civil(b.0, b.1, b.2)))
         },
-        "晚于" => |args: &[Val], _vm: &mut VM| -> R {
+        "晚于" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("晚于", args, 2)?;
             let a = parse_date(&args[0])?;
             let b = parse_date(&args[1])?;
             Ok(Val::Bool(days_from_civil(a.0, a.1, a.2) > days_from_civil(b.0, b.1, b.2)))
         },
-        "相等" => |args: &[Val], _vm: &mut VM| -> R {
+        "相等" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("相等", args, 2)?;
             let a = parse_date(&args[0])?;
             let b = parse_date(&args[1])?;
             Ok(Val::Bool(a == b))
         },
-        "星期名" => |args: &[Val], _vm: &mut VM| -> R {
+        "星期名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("星期名", args, 1)?;
             Ok(Val::Str(weekday_name(&args[0])?))
         },
-        "今年" => |args: &[Val], _vm: &mut VM| -> R {
+        "今年" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("今年", args, 0)?;
             Ok(Val::Int(local_now().year as i128))
         },
-        "本月" => |args: &[Val], _vm: &mut VM| -> R {
+        "本月" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("本月", args, 0)?;
             Ok(Val::Int(local_now().month as i128))
         },
-        "本年天数" => |args: &[Val], _vm: &mut VM| -> R {
+        "本年天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("本年天数", args, 0)?;
             Ok(Val::Int(days_in_year(local_now().year) as i128))
         },
@@ -590,7 +591,7 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
 
 pub(crate) fn time_module() -> HashMap<String, Val> {
     table! { "时间";
-        "现在" => |args: &[Val], _vm: &mut VM| -> R {
+        "现在" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("现在", args, 0)?;
             let n = local_now();
             Ok(Val::Str(format!(
@@ -598,12 +599,12 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
                 n.year, n.month, n.day, n.hour, n.minute, n.second
             )))
         },
-        "今天" => |args: &[Val], _vm: &mut VM| -> R {
+        "今天" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("今天", args, 0)?;
             let n = local_now();
             Ok(Val::Str(format!("{:04}-{:02}-{:02}", n.year, n.month, n.day)))
         },
-        "此刻" => |args: &[Val], _vm: &mut VM| -> R {
+        "此刻" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("此刻", args, 0)?;
             let n = local_now();
             let pairs = vec![
@@ -617,7 +618,7 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
             ];
             Ok(crate::dict_new(pairs))
         },
-        "时间戳" => |args: &[Val], _vm: &mut VM| -> R {
+        "时间戳" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("时间戳", args, 0)?;
             let secs = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -625,12 +626,12 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
                 .unwrap_or(0.0);
             Ok(Val::Float(secs))
         },
-        "格式化时间戳" => |args: &[Val], _vm: &mut VM| -> R {
+        "格式化时间戳" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("格式化时间戳", args, 1)?;
             let ts = super::as_num(&args[0])?;
             Ok(Val::Str(local_from_unix(ts).to_display()))
         },
-        "睡眠" => |args: &[Val], _vm: &mut VM| -> R {
+        "睡眠" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("睡眠", args, 1)?;
             let secs = super::as_num(&args[0])?.max(0.0);
             let guard = SLEEP_GUARD.get_or_init(|| Mutex::new(()));
@@ -638,15 +639,15 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
             std::thread::sleep(std::time::Duration::from_secs_f64(secs));
             Ok(Val::None_)
         },
-        "高精度时间" => |args: &[Val], _vm: &mut VM| -> R {
+        "高精度时间" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("高精度时间", args, 0)?;
             Ok(Val::Float(monotonic()))
         },
-        "星期名" => |args: &[Val], _vm: &mut VM| -> R {
+        "星期名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("星期名", args, 1)?;
             Ok(Val::Str(weekday_name(&args[0])?))
         },
-        "加天数" => |args: &[Val], _vm: &mut VM| -> R {
+        "加天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("加天数", args, 2)?;
             let n = as_intish(&args[0])?;
             Ok(Val::Str(shift_days(&args[1], n as i64)?))

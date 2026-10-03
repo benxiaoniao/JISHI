@@ -10,10 +10,11 @@
 //!    `left = marg // 2 + (marg & width & 1)`，`'ab'.center(5)` 给 `'  ab '`。
 //!    自己写「左边 floor(总/2)」会对不上。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{as_intish, need, need_range, table, R};
-use crate::{display, err, JishiError, Val, VM};
+use crate::{display, err, JishiError, Val};
 
 /// `str.center` 的偏置公式（CPython 的 `unicode_center_impl`）。
 fn center_left(marg: usize, width: usize) -> usize {
@@ -369,14 +370,14 @@ fn format_template(tpl: &str, args: &[Val]) -> String {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "文本";
-        "拼接" => |args: &[Val], _vm: &mut VM| -> R {
+        "拼接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("拼接", args, 1, 2)?;
             let items = super::to_vec(&args[0])?;
             let sep = if args.len() > 1 { super::as_text(&args[1]) } else { String::new() };
             let parts: Vec<String> = items.iter().map(super::as_text).collect();
             Ok(Val::Str(parts.join(&sep)))
         },
-        "居中" => |args: &[Val], _vm: &mut VM| -> R {
+        "居中" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("居中", args, 2, 3)?;
             let s = super::as_text(&args[0]);
             let w = as_intish(&args[1])?.max(0) as usize;
@@ -394,7 +395,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 repeat_char(fill, marg - left)
             )))
         },
-        "左对齐" => |args: &[Val], _vm: &mut VM| -> R {
+        "左对齐" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("左对齐", args, 2, 3)?;
             let s = super::as_text(&args[0]);
             let w = as_intish(&args[1])?.max(0) as usize;
@@ -406,7 +407,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 format!("{s}{}", repeat_char(fill, w - n))
             }))
         },
-        "右对齐" => |args: &[Val], _vm: &mut VM| -> R {
+        "右对齐" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("右对齐", args, 2, 3)?;
             let s = super::as_text(&args[0]);
             let w = as_intish(&args[1])?.max(0) as usize;
@@ -418,7 +419,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 format!("{}{s}", repeat_char(fill, w - n))
             }))
         },
-        "补零" => |args: &[Val], _vm: &mut VM| -> R {
+        "补零" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("补零", args, 2)?;
             let s = super::as_text(&args[0]);
             let w = as_intish(&args[1])?.max(0) as usize;
@@ -436,13 +437,13 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Ok(Val::Str(format!("{pad}{s}")))
             }
         },
-        "重复" => |args: &[Val], _vm: &mut VM| -> R {
+        "重复" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("重复", args, 2)?;
             let s = super::as_text(&args[0]);
             let n = as_intish(&args[1])?;
             Ok(Val::Str(if n <= 0 { String::new() } else { s.repeat(n as usize) }))
         },
-        "计数" => |args: &[Val], _vm: &mut VM| -> R {
+        "计数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("计数", args, 2)?;
             let s = super::as_text(&args[0]);
             let sub = super::as_text(&args[1]);
@@ -461,30 +462,30 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Int(count))
         },
-        "是数字" => |args: &[Val], _vm: &mut VM| -> R {
+        "是数字" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是数字", args, 1)?;
             let s = super::as_text(&args[0]);
             Ok(Val::Bool(!s.is_empty() && s.chars().all(is_digit_char)))
         },
-        "是字母" => |args: &[Val], _vm: &mut VM| -> R {
+        "是字母" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是字母", args, 1)?;
             let s = super::as_text(&args[0]);
             Ok(Val::Bool(!s.is_empty() && s.chars().all(|c| c.is_alphabetic())))
         },
-        "是空白" => |args: &[Val], _vm: &mut VM| -> R {
+        "是空白" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是空白", args, 1)?;
             let s = super::as_text(&args[0]);
             Ok(Val::Bool(!s.is_empty() && s.chars().all(is_space_char)))
         },
-        "是大写" => |args: &[Val], _vm: &mut VM| -> R {
+        "是大写" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是大写", args, 1)?;
             Ok(Val::Bool(is_upper(&super::as_text(&args[0]))))
         },
-        "是小写" => |args: &[Val], _vm: &mut VM| -> R {
+        "是小写" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是小写", args, 1)?;
             Ok(Val::Bool(is_lower(&super::as_text(&args[0]))))
         },
-        "首字母大写" => |args: &[Val], _vm: &mut VM| -> R {
+        "首字母大写" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("首字母大写", args, 1)?;
             let s = super::as_text(&args[0]);
             let mut out = String::new();
@@ -497,7 +498,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Str(out))
         },
-        "去前缀" => |args: &[Val], _vm: &mut VM| -> R {
+        "去前缀" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("去前缀", args, 2)?;
             let s = super::as_text(&args[0]);
             let p = super::as_text(&args[1]);
@@ -506,7 +507,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 None => s,
             }))
         },
-        "去后缀" => |args: &[Val], _vm: &mut VM| -> R {
+        "去后缀" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("去后缀", args, 2)?;
             let s = super::as_text(&args[0]);
             let p = super::as_text(&args[1]);
@@ -515,7 +516,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 None => s,
             }))
         },
-        "格式化" => |args: &[Val], _vm: &mut VM| -> R {
+        "格式化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("格式化", args, 1, usize::MAX)?;
             let tpl = super::as_text(&args[0]);
             // 布尔与空先转成中文文本，免得 `格式化("{}", 真)` 给出 `True`；
@@ -529,7 +530,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .collect();
             Ok(Val::Str(format_template(&tpl, &rest)))
         },
-        "切成三段" => |args: &[Val], _vm: &mut VM| -> R {
+        "切成三段" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("切成三段", args, 2)?;
             let s = super::as_text(&args[0]);
             let sep = super::as_text(&args[1]);
@@ -543,7 +544,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             };
             Ok(crate::list_new(parts))
         },
-        "按行拆分" => |args: &[Val], _vm: &mut VM| -> R {
+        "按行拆分" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("按行拆分", args, 1)?;
             let s = super::as_text(&args[0]);
             let items: Vec<Val> = split_lines(&s).into_iter().map(Val::Str).collect();
@@ -551,7 +552,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         },
         // M51 补：这两个是 M50 第一批加的（「既有模块补缺」），当时只做了
         // Python 侧，宿主**静默缺失** —— 正是这个缺口促成 M51 的漂移检测。
-        "填充" => |args: &[Val], _vm: &mut VM| -> R {
+        "填充" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("填充", args, 2, 3)?;
             let s = super::as_text(&args[0]);
             let w = as_intish(&args[1])?.max(0) as usize;
@@ -572,7 +573,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             for _ in 0..(total - left) { out.push(fchars[0]); }
             Ok(Val::Str(out))
         },
-        "截断" => |args: &[Val], _vm: &mut VM| -> R {
+        "截断" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("截断", args, 2, 3)?;
             let s = super::as_text(&args[0]);
             let w = as_intish(&args[1])?;

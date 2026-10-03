@@ -7,6 +7,7 @@
 //! M31 在 Python 侧显式 `newline=""` 定下这条规矩；本宿主天然就是字节保真
 //! （`fs::write` 不转换），两边因此逐字节一致。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
@@ -15,7 +16,7 @@ use std::path::Path;
 use super::path::{file_name_of, suffix_of};
 use super::text::split_lines;
 use super::{as_text, need, table, to_vec, R};
-use crate::{err, JishiError, Val, VM};
+use crate::{err, JishiError, Val};
 
 fn read_utf8(path: &str, on_missing: impl FnOnce() -> String) -> Result<String, JishiError> {
     if !Path::new(path).is_file() {
@@ -34,18 +35,18 @@ fn write_bytes(path: &str, data: &[u8]) -> Result<(), JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "文件";
-        "写文本" => |args: &[Val], _vm: &mut VM| -> R {
+        "写文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("写文本", args, 2)?;
             let p = as_text(&args[0]);
             write_bytes(&p, as_text(&args[1]).as_bytes())?;
             Ok(Val::None_)
         },
-        "读文本" => |args: &[Val], _vm: &mut VM| -> R {
+        "读文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("读文本", args, 1)?;
             let p = as_text(&args[0]);
             Ok(Val::Str(read_utf8(&p, || format!("找不到文件「{p}」，没法读取"))?))
         },
-        "追加文本" => |args: &[Val], _vm: &mut VM| -> R {
+        "追加文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("追加文本", args, 2)?;
             let p = as_text(&args[0]);
             let mut f = fs::OpenOptions::new()
@@ -57,7 +58,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("文件错误", format!("往「{p}」追加内容失败：{e}")))?;
             Ok(Val::None_)
         },
-        "写行" => |args: &[Val], _vm: &mut VM| -> R {
+        "写行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("写行", args, 2)?;
             let p = as_text(&args[0]);
             let lines = to_vec(&args[1])?;
@@ -69,26 +70,26 @@ pub(crate) fn module() -> HashMap<String, Val> {
             write_bytes(&p, buf.as_bytes())?;
             Ok(Val::None_)
         },
-        "按行读" => |args: &[Val], _vm: &mut VM| -> R {
+        "按行读" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("按行读", args, 1)?;
             let p = as_text(&args[0]);
             let text = read_utf8(&p, || format!("找不到文件「{p}」，没法读取"))?;
             let items: Vec<Val> = split_lines(&text).into_iter().map(Val::Str).collect();
             Ok(crate::list_new(items))
         },
-        "文件存在" => |args: &[Val], _vm: &mut VM| -> R {
+        "文件存在" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("文件存在", args, 1)?;
             Ok(Val::Bool(Path::new(&as_text(&args[0])).exists()))
         },
-        "是文件" => |args: &[Val], _vm: &mut VM| -> R {
+        "是文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是文件", args, 1)?;
             Ok(Val::Bool(Path::new(&as_text(&args[0])).is_file()))
         },
-        "是目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "是目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是目录", args, 1)?;
             Ok(Val::Bool(Path::new(&as_text(&args[0])).is_dir()))
         },
-        "列出目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "列出目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             let p = if args.is_empty() { ".".to_string() } else { as_text(&args[0]) };
             let path = Path::new(&p);
             if !path.is_dir() {
@@ -105,7 +106,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             names.sort();
             Ok(crate::list_new(names.into_iter().map(Val::Str).collect()))
         },
-        "创建目录" => |args: &[Val], _vm: &mut VM| -> R {
+        "创建目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("创建目录", args, 1)?;
             let p = as_text(&args[0]);
             // 与 Python 侧一致：自动创建中间层级、已存在也不报错
@@ -113,7 +114,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("文件错误", format!("创建目录「{p}」失败：{e}")))?;
             Ok(Val::None_)
         },
-        "删除文件" => |args: &[Val], _vm: &mut VM| -> R {
+        "删除文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("删除文件", args, 1)?;
             let p = as_text(&args[0]);
             let path = Path::new(&p);
@@ -130,7 +131,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Err(err("文件错误", format!("找不到文件「{p}」，没法删除")))
             }
         },
-        "复制" => |args: &[Val], _vm: &mut VM| -> R {
+        "复制" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("复制", args, 2)?;
             let src = as_text(&args[0]);
             let dst = as_text(&args[1]);
@@ -138,7 +139,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|_| err("文件错误", format!("无法把「{src}」复制到「{dst}」")))?;
             Ok(Val::None_)
         },
-        "文件大小" => |args: &[Val], _vm: &mut VM| -> R {
+        "文件大小" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("文件大小", args, 1)?;
             let p = as_text(&args[0]);
             match fs::metadata(&p) {
@@ -146,7 +147,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 _ => Err(err("文件错误", format!("找不到文件「{p}」，没法获取大小"))),
             }
         },
-        "路径拼接" => |args: &[Val], _vm: &mut VM| -> R {
+        "路径拼接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             // 对齐 Python 侧：用的是 `PurePosixPath`，**总是 `/`**
             if args.is_empty() {
                 return Ok(Val::Str(".".to_string()));
@@ -167,11 +168,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Str(acc))
         },
-        "文件名" => |args: &[Val], _vm: &mut VM| -> R {
+        "文件名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("文件名", args, 1)?;
             Ok(Val::Str(file_name_of(&as_text(&args[0]))))
         },
-        "扩展名" => |args: &[Val], _vm: &mut VM| -> R {
+        "扩展名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("扩展名", args, 1)?;
             Ok(Val::Str(suffix_of(&file_name_of(&as_text(&args[0])))))
         },

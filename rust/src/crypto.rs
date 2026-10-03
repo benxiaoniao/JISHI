@@ -12,11 +12,12 @@
 //!   三个字节（不是 `True`）——M30 把这条定下来了。
 //! - 算法名先归一化：转小写、去掉 `-` 与 `_`（`"SHA-256"` 能用）。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 // 本文件在 crate 根下（不在 stdlib/ 里），所以走完整路径
 use crate::stdlib::{as_text, need, need_range, table, R};
-use crate::{err, JishiError, Val, VM};
+use crate::{err, JishiError, Val};
 
 // ---------------------------------------------------------------------------
 // 摘要算法
@@ -361,29 +362,29 @@ fn digest(algo: &str, data: &[u8]) -> String {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "加密";
-        "摘要" => |args: &[Val], _vm: &mut VM| -> R {
+        "摘要" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("摘要", args, 1, 2)?;
             let algo = if args.len() > 1 { normalize(&args[1])? } else { "sha256".to_string() };
             let data = as_text(&args[0]);
             Ok(Val::Str(digest(&algo, data.as_bytes())))
         },
-        "md5" => |args: &[Val], _vm: &mut VM| -> R {
+        "md5" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("md5", args, 1)?;
             Ok(Val::Str(md5(as_text(&args[0]).as_bytes())))
         },
-        "sha1" => |args: &[Val], _vm: &mut VM| -> R {
+        "sha1" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("sha1", args, 1)?;
             Ok(Val::Str(sha1(as_text(&args[0]).as_bytes())))
         },
-        "sha256" => |args: &[Val], _vm: &mut VM| -> R {
+        "sha256" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("sha256", args, 1)?;
             Ok(Val::Str(sha256(as_text(&args[0]).as_bytes())))
         },
-        "sha512" => |args: &[Val], _vm: &mut VM| -> R {
+        "sha512" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("sha512", args, 1)?;
             Ok(Val::Str(sha512(as_text(&args[0]).as_bytes())))
         },
-        "文件摘要" => |args: &[Val], _vm: &mut VM| -> R {
+        "文件摘要" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("文件摘要", args, 1, 2)?;
             let algo = if args.len() > 1 { normalize(&args[1])? } else { "sha256".to_string() };
             let p = as_text(&args[0]);
@@ -391,7 +392,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("值错误", format!("读文件「{p}」失败：{e}")))?;
             Ok(Val::Str(digest(&algo, &data)))
         },
-        "支持的算法" => |args: &[Val], _vm: &mut VM| -> R {
+        "支持的算法" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("支持的算法", args, 0)?;
             let names = ["md5", "sha1", "sha256", "sha512"];
             Ok(crate::list_new(names.iter().map(|s| Val::Str(s.to_string())).collect()))

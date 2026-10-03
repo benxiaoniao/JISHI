@@ -9,10 +9,11 @@
 //! ⚠️ **`原样` 标记用普通值（`Val::HtmlRaw`）而不是「字符串子类」**——
 //! M47 把文本改成 C 侧原生字符串后，子类身份在 C VM 下会丢（见 Python 侧说明）。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{need_range, table, to_vec, R};
-use crate::{err, Val, VM};
+use crate::{err, Val};
 
 /// `原样` 的标记类型。Rust 的 `Val` 是枚举，加一个变体就是最自然的做法
 /// （不像 JS 那样要绕开「String 子类」）。
@@ -87,31 +88,31 @@ fn check_tag(name: &str, v: &Val) -> Result<String, crate::JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "html";
-        "转义" => |args: &[Val], _vm: &mut VM| -> R {
+        "转义" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("转义", args, 1, 1)?;
             Ok(Val::Str(escape_html(&crate::display(&args[0]))))
         },
-        "原样" => |args: &[Val], _vm: &mut VM| -> R {
+        "原样" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("原样", args, 1, 1)?;
             match &args[0] {
                 Val::HtmlRaw(_) => Ok(args[0].clone()),
                 other => Ok(Val::HtmlRaw(crate::display(other))),
             }
         },
-        "标签" => |args: &[Val], _vm: &mut VM| -> R {
+        "标签" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("标签", args, 1, 3)?;
             let tag = check_tag("标签", &args[0])?;
             let c = args.get(1).cloned().unwrap_or(Val::Str(String::new()));
             let a = attrs_str(args.get(2))?;
             Ok(Val::Str(format!("<{tag}{a}>{}</{tag}>", content(&c))))
         },
-        "空元素" => |args: &[Val], _vm: &mut VM| -> R {
+        "空元素" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("空元素", args, 1, 2)?;
             let tag = check_tag("空元素", &args[0])?;
             let a = attrs_str(args.get(1))?;
             Ok(Val::Str(format!("<{tag}{a} />")))
         },
-        "链接" => |args: &[Val], _vm: &mut VM| -> R {
+        "链接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("链接", args, 2, 3)?;
             let text = args[0].clone();
             let href = args[1].clone();
@@ -123,15 +124,15 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Str(format!("<a{a}>{}</a>", content(&text))))
         },
-        "属性文本" => |args: &[Val], _vm: &mut VM| -> R {
+        "属性文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("属性文本", args, 1, 1)?;
             Ok(Val::Str(escape_html(&crate::display(&args[0]))))
         },
-        "有序列表" => |args: &[Val], _vm: &mut VM| -> R {
+        "有序列表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("有序列表", args, 1, 2)?;
             Ok(Val::Str(list_html("ol", &args[0], args.get(1))?))
         },
-        "无序列表" => |args: &[Val], _vm: &mut VM| -> R {
+        "无序列表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("无序列表", args, 1, 2)?;
             Ok(Val::Str(list_html("ul", &args[0], args.get(1))?))
         },

@@ -4,14 +4,15 @@
 //! 与 Python 的 enumerate / zip 同地位），本模块装它们之外的：分组、滑窗、
 //! 去重、展开、取前/后、求和、计数、累积、组合、排列、笛卡尔积。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{as_intish, need_range, table, to_vec, R};
-use crate::{display, err, list_new, truthy, Val, VM};
+use crate::{display, err, list_new, truthy, Val};
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "迭代";
-        "分组" => |args: &[Val], _vm: &mut VM| -> R {
+        "分组" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("分组", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let n = as_intish(&args[1])?;
@@ -25,7 +26,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 items.chunks(n as usize).map(|c| list_new(c.to_vec())).collect(),
             ))
         },
-        "滑窗" => |args: &[Val], _vm: &mut VM| -> R {
+        "滑窗" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("滑窗", args, 2, 3)?;
             let items = to_vec(&args[0])?;
             let n = as_intish(&args[1])?;
@@ -51,7 +52,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(list_new(out))
         },
-        "去重" => |args: &[Val], _vm: &mut VM| -> R {
+        "去重" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("去重", args, 1, 1)?;
             let items = to_vec(&args[0])?;
             let mut out: Vec<Val> = Vec::new();
@@ -66,7 +67,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(list_new(out))
         },
-        "展开" => |args: &[Val], _vm: &mut VM| -> R {
+        "展开" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("展开", args, 1, 1)?;
             let items = to_vec(&args[0])?;
             let mut out: Vec<Val> = Vec::new();
@@ -78,20 +79,20 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(list_new(out))
         },
-        "取前" => |args: &[Val], _vm: &mut VM| -> R {
+        "取前" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取前", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let n = as_intish(&args[1])?.max(0) as usize;
             Ok(list_new(items.into_iter().take(n).collect()))
         },
-        "取后" => |args: &[Val], _vm: &mut VM| -> R {
+        "取后" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取后", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let n = as_intish(&args[1])?.max(0) as usize;
             let skip = items.len().saturating_sub(n);
             Ok(list_new(items.into_iter().skip(skip).collect()))
         },
-        "求和" => |args: &[Val], _vm: &mut VM| -> R {
+        "求和" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("求和", args, 1, 1)?;
             let items = to_vec(&args[0])?;
             let mut 整 = 0i128;
@@ -116,7 +117,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Ok(Val::Int(整))
             }
         },
-        "计数" => |args: &[Val], vm: &mut VM| -> R {
+        "计数" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
             need_range("计数", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let f = args[1].clone();
@@ -130,7 +131,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         },
         // M51 补：这四个是 M50 第一批加的（「既有模块补缺」），当时只做了
         // Python 侧，宿主**静默缺失**。
-        "累积" => |args: &[Val], _vm: &mut VM| -> R {
+        "累积" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("累积", args, 1, 2)?;
             let items = to_vec(&args[0])?;
             let mut acc = if args.len() > 1 { args[1].clone() } else { Val::Int(0) };
@@ -142,7 +143,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(list_new(out))
         },
-        "组合" => |args: &[Val], _vm: &mut VM| -> R {
+        "组合" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("组合", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let n = as_intish(&args[1])?;
@@ -158,7 +159,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             comb(&items, k, 0, &mut Vec::new(), &mut out);
             Ok(list_new(out))
         },
-        "排列" => |args: &[Val], _vm: &mut VM| -> R {
+        "排列" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("排列", args, 1, 2)?;
             let items = to_vec(&args[0])?;
             let n = if args.len() > 1 { as_intish(&args[1])? } else { -1 };
@@ -175,7 +176,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             perm(&items, k, &mut used, &mut Vec::new(), &mut out);
             Ok(list_new(out))
         },
-        "笛卡尔积" => |args: &[Val], _vm: &mut VM| -> R {
+        "笛卡尔积" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             if args.is_empty() {
                 return Ok(list_new(Vec::new()));
             }

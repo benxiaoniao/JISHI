@@ -15,15 +15,26 @@
 //! ① 宿主不必把 `core` 的 pyo3 依赖解耦进来（省一层麻烦）；
 //! ② 与 R5「产物优先给文本」同一条思路 —— 宿主只认文本产物。
 //!
-//! ## ⚠️ 现在的进度（第一个切片，如实记）
+//! ## ⚠️ 现在的进度（如实记）
 //!
-//! 只实现了：`Program` / `Assign`（`=`）/ `ExprStmt` / `Name` / `Num` / `Str` /
-//! `BinOp` / `Call`（含 `打印`）。
-//! **其余 26 种节点会明确报「还没实现「X」」** —— 不静默给错值。
-//! 后续按语料逐个补齐（见 `docs/设计决策.md` D68）。
+//! 已实现：`Program` / `Assign`（`=`）/ `ExprStmt` / `Name` / `Num` / `Str` /
+//! `BinOp` / `Call`。
 //!
-//! ⚠️ 还没做「报错渲染与其它执行器逐字对齐」（那要复用 `render_error`，
-//! 而它需要源文件名 + 读源码）；所以现阶段只对拍**成功路径的 stdout**。
+//! **内建调用走的是与字节码 VM 共用的那一张表**（`lib.rs::new_builtins`，
+//! 见 `BuiltinHost`）—— 所以 `长度` / `范围` / `最大` / `类型` … 全都直接可用，
+//! 而且**只有一份实现**（本文件里没有、也不该有任何内建的定义）。
+//!
+//! **其余节点会明确报「还没实现「X」」** —— 不静默给错值。
+//! 后续按语料逐个补齐（见 `docs/设计决策.md` D68/D69）。
+//!
+//! 已知还没接上的字面量：`真` / `假` 在前端是 **`Num` 且 `value` 是布尔**
+//! （`eval_num` 只认数字，现在会报「Num 的 value 不是数字」）；`空` 是
+//! **`Name`**。这三块归「字面量」那一步。
+//!
+//! ⚠️ 还没做「报错渲染与其它执行器逐字对齐」：现在只渲染**头行 + 提示语**，
+//! 还差**源码行 / `^` / 调用链**那一块 —— 那要**源文件名与源码**，而本执行器
+//! 的输入是 AST JSON（里面没有它们）。所以现阶段对拍的是**成功路径的 stdout**
+//! 与「出错前已经打印的内容」。
 //!
 //! ## 与字节码 VM 的关系
 //!
@@ -32,7 +43,8 @@
 //! 要抓的是「编译器和求值」的差异，不是「两份 `+` 的实现哪里不一样」。
 
 use crate::json::Json;
-use crate::{binop, display, err, Val, JishiError};
+use crate::{binop, display, err, format_value_with, make_iterator, new_builtins,
+            BuiltinHost, Val, JishiError};
 use std::collections::HashMap;
 
 /// 运算符 → `binop` 的编码。
@@ -57,12 +69,19 @@ fn binop_code(op: &str) -> Option<i64> {
 /// ⚠️ 函数/闭包要的作用域链与单元表是后续步骤（`FuncDef` 还没实现）。
 pub(crate) struct Walker {
     pub(crate) globals: HashMap<String, Val>,
+    /// 内建表 —— **与字节码 VM 共用同一张**（`new_builtins`）。这是「内建语义
+    /// 不漂」的保证：内建只有一份实现，两个执行器都调它。
+    builtins: HashMap<String, Val>,
     pub(crate) output: String,
 }
 
 impl Walker {
     pub(crate) fn new() -> Walker {
-        Walker { globals: HashMap::new(), output: String::new() }
+        Walker {
+            globals: HashMap::new(),
+            builtins: new_builtins(),
+            output: String::new(),
+        }
     }
 
     /// 跑一棵 AST（`Program` 节点）。
@@ -132,20 +151,23 @@ impl Walker {
     /// 读名字。**找不到就报 E0301**，文案/候选提示都要与其它执行器一致。
     fn eval_name(&mut self, n: &Json) -> Result<Val, JishiError> {
         let id = field(n, "id")?.as_str().unwrap_or("");
-        match self.globals.get(id) {
-            Some(v) => Ok(v.clone()),
-            None => {
-                // 候选名池 = 已定义的名字 + 内建名（与字节码 VM / C VM 同一套口径，
-                // 见 `lib.rs` 的 `builtin_names`）。这里先只用已定义的名字 ——
-                // 内建名要等「内建调用」那一步接上（否则会给出不存在的候选）。
-                let pool: Vec<String> = self.globals.keys().cloned().collect();
-                let msg = format!("找不到名字「{id}」");
-                Err(match crate::name_hint(id, &pool) {
-                    Some(h) => crate::err_with_hint(crate::T_NAME, msg, h),
-                    None => err(crate::T_NAME, msg),
-                })
-            }
+        // 用户变量优先（与字节码 VM 的「先铺内建、用户赋值覆盖」等价）。
+        if let Some(v) = self.globals.get(id) {
+            return Ok(v.clone());
         }
+        if let Some(v) = self.builtins.get(id) {
+            return Ok(v.clone());
+        }
+        // 候选名池 = 已定义的名字 + **内建名**（与字节码 VM / C VM 同一套口径）。
+        // ⚠️ 内建名一定要在池子里：`长渡` 的提示要指向「长度」，而「长度」可能
+        // 只作为**被调用的名字**出现过、根本没进 `globals`（R6 主体那次的教训）。
+        let mut pool: Vec<String> = self.globals.keys().cloned().collect();
+        pool.extend(self.builtins.keys().cloned());
+        let msg = format!("找不到名字「{id}」");
+        Err(match crate::name_hint(id, &pool) {
+            Some(h) => crate::err_with_hint(crate::T_NAME, msg, h),
+            None => err(crate::T_NAME, msg),
+        })
     }
 
     fn eval_binop(&mut self, n: &Json) -> Result<Val, JishiError> {
@@ -167,27 +189,23 @@ impl Walker {
             }
         }
         let func = field(n, "func")?;
-        let fname = match kind(func) {
-            "Name" => field(func, "id")?.as_str().unwrap_or("").to_string(),
-            other => return Err(self.unimpl(&format!("调用目标「{other}」"), func)),
-        };
+        // 调用目标本轮只认名字（`数.开方` 那种属性调用要等「类 / 模块」那一步）。
+        if kind(func) != "Name" {
+            return Err(self.unimpl(&format!("调用目标「{}」", kind(func)), func));
+        }
+        let callee = self.eval(func)?;
         let mut args = Vec::new();
         if let Some(list) = n.get("args").and_then(|a| a.as_array()) {
             for a in list {
                 args.push(self.eval(a)?);
             }
         }
-        match fname.as_str() {
-            // `打印`：与字节码 VM 的 `_b_print` 同语义（空格分隔 + 换行）。
-            // ⚠️ 它走 `format_value`（顶层文本不带引号）—— 对基本类型，
-            // `display` 与它一致；自定义对象的「文本()」要等实例支持接上。
-            "打印" => {
-                let parts: Vec<String> = args.iter().map(display).collect();
-                self.output.push_str(&parts.join(" "));
-                self.output.push('\n');
-                Ok(Val::None_)
-            }
-            other => Err(self.unimpl(&format!("内建函数「{other}」"), n)),
+        // 内建：走**共用**的那一张表（`new_builtins`）—— 「内建调用接上」这一步的
+        // 全部意义就在这里：`长度` / `范围` / `最大` / `打印` … 都只有一份实现，
+        // 字节码 VM 与树遍历执行器**不能**各写一套。
+        match callee {
+            Val::Builtin(_, f) => f(&args, self),
+            other => Err(self.unimpl(&format!("调用非内建的值「{}」", display(&other)), n)),
         }
     }
 
@@ -214,6 +232,37 @@ impl Walker {
         e.line = line;
         e.col = col;
         e
+    }
+}
+
+/// 树遍历执行器在这套接口上的实现。
+///
+/// ⚠️ **诚实报错、不静默给错值**：需要「用户函数 / 类」的能力
+/// （回调用户函数、自定义对象的「文本()」）现在还没实现那两种节点，
+/// 所以直接报「还没实现」；**其余类型走的是与 VM 共用的那份实现**
+/// （`format_value_with` / `make_iterator`），不会漂。
+impl BuiltinHost for Walker {
+    fn format_value(&mut self, v: &Val, top: bool) -> Result<String, JishiError> {
+        // 容器递归与 VM 共用；自定义对象的「文本()」要等「类」那一步（ClassDef 未实现）。
+        format_value_with(v, top, &mut |_| {
+            Err(err("运行期错误",
+                "树遍历参考执行器还没实现「自定义对象的文本()」"))
+        })
+    }
+    fn lookup_method(&mut self, _obj: &Val, _name: &str) -> Option<Val> {
+        // 只有自定义对象 / 文件这类才有「进入/退出/关闭」—— 要等「类」那一步。
+        None
+    }
+    fn make_iter(&mut self, obj: Val) -> Result<Val, JishiError> {
+        // ⚠️ 这里**不能**像 VM 那样对 Instance 先拦一道调「迭代()」——
+        // 树遍历还没有实例；同一个调用的其余部分（容器 / 文本 / 文件）走共用实现。
+        make_iterator(obj)
+    }
+    fn call_value(&mut self, _callee: Val, _args: Vec<Val>) -> Result<Val, JishiError> {
+        Err(err("运行期错误", "树遍历参考执行器还没实现「回调用户函数」"))
+    }
+    fn write_output(&mut self, s: &str) {
+        self.output.push_str(s);
     }
 }
 

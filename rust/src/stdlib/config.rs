@@ -10,11 +10,12 @@
 //! 「缺键就返回默认值」**每次都命中**、函数恒返回 `空`。Rust 侧同理：
 //! `Val::None_` 是用户能显式传的「空」，不能拿它当哨兵。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::path::Path as StdPath;
 
 use super::{need_range, table, R};
-use crate::{dict_new, err, list_new, Val, VM};
+use crate::{dict_new, err, list_new, Val};
 
 /// 「没传」的哨兵：普通文本常量（正常配置里不会有人用这个值）。
 const NOT_GIVEN: &str = "\u{0}未给\u{0}";
@@ -114,7 +115,7 @@ fn shape_of(v: &Val) -> String {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "配置";
-        "读JSON" => |args: &[Val], _vm: &mut VM| -> R {
+        "读JSON" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("读JSON", args, 1, 2)?;
             let p = as_path("读JSON", &args[0])?;
             match read_file(&p)? {
@@ -131,7 +132,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }),
             }
         },
-        "写JSON" => |args: &[Val], _vm: &mut VM| -> R {
+        "写JSON" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("写JSON", args, 2, 3)?;
             let p = as_path("写JSON", &args[0])?;
             let indent = match args.get(2) {
@@ -143,7 +144,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             write_file(&p, &format!("{text}\n"))?;
             Ok(Val::Str(p))
         },
-        "读键值" => |args: &[Val], _vm: &mut VM| -> R {
+        "读键值" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("读键值", args, 1, 3)?;
             let p = as_path("读键值", &args[0])?;
             let sep = match args.get(2) {
@@ -188,7 +189,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(dict_new(out))
         },
-        "写键值" => |args: &[Val], _vm: &mut VM| -> R {
+        "写键值" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("写键值", args, 2, 3)?;
             let p = as_path("写键值", &args[0])?;
             let pairs = as_dict("写键值", &args[1])
@@ -213,7 +214,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             write_file(&p, &text)?;
             Ok(Val::Str(p))
         },
-        "取" => |args: &[Val], _vm: &mut VM| -> R {
+        "取" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取", args, 2, 3)?;
             let path = match &args[1] {
                 Val::Str(s) if !s.is_empty() => s.clone(),
@@ -259,7 +260,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(cur)
         },
-        "设" => |args: &[Val], _vm: &mut VM| -> R {
+        "设" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设", args, 3, 3)?;
             let pairs = as_dict("设", &args[0])
                 .map_err(|_| err("类型错误", "「设」的第一个参数要传字典"))?;
@@ -291,7 +292,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(dict_new(out))
         },
-        "合并" => |args: &[Val], _vm: &mut VM| -> R {
+        "合并" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("合并", args, 2, 2)?;
             let base = as_dict("合并", &args[0])
                 .map_err(|_| err("类型错误", "「合并」的两个参数都要传字典"))?;
@@ -318,7 +319,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(dict_new(out))
         },
-        "展开" => |args: &[Val], _vm: &mut VM| -> R {
+        "展开" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("展开", args, 1, 2)?;
             let pairs = as_dict("展开", &args[0])
                 .map_err(|_| err("类型错误", "「展开」的第一个参数要传字典"))?;

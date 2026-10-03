@@ -7,12 +7,13 @@
 //! 种子取自系统时间纳秒 + 一个进程内递增计数。质量对标准库这种用途足够，
 //! 而且不引依赖。**不适合做密码学用途**——那该用 `加密` 模块的摘要算法。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{as_intish, need, table, to_vec, R};
-use crate::{display, err, Val, VM};
+use crate::{display, err, Val};
 
 static STATE: OnceLock<Mutex<u64>> = OnceLock::new();
 
@@ -56,7 +57,7 @@ fn below(bound: u64) -> u64 {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "随机";
-        "随机整数" => |args: &[Val], _vm: &mut VM| -> R {
+        "随机整数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("随机整数", args, 2)?;
             let lo = as_intish(&args[0])?;
             let hi = as_intish(&args[1])?;
@@ -73,13 +74,13 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Int(lo + below(span as u64) as i128))
         },
-        "随机小数" => |args: &[Val], _vm: &mut VM| -> R {
+        "随机小数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("随机小数", args, 0)?;
             // 取 53 位有效位，落在 [0, 1)
             let x = (next_u64() >> 11) as f64 / (1u64 << 53) as f64;
             Ok(Val::Float(x))
         },
-        "随机选择" => |args: &[Val], _vm: &mut VM| -> R {
+        "随机选择" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("随机选择", args, 1)?;
             let items = to_vec(&args[0])?;
             if items.is_empty() {
@@ -87,7 +88,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(items[below(items.len() as u64) as usize].clone())
         },
-        "洗牌" => |args: &[Val], _vm: &mut VM| -> R {
+        "洗牌" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("洗牌", args, 1)?;
             let mut items = to_vec(&args[0])?;
             // Fisher-Yates：原地洗**副本**，原列表不动（与 Python 侧一致）

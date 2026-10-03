@@ -9,10 +9,11 @@
 //! ⚠️ 随机结果没法与 Python 逐字节对拍，测试只能验「形状」（长度、分段数、
 //! 字符集、两次不同）。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{need_range, rand, table, R};
-use crate::{err, list_new, Val, VM};
+use crate::{err, list_new, Val};
 
 /// 生成 16 字节的 UUID v4。
 fn uuid4_bytes() -> [u8; 16] {
@@ -52,7 +53,7 @@ fn b64url(data: &[u8]) -> String {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "标识";
-        "唯一标识" => |args: &[Val], _vm: &mut VM| -> R {
+        "唯一标识" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("唯一标识", args, 0, 1)?;
             let no_dash = if args.is_empty() {
                 false
@@ -81,11 +82,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 &hex[20..32]
             )))
         },
-        "唯一标识短" => |args: &[Val], _vm: &mut VM| -> R {
+        "唯一标识短" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("唯一标识短", args, 0, 0)?;
             Ok(Val::Str(b64url(&uuid4_bytes())))
         },
-        "唯一标识字节" => |args: &[Val], _vm: &mut VM| -> R {
+        "唯一标识字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("唯一标识字节", args, 0, 0)?;
             Ok(list_new(
                 uuid4_bytes().iter().map(|b| Val::Int(*b as i128)).collect(),

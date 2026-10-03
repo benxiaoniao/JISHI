@@ -3,10 +3,11 @@
 //! base64 / 十六进制 / URL 编解码。**零第三方依赖**——base64 与 URL 编码
 //! 都自己写（十几行），不引 `base64` crate。
 
+use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{need_range, table, to_vec, R};
-use crate::{err, list_new, Val, VM};
+use crate::{err, list_new, Val};
 
 /// 文本或字节列表 → `Vec<u8>`（与 Python 侧 `_to_bytes` 同规则）。
 fn to_bytes(name: &str, v: &Val) -> Result<Vec<u8>, crate::JishiError> {
@@ -161,16 +162,16 @@ fn url_unquote(s: &str) -> Result<String, crate::JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "编码";
-        "base64编码" => |args: &[Val], _vm: &mut VM| -> R {
+        "base64编码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("base64编码", args, 1, 1)?;
             Ok(Val::Str(b64_encode(&to_bytes("base64编码", &args[0])?)))
         },
-        "base64解码" => |args: &[Val], _vm: &mut VM| -> R {
+        "base64解码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("base64解码", args, 1, 1)?;
             let s = want_ascii("base64解码", &args[0])?;
             Ok(list_new(b64_decode(&s)?.into_iter().map(|b| Val::Int(b as i128)).collect()))
         },
-        "十六进制编码" => |args: &[Val], _vm: &mut VM| -> R {
+        "十六进制编码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("十六进制编码", args, 1, 2)?;
             let upper = matches!(args.get(1), Some(Val::Bool(true)));
             let h: String = to_bytes("十六进制编码", &args[0])?
@@ -179,7 +180,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .collect();
             Ok(Val::Str(if upper { h.to_uppercase() } else { h }))
         },
-        "十六进制解码" => |args: &[Val], _vm: &mut VM| -> R {
+        "十六进制解码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("十六进制解码", args, 1, 1)?;
             let raw = want_ascii("十六进制解码", &args[0])?;
             // 宽容输入：空格 / Tab / `0x` / 逗号都去掉；奇数长度前面补 0
@@ -212,12 +213,12 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(list_new(out))
         },
-        "url编码" => |args: &[Val], _vm: &mut VM| -> R {
+        "url编码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("url编码", args, 1, 2)?;
             let keep = !matches!(args.get(1), Some(Val::Bool(false)));
             Ok(Val::Str(url_quote(&crate::display(&args[0]), keep)))
         },
-        "url解码" => |args: &[Val], _vm: &mut VM| -> R {
+        "url解码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("url解码", args, 1, 1)?;
             match &args[0] {
                 Val::Str(s) => Ok(Val::Str(url_unquote(s)?)),
@@ -227,7 +228,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 )),
             }
         },
-        "文本字节" => |args: &[Val], _vm: &mut VM| -> R {
+        "文本字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("文本字节", args, 1, 1)?;
             match &args[0] {
                 Val::Str(s) => Ok(list_new(
@@ -239,7 +240,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 )),
             }
         },
-        "字节文本" => |args: &[Val], _vm: &mut VM| -> R {
+        "字节文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("字节文本", args, 1, 1)?;
             let bs = to_bytes("字节文本", &args[0])?;
             String::from_utf8(bs).map(Val::Str).map_err(|_| {
