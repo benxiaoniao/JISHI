@@ -18,6 +18,9 @@ mod stdlib;
 // M51：标准库函数签名表（由 `tools/gen_stdlib_sigs.py` 从 Python 侧
 // jishi/stdlib/*.py 生成）。命名参数要按「模块.函数」查它才能映射回位置参数。
 mod stdlib_sigs;
+/// **树遍历参考执行器**（R6 主体）：吃 AST JSON、不经过字节码 ——
+/// 与字节码 VM 互为参考实现。见它自己的文档注释。
+mod walk;
 mod zip;
 use json::Json;
 
@@ -4925,6 +4928,33 @@ impl PartialOrd for Val {
 // ---------------------------------------------------------------------------
 // 加载 JSON 字节码
 // ---------------------------------------------------------------------------
+
+/// 跑**树遍历参考执行器**：吃 **AST JSON 文本**（`conformance.py emit --stage ast`
+/// 的产物），返回它打印的内容。
+///
+/// ⚠️ 它与字节码 VM 是**两个独立实现**，跑同一段源码必须一致 —— 差异就是
+/// 「编译器 / 字节码生成」的问题（字节码 VM 自己抓不出来）。
+/// 进度与边界见 `walk.rs` 的文档注释（现在只实现了一个切片，未实现的节点
+/// **明确报错**，不静默给错值）。
+pub fn run_walk(ast_text: &str) -> Result<String, String> {
+    let ast = json::parse(ast_text).map_err(|e| format!("AST JSON 解析失败：{e}"))?;
+    let mut w = walk::Walker::new();
+    match w.run(&ast) {
+        Ok(()) => Ok(w.output),
+        // 渲染成与 `render_error` 的**头行**同形（位置框要读源码文件，宿主没有
+        // 那个上下文；这一步见 `walk.rs` 的「还没做」）。
+        Err(e) => {
+            let head = match &e.code {
+                Some(c) => format!("错误 {c}：{}（{}）", e.type_name, e.message),
+                None => format!("错误（{}）：{}", e.type_name, e.message),
+            };
+            Err(match (e.line, e.col) {
+                (Some(l), Some(c)) => format!("{head}\n  ┌─ {l}:{c}"),
+                _ => head,
+            })
+        }
+    }
+}
 
 pub fn load_module(json_text: &str) -> Result<VM, String> {
     let body = json::parse(json_text)?;

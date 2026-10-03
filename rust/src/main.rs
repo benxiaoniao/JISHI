@@ -33,6 +33,23 @@ fn main() -> ExitCode {
         println!("{}", jishi_ffi::dump_builtins());
         return ExitCode::SUCCESS;
     }
+    // R6 主体：**树遍历参考执行器** —— 吃**AST JSON**（前端契约的 ast 阶段产物），
+    // 不经过字节码。与字节码 VM 互为参考实现（差异就是编译器的问题）。
+    // 进度见 `walk.rs`；未实现的节点会明确报错。
+    if args[1] == "--walk" {
+        let path = match args.get(2) {
+            Some(p) => p,
+            None => { eprintln!("用法：jishi-rs --walk AST.json"); return ExitCode::from(2); }
+        };
+        let text = match fs::read_to_string(path) {
+            Ok(t) => t,
+            Err(e) => { eprintln!("读取文件失败：{e}"); return ExitCode::from(1); }
+        };
+        return match jishi_ffi::run_walk(&text) {
+            Ok(out) => { print!("{out}"); ExitCode::SUCCESS }
+            Err(e) => { eprintln!("{e}"); ExitCode::from(1) }
+        };
+    }
     let path = &args[1];
     let text = match fs::read_to_string(path) {
         Ok(t) => t,
