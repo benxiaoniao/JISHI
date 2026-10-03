@@ -1488,6 +1488,19 @@ struct Frame {
     block_seq: i64,
 }
 
+impl Frame {
+    /// 空帧 —— **帧池**里取不到旧帧时用它起头（见 `VM::pool`）。
+    fn blank() -> Frame {
+        Frame {
+            code_idx: 0, ip: 0, base: 0,
+            call_line: None, call_col: None,
+            locals: Vec::new(), locals_set: Vec::new(), cells: Vec::new(),
+            loops: Vec::new(), handlers: Vec::new(),
+            pending_return: None, block_seq: 0,
+        }
+    }
+}
+
 #[derive(Clone)]
 struct Handler {
     catch_ip: i64,
@@ -1501,7 +1514,10 @@ struct Handler {
 // ---------------------------------------------------------------------------
 
 pub struct VM {
-    module: Module,
+    /// ⚠️ `Rc` 而不是裸 `Module`：`execute_frame` 每次进帧都要长期借用指令数组
+    /// （循环体里到处是 `&mut self` 的方法调用，直接借 `self.module` 会打架）。
+    /// 以前那里的做法是**克隆整个指令数组** —— 每次调用一次堆分配 + 拷贝。
+    module: Rc<Module>,
     /// 全局变量表：**按名字下标索引**（`ins.a` 就是 `module.names` 的下标）。
     ///
     /// ⚠️ 以前这里是 `HashMap<String, Val>`，而且每次 `LOAD_GLOBAL` 还先
@@ -1514,6 +1530,13 @@ pub struct VM {
     /// `None` = 这个名字**没有定义**（读它要报「找不到名字」）。内建在加载时
     /// 一次性铺进去（见 `init_globals`）。
     globals: Vec<Option<Val>>,
+    /// **帧池**：帧弹出时回收，下次调用复用它的 `locals` / `locals_set`
+    /// 的**容量**（这两个 Vec 每次调用都要分配一次，是「函数调用密集」场景里
+    /// 比 C VM 慢的那部分）。
+    ///
+    /// ⚠️ 只复用**容量**、不留值：`pop_frame` 里把内容清空（见它的注释）。
+    /// 池子大小 = 这棵调用树的最大帧深，有界。
+    pool: Vec<Frame>,
     /// **全部内建的名字**（加载时建一次）。
     ///
     /// 报错路径要它：「找不到名字」的候选提示，池子不只是「本文件里出现过的
@@ -1545,8 +1568,9 @@ impl VM {
     pub fn new(module: Module) -> Self {
         let (globals, builtin_names) = init_globals(&module);
         VM {
-            module,
+            module: Rc::new(module),
             globals,
+            pool: Vec::new(),
             builtin_names,
             stack: Vec::new(),
             frames: Vec::new(),
@@ -1590,7 +1614,7 @@ impl VM {
             match result {
                 Ok(Flow::Return) => {
                     // 正常弹帧，继续外层
-                    self.frames.pop();
+                    self.pop_frame();
                     if Some(fi) == stop_at { return Ok(()); }
                 }
                 Ok(Flow::Call) => {
@@ -1598,7 +1622,7 @@ impl VM {
                     // （这条分支以前不存在，导致新帧被 pop 掉。）
                 }
                 Ok(Flow::Halt) => {
-                    self.frames.pop();
+                    self.pop_frame();
                     return Ok(());
                 }
                 Ok(Flow::Error(mut e)) => {
@@ -1676,12 +1700,15 @@ impl VM {
     }
 
     fn execute_frame(&mut self, fi: usize) -> Result<Flow, JishiError> {
-        let frame = &self.frames[fi];
-        let code_idx = frame.code_idx;
-        let code = &self.module.codes[code_idx];
-        let instrs = code.instrs.clone();
-        let mut ip = frame.ip;
-        let base = frame.base;
+        let code_idx = self.frames[fi].code_idx;
+        let mut ip = self.frames[fi].ip;
+        let base = self.frames[fi].base;
+        // ⚠️ **不再克隆整个指令数组**（原来是 `code.instrs.clone()` —— 每进一次
+        // 帧就一次堆分配 + 拷贝）。`module` 是 `Rc`，克隆一次只是引用计数 +1，
+        // 于是能在**不借用 `self`** 的前提下长期借用 `instrs` —— 循环体里到处
+        // 是 `self.xxx()`（要 `&mut self`），直接借用 `self.module` 会打架。
+        let module = Rc::clone(&self.module);
+        let instrs = &module.codes[code_idx].instrs;
 
         loop {
             if ip >= instrs.len() {
@@ -2236,7 +2263,7 @@ impl VM {
                 return Ok(true);
             }
             let base = self.frames[fi].base;
-            self.frames.pop();
+            self.pop_frame();
             self.stack.truncate(base);
         }
         Ok(false)
@@ -2281,7 +2308,7 @@ impl VM {
                 return Ok(true);
             }
             let base = self.frames[fi].base;
-            self.frames.pop();
+            self.pop_frame();
             self.stack.truncate(base);
         }
         Ok(false)
@@ -2313,40 +2340,54 @@ impl VM {
     /// 用它自己的局部 ip 继续跑。
     /// `call_site` = 这次调用发生在哪（`ins.line` / `ins.col`）——
     /// 调用链要的是**这个**（不是新帧里跑到第几行）。
+    /// 弹帧并**回收**到帧池（`push_func_frame` 会再取出来复用）。
+    ///
+    /// ⚠️ 回收时**清空内容**，只留容量：
+    /// * `locals` / `locals_set` —— 留值会危险（`locals_set` 残留 true 就等于
+    ///   「读到了上一帧的残留值」），而且残留的 `Val` 可能吊着大对象；
+    /// * `cells` —— 单元是 `Rc`，留着会让**早该释放的闭包**一直活着。
+    fn pop_frame(&mut self) {
+        if let Some(mut f) = self.frames.pop() {
+            f.locals.clear();
+            f.locals_set.clear();
+            f.cells.clear();
+            f.loops.clear();
+            f.handlers.clear();
+            f.pending_return = None;
+            self.pool.push(f);
+        }
+    }
+
     fn push_func_frame(&mut self, set_ip: Option<(usize, usize)>, func: Func,
                        args: Vec<Val>, knames: &[String], kwvals: &[Val],
                        base: usize, call_site: (i64, i64))
         -> Result<(), JishiError> {
         let sub_idx = func.code_idx;
-        let (locals, locals_set, values) = {
-            let sub = &self.module.codes[sub_idx];
-            bind_args(sub, &args, knames, kwvals, func.defaults.as_deref())?
-        };
+        // 从**帧池**取一个旧帧复用（取不到就新建）—— 省掉每次调用
+        // `locals` / `locals_set` 两次堆分配。
+        let mut nf = self.pool.pop().unwrap_or_else(Frame::blank);
+        nf.code_idx = sub_idx;
+        nf.ip = 0;
+        nf.base = base;
+        nf.block_seq = 0;
+        nf.pending_return = None;
+        nf.call_line = if call_site.0 > 0 { Some(call_site.0) } else { None };
+        nf.call_col = if call_site.0 > 0 { Some(call_site.1) } else { None };
         // 单元表布局 `[cellvars… , freevars…]`：`cellvars` 是本帧自己的（新造，
         // **各自独立**），`freevars` 来自闭包 —— `Rc` 克隆 ⇒ **与捕获者共享**。
-        let mut cells = {
-            let sub = &self.module.codes[sub_idx];
-            new_cells(sub.cellvars.len())
-        };
-        cells.extend(func.cells.iter().cloned());
+        // ⚠️ 顺序：**先建 cells 再绑定实参** —— 形参若是单元变量，`bind_args`
+        // 直接写进单元（省掉一个「按参数顺序的值表」的分配，见它的注释）。
+        nf.cells.clear();
         {
             let sub = &self.module.codes[sub_idx];
-            store_cells(sub, &mut cells, &values);
+            nf.cells.extend(new_cells(sub.cellvars.len()));
         }
-        let nf = Frame {
-            code_idx: sub_idx,
-            ip: 0,
-            base,
-            call_line: if call_site.0 > 0 { Some(call_site.0) } else { None },
-            call_col: if call_site.0 > 0 { Some(call_site.1) } else { None },
-            locals,
-            locals_set,
-            cells,
-            loops: Vec::new(),
-            handlers: Vec::new(),
-            pending_return: None,
-            block_seq: 0,
-        };
+        nf.cells.extend(func.cells.iter().cloned());
+        {
+            let sub = &self.module.codes[sub_idx];
+            bind_args(sub, &args, knames, kwvals, func.defaults.as_deref(),
+                      &mut nf.cells, &mut nf.locals, &mut nf.locals_set)?;
+        }
         if let Some((fi, ip)) = set_ip {
             self.frames[fi].ip = ip;
         }
@@ -4722,7 +4763,21 @@ fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
 // 参数绑定
 // ---------------------------------------------------------------------------
 
-fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defaults: Option<&[Val]>) -> Result<(Vec<Val>, Vec<bool>, Vec<Val>), JishiError> {
+/// 绑定实参 → 局部槽 + 单元表。
+///
+/// **就地填** `locals` / `locals_set`（它们来自**帧池**，复用容量）；
+/// **形参若是单元变量**（被闭包捕获），直接写进传进来的 `cells`。
+///
+/// ⚠️ 两处「每次调用都掏钱」的地方（R6 主体·函数调用，量出来一参调用比 C VM
+/// 慢 350ns、三参慢 595ns/次）：
+/// * 「参数下标 → 值」原来用 `HashMap<usize, Val>` —— 参数通常只有 1~3 个，
+///   一次哈希表分配 + 每次 insert 的哈希纯属浪费 → 改成 `Vec<Option<Val>>`；
+/// * 中间那个「按参数顺序的值表」`Vec<Val>` 也省掉了：单元表既然在手上，
+///   就直接写（以前是返回 `values` 再由 `store_cells` 搬一遍）。
+fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val],
+             defaults: Option<&[Val]>, cells: &mut [JCell],
+             locals: &mut Vec<Val>, locals_set: &mut Vec<bool>)
+    -> Result<(), JishiError> {
     let nparams = code.params.len();
     // 形参种类（M25）：0=普通 1=*参数 2=**选项
     let star_pos = code.param_kind.iter().position(|k| *k == 1);
@@ -4736,18 +4791,18 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defau
                     code.name, npos, args.len() + knames.len())));
     }
 
-    let mut bound: HashMap<usize, Val> = HashMap::new();
+    let mut bound: Vec<Option<Val>> = vec![None; nparams];
     for (i, a) in args.iter().enumerate() {
-        if i < npos { bound.insert(i, a.clone()); }
+        if i < npos { bound[i] = Some(a.clone()); }
     }
     if let Some(sp) = star_pos {
-        bound.insert(sp, list_new(args[npos.min(args.len())..].to_vec()));
+        bound[sp] = Some(list_new(args[npos.min(args.len())..].to_vec()));
     }
     // 未匹配的关键字收进 **选项
     let mut extra: Vec<(Val, Val)> = Vec::new();
     for (k, v) in knames.iter().zip(kwvals.iter()) {
         if let Some(pi) = code.params[..npos].iter().position(|p| p == k) {
-            bound.insert(pi, v.clone());
+            bound[pi] = Some(v.clone());
         } else if let Some(dp) = dstar_pos {
             extra.push((Val::Str(k.clone()), v.clone()));
         } else {
@@ -4760,38 +4815,29 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val], defau
         }
     }
     if let Some(dp) = dstar_pos {
-        bound.insert(dp, dict_new(extra));
+        bound[dp] = Some(dict_new(extra));
     }
     if let Some(d) = defaults {
         for (i, dv) in d.iter().enumerate() {
-            if i < npos && !bound.contains_key(&i) && !matches!(dv, Val::None_) {
-                bound.insert(i, dv.clone());
+            if i < npos && bound[i].is_none() && !matches!(dv, Val::None_) {
+                bound[i] = Some(dv.clone());
             }
         }
     }
     let missing: Vec<&str> = code.params[..npos].iter().enumerate()
-        .filter(|(i, _)| !bound.contains_key(i)).map(|(_, p)| p.as_str()).collect();
+        .filter(|(i, _)| bound[*i].is_none()).map(|(_, p)| p.as_str()).collect();
     if !missing.is_empty() {
         return Err(err("类型错误", format!("函数「{}」缺少参数：{}", code.name, missing.join("、"))));
     }
-    let mut locals = vec![Val::None_; code.nlocals];
-    // 形参落到的槽算「赋过值」——其余槽保持未赋值（读就报「找不到名字」，M54）
-    let mut locals_set = vec![false; code.nlocals];
-    let mut values = Vec::new();
+    // ⚠️ **就地填**（不再返回新 Vec）：这两个 Vec 来自帧池，容量通常够用 ——
+    // `clear` + `resize` 不会重新分配。`locals_set` 必须**全部重置成 false**，
+    // 否则会「读到上一帧的残留值」（比报错难查一百倍）。
+    locals.clear();
+    locals.resize(code.nlocals, Val::None_);
+    locals_set.clear();
+    locals_set.resize(code.nlocals, false);
     for i in 0..nparams {
-        let v = bound[&i].clone();
-        values.push(v.clone());
-        let slot = code.param_local[i];
-        if slot >= 0 {
-            locals[slot as usize] = v;
-            locals_set[slot as usize] = true;
-        }
-    }
-    Ok((locals, locals_set, values))
-}
-
-fn store_cells(code: &Code, cells: &mut [JCell], values: &[Val]) {
-    for (i, v) in values.iter().enumerate() {
+        let Some(v) = bound[i].take() else { continue };
         let ci = code.param_cell[i];
         if ci >= 0 {
             // 改**单元里的值**（不是换掉单元）：形参若是单元变量（被闭包捕获），
@@ -4800,7 +4846,13 @@ fn store_cells(code: &Code, cells: &mut [JCell], values: &[Val]) {
             c.value = v.clone();
             c.set = true;
         }
+        let slot = code.param_local[i];
+        if slot >= 0 {
+            locals[slot as usize] = v;
+            locals_set[slot as usize] = true;
+        }
     }
+    Ok(())
 }
 
 /// 单元号 → 名字（布局是 `[cellvars… , freevars…]`，与 Python 侧
