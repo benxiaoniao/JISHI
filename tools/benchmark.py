@@ -365,11 +365,18 @@ def main() -> int:
 
     for name, (src, repeats) in SCENARIOS.items():
         times: dict[str, float] = {}
+        rust_weak = False
         for label, key in executors:
             t = _best_time(_RUNNERS[key], src, repeats, tries)
             if key == "run_rust":
                 # 扣掉 `repeats` 次进程启动（见 `_rust_startup` 的说明）
                 t = max(t - repeats * startup, 1e-9)
+                # ⚠️ **净耗时还没「启动成本」大 → 这一格不可信**：上面这次减法
+                # 会把启动成本的**估计误差**放大到净耗时上。
+                # R6 主体·整数循环时真踩到：「整数循环累加」显示 55ms，而同一
+                # 逻辑把 n 放大到 500000 实测只有 4.2ms / 20000 次 —— 差了 3 倍。
+                # 判据：净耗时 < 启动成本 ÷ 3 就打 `⚠`（比值越小越不可信）。
+                rust_weak = t < repeats * startup / 3
             times[label] = t
         base = times["树遍历"]
         cells = []
@@ -378,7 +385,8 @@ def main() -> int:
             t = times[label]
             cells.append(f"{t * 1000:>8.1f}ms")
             ratios.append(base / t if t > 0 else 0.0)
-        print(f"{name:<10} ×{repeats:<3} " + " ".join(cells))
+        print(f"{name:<10} ×{repeats:<3} " + " ".join(cells)
+              + ("   ⚠ Rust 列净耗时太小，别用它下判断" if rust_weak else ""))
         speed_rows.append((name, ratios))
         repeats_hint = repeats
 

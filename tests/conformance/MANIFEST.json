@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 24,
     "frontend": 1,
-    "lang": 66,
+    "lang": 67,
     "stdlib": 4
   },
   "语料": [
@@ -384,6 +384,13 @@
       "内容哈希": "sha256:d4e21eb98ef62576",
       "类别": "lang",
       "路径": "tests/cases/18_集合.jsh"
+    },
+    {
+      "id": "tests__cases__19_整数比较",
+      "产物哈希": "sha256:da97c9724505dc19",
+      "内容哈希": "sha256:4f8b338b671e6321",
+      "类别": "lang",
+      "路径": "tests/cases/19_整数比较.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -729,5 +736,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 95
+  "语料数": 96
 }

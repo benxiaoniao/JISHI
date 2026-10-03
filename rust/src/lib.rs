@@ -1502,18 +1502,52 @@ struct Handler {
 
 pub struct VM {
     module: Module,
-    globals: HashMap<String, Val>,
+    /// 全局变量表：**按名字下标索引**（`ins.a` 就是 `module.names` 的下标）。
+    ///
+    /// ⚠️ 以前这里是 `HashMap<String, Val>`，而且每次 `LOAD_GLOBAL` 还先
+    /// `names[a].clone()`（**分配一个 String**）再哈希查找。实测（n=500000 的
+    /// `当` 循环）：同样的逻辑写在**模块级**（走这里）要 **198ms**，
+    /// 放进函数内（走局部变量槽位）只要 **91ms** —— 而 C VM 两者一样
+    /// （26 vs 28ms，它的 `globals` 本来就是 `JVal *globals` 数组）。
+    /// 差的就是这一处：**HashMap + String 分配 vs 一次数组索引**。
+    ///
+    /// `None` = 这个名字**没有定义**（读它要报「找不到名字」）。内建在加载时
+    /// 一次性铺进去（见 `init_globals`）。
+    globals: Vec<Option<Val>>,
+    /// **全部内建的名字**（加载时建一次）。
+    ///
+    /// 报错路径要它：「找不到名字」的候选提示，池子不只是「本文件里出现过的
+    /// 名字」，还包括**全部内建** —— `打印(长渡([1]))` 里根本没出现「长度」，
+    /// 但提示要说「你是不是想写「长度」？」。C VM 侧就是这么做的
+    /// （`cvm_bind.py`：`pool = dict(self.globals)` 再补用户全局名）。
+    /// ⚠️ 我第一版只拿「`names` 里已定义的槽位」当池子，于是**候选提示没了**
+    /// —— 被 `test_m51_consistency.py` 的「宿主也给候选名」抓住。
+    builtin_names: Vec<String>,
     stack: Vec<Val>,
     frames: Vec<Frame>,
     last_value: Val,
     output: String,
 }
 
+/// 建全局表：长度 = 名字个数，**内建按名字预填**，其余留 `None`。
+/// 顺带给出「全部内建名」（报错路径的候选池用，见 `builtin_names`）。
+///
+/// 照 C VM 的做法（`cvm_bind.py` 那边也是「按 names 顺序把内建铺成数组」
+/// 再交给 C）—— 两个宿主的全局表就同构了。
+fn init_globals(module: &Module) -> (Vec<Option<Val>>, Vec<String>) {
+    let builtins = new_builtins();
+    let names = builtins.keys().cloned().collect();
+    let slots = module.names.iter().map(|n| builtins.get(n).cloned()).collect();
+    (slots, names)
+}
+
 impl VM {
     pub fn new(module: Module) -> Self {
+        let (globals, builtin_names) = init_globals(&module);
         VM {
             module,
-            globals: new_builtins(),
+            globals,
+            builtin_names,
             stack: Vec::new(),
             frames: Vec::new(),
             last_value: Val::None_,
@@ -1666,12 +1700,28 @@ impl VM {
                     self.stack.push(c);
                 }
                 op::LOAD_GLOBAL => {
-                    let name = self.module.names[ins.a as usize].clone();
-                    match self.globals.get(&name) {
-                        Some(v) => self.stack.push(v.clone()),
+                    // 名字**已经在加载时**按 `ins.a` 铺成槽位了（见 `globals`），
+                    // 所以正常路径是「一次数组索引 + 一次 clone」——
+                    // 不再分配 String、不再哈希查找。
+                    let slot = ins.a as usize;
+                    match self.globals.get(slot).and_then(|v| v.as_ref()).cloned() {
+                        Some(v) => self.stack.push(v),
                         None => {
-                            // M56：只在报错路径上算候选名（正常路径零开销）
-                            let pool: Vec<String> = self.globals.keys().cloned().collect();
+                            // ⚠️ 只有**报错路径**才去碰名字字符串 / 候选名池：
+                            // 正常路径上一分钱都不花（M56 的老规矩）。
+                            let name = self.module.names.get(slot).cloned()
+                                .unwrap_or_else(|| format!("?全局{slot}"));
+                            // 候选池 = **全部内建** + 「本文件里已定义的用户全局」。
+                            // ⚠️ 不能只拿「names 里已定义的槽位」：内建里有一堆名字
+                            // 本文件根本没出现（`长渡` 的提示要说「长度」，而
+                            // `names` 里没有「长度」）。顺序无所谓 —— `close_matches`
+                            // 有全序排序（分数降序 + 同分名字降序）。
+                            let mut pool: Vec<String> = self.builtin_names.clone();
+                            for (v, n) in self.globals.iter().zip(self.module.names.iter()) {
+                                if v.is_some() && !self.builtin_names.contains(n) {
+                                    pool.push(n.clone());
+                                }
+                            }
                             let msg = format!("找不到名字「{name}」");
                             // ⚠️ 类型名要写 Python 侧那个**真名**（`SemanticNameError`
                             // 的 title「找不到这个名字」，E0301）：写「异常」的话
@@ -1684,9 +1734,10 @@ impl VM {
                     }
                 }
                 op::STORE_GLOBAL => {
-                    let name = self.module.names[ins.a as usize].clone();
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    self.globals.insert(name, v);
+                    if let Some(cell) = self.globals.get_mut(ins.a as usize) {
+                        *cell = Some(v);
+                    }
                 }
                 op::LOAD_FAST => {
                     // 与 Python / Node 对齐：没赋过值就读 → 报「找不到名字」，
@@ -3096,6 +3147,26 @@ fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
         8 => identity_key(&l)? == identity_key(&r)?,               // `l 是 r`
         9 => identity_key(&l)? != identity_key(&r)?,               // `l 不是 r`
         _ => {
+            // ✅ **整数对整数直接用 `i128` 比**（不走 f64）。两个理由：
+            //
+            // ① 正确性：原来的路径是「两边都 `as f64` 再比」，超过 2^53 就开始
+            //    失真 —— `2 ** 62 > 2 ** 62 - 1` 在 Rust 上曾给出**假**，
+            //    而另外四个执行器都精确比较（Python 任意精度 / C VM 是 int64 /
+            //    Node 用 bigint）。整数比较是最不该出错的地方。
+            // ② 性能：`当 i > 0` 这种热循环正是这一支，省掉两次 `clone` 与
+            //    两次 f64 转换。
+            //
+            // ⚠️ `==` / `!=`（op 0/1）在上面走 `Val::eq`，本来就精确，不经过这里。
+            if let (Val::Int(a), Val::Int(b)) = (&l, &r) {
+                return Ok(Val::Bool(match op {
+                    2 => a < b,
+                    3 => a > b,
+                    4 => a <= b,
+                    5 => a >= b,
+                    _ => return Err(err("运行期错误", "不支持的比较")),
+                }));
+            }
+            // 混了浮点 / 精确小数（精确小数上面已分流）→ 仍走 f64。
             let (la, lb) = (l.clone(), r.clone());
             let (a, b) = to_num_pair(l, r)
                 .map_err(|_| err("类型错误", cmp_type_msg(&la, &lb)))?;
