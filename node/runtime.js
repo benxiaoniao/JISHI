@@ -2323,8 +2323,9 @@ function getItem(obj, index, line, col) {
     return obj[i];
   }
   if (obj instanceof Map) {
-    if (!obj.has(index)) throw keyErr(`字典里没有键「${display(index)}」`, line, col);
-    return obj.get(index);
+    const k = dictFindKey(obj, index);
+    if (k !== undefined) return obj.get(k);
+    throw keyErr(`字典里没有键「${display(index)}」`, line, col);
   }
   if (typeof obj === 'string') {
     // ⚠️ 按**码点**取（M55）：`"😀"[0]` 必须是完整的 😀，不是半个代理项。
@@ -2336,6 +2337,22 @@ function getItem(obj, index, line, col) {
     return chars[i];
   }
   throw typeErr(`「${typeName(obj)}」不能取下标`, line, col);
+}
+
+/**
+ * 在字典 Map 里按 valueEq 找键（**跨类型数值相等**：`1 == 1.0` 为真）。
+ * 返回匹配的**原键**（Map 里的那个）；没有则 `undefined`。
+ *
+ * ⚠️ 为什么要它：原生 `Map.has/get/set` 用 SameValueZero（按**对象身份**），
+ * 而基石的浮点是 `FloatBox` 对象、整数是 number/bigint —— `字[1]` 和 `字[1.0]`
+ * 在原生 Map 里是**两个键**，与 Python / Rust 的「同一键」语义分叉（R6.6 撞出）。
+ * 所以字典的增删查都要先过 valueEq。
+ */
+function dictFindKey(map, key) {
+  for (const k of map.keys()) {
+    if (valueEq(k, key)) return k;
+  }
+  return undefined;
 }
 
 function setItem(obj, index, value, line, col) {
@@ -2372,7 +2389,12 @@ function setItem(obj, index, value, line, col) {
     obj[i] = value;
     return;
   }
-  if (obj instanceof Map) { obj.set(index, value); return; }
+  if (obj instanceof Map) {
+    const k = dictFindKey(obj, index);
+    if (k !== undefined) { obj.set(k, value); return; }
+    obj.set(index, value);
+    return;
+  }
   throw typeErr(`「${typeName(obj)}」不能按下标赋值`, line, col);
 }
 
@@ -2810,15 +2832,19 @@ const DICT_METHODS = {
   '获取': (obj, args, line, col) => {
     needArgs('获取', args, 1, 2, line, col);
     const dflt = args.length === 2 ? args[1] : null;
-    return obj.has(args[0]) ? obj.get(args[0]) : dflt;
+    const k = dictFindKey(obj, args[0]);
+    return k !== undefined ? obj.get(k) : dflt;
   },
   '键': (obj, args, line, col) => { needArgs('键', args, 0, 0, line, col); return [...obj.keys()]; },
   '值': (obj, args, line, col) => { needArgs('值', args, 0, 0, line, col); return [...obj.values()]; },
-  '包含': (obj, args, line, col) => { needArgs('包含', args, 1, 1, line, col); return obj.has(args[0]); },
+  '包含': (obj, args, line, col) => { needArgs('包含', args, 1, 1, line, col); return dictFindKey(obj, args[0]) !== undefined; },
   '更新': (obj, args, line, col) => {
     needArgs('更新', args, 1, 1, line, col);
     if (!(args[0] instanceof Map)) throw typeErr(`「更新」需要一个字典参数`, line, col);
-    for (const [k, v] of args[0]) obj.set(k, v);
+    for (const [k, v] of args[0]) {
+      const ek = dictFindKey(obj, k);
+      if (ek !== undefined) obj.set(ek, v); else obj.set(k, v);
+    }
     return null;
   },
   // 返回**新字典**（同名键以参数为准，浅合并）——与就地改的「更新」分工清楚
@@ -2828,13 +2854,17 @@ const DICT_METHODS = {
       throw typeErr(`「合并」需要一个字典参数，但传了「${display(args[0])}」（${typeName(args[0])}）`, line, col);
     }
     const merged = new Map(obj);
-    for (const [k, v] of args[0]) merged.set(k, v);
+    for (const [k, v] of args[0]) {
+      const ek = dictFindKey(merged, k);
+      if (ek !== undefined) merged.set(ek, v); else merged.set(k, v);
+    }
     return merged;
   },
   '弹出': (obj, args, line, col) => {
     needArgs('弹出', args, 1, 2, line, col);
-    if (obj.has(args[0])) {
-      const v = obj.get(args[0]); obj.delete(args[0]); return v;
+    const k = dictFindKey(obj, args[0]);
+    if (k !== undefined) {
+      const v = obj.get(k); obj.delete(k); return v;
     }
     if (args.length === 2) return args[1];
     throw keyErr(`字典里没有键「${display(args[0])}」`, line, col);

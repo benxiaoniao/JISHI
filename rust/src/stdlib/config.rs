@@ -36,7 +36,7 @@ fn as_path(name: &str, v: &Val) -> Result<String, crate::JishiError> {
 
 fn as_dict(name: &str, v: &Val) -> Result<Vec<(Val, Val)>, crate::JishiError> {
     match v {
-        Val::Dict(d) => Ok(d.borrow().clone()),
+        Val::Dict(d) => Ok(d.borrow().to_items()),
         _ => Err(err("类型错误", format!("「{name}」要传字典"))),
     }
 }

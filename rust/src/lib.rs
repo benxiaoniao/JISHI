@@ -47,8 +47,94 @@ use decimal::{BigInt, Dec, Round};
 
 /// 基石列表（共享可变）
 pub(crate) type JList = Rc<RefCell<Vec<Val>>>;
-/// 基石字典（共享可变，保持插入顺序）
-pub(crate) type JDict = Rc<RefCell<Vec<(Val, Val)>>>;
+/// 基石字典（共享可变，保持插入顺序 + O(1) 查找）。
+///
+/// `items` 保持插入顺序（迭代、`键()`、`值()`、显示、`==` 都依赖它）；
+/// `index` 给「可哈希的键」提供 O(1) 定位。
+///
+/// ⚠️ 为什么不是 `HashMap<Val, _>`：`Val` 的 `==` 是**跨类型数值相等**
+/// （`1 == 1.0 == 精确("1")` 都是真），而浮点 / 精确小数 / 整数的哈希天然不同——
+/// 直接给 `Val` 实现 `Hash` 会「哈希与相等不一致」（两个相等的键落到不同桶，
+/// 字典就查不到了）。所以哈希键单独规范化成 `DictKey`（见 `dict_key`）。
+/// ⚠️ 也不能只有 `HashMap` 没有 `items`：基石字典对齐 Python 的**有序** dict，
+/// 迭代顺序必须确定（同一程序两次运行输出相同）。
+#[derive(Clone)]
+pub(crate) struct Dict {
+    items: Vec<(Val, Val)>,
+    index: HashMap<DictKey, usize>,
+}
+
+/// 字典键的「可哈希规范化」—— 保证 `==` 相等的两个值哈希到**同一个** `DictKey`。
+#[derive(Hash, PartialEq, Eq, Clone)]
+enum DictKey {
+    None_,
+    Bool(bool),
+    /// `Int` / 整数 `Float`（|f|<2^53 且 fract==0）都归一到这，
+    /// 于是 `1` 与 `1.0` 落到同一桶（`1 == 1.0` 为真，哈希必须一致）。
+    Int(i128),
+    Str(String),
+}
+pub(crate) type JDict = Rc<RefCell<Dict>>;
+
+impl Dict {
+    /// 按插入顺序迭代（与旧的 `Vec` 版 `.iter()` 同形，减少调用点改动）。
+    fn iter(&self) -> std::slice::Iter<'_, (Val, Val)> {
+        self.items.iter()
+    }
+    fn iter_mut(&mut self) -> std::slice::IterMut<'_, (Val, Val)> {
+        self.items.iter_mut()
+    }
+    fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+    fn clear(&mut self) {
+        self.items.clear();
+        self.index.clear();
+    }
+    /// 拆出底层有序项（**放弃索引**）。调用方要对项做重排 / 消费时用——
+    /// 重排之后 `index` 就失效了，不能再当字典用（所以是**消费**掉）。
+    pub(crate) fn into_items(self) -> Vec<(Val, Val)> {
+        self.items
+    }
+    /// 克隆出有序项（不动索引）。
+    pub(crate) fn to_items(&self) -> Vec<(Val, Val)> {
+        self.items.clone()
+    }
+}
+
+/// `for (k, v) in &字典` 也能走（按插入顺序）。
+impl<'a> IntoIterator for &'a Dict {
+    type Item = &'a (Val, Val);
+    type IntoIter = std::slice::Iter<'a, (Val, Val)>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.iter()
+    }
+}
+
+impl IntoIterator for Dict {
+    type Item = (Val, Val);
+    type IntoIter = std::vec::IntoIter<(Val, Val)>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
+}
+
+/// 字典 `==` 与 Python 一致：**顺序无关**，按「键相等 + 对应值相等」判。
+/// ⚠️ 旧实现直接比 `Vec<(Val,Val)>`（**顺序相关**）—— `{1:2,3:4} == {3:4,1:2}`
+/// 会给出 `false`，而 Python / JS / C 侧都给 `真`。顺手修掉这个跨语言分叉。
+impl PartialEq for Dict {
+    fn eq(&self, other: &Self) -> bool {
+        if self.items.len() != other.items.len() {
+            return false;
+        }
+        self.items.iter().all(|(k, v)| {
+            dict_get(other, k).map(|ov| &ov == v).unwrap_or(false)
+        })
+    }
+}
 /// 基石集合（共享可变，**按插入顺序**去重——对齐 Python 侧 JishiSet：
 /// 刻意不用哈希集合，迭代顺序依赖哈希种子会让同一程序两次运行输出不同）
 pub(crate) type JSet = Rc<RefCell<Vec<Val>>>;
@@ -139,7 +225,98 @@ pub(crate) fn list_new(items: Vec<Val>) -> Val {
 
 /// 造一个字典值。
 pub(crate) fn dict_new(pairs: Vec<(Val, Val)>) -> Val {
-    Val::Dict(Rc::new(RefCell::new(pairs)))
+    let mut d = Dict { items: Vec::with_capacity(pairs.len()), index: HashMap::new() };
+    for (k, v) in pairs {
+        dict_set(&mut d, k, v);
+    }
+    Val::Dict(Rc::new(RefCell::new(d)))
+}
+
+/// f64 能精确表示整数的上界（2^53）。超出这个范围的 `Int`/`Float` 键
+/// 在 `==` 上会因「转 f64 舍入」而不再传递，哈希表无法一致地处理它们 ——
+/// 于是回退到线性扫描（正确但慢，且这种键极罕见）。
+const INT_KEY_LIMIT: i128 = 1 << 53;
+
+/// 把字典键规范化成可哈希的 `DictKey`。
+///
+/// 返回 `None` 表示「不可哈希」（精确小数 / 容器 / 实例 / 超大数值 / NaN 等），
+/// 这些键回退到**线性扫描**。覆盖的整数 / 浮点整数 / 文本 / 布尔 / 空
+/// 才是真实程序里字典键的主体。
+fn dict_key(v: &Val) -> Option<DictKey> {
+    match v {
+        Val::None_ => Some(DictKey::None_),
+        Val::Bool(b) => Some(DictKey::Bool(*b)),
+        Val::Int(i) if i.abs() < INT_KEY_LIMIT => Some(DictKey::Int(*i)),
+        Val::Float(f) => {
+            // `-0.0 == 0.0` 为真，所以先归一到正零
+            let f = if *f == 0.0 { 0.0 } else { *f };
+            if f.is_finite() && f.fract() == 0.0 && f.abs() < INT_KEY_LIMIT as f64 {
+                Some(DictKey::Int(f as i128))
+            } else {
+                None
+            }
+        }
+        Val::Str(s) => Some(DictKey::Str(s.clone())),
+        _ => None,
+    }
+}
+
+/// 字典赋值：键已存在就**就地替换**（位置不变），否则追加。
+/// 与 Python 的 dict 语义一致：插入顺序保持，重复赋值不改变位置。
+fn dict_set(d: &mut Dict, k: Val, v: Val) {
+    if let Some(key) = dict_key(&k) {
+        if let Some(&pos) = d.index.get(&key) {
+            d.items[pos].1 = v;
+            return;
+        }
+        let pos = d.items.len();
+        d.items.push((k, v));
+        d.index.insert(key, pos);
+    } else {
+        if let Some(slot) = d.items.iter_mut().find(|(ek, _)| *ek == k) {
+            slot.1 = v;
+        } else {
+            d.items.push((k, v));
+        }
+    }
+}
+
+/// 字典取值：可哈希键走 O(1)，其余线性扫描。没找到返回 None。
+fn dict_get(d: &Dict, k: &Val) -> Option<Val> {
+    if let Some(key) = dict_key(k) {
+        return d.index.get(&key).map(|&pos| d.items[pos].1.clone());
+    }
+    d.items.iter().find(|(ek, _)| ek == k).map(|(_, v)| v.clone())
+}
+
+fn dict_contains(d: &Dict, k: &Val) -> bool {
+    if let Some(key) = dict_key(k) {
+        return d.index.contains_key(&key);
+    }
+    d.items.iter().any(|(ek, _)| ek == k)
+}
+
+/// 删一个键，返回被删的值；没有返回 None。
+/// ⚠️ 删除会让 `items` 里后面的元素前移，所以 `index` 里 >pos 的位置都要 -1。
+fn dict_remove(d: &mut Dict, k: &Val) -> Option<Val> {
+    let key = dict_key(k);
+    let pos = match key {
+        Some(kk) => {
+            let pos = *d.index.get(&kk)?;
+            d.index.remove(&kk);
+            pos
+        }
+        None => d.items.iter().position(|(ek, _)| ek == k)?,
+    };
+    let removed = d.items.remove(pos).1;
+    if pos < d.items.len() {
+        for idx in d.index.values_mut() {
+            if *idx > pos {
+                *idx -= 1;
+            }
+        }
+    }
+    Some(removed)
 }
 
 /// 切片对象（M33）。
@@ -2106,18 +2283,18 @@ impl VM {
             (Val::Dict(d), "获取") => {
                 need_args(&name, args, 1, 2)?;
                 let dflt = if args.len() == 2 { args[1].clone() } else { Val::None_ };
-                Ok(d.borrow().iter().find(|(k, _)| *k == args[0]).map(|(_, v)| v.clone()).unwrap_or(dflt))
+                Ok(dict_get(&d.borrow(), &args[0]).unwrap_or(dflt))
             }
             (Val::Dict(d), "键") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())) }
             (Val::Dict(d), "值") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(_, v)| v.clone()).collect())) }
-            (Val::Dict(d), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(d.borrow().iter().any(|(k, _)| *k == args[0]))) }
+            (Val::Dict(d), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(dict_contains(&d.borrow(), &args[0]))) }
             // M36 补：`更新` / `弹出` 此前在 Rust 宿主上**根本没实现**
             // （报「方法调用未实现」——是明确报错，但确实是漏的）
             (Val::Dict(d), "更新") => {
                 need_args(&name, args, 1, 1)?;
                 match &args[0] {
                     Val::Dict(other) => {
-                        let items: Vec<(Val, Val)> = other.borrow().clone();
+                        let items = other.borrow().items.clone();
                         let mut cur = d.borrow_mut();
                         for (k, v) in items { dict_set(&mut cur, k, v); }
                         Ok(Val::None_)
@@ -2133,9 +2310,9 @@ impl VM {
                     Val::Dict(other) => {
                         // 返回**新字典**：双方都不动（与就地改的「更新」分工清楚）
                         let mut merged = d.borrow().clone();
-                        let items: Vec<(Val, Val)> = other.borrow().clone();
+                        let items = other.borrow().items.clone();
                         for (k, v) in items { dict_set(&mut merged, k, v); }
-                        Ok(dict_new(merged))
+                        Ok(Val::Dict(Rc::new(RefCell::new(merged))))
                     }
                     other => Err(err("类型错误", format!(
                         "「合并」需要一个字典参数，但传了「{}」（{}）",
@@ -2145,8 +2322,8 @@ impl VM {
             (Val::Dict(d), "弹出") => {
                 need_args(&name, args, 1, 2)?;
                 let mut cur = d.borrow_mut();
-                if let Some(pos) = cur.iter().position(|(k, _)| *k == args[0]) {
-                    Ok(cur.remove(pos).1)
+                if let Some(v) = dict_remove(&mut cur, &args[0]) {
+                    Ok(v)
                 } else if args.len() == 2 {
                     Ok(args[1].clone())
                 } else {
@@ -2881,16 +3058,6 @@ fn shift_count(v: &Val, func: &str) -> Result<i128, JishiError> {
                        format!("「{}」的位数太大（收到 {}，上限 1000000）", func, n)));
     }
     Ok(n)
-}
-
-/// 字典赋值：键已存在就**就地替换**（位置不变），否则追加。
-/// 与 Python 的 dict 语义一致：插入顺序保持，重复赋值不改变位置。
-fn dict_set(d: &mut Vec<(Val, Val)>, k: Val, v: Val) {
-    if let Some(slot) = d.iter_mut().find(|(ek, _)| *ek == k) {
-        slot.1 = v;
-    } else {
-        d.push((k, v));
-    }
 }
 
 fn new_builtins() -> HashMap<String, Val> {
@@ -3749,7 +3916,7 @@ fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
                 None => Err(err("索引错误", INDEX_MSG)),
             }
         }
-        (Val::Dict(d), k) => d.borrow().iter().find(|(key, _)| *key == k).map(|(_, v)| v.clone()).ok_or_else(|| err("键错误", missing_key_msg(&k))),
+        (Val::Dict(d), k) => dict_get(&d.borrow(), &k).ok_or_else(|| err("键错误", missing_key_msg(&k))),
         (Val::Str(s), Val::Int(i)) => {
             let n = s.chars().count();
             match norm_index(i, n) {
@@ -3833,8 +4000,7 @@ fn set_item(obj: Val, idx: Val, val: Val) -> Result<(), JishiError> {
             }
         }
         (Val::Dict(d), k) => {
-            let mut d = d.borrow_mut();
-            if let Some(v) = d.iter_mut().find(|(key, _)| *key == k) { v.1 = val; } else { d.push((k, val)); }
+            dict_set(&mut d.borrow_mut(), k, val);
             Ok(())
         }
         // ⚠️ 要说清**是哪个东西**不能按下标赋值（R6.5）：原来只有一句

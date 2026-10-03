@@ -81,7 +81,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     ));
                 }
             };
-            let mut 项 = pairs;
+            let mut 项 = pairs.into_items();
             // 稳定排序：平局保持原（首次出现）顺序
             项.sort_by(|a, b| {
                 let c = crate::cmp_vals(&a.1, &b.1);
