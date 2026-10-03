@@ -68,11 +68,18 @@ pub(crate) struct Dict {
 #[derive(Hash, PartialEq, Eq, Clone)]
 enum DictKey {
     None_,
-    Bool(bool),
-    /// `Int` / 整数 `Float`（|f|<2^53 且 fract==0）都归一到这，
-    /// 于是 `1` 与 `1.0` 落到同一桶（`1 == 1.0` 为真，哈希必须一致）。
+    /// `Int` / 整数 `Float`（|f|<2^53 且 fract==0）/ **布尔**都归一到这。
+    ///
+    /// 归一到一起的判据是 `Val::eq`：`1 == 1.0`、`真 == 1`、`假 == 0`
+    /// 都是真 → 它们的哈希键必须相同（哈希与相等必须一致）。
     Int(i128),
     Str(String),
+    /// **非整数浮点**（`1.5` / `±inf`）。存 `to_bits()`，`-0.0` 已归一成正零。
+    ///
+    /// ⚠️ **只有集合用它**（`set_key`）—— 字典**不能**：精确小数可以做字典键，
+    /// 而 `1.5 == 精确("1.5")` 为真；浮点走索引、精确小数回退线性的活，
+    /// 「同一个键」会裂成两个。集合不收精确小数（`push` 就拒了），没这顾虑。
+    Float(u64),
 }
 pub(crate) type JDict = Rc<RefCell<Dict>>;
 
@@ -136,8 +143,137 @@ impl PartialEq for Dict {
     }
 }
 /// 基石集合（共享可变，**按插入顺序**去重——对齐 Python 侧 JishiSet：
-/// 刻意不用哈希集合，迭代顺序依赖哈希种子会让同一程序两次运行输出不同）
-pub(crate) type JSet = Rc<RefCell<Vec<Val>>>;
+/// 迭代顺序必须确定，**不能依赖哈希种子**，否则同一程序两次运行输出不同）。
+///
+/// `items` 保序（迭代 / 显示 / `转列表` / `==` 都依赖它），`index` 让
+/// `包含` / `添加` 的去重 / `移除` 的定位从 O(n) 降到 O(1)。
+///
+/// ⚠️ **`items` 里可能有空洞**（`None`）：保序集合删掉中间某个元素之后，
+/// 其余元素的顺序不能变，把整个尾巴前移是 O(n)，于是「删 n 个」就是 O(n²)。
+/// 改成**打墓碑**（置 `None`）+ **空洞过半时压缩一次** → 摊还 O(1) 一次删除。
+/// 压缩会重建 `items` **和** `index`（下标全变了，两者必须一起重建）。
+///
+/// ⚠️ 为什么不是 `HashSet<Val>`：见 `Dict` 的同一段注释（`==` 是跨类型数值
+/// 相等 → 不能给 `Val` 直接实现 `Hash`）；另外这里还多一条 **顺序必须确定**。
+pub(crate) struct Set {
+    items: Vec<Option<Val>>,
+    /// 空洞个数（`len()` 要减掉）。
+    holes: usize,
+    index: HashMap<DictKey, usize>,
+}
+
+impl Set {
+    fn new() -> Set {
+        Set { items: Vec::new(), holes: 0, index: HashMap::new() }
+    }
+    /// 按插入顺序迭代，**跳过空洞**。
+    fn iter(&self) -> impl Iterator<Item = &Val> {
+        self.items.iter().filter_map(|slot| slot.as_ref())
+    }
+    fn len(&self) -> usize {
+        self.items.len() - self.holes
+    }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn clear(&mut self) {
+        self.items.clear();
+        self.holes = 0;
+        self.index.clear();
+    }
+    /// 元素是否在集合里。
+    fn contains(&self, v: &Val) -> bool {
+        self.position(v).is_some()
+    }
+    /// 元素在 `items` 里的下标（不在则 `None`）。索引里的下标**一定指向实体**
+    /// （删除时同步摘掉索引项），所以槽位是 `Some`。
+    fn position(&self, v: &Val) -> Option<usize> {
+        match set_key(v) {
+            Some(k) => self.index.get(&k).copied(),
+            // 只有 NaN 走到这（见 `set_key`）：线性比，`NaN != NaN` → 永远找不到 ✓
+            None => self.items.iter().position(|slot| slot.as_ref().is_some_and(|x| x == v)),
+        }
+    }
+    /// 放入一个元素（已存在就忽略）。类型检查见 `set_push`。
+    fn push(&mut self, v: Val) -> Result<(), JishiError> {
+        set_push(self, v)
+    }
+    /// 删掉一个元素，返回是否真删掉了。
+    fn remove(&mut self, v: &Val) -> bool {
+        let pos = match self.position(v) {
+            Some(p) => p,
+            None => return false,
+        };
+        // 打墓碑：**不移动**后面的元素（保序 + O(1)）
+        self.items[pos] = None;
+        self.holes += 1;
+        if let Some(k) = set_key(v) {
+            self.index.remove(&k);
+        }
+        // 空洞过半才压（于是 n 次删除里大约压一次，摊还 O(1) 每次）
+        if self.holes * 2 > self.items.len() {
+            self.compact();
+        }
+        true
+    }
+    /// 压掉空洞：重建 `items` 与 `index`（下标全变，必须一起重建）。
+    fn compact(&mut self) {
+        let mut items: Vec<Option<Val>> = Vec::with_capacity(self.len());
+        let mut index: HashMap<DictKey, usize> = HashMap::with_capacity(self.index.len());
+        for slot in self.items.drain(..) {
+            if let Some(v) = slot {
+                if let Some(k) = set_key(&v) {
+                    index.insert(k, items.len());
+                }
+                items.push(Some(v));
+            }
+        }
+        self.items = items;
+        self.holes = 0;
+        self.index = index;
+    }
+    pub(crate) fn to_items(&self) -> Vec<Val> {
+        self.iter().cloned().collect()
+    }
+}
+
+pub(crate) type JSet = Rc<RefCell<Set>>;
+
+/// 给「一堆值」建临时索引，用于集合运算（并 / 交 / 差 / 对称差）的成员判断。
+///
+/// 为什么不直接用 `Set`：这些运算的另一个操作数是 `as_iterable` 来的任意
+/// `Vec<Val>`，**可能含容器 / 精确小数**（那些不能进集合，但**可以**参与比较——
+/// 老实现就是拿 `any(|y| y == x)` 逐个比的）。直接建 `Set` 会平白多报一个
+/// 「不能放进集合」的错，是**语义变更**。
+///
+/// 所以这里只把**可哈希**的放进 `index`，其余留在 `rest` 线性比 ——
+/// 两者合起来与逐个 `==` 等价（`set_key` 与 `Val::eq` 一致），
+/// 而正常输入（元素都是数字 / 文本）走全索引，O(n+m)。
+struct Lookup<'a> {
+    index: HashMap<DictKey, usize>,
+    rest: Vec<&'a Val>,
+}
+
+impl<'a> Lookup<'a> {
+    fn build(vals: &'a [Val]) -> Lookup<'a> {
+        let mut index = HashMap::new();
+        let mut rest = Vec::new();
+        for (i, v) in vals.iter().enumerate() {
+            match set_key(v) {
+                // 重复元素保留第一个（判断「在不在」无影响，但要确定）
+                Some(k) => { index.entry(k).or_insert(i); }
+                None => rest.push(v),
+            }
+        }
+        Lookup { index, rest }
+    }
+    fn contains(&self, v: &Val) -> bool {
+        match set_key(v) {
+            Some(k) => self.index.contains_key(&k),
+            None => self.rest.iter().any(|y| *y == v),
+        }
+    }
+}
 /// 基石实例（共享可变）。必须是共享的：`自身.字段 = 值` 走 SET_ATTR，
 /// 拿到的是 `Val` 的一份拷贝——不共享的话就等于改副本，**不报错、静默失效**。
 type JInst = Rc<RefCell<Instance>>;
@@ -245,7 +381,10 @@ const INT_KEY_LIMIT: i128 = 1 << 53;
 fn dict_key(v: &Val) -> Option<DictKey> {
     match v {
         Val::None_ => Some(DictKey::None_),
-        Val::Bool(b) => Some(DictKey::Bool(*b)),
+        // 布尔按数字归键：`真 == 1`、`假 == 0` 为真（见 `Val::eq`），
+        // 哈希必须跟着一致，否则 `d[真]` 与 `d[1]` 会裂成两个键。
+        // Node 侧的 `setKey` 一直这么做（注释里写着「Python 里 True == 1」）。
+        Val::Bool(b) => Some(DictKey::Int(if *b { 1 } else { 0 })),
         Val::Int(i) if i.abs() < INT_KEY_LIMIT => Some(DictKey::Int(*i)),
         Val::Float(f) => {
             // `-0.0 == 0.0` 为真，所以先归一到正零
@@ -254,6 +393,37 @@ fn dict_key(v: &Val) -> Option<DictKey> {
                 Some(DictKey::Int(f as i128))
             } else {
                 None
+            }
+        }
+        Val::Str(s) => Some(DictKey::Str(s.clone())),
+        _ => None,
+    }
+}
+
+/// 集合元素的「可哈希规范化」。
+///
+/// 与 `dict_key` 只差一处：**非整数浮点也进索引**（`DictKey::Float`）。
+/// 字典不能这么做 —— 精确小数可以做字典键，而 `1.5 == 精确("1.5")` 为真，
+/// 浮点走索引、精确小数回退线性的话，「同一个键」会裂成两个。集合在 `push`
+/// 里就拒收精确小数 / 容器，所以那条顾虑不存在，可以**全量走索引**。
+///
+/// 返回 `None` 的唯一情形是 `NaN` —— `NaN != NaN`，两个 NaN 是**不同的元素**，
+/// 给它任何哈希键都会把「不相等的值」当成同一个（线性比较不会有这个问题）。
+fn set_key(v: &Val) -> Option<DictKey> {
+    match v {
+        Val::None_ => Some(DictKey::None_),
+        Val::Bool(b) => Some(DictKey::Int(if *b { 1 } else { 0 })),  // 见 `dict_key`
+        Val::Int(i) => Some(DictKey::Int(*i)),
+        Val::Float(f) => {
+            if f.is_nan() {
+                return None;
+            }
+            // `-0.0 == 0.0` 为真 → 先归一到正零（否则两个「相等」的值落不同桶）
+            let f = if *f == 0.0 { 0.0 } else { *f };
+            if f.fract() == 0.0 && f.abs() < INT_KEY_LIMIT as f64 {
+                Some(DictKey::Int(f as i128))     // `1.0` 与 `1` 同键
+            } else {
+                Some(DictKey::Float(f.to_bits()))  // `1.5` / `±inf`
             }
         }
         Val::Str(s) => Some(DictKey::Str(s.clone())),
@@ -385,7 +555,7 @@ fn slice_repr(sl: &SliceVal) -> String {
 
 /// 造一个集合值（按插入顺序去重，元素重复就丢掉后来的）。
 pub(crate) fn set_new(items: Vec<Val>) -> Result<Val, JishiError> {
-    let mut out: Vec<Val> = Vec::new();
+    let mut out = Set::new();
     for it in items {
         set_push(&mut out, it)?;
     }
@@ -398,12 +568,17 @@ pub(crate) fn set_new(items: Vec<Val>) -> Result<Val, JishiError> {
 /// 所以**列表/字典/集合放不进去**；精确小数也放不进去（Python 侧
 /// `__hash__ = None`）。函数/类在 Rust 里是值类型、没有稳定身份，
 /// 同样明确拒绝——静默塞进去会让 `2 在 集合` 出现「有时查得到有时查不到」。
-pub(crate) fn set_push(items: &mut Vec<Val>, v: Val) -> Result<(), JishiError> {
+pub(crate) fn set_push(s: &mut Set, v: Val) -> Result<(), JishiError> {
     match &v {
         Val::List(_) | Val::Dict(_) | Val::Set(_) | Val::Dec(_) => {
-            return Err(err("类型错误",
-                format!("「{}」不能放进集合，集合的元素要是不可变的（数字、文本…）",
-                        display(&v))))
+            // ⚠️ 文案与 Python 侧 `JishiSet._add` **逐字相同**：message 短、
+            // 该怎么写放在 **hint** 里（渲染成单独一行「提示：…」）。
+            // 以前这里把 hint 揉进 message、且少了后半句「列表和字典放不进去」
+            // —— 同一件事三个执行器三个说法（Node 又是第三个变体）。R6 主体撞出。
+            return Err(err_with_hint(
+                "类型错误",
+                format!("「{}」不能放进集合", display(&v)),
+                "集合的元素要是不可变的（数字、文本…）；列表和字典放不进去".to_string()))
         }
         Val::Func(_) | Val::Class(_) | Val::Builtin(_, _)
         | Val::BoundMethod(_) | Val::Cell(_) => {
@@ -412,8 +587,17 @@ pub(crate) fn set_push(items: &mut Vec<Val>, v: Val) -> Result<(), JishiError> {
         }
         _ => {}
     }
-    if !items.iter().any(|x| *x == v) {
-        items.push(v);
+    let key = set_key(&v);
+    let dup = match &key {
+        Some(k) => s.index.contains_key(k),
+        None => s.items.iter().any(|slot| slot.as_ref().is_some_and(|x| *x == v)),
+    };
+    if !dup {
+        s.items.push(Some(v));
+        if let Some(k) = key {
+            let pos = s.items.len() - 1;
+            s.index.insert(k, pos);
+        }
     }
     Ok(())
 }
@@ -2420,36 +2604,52 @@ impl VM {
             }
             // -- 集合方法（M29）--
             // 与列表一样，改的是共享容器本身；`并集` 等返回**新**集合。
-            (Val::Set(s), "添加") => { need_args(&name, args, 1, 1)?; set_push(&mut s.borrow_mut(), args[0].clone())?; Ok(Val::None_) }
+            (Val::Set(s), "添加") => { need_args(&name, args, 1, 1)?; s.borrow_mut().push(args[0].clone())?; Ok(Val::None_) }
             (Val::Set(s), "移除") => {
                 need_args(&name, args, 1, 1)?;
-                let mut s = s.borrow_mut();
-                match s.iter().position(|x| *x == args[0]) {
-                    Some(i) => { s.remove(i); Ok(Val::None_) }
-                    None => Err(err("值错误",
-                        format!("集合里没有「{}」，没法移除", display(&args[0])))),
+                if s.borrow_mut().remove(&args[0]) {
+                    Ok(Val::None_)
+                } else {
+                    Err(err("值错误",
+                        format!("集合里没有「{}」，没法移除", display(&args[0]))))
                 }
             }
             (Val::Set(s), "丢弃") => {
                 need_args(&name, args, 1, 1)?;
-                let mut s = s.borrow_mut();
-                if let Some(i) = s.iter().position(|x| *x == args[0]) { s.remove(i); }
+                s.borrow_mut().remove(&args[0]);
                 Ok(Val::None_)
             }
-            (Val::Set(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.borrow().iter().any(|x| *x == args[0]))) }
-            (Val::Set(s), "并集") => { need_args(&name, args, 1, 1)?; let other = as_iterable(&args[0], "「并集」的另一个集合")?; let mut v = s.borrow().clone(); v.extend(other); set_new(v) }
-            (Val::Set(s), "交集") => { need_args(&name, args, 1, 1)?; let other = as_iterable(&args[0], "「交集」的另一个集合")?; let v: Vec<Val> = s.borrow().iter().filter(|x| other.iter().any(|y| y == *x)).cloned().collect(); set_new(v) }
-            (Val::Set(s), "差集") => { need_args(&name, args, 1, 1)?; let other = as_iterable(&args[0], "「差集」的另一个集合")?; let v: Vec<Val> = s.borrow().iter().filter(|x| !other.iter().any(|y| y == *x)).cloned().collect(); set_new(v) }
+            (Val::Set(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.borrow().contains(&args[0]))) }
+            (Val::Set(s), "并集") => {
+                need_args(&name, args, 1, 1)?;
+                let other = as_iterable(&args[0], "「并集」的另一个集合")?;
+                let mut v = s.borrow().to_items(); v.extend(other); set_new(v)
+            }
+            (Val::Set(s), "交集") => {
+                need_args(&name, args, 1, 1)?;
+                let other = as_iterable(&args[0], "「交集」的另一个集合")?;
+                let look = Lookup::build(&other);
+                let v: Vec<Val> = s.borrow().iter().filter(|x| look.contains(x)).cloned().collect();
+                set_new(v)
+            }
+            (Val::Set(s), "差集") => {
+                need_args(&name, args, 1, 1)?;
+                let other = as_iterable(&args[0], "「差集」的另一个集合")?;
+                let look = Lookup::build(&other);
+                let v: Vec<Val> = s.borrow().iter().filter(|x| !look.contains(x)).cloned().collect();
+                set_new(v)
+            }
             (Val::Set(s), "对称差") => {
                 need_args(&name, args, 1, 1)?;
                 let other = as_iterable(&args[0], "「对称差」的另一个集合")?;
-                let a: Vec<Val> = s.borrow().iter().filter(|x| !other.iter().any(|y| y == *x)).cloned().collect();
-                let b: Vec<Val> = other.iter().filter(|x| !s.borrow().iter().any(|y| y == *x)).cloned().collect();
+                let look = Lookup::build(&other);
+                let a: Vec<Val> = s.borrow().iter().filter(|x| !look.contains(x)).cloned().collect();
+                let b: Vec<Val> = other.iter().filter(|x| !s.borrow().contains(x)).cloned().collect();
                 let mut v = a; v.extend(b); set_new(v)
             }
             (Val::Set(s), "清空") => { need_args(&name, args, 0, 0)?; s.borrow_mut().clear(); Ok(Val::None_) }
-            (Val::Set(s), "转列表") => { need_args(&name, args, 0, 0)?; Ok(list_new(s.borrow().clone())) }
-            (Val::Set(s), "复制") => { need_args(&name, args, 0, 0)?; set_new(s.borrow().clone()) }
+            (Val::Set(s), "转列表") => { need_args(&name, args, 0, 0)?; Ok(list_new(s.borrow().to_items())) }
+            (Val::Set(s), "复制") => { need_args(&name, args, 0, 0)?; set_new(s.borrow().to_items()) }
             // -- 文件方法（M29）--
             (Val::File(f), _) => file_call(&name, f, args),
             // -- 精确小数方法（M29）--
@@ -2502,7 +2702,7 @@ impl VM {
                 Ok(format!("{{{}}}", parts.join(", ")))
             }
             Val::Set(s) => {
-                let items = s.borrow().clone();
+                let items = s.borrow().to_items();
                 let mut parts = Vec::with_capacity(items.len());
                 for x in &items { parts.push(self.format_value(x, false)?); }
                 if parts.is_empty() { Ok("集合()".to_string()) }
@@ -2921,7 +3121,7 @@ fn contains(container: &Val, item: &Val) -> Result<bool, JishiError> {
             let needle = match item { Val::Str(t) => t.clone(), other => display(other) };
             Ok(s.contains(&needle))
         }
-        Val::Set(s) => Ok(s.borrow().iter().any(|x| x == item)),
+        Val::Set(s) => Ok(s.borrow().contains(item)),
         _ => Err(err("类型错误",
             format!("「{}」不能在「{}」里找", display(item), display(container)))),
     }
@@ -2989,6 +3189,23 @@ impl PartialEq for Val {
         match (self, other) {
             (Val::None_, Val::None_) => true,
             (Val::Bool(a), Val::Bool(b)) => a == b,
+            // 布尔与数值：`真 == 1` / `假 == 0` / `真 == 1.0` 都是**真**。
+            //
+            // ⚠️ **只靠这一条就对不齐 —— 键的归一必须同时改**（见 `dict_key` /
+            // `set_key`）：`==` 说「相等」而哈希键不同，字典 / 集合就会
+            // 「查得到」变「查不到」。两处是一对。
+            //
+            // 🔴 这是 R6 主体做集合时**撞出来的既有分叉**：树遍历 / Python VM /
+            // C VM / Node 四个一直给「真」（Python 里 `bool` 是 `int` 的子类，
+            // 四侧都照这个语义），**只有 Rust 的 `==` 单独给「假」**——
+            // 于是 `{真, 1}` 在 Rust 上是两个元素、`真 在 [1]` 是假。
+            // 语料里没有这个形状，所以全语料体检一直绿的。
+            (Val::Bool(a), Val::Int(b)) | (Val::Int(b), Val::Bool(a)) => {
+                (*a as i128) == *b
+            }
+            (Val::Bool(a), Val::Float(b)) | (Val::Float(b), Val::Bool(a)) => {
+                (if *a { 1.0 } else { 0.0 }) == *b
+            }
             (Val::Int(a), Val::Int(b)) => a == b,
             (Val::Int(a), Val::Float(b)) | (Val::Float(b), Val::Int(a)) => *a as f64 == *b,
             (Val::Float(a), Val::Float(b)) => a == b,
@@ -3012,7 +3229,7 @@ impl PartialEq for Val {
             // 集合相等与**顺序无关**（对齐 Python 侧 `JishiSet.__eq__`）
             (Val::Set(a), Val::Set(b)) => {
                 let (x, y) = (a.borrow(), b.borrow());
-                x.len() == y.len() && x.iter().all(|v| y.iter().any(|w| w == v))
+                x.len() == y.len() && x.iter().all(|v| y.contains(v))
             }
             // 实例没有自定义 `==`，按身份比（Python 同）
             (Val::Instance(a), Val::Instance(b)) => Rc::ptr_eq(a, b),
@@ -3593,7 +3810,7 @@ fn seq_of(args: &[Val], vm: &mut VM) -> Result<Option<Vec<Val>>, JishiError> {
     if args.len() != 1 { return Ok(None); }
     match &args[0] {
         Val::List(l) => Ok(Some(l.borrow().clone())),
-        Val::Set(s) => Ok(Some(s.borrow().clone())),
+        Val::Set(s) => Ok(Some(s.borrow().to_items())),
         Val::Dict(d) => Ok(Some(d.borrow().iter().map(|(k, _)| k.clone()).collect())),
         Val::Instance(i) => {
             if i.borrow().class.methods.contains_key("迭代") {
@@ -4190,7 +4407,7 @@ fn ensure_callable(v: &Val, name: &str) -> Result<Val, JishiError> {
 fn as_iterable(v: &Val, what: &str) -> Result<Vec<Val>, JishiError> {
     match v {
         Val::List(l) => Ok(l.borrow().clone()),
-        Val::Set(s) => Ok(s.borrow().clone()),
+        Val::Set(s) => Ok(s.borrow().to_items()),
         Val::Str(s) => Ok(s.chars().map(|c| Val::Str(c.to_string())).collect()),
         Val::Dict(d) => Ok(d.borrow().iter().map(|(k, _)| k.clone()).collect()),
         other => Err(err("类型错误", format!(
@@ -4398,7 +4615,7 @@ fn make_iterator(obj: Val) -> Result<Val, JishiError> {
     // ⚠️ 顺序：`iter_next` 从**尾部**弹，所以这里必须**反转**（见 `reversed_iter`）。
     match obj {
         Val::List(l) => Ok(reversed_iter(l.borrow().clone())),
-        Val::Set(s) => Ok(reversed_iter(s.borrow().clone())),
+        Val::Set(s) => Ok(reversed_iter(s.borrow().to_items())),
         Val::Str(s) => Ok(reversed_iter(
             s.chars().map(|c| Val::Str(c.to_string())).collect())),
         Val::Dict(d) => Ok(reversed_iter(

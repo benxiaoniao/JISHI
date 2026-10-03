@@ -281,7 +281,7 @@ pub(crate) fn to_vec(v: &Val) -> Result<Vec<Val>, JishiError> {
         Val::List(l) => Ok(l.borrow().clone()),
         Val::Str(s) => Ok(s.chars().map(|c| Val::Str(c.to_string())).collect()),
         Val::Dict(d) => Ok(d.borrow().iter().map(|(k, _)| k.clone()).collect()),
-        Val::Set(s) => Ok(s.borrow().clone()),
+        Val::Set(s) => Ok(s.borrow().to_items()),
         _ => Err(err(
             "类型错误",
             format!("「{}」不能当序列用，需要列表、文本、集合或字典", display(v)),

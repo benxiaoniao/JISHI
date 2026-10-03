@@ -905,8 +905,12 @@ class JishiSet {
 
   add(v) {
     if (!hashable(v)) {
-      throw typeErr(`「${display(v)}」不能放进集合，集合的元素要是不可变的`
-        + `（数字、文本…）；列表、字典和集合本身放不进去`);
+      // ⚠️ 与 Python 侧 `JishiSet._add` **逐字相同**：message 短，
+      // 「该怎么写」放在 hint（渲染成单独一行「提示：…」）。
+      // 以前这里把 hint 揉进 message、还多写了半句「集合本身放不进去」
+      // —— 同一件事三个执行器三个说法（R6 主体撞出）。位置由调用方补。
+      throw typeErr(`「${display(v)}」不能放进集合`, null, null,
+        '集合的元素要是不可变的（数字、文本…）；列表和字典放不进去');
     }
     const k = setKey(v);
     if (!this.map.has(k)) this.map.set(k, v);   // 保留首次出现的那个
@@ -2767,7 +2771,11 @@ const SET_METHODS = {
     try {
       obj.add(args[0]);
     } catch (e) {
-      if (e instanceof JishiError) throw typeErr(e.message, line, col);
+      // ⚠️ catch 只为**补上调用点位置**（`add` 内部手里没有 line/col），
+      // 但重建时**别把原来的字段丢掉** —— `hint` 就是这么被丢过一次：
+      // 集合「不能放进集合」的提示语在 Node 上一直不显示（R6 主体撞出）。
+      // 加字段时记得一起带过来。
+      if (e instanceof JishiError) throw typeErr(e.message, line, col, e.hint);
       throw e;
     }
     return null;
