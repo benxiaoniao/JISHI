@@ -1,0 +1,68 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": [
+      1,
+      1
+    ],
+    "修正": null,
+    "列": 1,
+    "提示": "例如：\n如果 真：\n    打印(1)",
+    "标题": "这个语句需要一个代码块",
+    "消息": "这个语句需要一个代码块：换行后缩进，或写一个冒号表示空块",
+    "渲染": "错误 E0202：这个语句需要一个代码块（这个语句需要一个代码块：换行后缩进，或写一个冒号表示空块）\n  ┌─ tests/error_cases/41_块首后空行.jsh:2:1\n  │\n  │\n  提示：例如：\n如果 真：\n    打印(1)",
+    "码": "E0202",
+    "行": 2,
+    "阶段": "语法"
+  },
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 1,
+      "source_line": "如果 真：",
+      "type": "KEYWORD",
+      "value": "如果",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 1,
+      "source_line": "如果 真：",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "如果 真：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "如果 真：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:ebf84649fb3ea5b9",
+  "语料": "tests/error_cases/41_块首后空行.jsh"
+}

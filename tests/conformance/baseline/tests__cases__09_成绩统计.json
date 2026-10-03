@@ -1,0 +1,1003 @@
+{
+  "ast": {
+    "body": [
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 3,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "总数",
+              "line": 3,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 12,
+              "line": 3,
+              "value": 0,
+              "类型": "Num"
+            },
+            "类型": "Assign"
+          },
+          {
+            "body": [
+              {
+                "col": 9,
+                "line": 5,
+                "op": "+=",
+                "target": {
+                  "col": 9,
+                  "id": "总数",
+                  "line": 5,
+                  "类型": "Name"
+                },
+                "value": {
+                  "col": 15,
+                  "id": "分数",
+                  "line": 5,
+                  "类型": "Name"
+                },
+                "类型": "Assign"
+              }
+            ],
+            "col": 5,
+            "iter": {
+              "col": 13,
+              "id": "分数们",
+              "line": 4,
+              "类型": "Name"
+            },
+            "line": 4,
+            "target": {
+              "col": 8,
+              "id": "分数",
+              "line": 4,
+              "类型": "Name"
+            },
+            "类型": "For"
+          },
+          {
+            "col": 5,
+            "line": 6,
+            "value": {
+              "col": 11,
+              "left": {
+                "col": 8,
+                "id": "总数",
+                "line": 6,
+                "类型": "Name"
+              },
+              "line": 6,
+              "op": "/",
+              "right": {
+                "args": [
+                  {
+                    "col": 16,
+                    "id": "分数们",
+                    "line": 6,
+                    "类型": "Name"
+                  }
+                ],
+                "col": 15,
+                "func": {
+                  "col": 13,
+                  "id": "长度",
+                  "line": 6,
+                  "类型": "Name"
+                },
+                "keywords": [],
+                "line": 6,
+                "类型": "Call"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 2,
+        "name": "求平均",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "分数们"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "line": 8,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "成绩",
+          "line": 8,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "elements": [
+            {
+              "col": 9,
+              "line": 8,
+              "value": 85,
+              "类型": "Num"
+            },
+            {
+              "col": 13,
+              "line": 8,
+              "value": 92,
+              "类型": "Num"
+            },
+            {
+              "col": 17,
+              "line": 8,
+              "value": 78,
+              "类型": "Num"
+            }
+          ],
+          "line": 8,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 8,
+                  "id": "成绩",
+                  "line": 9,
+                  "类型": "Name"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 4,
+                "id": "求平均",
+                "line": 9,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 9,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 9,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 9,
+          "类型": "Call"
+        },
+        "line": 9,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "b3ef1ec4f076034ca3ab381708432bf94b24e5b170fbe845e9218b1d5e1cc484",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            22,
+            1,
+            0,
+            0,
+            2,
+            1,
+            3,
+            2,
+            0,
+            0,
+            2,
+            1,
+            1,
+            2,
+            0,
+            0,
+            8,
+            9,
+            1,
+            3,
+            0,
+            0,
+            8,
+            13,
+            1,
+            4,
+            0,
+            0,
+            8,
+            17,
+            23,
+            3,
+            0,
+            0,
+            8,
+            8,
+            3,
+            3,
+            0,
+            0,
+            8,
+            1,
+            2,
+            4,
+            0,
+            0,
+            9,
+            1,
+            2,
+            2,
+            0,
+            0,
+            9,
+            4,
+            2,
+            3,
+            0,
+            0,
+            9,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            9,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            9,
+            3,
+            38,
+            0,
+            0,
+            0,
+            9,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 2,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            3,
+            12,
+            5,
+            2,
+            0,
+            0,
+            3,
+            5,
+            4,
+            0,
+            0,
+            0,
+            4,
+            13,
+            29,
+            0,
+            0,
+            0,
+            4,
+            5,
+            34,
+            5,
+            14,
+            0,
+            4,
+            5,
+            30,
+            12,
+            0,
+            0,
+            4,
+            5,
+            5,
+            1,
+            0,
+            0,
+            4,
+            5,
+            4,
+            2,
+            0,
+            0,
+            5,
+            9,
+            4,
+            1,
+            0,
+            0,
+            5,
+            15,
+            13,
+            0,
+            0,
+            0,
+            5,
+            9,
+            5,
+            2,
+            0,
+            0,
+            5,
+            9,
+            16,
+            5,
+            0,
+            0,
+            4,
+            5,
+            35,
+            0,
+            0,
+            0,
+            4,
+            5,
+            16,
+            16,
+            0,
+            0,
+            4,
+            5,
+            9,
+            0,
+            0,
+            0,
+            4,
+            5,
+            35,
+            0,
+            0,
+            0,
+            4,
+            5,
+            4,
+            2,
+            0,
+            0,
+            6,
+            8,
+            2,
+            1,
+            0,
+            0,
+            6,
+            13,
+            4,
+            0,
+            0,
+            0,
+            6,
+            16,
+            20,
+            1,
+            -1,
+            0,
+            6,
+            15,
+            13,
+            3,
+            0,
+            0,
+            6,
+            11,
+            21,
+            0,
+            0,
+            0,
+            6,
+            5,
+            1,
+            1,
+            0,
+            0,
+            2,
+            1,
+            21,
+            0,
+            0,
+            0,
+            2,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "分数们",
+            "分数",
+            "总数"
+          ],
+          "name": "求平均",
+          "nlocals": 3,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "分数们"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 0
+        },
+        {
+          "t": "none"
+        },
+        {
+          "t": "int",
+          "v": 85
+        },
+        {
+          "t": "int",
+          "v": 92
+        },
+        {
+          "t": "int",
+          "v": 78
+        }
+      ],
+      "filename": "tests/cases/09_成绩统计.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "分数们",
+        "长度",
+        "求平均",
+        "成绩",
+        "打印"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 2,
+      "source_line": "函数 求平均(分数们)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "函数 求平均(分数们)：",
+      "type": "NAME",
+      "value": "求平均",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 2,
+      "source_line": "函数 求平均(分数们)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 2,
+      "source_line": "函数 求平均(分数们)：",
+      "type": "NAME",
+      "value": "分数们",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 2,
+      "source_line": "函数 求平均(分数们)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 2,
+      "source_line": "函数 求平均(分数们)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "函数 求平均(分数们)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "    令 总数 = 0",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 3,
+      "source_line": "    令 总数 = 0",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 3,
+      "source_line": "    令 总数 = 0",
+      "type": "NAME",
+      "value": "总数",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 3,
+      "source_line": "    令 总数 = 0",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 3,
+      "source_line": "    令 总数 = 0",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "    令 总数 = 0",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 4,
+      "source_line": "    遍历 分数 在 分数们：",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 4,
+      "source_line": "    遍历 分数 在 分数们：",
+      "type": "NAME",
+      "value": "分数",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 4,
+      "source_line": "    遍历 分数 在 分数们：",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 15,
+      "line": 4,
+      "source_line": "    遍历 分数 在 分数们：",
+      "type": "NAME",
+      "value": "分数们",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 4,
+      "source_line": "    遍历 分数 在 分数们：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "    遍历 分数 在 分数们：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "        总数 += 分数",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 5,
+      "source_line": "        总数 += 分数",
+      "type": "NAME",
+      "value": "总数",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 5,
+      "source_line": "        总数 += 分数",
+      "type": "OP",
+      "value": "+=",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 5,
+      "source_line": "        总数 += 分数",
+      "type": "NAME",
+      "value": "分数",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "        总数 += 分数",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "    返回 总数 / 长度(分数们)",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 6,
+      "source_line": "    返回 总数 / 长度(分数们)",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 6,
+      "source_line": "    返回 总数 / 长度(分数们)",
+      "type": "NAME",
+      "value": "总数",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 6,
+      "source_line": "    返回 总数 / 长度(分数们)",
+      "type": "OP",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 6,
+      "source_line": "    返回 总数 / 长度(分数们)",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 6,
+      "source_line": "    返回 总数 / 长度(分数们)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 18,
+      "line": 6,
+      "source_line": "    返回 总数 / 长度(分数们)",
+      "type": "NAME",
+      "value": "分数们",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 6,
+      "source_line": "    返回 总数 / 长度(分数们)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "    返回 总数 / 长度(分数们)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "NAME",
+      "value": "成绩",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "NUMBER",
+      "value": 85,
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "NUMBER",
+      "value": 92,
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "NUMBER",
+      "value": 78,
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "令 成绩 = [85, 92, 78]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 9,
+      "source_line": "打印(求平均(成绩))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 9,
+      "source_line": "打印(求平均(成绩))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 9,
+      "source_line": "打印(求平均(成绩))",
+      "type": "NAME",
+      "value": "求平均",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 9,
+      "source_line": "打印(求平均(成绩))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 9,
+      "source_line": "打印(求平均(成绩))",
+      "type": "NAME",
+      "value": "成绩",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 9,
+      "source_line": "打印(求平均(成绩))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 9,
+      "source_line": "打印(求平均(成绩))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "打印(求平均(成绩))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:2d09bd43b0318bbc",
+  "语料": "tests/cases/09_成绩统计.jsh"
+}

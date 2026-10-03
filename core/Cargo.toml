@@ -1,0 +1,21 @@
+[package]
+name = "jishi-core"
+version = "0.2.1"
+edition = "2021"
+description = "基石（jishi）前端核心 —— R 线把前端从 Python 换成 Rust，本 crate 是它的落脚点（R2 起：分词器）。"
+license = "MIT-0"
+publish = false
+
+[lib]
+# 编成 Python 扩展模块：产物 `_core.dll/.so/.dylib` 复制成 `jishi/_core.pyd`
+# （Linux/macOS 是 `_core.so`）后 `import jishi._core` 即可。
+name = "_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.29", features = ["extension-module"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

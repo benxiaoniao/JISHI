@@ -1,0 +1,14 @@
+{
+  "name": "jishi-vm",
+  "version": "0.1.0",
+  "description": "基石（jishi）中文编程语言的 JavaScript 字节码虚拟机，消费 M13.1 产出的 JSON 字节码，在 Node.js 里独立执行基石代码，无需 Python、无需 C VM、零第三方依赖。",
+  "main": "index.js",
+  "scripts": {
+    "self-test": "node index.js --self-test"
+  },
+  "keywords": ["jishi", "基石", "中文编程", "字节码", "虚拟机", "vm"],
+  "license": "MIT-0",
+  "engines": {
+    "node": ">=14"
+  }
+}

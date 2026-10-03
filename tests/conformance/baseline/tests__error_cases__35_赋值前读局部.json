@@ -1,0 +1,571 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 1,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "全局",
+          "line": 1,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "line": 1,
+          "value": 99,
+          "类型": "Num"
+        },
+        "类型": "Assign"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 8,
+                  "id": "全局",
+                  "line": 4,
+                  "类型": "Name"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 5,
+                "id": "打印",
+                "line": 4,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 4,
+              "类型": "Call"
+            },
+            "line": 4,
+            "类型": "ExprStmt"
+          },
+          {
+            "col": 5,
+            "line": 5,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "全局",
+              "line": 5,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 12,
+              "id": "值",
+              "line": 5,
+              "类型": "Name"
+            },
+            "类型": "Assign"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 3,
+        "name": "读",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "值"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 3,
+              "line": 7,
+              "value": 1,
+              "类型": "Num"
+            }
+          ],
+          "col": 2,
+          "func": {
+            "col": 1,
+            "id": "读",
+            "line": 7,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 7,
+          "类型": "Call"
+        },
+        "line": 7,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "e73cac2a1bd203a2fcdd2a8e387758fa35d72711b1c6591d4cd97872bf9b94a4",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            8,
+            3,
+            0,
+            0,
+            0,
+            1,
+            1,
+            22,
+            1,
+            0,
+            0,
+            3,
+            1,
+            3,
+            3,
+            0,
+            0,
+            3,
+            1,
+            2,
+            3,
+            0,
+            0,
+            7,
+            1,
+            1,
+            2,
+            0,
+            0,
+            7,
+            3,
+            20,
+            1,
+            -1,
+            0,
+            7,
+            2,
+            38,
+            0,
+            0,
+            0,
+            7,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 3,
+          "freevars": [],
+          "instrs": [
+            2,
+            2,
+            0,
+            0,
+            4,
+            5,
+            4,
+            1,
+            0,
+            0,
+            4,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            7,
+            9,
+            0,
+            0,
+            0,
+            4,
+            5,
+            4,
+            0,
+            0,
+            0,
+            5,
+            12,
+            5,
+            1,
+            0,
+            0,
+            5,
+            5,
+            1,
+            1,
+            0,
+            0,
+            3,
+            1,
+            21,
+            0,
+            0,
+            0,
+            3,
+            1
+          ],
+          "local_hints": {
+            "1": "外层也有一个叫「全局」的变量。在这个函数里给它赋过值，它就成了这个函数的局部变量，赋值之前不能读取"
+          },
+          "local_names": [
+            "值",
+            "全局"
+          ],
+          "name": "读",
+          "nlocals": 2,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            1
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "值"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 99
+        },
+        {
+          "t": "none"
+        },
+        {
+          "t": "int",
+          "v": 1
+        }
+      ],
+      "filename": "tests/error_cases/35_赋值前读局部.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "全局",
+        "值",
+        "打印",
+        "读"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 全局 = 99",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 1,
+      "source_line": "令 全局 = 99",
+      "type": "NAME",
+      "value": "全局",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 1,
+      "source_line": "令 全局 = 99",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 1,
+      "source_line": "令 全局 = 99",
+      "type": "NUMBER",
+      "value": 99,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 全局 = 99",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 3,
+      "source_line": "函数 读(值)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 3,
+      "source_line": "函数 读(值)：",
+      "type": "NAME",
+      "value": "读",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 3,
+      "source_line": "函数 读(值)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 3,
+      "source_line": "函数 读(值)：",
+      "type": "NAME",
+      "value": "值",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 3,
+      "source_line": "函数 读(值)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 3,
+      "source_line": "函数 读(值)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "函数 读(值)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "    打印(全局)",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 4,
+      "source_line": "    打印(全局)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 4,
+      "source_line": "    打印(全局)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 4,
+      "source_line": "    打印(全局)",
+      "type": "NAME",
+      "value": "全局",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 4,
+      "source_line": "    打印(全局)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "    打印(全局)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 5,
+      "source_line": "    令 全局 = 值",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 5,
+      "source_line": "    令 全局 = 值",
+      "type": "NAME",
+      "value": "全局",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 5,
+      "source_line": "    令 全局 = 值",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 5,
+      "source_line": "    令 全局 = 值",
+      "type": "NAME",
+      "value": "值",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "    令 全局 = 值",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "读(1)",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "读(1)",
+      "type": "NAME",
+      "value": "读",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 7,
+      "source_line": "读(1)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 7,
+      "source_line": "读(1)",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 7,
+      "source_line": "读(1)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "读(1)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:8c8aeb6ede3f3d3d",
+  "语料": "tests/error_cases/35_赋值前读局部.jsh"
+}

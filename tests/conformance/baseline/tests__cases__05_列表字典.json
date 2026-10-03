@@ -1,0 +1,1099 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 2,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "列表",
+          "line": 2,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "elements": [
+            {
+              "col": 9,
+              "line": 2,
+              "value": 3,
+              "类型": "Num"
+            },
+            {
+              "col": 12,
+              "line": 2,
+              "value": 1,
+              "类型": "Num"
+            },
+            {
+              "col": 15,
+              "line": 2,
+              "value": 2,
+              "类型": "Num"
+            }
+          ],
+          "line": 2,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 6,
+              "index": {
+                "col": 7,
+                "line": 3,
+                "value": 0,
+                "类型": "Num"
+              },
+              "line": 3,
+              "obj": {
+                "col": 4,
+                "id": "列表",
+                "line": 3,
+                "类型": "Name"
+              },
+              "类型": "Subscript"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 3,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 3,
+          "类型": "Call"
+        },
+        "line": 3,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "id": "列表",
+                  "line": 4,
+                  "类型": "Name"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "长度",
+                "line": 4,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 4,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 4,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 4,
+          "类型": "Call"
+        },
+        "line": 4,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 5,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "字典",
+          "line": 5,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "keys": [
+            {
+              "col": 9,
+              "line": 5,
+              "value": "语文",
+              "类型": "Str"
+            }
+          ],
+          "line": 5,
+          "values": [
+            {
+              "col": 14,
+              "line": 5,
+              "value": 95,
+              "类型": "Num"
+            }
+          ],
+          "类型": "Dict"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 6,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "index": {
+            "col": 4,
+            "line": 6,
+            "value": "数学",
+            "类型": "Str"
+          },
+          "line": 6,
+          "obj": {
+            "col": 1,
+            "id": "字典",
+            "line": 6,
+            "类型": "Name"
+          },
+          "类型": "Subscript"
+        },
+        "value": {
+          "col": 12,
+          "line": 6,
+          "value": 88,
+          "类型": "Num"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 6,
+              "index": {
+                "col": 7,
+                "line": 7,
+                "value": "数学",
+                "类型": "Str"
+              },
+              "line": 7,
+              "obj": {
+                "col": 4,
+                "id": "字典",
+                "line": 7,
+                "类型": "Name"
+              },
+              "类型": "Subscript"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 7,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 7,
+          "类型": "Call"
+        },
+        "line": 7,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "id": "字典",
+                  "line": 8,
+                  "类型": "Name"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "长度",
+                "line": 8,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 8,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 8,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 8,
+          "类型": "Call"
+        },
+        "line": 8,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "f83641dc515abeb006bbcb8f55b66a6152fddbe5de21c24e84f112fa47aa5149",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            2,
+            9,
+            1,
+            1,
+            0,
+            0,
+            2,
+            12,
+            1,
+            2,
+            0,
+            0,
+            2,
+            15,
+            23,
+            3,
+            0,
+            0,
+            2,
+            8,
+            3,
+            0,
+            0,
+            0,
+            2,
+            1,
+            2,
+            1,
+            0,
+            0,
+            3,
+            1,
+            2,
+            0,
+            0,
+            0,
+            3,
+            4,
+            1,
+            3,
+            0,
+            0,
+            3,
+            7,
+            27,
+            0,
+            0,
+            0,
+            3,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            3,
+            3,
+            38,
+            0,
+            0,
+            0,
+            3,
+            1,
+            2,
+            1,
+            0,
+            0,
+            4,
+            1,
+            2,
+            2,
+            0,
+            0,
+            4,
+            4,
+            2,
+            0,
+            0,
+            0,
+            4,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            3,
+            38,
+            0,
+            0,
+            0,
+            4,
+            1,
+            1,
+            4,
+            0,
+            0,
+            5,
+            9,
+            1,
+            5,
+            0,
+            0,
+            5,
+            14,
+            24,
+            1,
+            0,
+            0,
+            5,
+            8,
+            3,
+            3,
+            0,
+            0,
+            5,
+            1,
+            2,
+            3,
+            0,
+            0,
+            6,
+            1,
+            1,
+            6,
+            0,
+            0,
+            6,
+            4,
+            1,
+            7,
+            0,
+            0,
+            6,
+            12,
+            28,
+            0,
+            0,
+            0,
+            6,
+            1,
+            2,
+            1,
+            0,
+            0,
+            7,
+            1,
+            2,
+            3,
+            0,
+            0,
+            7,
+            4,
+            1,
+            6,
+            0,
+            0,
+            7,
+            7,
+            27,
+            0,
+            0,
+            0,
+            7,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            7,
+            3,
+            38,
+            0,
+            0,
+            0,
+            7,
+            1,
+            2,
+            1,
+            0,
+            0,
+            8,
+            1,
+            2,
+            2,
+            0,
+            0,
+            8,
+            4,
+            2,
+            3,
+            0,
+            0,
+            8,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            8,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            8,
+            3,
+            38,
+            0,
+            0,
+            0,
+            8,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 3
+        },
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "int",
+          "v": 2
+        },
+        {
+          "t": "int",
+          "v": 0
+        },
+        {
+          "t": "str",
+          "v": "语文"
+        },
+        {
+          "t": "int",
+          "v": 95
+        },
+        {
+          "t": "str",
+          "v": "数学"
+        },
+        {
+          "t": "int",
+          "v": 88
+        }
+      ],
+      "filename": "tests/cases/05_列表字典.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "列表",
+        "打印",
+        "长度",
+        "字典"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "NAME",
+      "value": "列表",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "NUMBER",
+      "value": 3,
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "令 列表 = [3, 1, 2]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 3,
+      "source_line": "打印(列表[0])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 3,
+      "source_line": "打印(列表[0])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 3,
+      "source_line": "打印(列表[0])",
+      "type": "NAME",
+      "value": "列表",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 3,
+      "source_line": "打印(列表[0])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 3,
+      "source_line": "打印(列表[0])",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 3,
+      "source_line": "打印(列表[0])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 3,
+      "source_line": "打印(列表[0])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "打印(列表[0])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 4,
+      "source_line": "打印(长度(列表))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 4,
+      "source_line": "打印(长度(列表))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 4,
+      "source_line": "打印(长度(列表))",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 4,
+      "source_line": "打印(长度(列表))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 4,
+      "source_line": "打印(长度(列表))",
+      "type": "NAME",
+      "value": "列表",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 4,
+      "source_line": "打印(长度(列表))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 4,
+      "source_line": "打印(长度(列表))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "打印(长度(列表))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "令 字典 = {\"语文\"：95}",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 5,
+      "source_line": "令 字典 = {\"语文\"：95}",
+      "type": "NAME",
+      "value": "字典",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 5,
+      "source_line": "令 字典 = {\"语文\"：95}",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 5,
+      "source_line": "令 字典 = {\"语文\"：95}",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 12,
+      "line": 5,
+      "source_line": "令 字典 = {\"语文\"：95}",
+      "type": "STRING",
+      "value": "语文",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 5,
+      "source_line": "令 字典 = {\"语文\"：95}",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 5,
+      "source_line": "令 字典 = {\"语文\"：95}",
+      "type": "NUMBER",
+      "value": 95,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 5,
+      "source_line": "令 字典 = {\"语文\"：95}",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "令 字典 = {\"语文\"：95}",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 6,
+      "source_line": "字典[\"数学\"] = 88",
+      "type": "NAME",
+      "value": "字典",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 6,
+      "source_line": "字典[\"数学\"] = 88",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 6,
+      "source_line": "字典[\"数学\"] = 88",
+      "type": "STRING",
+      "value": "数学",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 6,
+      "source_line": "字典[\"数学\"] = 88",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 6,
+      "source_line": "字典[\"数学\"] = 88",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 6,
+      "source_line": "字典[\"数学\"] = 88",
+      "type": "NUMBER",
+      "value": 88,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "字典[\"数学\"] = 88",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 7,
+      "source_line": "打印(字典[\"数学\"])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 7,
+      "source_line": "打印(字典[\"数学\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 7,
+      "source_line": "打印(字典[\"数学\"])",
+      "type": "NAME",
+      "value": "字典",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 7,
+      "source_line": "打印(字典[\"数学\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 10,
+      "line": 7,
+      "source_line": "打印(字典[\"数学\"])",
+      "type": "STRING",
+      "value": "数学",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 7,
+      "source_line": "打印(字典[\"数学\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 7,
+      "source_line": "打印(字典[\"数学\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "打印(字典[\"数学\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 8,
+      "source_line": "打印(长度(字典))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 8,
+      "source_line": "打印(长度(字典))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 8,
+      "source_line": "打印(长度(字典))",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 8,
+      "source_line": "打印(长度(字典))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 8,
+      "source_line": "打印(长度(字典))",
+      "type": "NAME",
+      "value": "字典",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 8,
+      "source_line": "打印(长度(字典))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 8,
+      "source_line": "打印(长度(字典))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "打印(长度(字典))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:904e44516b4a3b8e",
+  "语料": "tests/cases/05_列表字典.jsh"
+}

@@ -1,0 +1,563 @@
+{
+  "ast": {
+    "body": [
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 2,
+            "value": {
+              "col": 10,
+              "left": {
+                "col": 8,
+                "id": "x",
+                "line": 2,
+                "类型": "Name"
+              },
+              "line": 2,
+              "op": "*",
+              "right": {
+                "col": 12,
+                "line": 2,
+                "value": 2,
+                "类型": "Num"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 1,
+        "name": "翻倍",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "x"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 5,
+            "value": {
+              "col": 10,
+              "left": {
+                "col": 8,
+                "id": "x",
+                "line": 5,
+                "类型": "Name"
+              },
+              "line": 5,
+              "op": "*",
+              "right": {
+                "col": 12,
+                "id": "x",
+                "line": 5,
+                "类型": "Name"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 4,
+        "name": "平方",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "x"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "6ac681ee9a42d63f92543c5cb921770d5086fdf5f85a37b8765b43d40e0040e1",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            22,
+            1,
+            0,
+            0,
+            1,
+            1,
+            3,
+            1,
+            0,
+            0,
+            1,
+            1,
+            22,
+            2,
+            0,
+            0,
+            4,
+            1,
+            3,
+            2,
+            0,
+            0,
+            4,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            2,
+            8,
+            1,
+            0,
+            0,
+            0,
+            2,
+            12,
+            13,
+            2,
+            0,
+            0,
+            2,
+            10,
+            21,
+            0,
+            0,
+            0,
+            2,
+            5,
+            1,
+            1,
+            0,
+            0,
+            1,
+            1,
+            21,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "x"
+          ],
+          "name": "翻倍",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "x"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 4,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            5,
+            8,
+            4,
+            0,
+            0,
+            0,
+            5,
+            12,
+            13,
+            2,
+            0,
+            0,
+            5,
+            10,
+            21,
+            0,
+            0,
+            0,
+            5,
+            5,
+            1,
+            1,
+            0,
+            0,
+            4,
+            1,
+            21,
+            0,
+            0,
+            0,
+            4,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "x"
+          ],
+          "name": "平方",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "x"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 2
+        },
+        {
+          "t": "none"
+        }
+      ],
+      "filename": "examples/packages/基础库/工具.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "x",
+        "翻倍",
+        "平方"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 1,
+      "source_line": "函数 翻倍(x):",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 1,
+      "source_line": "函数 翻倍(x):",
+      "type": "NAME",
+      "value": "翻倍",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 1,
+      "source_line": "函数 翻倍(x):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 1,
+      "source_line": "函数 翻倍(x):",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 1,
+      "source_line": "函数 翻倍(x):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "函数 翻倍(x):",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "函数 翻倍(x):",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "    返回 x * 2",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "    返回 x * 2",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 2,
+      "source_line": "    返回 x * 2",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 2,
+      "source_line": "    返回 x * 2",
+      "type": "OP",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 2,
+      "source_line": "    返回 x * 2",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "    返回 x * 2",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "函数 平方(x):",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 4,
+      "source_line": "函数 平方(x):",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 4,
+      "source_line": "函数 平方(x):",
+      "type": "NAME",
+      "value": "平方",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 4,
+      "source_line": "函数 平方(x):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 4,
+      "source_line": "函数 平方(x):",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 4,
+      "source_line": "函数 平方(x):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 4,
+      "source_line": "函数 平方(x):",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "函数 平方(x):",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "    返回 x * x",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 5,
+      "source_line": "    返回 x * x",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 5,
+      "source_line": "    返回 x * x",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 5,
+      "source_line": "    返回 x * x",
+      "type": "OP",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 5,
+      "source_line": "    返回 x * x",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "    返回 x * x",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:a37a635a946d493f",
+  "语料": "examples/packages/基础库/工具.jsh"
+}

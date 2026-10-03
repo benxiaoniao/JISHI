@@ -1,0 +1,389 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 1,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "a",
+          "line": 1,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 7,
+          "elements": [
+            {
+              "col": 8,
+              "line": 1,
+              "value": 1,
+              "类型": "Num"
+            },
+            {
+              "col": 11,
+              "line": 1,
+              "value": 2,
+              "类型": "Num"
+            },
+            {
+              "col": 14,
+              "line": 1,
+              "value": 3,
+              "类型": "Num"
+            }
+          ],
+          "line": 1,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 5,
+              "index": {
+                "col": 6,
+                "line": 2,
+                "value": 10,
+                "类型": "Num"
+              },
+              "line": 2,
+              "obj": {
+                "col": 4,
+                "id": "a",
+                "line": 2,
+                "类型": "Name"
+              },
+              "类型": "Subscript"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 2,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 2,
+          "类型": "Call"
+        },
+        "line": 2,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "614e9d10cf9bde073cfa2e66feab573e9e95bd272b503255f17ee8e43dfccb65",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            8,
+            1,
+            1,
+            0,
+            0,
+            1,
+            11,
+            1,
+            2,
+            0,
+            0,
+            1,
+            14,
+            23,
+            3,
+            0,
+            0,
+            1,
+            7,
+            3,
+            0,
+            0,
+            0,
+            1,
+            1,
+            2,
+            1,
+            0,
+            0,
+            2,
+            1,
+            2,
+            0,
+            0,
+            0,
+            2,
+            4,
+            1,
+            3,
+            0,
+            0,
+            2,
+            6,
+            27,
+            0,
+            0,
+            0,
+            2,
+            5,
+            20,
+            1,
+            -1,
+            0,
+            2,
+            3,
+            38,
+            0,
+            0,
+            0,
+            2,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "int",
+          "v": 2
+        },
+        {
+          "t": "int",
+          "v": 3
+        },
+        {
+          "t": "int",
+          "v": 10
+        }
+      ],
+      "filename": "tests/error_cases/12_索引越界.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "a",
+        "打印"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "NUMBER",
+      "value": 3,
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 a = [1, 2, 3]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 2,
+      "source_line": "打印(a[10])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 2,
+      "source_line": "打印(a[10])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 2,
+      "source_line": "打印(a[10])",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "打印(a[10])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 2,
+      "source_line": "打印(a[10])",
+      "type": "NUMBER",
+      "value": 10,
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 2,
+      "source_line": "打印(a[10])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 2,
+      "source_line": "打印(a[10])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "打印(a[10])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:e8d63814dad58535",
+  "语料": "tests/error_cases/12_索引越界.jsh"
+}
