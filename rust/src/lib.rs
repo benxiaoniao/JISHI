@@ -329,7 +329,8 @@ pub(crate) enum Val {
     Dict(JDict),
     Set(JSet),
     File(Rc<RefCell<FileHandle>>),
-    Func(Func),
+    // 2026-10-05（D77 §三）：**装箱** —— `Func` 的内联载荷 88 字节会把 `Val` 撑大。
+    Func(Box<Func>),
     /// **树遍历参考执行器自己的函数值**（R6 主体 · 函数与闭包）。
     ///
     /// ⚠️ 为什么不能复用 `Val::Func`：那里面装的是**字节码**的 `code_idx`
@@ -339,9 +340,13 @@ pub(crate) enum Val {
     /// 显示 / 类型 / 同一性 / 可调用判定都要与 `Val::Func` **完全一致**，
     /// 否则同一段源码在两个执行器上会打出不同的字（有对拍盯着）。
     WalkFn(Rc<crate::walk::WalkFn>),
-    Class(Class),
+    // 2026-10-05（D77 §三）：**装箱** —— `Class` 内联载荷 120 字节，是 `Val`
+    // 停在 128 字节的主因（见 `--dump-val-size` 与 `test_m82_val_size.py`）。
+    Class(Box<Class>),
     Instance(JInst),
-    Module(String, HashMap<String, Val>),
+    // 2026-10-05（D77 §三）：两半都**装箱**（载荷 72 字节）。
+    // 📌 保留「两个字段」的形状，pattern 不用改（只是各自多一层 `Box`）。
+    Module(Box<String>, Box<HashMap<String, Val>>),
     /// ⚠️ 第二个字段是 **`&mut dyn BuiltinHost`** 而不是 `&mut VM` ——
     /// 这样**树遍历参考执行器**（`walk.rs`）能跑**同一张**内建表
     /// （R6 主体；见 `BuiltinHost` 的文档注释）。内建只通过这个接口碰宿主，
@@ -1968,7 +1973,7 @@ impl VM {
                     self.stack.truncate(fn_base);
                     match fn_val {
                         Val::Func(f) => {
-                            self.push_func_frame(Some((fi, ip)), f, args, &knames,
+                            self.push_func_frame(Some((fi, ip)), *f, args, &knames,
                                                  &kwvals, fn_base,
                                                  (ins.line, ins.col), true)?;
                             return Ok(Flow::Call);
@@ -1983,7 +1988,7 @@ impl VM {
                         }
                         Val::Class(c) => {
                             reject_kwargs(&format!("类「{}」", c.name), &knames)?;
-                            let inst = self.make_instance(c, &args)?;
+                            let inst = self.make_instance(*c, &args)?;
                             self.stack.push(Val::Instance(inst));
                         }
                         Val::BoundMethod(bm) => {
@@ -2092,9 +2097,9 @@ impl VM {
                         }).collect()
                     } else { Vec::new() };
                     let name = self.module.codes[code_idx].name.clone();
-                    self.stack.push(Val::Func(Func {
+                    self.stack.push(Val::Func(Box::new(Func {
                         name, code_idx, cells, defaults, id: next_obj_id(),
-                    }));
+                    })));
                 }
                 op::BUILD_LIST => {
                     let n = ins.a as usize;
@@ -2215,17 +2220,17 @@ impl VM {
                             for (k, v) in base.class_vars.borrow().iter() {
                                 class_vars.insert(k.clone(), v.clone());
                             }
-                            base_rc = Some(Rc::new(base));
+                            base_rc = Some(Rc::new(*base));
                         }
                     }
-                    self.stack.push(Val::Class(Class {
+                    self.stack.push(Val::Class(Box::new(Class {
                         name,
                         methods,
                         class_vars: Rc::new(RefCell::new(class_vars)),
                         base_ids,
                         base: base_rc,
                         id: next_obj_id(),
-                    }));
+                    })));
                 }
                 op::IMPORT => {
                     let name = self.module.names[ins.a as usize].clone();
@@ -2479,7 +2484,7 @@ impl VM {
     fn call_value(&mut self, callee: Val, args: Vec<Val>) -> Result<Val, JishiError> {
         match callee {
             Val::Builtin(_, f) => f(&args, self),
-            Val::Func(func) => self.call_frame(func, args, None),
+            Val::Func(func) => self.call_frame(*func, args, None),
             Val::BoundMethod(bm) => match *bm {
                 BoundMethod::User { func, instance, .. } =>
                     self.call_frame(func, args, Some(Val::Instance(instance))),
@@ -3186,7 +3191,7 @@ fn identity_key(v: &Val) -> Result<IdKey, JishiError> {
         Val::WalkFn(f) => Ok(IdKey::Identity(f.id)),
         Val::Builtin(_, fp) => Ok(IdKey::Identity(*fp as usize)),
         Val::ExcType(n) => Ok(IdKey::Value("异常类型".into(), n.clone())),
-        Val::Module(n, _) => Ok(IdKey::Value("模块".into(), n.clone())),
+        Val::Module(n, _) => Ok(IdKey::Value("模块".into(), n.as_str().to_string())),
         Val::None_ => Ok(IdKey::Singleton(true, false)),
         Val::Bool(b) => Ok(IdKey::Singleton(false, *b)),
         Val::Int(i) => Ok(IdKey::Value("整数".into(), i.to_string())),
@@ -3661,7 +3666,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                     let key = match k { Val::Str(s) => s.clone(), o => display(o) };
                     table.insert(key, v.clone());
                 }
-                Ok(Val::Module(name, table))
+                Ok(Val::Module(Box::new(name), Box::new(table)))
             }
             o => Err(err("类型错误",
                 format!("$造模块 的第二个参数要传字典，得到了「{}」", display(o)))),
@@ -4065,7 +4070,7 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
                 if let Val::Func(fu) = f {
                     // 绑定时把实例一起带上——调用时它会被放进第一个形参（自身）
                     return Ok(Val::BoundMethod(Box::new(BoundMethod::User {
-                        func: fu.clone(), instance: inst_rc.clone(),
+                        func: (**fu).clone(), instance: inst_rc.clone(),
                         name: attr.to_string() })));
                 }
                 // 树遍历的方法值（R6 主体 ④）：同样「绑上实例」，只是用树遍历
@@ -4087,7 +4092,7 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
         Val::Super(sp) => {
             if let Some(Val::Func(fu)) = sp.base.methods.get(attr) {
                 return Ok(Val::BoundMethod(Box::new(BoundMethod::User {
-                    func: fu.clone(), instance: sp.instance.clone(),
+                    func: (**fu).clone(), instance: sp.instance.clone(),
                     name: attr.to_string() })));
             }
             // 树遍历的方法值（同 Instance 分支）

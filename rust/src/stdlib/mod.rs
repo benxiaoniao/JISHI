@@ -100,7 +100,7 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
 pub(crate) fn module(name: &str) -> Result<Val, JishiError> {
     for (n, build) in all_modules() {
         if *n == name {
-            return Ok(Val::Module((*n).to_string(), build()));
+            return Ok(Val::Module(Box::new((*n).to_string()), Box::new(build())));
         }
     }
     // ⚠️ 类型名要写 Python 侧那个真名（`SemanticFuncError` 的 title，

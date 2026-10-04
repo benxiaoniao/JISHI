@@ -1,39 +1,37 @@
 # -*- coding: utf-8 -*-
-"""`Val` 的大小 —— **结构钉**（2026-10-05 补）。
+"""`Val` 的大小 —— **结构钉**（2026-10-05 建立，同日完成瘦身）。
 
 ## 为什么需要它
 
 `Val` 是值栈、局部槽、容器元素的**每格单位**。它的大小一旦悄悄变大
 （最典型的：**把大载荷内联进某个变体**），代价是「没报错、只是变慢」——
-任何对拍都抓不住。反过来，瘦身是**有实据的性能收益**（见下表），
-所以这个数要么别动、动就要有意识。
+任何对拍都抓不住。反过来，瘦身是**有实据的性能收益**，所以这个数要么别动、
+动就要有意识。
 
-⚠️ **本项目踩过这个坑**：`docs/设计决策.md` 里长期写着「`Val` 32 字节」，
+⚠️ **本项目在这个数上踩过坑**：`docs/设计决策.md` 里长期写着「`Val` 32 字节」，
 而 2026-10-05 用 `--dump-val-size` 实测是 **128 字节** ——
-文档那条**是错的**（当时没人量过，源头是把 `Class` / `Func` 的**内联载荷**
-按直觉估成了小结构）。所以这个钉子的第一价值就是：**别再让「以为」代替「量过」**。
+文档那条**是错的**（当年没人量过，源头是把 `Class` / `Func` 的**内联载荷**
+按直觉估成了小结构）。教训：**「以为」不能代替「量过」**（同 D53）。
 
-## 实测（2026-10-05，`jishi-rs --dump-val-size`）
+## 实测与瘦身（2026-10-05，`jishi-rs --dump-val-size`）
 
-| 项 | 字节 |
-|---|---|
-| `Val` | **128** |
-| `Class`（内联载荷，撑大它的主因） | 120 |
-| `Func` | 88 |
-| `ExcValue` | 72 |
-| `Module` 的载荷 `(String, HashMap)` | 72 |
-| `ListIter`（迭代器状态） | 16 |
+| 项 | 字节 | 说明 |
+|---|---|---|
+| `Val`（瘦身前） | 128 | 撑大它的是**内联的 `Class`（120）** |
+| `Val`（瘦身后） | **32** | 把 `Class` / `Func` / `Module` 载荷**装箱** |
+| `Class` 载荷 | 120 | 类型本身没变，只是不再内联 |
+| `Func` 载荷 | 88 | 同上 |
+| `ExcValue` 载荷 | 72 | 它本来就是 `Rc`（一直没内联） |
+| `Module` 载荷 | 72 | 两半都装箱 |
+| `ListIter` | 16 | 列表活迭代器的状态（D77 §一） |
 
-**瘦身目标**：把这几个大载荷装箱（`Box`/`Rc`）就能把 `Val` 压到 **32 字节**
-（剩下的最大载荷是 `String` 24 + tag）。收益上限**实测过**（N = 200 万）：
+**交错 A/B（同机同时段、各取最优、每负载 5 轮）**：
 
-| 负载 | 净耗时 |
-|---|---|
-| 只求和（不建列表，`遍历 范围(N)`） | 317 ms |
-| 建列表 + 求和（列表载荷 244 MB = 200 万 × 128 B） | **1460 ms** |
-
-即「造一个 200 万元素的列表再遍历」比「不造列表」多花 **1143 ms**，其中很大
-一块就是 244 MB 的写 + 读；瘦到 32 字节（61 MB）理论上能把这块摊薄约 4 倍。
+| 负载（N = 200 万） | 128 字节 | 32 字节 | 倍数 |
+|---|---|---|---|
+| 建列表 + 求和 | 1409.8 ms | **1149.0 ms** | **1.23x** |
+| 只求和（对照，不建列表） | 301.1 ms | **181.2 ms** | **1.66x** |
+| 递归斐波(27) | 340.7 ms | 360.3 ms | 0.95x（噪声内，函数调用密集**持平**） |
 """
 
 from __future__ import annotations
@@ -53,35 +51,31 @@ def _rust() -> Path:
     return ROOT / "rust" / "target" / "release" / name
 
 
-def _need() -> None:
+def _sizes() -> dict:
     if not _rust().exists():
         pytest.skip("Rust 宿主未构建（cd rust && cargo build --release）")
+    r = subprocess.run([str(_rust()), "--dump-val-size"], capture_output=True, input=b"")
+    return json.loads(r.stdout.decode("utf-8", "replace"))
 
 
-def test_Val_的大小有钉子():
-    """`Val` = 128 字节（2026-10-05 实测）。
+def test_Val_的大小是32字节():
+    """`Val` = **32 字节**（2026-10-05 瘦身后）。
 
-    ⚠️ **改小了是好事**：请把这里的数、`docs/设计决策.md` 里的记录一起更新，
-    并把「瘦身前后的实测对比」写进 D77（没有对比数字不许改表示）。
-    **改大了要警惕**：多半是把某个大载荷内联进来了 —— 那属于「没报错、只是变慢」。
+    ⚠️ **再改小** → 请更新此断言 + `docs/设计决策.md` D77，并补**交错 A/B** 的实测；
+    **改大** → 多半是把某个大载荷内联进来了（`Class` 120 / `Func` 88 / 模块载荷 72
+    都是当年的元凶）——那属于「没报错、只是变慢」，**必须有意为之**。
     """
-    _need()
-    r = subprocess.run([str(_rust()), "--dump-val-size"], capture_output=True, input=b"")
-    info = json.loads(r.stdout.decode("utf-8", "replace"))
-    assert info["val"] == 128, (
-        f"`Val` 现在 {info['val']} 字节（原记录 128）。"
-        "改小 → 请更新此断言 + D77 的实测对比；改大 → 检查是不是内联了大载荷。")
-    # 载荷明细也钉住：谁把 `Val` 撑大，一眼可见。
-    assert info["class"] == 120, f"Class 载荷 {info['class']}"
-    assert info["func"] == 88, f"Func 载荷 {info['func']}"
-    assert info["list_iter"] == 16, f"ListIter {info['list_iter']}"
+    info = _sizes()
+    assert info["val"] == 32, (
+        f"`Val` 现在 {info['val']} 字节（2026-10-05 瘦身后记录是 32）。"
+        "改小请更新本断言与 D77 并补 A/B 实测；改大请检查是不是内联了大载荷。")
 
 
-def test_内联载荷不能无限长():
-    """`Val` 必须 ≥ 每个内联载荷 + 标签 —— 这条是**机制说明**，防的是「把
-    `Val` 压到比载荷还小」这种自相矛盾的改动。"""
-    _need()
-    r = subprocess.run([str(_rust()), "--dump-val-size"], capture_output=True, input=b"")
-    info = json.loads(r.stdout.decode("utf-8", "replace"))
-    biggest = max(info["class"], info["func"], info["exc_value"], info["module_payload"])
-    assert info["val"] >= biggest, f"Val {info['val']} 小于最大载荷 {biggest}"
+def test_大载荷保持装箱():
+    """**机制钉子**：那三个大载荷必须**大于** `Val`（说明它们确实是**装箱**的，
+    没有内联）—— 一旦有人「顺手」把它们拆开内联，`Val` 就会立刻回胖，而这条会先红。"""
+    info = _sizes()
+    for key, name in (("class", "Class"), ("func", "Func"), ("module_payload", "Module 载荷")):
+        assert info[key] > info["val"], (
+            f"{name} 载荷 {info[key]} 字节 ≤ Val {info['val']} —— 它是不是被内联回来了？"
+            "内联 = Val 回胖 = 值栈/容器每格成本翻几倍（见 D77 §三）。")

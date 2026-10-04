@@ -509,7 +509,7 @@ impl Walker {
                 class_vars = vars;
                 let mut ids = b.base_ids.clone();
                 ids.push(b.id);
-                (Some(Rc::new(b.clone())), ids)
+                (Some(Rc::new((**b).clone())), ids)
             }
             None => (None, Vec::new()),
         };
@@ -521,7 +521,7 @@ impl Walker {
             base: base_obj,
             id: next_obj_id(),
         };
-        self.assign_name(name, Val::Class(cls));
+        self.assign_name(name, Val::Class(Box::new(cls)));
         Ok(())
     }
 
@@ -534,7 +534,7 @@ impl Walker {
         }));
         if c.methods.contains_key("初始化") {
             // 类上取到的是**未绑定**的函数，所以实例要自己塞到第一个实参
-            let m = get_attr(Val::Class(c.clone()), "初始化", 0, 0)?;
+            let m = get_attr(Val::Class(Box::new(c.clone())), "初始化", 0, 0)?;
             let mut all = Vec::with_capacity(args.len() + 1);
             all.push(Val::Instance(inst.clone()));
             all.extend(args);
@@ -981,7 +981,7 @@ impl Walker {
             }
             // 调用一个**类** = 造实例（`新建 甲(…)`）—— 与字节码 VM 的
             // `make_instance` 同语义：先建空对象，再调它的 `初始化`（首参是自身）。
-            Val::Class(c) => self.make_instance(c, args),
+            Val::Class(c) => self.make_instance(*c, args),
             // 内建：走**共用**的那一张表（`new_builtins`）—— 「内建调用接上」这一步的
             // 全部意义就在这里：`长度` / `范围` / `最大` / `打印` … 都只有一份实现，
             // 字节码 VM 与树遍历执行器**不能**各写一套。
@@ -1282,7 +1282,7 @@ impl BuiltinHost for Walker {
         // 这正是 ③ 落地后长出来的能力。
         match callee {
             Val::WalkFn(f) => self.call_walk_fn(f, args, &[], &[], None),
-            Val::Class(c) => self.make_instance(c, args),
+            Val::Class(c) => self.make_instance(*c, args),
             Val::BoundMethod(bm) => match *bm {
                 BoundMethod::Builtin { name, receiver, line, col } => {
                     match call_builtin_method(self, name, *receiver, &args) {
