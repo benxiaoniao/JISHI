@@ -92,21 +92,19 @@ def test_算术语料的两个实现结果一致():
 def test_未实现的节点明确报错而不是静默给值():
     """🔴 本项目的硬规矩：**不许静默给错值**。
 
-    ⚠️ 这里原来拿 `If` 当「还没实现」的例子 —— 第 ① 步（`test_m77`）把它实现掉了，
-    于是这条测试改成了**报「If 没有 branches」**（不同的错）。
-    现在拿**真正还没实现**的节点来钉（`导入` / `类` 那几个还没做）：
-    它们必须报「还没实现「X」」，而不是当作没看见、把整条语句跳过去。
+    ⚠️ **这条测试被「实现掉」过两次**（先是 `If`、再是 `ClassDef` —— 它们分别在第 ①、
+    第 ④ 步落地了）。**别再拿「某个真节点」当例子**：每落一步就得改一次测试，
+    而改测试的成本会诱导人「顺手把这条删了」。
+    所以改成拿一个**根本不存在的节点类型**来钉 —— 它测的是**同一条机制**
+    （分派表落到「还没实现」分支），而且永远稳定。
     """
     tmp = Path(tempfile.gettempdir()) / "_m75_unimpl.json"
-    for kind_name, node in (
-        ("Import", {"类型": "Import", "name": "文本", "line": 1, "col": 1}),
-        ("ClassDef", {"类型": "ClassDef", "name": "甲", "body": [], "line": 1, "col": 1}),
-    ):
-        ast = {"类型": "Program", "body": [node]}
-        tmp.write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
-        out, err = _run(["--walk", str(tmp)])
-        assert out == "", f"未实现的节点不该有输出：{out!r}"
-        assert "还没实现" in err and kind_name in err, (kind_name, err)
+    kind_name = "还没实现的节点类型"
+    ast = {"类型": "Program", "body": [{"类型": kind_name, "line": 1, "col": 1}]}
+    tmp.write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
+    out, err = _run(["--walk", str(tmp)])
+    assert out == "", f"未实现的节点不该有输出：{out!r}"
+    assert "还没实现" in err and kind_name in err, err
 
 
 @need_rust

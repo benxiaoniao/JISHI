@@ -19,10 +19,9 @@
 //!
 //! | 已经能跑 | 还没实现（明确报错） |
 //! |---|---|
-//! | 语句：`Assign`（含 `+=` 等）、`ExprStmt`、`If`、`While`、`For`、`Loop`、`Break`、`Continue`、`Pass`、**`FuncDef` / `Return`** | `Try` / `Raise` / `Import`（⑤） |
-//! | 表达式：`Num`（含 `真`/`假`）、`Str`、`Name`（含 `空`）、`BinOp`、`Compare`、`BoolOp`、`UnaryOp`、`List`、`Dict`、`Subscript`（读）、`Call` | `Attr` / `Slice` / `Comprehension`（④） |
-//! | 赋值目标：`Name`、`TargetList`（解包，含 `*余`） | `Subscript` / `Attr` 作目标（④） |
-//! | —  | `ClassDef`（④） |
+//! | 语句：`Assign`（含 `+=` 等）、`ExprStmt`、`If`、`While`、`For`、`Loop`、`Break`、`Continue`、`Pass`、`FuncDef` / `Return`、**`ClassDef`** | `Try` / `Raise` / `Import`（⑤） |
+//! | 表达式：`Num`（含 `真`/`假`）、`Str`、`Name`（含 `空`）、`BinOp`、`Compare`、`BoolOp`、`UnaryOp`、`List`、`Dict`、`Subscript`（读）、`Call`、**`Attr`** | `Slice` / `Comprehension`（后补） |
+//! | 赋值目标：`Name`、`TargetList`（解包，含 `*余`）、**`Attr` / `Subscript`** | — |
 //!
 //! **函数与闭包**（③）：`FuncDef` / `Return` / `Lambda`，作用是**词法链**
 //! （`Scope`）而不是字节码那套「槽位 + 单元表」。⚠️ 树遍历没有字节码的
@@ -49,10 +48,11 @@
 
 use crate::json::Json;
 use crate::{
-    bind_params, binop, compare, dict_new, display, err, err_with_hint,
-    format_value_with, get_item, iter_next, list_new, make_iterator, name_hint,
-    new_builtins, truthy, unary_neg, unbound_hint, unbound_msg, unbound_shadow_hint,
-    unpack_values, BuiltinHost, Val, JishiError, T_NAME,
+    bind_params, binop, call_builtin_method, compare, dict_new, display, err, err_with_hint,
+    format_value_with, get_attr, get_item, iter_next, list_new, make_iterator,
+    name_hint, new_builtins, next_obj_id, set_attr, set_item, truthy, type_label,
+    unary_neg, unbound_hint, unbound_msg, unbound_shadow_hint, unpack_values,
+    BoundMethod, BuiltinHost, Class, Instance, Val, JishiError, T_NAME,
 };
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -115,6 +115,19 @@ pub(crate) struct WalkFn {
     /// 创建序号 —— 判**同一性**（`是` / 放进集合）用，思路与 `Func.id` 同源。
     pub(crate) id: usize,
     pub(crate) name: String,
+    /// **共享的函数体**：方法绑定（`甲.方法`）时只换 `self_val`，
+    /// 这一份用 `Rc` 共享 —— 否则每取一次属性就整份复制 AST 与方法体信息。
+    def: Rc<FnDef>,
+    /// **定义处的作用域** —— 闭包就是靠它：读的时候沿这条链往上找。
+    closure: Rc<RefCell<Scope>>,
+    /// 非 `None` = 这是个**绑定方法**（`甲.方法` / `超().方法`）：
+    /// 调用时它会被放到第一个形参（`自身`）上，与字节码侧 `BoundMethod` 同语义。
+    /// 显示 / 类型 / 同一性都要跟它走（见 `lib.rs` 的那三个分支）。
+    pub(crate) self_val: Option<Val>,
+}
+
+/// 函数的「不随绑定而变」的那部分。
+struct FnDef {
     params: Vec<String>,
     /// 形参种类（M25）：0=普通 1=`*参数` 2=`**选项`；与 `params` 等长。
     param_kind: Vec<i64>,
@@ -122,12 +135,26 @@ pub(crate) struct WalkFn {
     /// （与 `bind_params` 的约定一致，见那边的 `!matches!(dv, Val::None_)`）。
     defaults: Vec<Val>,
     body: Vec<Json>,
-    /// **定义处的作用域** —— 闭包就是靠它：读的时候沿这条链往上找。
-    closure: Rc<RefCell<Scope>>,
     /// 本函数体里「赋过值的名字」（**赋值即局部**）。读一个还没赋值的 →
     /// 报「赋值之前被用到了」，**不许穿透到外层**（Python 语义）。
     /// 用 `Rc` 是为了每次调用只加一次引用计数，不整份克隆这个集合。
     locals: Rc<HashSet<String>>,
+}
+
+impl WalkFn {
+    /// 绑上实例 → 一个**绑定方法**（共享函数体与闭包，只多一个 `self_val`）。
+    ///
+    /// 与字节码侧的 `BoundMethod::User` 同一个意思；那边用「实例 + 字节码函数」，
+    /// 这边用「实例 + AST 函数」。
+    pub(crate) fn bind_self(&self, inst: Val) -> WalkFn {
+        WalkFn {
+            id: self.id,
+            name: self.name.clone(),
+            def: Rc::clone(&self.def),
+            closure: Rc::clone(&self.closure),
+            self_val: Some(inst),
+        }
+    }
 }
 
 static NEXT_FN_ID: AtomicUsize = AtomicUsize::new(1);
@@ -255,6 +282,10 @@ impl Walker {
                 self.exec_funcdef(n)?;
                 Ok(Flow::Normal)
             }
+            "ClassDef" => {
+                self.exec_classdef(n)?;
+                Ok(Flow::Normal)
+            }
             "Return" => {
                 // `value` 是 JSON `null` 时表示裸 `返回`（前端就是这么编的）
                 let v = match n.get("value") {
@@ -333,9 +364,10 @@ impl Walker {
         let iterable = self.eval(field(n, "iter")?)?;
         let target = field(n, "target")?;
         let body = stmts_of(n, "body")?;
-        // 走**共用**的 `make_iterator`（快照 + 反转 + 弹尾）——R6.1 修的那个
-        // O(n²) 就在它里面；这里不能自己另写一套。
-        let mut it = make_iterator(iterable)?;
+        // 走宿主接口的 `make_iter`：容器 / 文本 / 文件走共用的 `make_iterator`
+        // （R6.1 修的那个 O(n²) 就在它里面），**自定义对象会先调它的「迭代()」**
+        // —— 与字节码 VM 的 `GET_ITER` 同一条路，不能自己另写一套。
+        let mut it = self.make_iter(iterable)?;
         while let Some(v) = iter_next(&mut it)? {
             self.assign_to(target, v)?;
             match self.exec_body(body)? {
@@ -377,6 +409,109 @@ impl Walker {
         Ok(())
     }
 
+    /// `类 名 [继承 基类]：…`
+    ///
+    /// ⚠️ **类体在一个子作用域里执行**（Python 语义）：`令 派 = 3.14` 成为类变量，
+    /// 而方法（`函数 面积(自身)：…`）的**闭包就是这个类作用域** ——
+    /// 所以方法体里能直接读到类变量。
+    ///
+    /// 📌 **不另造一套「类」**：产出的就是宿主那个 `Class`（方法表里放
+    /// `Val::WalkFn`）→ `是实例` / `超()` / `get_attr` / `set_attr` 直接可用。
+    fn exec_classdef(&mut self, n: &Json) -> Result<(), JishiError> {
+        let name = field(n, "name")?.as_str().unwrap_or("").to_string();
+        // ---- 先找基类（按名字，运行期求值 —— Python 也是这样）----
+        let base_name = n.get("base").and_then(|v| v.as_str()).map(String::from);
+        let base = match &base_name {
+            Some(bn) => match self.env.borrow().lookup(bn) {
+                Some(Val::Class(c)) => Some(c),
+                Some(other) => return Err(err("类型错误", format!(
+                    "「{bn}」不是类，不能继承（它是「{}」）", type_label(&other)))),
+                None => return Err(err_with_hint(T_NAME,
+                    format!("找不到名字「{bn}」"),
+                    format!("「继承」后面要写一个**已经定义好的类**名"))),
+            },
+            None => None,
+        };
+        // ---- 类体：新开作用域跑一遍 ----
+        let scope = Scope::child(Rc::clone(&self.env));
+        let saved_env = Rc::clone(&self.env);
+        let saved_locals = self.locals.take();
+        self.env = Rc::clone(&scope);
+        self.locals = None;                     // 类体不是函数体
+        let mut failed = None;
+        for st in stmts_of(n, "body")? {
+            if let Err(e) = self.exec_stmt(st) {
+                failed = Some(e);
+                break;
+            }
+        }
+        let body_vars = {
+            let mut b = scope.borrow_mut();
+            std::mem::take(&mut b.vars)
+        };
+        self.env = saved_env;
+        self.locals = saved_locals;
+        if let Some(e) = failed {
+            return Err(e);
+        }
+        // ---- 方法 / 类变量分开 ----
+        let mut methods: HashMap<String, Val> = HashMap::new();
+        let mut class_vars: HashMap<String, Val> = HashMap::new();
+        for (k, v) in body_vars {
+            if matches!(v, Val::WalkFn(_)) {
+                methods.insert(k, v);
+            } else {
+                class_vars.insert(k, other_of(v));
+            }
+        }
+        // ---- 继承：方法表合并（子类覆盖基类）、类变量合并 ----
+        let (base_obj, base_ids) = match &base {
+            Some(b) => {
+                let mut merged = b.methods.clone();
+                merged.extend(methods);
+                methods = merged;
+                let mut vars = b.class_vars.borrow().clone();
+                vars.extend(class_vars);
+                class_vars = vars;
+                let mut ids = b.base_ids.clone();
+                ids.push(b.id);
+                (Some(Rc::new(b.clone())), ids)
+            }
+            None => (None, Vec::new()),
+        };
+        let cls = Class {
+            name: name.clone(),
+            methods,
+            class_vars: Rc::new(RefCell::new(class_vars)),
+            base_ids,
+            base: base_obj,
+            id: next_obj_id(),
+        };
+        self.assign_name(name, Val::Class(cls));
+        Ok(())
+    }
+
+    /// 造实例：先建空对象，再调它的 `初始化`（首参是实例自己）——
+    /// 与字节码 VM 的 `make_instance` **同一套语义与同一句报错**。
+    fn make_instance(&mut self, c: Class, args: Vec<Val>) -> Result<Val, JishiError> {
+        let inst = Rc::new(RefCell::new(Instance {
+            class: c.clone(),
+            fields: HashMap::new(),
+        }));
+        if c.methods.contains_key("初始化") {
+            // 类上取到的是**未绑定**的函数，所以实例要自己塞到第一个实参
+            let m = get_attr(Val::Class(c.clone()), "初始化", 0, 0)?;
+            let mut all = Vec::with_capacity(args.len() + 1);
+            all.push(Val::Instance(inst.clone()));
+            all.extend(args);
+            self.call_value(m, all)?;
+        } else if !args.is_empty() {
+            return Err(err("类型错误",
+                format!("类「{}」没有构造方法", c.name)));
+        }
+        Ok(Val::Instance(inst))
+    }
+
     /// 绑一个名字到**当前**作用域（`令` / `函数` / `遍历` 的目标都走它）。
     fn assign_name(&mut self, name: String, value: Val) {
         self.env.borrow_mut().vars.insert(name, value);
@@ -404,13 +539,10 @@ impl Walker {
         Ok(WalkFn {
             id: NEXT_FN_ID.fetch_add(1, Ordering::Relaxed),
             name: name.to_string(),
-            params,
-            param_kind,
-            defaults,
-            body,
+            def: Rc::new(FnDef { params, param_kind, defaults, body, locals }),
             // 闭包 = **定义处**的作用域（不是调用处的）
             closure: Rc::clone(&self.env),
-            locals,
+            self_val: None,             // 具名函数/匿名函数都还没绑实例
         })
     }
 
@@ -419,15 +551,23 @@ impl Walker {
                     knames: &[String], kwvals: &[Val]) -> Result<Val, JishiError> {
         // 形参绑定走**共用**的那一份（`bind_params`）—— 报错文案与字节码 VM 同源，
         // 不然「函数「f」需要 2 个参数，但传了 3 个」两边各写一遍迟早会漂。
-        let bound = bind_params(&f.name, &f.params, &f.param_kind,
-                                Some(&f.defaults), &args, knames, kwvals)?;
+        // 绑定方法：先把实例塞到实参最前面 —— 它落进第一个形参（`自身`），
+        // 与字节码侧 `call_frame(self_arg=…)` 完全同一个做法。
+        let mut all: Vec<Val> = Vec::with_capacity(args.len() + 1);
+        if let Some(s) = &f.self_val {
+            all.push(s.clone());
+        }
+        all.extend(args);
+        let def = Rc::clone(&f.def);
+        let bound = bind_params(&f.name, &def.params, &def.param_kind,
+                                Some(&def.defaults), &all, knames, kwvals)?;
         // 新作用域：父 = **定义处**的作用域（闭包就靠这一句）
         let scope = Scope::child(Rc::clone(&f.closure));
         {
             let mut b = scope.borrow_mut();
             for (i, v) in bound.into_iter().enumerate() {
                 if let Some(v) = v {
-                    b.vars.insert(f.params[i].clone(), v);
+                    b.vars.insert(def.params[i].clone(), v);
                 }
             }
         }
@@ -435,10 +575,10 @@ impl Walker {
         let saved_env = Rc::clone(&self.env);
         let saved_locals = self.locals.take();
         self.env = Rc::clone(&scope);
-        self.locals = Some(Rc::clone(&f.locals));
+        self.locals = Some(Rc::clone(&def.locals));
         let mut out = Val::None_;
         let mut failed = None;
-        for st in &f.body {
+        for st in &def.body {
             match self.exec_stmt(st) {
                 Ok(Flow::Return(v)) => {
                     out = v;
@@ -499,6 +639,20 @@ impl Walker {
                 }
                 Ok(())
             }
+            "Attr" => {
+                let obj = self.eval(field(target, "obj")?)?;
+                let attr = field(target, "attr")?.as_str().unwrap_or("").to_string();
+                set_attr(obj, &attr, value)
+            }
+            "Subscript" => {
+                let obj = self.eval(field(target, "obj")?)?;
+                let idx_node = field(target, "index")?;
+                if kind(idx_node) == "Slice" {
+                    return Err(self.unimpl("切片赋值", idx_node));
+                }
+                let idx = self.eval(idx_node)?;
+                set_item(obj, idx, value)
+            }
             other => Err(self.unimpl(&format!("赋值目标「{other}」"), target)),
         }
     }
@@ -518,6 +672,14 @@ impl Walker {
             "List" => self.eval_list(n),
             "Dict" => self.eval_dict(n),
             "Subscript" => self.eval_subscript(n),
+            "Attr" => {
+                let obj = self.eval(field(n, "obj")?)?;
+                let attr = field(n, "attr")?.as_str().unwrap_or("");
+                let (line, col) = self.at(n);
+                // 走**共用**的 `get_attr`（实例字段 → 类变量 → 方法绑定；
+                // 模块 / 内置类型的属性方法也在里面）—— 不另写一套查找顺序。
+                get_attr(obj, attr, line.unwrap_or(0), col.unwrap_or(0))
+            }
             "Lambda" => {
                 let f = self.make_walk_fn(n, "匿名函数")?;
                 Ok(Val::WalkFn(Rc::new(f)))
@@ -725,6 +887,9 @@ impl Walker {
         match callee {
             // 用户函数：形参绑定与报错都走共用的 `bind_params`。
             Val::WalkFn(f) => self.call_walk_fn(f, args, &knames, &kwvals),
+            // 调用一个**类** = 造实例（`新建 甲(…)`）—— 与字节码 VM 的
+            // `make_instance` 同语义：先建空对象，再调它的 `初始化`（首参是自身）。
+            Val::Class(c) => self.make_instance(c, args),
             // 内建：走**共用**的那一张表（`new_builtins`）—— 「内建调用接上」这一步的
             // 全部意义就在这里：`长度` / `范围` / `最大` / `打印` … 都只有一份实现，
             // 字节码 VM 与树遍历执行器**不能**各写一套。
@@ -736,7 +901,40 @@ impl Walker {
                 }
                 f(&args, self)
             }
+            // 内建类型的方法（列表 / 文本 / 字典 / 集合 / 文件 / 精确小数）：
+            // **走共用的那张方法表**（`call_builtin_method` 是自由函数）——
+            // 与字节码 VM 逐字同一套语义，不另写一份。
+            Val::BoundMethod(bm) => match *bm {
+                BoundMethod::Builtin { name, receiver, .. } =>
+                    call_builtin_method(self, name, *receiver, &args),
+                // 树遍历造不出 `BoundMethod::User`（它用 `Val::WalkFn`）
+                BoundMethod::User { name, .. } => Err(err("运行期错误", format!(
+                    "树遍历参考执行器拿到了字节码的方法值「{name}」（内部错误）"))),
+            },
             other => Err(self.unimpl(&format!("调用非内建的值「{}」", display(&other)), n)),
+        }
+    }
+
+    /// 自定义对象的「文本()」（`format_value_with` 的钩子）。
+    /// 返回 `Ok(None)` = 没有「文本」方法，按 `display` 显示。
+    /// 与字节码 VM 的 `text_hook` **同一套语义与同一句报错**。
+    fn instance_text(&mut self, v: &Val) -> Result<Option<String>, JishiError> {
+        let inst = match v {
+            Val::Instance(inst) => inst,
+            _ => return Ok(None),
+        };
+        if !inst.borrow().class.methods.contains_key("文本") {
+            return Ok(None);
+        }
+        let m = get_attr(v.clone(), "文本", 0, 0)?;
+        match self.call_value(m, Vec::new())? {
+            Val::Str(s) => Ok(Some(s)),
+            other => {
+                let cls = inst.borrow().class.name.clone();
+                Err(err("类型错误", format!(
+                    "类「{cls}」的「文本」方法返回了「{}」，要返回文本",
+                    type_label(&other))))
+            }
         }
     }
 
@@ -774,19 +972,47 @@ impl Walker {
 /// （`format_value_with` / `make_iterator`），不会漂。
 impl BuiltinHost for Walker {
     fn format_value(&mut self, v: &Val, top: bool) -> Result<String, JishiError> {
-        // 容器递归与 VM 共用；自定义对象的「文本()」要等「类」那一步（ClassDef 未实现）。
-        format_value_with(v, top, &mut |_| {
-            Err(err("运行期错误",
-                "树遍历参考执行器还没实现「自定义对象的文本()」"))
-        })
+        // 容器递归与 VM 共用；只有「自定义对象怎么算文本」由宿主给钩子。
+        format_value_with(v, top, &mut |obj| self.instance_text(obj))
     }
-    fn lookup_method(&mut self, _obj: &Val, _name: &str) -> Option<Val> {
-        // 只有自定义对象 / 文件这类才有「进入/退出/关闭」—— 要等「类」那一步。
-        None
+    fn lookup_method(&mut self, obj: &Val, name: &str) -> Option<Val> {
+        // 与字节码 VM 的 `lookup_method` 同语义：实例上有这个方法就绑上返回；
+        // 其余类型只认「退出 / 关闭」（文件那类），别的名字一律 None。
+        match obj {
+            Val::Instance(i) => {
+                if i.borrow().class.methods.contains_key(name) {
+                    get_attr(obj.clone(), name, 0, 0).ok()
+                } else {
+                    None
+                }
+            }
+            _ => match name {
+                "退出" | "关闭" => match get_attr(obj.clone(), name, 0, 0) {
+                    Ok(v @ Val::BoundMethod(_)) | Ok(v @ Val::WalkFn(_)) => Some(v),
+                    _ => None,
+                },
+                _ => None,
+            },
+        }
     }
     fn make_iter(&mut self, obj: Val) -> Result<Val, JishiError> {
-        // ⚠️ 这里**不能**像 VM 那样对 Instance 先拦一道调「迭代()」——
-        // 树遍历还没有实例；同一个调用的其余部分（容器 / 文本 / 文件）走共用实现。
+        // 自定义对象定义了「迭代()」就调它（与字节码 VM 的 `make_iter` 同语义）。
+        if let Val::Instance(_) = &obj {
+            let has = matches!(&obj, Val::Instance(i)
+                               if i.borrow().class.methods.contains_key("迭代"));
+            if has {
+                let got = get_attr(obj.clone(), "迭代", 0, 0)?;
+                let out = self.call_value(got, Vec::new())?;
+                // 返回自身会无限循环 —— Python 侧也拦（与 VM 同一句文案）
+                if let (Val::Instance(a), Val::Instance(b)) = (&out, &obj) {
+                    if Rc::ptr_eq(a, b) {
+                        return Err(err("运行期错误",
+                            "「迭代()」返回了对象自身，这样遍历会无限循环"));
+                    }
+                }
+                return make_iterator(out);
+            }
+        }
         make_iterator(obj)
     }
     fn call_value(&mut self, callee: Val, args: Vec<Val>) -> Result<Val, JishiError> {
@@ -794,6 +1020,13 @@ impl BuiltinHost for Walker {
         // 这正是 ③ 落地后长出来的能力。
         match callee {
             Val::WalkFn(f) => self.call_walk_fn(f, args, &[], &[]),
+            Val::Class(c) => self.make_instance(c, args),
+            Val::BoundMethod(bm) => match *bm {
+                BoundMethod::Builtin { name, receiver, .. } =>
+                    call_builtin_method(self, name, *receiver, &args),
+                BoundMethod::User { name, .. } => Err(err("运行期错误", format!(
+                    "树遍历参考执行器拿到了字节码的方法值「{name}」（内部错误）"))),
+            },
             Val::Builtin(_, f) => f(&args, self),
             other => Err(err("类型错误",
                 format!("「{}」不能当函数调用", display(&other)))),
@@ -802,6 +1035,11 @@ impl BuiltinHost for Walker {
     fn write_output(&mut self, s: &str) {
         self.output.push_str(s);
     }
+}
+
+/// 恒等函数——只是让「方法 / 类变量分开」那段读起来更清楚。
+fn other_of(v: Val) -> Val {
+    v
 }
 
 fn kind(n: &Json) -> &str {

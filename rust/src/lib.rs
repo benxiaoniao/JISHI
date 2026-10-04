@@ -650,7 +650,7 @@ fn new_cells(n: usize) -> Vec<JCell> {
 /// 正好等价于 Python 的对象身份（`id()`）。
 static NEXT_OBJ_ID: AtomicUsize = AtomicUsize::new(1);
 
-fn next_obj_id() -> usize {
+pub(crate) fn next_obj_id() -> usize {
     NEXT_OBJ_ID.fetch_add(1, AtomicOrdering::Relaxed)
 }
 
@@ -665,24 +665,29 @@ struct Func {
     id: usize,
 }
 
+/// 类。
+///
+/// ⚠️ `pub(crate)`：**树遍历参考执行器（`walk.rs`）也造这个结构**
+/// （方法表里放 `Val::WalkFn`）—— 这样 `是实例` / `超()` / `get_attr` /
+/// `set_attr` / `display` / `type_label` 全都直接可用，不必各写一份。
 #[derive(Clone)]
-struct Class {
-    name: String,
-    methods: HashMap<String, Val>,
+pub(crate) struct Class {
+    pub(crate) name: String,
+    pub(crate) methods: HashMap<String, Val>,
     /// 类变量（M34 补上 M23.3）。
     ///
     /// 必须是 `Rc<RefCell<…>>`：`Instance` 里存的是 `Class` 的**值拷贝**，
     /// 用普通 `HashMap` 的话 `类名.计数 = 5` 只改到类自己那一份，已经造出来的
     /// 实例看不到（Python 侧实例持的是类引用，看得见）。共享一份才一致
     /// ——与 M28/M29 给容器、实例换 `Rc<RefCell>` 是同一个理由。
-    class_vars: Rc<RefCell<HashMap<String, Val>>>,
+    pub(crate) class_vars: Rc<RefCell<HashMap<String, Val>>>,
     /// **祖先类的身份序号**（最近的在最前），M55 补。
     ///
     /// 为什么需要：Rust 侧建类时是「**把基类的方法表展开合并**」（见
     /// `BUILD_CLASS`），基类指针**用完就丢** —— 于是 `是实例(对象, 基类)`
     /// 没法沿继承链判断。这里把链上的序号记下来（建类时算一次，之后是纯读），
     /// 就能用 `id` 做身份比较 —— 与 Python 侧 `_instance_of` 同语义。
-    base_ids: Vec<usize>,
+    pub(crate) base_ids: Vec<usize>,
     /// 基类**本身**（M56 补 `超()`）。
     ///
     /// 为什么 M56 才加：`超()` 在 M55 之前**两个宿主根本没实现**（一写就报
@@ -694,9 +699,9 @@ struct Class {
     ///
     /// `超()` 的语义是「从**定义类的基类**起查方法」，所以必须有这条链。
     /// 用 `Rc` 共享：子类与 `超` 视图拿的是同一个基类对象，不深拷贝。
-    base: Option<Rc<Class>>,
+    pub(crate) base: Option<Rc<Class>>,
     /// 身份序号（M32）：见 `NEXT_OBJ_ID`
-    id: usize,
+    pub(crate) id: usize,
 }
 
 /// `超()` 的返回值（M56）：从**定义类的基类**起查方法，方法绑定原实例。
@@ -734,9 +739,9 @@ struct ExcValue {
 }
 
 #[derive(Clone)]
-struct Instance {
-    class: Class,
-    fields: HashMap<String, Val>,
+pub(crate) struct Instance {
+    pub(crate) class: Class,
+    pub(crate) fields: HashMap<String, Val>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1073,7 +1078,12 @@ pub(crate) fn type_label(v: &Val) -> String {
         Val::Dict(_) => "字典".to_string(),
         Val::Set(_) => "集合".to_string(),
         Val::File(_) => "文件".to_string(),
-        Val::Func(_) | Val::WalkFn(_) => "函数".to_string(),
+        Val::Func(_) => "函数".to_string(),
+        Val::WalkFn(f) => if f.self_val.is_some() {
+            "方法".to_string()
+        } else {
+            "函数".to_string()
+        },
         // 实例与类要给**带名字**的结果，与 Python 侧一致（M34 修）：
         // Python 的 `type_name` 对实例给 `A 实例`、对类给 `类 A`，
         // 以前这里一律给「对象」/「类」——用户拿 `类型(x) == "A 实例"`
@@ -1097,7 +1107,7 @@ pub(crate) fn type_label(v: &Val) -> String {
 }
 
 #[derive(Clone)]
-enum BoundMethod {
+pub(crate) enum BoundMethod {
     /// 内建类型（列表 / 文本 / 字典 / 集合 / 文件 / 精确小数）的方法。
     /// `line`/`col` 是**取属性时**的位置（`X.方法` 那一处）—— 方法内部报错
     /// 用它，与 Python 的 `_BoundMethod.__call__` 同源（R6.6）。
@@ -2506,7 +2516,8 @@ impl VM {
             BoundMethod::User { func, instance, .. } =>
                 self.call_frame(func, args.to_vec(), Some(Val::Instance(instance))),
             BoundMethod::Builtin { name, receiver, .. } => {
-                self.call_builtin_method(name, *receiver, args)
+                // 方法表是**自由函数**（树遍历也用同一份），见它的文档注释。
+                call_builtin_method(self, name, *receiver, args)
             }
         }
     }
@@ -2515,256 +2526,7 @@ impl VM {
     /// `映射`/`过滤`/`排序按`/`归约` 需要回调用户函数，所以先**快照**容器内容
     /// 再回调——拿着 `RefCell` 的借用去回调，回调里又改同一个容器就会撞上
     /// 运行时借用冲突。
-    fn call_builtin_method(&mut self, name: String, receiver: Val,
-                           args: &[Val]) -> Result<Val, JishiError> {
-        match (receiver, name.as_str()) {
-            // -- 列表方法 --
-            // 这里全部走 `borrow_mut()`：改的是共享容器本身，
-            // 所以 `a.追加(3)` 之后原变量 `a` 也会变（M28 修的就是这个）。
-            (Val::List(l), "追加") => { need_args(&name, args, 1, 1)?; l.borrow_mut().push(args[0].clone()); Ok(Val::None_) }
-            (Val::List(l), "插入") => {
-                need_args(&name, args, 2, 2)?;
-                let i = as_int(&args[0])?;
-                let mut l = l.borrow_mut();
-                // ⚠️ Python 的 `list.insert(i, v)` 的**夹取规则**（R6.5）：
-                // 负数先 `i + len`，再夹到 `[0, len]` —— 所以
-                // `[1,2,3].插入(-1, 9)` 给 `[1, 2, 9, 3]`。
-                // 以前这里是 `as_int(...) as usize` —— 负数直接变成巨大的 usize、
-                // 再被 `min(len)` 夹到**末尾**，于是同一个程序在 Rust 上给
-                // `[1, 2, 3, 9]`、在其它四个执行器上给 `[1, 2, 9, 3]`。
-                let n = l.len() as i128;
-                let at = if i < 0 { (n + i).max(0) } else { i.min(n) } as usize;
-                l.insert(at, args[1].clone());
-                Ok(Val::None_)
-            }
-            (Val::List(l), "弹出") => {
-                need_args(&name, args, 0, 1)?;
-                let mut l = l.borrow_mut();
-                // 文案照 Python 的 `_m_list_pop`：空列表与下标越界**是两回事**
-                // （`[1].弹出(9)` 里列表并不空）。R6.2 起两边都分开并逐字对齐。
-                if l.is_empty() {
-                    return Err(err("值错误", "列表是空的，没有东西可以弹出"));
-                }
-                // 负下标先折算（R6.5）：`列.弹出(-1)` 弹最后一个
-                let v = if args.is_empty() {
-                    l.pop()
-                } else {
-                    let i = as_int(&args[0])?;
-                    norm_index(i, l.len()).map(|j| l.remove(j))
-                };
-                v.ok_or_else(|| err("索引错误", INDEX_MSG))
-            }
-            (Val::List(l), "排序") => { need_args(&name, args, 0, 0)?; l.borrow_mut().sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
-            (Val::List(l), "反转") => { need_args(&name, args, 0, 0)?; l.borrow_mut().reverse(); Ok(Val::None_) }
-            (Val::List(l), "清空") => { need_args(&name, args, 0, 0)?; l.borrow_mut().clear(); Ok(Val::None_) }
-            (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.borrow().iter().position(|x| *x == args[0]).map(|i| Val::Int(i as i128)).ok_or_else(|| err("值错误", "找不到元素")) }
-            (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(l.borrow().iter().filter(|x| **x == args[0]).count() as i128)) }
-            (Val::List(l), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(l.borrow().contains(&args[0]))) }
-            (Val::List(l), "移除") => {
-                need_args(&name, args, 1, 1)?;
-                let mut l = l.borrow_mut();
-                if let Some(pos) = l.iter().position(|x| *x == args[0]) { l.remove(pos); Ok(Val::None_) }
-                else {
-                    // 照 Python 的 `_m_list_remove`：**要说清是哪个元素**
-                    // （「列表里没有这个元素」查起来得自己猜是哪一个）
-                    Err(err("值错误",
-                            format!("列表里没有「{}」，没法移除", display(&args[0]))))
-                }
-            }
-            // -- 字典方法 --
-            (Val::Dict(d), "获取") => {
-                need_args(&name, args, 1, 2)?;
-                let dflt = if args.len() == 2 { args[1].clone() } else { Val::None_ };
-                Ok(dict_get(&d.borrow(), &args[0]).unwrap_or(dflt))
-            }
-            (Val::Dict(d), "键") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())) }
-            (Val::Dict(d), "值") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(_, v)| v.clone()).collect())) }
-            (Val::Dict(d), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(dict_contains(&d.borrow(), &args[0]))) }
-            // M36 补：`更新` / `弹出` 此前在 Rust 宿主上**根本没实现**
-            // （报「方法调用未实现」——是明确报错，但确实是漏的）
-            (Val::Dict(d), "更新") => {
-                need_args(&name, args, 1, 1)?;
-                match &args[0] {
-                    Val::Dict(other) => {
-                        let items = other.borrow().items.clone();
-                        let mut cur = d.borrow_mut();
-                        for (k, v) in items { dict_set(&mut cur, k, v); }
-                        Ok(Val::None_)
-                    }
-                    other => Err(err("类型错误", format!(
-                        "「更新」需要一个字典参数，但传了「{}」（{}）",
-                        display(other), type_label(other)))),
-                }
-            }
-            (Val::Dict(d), "合并") => {
-                need_args(&name, args, 1, 1)?;
-                match &args[0] {
-                    Val::Dict(other) => {
-                        // 返回**新字典**：双方都不动（与就地改的「更新」分工清楚）
-                        let mut merged = d.borrow().clone();
-                        let items = other.borrow().items.clone();
-                        for (k, v) in items { dict_set(&mut merged, k, v); }
-                        Ok(Val::Dict(Rc::new(RefCell::new(merged))))
-                    }
-                    other => Err(err("类型错误", format!(
-                        "「合并」需要一个字典参数，但传了「{}」（{}）",
-                        display(other), type_label(other)))),
-                }
-            }
-            (Val::Dict(d), "弹出") => {
-                need_args(&name, args, 1, 2)?;
-                let mut cur = d.borrow_mut();
-                if let Some(v) = dict_remove(&mut cur, &args[0]) {
-                    Ok(v)
-                } else if args.len() == 2 {
-                    Ok(args[1].clone())
-                } else {
-                    Err(err("键错误", missing_key_msg(&args[0])))
-                }
-            }
-            (Val::Dict(d), "清空") => { need_args(&name, args, 0, 0)?; d.borrow_mut().clear(); Ok(Val::None_) }
-            // -- 字符串方法 --
-            (Val::Str(s), "大写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_uppercase())) }
-            (Val::Str(s), "小写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_lowercase())) }
-            (Val::Str(s), "去空白") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.trim().to_string())) }
-            (Val::Str(s), "拆分") => {
-                need_args(&name, args, 0, 1)?;
-                let sep = args.first().map(display).unwrap_or_default();
-                Ok(list_new(s.split(&sep).map(|p| Val::Str(p.to_string())).collect()))
-            }
-            (Val::Str(s), "查找") => {
-                // M54 补：以前 Rust 宿主**根本没有这个方法**（`文本` 少这一个，
-                // 是 M53 靠五引擎对拍偶然撞见的 —— 方法漂移检测就是为此建的）。
-                need_args(&name, args, 1, 1)?;
-                let needle = match &args[0] {
-                    Val::Str(n) => n.clone(),
-                    other => return Err(err("类型错误", format!(
-                        "「查找」需要文本参数，得到了「{}」", type_label(other)))),
-                };
-                // ⚠️ `str::find` 给的是**字节**偏移，而基石/Python 的口径是
-                // **字符**偏移（`"你好吗".查找("吗") == 2`）。含中文时两者不等，
-                // 得把前缀的字符数出来。
-                Ok(Val::Int(match s.find(&needle) {
-                    Some(b) => s[..b].chars().count() as i128,
-                    None => -1,
-                }))
-            }
-            (Val::Str(s), "替换") => { need_args(&name, args, 2, 2)?; let a = display(&args[0]); let b = display(&args[1]); Ok(Val::Str(s.replace(&a, &b))) }
-            (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
-            (Val::Str(s), "开头是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.starts_with(&display(&args[0])))) }
-            (Val::Str(s), "结尾是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.ends_with(&display(&args[0])))) }
-            (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i128>().map(Val::Int).map_err(|_| err("值错误", format!("「{s}」不能转成整数"))) }
-            (Val::Str(s), "转小数") => { need_args(&name, args, 0, 0)?; s.parse::<f64>().map(Val::Float).map_err(|_| err("值错误", "不能转成小数")) }
-            // -- 列表高阶方法（数据流水线，M29）--
-            (Val::List(l), "映射") => {
-                need_args(&name, args, 1, 1)?;
-                let f = ensure_callable(&args[0], "映射")?;
-                let snapshot: Vec<Val> = l.borrow().clone();
-                let mut out = Vec::with_capacity(snapshot.len());
-                for x in snapshot {
-                    out.push(self.call_value(f.clone(), vec![x])?);
-                }
-                Ok(list_new(out))
-            }
-            (Val::List(l), "过滤") => {
-                need_args(&name, args, 1, 1)?;
-                let f = ensure_callable(&args[0], "过滤")?;
-                let snapshot: Vec<Val> = l.borrow().clone();
-                let mut out = Vec::new();
-                for x in snapshot {
-                    let keep = self.call_value(f.clone(), vec![x.clone()])?;
-                    if truthy(keep) { out.push(x); }
-                }
-                Ok(list_new(out))
-            }
-            (Val::List(l), "排序按") => {
-                need_args(&name, args, 1, 1)?;
-                let f = ensure_callable(&args[0], "排序按")?;
-                let snapshot: Vec<Val> = l.borrow().clone();
-                let mut keyed: Vec<(Val, Val)> = Vec::with_capacity(snapshot.len());
-                for x in snapshot {
-                    let k = self.call_value(f.clone(), vec![x.clone()])?;
-                    keyed.push((k, x));
-                }
-                // 键之间必须两两可比：混着数字和文本时 Python 会 TypeError，
-                // 我们在这儿先报中文错，别用「相等」糊过去（那会悄悄给出错顺序）。
-                // 只和第一个键比一遍即可（同类型键彼此可比，这是传递的）。
-                if let Some(first) = keyed.first().map(|p| p.0.clone()) {
-                    for (k, _) in &keyed {
-                        if k.partial_cmp(&first).is_none() {
-                            return Err(err("类型错误",
-                                "「排序按」算出来的排序键没法互相比较"));
-                        }
-                    }
-                }
-                keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-                Ok(list_new(keyed.into_iter().map(|(_, x)| x).collect()))
-            }
-            (Val::List(l), "归约") => {
-                need_args(&name, args, 2, 2)?;
-                let f = ensure_callable(&args[0], "归约")?;
-                let mut acc = args[1].clone();
-                let snapshot: Vec<Val> = l.borrow().clone();
-                for x in snapshot {
-                    acc = self.call_value(f.clone(), vec![acc, x])?;
-                }
-                Ok(acc)
-            }
-            // -- 集合方法（M29）--
-            // 与列表一样，改的是共享容器本身；`并集` 等返回**新**集合。
-            (Val::Set(s), "添加") => { need_args(&name, args, 1, 1)?; s.borrow_mut().push(args[0].clone())?; Ok(Val::None_) }
-            (Val::Set(s), "移除") => {
-                need_args(&name, args, 1, 1)?;
-                if s.borrow_mut().remove(&args[0]) {
-                    Ok(Val::None_)
-                } else {
-                    Err(err("值错误",
-                        format!("集合里没有「{}」，没法移除", display(&args[0]))))
-                }
-            }
-            (Val::Set(s), "丢弃") => {
-                need_args(&name, args, 1, 1)?;
-                s.borrow_mut().remove(&args[0]);
-                Ok(Val::None_)
-            }
-            (Val::Set(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.borrow().contains(&args[0]))) }
-            (Val::Set(s), "并集") => {
-                need_args(&name, args, 1, 1)?;
-                let other = as_iterable(&args[0], "「并集」的另一个集合")?;
-                let mut v = s.borrow().to_items(); v.extend(other); set_new(v)
-            }
-            (Val::Set(s), "交集") => {
-                need_args(&name, args, 1, 1)?;
-                let other = as_iterable(&args[0], "「交集」的另一个集合")?;
-                let look = Lookup::build(&other);
-                let v: Vec<Val> = s.borrow().iter().filter(|x| look.contains(x)).cloned().collect();
-                set_new(v)
-            }
-            (Val::Set(s), "差集") => {
-                need_args(&name, args, 1, 1)?;
-                let other = as_iterable(&args[0], "「差集」的另一个集合")?;
-                let look = Lookup::build(&other);
-                let v: Vec<Val> = s.borrow().iter().filter(|x| !look.contains(x)).cloned().collect();
-                set_new(v)
-            }
-            (Val::Set(s), "对称差") => {
-                need_args(&name, args, 1, 1)?;
-                let other = as_iterable(&args[0], "「对称差」的另一个集合")?;
-                let look = Lookup::build(&other);
-                let a: Vec<Val> = s.borrow().iter().filter(|x| !look.contains(x)).cloned().collect();
-                let b: Vec<Val> = other.iter().filter(|x| !s.borrow().contains(x)).cloned().collect();
-                let mut v = a; v.extend(b); set_new(v)
-            }
-            (Val::Set(s), "清空") => { need_args(&name, args, 0, 0)?; s.borrow_mut().clear(); Ok(Val::None_) }
-            (Val::Set(s), "转列表") => { need_args(&name, args, 0, 0)?; Ok(list_new(s.borrow().to_items())) }
-            (Val::Set(s), "复制") => { need_args(&name, args, 0, 0)?; set_new(s.borrow().to_items()) }
-            // -- 文件方法（M29）--
-            (Val::File(f), _) => file_call(&name, f, args),
-            // -- 精确小数方法（M29）--
-            (Val::Dec(d), _) => dec_call(&name, &d, args),
-            _ => Err(err("类型错误", format!("「{name}」方法调用未实现"))),
-        }
-    }
+
 
     /// 值 → 文本（**唯一实现**，对齐 Python 侧 `jishi_repr`，M27/M29）。
     ///
@@ -2997,7 +2759,13 @@ pub(crate) fn display(v: &Val) -> String {
             else { format!("{{{}}}", items.join(", ")) }
         }
         Val::Func(f) => format!("<函数 {}>", f.name),
-        Val::WalkFn(f) => format!("<函数 {}>", f.name),
+        // ⚠️ 绑定方法（`甲.方法`）显示成 `<方法>`，与字节码侧的 `BoundMethod`
+        // 分支**逐字相同** —— 同一段源码在两个执行器上打出的字必须一样。
+        Val::WalkFn(f) => if f.self_val.is_some() {
+            "<方法>".to_string()
+        } else {
+            format!("<函数 {}>", f.name)
+        },
         Val::Class(c) => format!("<类 {}>", c.name),
         // 自定义的「文本」方法需要 VM 才能调用，而 display 拿不到 VM——
         // 所以这里仍是落回写法；`打印`/`文本` 在**有 VM** 的地方先问「文本()」
@@ -3360,6 +3128,11 @@ fn identity_key(v: &Val) -> Result<IdKey, JishiError> {
         // 异常类型与模块用唯一名字——于是这几个也能像 Python 那样判同一性了。
         Val::Class(c) => Ok(IdKey::Identity(c.id)),
         Val::Func(f) => Ok(IdKey::Identity(f.id)),
+        // ⚠️ **绑定方法**仍明确报错，与字节码侧的 `BoundMethod` 同口径：
+        // Python 里每次取属性都是新对象（`a.方法 是 a.方法` 为假），用
+        // 「实例 + 方法名」判会得到真 —— 那是与 Python 相反且反直觉的答案。
+        Val::WalkFn(f) if f.self_val.is_some() => Err(err("运行期错误",
+            format!("Rust 宿主暂不支持对「{}」用「是 / 不是」", display(v)))),
         Val::WalkFn(f) => Ok(IdKey::Identity(f.id)),
         Val::Builtin(_, fp) => Ok(IdKey::Identity(*fp as usize)),
         Val::ExcType(n) => Ok(IdKey::Value("异常类型".into(), n.clone())),
@@ -4222,7 +3995,8 @@ pub fn set_args(args: Vec<String>) {
 // 属性 / 下标 / 调用
 // ---------------------------------------------------------------------------
 
-fn get_attr(obj: Val, attr: &str, line: i64, col: i64) -> Result<Val, JishiError> {
+pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
+    -> Result<Val, JishiError> {
     match obj {
         Val::Module(_, attrs) => attrs.get(attr).cloned().ok_or_else(|| err("异常", format!("模块里没有「{attr}」"))),
         Val::Instance(inst_rc) => {
@@ -4239,6 +4013,12 @@ fn get_attr(obj: Val, attr: &str, line: i64, col: i64) -> Result<Val, JishiError
                         func: fu.clone(), instance: inst_rc.clone(),
                         name: attr.to_string() })));
                 }
+                // 树遍历的方法值（R6 主体 ④）：同样「绑上实例」，只是用树遍历
+                // 自己的函数值 —— 共享函数体、只换 `self_val`。
+                if let Val::WalkFn(wf) = f {
+                    return Ok(Val::WalkFn(Rc::new(
+                        wf.bind_self(Val::Instance(inst_rc.clone())))));
+                }
             }
             let cls = inst.class.name.clone();
             Err(err("类型错误", format!("「{cls}」没有属性「{attr}」")))
@@ -4254,6 +4034,11 @@ fn get_attr(obj: Val, attr: &str, line: i64, col: i64) -> Result<Val, JishiError
                 return Ok(Val::BoundMethod(Box::new(BoundMethod::User {
                     func: fu.clone(), instance: sp.instance.clone(),
                     name: attr.to_string() })));
+            }
+            // 树遍历的方法值（同 Instance 分支）
+            if let Some(Val::WalkFn(wf)) = sp.base.methods.get(attr) {
+                return Ok(Val::WalkFn(Rc::new(
+                    wf.bind_self(Val::Instance(sp.instance.clone())))));
             }
             if let Some(v) = sp.base.class_vars.borrow().get(attr) { return Ok(v.clone()); }
             Err(err("类型错误", format!("基类「{}」里没有「{attr}」", sp.base.name)))
@@ -4279,7 +4064,7 @@ fn get_attr(obj: Val, attr: &str, line: i64, col: i64) -> Result<Val, JishiError
     }
 }
 
-fn set_attr(obj: Val, attr: &str, val: Val) -> Result<(), JishiError> {
+pub(crate) fn set_attr(obj: Val, attr: &str, val: Val) -> Result<(), JishiError> {
     match obj {
         Val::Module(_, mut attrs) => { attrs.insert(attr.to_string(), val); Ok(()) }
         // 改的是**共享**的字段表（`Rc<RefCell<…>>`），
@@ -4892,6 +4677,264 @@ pub(crate) fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
 ///   一次哈希表分配 + 每次 insert 的哈希纯属浪费 → 改成 `Vec<Option<Val>>`；
 /// * 中间那个「按参数顺序的值表」`Vec<Val>` 也省掉了：单元表既然在手上，
 ///   就直接写（以前是返回 `values` 再由 `store_cells` 搬一遍）。
+/// 内建类型的方法分发表（列表 / 字典 / 文本 / 集合 / 文件 / 精确小数）。
+///
+/// ⚠️ **这是自由函数、宿主参数是 `&mut dyn BuiltinHost`**（R6 主体 ④）：
+/// 树遍历参考执行器也要用这张表（`列.追加(…)` 那种在它那边以前是「还没实现」）。
+/// 表里只用到一个宿主能力（`call_value`，给 `映射` / `过滤` / `排序按` / `归约`
+/// 回调用户函数），所以从 `impl VM` 里搬出来毫不费劲 ——
+/// 而**方法语义仍然只有一份实现**（两边都调它）。
+pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
+                                  receiver: Val, args: &[Val])
+    -> Result<Val, JishiError> {
+        match (receiver, name.as_str()) {
+            // -- 列表方法 --
+            // 这里全部走 `borrow_mut()`：改的是共享容器本身，
+            // 所以 `a.追加(3)` 之后原变量 `a` 也会变（M28 修的就是这个）。
+            (Val::List(l), "追加") => { need_args(&name, args, 1, 1)?; l.borrow_mut().push(args[0].clone()); Ok(Val::None_) }
+            (Val::List(l), "插入") => {
+                need_args(&name, args, 2, 2)?;
+                let i = as_int(&args[0])?;
+                let mut l = l.borrow_mut();
+                // ⚠️ Python 的 `list.insert(i, v)` 的**夹取规则**（R6.5）：
+                // 负数先 `i + len`，再夹到 `[0, len]` —— 所以
+                // `[1,2,3].插入(-1, 9)` 给 `[1, 2, 9, 3]`。
+                // 以前这里是 `as_int(...) as usize` —— 负数直接变成巨大的 usize、
+                // 再被 `min(len)` 夹到**末尾**，于是同一个程序在 Rust 上给
+                // `[1, 2, 3, 9]`、在其它四个执行器上给 `[1, 2, 9, 3]`。
+                let n = l.len() as i128;
+                let at = if i < 0 { (n + i).max(0) } else { i.min(n) } as usize;
+                l.insert(at, args[1].clone());
+                Ok(Val::None_)
+            }
+            (Val::List(l), "弹出") => {
+                need_args(&name, args, 0, 1)?;
+                let mut l = l.borrow_mut();
+                // 文案照 Python 的 `_m_list_pop`：空列表与下标越界**是两回事**
+                // （`[1].弹出(9)` 里列表并不空）。R6.2 起两边都分开并逐字对齐。
+                if l.is_empty() {
+                    return Err(err("值错误", "列表是空的，没有东西可以弹出"));
+                }
+                // 负下标先折算（R6.5）：`列.弹出(-1)` 弹最后一个
+                let v = if args.is_empty() {
+                    l.pop()
+                } else {
+                    let i = as_int(&args[0])?;
+                    norm_index(i, l.len()).map(|j| l.remove(j))
+                };
+                v.ok_or_else(|| err("索引错误", INDEX_MSG))
+            }
+            (Val::List(l), "排序") => { need_args(&name, args, 0, 0)?; l.borrow_mut().sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
+            (Val::List(l), "反转") => { need_args(&name, args, 0, 0)?; l.borrow_mut().reverse(); Ok(Val::None_) }
+            (Val::List(l), "清空") => { need_args(&name, args, 0, 0)?; l.borrow_mut().clear(); Ok(Val::None_) }
+            (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.borrow().iter().position(|x| *x == args[0]).map(|i| Val::Int(i as i128)).ok_or_else(|| err("值错误", "找不到元素")) }
+            (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(l.borrow().iter().filter(|x| **x == args[0]).count() as i128)) }
+            (Val::List(l), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(l.borrow().contains(&args[0]))) }
+            (Val::List(l), "移除") => {
+                need_args(&name, args, 1, 1)?;
+                let mut l = l.borrow_mut();
+                if let Some(pos) = l.iter().position(|x| *x == args[0]) { l.remove(pos); Ok(Val::None_) }
+                else {
+                    // 照 Python 的 `_m_list_remove`：**要说清是哪个元素**
+                    // （「列表里没有这个元素」查起来得自己猜是哪一个）
+                    Err(err("值错误",
+                            format!("列表里没有「{}」，没法移除", display(&args[0]))))
+                }
+            }
+            // -- 字典方法 --
+            (Val::Dict(d), "获取") => {
+                need_args(&name, args, 1, 2)?;
+                let dflt = if args.len() == 2 { args[1].clone() } else { Val::None_ };
+                Ok(dict_get(&d.borrow(), &args[0]).unwrap_or(dflt))
+            }
+            (Val::Dict(d), "键") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(k, _)| k.clone()).collect())) }
+            (Val::Dict(d), "值") => { need_args(&name, args, 0, 0)?; Ok(list_new(d.borrow().iter().map(|(_, v)| v.clone()).collect())) }
+            (Val::Dict(d), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(dict_contains(&d.borrow(), &args[0]))) }
+            // M36 补：`更新` / `弹出` 此前在 Rust 宿主上**根本没实现**
+            // （报「方法调用未实现」——是明确报错，但确实是漏的）
+            (Val::Dict(d), "更新") => {
+                need_args(&name, args, 1, 1)?;
+                match &args[0] {
+                    Val::Dict(other) => {
+                        let items = other.borrow().items.clone();
+                        let mut cur = d.borrow_mut();
+                        for (k, v) in items { dict_set(&mut cur, k, v); }
+                        Ok(Val::None_)
+                    }
+                    other => Err(err("类型错误", format!(
+                        "「更新」需要一个字典参数，但传了「{}」（{}）",
+                        display(other), type_label(other)))),
+                }
+            }
+            (Val::Dict(d), "合并") => {
+                need_args(&name, args, 1, 1)?;
+                match &args[0] {
+                    Val::Dict(other) => {
+                        // 返回**新字典**：双方都不动（与就地改的「更新」分工清楚）
+                        let mut merged = d.borrow().clone();
+                        let items = other.borrow().items.clone();
+                        for (k, v) in items { dict_set(&mut merged, k, v); }
+                        Ok(Val::Dict(Rc::new(RefCell::new(merged))))
+                    }
+                    other => Err(err("类型错误", format!(
+                        "「合并」需要一个字典参数，但传了「{}」（{}）",
+                        display(other), type_label(other)))),
+                }
+            }
+            (Val::Dict(d), "弹出") => {
+                need_args(&name, args, 1, 2)?;
+                let mut cur = d.borrow_mut();
+                if let Some(v) = dict_remove(&mut cur, &args[0]) {
+                    Ok(v)
+                } else if args.len() == 2 {
+                    Ok(args[1].clone())
+                } else {
+                    Err(err("键错误", missing_key_msg(&args[0])))
+                }
+            }
+            (Val::Dict(d), "清空") => { need_args(&name, args, 0, 0)?; d.borrow_mut().clear(); Ok(Val::None_) }
+            // -- 字符串方法 --
+            (Val::Str(s), "大写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_uppercase())) }
+            (Val::Str(s), "小写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_lowercase())) }
+            (Val::Str(s), "去空白") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.trim().to_string())) }
+            (Val::Str(s), "拆分") => {
+                need_args(&name, args, 0, 1)?;
+                let sep = args.first().map(display).unwrap_or_default();
+                Ok(list_new(s.split(&sep).map(|p| Val::Str(p.to_string())).collect()))
+            }
+            (Val::Str(s), "查找") => {
+                // M54 补：以前 Rust 宿主**根本没有这个方法**（`文本` 少这一个，
+                // 是 M53 靠五引擎对拍偶然撞见的 —— 方法漂移检测就是为此建的）。
+                need_args(&name, args, 1, 1)?;
+                let needle = match &args[0] {
+                    Val::Str(n) => n.clone(),
+                    other => return Err(err("类型错误", format!(
+                        "「查找」需要文本参数，得到了「{}」", type_label(other)))),
+                };
+                // ⚠️ `str::find` 给的是**字节**偏移，而基石/Python 的口径是
+                // **字符**偏移（`"你好吗".查找("吗") == 2`）。含中文时两者不等，
+                // 得把前缀的字符数出来。
+                Ok(Val::Int(match s.find(&needle) {
+                    Some(b) => s[..b].chars().count() as i128,
+                    None => -1,
+                }))
+            }
+            (Val::Str(s), "替换") => { need_args(&name, args, 2, 2)?; let a = display(&args[0]); let b = display(&args[1]); Ok(Val::Str(s.replace(&a, &b))) }
+            (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
+            (Val::Str(s), "开头是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.starts_with(&display(&args[0])))) }
+            (Val::Str(s), "结尾是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.ends_with(&display(&args[0])))) }
+            (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i128>().map(Val::Int).map_err(|_| err("值错误", format!("「{s}」不能转成整数"))) }
+            (Val::Str(s), "转小数") => { need_args(&name, args, 0, 0)?; s.parse::<f64>().map(Val::Float).map_err(|_| err("值错误", "不能转成小数")) }
+            // -- 列表高阶方法（数据流水线，M29）--
+            (Val::List(l), "映射") => {
+                need_args(&name, args, 1, 1)?;
+                let f = ensure_callable(&args[0], "映射")?;
+                let snapshot: Vec<Val> = l.borrow().clone();
+                let mut out = Vec::with_capacity(snapshot.len());
+                for x in snapshot {
+                    out.push(host.call_value(f.clone(), vec![x])?);
+                }
+                Ok(list_new(out))
+            }
+            (Val::List(l), "过滤") => {
+                need_args(&name, args, 1, 1)?;
+                let f = ensure_callable(&args[0], "过滤")?;
+                let snapshot: Vec<Val> = l.borrow().clone();
+                let mut out = Vec::new();
+                for x in snapshot {
+                    let keep = host.call_value(f.clone(), vec![x.clone()])?;
+                    if truthy(keep) { out.push(x); }
+                }
+                Ok(list_new(out))
+            }
+            (Val::List(l), "排序按") => {
+                need_args(&name, args, 1, 1)?;
+                let f = ensure_callable(&args[0], "排序按")?;
+                let snapshot: Vec<Val> = l.borrow().clone();
+                let mut keyed: Vec<(Val, Val)> = Vec::with_capacity(snapshot.len());
+                for x in snapshot {
+                    let k = host.call_value(f.clone(), vec![x.clone()])?;
+                    keyed.push((k, x));
+                }
+                // 键之间必须两两可比：混着数字和文本时 Python 会 TypeError，
+                // 我们在这儿先报中文错，别用「相等」糊过去（那会悄悄给出错顺序）。
+                // 只和第一个键比一遍即可（同类型键彼此可比，这是传递的）。
+                if let Some(first) = keyed.first().map(|p| p.0.clone()) {
+                    for (k, _) in &keyed {
+                        if k.partial_cmp(&first).is_none() {
+                            return Err(err("类型错误",
+                                "「排序按」算出来的排序键没法互相比较"));
+                        }
+                    }
+                }
+                keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+                Ok(list_new(keyed.into_iter().map(|(_, x)| x).collect()))
+            }
+            (Val::List(l), "归约") => {
+                need_args(&name, args, 2, 2)?;
+                let f = ensure_callable(&args[0], "归约")?;
+                let mut acc = args[1].clone();
+                let snapshot: Vec<Val> = l.borrow().clone();
+                for x in snapshot {
+                    acc = host.call_value(f.clone(), vec![acc, x])?;
+                }
+                Ok(acc)
+            }
+            // -- 集合方法（M29）--
+            // 与列表一样，改的是共享容器本身；`并集` 等返回**新**集合。
+            (Val::Set(s), "添加") => { need_args(&name, args, 1, 1)?; s.borrow_mut().push(args[0].clone())?; Ok(Val::None_) }
+            (Val::Set(s), "移除") => {
+                need_args(&name, args, 1, 1)?;
+                if s.borrow_mut().remove(&args[0]) {
+                    Ok(Val::None_)
+                } else {
+                    Err(err("值错误",
+                        format!("集合里没有「{}」，没法移除", display(&args[0]))))
+                }
+            }
+            (Val::Set(s), "丢弃") => {
+                need_args(&name, args, 1, 1)?;
+                s.borrow_mut().remove(&args[0]);
+                Ok(Val::None_)
+            }
+            (Val::Set(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.borrow().contains(&args[0]))) }
+            (Val::Set(s), "并集") => {
+                need_args(&name, args, 1, 1)?;
+                let other = as_iterable(&args[0], "「并集」的另一个集合")?;
+                let mut v = s.borrow().to_items(); v.extend(other); set_new(v)
+            }
+            (Val::Set(s), "交集") => {
+                need_args(&name, args, 1, 1)?;
+                let other = as_iterable(&args[0], "「交集」的另一个集合")?;
+                let look = Lookup::build(&other);
+                let v: Vec<Val> = s.borrow().iter().filter(|x| look.contains(x)).cloned().collect();
+                set_new(v)
+            }
+            (Val::Set(s), "差集") => {
+                need_args(&name, args, 1, 1)?;
+                let other = as_iterable(&args[0], "「差集」的另一个集合")?;
+                let look = Lookup::build(&other);
+                let v: Vec<Val> = s.borrow().iter().filter(|x| !look.contains(x)).cloned().collect();
+                set_new(v)
+            }
+            (Val::Set(s), "对称差") => {
+                need_args(&name, args, 1, 1)?;
+                let other = as_iterable(&args[0], "「对称差」的另一个集合")?;
+                let look = Lookup::build(&other);
+                let a: Vec<Val> = s.borrow().iter().filter(|x| !look.contains(x)).cloned().collect();
+                let b: Vec<Val> = other.iter().filter(|x| !s.borrow().contains(x)).cloned().collect();
+                let mut v = a; v.extend(b); set_new(v)
+            }
+            (Val::Set(s), "清空") => { need_args(&name, args, 0, 0)?; s.borrow_mut().clear(); Ok(Val::None_) }
+            (Val::Set(s), "转列表") => { need_args(&name, args, 0, 0)?; Ok(list_new(s.borrow().to_items())) }
+            (Val::Set(s), "复制") => { need_args(&name, args, 0, 0)?; set_new(s.borrow().to_items()) }
+            // -- 文件方法（M29）--
+            (Val::File(f), _) => file_call(&name, f, args),
+            // -- 精确小数方法（M29）--
+            (Val::Dec(d), _) => dec_call(&name, &d, args),
+            _ => Err(err("类型错误", format!("「{name}」方法调用未实现"))),
+        }
+    }
 /// 形参绑定里**与执行器无关**的那一半：把实参 + 关键字实参排到形参位置上，
 /// 该报的错（个数太多 / 缺少 / 不认识的关键字）都在这里报。
 ///
