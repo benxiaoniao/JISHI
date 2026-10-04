@@ -194,5 +194,7 @@ def test_进度仪表零不一致():
     out = r.stdout.decode("utf-8", "replace")
     assert r.returncode == 0, out + r.stderr.decode("utf-8", "replace")[-800:]
     assert "不一致 0" in out, out
-    # 「内建调用接上」这一步至少要把 21_内建调用.jsh 那一类语料跑成「一致」
-    assert "一致 11" in out, out
+    # ⚠️ 判「至少涨到哪」而不是「正好等于几」—— 后面每补一步这个数都会变。
+    # 内建调用接上那一步落地时是 11（第 ① 步之后是 25）。
+    m = re.search(r"一致 (\d+)", out)
+    assert m and int(m.group(1)) >= 11, out

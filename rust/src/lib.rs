@@ -1849,7 +1849,7 @@ impl VM {
                 }
                 op::UNARY_OP => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    let out = if ins.a == 0 { unary_neg(v) } else { Val::Bool(!truthy(v)) };
+                    let out = if ins.a == 0 { unary_neg(v)? } else { Val::Bool(!truthy(v)) };
                     self.stack.push(out);
                 }
                 op::JUMP => ip = ins.a as usize,
@@ -3255,7 +3255,7 @@ fn dec_call(name: &str, d: &Dec, args: &[Val]) -> Result<Val, JishiError> {
 }
 
 
-fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
+pub(crate) fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
     // 算术比较里只要有一边是精确小数就走十进制（`精确("0.3") == 0.3` 为真）。
     // 成员测试/同一性（6–9）**不走**：`精确("1") 在 [1]` 该按元素比，
     // 而不是让「精确」拒绝参加（对齐 Python 侧 apply_compare 的分工）。
@@ -3434,12 +3434,22 @@ impl PartialEq for Val {
     }
 }
 
-fn unary_neg(v: Val) -> Val {
+/// 取负号。
+///
+/// 🔴 **原来它返回 `Val`，非数字一律给 `空`** —— 那是个**不报错的错答案**：
+/// 三个 Python 执行器对 `-「x」` 都报「类型错误（「x」不能取负号）」，
+/// 而 Rust 宿主**打印出「空」**（Node 侧给 `NaN`，也错，另记一笔）。
+/// R6 主体做树遍历参考执行器时撞出来的：树遍历要共用这个函数，
+/// 一量才发现「共用的那一份」自己就是分叉源。
+pub(crate) fn unary_neg(v: Val) -> Result<Val, JishiError> {
     match v {
-        Val::Int(i) => Val::Int(-i),
-        Val::Float(f) => Val::Float(-f),
-        Val::Dec(d) => Val::Dec(Rc::new(d.neg())),
-        _ => Val::None_,
+        Val::Int(i) => Ok(Val::Int(-i)),
+        Val::Float(f) => Ok(Val::Float(-f)),
+        Val::Dec(d) => Ok(Val::Dec(Rc::new(d.neg()))),
+        // 布尔按整数取负：对齐 Python（`-True` 是 `-1`，bool 是 int 的子类）。
+        Val::Bool(b) => Ok(Val::Int(if b { -1 } else { 0 })),
+        other => Err(err("类型错误",
+            format!("「{}」不能取负号", display(&other)))),
     }
 }
 
@@ -4291,7 +4301,7 @@ fn norm_index(i: i128, len: usize) -> Option<usize> {
     }
 }
 
-fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
+pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
     // 切片（M33）：列表按元素切、文本按字符切（与 Python 的 str 索引一致）
     if let Val::Slice(sl) = &idx {
         return match &obj {
@@ -4611,7 +4621,7 @@ fn as_iterable(v: &Val, what: &str) -> Result<Vec<Val>, JishiError> {
     }
 }
 
-fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, JishiError> {
+pub(crate) fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, JishiError> {
     // star >= 0 时是星号解包（M25）：该位置收「其余」成列表
     // 注意这里取的是**快照**（`.borrow().clone()`）：解包是只读操作，
     // 不该把原列表搬空。
@@ -4827,7 +4837,7 @@ pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
 
 /// 取下一个元素：列表迭代器弹**尾**（快照是反转的，所以顺序正确、每步 O(1)），
 /// 文件迭代器读一行。
-fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
+pub(crate) fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
     match it {
         Val::List(l) => {
             // ⚠️ `pop()` 而不是 `remove(0)` —— 后者每次搬移整个 Vec（O(n)），

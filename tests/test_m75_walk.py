@@ -92,19 +92,21 @@ def test_算术语料的两个实现结果一致():
 def test_未实现的节点明确报错而不是静默给值():
     """🔴 本项目的硬规矩：**不许静默给错值**。
 
-    `If` 还没实现 —— 那就必须报「还没实现「If」」，而不是当作没看见、
-    把 if 分支跳过去（那会给出一个看起来正常的错答案）。
+    ⚠️ 这里原来拿 `If` 当「还没实现」的例子 —— 第 ① 步（`test_m77`）把它实现掉了，
+    于是这条测试改成了**报「If 没有 branches」**（不同的错）。
+    现在拿**真正还没实现**的节点来钉（`导入` / `类` 那几个还没做）：
+    它们必须报「还没实现「X」」，而不是当作没看见、把整条语句跳过去。
     """
-    src = "令 甲 = 1\n如果 甲 > 0：\n    打印(1)\n"
-    tmp = Path(tempfile.gettempdir()) / "_m75_if.json"
-    # 用前端现成的 AST（这里手写一个最小的 If 节点，免得依赖前端构建）
-    ast = {"类型": "Program", "body": [
-        {"类型": "If", "cond": {"类型": "Num", "value": 1}, "body": [],
-         "orelse": [], "line": 2, "col": 1}]}
-    tmp.write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
-    out, err = _run(["--walk", str(tmp)])
-    assert out == "", f"未实现的节点不该有输出：{out!r}"
-    assert "还没实现" in err and "If" in err, err
+    tmp = Path(tempfile.gettempdir()) / "_m75_unimpl.json"
+    for kind_name, node in (
+        ("Import", {"类型": "Import", "name": "文本", "line": 1, "col": 1}),
+        ("ClassDef", {"类型": "ClassDef", "name": "甲", "body": [], "line": 1, "col": 1}),
+    ):
+        ast = {"类型": "Program", "body": [node]}
+        tmp.write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
+        out, err = _run(["--walk", str(tmp)])
+        assert out == "", f"未实现的节点不该有输出：{out!r}"
+        assert "还没实现" in err and kind_name in err, (kind_name, err)
 
 
 @need_rust
