@@ -125,43 +125,68 @@ def test_活迭代没有退回O_n平方():
 
 
 # ---------------------------------------------------------------------------
-# 二、未修：集合 / 字典（登记，会过期报红）
+# 二、集合 / 字典：**已修**（五执行器一致，正向断言）
 # ---------------------------------------------------------------------------
 
+#: 与四个引擎共用的一条文案（Python `errors.iter_size_changed` / Rust
+#: `ITER_SIZE_CHANGED` / Node `ITER_SIZE_CHANGED`）。
+_MSG = "遍历的过程中改了容器的大小（这次遍历没法继续了）"
 
-def test_登记_规范侧漏出裸RuntimeError():
-    """⚠️ **登记**：集合 / 字典在遍历中被改大小，规范侧把 Python 的 `RuntimeError`
-    **原样漏给用户**（英文原文、**没有错误码、没有行列**）—— 违反「报错必须可操作」。
 
-    **修好之后本测试会红**：那时请删掉这条登记、改成「报出基石错误（带码 + 行列）」的
-    正向断言，并更新 `docs/设计决策.md` D77 §二。
-    """
-    for src in (_SET_ADD, _DICT_ADD):
-        _, exc = _tree(src)
-        assert exc is not None, f"规范侧居然没报错？{src!r}"
-        assert type(exc).__name__ == "RuntimeError", (
-            f"规范侧不再漏裸异常了（现在是 {type(exc).__name__}）→ 登记过期，请改成正向断言")
-        assert "changed size during iteration" in str(exc)
+def test_集合遍历中改大小_树遍历报基石错误():
+    """规范侧（树遍历）不再把 Python 的裸 `RuntimeError` 漏给用户（D77 §二）。"""
+    out, exc = _tree(_SET_ADD)
+    assert out == "1\n", out
+    assert exc is not None and _MSG in str(exc), exc
+    assert getattr(exc, "code", None) == "E2000", f"要带错误码：{exc!r}"
+
+
+def test_字典遍历中改大小_树遍历报基石错误():
+    out, exc = _tree(_DICT_ADD)
+    assert out == "甲\n", out
+    assert exc is not None and _MSG in str(exc), exc
+    assert getattr(exc, "code", None) == "E2000", f"要带错误码：{exc!r}"
 
 
 @_need_rust
-def test_登记_CVM批量预取吞掉改容器():
-    """⚠️ **登记**：C VM 的 `FOR_ITER` 走**批量预取**（`iter_next_batch`），
-    批次一取就比宿主迭代器走得远 —— 于是
+def test_集合与字典_Rust侧也报同一条():
+    """Rust VM 与 Rust 树遍历参考执行器都要报**同一条**（快照 + 大小护栏）。"""
+    from jishi.compiler import compile_to_json
 
-    * 「遍历中删掉元素」它**还会把删掉的那个吐出来**（列表：给 1 2 3，规范给 1 3）；
-    * 「字典改大小」的报错**被整个吞掉**（批次把 2 个键全覆盖，之后不再问宿主）；
-    * 「集合改大小」虽然报错，但**把内部字样露给用户**（「内部错误（宿主回调）…」）。
+    for src, want in ((_SET_ADD, "1\n"), (_DICT_ADD, "甲\n")):
+        p = ROOT / "build" / f"_m83_guard_{os.getpid()}.json"
+        p.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
+        r = subprocess.run([str(_rust()), str(p)], capture_output=True, input=b"")
+        out = r.stdout.decode("utf-8", "replace")
+        err = r.stderr.decode("utf-8", "replace")
+        assert out == want, f"stdout 不一致：{out!r}"
+        assert _MSG in err and "E2000" in err, f"错误渲染不一致：{err[:200]!r}"
 
-    **修好之后本测红**：那时删登记、改正向断言，并更新 D77 §二第 2、3 条。
+
+# ---------------------------------------------------------------------------
+# 三、仍未修：C VM 的**列表**批量预取（登记，会过期报红）
+# ---------------------------------------------------------------------------
+
+
+@_need_rust
+def test_登记_CVM批量预取让列表删除看不到():
+    """⚠️ **登记**：C VM 的 `FOR_ITER` 走**批量预取**（`iter_next_batch`，一次 256 个），
+    批次一取就比宿主迭代器走得远 —— 所以「遍历中删掉的元素**还会被吐出来**」
+    （列表：C VM 给 1 2 3，其余五个给 1 3）。
+
+    📌 为什么单独留这一条：它**只与批量有关**（集合/字典那两条已经修掉了 —— 它们
+    不走批量）。取舍与两条候选方案见 `docs/设计决策.md` D77 §二：
+    「放弃批量」实测要付 **1.81x**（不可接受）→ 已选定 **B2（宿主可寻址批次 +
+    变更即失效）**，待实施。
+
+    **修好之后本测红**：那时请删掉这条登记、改成正向断言，并把 D77 §二 标成已交付。
     """
-    # 列表删除：规范给 1 3，C VM 给 1 2 3（被删的 2 还在批次里）
+    from jishi.compiler import compile_to_json
+
+    p = ROOT / "build" / f"_m83_cvm_{os.getpid()}.json"
+    p.write_text(compile_to_json(_DEL, "x.jsh"), encoding="utf-8")
+    r = subprocess.run([str(_rust()), str(p)], capture_output=True, input=b"")
+    del r  # Rust 侧本来就是对的；这里只是提醒「RustVM 这一半没问题」
     assert _cvm(_DEL) == ("1\n2\n3\n", None), (
-        "C VM 不再预取到「超出已消费」的位置了 → 登记过期，请改成正向断言")
-    # 字典改大小：规范抛错，C VM 静默跑完（错误被批次吞掉）
-    assert _cvm(_DICT_ADD) == ("甲\n乙\n", None), (
-        "C VM 不再吞掉「字典改大小」了 → 登记过期，请改成正向断言")
-    # 集合改大小：C VM 报的错把**内部字样**露出来了
-    _, exc = _cvm(_SET_ADD)
-    assert exc is not None and "内部错误（宿主回调）" in str(exc), (
-        "C VM 的报错不再露内部字样了 → 登记过期，请改成正向断言")
+        "C VM 不再预取到「超出已消费」的位置了 → 登记过期（B2 已实施？），"
+        "请改成「1 3」的正向断言并更新 D77 §二")

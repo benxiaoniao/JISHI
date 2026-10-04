@@ -29,7 +29,7 @@ from typing import Any, Optional
 from . import opcodes as O
 from . import runtime as R
 from .errors import (DebugQuit, Frame, JishiError, RunBreak, RunContinue,
-                     RunError, RunTypeError, RunValueError)
+                     RunError, RunTypeError, RunValueError, iter_size_changed)
 from .opcodes import BINOP_TO_SYMBOL, CMPOP_TO_SYMBOL, BinOp, CmpOp, UnOp
 
 # ---------------------------------------------------------------------------
@@ -478,9 +478,12 @@ class _Iter:
             self.pos = 0
             self.it = None
         elif isinstance(obj, dict):
-            self.seq = list(obj.keys())
+            # ⚠️ **字典不能走键快照批量**（D77 §二）：那会让「遍历中改字典大小」
+            # 这件事**整个被吞掉**（快照里根本没有新键）。改成用 Python 自己的
+            # 字典迭代器逐个拉 —— 改大小时它自己就抛 `RuntimeError`，与规范一致。
+            self.seq = None
             self.pos = 0
-            self.it = None
+            self.it = iter(obj)
         else:
             self.seq = None         # 通用迭代器：逐个拉取
             self.pos = 0
@@ -1008,6 +1011,10 @@ class CvmHost:
             except StopIteration:
                 done[0] = 1
                 return 0
+            except RuntimeError:
+                # 集合 / 字典在遍历中被改大小：换成基石错误（文案只有一份，见 errors）
+                raise iter_size_changed(line=line, col=col,
+                                          filename=self.filename) from None
             out[0] = self.py2c(v)
             return 0
         except BaseException as e:
@@ -1113,6 +1120,9 @@ class CvmHost:
                         chunk.append(next(wrapper.it))
                     except StopIteration:
                         break
+                    except RuntimeError:
+                        raise iter_size_changed(line=line, col=col,
+                                                  filename=self.filename) from None
             # 快路径（M20 引入，**M46 泛化**）：整批同类型时一次 pack + memmove
             # 写入 C 侧数组，省掉逐个构造 JVal 的 ctypes 开销。
             # M20 只认整数（实测快 ~9x）；M46 阶段一把浮点 / 布尔 / 空 / 文本

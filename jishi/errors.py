@@ -287,6 +287,21 @@ class RunError(JishiError):
     title = "运行期错误"
 
 
+#: 「遍历时改了容器的大小」——Python 侧的原生异常是 `RuntimeError`（英文、无码、无行列），
+#: 各引擎都要把它换成**同一条**基石错误（D77 §二）：带码、带行列、带修法。
+#: ⚠️ 文案在这里**只有一份**，五个执行器逐字引用（对拍盯得住）。
+ITER_SIZE_CHANGED = "遍历的过程中改了容器的大小（这次遍历没法继续了）"
+ITER_SIZE_CHANGED_HINT = "要边遍历边改，就先把元素取出来（或复制一份）再遍历"
+
+
+def iter_size_changed(line=None, col=None, filename: str = "<输入>",
+                      source_line=None) -> "RunError":
+    """把「遍历中改容器大小」造成的那条 RuntimeError 转成基石错误。"""
+    return RunError(ITER_SIZE_CHANGED, line=line, col=col,
+                    source_line=source_line, filename=filename,
+                    hint=ITER_SIZE_CHANGED_HINT)
+
+
 class RunZeroDivisionError(RunError):
     code = "E2001"
     exc_name = "除零错误"

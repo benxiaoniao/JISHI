@@ -383,6 +383,20 @@ pub(crate) enum Val {
     /// 现在这个是「下标 + 每步查一次 `len()`」：既**活的**（与 Python 一致），
     /// 又**每步 O(1)**（不会退回 R6.0 那个 `remove(0)` 的 O(n²)）。
     ListIter(Rc<RefCell<ListIter>>),
+    /// **集合 / 字典的带护栏迭代器**（R6 收尾·D77 §二）：快照 + 原容器 + 期望大小。
+    ///
+    /// 为什么要它：集合 / 字典在遍历中被**改了大小**时，规范（Python 的迭代器）
+    /// 会**报错**；而快照会让这件事**静默过去**（悄悄用旧数据继续跑）。
+    /// 所以每步核对一次原容器的 `len()`，不一致就报同一条基石错误。
+    GuardedIter(Rc<RefCell<GuardedIter>>),
+}
+
+/// 带大小护栏的迭代器状态：快照（保序）+ 已取下标 + 原容器 + 期望大小。
+pub(crate) struct GuardedIter {
+    pub items: Vec<Val>,
+    pub idx: usize,
+    pub src: Val,
+    pub expect: usize,
 }
 
 /// 列表活迭代器的状态：**借的是原列表**（不是拷贝）+ 当前下标。
@@ -1376,6 +1390,24 @@ pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
 }
 
 /// 带提示语的报错（M56）：`hint` 会渲染成「  提示：…」那一行。
+/// 带**显式错误码**的 `err_with_hint`。
+///
+/// 为什么要它：`error_code` 表是「按类型名反查码」，而「运行期错误」在 Rust 侧
+/// 没有配码（Python 侧是 `RunError.code = "E2000"`）。五执行器对拍要求**渲染逐字
+/// 一致**，所以这条错误必须自带 E2000（D77 §二）。
+pub(crate) fn err_coded_hint(t: &str, code: &str, msg: impl Into<String>,
+                             hint: String) -> JishiError {
+    let mut e = err_with_hint(t, msg, hint);
+    e.code = Some(code.to_string());
+    e
+}
+
+/// 「遍历时改了容器的大小」—— 文案与提示**只有一份**（Python 侧 `errors.py` 同名
+/// 常量），五个执行器逐字一致（D77 §二）。
+pub(crate) const ITER_SIZE_CHANGED: &str = "遍历的过程中改了容器的大小（这次遍历没法继续了）";
+pub(crate) const ITER_SIZE_CHANGED_HINT: &str =
+    "要边遍历边改，就先把元素取出来（或复制一份）再遍历";
+
 pub(crate) fn err_with_hint(t: &str, msg: impl Into<String>, hint: String) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
@@ -2797,7 +2829,7 @@ pub(crate) fn display(v: &Val) -> String {
         Val::Slice(s) => slice_repr(s),
         // 活迭代器是**内部值**（只有 `FOR_ITER` 看得见），但 `display` 得有个分支。
         // 与 Python 侧对迭代器的处理一致：不假装它是列表。
-        Val::ListIter(_) => "<列表迭代器>".to_string(),
+        Val::ListIter(_) | Val::GuardedIter(_) => "<迭代器>".to_string(),
         Val::List(l) => {
             let items: Vec<String> = l.borrow().iter().map(py_repr).collect();
             format!("[{}]", items.join(", "))
@@ -4721,17 +4753,36 @@ pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
         // ⚠️ **列表 → 活迭代器**（容器 + 下标），不是快照：与 Python 的列表
         // 迭代器一致（见 `Val::ListIter` 的注释）。集合 / 字典 / 文本仍走快照。
         Val::List(l) => Ok(Val::ListIter(Rc::new(RefCell::new(ListIter { list: l, idx: 0 })))),
-        Val::Set(s) => Ok(reversed_iter(s.borrow().to_items())),
+        // ⚠️ 集合 / 字典：**快照 + 大小护栏**（改大小要报错，与 Python 一致）
+        Val::Set(s) => {
+            let items = s.borrow().to_items();
+            let expect = items.len();
+            Ok(Val::GuardedIter(Rc::new(RefCell::new(GuardedIter {
+                items, idx: 0, src: Val::Set(s), expect }))))
+        }
         Val::Str(s) => Ok(reversed_iter(
             s.chars().map(|c| Val::Str(c.to_string())).collect())),
-        Val::Dict(d) => Ok(reversed_iter(
-            d.borrow().iter().map(|(k, _)| k.clone()).collect())),
+        Val::Dict(d) => {
+            let items: Vec<Val> = d.borrow().iter().map(|(k, _)| k.clone()).collect();
+            let expect = items.len();
+            Ok(Val::GuardedIter(Rc::new(RefCell::new(GuardedIter {
+                items, idx: 0, src: Val::Dict(d), expect }))))
+        }
         // 文件是**惰性**迭代：真句柄不能快照（那等于整读进内存），
         // 所以迭代器就是文件自己，每次 next 读一行。
         Val::File(_) => Ok(obj),
         other => Err(err("类型错误",
             format!("「{}」不能遍历，遍历需要列表、文本、集合、字典或文件",
                     display(&other)))),
+    }
+}
+
+/// 取容器的**当前大小**（集合 / 字典的护栏用；认不出的类型给 `None`）。
+pub(crate) fn container_len(v: &Val) -> Option<usize> {
+    match v {
+        Val::Set(s) => Some(s.borrow().len()),
+        Val::Dict(d) => Some(d.borrow().len()),
+        _ => None,
     }
 }
 
@@ -4751,6 +4802,21 @@ pub(crate) fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
                     Ok(Some(v))
                 }
                 None => Ok(None),
+            }
+        }
+        // **带护栏**：每步核对原容器大小 —— 改了大小就报错（同一条文案，五执行器一致）
+        Val::GuardedIter(st) => {
+            let mut st = st.borrow_mut();
+            if container_len(&st.src) != Some(st.expect) {
+                return Err(err_coded_hint("运行期错误", "E2000",
+                                          ITER_SIZE_CHANGED, ITER_SIZE_CHANGED_HINT.to_string()));
+            }
+            if st.idx < st.items.len() {
+                let v = st.items[st.idx].clone();
+                st.idx += 1;
+                Ok(Some(v))
+            } else {
+                Ok(None)
             }
         }
         Val::List(l) => {

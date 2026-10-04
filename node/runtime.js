@@ -54,7 +54,21 @@ const ERROR_CODES = {
   // 与 Rust 侧同一收口：语义错误都已改成具体类型名（nameErr/funcErr/…），
   // 剩下的「异常」就是 `抛出` 的包装这一种（见 `makeException`）。
   '异常': 'E2009',
+  // D77 §二：「运行期错误」在 Python 侧就是 `RunError`（E2000）。以前宿主不给码，
+  // 于是同一条错误在宿主上渲染成「错误（运行期错误）」、在 Python 上带 E2000 —— 对拍会红。
+  '运行期错误': 'E2000',
 };
+
+//: 「遍历时改了容器的大小」——文案与提示**只有一份**（Python `errors.py` 同名常量，
+//: Rust 侧 `ITER_SIZE_CHANGED` 同名），五个执行器逐字一致（D77 §二）。
+const ITER_SIZE_CHANGED = '遍历的过程中改了容器的大小（这次遍历没法继续了）';
+const ITER_SIZE_CHANGED_HINT = '要边遍历边改，就先把元素取出来（或复制一份）再遍历';
+
+/** 集合 / 字典在遍历中被改了大小 → 同一条基石错误（带码 + 行列 + 修法）。 */
+function iterSizeErr(line, col) {
+  return new JishiError('运行期错误', '运行期错误', ITER_SIZE_CHANGED,
+                        line, col, ITER_SIZE_CHANGED_HINT);
+}
 
 class JishiError extends Error {
   constructor(typeName, title, message, line, col, hint) {
@@ -3088,6 +3102,7 @@ function makeException(value, line, col) {
 
 module.exports = {
   UNSET, PENDING_NONE,
+  iterSizeErr, ITER_SIZE_CHANGED, ITER_SIZE_CHANGED_HINT,
   JishiError, RunBreak, RunContinue,
   typeName, truthy, display, pyStr, pyRepr,
   FloatBox, isFloatBox, unwrap,

@@ -731,8 +731,14 @@ function makeIterator(obj, line, col) {
     it = { next: () => i < obj.length ? { value: obj[i++], done: false } : { done: true } };
   } else if (obj instanceof Map) {
     const keys = [...obj.keys()];
+    // ⚠️ **大小护栏**（D77 §二）：字典在遍历中被改大小 → 规范（Python）会报错，
+    // 而键快照会让这件事静默过去（悄悄用旧键继续跑）。每步核对一次 size。
+    const expect = obj.size;
     let i = 0;
-    it = { next: () => i < keys.length ? { value: keys[i++], done: false } : { done: true } };
+    it = { next: () => {
+      if (obj.size !== expect) throw R.iterSizeErr(line, col);
+      return i < keys.length ? { value: keys[i++], done: false } : { done: true };
+    } };
   } else if (typeof obj === 'string') {
     const chars = [...obj];
     let i = 0;
@@ -743,7 +749,13 @@ function makeIterator(obj, line, col) {
   } else if (obj instanceof R.JishiSet) {
     // 集合迭代自己的元素（M30）。JishiSet 的迭代器直接来自内部 Map，
     // 顺序就是插入顺序，与 Python 侧一致。
-    it = obj[Symbol.iterator]();
+    // ⚠️ **大小护栏**（D77 §二）：遍历中改集合大小 → 规范会报错（同字典）。
+    const inner = obj[Symbol.iterator]();
+    const expect = obj.map.size;
+    it = { next: () => {
+      if (obj.map.size !== expect) throw R.iterSizeErr(line, col);
+      return inner.next();
+    } };
   } else if (obj instanceof R.JishiInstance) {
     // 迭代协议（M24/M30）：自定义对象定义 `迭代(自身)` 就能用于遍历。
     // 与 Python 侧 `JishiInstance.__iter__` 同一套规则。

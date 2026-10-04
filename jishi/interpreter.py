@@ -24,6 +24,7 @@ from .errors import (
     RunBreak,
     RunContinue,
     RunError,
+    iter_size_changed,
     RunTypeError,
     SemanticNameError,
     translate_python_exception,
@@ -451,7 +452,14 @@ class Interpreter:
                 line=stmt.line, col=stmt.col, filename=self.filename)
         try:
             while True:
-                item = next(it)
+                try:
+                    item = next(it)
+                except RuntimeError:
+                    # 集合 / 字典在遍历中被改了大小：Python 原生异常是英文、无码
+                    # 无行列 —— 换成基石错误（D77 §二，文案与五执行器共用一份）。
+                    raise iter_size_changed(
+                        line=stmt.line, col=stmt.col,
+                        filename=self.filename) from None
                 env.set(stmt.target.id, item)
                 try:
                     self.exec_block(stmt.body, env)

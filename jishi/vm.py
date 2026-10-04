@@ -30,6 +30,7 @@ from .errors import (
     RunBreak,
     RunContinue,
     RunError,
+    iter_size_changed,
     RunTypeError,
     SemanticNameError,
 )
@@ -677,6 +678,11 @@ class VM:
                         except StopIteration:
                             stack.pop()       # 耗尽：弹出迭代器
                             ip = ins.a
+                        except RuntimeError:
+                            # 集合 / 字典遍历中被改大小（同树遍历，D77 §二）
+                            raise iter_size_changed(
+                                line=ins.line, col=ins.col,
+                                filename=filename) from None
                     elif op == Op.SETUP_LOOP:
                         frame.block_seq += 1
                         frame.loops.append(
