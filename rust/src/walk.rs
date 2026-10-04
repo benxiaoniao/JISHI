@@ -48,11 +48,13 @@
 
 use crate::json::Json;
 use crate::{
-    bind_params, binop, call_builtin_method, compare, dict_new, display, err, err_with_hint,
-    format_value_with, get_attr, get_item, iter_next, list_new, make_iterator,
-    name_hint, new_builtins, next_obj_id, set_attr, set_item, truthy, type_label,
+    as_int, bind_params, binop, call_builtin_method, compare, dict_new, display, err,
+    err_with_hint, exception_matches, format_value_with, get_attr, get_item, iter_next, list_new,
+    make_exception, make_iterator, name_hint, new_builtins, next_obj_id, reject_kwargs,
+    set_attr, set_item, stdlib_module, truthy, type_label,
     unary_neg, unbound_hint, unbound_msg, unbound_shadow_hint, unpack_values,
-    BoundMethod, BuiltinHost, Class, Instance, Val, JishiError, T_NAME,
+    BoundMethod, BuiltinHost, Class, ExcValue, Instance, SliceVal, Val, JishiError,
+    T_NAME, T_NOT_CALLABLE,
 };
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -293,6 +295,12 @@ impl Walker {
                     _ => Val::None_,
                 };
                 Ok(Flow::Return(v))
+            }
+            "Try" => self.exec_try(n),
+            "Raise" => self.exec_raise(n),
+            "Import" => {
+                self.exec_import(n)?;
+                Ok(Flow::Normal)
             }
             "Break" => Ok(Flow::Break),
             "Continue" => Ok(Flow::Continue),
@@ -647,10 +655,13 @@ impl Walker {
             "Subscript" => {
                 let obj = self.eval(field(target, "obj")?)?;
                 let idx_node = field(target, "index")?;
-                if kind(idx_node) == "Slice" {
-                    return Err(self.unimpl("切片赋值", idx_node));
-                }
-                let idx = self.eval(idx_node)?;
+                let idx = if kind(idx_node) == "Slice" {
+                    self.eval_slice(idx_node)?
+                } else {
+                    self.eval(idx_node)?
+                };
+                // 切片赋值**本来就被支持**（`甲[0:1] = [9]`）—— 走共用的 `set_item`
+                // 与字节码 VM 的 `STORE_SUBSCR` 同一条路。
                 set_item(obj, idx, value)
             }
             other => Err(self.unimpl(&format!("赋值目标「{other}」"), target)),
@@ -826,6 +837,28 @@ impl Walker {
         }
     }
 
+    /// 切片字面量 `[起点:终点:步长]`（三个分量都可能缺省）。
+    ///
+    /// ⚠️ 与字节码的 `BUILD_SLICE` **同一口径**：缺省是 `None`（不是 0）——
+    /// 负步长下「缺省」与「显式给 0」含义完全不同。
+    /// 步长为 0 的那句报错也照抄（`值错误`：切片的步长不能为 0）。
+    fn eval_slice(&mut self, n: &Json) -> Result<Val, JishiError> {
+        let mut parts: [Option<i128>; 3] = [None, None, None];
+        for (i, key) in ["start", "stop", "step"].iter().enumerate() {
+            if let Some(node) = n.get(key) {
+                if !matches!(node, Json::Null) {
+                    let v = self.eval(node)?;
+                    parts[i] = Some(as_int(&v)?);
+                }
+            }
+        }
+        let [start, stop, step] = parts;
+        if step == Some(0) {
+            return Err(err("值错误", "切片的步长不能为 0"));
+        }
+        Ok(Val::Slice(Rc::new(SliceVal { start, stop, step })))
+    }
+
     /// 列表字面量 `[甲, 乙]`。
     fn eval_list(&mut self, n: &Json) -> Result<Val, JishiError> {
         let els = n.get("elements").and_then(|v| v.as_array()).map(|v| v.as_slice()).unwrap_or(&[]);
@@ -851,11 +884,12 @@ impl Walker {
     fn eval_subscript(&mut self, n: &Json) -> Result<Val, JishiError> {
         let obj = self.eval(field(n, "obj")?)?;
         let idx_node = field(n, "index")?;
-        if kind(idx_node) == "Slice" {
-            return Err(self.unimpl("切片", idx_node));
-        }
-        let idx = self.eval(idx_node)?;
-        // 走**共用**的 `get_item`（负索引折算、键错误、文本按码点…都在里面）。
+        let idx = if kind(idx_node) == "Slice" {
+            self.eval_slice(idx_node)?
+        } else {
+            self.eval(idx_node)?
+        };
+        // 走**共用**的 `get_item`（负索引折算、切片折算、键错误、文本按码点…都在里面）。
         get_item(obj, idx)
     }
 
@@ -911,8 +945,153 @@ impl Walker {
                 BoundMethod::User { name, .. } => Err(err("运行期错误", format!(
                     "树遍历参考执行器拿到了字节码的方法值「{name}」（内部错误）"))),
             },
-            other => Err(self.unimpl(&format!("调用非内建的值「{}」", display(&other)), n)),
+            // 调用一个**异常类型** = 抛出一个带消息的异常。
+            // `抛出 值错误("x")` 走的就是这一句：`值错误` 求值成 `Val::ExcType`，
+            // 加括号调用 = 造异常。与字节码 VM 的同一分支逐字同源。
+            Val::ExcType(t) => {
+                reject_kwargs("异常类型", &knames)?;
+                let msg = args.first().map(display).unwrap_or_default();
+                Err(err(&t, msg))
+            }
+            // 类型名与提示都照 Python 的 `runtime.call_value`（E2006）——
+            // 以前这里报的是「还没实现」，可「不能调用一个整数」根本不是
+            // 「没实现」，是**确定的语义**（拿它当没实现会掩盖真问题）。
+            other => Err(err_with_hint(
+                T_NOT_CALLABLE,
+                format!("「{}」不能调用", display(&other)),
+                "只有函数或带括号的对象才能调用".to_string())),
         }
+    }
+
+    /// `尝试 / 捕获 / 最终`。
+    ///
+    /// ⚠️ 三处口径都是照 Python 侧 `Interpreter._do_try` 定的（两个 VM 也一致）：
+    ///
+    /// 1. **控制信号（`返回` / `中断` / `继续`）不被捕获** —— 它们不是错误。
+    ///    但「最终」**一定要跑**，跑完再把信号原样往外传。
+    /// 2. **捕获体在「当前作用域」跑**（不新开子作用域）—— 这条是 R5.1 定的：
+    ///    早先树遍历给「捕获 为 名字」单独建了个子作用域，于是**捕获体里的赋值
+    ///    出了捕获体就没了**（全语言只有那一处那样）。所以 `捕获 为 e` 就是
+    ///    「在当前作用域里赋一次值」，捕获体也在当前作用域跑。
+    /// 3. **「最终」里跳出去会覆盖外层信号**（`最终: 返回 2` 压过 `尝试: 返回 1`）
+    ///    —— 这就是 `run_finally` 返回 `Option<Flow>` 的原因。
+    ///
+    /// 另外：`捕获` 的条件求值出错、或没有处理器接住，**都以那个错为准**
+    /// （「最终」照跑；若「最终」自己也出错，则由它覆盖）。
+    fn exec_try(&mut self, n: &Json) -> Result<Flow, JishiError> {
+        let body = stmts_of(n, "body")?;
+        let handlers = n.get("handlers").and_then(|v| v.as_array())
+            .map(|v| v.as_slice()).unwrap_or(&[]);
+        let finalbody = n.get("finalbody").and_then(|v| v.as_array())
+            .map(|v| v.as_slice());
+
+        match self.exec_body(body) {
+            Ok(flow) => {
+                // 「最终」里跳出去 → **覆盖**原本的信号
+                match self.run_finally(finalbody)? {
+                    Some(f) => Ok(f),
+                    None => Ok(flow),
+                }
+            }
+            Err(e) => {
+                // 被捕获的异常是一个**带内容的对象**（与 `dispatch_exception`
+                // 压栈的同一个形状）—— `e.类型` / `e.消息` 因此可读。
+                let exc = ExcValue::from_error(&e);
+                for h in handlers {
+                    let ty = h.get("type").filter(|t| !matches!(t, Json::Null));
+                    let matched = match ty {
+                        // 裸 `捕获：` —— 全接
+                        None => true,
+                        Some(t) => {
+                            // ⚠️ 条件在**当前作用域**求值（与 Python 的
+                            // `_handler_catches` 一致）；它自己出错就直接往外抛
+                            // （此时「最终」不跑 —— Python 也是这样）。
+                            let cond = self.eval(t)?;
+                            exception_matches(&exc, &cond)
+                        }
+                    };
+                    if !matched {
+                        continue;
+                    }
+                    // 捕获名 = **当前作用域**的一次赋值（口径 2）
+                    if let Some(name) = h.get("name").and_then(|v| v.as_str()) {
+                        if !name.is_empty() {
+                            self.env.borrow_mut()
+                                .vars.insert(name.to_string(), exc.clone());
+                        }
+                    }
+                    let hbody = stmts_of(h, "body")?;
+                    match self.exec_body(hbody) {
+                        // ⚠️ **捕获体自己出错**时「最终」不跑 —— 这是既有口径
+                        // （`interpreter._do_try` 那个 `except (RunBreak,
+                        // RunContinue, _ReturnSignal, DebugQuit)` 只接控制信号；
+                        // 四个字节码宿主也一样）。照抄它，不照 Python 语言本身。
+                        Err(he) => return Err(he),
+                        // 捕获体正常结束或**跳出去**（`返回`/`中断`/`继续`）：
+                        // 「最终」要跑；它自己跳出去时**以它为准**（覆盖捕获体的信号）。
+                        Ok(flow) => return match self.run_finally(finalbody)? {
+                            Some(f) => Ok(f),
+                            None => Ok(flow),
+                        },
+                    }
+                }
+                // 没有处理器接住：跑「最终」后继续往上抛（原错误原样带走）
+                match self.run_finally(finalbody)? {
+                    Some(f) => Ok(f),
+                    None => Err(e),
+                }
+            }
+        }
+    }
+
+    /// 跑「最终」块。
+    ///
+    /// 返回 `Some(flow)` = 这个块**自己跳出去了**（`返回` / `中断` / `继续`）——
+    /// 那会**覆盖**外层正在传播的信号（Python 的 finally 就是这么定的）。
+    fn run_finally(&mut self, fin: Option<&[Json]>) -> Result<Option<Flow>, JishiError> {
+        let Some(stmts) = fin else { return Ok(None) };
+        match self.exec_body(stmts)? {
+            Flow::Normal => Ok(None),
+            f => Ok(Some(f)),
+        }
+    }
+
+    /// `抛出 值`。
+    ///
+    /// 包装规则走**共用**的 `make_exception`，与字节码 VM 逐字同源：
+    /// 异常类型 → 无消息的异常；捕获到的异常对象 → **保住消息**重抛；其余值 →
+    /// 包成「异常」。
+    fn exec_raise(&mut self, n: &Json) -> Result<Flow, JishiError> {
+        let v = match n.get("value") {
+            Some(node) if !matches!(node, Json::Null) => self.eval(node)?,
+            // 前端在**解析期**就拦下裸 `抛出`（`tests/error_cases/26_抛出无值.jsh`
+            // 考的就是它），所以这里到不了 —— 留着是为了「不静默」。
+            _ => return Err(err("类型错误",
+                "「抛出」后面要写一个值（比如 抛出 值错误(\"说明\")）")),
+        };
+        Err(make_exception(v))
+    }
+
+    /// `导入 模块 [从 python/本地包] [为 别名]`。
+    ///
+    /// ⚠️ **跨语言宿主有意不支持 `从 python / 本地包`** —— 单二进制里没有
+    /// Python。报的那句话是**给用户看的正确信息**，登记在
+    /// `tools/check_engines.py` 的 `HOST_KNOWN_GAPS` 里；这里与字节码 VM
+    /// **逐字相同**（不一致的话互拍会立刻红）。
+    fn exec_import(&mut self, n: &Json) -> Result<(), JishiError> {
+        let name = field(n, "name")?.as_str().unwrap_or("").to_string();
+        let from_python = n.get("from_python").and_then(|v| v.as_bool()).unwrap_or(false);
+        let from_local = n.get("from_local").and_then(|v| v.as_bool()).unwrap_or(false);
+        if from_python || from_local {
+            return Err(err("运行期错误",
+                format!("Rust 引擎不支持「从 python/本地包」导入「{name}」")));
+        }
+        let modv = stdlib_module(&name)?;
+        // 有别名就绑别名，否则绑模块名（与编译器 `c_import` 的 `store_name` 同一口径）。
+        let bind = n.get("alias").and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty()).map(|s| s.to_string()).unwrap_or(name);
+        self.env.borrow_mut().vars.insert(bind, modv);
+        Ok(())
     }
 
     /// 自定义对象的「文本()」（`format_value_with` 的钩子）。

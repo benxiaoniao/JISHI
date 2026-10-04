@@ -518,7 +518,7 @@ pub(crate) struct SliceVal {
 fn slice_indices(sl: &SliceVal, len: usize) -> Result<(i128, i128, i128), JishiError> {
     let step = sl.step.unwrap_or(1);
     if step == 0 {
-        return Err(err("数值错误", "切片的步长不能为 0"));
+        return Err(err("值错误", "切片的步长不能为 0"));
     }
     let len = len as i128;
     // 正步长时下界是 0、上界是 len；负步长时反着来（最容易写错的一处）
@@ -730,12 +730,24 @@ struct SuperVal {
 /// 宿主这边是单行「错误（类型）：消息」。**Rust 侧行列本来就没有**
 /// （`JishiError` 只有 `type_name` / `message` 两个字段）—— 那是 M56 第 5 条
 /// 「宿主错误码与行列」的活，这里只把**消息**补回来。
-struct ExcValue {
+pub(crate) struct ExcValue {
     /// 基石异常类型名（`类型错误` / `索引错误`…）—— `捕获 X` 与 `e.类型` 都用它。
-    type_name: String,
-    message: String,
+    pub(crate) type_name: String,
+    pub(crate) message: String,
     /// 错误码（M56）：从抛出的 `JishiError` 带过来，`打印(e)` 时与 Python 同形。
-    code: Option<String>,
+    pub(crate) code: Option<String>,
+}
+
+impl ExcValue {
+    /// 从宿主错误造一个「被捕获的异常」值 —— 与 `VM::dispatch_exception` 压栈的
+    /// **同一个形状**（树遍历参考执行器也要用它把 `捕获 X 为 e` 的 `e` 造出来）。
+    pub(crate) fn from_error(e: &JishiError) -> Val {
+        Val::Exc(Rc::new(ExcValue {
+            type_name: e.type_name.clone(),
+            message: e.message.clone(),
+            code: e.code.clone(),
+        }))
+    }
 }
 
 #[derive(Clone)]
@@ -2066,7 +2078,7 @@ impl VM {
                     let stop = if flags & 2 != 0 { Some(as_int(&self.stack.pop().unwrap())?) } else { None };
                     let start = if flags & 1 != 0 { Some(as_int(&self.stack.pop().unwrap())?) } else { None };
                     if step == Some(0) {
-                        return Err(err("数值错误", "切片的步长不能为 0"));
+                        return Err(err("值错误", "切片的步长不能为 0"));
                     }
                     self.stack.push(Val::Slice(Rc::new(SliceVal { start, stop, step })));
                 }
@@ -3879,7 +3891,7 @@ fn b_sum(args: &[Val], _vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
 /// 拆出去的理由：14 个模块、一百三十多个函数，全塞进 lib.rs 会把它撑到
 /// 四千多行。零依赖约束下 `正则` / `加密` / `压缩` / `网络` 各自还有几百行，
 /// 干脆按模块分文件（crypto.rs / regex.rs / zip.rs / http.rs / csv.rs）。
-fn stdlib_module(name: &str) -> Result<Val, JishiError> {
+pub(crate) fn stdlib_module(name: &str) -> Result<Val, JishiError> {
     stdlib::module(name)
 }
 
@@ -3895,7 +3907,7 @@ pub fn dump_stdlib() -> String {
 ///
 /// 以前宿主对 kwargs 的态度是「收下、忘掉」：调用看着成功了，参数却没生效。
 /// 那比报错难查一百倍 —— 宁可报错，也不要静默。
-fn reject_kwargs(target: &str, knames: &[String]) -> Result<(), JishiError> {
+pub(crate) fn reject_kwargs(target: &str, knames: &[String]) -> Result<(), JishiError> {
     if knames.is_empty() {
         return Ok(());
     }
@@ -4191,7 +4203,7 @@ fn set_item(obj: Val, idx: Val, val: Val) -> Result<(), JishiError> {
         let idxs = slice_positions(a, b, st);
         if idxs.len() != vals.len() {
             return Err(err(
-                "数值错误",
+                "值错误",
                 format!(
                     "切片赋值长度不匹配：目标有 {} 个位置，却给了 {} 个值",
                     idxs.len(),
@@ -4460,7 +4472,7 @@ pub(crate) fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, Jis
     Ok(out)
 }
 
-fn make_exception(v: Val) -> JishiError {
+pub(crate) fn make_exception(v: Val) -> JishiError {
     match v {
         Val::ExcType(t) => err(&t, ""),
         // 重抛一个**捕获到的**异常（`抛出 e` / `捕获 … 再 抛出`）：消息要保住，
@@ -4471,7 +4483,7 @@ fn make_exception(v: Val) -> JishiError {
     }
 }
 
-fn exception_matches(exc: &Val, cond: &Val) -> bool {
+pub(crate) fn exception_matches(exc: &Val, cond: &Val) -> bool {
     // 右边（`捕获 X`）永远是异常**类型**
     let Val::ExcType(c) = cond else { return false };
     // 左边可能是类型本身，也可能是**捕获住的异常对象**（M56 起压的是后者）
@@ -5130,10 +5142,9 @@ pub fn run_walk(ast_text: &str) -> Result<String, (String, String)> {
         // 渲染成与 `render_error` 的**头行**同形（位置框要读源码文件，宿主没有
         // 那个上下文；这一步见 `walk.rs` 的「还没做」）。
         Err(e) => {
-            let head = match &e.code {
-                Some(c) => format!("错误 {c}：{}（{}）", e.type_name, e.message),
-                None => format!("错误（{}）：{}", e.type_name, e.message),
-            };
+            // 头行走**共用**的 `error_head`（与字节码 VM 的 `render_error` 逐字同源：
+            // 标题、空消息不括号、无码时的兜底 —— 三处规则只有一份）。
+            let head = error_head(&e);
             let mut rendered = match (e.line, e.col) {
                 (Some(l), Some(c)) => format!("{head}\n  ┌─ {l}:{c}"),
                 _ => head,
@@ -5262,18 +5273,31 @@ pub fn source_line_of(vm: &VM, line: i64) -> Option<String> {
 /// 那是**词法/语法错**才有的（解析器手里有 token 的跨度）；宿主收到的只有
 /// `line/col`。运行期错误在 Python 侧走的也正是 `underline = None` 那条路
 /// （`start = end = col`），所以这一处**不差分毫**。
-pub fn render_error(vm: &VM, e: &JishiError) -> String {
-    let mut out = String::new();
+/// 报错的**头行**（`错误 E2005：数值不对（x）`）。
+///
+/// ⚠️ **两个执行器共用这一份**：三条容易写歪的规则都在里面 ——
+/// ① 显示的是 `error_title`（`值错误` → 「数值不对」）而不是内部类型名；
+/// ② 消息**为空**（或与标题重复）时不加那对括号；
+/// ③ 没有错误码时退回 `错误（类型）：消息`。
+/// 树遍历参考执行器早先自己拼了一遍，于是 `抛出 值错误("x")` 在它那边渲染成
+/// 「错误 E2005：值错误（x）」、字节码 VM 是「错误 E2005：数值不对（x）」——
+/// 同一段源码两个宿主打出不同的字。抽成共用之后这类漂移从根上没了。
+pub(crate) fn error_head(e: &JishiError) -> String {
     let title = error_title(&e.type_name);
     match &e.code {
         Some(code) => {
-            out.push_str(&format!("错误 {code}：{title}"));
+            let mut s = format!("错误 {code}：{title}");
             if !e.message.is_empty() && e.message != title {
-                out.push_str(&format!("（{}）", e.message));
+                s.push_str(&format!("（{}）", e.message));
             }
+            s
         }
-        None => out.push_str(&format!("错误（{}）：{}", e.type_name, e.message)),
+        None => format!("错误（{}）：{}", e.type_name, e.message),
     }
+}
+
+pub fn render_error(vm: &VM, e: &JishiError) -> String {
+    let mut out = error_head(e);
     if let Some(line) = e.line {
         let col = e.col.unwrap_or(1);
         out.push_str(&format!("\n  ┌─ {}:{}:{}", vm.module.filename, line, col));
