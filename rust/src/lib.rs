@@ -330,6 +330,15 @@ pub(crate) enum Val {
     Set(JSet),
     File(Rc<RefCell<FileHandle>>),
     Func(Func),
+    /// **树遍历参考执行器自己的函数值**（R6 主体 · 函数与闭包）。
+    ///
+    /// ⚠️ 为什么不能复用 `Val::Func`：那里面装的是**字节码**的 `code_idx`
+    /// （`Func { code_idx, ... }`），而树遍历手里是 **AST**、根本没有字节码
+    /// —— 「不经过字节码」正是它存在的理由。所以它要自己一个变体。
+    ///
+    /// 显示 / 类型 / 同一性 / 可调用判定都要与 `Val::Func` **完全一致**，
+    /// 否则同一段源码在两个执行器上会打出不同的字（有对拍盯着）。
+    WalkFn(Rc<crate::walk::WalkFn>),
     Class(Class),
     Instance(JInst),
     Module(String, HashMap<String, Val>),
@@ -587,7 +596,7 @@ pub(crate) fn set_push(s: &mut Set, v: Val) -> Result<(), JishiError> {
                 format!("「{}」不能放进集合", display(&v)),
                 "集合的元素要是不可变的（数字、文本…）；列表和字典放不进去".to_string()))
         }
-        Val::Func(_) | Val::Class(_) | Val::Builtin(_, _)
+        Val::Func(_) | Val::WalkFn(_) | Val::Class(_) | Val::Builtin(_, _)
         | Val::BoundMethod(_) | Val::Cell(_) => {
             return Err(err("类型错误",
                 format!("「{}」不能放进集合（Rust 宿主没有可用的身份）", display(&v))))
@@ -1064,7 +1073,7 @@ pub(crate) fn type_label(v: &Val) -> String {
         Val::Dict(_) => "字典".to_string(),
         Val::Set(_) => "集合".to_string(),
         Val::File(_) => "文件".to_string(),
-        Val::Func(_) => "函数".to_string(),
+        Val::Func(_) | Val::WalkFn(_) => "函数".to_string(),
         // 实例与类要给**带名字**的结果，与 Python 侧一致（M34 修）：
         // Python 的 `type_name` 对实例给 `A 实例`、对类给 `类 A`，
         // 以前这里一律给「对象」/「类」——用户拿 `类型(x) == "A 实例"`
@@ -2988,6 +2997,7 @@ pub(crate) fn display(v: &Val) -> String {
             else { format!("{{{}}}", items.join(", ")) }
         }
         Val::Func(f) => format!("<函数 {}>", f.name),
+        Val::WalkFn(f) => format!("<函数 {}>", f.name),
         Val::Class(c) => format!("<类 {}>", c.name),
         // 自定义的「文本」方法需要 VM 才能调用，而 display 拿不到 VM——
         // 所以这里仍是落回写法；`打印`/`文本` 在**有 VM** 的地方先问「文本()」
@@ -3350,6 +3360,7 @@ fn identity_key(v: &Val) -> Result<IdKey, JishiError> {
         // 异常类型与模块用唯一名字——于是这几个也能像 Python 那样判同一性了。
         Val::Class(c) => Ok(IdKey::Identity(c.id)),
         Val::Func(f) => Ok(IdKey::Identity(f.id)),
+        Val::WalkFn(f) => Ok(IdKey::Identity(f.id)),
         Val::Builtin(_, fp) => Ok(IdKey::Identity(*fp as usize)),
         Val::ExcType(n) => Ok(IdKey::Value("异常类型".into(), n.clone())),
         Val::Module(n, _) => Ok(IdKey::Value("模块".into(), n.clone())),
@@ -3962,7 +3973,8 @@ fn matches_annotation(tname: &str, v: &Val) -> Option<bool> {
         "集合" => matches!(v, Val::Set(_)),
         "布尔" => matches!(v, Val::Bool(_)),
         "空" => matches!(v, Val::None_),
-        "函数" => matches!(v, Val::Func(_) | Val::Class(_) | Val::Builtin(..)
+        "函数" => matches!(v, Val::Func(_) | Val::WalkFn(_) | Val::Class(_)
+                                | Val::Builtin(..)
                                 | Val::ExcType(_) | Val::BoundMethod(_)),
         "任意" | "值" => true,
         _ => return None,               // 不认识的标注：只作文档
@@ -4601,7 +4613,8 @@ pub fn dump_builtins() -> String {
 
 /// 检查一个参数确实可调用（`映射`/`过滤`/`排序按`/`归约` 的报错要说清是哪个方法）。
 fn ensure_callable(v: &Val, name: &str) -> Result<Val, JishiError> {
-    let ok = matches!(v, Val::Func(_) | Val::Builtin(_, _) | Val::BoundMethod(_));
+    let ok = matches!(v, Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_, _)
+                      | Val::BoundMethod(_));
     if !ok {
         return Err(err("类型错误", format!(
             "「{name}」需要一个函数作为参数，但给的是「{}」", type_label(v))));
@@ -4771,6 +4784,17 @@ pub(crate) fn unbound_msg(name: &str) -> String {
     format!("名字「{name}」在赋值之前被用到了")
 }
 
+/// 「外层也有同名变量」那句提示 —— **与 `core/src/compiler.rs` 的
+/// `UNBOUND_SHADOW_HINT`、`jishi/runtime.py` 的 `UNBOUND_SHADOW_HINT`
+/// 逐字相同**（三处，改一处必须改另外两处；有测试盯着）。
+///
+/// 树遍历参考执行器没有字节码的 `local_hints`，所以它**自己判断**
+/// 「外层有没有同名变量」，再挑这句还是下面那句通用的。
+pub(crate) fn unbound_shadow_hint(name: &str) -> String {
+    format!("外层也有一个叫「{name}」的变量。在这个函数里给它赋过值，\
+它就成了这个函数的局部变量，赋值之前不能读取")
+}
+
 /// 通用提示语（Python 侧同一处的兜底 hint）—— **要带名字**，
 /// 逐字对齐 `runtime.unbound_local` 的 f-string。
 pub(crate) fn unbound_hint(name: &str) -> String {
@@ -4868,21 +4892,29 @@ pub(crate) fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
 ///   一次哈希表分配 + 每次 insert 的哈希纯属浪费 → 改成 `Vec<Option<Val>>`；
 /// * 中间那个「按参数顺序的值表」`Vec<Val>` 也省掉了：单元表既然在手上，
 ///   就直接写（以前是返回 `values` 再由 `store_cells` 搬一遍）。
-fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val],
-             defaults: Option<&[Val]>, cells: &mut [JCell],
-             locals: &mut Vec<Val>, locals_set: &mut Vec<bool>)
-    -> Result<(), JishiError> {
-    let nparams = code.params.len();
+/// 形参绑定里**与执行器无关**的那一半：把实参 + 关键字实参排到形参位置上，
+/// 该报的错（个数太多 / 缺少 / 不认识的关键字）都在这里报。
+///
+/// 返回与 `params` 等长的 `Vec<Option<Val>>`（`None` = 这个形参没拿到值）。
+///
+/// 📌 抽出来的理由：**报错文案必须只有一份**。树遍历参考执行器（`walk.rs`）
+/// 也要绑形参，而「函数「f」需要 2 个参数，但传了 3 个」这句话两边各写一遍
+/// 迟早会漂 —— 而用户看到的就是这句话。
+pub(crate) fn bind_params(name: &str, params: &[String], param_kind: &[i64],
+                          defaults: Option<&[Val]>, args: &[Val],
+                          knames: &[String], kwvals: &[Val])
+    -> Result<Vec<Option<Val>>, JishiError> {
+    let nparams = params.len();
     // 形参种类（M25）：0=普通 1=*参数 2=**选项
-    let star_pos = code.param_kind.iter().position(|k| *k == 1);
-    let dstar_pos = code.param_kind.iter().position(|k| *k == 2);
+    let star_pos = param_kind.iter().position(|k| *k == 1);
+    let dstar_pos = param_kind.iter().position(|k| *k == 2);
     // 能吃普通位置实参的个数 = *参数 之前的那些
     let npos = star_pos.or(dstar_pos).unwrap_or(nparams);
 
     if args.len() > npos && star_pos.is_none() {
         return Err(err("类型错误",
-            format!("函数「{}」需要 {} 个参数，但传了 {} 个",
-                    code.name, npos, args.len() + knames.len())));
+            format!("函数「{name}」需要 {npos} 个参数，但传了 {} 个",
+                    args.len() + knames.len())));
     }
 
     let mut bound: Vec<Option<Val>> = vec![None; nparams];
@@ -4895,7 +4927,7 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val],
     // 未匹配的关键字收进 **选项
     let mut extra: Vec<(Val, Val)> = Vec::new();
     for (k, v) in knames.iter().zip(kwvals.iter()) {
-        if let Some(pi) = code.params[..npos].iter().position(|p| p == k) {
+        if let Some(pi) = params[..npos].iter().position(|p| p == k) {
             bound[pi] = Some(v.clone());
         } else if let Some(dp) = dstar_pos {
             extra.push((Val::Str(k.clone()), v.clone()));
@@ -4904,8 +4936,8 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val],
             // **它有哪些参数**（只报「没有参数」等于让用户去翻定义）。
             return Err(err_with_hint(
                 "类型错误",
-                format!("函数「{}」没有叫「{k}」的参数", code.name),
-                format!("它的参数是：{}", code.params.join("、"))));
+                format!("函数「{name}」没有叫「{k}」的参数"),
+                format!("它的参数是：{}", params.join("、"))));
         }
     }
     if let Some(dp) = dstar_pos {
@@ -4918,11 +4950,22 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val],
             }
         }
     }
-    let missing: Vec<&str> = code.params[..npos].iter().enumerate()
+    let missing: Vec<&str> = params[..npos].iter().enumerate()
         .filter(|(i, _)| bound[*i].is_none()).map(|(_, p)| p.as_str()).collect();
     if !missing.is_empty() {
-        return Err(err("类型错误", format!("函数「{}」缺少参数：{}", code.name, missing.join("、"))));
+        return Err(err("类型错误", format!("函数「{name}」缺少参数：{}", missing.join("、"))));
     }
+    Ok(bound)
+}
+
+fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val],
+             defaults: Option<&[Val]>, cells: &mut [JCell],
+             locals: &mut Vec<Val>, locals_set: &mut Vec<bool>)
+    -> Result<(), JishiError> {
+    // 绑定的**判断**在共用的 `bind_params` 里（树遍历也走它）；
+    // 这里只管「把结果放进本执行器的存储」：单元表 + 局部槽。
+    let mut bound = bind_params(&code.name, &code.params, &code.param_kind,
+                                defaults, args, knames, kwvals)?;
     // ⚠️ **就地填**（不再返回新 Vec）：这两个 Vec 来自帧池，容量通常够用 ——
     // `clear` + `resize` 不会重新分配。`locals_set` 必须**全部重置成 false**，
     // 否则会「读到上一帧的残留值」（比报错难查一百倍）。
@@ -4930,7 +4973,7 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val],
     locals.resize(code.nlocals, Val::None_);
     locals_set.clear();
     locals_set.resize(code.nlocals, false);
-    for i in 0..nparams {
+    for i in 0..code.params.len() {
         let Some(v) = bound[i].take() else { continue };
         let ci = code.param_cell[i];
         if ci >= 0 {

@@ -19,10 +19,14 @@
 //!
 //! | 已经能跑 | 还没实现（明确报错） |
 //! |---|---|
-//! | 语句：`Assign`（含 `+=` 等）、`ExprStmt`、`If`、`While`、`For`、`Loop`、`Break`、`Continue`、`Pass` | `FuncDef` / `Return` / `Lambda`（③） |
+//! | 语句：`Assign`（含 `+=` 等）、`ExprStmt`、`If`、`While`、`For`、`Loop`、`Break`、`Continue`、`Pass`、**`FuncDef` / `Return`** | `Try` / `Raise` / `Import`（⑤） |
 //! | 表达式：`Num`（含 `真`/`假`）、`Str`、`Name`（含 `空`）、`BinOp`、`Compare`、`BoolOp`、`UnaryOp`、`List`、`Dict`、`Subscript`（读）、`Call` | `Attr` / `Slice` / `Comprehension`（④） |
 //! | 赋值目标：`Name`、`TargetList`（解包，含 `*余`） | `Subscript` / `Attr` 作目标（④） |
-//! | —  | `ClassDef` / `Try` / `Raise` / `Import`（④⑤） |
+//! | —  | `ClassDef`（④） |
+//!
+//! **函数与闭包**（③）：`FuncDef` / `Return` / `Lambda`，作用是**词法链**
+//! （`Scope`）而不是字节码那套「槽位 + 单元表」。⚠️ 树遍历没有字节码的
+//! `local_hints`，所以「赋值前读局部」的提示语要**自己判断**「外层有没有同名变量」。
 //!
 //! 具体差什么随时可查：`python tools/check_walk.py`（进度仪表）。
 //! **其余节点会明确报「还没实现「X」」** —— 不静默给错值。
@@ -45,11 +49,15 @@
 
 use crate::json::Json;
 use crate::{
-    binop, compare, dict_new, display, err, format_value_with, get_item, iter_next,
-    list_new, make_iterator, new_builtins, truthy, unary_neg, unpack_values,
-    BuiltinHost, Val, JishiError,
+    bind_params, binop, compare, dict_new, display, err, err_with_hint,
+    format_value_with, get_item, iter_next, list_new, make_iterator, name_hint,
+    new_builtins, truthy, unary_neg, unbound_hint, unbound_msg, unbound_shadow_hint,
+    unpack_values, BuiltinHost, Val, JishiError, T_NAME,
 };
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// 算术运算符 → `binop` 的编码。
 ///
@@ -94,6 +102,88 @@ enum Flow {
     Normal,
     Break,
     Continue,
+    /// `返回 [值]` —— 只有函数体里会出现；`exec_body` **原样往上传**，
+    /// 由 `call_walk_fn` 接住（不在函数里的 `返回` 前端会先拦下）。
+    Return(Val),
+}
+
+/// 树遍历自己的函数值（`Val::WalkFn` 装的就是它）。
+///
+/// ⚠️ **为什么不能复用 `Val::Func`**：那里面装的是字节码的 `code_idx`，
+/// 而树遍历手里是 AST、根本没有字节码 —— 「不经过字节码」正是它存在的理由。
+pub(crate) struct WalkFn {
+    /// 创建序号 —— 判**同一性**（`是` / 放进集合）用，思路与 `Func.id` 同源。
+    pub(crate) id: usize,
+    pub(crate) name: String,
+    params: Vec<String>,
+    /// 形参种类（M25）：0=普通 1=`*参数` 2=`**选项`；与 `params` 等长。
+    param_kind: Vec<i64>,
+    /// 与 `params` 等长；**没有默认值**的位置放 `Val::None_`
+    /// （与 `bind_params` 的约定一致，见那边的 `!matches!(dv, Val::None_)`）。
+    defaults: Vec<Val>,
+    body: Vec<Json>,
+    /// **定义处的作用域** —— 闭包就是靠它：读的时候沿这条链往上找。
+    closure: Rc<RefCell<Scope>>,
+    /// 本函数体里「赋过值的名字」（**赋值即局部**）。读一个还没赋值的 →
+    /// 报「赋值之前被用到了」，**不许穿透到外层**（Python 语义）。
+    /// 用 `Rc` 是为了每次调用只加一次引用计数，不整份克隆这个集合。
+    locals: Rc<HashSet<String>>,
+}
+
+static NEXT_FN_ID: AtomicUsize = AtomicUsize::new(1);
+
+/// 词法作用域链（模块 → 函数 → …）。
+///
+/// ⚠️ 与字节码 VM 的「按名字预分配槽位 + 单元表」是**两套做法**：树遍历手里
+/// 只有 AST，没有编译器算好的槽位。这里的规矩是 —— **读沿链往上找、写只写
+/// 当前作用域**。这正是 Python 侧 `Environment`（`jishi/interpreter.py`）那套
+/// 语义，也是「赋值即局部」的实现方式；两边跑同一段源码必须一样。
+pub(crate) struct Scope {
+    vars: HashMap<String, Val>,
+    parent: Option<Rc<RefCell<Scope>>>,
+}
+
+impl Scope {
+    /// 开一个子作用域（父 = 定义处的作用域 → 闭包）。
+    fn child(parent: Rc<RefCell<Scope>>) -> Rc<RefCell<Scope>> {
+        Rc::new(RefCell::new(Scope { vars: HashMap::new(), parent: Some(parent) }))
+    }
+    /// 沿链取值（**先看自己**）。
+    fn lookup(&self, name: &str) -> Option<Val> {
+        if let Some(v) = self.vars.get(name) {
+            return Some(v.clone());
+        }
+        let mut cur = self.parent.clone();
+        while let Some(s) = cur {
+            let (found, up) = {
+                let b = s.borrow();
+                (b.vars.get(name).cloned(), b.parent.clone())
+            };
+            if found.is_some() {
+                return found;
+            }
+            cur = up;
+        }
+        None
+    }
+    /// 链上**有没有**这个名字（不看值）—— 只用来挑「赋值前读局部」的提示语。
+    fn has_name(&self, name: &str) -> bool {
+        if self.vars.contains_key(name) {
+            return true;
+        }
+        let mut cur = self.parent.clone();
+        while let Some(s) = cur {
+            let (found, up) = {
+                let b = s.borrow();
+                (b.vars.contains_key(name), b.parent.clone())
+            };
+            if found {
+                return true;
+            }
+            cur = up;
+        }
+        false
+    }
 }
 
 /// `循环 N` 的 N —— 与 Python 的 `int(n)` 对齐（树遍历执行器就是那么做的）：
@@ -112,7 +202,12 @@ fn loop_count(v: &Val) -> Result<i128, JishiError> {
 }
 
 pub(crate) struct Walker {
-    pub(crate) globals: HashMap<String, Val>,
+    /// 模块作用域（链的根）。
+    globals: Rc<RefCell<Scope>>,
+    /// **当前**作用域：模块级就是 `globals`，进了函数就是那个函数的作用域。
+    env: Rc<RefCell<Scope>>,
+    /// 当前函数体里「赋过值的名字」；模块级是 `None`（模块级没有「赋值即局部」）。
+    locals: Option<Rc<HashSet<String>>>,
     /// 内建表 —— **与字节码 VM 共用同一张**（`new_builtins`）。这是「内建语义
     /// 不漂」的保证：内建只有一份实现，两个执行器都调它。
     builtins: HashMap<String, Val>,
@@ -121,8 +216,11 @@ pub(crate) struct Walker {
 
 impl Walker {
     pub(crate) fn new() -> Walker {
+        let globals = Rc::new(RefCell::new(Scope { vars: HashMap::new(), parent: None }));
         Walker {
-            globals: HashMap::new(),
+            env: Rc::clone(&globals),
+            globals,
+            locals: None,
             builtins: new_builtins(),
             output: String::new(),
         }
@@ -153,6 +251,18 @@ impl Walker {
             "While" => self.exec_while(n),
             "For" => self.exec_for(n),
             "Loop" => self.exec_loop(n),
+            "FuncDef" => {
+                self.exec_funcdef(n)?;
+                Ok(Flow::Normal)
+            }
+            "Return" => {
+                // `value` 是 JSON `null` 时表示裸 `返回`（前端就是这么编的）
+                let v = match n.get("value") {
+                    Some(node) if !matches!(node, Json::Null) => self.eval(node)?,
+                    _ => Val::None_,
+                };
+                Ok(Flow::Return(v))
+            }
             "Break" => Ok(Flow::Break),
             "Continue" => Ok(Flow::Continue),
             "Pass" => Ok(Flow::Normal),
@@ -210,6 +320,9 @@ impl Walker {
             match self.exec_body(body)? {
                 Flow::Break => break,
                 Flow::Normal | Flow::Continue => {}
+                // ⚠️ `返回` 要**穿过循环**往外传 —— 只有函数体能接住它。
+                // （写成 `_ => {}` 就会把 `返回` 吞掉，函数白跑一趟还回 `空`。）
+                f @ Flow::Return(_) => return Ok(f),
             }
         }
         Ok(Flow::Normal)
@@ -228,6 +341,9 @@ impl Walker {
             match self.exec_body(body)? {
                 Flow::Break => break,
                 Flow::Normal | Flow::Continue => {}
+                // ⚠️ `返回` 要**穿过循环**往外传 —— 只有函数体能接住它。
+                // （写成 `_ => {}` 就会把 `返回` 吞掉，函数白跑一趟还回 `空`。）
+                f @ Flow::Return(_) => return Ok(f),
             }
         }
         Ok(Flow::Normal)
@@ -245,9 +361,102 @@ impl Walker {
             match self.exec_body(body)? {
                 Flow::Break => break,
                 Flow::Normal | Flow::Continue => {}
+                // ⚠️ `返回` 要**穿过循环**往外传 —— 只有函数体能接住它。
+                // （写成 `_ => {}` 就会把 `返回` 吞掉，函数白跑一趟还回 `空`。）
+                f @ Flow::Return(_) => return Ok(f),
             }
         }
         Ok(Flow::Normal)
+    }
+
+    /// `函数 名(参数)：…` —— 造一个 `WalkFn` 并绑到名字上。
+    fn exec_funcdef(&mut self, n: &Json) -> Result<(), JishiError> {
+        let name = field(n, "name")?.as_str().unwrap_or("").to_string();
+        let f = self.make_walk_fn(n, &name)?;
+        self.assign_name(name, Val::WalkFn(Rc::new(f)));
+        Ok(())
+    }
+
+    /// 绑一个名字到**当前**作用域（`令` / `函数` / `遍历` 的目标都走它）。
+    fn assign_name(&mut self, name: String, value: Val) {
+        self.env.borrow_mut().vars.insert(name, value);
+    }
+
+    /// 从 `FuncDef` / `Lambda` 节点造函数值。
+    ///
+    /// ⚠️ **默认值在定义处求值**（不是每次调用时求）—— 与 Python 一致：
+    /// `函数 f(x=现在())` 里的 `现在()` 只在定义时算一次。
+    fn make_walk_fn(&mut self, n: &Json, name: &str) -> Result<WalkFn, JishiError> {
+        let params = str_list(n, "params");
+        let mut param_kind = int_list(n, "param_kind");
+        if param_kind.is_empty() {
+            param_kind = vec![0; params.len()];      // 前端不给就全是「普通」
+        }
+        let mut defaults = Vec::with_capacity(params.len());
+        if let Some(ds) = n.get("defaults").and_then(|v| v.as_array()) {
+            for d in ds {
+                defaults.push(if matches!(d, Json::Null) { Val::None_ } else { self.eval(d)? });
+            }
+        }
+        defaults.resize(params.len(), Val::None_);
+        let body = stmts_of(n, "body")?.to_vec();
+        let locals = Rc::new(assigned_names(&body));
+        Ok(WalkFn {
+            id: NEXT_FN_ID.fetch_add(1, Ordering::Relaxed),
+            name: name.to_string(),
+            params,
+            param_kind,
+            defaults,
+            body,
+            // 闭包 = **定义处**的作用域（不是调用处的）
+            closure: Rc::clone(&self.env),
+            locals,
+        })
+    }
+
+    /// 调用一个树遍历函数值。
+    fn call_walk_fn(&mut self, f: Rc<WalkFn>, args: Vec<Val>,
+                    knames: &[String], kwvals: &[Val]) -> Result<Val, JishiError> {
+        // 形参绑定走**共用**的那一份（`bind_params`）—— 报错文案与字节码 VM 同源，
+        // 不然「函数「f」需要 2 个参数，但传了 3 个」两边各写一遍迟早会漂。
+        let bound = bind_params(&f.name, &f.params, &f.param_kind,
+                                Some(&f.defaults), &args, knames, kwvals)?;
+        // 新作用域：父 = **定义处**的作用域（闭包就靠这一句）
+        let scope = Scope::child(Rc::clone(&f.closure));
+        {
+            let mut b = scope.borrow_mut();
+            for (i, v) in bound.into_iter().enumerate() {
+                if let Some(v) = v {
+                    b.vars.insert(f.params[i].clone(), v);
+                }
+            }
+        }
+        // 换入调用现场（**出错也要换回来**，否则递归里的错会污染外层）
+        let saved_env = Rc::clone(&self.env);
+        let saved_locals = self.locals.take();
+        self.env = Rc::clone(&scope);
+        self.locals = Some(Rc::clone(&f.locals));
+        let mut out = Val::None_;
+        let mut failed = None;
+        for st in &f.body {
+            match self.exec_stmt(st) {
+                Ok(Flow::Return(v)) => {
+                    out = v;
+                    break;
+                }
+                Ok(_) => {}                        // Normal / Break / Continue
+                Err(e) => {
+                    failed = Some(e);
+                    break;
+                }
+            }
+        }
+        self.env = saved_env;
+        self.locals = saved_locals;
+        match failed {
+            Some(e) => Err(e),
+            None => Ok(out),
+        }
     }
 
     /// `目标 = 值`（也管 `+=` / `-=` / `*=` / `/=` / `//=` / `%=` / `**=`）。
@@ -274,7 +483,9 @@ impl Walker {
             "Name" => {
                 let id = field(target, "id")?.as_str()
                     .ok_or_else(|| self.bad("Name 没有 id", target))?;
-                self.globals.insert(id.to_string(), value);
+                // ⚠️ 写**当前**作用域（模块级 → 模块作用域；函数里 → 那个函数的
+                // 局部）—— 「赋值即局部」。链上的外层同名变量**不动**。
+                self.env.borrow_mut().vars.insert(id.to_string(), value);
                 Ok(())
             }
             "TargetList" => {
@@ -307,6 +518,10 @@ impl Walker {
             "List" => self.eval_list(n),
             "Dict" => self.eval_dict(n),
             "Subscript" => self.eval_subscript(n),
+            "Lambda" => {
+                let f = self.make_walk_fn(n, "匿名函数")?;
+                Ok(Val::WalkFn(Rc::new(f)))
+            }
             "Call" => self.eval_call(n),
             other => Err(self.unimpl(other, n)),
         }
@@ -329,7 +544,7 @@ impl Walker {
             .ok_or_else(|| self.bad("Num 的 value 不是数字", n))
     }
 
-    /// 读名字。**找不到就报 E0301**，文案/候选提示都要与其它执行器一致。
+    /// 读名字。顺序：**当前作用域链 → 「赋值即局部」判定 → 内建 → 报 E0301**。
     fn eval_name(&mut self, n: &Json) -> Result<Val, JishiError> {
         let id = field(n, "id")?.as_str().unwrap_or("");
         // ⚠️ `空` 在 AST 里是 **`Name`**（不是字面量节点）：前端在**编译期**
@@ -338,22 +553,41 @@ impl Walker {
         if id == "空" {
             return Ok(Val::None_);
         }
-        // 用户变量优先（与字节码 VM 的「先铺内建、用户赋值覆盖」等价）。
-        if let Some(v) = self.globals.get(id) {
+        // ⚠️ **「赋值即局部」必须先判**（在沿链找**之前**）：一个名字只要在本函数里
+        // 赋过值，它在这个函数里就**只是**局部变量 —— 读它**不许**穿透到外层去找
+        // 同名变量（Python 语义；`interpreter.py` 的 `_lookup` / `runtime.unbound_local`）。
+        // 放错顺序的症状很隐蔽：`令 甲 = 1` + 函数里先读 `甲` 再赋 `甲 = 2`
+        // → 会**静默拿到外层的 1**（不报错、答案是错的）。
+        if self.locals.as_ref().is_some_and(|s| s.contains(id)) {
+            if let Some(v) = self.env.borrow().vars.get(id) {
+                return Ok(v.clone());
+            }
+            // 还没轮到那次赋值 → 报「赋值之前被用到了」。
+            // 树遍历没有字节码的 `local_hints`，所以**自己判断**外层有没有同名
+            // 变量，再挑那句更具体的提示（与编译器生成的那句逐字相同）。
+            let hint = if self.globals.borrow().has_name(id) {
+                unbound_shadow_hint(id)
+            } else {
+                unbound_hint(id)
+            };
+            return Err(err_with_hint(T_NAME, unbound_msg(id), hint));
+        }
+        if let Some(v) = self.env.borrow().lookup(id) {
             return Ok(v.clone());
         }
+        // 内建（与字节码 VM 的「先铺内建、用户赋值覆盖」等价：上面已先查过链）
         if let Some(v) = self.builtins.get(id) {
             return Ok(v.clone());
         }
-        // 候选名池 = 已定义的名字 + **内建名**（与字节码 VM / C VM 同一套口径）。
+        // 候选名池 = 已定义的名字（模块级）+ **内建名**（与字节码 VM / C VM 同一套口径）。
         // ⚠️ 内建名一定要在池子里：`长渡` 的提示要指向「长度」，而「长度」可能
-        // 只作为**被调用的名字**出现过、根本没进 `globals`（R6 主体那次的教训）。
-        let mut pool: Vec<String> = self.globals.keys().cloned().collect();
+        // 只作为**被调用的名字**出现过、根本没进模块作用域（R6 主体那次的教训）。
+        let mut pool: Vec<String> = self.globals.borrow().vars.keys().cloned().collect();
         pool.extend(self.builtins.keys().cloned());
         let msg = format!("找不到名字「{id}」");
-        Err(match crate::name_hint(id, &pool) {
-            Some(h) => crate::err_with_hint(crate::T_NAME, msg, h),
-            None => err(crate::T_NAME, msg),
+        Err(match name_hint(id, &pool) {
+            Some(h) => err_with_hint(T_NAME, msg, h),
+            None => err(T_NAME, msg),
         })
     }
 
@@ -464,17 +698,10 @@ impl Walker {
     }
 
     fn eval_call(&mut self, n: &Json) -> Result<Val, JishiError> {
-        // 关键字参数（`keywords`）本轮不支持 —— 明确报，不静默丢。
-        if let Some(kws) = n.get("keywords").and_then(|k| k.as_array()) {
-            if !kws.is_empty() {
-                return Err(self.unimpl("关键字实参", n));
-            }
-        }
         let func = field(n, "func")?;
-        // 调用目标本轮只认名字（`数.开方` 那种属性调用要等「类 / 模块」那一步）。
-        if kind(func) != "Name" {
-            return Err(self.unimpl(&format!("调用目标「{}」", kind(func)), func));
-        }
+        // 调用目标**先把表达式求出来**（`f(1)(2)`、`令 g = f; g()` 都靠这一句）。
+        // `数.开方` 那种属性调用会在 `eval` 里报「还没实现「Attr」」——
+        // 报错点仍然落在 `Attr` 上，与以前一样好定位。
         let callee = self.eval(func)?;
         let mut args = Vec::new();
         if let Some(list) = n.get("args").and_then(|a| a.as_array()) {
@@ -482,11 +709,33 @@ impl Walker {
                 args.push(self.eval(a)?);
             }
         }
-        // 内建：走**共用**的那一张表（`new_builtins`）—— 「内建调用接上」这一步的
-        // 全部意义就在这里：`长度` / `范围` / `最大` / `打印` … 都只有一份实现，
-        // 字节码 VM 与树遍历执行器**不能**各写一套。
+        // 关键字实参：`keywords` 是 `[[名字, 值表达式], …]`（`ast_nodes.Call`）。
+        let (mut knames, mut kwvals) = (Vec::new(), Vec::new());
+        if let Some(kws) = n.get("keywords").and_then(|k| k.as_array()) {
+            for kw in kws {
+                let pair = kw.as_array()
+                    .ok_or_else(|| self.bad("keywords 的一项不是 [名字, 值]", n))?;
+                if pair.len() != 2 {
+                    return Err(self.bad("keywords 的一项不是 [名字, 值]", n));
+                }
+                knames.push(pair[0].as_str().unwrap_or("").to_string());
+                kwvals.push(self.eval(&pair[1])?);
+            }
+        }
         match callee {
-            Val::Builtin(_, f) => f(&args, self),
+            // 用户函数：形参绑定与报错都走共用的 `bind_params`。
+            Val::WalkFn(f) => self.call_walk_fn(f, args, &knames, &kwvals),
+            // 内建：走**共用**的那一张表（`new_builtins`）—— 「内建调用接上」这一步的
+            // 全部意义就在这里：`长度` / `范围` / `最大` / `打印` … 都只有一份实现，
+            // 字节码 VM 与树遍历执行器**不能**各写一套。
+            Val::Builtin(_, f) => {
+                // 内建（除宿主内部 `map_kwargs` 那几个）不接受关键字实参 ——
+                // 明确报，不静默丢。
+                if !knames.is_empty() {
+                    return Err(self.unimpl("给内建传关键字实参", n));
+                }
+                f(&args, self)
+            }
             other => Err(self.unimpl(&format!("调用非内建的值「{}」", display(&other)), n)),
         }
     }
@@ -540,8 +789,15 @@ impl BuiltinHost for Walker {
         // 树遍历还没有实例；同一个调用的其余部分（容器 / 文本 / 文件）走共用实现。
         make_iterator(obj)
     }
-    fn call_value(&mut self, _callee: Val, _args: Vec<Val>) -> Result<Val, JishiError> {
-        Err(err("运行期错误", "树遍历参考执行器还没实现「回调用户函数」"))
+    fn call_value(&mut self, callee: Val, args: Vec<Val>) -> Result<Val, JishiError> {
+        // 内建现在能**回调用户函数**了（`映射` / `过滤` / `排序按` / `归约` …）——
+        // 这正是 ③ 落地后长出来的能力。
+        match callee {
+            Val::WalkFn(f) => self.call_walk_fn(f, args, &[], &[]),
+            Val::Builtin(_, f) => f(&args, self),
+            other => Err(err("类型错误",
+                format!("「{}」不能当函数调用", display(&other)))),
+        }
     }
     fn write_output(&mut self, s: &str) {
         self.output.push_str(s);
@@ -555,6 +811,106 @@ fn kind(n: &Json) -> &str {
 fn field<'a>(n: &'a Json, key: &str) -> Result<&'a Json, JishiError> {
     n.get(key).ok_or_else(|| err("运行期错误",
         format!("AST 节点「{}」缺字段「{key}」", kind(n))))
+}
+
+/// 取一个字符串列表字段（`params` / `names` …）。
+fn str_list(n: &Json, key: &str) -> Vec<String> {
+    n.get(key).and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+        .unwrap_or_default()
+}
+
+/// 取一个整数列表字段（`param_kind` / `ops` …）。
+fn int_list(n: &Json, key: &str) -> Vec<i64> {
+    n.get(key).and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_i64()).collect())
+        .unwrap_or_default()
+}
+
+/// 扫一遍函数体，收集**本函数赋过值的名字**（「赋值即局部」）。
+///
+/// ⚠️ **不递归进嵌套的 `FuncDef` / `Lambda` 体** —— 那是它们自己的作用域。
+/// ⚠️ 这一步与编译器的名字收集同源：**漏一个分支就会静默错**
+/// （「赋值前读局部」报不出来，于是穿透到外层拿到别人的值）。
+/// R5 移植时就因为编译器漏了 `Try` 分支踩过一次（`docs/前端契约.md` §12.4）——
+/// 所以这里把 `Try` / `捕获` 也一起收上（哪怕第 ⑤ 步才实现它们）。
+fn assigned_names(stmts: &[Json]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    for st in stmts {
+        collect_assigned(st, &mut out);
+    }
+    out
+}
+
+fn collect_assigned(n: &Json, out: &mut HashSet<String>) {
+    match kind(n) {
+        "Assign" => {
+            if let Some(t) = n.get("target") {
+                collect_target(t, out);
+            }
+        }
+        "For" => {
+            if let Some(t) = n.get("target") {
+                collect_target(t, out);
+            }
+        }
+        "FuncDef" => {
+            if let Some(id) = n.get("name").and_then(|v| v.as_str()) {
+                out.insert(id.to_string());
+            }
+            return;                     // ⚠️ 不进去：那是另一个作用域
+        }
+        "Lambda" => return,             // ⚠️ 同上
+        _ => {}
+    }
+    // 递归进各种「语句块」字段
+    for key in ["body", "orelse", "finalbody"] {
+        if let Some(list) = n.get(key).and_then(|v| v.as_array()) {
+            for st in list {
+                collect_assigned(st, out);
+            }
+        }
+    }
+    if let Some(branches) = n.get("branches").and_then(|v| v.as_array()) {
+        for br in branches {
+            if let Some(list) = br.as_array().and_then(|p| p.get(1)).and_then(|v| v.as_array()) {
+                for st in list {
+                    collect_assigned(st, out);
+                }
+            }
+        }
+    }
+    if let Some(handlers) = n.get("handlers").and_then(|v| v.as_array()) {
+        for h in handlers {
+            if let Some(name) = h.get("name").and_then(|v| v.as_str()) {
+                out.insert(name.to_string());
+            }
+            if let Some(list) = h.get("body").and_then(|v| v.as_array()) {
+                for st in list {
+                    collect_assigned(st, out);
+                }
+            }
+        }
+    }
+}
+
+/// 赋值目标里的名字（`名字` / `a, b` 解包）。下标、属性作目标**不是**名字绑定。
+fn collect_target(t: &Json, out: &mut HashSet<String>) {
+    match kind(t) {
+        "Name" => {
+            if let Some(id) = t.get("id").and_then(|v| v.as_str()) {
+                out.insert(id.to_string());
+            }
+        }
+        "TargetList" => {
+            if let Some(names) = t.get("names").and_then(|v| v.as_array()) {
+                for nm in names {
+                    collect_target(nm, out);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 /// 取一个「语句列表」字段（`body` / `orelse` …）。

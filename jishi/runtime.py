@@ -213,9 +213,13 @@ def type_name(v) -> str:
     if isinstance(alias, str):
         return alias
     name = type(v).__name__
-    if name == "UserFunction":
-        return "函数"
-    if name == "VmFunction":
+    # ⚠️ **三个执行器各有自己的「函数」包装类，这一行必须三个都列上。**
+    # 漏一个的症状：`类型(某函数)` 打出**内部类名**（比如 `CvmFunction`）——
+    # 不报错、只是与另外四个执行器不一致。C VM 那条一直是漏的，
+    # 直到 R6 主体做树遍历参考执行器、`23_函数与闭包.jsh` 第一次拿
+    # `类型()` 去问一个函数，五执行器体检当场报红。
+    # （这是「靠一份手写清单对齐」的典型风险；加新执行器时别忘了这里。）
+    if name in ("UserFunction", "VmFunction", "CvmFunction"):
         return "函数"
     return name
 
