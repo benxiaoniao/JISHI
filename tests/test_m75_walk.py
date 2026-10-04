@@ -65,7 +65,7 @@ def _baseline(stem: str) -> dict:
 
 
 def _write_tmp(obj, name: str) -> Path:
-    p = Path(tempfile.gettempdir()) / name
+    p = Path(tempfile.gettempdir()) / f"{os.getpid()}_{name}"
     p.write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
     return p
 
@@ -98,7 +98,7 @@ def test_未实现的节点明确报错而不是静默给值():
     所以改成拿一个**根本不存在的节点类型**来钉 —— 它测的是**同一条机制**
     （分派表落到「还没实现」分支），而且永远稳定。
     """
-    tmp = Path(tempfile.gettempdir()) / "_m75_unimpl.json"
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m75_unimpl.json"
     kind_name = "还没实现的节点类型"
     ast = {"类型": "Program", "body": [{"类型": kind_name, "line": 1, "col": 1}]}
     tmp.write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")

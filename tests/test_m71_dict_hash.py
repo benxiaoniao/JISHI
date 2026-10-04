@@ -131,13 +131,14 @@ def test_字典相等与顺序无关():
 
 
 @need_rust
+@pytest.mark.计时
 def test_大字典写入是线性():
     """n 翻倍耗时别翻四倍（O(n²) 的红线）。用 Rust 二进制跑两个规模比墙钟。
 
     ⚠️ 只做「别太慢」的粗判据：进程启动 ~98ms，n=50000 的写入若还是 O(n²)
     会到几秒，O(n) 则 <100ms。所以判据是「n=50000 一次跑完 < 3 秒」。
     """
-    tmp = Path(tempfile.gettempdir()) / "_m71_big.json"
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m71_big.json"
     src = "令 字 = {}\n遍历 i 在 范围(50000)：\n    字[i] = i\n打印(长度(字))\n"
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     import time

@@ -19,6 +19,7 @@
 3. **参数个数错**：Python 侧标准库那条路**不再漏英文**（内建那条 M55 修过）。
 """
 
+import os
 import io
 import shutil
 import subprocess
@@ -53,7 +54,7 @@ def _node(src: str) -> tuple[bool, str]:
     import tempfile
 
     from jishi.compiler import compile_to_json
-    tmp = Path(tempfile.gettempdir()) / "_m67.json"
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m67.json"
     tmp.write_text(compile_to_json(src, "标准库.jsh"), encoding="utf-8")
     r = subprocess.run([NODE, str(ROOT / "node/index.js"), str(tmp)],
                        capture_output=True, input=b"", cwd=str(ROOT))

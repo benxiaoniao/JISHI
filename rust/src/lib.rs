@@ -1318,6 +1318,12 @@ pub(crate) fn error_code(type_name: &str) -> Option<&'static str> {
         T_NAME => "E0301",
         T_FUNC => "E0302",
         T_NOT_CALLABLE => "E2006",
+        // M56-5：`抛出 值` 把非异常值包成「异常」（Python 侧 `RunCustomError`，E2009）。
+        // ⚠️ 以前「异常」被当成**笼统**类型（找不到名字、属性不存在…都归它），
+        // 给不出码是「宁可不给码也不瞎标一个」。现在那些语义错误都改成**具体**
+        // 类型名（`T_NAME`/`T_FUNC`…），剩下的「异常」只有 `抛出` 的包装这一种
+        // （见 `make_exception`），可以放心给 E2009。
+        "异常" => "E2009",
         _ => return None,
     })
 }
@@ -1504,6 +1510,11 @@ struct Frame {
     /// 主帧没有调用点（`None`），它也不进链。
     call_line: Option<i64>,
     call_col: Option<i64>,
+    /// **这帧进不进调用链**（D74 §三收口）：只有**直接函数调用**（`f()` 那种，
+    /// 被调用值就是裸函数）才进；`实例.方法()` / 类实例化（`初始化`）/ 内建回调
+    /// 都**不进** —— 与 Python 侧 `_eval_call` 的口径一致（只有 `UserFunction`
+    /// 直接调用才 `append` 到 `_call_stack`，方法走 `UserFunction.__call__` 不动栈）。
+    in_trace: bool,
     locals: Vec<Val>,
     /// 局部槽「赋过值没有」（M54）。
     ///
@@ -1532,6 +1543,7 @@ impl Frame {
         Frame {
             code_idx: 0, ip: 0, base: 0,
             call_line: None, call_col: None,
+            in_trace: false,
             locals: Vec::new(), locals_set: Vec::new(), cells: Vec::new(),
             loops: Vec::new(), handlers: Vec::new(),
             pending_return: None, block_seq: 0,
@@ -1628,6 +1640,7 @@ impl VM {
             base: 0,
             call_line: None,        // 模块主帧没有调用点（也不进调用链）
             call_col: None,
+            in_trace: false,        // 主帧本就不进链（snapshot_trace 跳过 frames[0]）
             locals: vec![Val::None_; nlocals],
             // 模块级帧没有形参，所有槽都算「没赋过值」（首次 `STORE_FAST` / `LOOP_SETUP` 才置位）
             locals_set: vec![false; nlocals],
@@ -1717,6 +1730,8 @@ impl VM {
     ///
     /// ⚠️ 口径照 Python 的 `vm._frames_to_trace`：
     /// * **跳过 frames[0]**（模块主帧 —— 它的名字是 `<模块>`，不是用户写的函数）；
+    /// * **跳过 `in_trace == false` 的帧**（方法 / 类实例化 / 内建回调）——
+    ///   D74 §三收口，对齐 Python 侧「只有直接函数调用进 `_call_stack`」；
     /// * 每帧记「函数名 + **它的调用点**」（`call_line`），不是「当前跑到第几行」；
     /// * 匿名函数（`函数(x)：…` 脱糖出来的）的 code 名以 `<` 开头，
     ///   报错里显示成「匿名函数」更好认。
@@ -1726,6 +1741,9 @@ impl VM {
         }
         let mut chain = Vec::new();
         for fr in self.frames.iter().skip(1) {
+            if !fr.in_trace {
+                continue;
+            }
             let Some(code) = self.module.codes.get(fr.code_idx) else { continue };
             let name = if code.name.starts_with('<') {
                 "匿名函数".to_string()
@@ -1936,7 +1954,7 @@ impl VM {
                         Val::Func(f) => {
                             self.push_func_frame(Some((fi, ip)), f, args, &knames,
                                                  &kwvals, fn_base,
-                                                 (ins.line, ins.col))?;
+                                                 (ins.line, ins.col), true)?;
                             return Ok(Flow::Call);
                         }
                         Val::Builtin(name, bfn) => {
@@ -1978,7 +1996,7 @@ impl VM {
                                     // 宿主静默丢参数是本项目最恨的一类 bug（M51 修过同款）。
                                     self.push_func_frame(Some((fi, ip)), func, all,
                                                          &knames, &kwvals, fn_base,
-                                                         (ins.line, ins.col))?;
+                                                         (ins.line, ins.col), false)?;
                                     return Ok(Flow::Call);
                                 }
                                 builtin => {
@@ -2255,7 +2273,7 @@ impl VM {
                 op::MATCH_EXC => {
                     let cond = self.stack.pop().unwrap_or(Val::None_);
                     let exc = self.stack.last().cloned().unwrap_or(Val::None_);
-                    let m = exception_matches(&exc, &cond);
+                    let m = exception_matches(&exc, &cond)?;
                     self.stack.push(Val::Bool(m));
                 }
                 op::END_FINALLY => {
@@ -2398,7 +2416,7 @@ impl VM {
 
     fn push_func_frame(&mut self, set_ip: Option<(usize, usize)>, func: Func,
                        args: Vec<Val>, knames: &[String], kwvals: &[Val],
-                       base: usize, call_site: (i64, i64))
+                       base: usize, call_site: (i64, i64), in_trace: bool)
         -> Result<(), JishiError> {
         let sub_idx = func.code_idx;
         // 从**帧池**取一个旧帧复用（取不到就新建）—— 省掉每次调用
@@ -2411,6 +2429,7 @@ impl VM {
         nf.pending_return = None;
         nf.call_line = if call_site.0 > 0 { Some(call_site.0) } else { None };
         nf.call_col = if call_site.0 > 0 { Some(call_site.1) } else { None };
+        nf.in_trace = in_trace;
         // 单元表布局 `[cellvars… , freevars…]`：`cellvars` 是本帧自己的（新造，
         // **各自独立**），`freevars` 来自闭包 —— `Rc` 克隆 ⇒ **与捕获者共享**。
         // ⚠️ 顺序：**先建 cells 再绑定实参** —— 形参若是单元变量，`bind_args`
@@ -2463,9 +2482,9 @@ impl VM {
         all.extend(args);
         let depth = self.frames.len();
         let base = self.stack.len();
-        // 同步调用（内建里回调基石函数）没有源码位置 —— 记 (0, 0)。
+        // 同步调用（内建里回调基石函数 / 方法 / `初始化`）没有源码位置 —— 记 (0, 0)。
         // 这一帧本来也不会出现在用户看的报错里（它没有对应的源码行）。
-        self.push_func_frame(None, func, all, &[], &[], base, (0, 0))?;
+        self.push_func_frame(None, func, all, &[], &[], base, (0, 0), false)?;
         self.execute(Some(depth))?;
         Ok(if self.stack.len() > base {
             self.stack.pop().unwrap_or(Val::None_)
@@ -4010,7 +4029,12 @@ pub fn set_args(args: Vec<String>) {
 pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
     -> Result<Val, JishiError> {
     match obj {
-        Val::Module(_, attrs) => attrs.get(attr).cloned().ok_or_else(|| err("异常", format!("模块里没有「{attr}」"))),
+        // 模块属性不存在：Python 侧是 `SemanticFuncError`（E0302「找不到这个
+        // 函数」），消息带**模块名**，还跟一句「怎么改」的提示（M56-5 收口）。
+        Val::Module(n, attrs) => attrs.get(attr).cloned().ok_or_else(|| err_with_hint(
+            T_FUNC,
+            format!("模块「{n}」里没有「{attr}」"),
+            "可以看看模块里有哪些函数，例如：打印(dir(模块名)) 在后续版本可用".to_string())),
         Val::Instance(inst_rc) => {
             let inst = inst_rc.borrow();
             if let Some(v) = inst.fields.get(attr) { return Ok(v.clone()); }
@@ -4483,22 +4507,29 @@ pub(crate) fn make_exception(v: Val) -> JishiError {
     }
 }
 
-pub(crate) fn exception_matches(exc: &Val, cond: &Val) -> bool {
-    // 右边（`捕获 X`）永远是异常**类型**
-    let Val::ExcType(c) = cond else { return false };
+pub(crate) fn exception_matches(exc: &Val, cond: &Val) -> Result<bool, JishiError> {
+    // 右边（`捕获 X`）必须是异常**类型**；不是就报错（M56-5 收口）——
+    // 以前这里 `return false` **悄悄不匹配**，于是「捕获 后名非异常类型」
+    // 在宿主上不报错、直接漏到外面，而 Python 报 E2002（`捕获` 后面只能写异常类型）。
+    // 「悄悄给错答案」是本项目最恨的那类 bug。
+    let Val::ExcType(c) = cond else {
+        return Err(err("类型错误", format!(
+            "「捕获」后面只能写异常类型（比如 类型错误、值错误），不能写{}",
+            type_label(cond))));
+    };
     // 左边可能是类型本身，也可能是**捕获住的异常对象**（M56 起压的是后者）
     let t: &str = match exc {
         Val::ExcType(t) => t,
         Val::Exc(e) => &e.type_name,
-        _ => return false,
+        _ => return Ok(false),
     };
-    if c == "异常" { return true; }
+    if c == "异常" { return Ok(true); }
     let mut cur = t;
     loop {
-        if cur == c { return true; }
+        if cur == c { return Ok(true); }
         match EXC_PARENT.iter().find(|(child, _)| *child == cur) {
             Some((_, parent)) => cur = parent,
-            None => return false,
+            None => return Ok(false),
         }
     }
 }

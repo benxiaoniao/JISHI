@@ -61,7 +61,22 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **3121 项**）。
+3. **测试命令**：`python -m pytest tests/`（当前 **3128 项**）。
+   ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
+   ```bash
+   .venv/Scripts/python.exe -m pytest tests/ -q -n 12 -m "not 计时"   # 主体 ~3.5 分钟
+   .venv/Scripts/python.exe -m pytest tests/ -q -m 计时                # 6 条墙上时间护栏，串行
+   ```
+   （串行历史基线 28 分钟，9-25 有记录；并行的收益主要在这里。）
+   ⚠️ 前提是**所有跨进程共享的东西都不撞**。并行踩过的三类坑都已修，**新加测试必须守**：
+   ① 临时文件**一律带 pid 后缀**（用 `tests/conftest.py` 的 `tmp_bc_path()` 或
+   `f"{os.getpid()}_..."`）——固定名会被另一个 worker 覆写（症状：`SystemExit: 1`、
+   位置每次不同、**单跑必过**）；
+   ② **别在 cwd / 项目根里读写真实文件**（教程语料 `日记.txt`/`账本.csv` 就是这类）——
+   `tools/check_walk.py` 已改成**每语料一个私有 cwd**（源文件按同名相对路径复制进去，
+   报错渲染的文件名不变）；
+   ③ 断言里有**墙上时间上限**的用例打 `@pytest.mark.计时`（负载会把它抬高 → 假红），
+   并行时用 `-m "not 计时"` 排除、再串行跑一遍。
    ⚠️ 本机（Windows）上 3 个 Node 网络用例**偶发** `spawnSync … EBUSY` ——
    环境性的（Node 宿主自己 spawn 自己），Linux / CI 不复现，**别当成新问题查**。
    改完代码必须跑全量回归，不许留红。

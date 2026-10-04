@@ -46,7 +46,7 @@ class Handler {
 }
 
 class Frame {
-  constructor(code, ip, base, locals, cells, callLine, callCol) {
+  constructor(code, ip, base, locals, cells, callLine, callCol, inTrace) {
     this.code = code;
     this.ip = ip;
     this.base = base;
@@ -61,6 +61,9 @@ class Frame {
     //: 调用点，也不该进链。见 `_snapshotTrace`。
     this.callLine = callLine ?? null;
     this.callCol = callCol ?? null;
+    //: **这帧进不进调用链**（D74 §三收口）：只有直接函数调用才进；方法 / 类实例化
+    //: / 内建回调不进 —— 对齐 Python 侧「只有 UserFunction 直接调用进 _call_stack」。
+    this.inTrace = inTrace === true;
   }
 }
 
@@ -101,7 +104,7 @@ class VM {
     this._storeCells(code, frameCells, values);
     const base = this.stack.length;
     this.stack.push(null);
-    const frame = new Frame(code, 0, base, locals, frameCells, line, col);
+    const frame = new Frame(code, 0, base, locals, frameCells, line, col, false);
     this.frames.push(frame);
     try {
       this._execute(frame);
@@ -474,7 +477,7 @@ class VM {
       stack.length = fnBase;
       const subCells = sub.cellvars.map(() => new R.Cell()).concat(fn.cells);
       this._storeCells(sub, subCells, values);
-      this.frames.push(new Frame(sub, 0, fnBase, locals, subCells, ins.line, ins.col));
+      this.frames.push(new Frame(sub, 0, fnBase, locals, subCells, ins.line, ins.col, true));
       return null;
     }
 
@@ -574,6 +577,7 @@ class VM {
     const chain = [];
     for (let i = 1; i < this.frames.length; i++) {
       const fr = this.frames[i];
+      if (!fr.inTrace) continue;   // 方法 / 类实例化 / 内建回调不进链（D74 §三收口）
       const nm = fr.code && fr.code.name;
       chain.push({
         func: (nm && nm.startsWith('<')) ? '匿名函数' : nm,

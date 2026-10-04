@@ -22,13 +22,13 @@
    `trace`。⚠️ **方法调用 / 类实例化 / 内建回调不进栈**（Python 侧 `_eval_call`
    只有 `UserFunction` 直接调用才 append）。
 
-## 顺手登记的两个既有分叉（都是字节码 VM 的，不是本执行器的）
+## 顺手登记的既有分叉（都是字节码 VM 的，不是本执行器的）
 
 * **方法调用 / 类实例化的调用链**：Python 规范**没有**方法帧（`实例.方法()` 走
-  `UserFunction.__call__`，明确「不动 _call_stack」），字节码 VM 有 —— 参考执行器
-  站在规范这边（见 `test_已知登记_方法调用的调用链`）。
+  `UserFunction.__call__`，明确「不动 _call_stack」），字节码 VM 曾多一个方法帧 ——
+  已在 R6 收口时修掉（见 `test_方法调用的调用链不进栈` / `test_类实例化的调用链不进栈`）。
 * **递归无深度限制**：Python 报「递归层数太深了」+ 提示，两个 Rust 宿主一个爆内存、
-  一个栈溢出（都是 `无递归深度限制` 的后果，表现不同而已）。
+  一个栈溢出（都是 `无递归深度限制` 的后果，表现不同而已）。**这条仍未修**（VM 的活）。
 """
 
 import json
@@ -63,17 +63,19 @@ def _render_both(src: str) -> tuple[str, str, str, str]:
     ⚠️ **filename 用绝对路径**（同一份）：VM 的 filename 来自字节码，树遍历的来自
     `--walk` 的源文件路径参数 —— 传同一个绝对路径字符串，两边都能读到源码、名字也一致。
     """
+    # ⚠️ 文件名带 pid：并行时多个 worker 共享临时目录，固定名会互相覆盖。
+    pid = os.getpid()
     tmp = Path(tempfile.gettempdir())
-    srcfile = tmp / "_m81_src.jsh"
+    srcfile = tmp / f"{pid}_m81_src.jsh"
     srcfile.write_text(src, encoding="utf-8")
     rel = str(srcfile)                       # 绝对路径，两边都用它
     ast = C.jsonable(parse_source(src, rel))
-    (tmp / "_m81_ast.json").write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
-    (tmp / "_m81_bc.json").write_text(compile_to_json(src, rel), encoding="utf-8")
+    (tmp / f"{pid}_m81_ast.json").write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
+    (tmp / f"{pid}_m81_bc.json").write_text(compile_to_json(src, rel), encoding="utf-8")
 
-    w = subprocess.run([str(RUST), "--walk", str(tmp / "_m81_ast.json"), rel],
+    w = subprocess.run([str(RUST), "--walk", str(tmp / f"{pid}_m81_ast.json"), rel],
                        capture_output=True, input=b"")
-    v = subprocess.run([str(RUST), str(tmp / "_m81_bc.json")],
+    v = subprocess.run([str(RUST), str(tmp / f"{pid}_m81_bc.json")],
                        capture_output=True, input=b"")
     return (w.stdout.decode("utf-8", "replace"), w.stderr.decode("utf-8", "replace"),
             v.stdout.decode("utf-8", "replace"), v.stderr.decode("utf-8", "replace"))
@@ -123,10 +125,11 @@ def test_无源文件路径时退回没有源码行():
     """`--walk` 不传源文件路径时，位置行照打、源码行没有（与 VM 读不到源文件同口径）。"""
     src = "打印(1 / 0)\n"
     tmp = Path(tempfile.gettempdir())
-    rel = str(tmp / "_m81_nosrc.jsh")
+    pid = os.getpid()
+    rel = str(tmp / f"{pid}_m81_nosrc.jsh")
     ast = C.jsonable(parse_source(src, rel))
-    (tmp / "_m81_ast2.json").write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
-    r = subprocess.run([str(RUST), "--walk", str(tmp / "_m81_ast2.json")],
+    (tmp / f"{pid}_m81_ast2.json").write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
+    r = subprocess.run([str(RUST), "--walk", str(tmp / f"{pid}_m81_ast2.json")],
                        capture_output=True, input=b"")
     err = r.stderr.decode("utf-8", "replace")
     assert "错误 E2001" in err
@@ -136,31 +139,36 @@ def test_无源文件路径时退回没有源码行():
 
 
 @need_rust
-def test_已知登记_方法调用的调用链():
-    """⚠️ **登记**：方法调用的调用链，Python 规范**没有**方法帧、字节码 VM 有。
-
-    根因：Python 侧 `实例.方法()` 走 `UserFunction.__call__`，注释里明确「不动
-    `_call_stack`」（错误回溯的帧归 M17 管）；字节码 VM 的 `BoundMethod::User` 走
-    `push_func_frame`，把方法帧也压进去了。参考执行器站在规范这边。
-
-    **一旦字节码 VM 修成与规范一致（无方法帧），本测试会报「登记过期」→ 请删掉
-    本测试与 `docs/设计决策.md` D74 的登记。**
-    """
+def test_方法调用的调用链不进栈():
+    """方法调用（`实例.方法()`）**不进调用链** —— 对齐 Python 侧 `_eval_call`
+    的口径（只有 `UserFunction` 直接调用才进 `_call_stack`，方法走
+    `UserFunction.__call__` 不动栈）。D74 §三登记的「字节码 VM 多一个方法帧」已修。"""
     src = "类 甲：\n    函数 算(自身)：\n        打印(1 / 0)\n令 对 = 新建 甲()\n对.算()\n"
     wo, we, vo, ve = _render_both(src)
     assert wo == vo == ""
     assert "调用链" not in we, f"规范（树遍历）不该有方法帧：{we!r}"
-    assert "调用链" in ve, "登记已过期（字节码路径修好了）→ 请删掉本测试与 D74 的登记"
+    assert "调用链" not in ve, f"字节码 VM 也不该有方法帧：{ve!r}"
 
 
 @need_rust
-def test_已知登记_类实例化的调用链():
-    """⚠️ 同 `test_已知登记_方法调用的调用链`：类实例化（`初始化`）也不该有方法帧。"""
+def test_类实例化的调用链不进栈():
+    """类实例化（`初始化`）也不该有方法帧。D74 §三登记的构造帧已修。"""
     src = "类 甲：\n    函数 初始化(自身)：\n        打印(1 / 0)\n令 对 = 新建 甲()\n"
     wo, we, vo, ve = _render_both(src)
     assert wo == vo == ""
     assert "调用链" not in we, f"规范（树遍历）不该有构造帧：{we!r}"
-    assert "调用链" in ve, "登记已过期（字节码路径修好了）→ 请删掉本测试与 D74 的登记"
+    assert "调用链" not in ve, f"字节码 VM 也不该有构造帧：{ve!r}"
+
+
+@need_rust
+def test_方法里直接调函数仍进链():
+    """方法里**直接调用**一个全局函数，那个函数的帧仍要进链（方法帧本身不进）。"""
+    src = "函数 内()：\n    打印(1 / 0)\n类 甲：\n    函数 算(自身)：\n        内()\n令 对 = 新建 甲()\n对.算()\n"
+    wo, we, vo, ve = _render_both(src)
+    assert "内 ←" in we, f"规范该有「内」帧：{we!r}"
+    assert "算 ←" not in we, f"规范不该有「算」方法帧：{we!r}"
+    assert "内 ←" in ve, f"字节码 VM 该有「内」帧：{ve!r}"
+    assert "算 ←" not in ve, f"字节码 VM 不该有「算」方法帧：{ve!r}"
 
 
 # ---------------------------------------------------------------------------

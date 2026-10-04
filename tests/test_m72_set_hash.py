@@ -163,12 +163,13 @@ def test_布尔与数值在列表里也相等():
 
 
 @need_rust
+@pytest.mark.计时
 def test_集合写入是线性():
     """n 翻倍耗时别翻四倍（O(n²) 的红线）。
 
     ⚠️ 只做「别太慢」的粗判据（进程启动 ~10ms，n=50000 若还是 O(n²) 会到几秒）。
     """
-    tmp = Path(tempfile.gettempdir()) / "_m72_big.json"
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m72_big.json"
     src = "令 甲 = 集合()\n遍历 i 在 范围(50000)：\n    甲.添加(i)\n打印(长度(甲))\n"
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     t0 = time.perf_counter()
@@ -180,6 +181,7 @@ def test_集合写入是线性():
 
 
 @need_rust
+@pytest.mark.计时
 def test_集合删除是线性():
     """**删除**也要线性 —— 这是「墓碑 + 摊还压缩」那条路的判据。
 
@@ -187,7 +189,7 @@ def test_集合删除是线性():
     R6 主体第一版就是这样，n=16000 的批量删除要 **1845ms**；
     改成打墓碑之后同一场景 **37ms**（约 49 倍）。
     """
-    tmp = Path(tempfile.gettempdir()) / "_m72_del.json"
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m72_del.json"
     src = ("令 甲 = 集合()\n遍历 i 在 范围(50000)：\n    甲.添加(i)\n"
            "遍历 i 在 范围(50000)：\n    甲.移除(i)\n打印(长度(甲))\n")
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
@@ -207,7 +209,7 @@ def test_不能放进集合的报错三个执行器一个说法():
     判据取**整段渲染**（含「提示：」那一行），不只看第一行。
     """
     src = '令 甲 = {1}\n甲.添加([1, 2])\n'
-    tmp = Path(tempfile.gettempdir()) / "_m72_err.json"
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m72_err.json"
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
 
     buf = io.StringIO()

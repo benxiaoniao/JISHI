@@ -227,6 +227,7 @@ def test_遍历不是平方的():
 
 
 @need_rust_vm
+@pytest.mark.计时
 def test_两万次遍历在一秒内():
     """绝对阈值兜底：n=20000 净耗时必须 **< 1 秒**。
 

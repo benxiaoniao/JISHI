@@ -165,6 +165,7 @@ def test_未定义全局的报错与其它执行器一致():
 
 
 @need_rust
+@pytest.mark.计时
 def test_模块级循环不是灾难性慢():
     """模块级变量的读写是**一次数组索引**（不是 HashMap + String 分配）。
 
@@ -172,7 +173,7 @@ def test_模块级循环不是灾难性慢():
     新的数组路径约 56ms）：给个宽上限 3 秒，抓的是「退回 O(n²) 或整条路变慢」。
     精确的倍数看 `build/_ab_bench.py` 那种**交错 A/B**，不在单元测试里做。
     """
-    tmp = Path(tempfile.gettempdir()) / "_m73_loop.json"
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m73_loop.json"
     src = ("令 i = 500000\n当 i > 0：\n    i = i - 1\n打印(i)\n")
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     t0 = time.perf_counter()

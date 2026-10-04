@@ -54,7 +54,7 @@ def _run(args: list[str]) -> tuple[str, str]:
 
 
 def _write(obj, name: str) -> Path:
-    p = Path(tempfile.gettempdir()) / name
+    p = Path(tempfile.gettempdir()) / f"{os.getpid()}_{name}"
     p.write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
     return p
 

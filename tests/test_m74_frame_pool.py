@@ -161,6 +161,7 @@ def test_闭包在帧复用后仍然各自独立():
 
 
 @need_rust
+@pytest.mark.计时
 def test_函数调用不再有哈希表与指令数组分配():
     """粗判据：20 万次一参调用别比以前慢（回归护栏）。
 
@@ -169,7 +170,7 @@ def test_函数调用不再有哈希表与指令数组分配():
     新路径约 130ms —— 上限给 300ms（含 ~85ms 进程启动）。
     """
     import time
-    tmp = Path(tempfile.gettempdir()) / "_m74_loop.json"
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m74_loop.json"
     src = ("函数 加一(x)：\n    返回 x + 1\n令 总和 = 0\n"
            "遍历 i 在 范围(200000)：\n    总和 = 加一(i)\n打印(总和)\n")
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")

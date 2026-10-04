@@ -63,7 +63,8 @@ def _run(args: list[str]) -> tuple[str, str]:
 
 
 def _write(obj, name: str) -> Path:
-    p = Path(tempfile.gettempdir()) / name
+    # ⚠️ 文件名带 pid（并行不互相覆盖，同 test_m75 注释）。
+    p = Path(tempfile.gettempdir()) / f"{os.getpid()}_{name}"
     p.write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
     return p
 
@@ -153,6 +154,15 @@ SHAPES = [
     # 不存在的「数值错误」，于是只有 Rust 宿主接不住）
     '尝试：\n    令 甲 = [1, 2]\n    打印(甲[::0])\n捕获 值错误 为 e：\n    打印("接住", e.类型)',
     '尝试：\n    令 甲 = [1, 2]\n    打印(甲[::0])\n捕获 运行期错误：\n    打印("基类接住")',
+    # ---- 捕获体里跳出（R6 收口，D73 §五修）：返回/中断/继续都要跑「最终」----
+    '函数 f()：\n    尝试：\n        抛出 值错误("x")\n    捕获 值错误：\n        返回 5\n    最终：\n        打印("清")\n打印(f())',
+    '函数 f()：\n    遍历 i 在 范围(4)：\n        尝试：\n            如果 i == 2：\n                抛出 值错误("x")\n        捕获 值错误：\n            中断\n        最终：\n            打印("清")\n        打印(i)\n    返回 9\n打印(f())',
+    '函数 f()：\n    遍历 i 在 范围(4)：\n        尝试：\n            如果 i == 3：\n                抛出 值错误("x")\n        捕获 值错误：\n            继续\n        最终：\n            打印("清")\n        打印(i)\n    返回 9\n打印(f())',
+    # ---- 宿主补全错误码表（M56-5 收口）----
+    '抛出 "一段文本"',
+    '抛出 真',
+    '令 甲 = 5\n尝试：\n    抛出 值错误("x")\n捕获 甲：\n    打印("不该")',
+    '导入 文本\n打印(文本.长度)',
 ]
 
 
@@ -187,25 +197,6 @@ def test_进度仪表全覆盖():
     assert r.returncode == 0, out + r.stderr.decode("utf-8", "replace")[-600:]
     assert "不一致 0" in out, out
     assert "还没实现 0" in out, out
-
-
-@need_rust
-def test_已知登记_捕获体跳出时最终块的差异():
-    """⚠️ **登记**：树遍历（= 规范）与**字节码路径**在这个形状上本来就不一致。
-
-    根因在**编译器侧**：`c_try` 只把 `尝试` 体套进了 finally，**捕获体没有** ——
-    于是「捕获体里 `返回` / `中断`」时四个字节码宿主都**不跑「最终」块**，而规范跑。
-
-    这条测试把「参考执行器站在规范这边」钉住，同时盯着那个 bug：
-    **一旦两边一致了，说明有人修好了** → 请把本测试与 `docs/设计决策.md` D73 的
-    登记一起删掉（登记必须能过期）。
-    """
-    src = ('函数 f()：\n    尝试：\n        抛出 值错误("x")\n'
-           '    捕获 值错误：\n        返回 5\n    最终：\n        打印("清")\n打印(f())')
-    wo, we, vo, ref = _three(src)
-    assert ref == "清\n5\n", ref                     # 规范：最终块要跑
-    assert wo == ref, f"参考执行器该跟规范：{wo!r}（stderr={we[:200]!r}）"
-    assert vo != ref, "登记已过期（字节码路径修好了）→ 请删掉本测试与 D73 的登记"
 
 
 @need_rust

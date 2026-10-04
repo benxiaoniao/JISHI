@@ -1325,9 +1325,16 @@ impl<'a> Emitter<'a> {
         self.emit(op::POP_TRY, Some(n), 0, 0, 0);
         let to_fin = self.emit(op::JUMP, Some(n), 0, 0, 0);   // 正常路径 → fin_start
 
+        let fin = nf(n, "finalbody");
+        let has_fin = !is_null(fin);
+
         let catch_at = self.here();
-        let to_unmatched = self.emit(op::CHECK_SIGNAL, Some(n), 0, 0, 0);
+        let to_reraise = self.emit(op::CHECK_SIGNAL, Some(n), 0, 0, 0);
         let mut handler_done: Vec<i64> = Vec::new();
+        // ⚠️ **内层 SETUP_TRY 覆盖捕获体**（R6 收口，D73 §五，与 Python `_c_try` 逐字同源）：
+        // 异常分发到 catch 时外层 SETUP_TRY 已被弹掉，捕获体里 `返回`/`中断`/`继续` 会
+        // 跳过 finally；给捕获体再包一层只有 finally 的 handler（catch_ip=catch_body_err）。
+        let mut inner_setups: Vec<i64> = Vec::new();
         for h in as_list(nf(n, "handlers")) {
             let hn = match node_of(h) {
                 Some(x) => x,
@@ -1335,40 +1342,56 @@ impl<'a> Emitter<'a> {
             };
             let ty = nf(hn, "type");
             let hname = as_jstr(nf(hn, "name")).to_string();
+            let mut to_next: Option<i64> = None;
             if !is_null(ty) {
                 // ⚠️ 这里**不能**先 DUP_TOP（2026-09-26 修过的坑，见 Python 侧注释）
                 self.compile_expr(ty);                              // [err, cond]
                 self.emit(op::MATCH_EXC, Some(hn), 0, 0, 0);         // [err, bool]
-                let to_next = self.emit(op::POP_JUMP_IF_FALSE, Some(hn), 0, 0, 0);
+                to_next = Some(self.emit(op::POP_JUMP_IF_FALSE, Some(hn), 0, 0, 0));
                 if !hname.is_empty() {
                     self.store_name(&hname, Some(hn));
                 } else {
                     self.emit(op::POP_TOP, Some(hn), 0, 0, 0);
                 }
-                self.compile_body(as_list(nf(hn, "body")));
-                handler_done.push(self.emit(op::JUMP, Some(hn), 0, 0, 0));
-                let here = self.here();
-                self.patch(to_next, here, 'a');     // 不匹配 → 下一个捕获
             } else {
-                // 裸捕获：全接（信号已被 CHECK_SIGNAL 排除在 unmatched）
+                // 裸捕获：全接（信号已被 CHECK_SIGNAL 排除在 reraise）
                 if !hname.is_empty() {
                     self.store_name(&hname, Some(hn));
                 } else {
                     self.emit(op::POP_TOP, Some(hn), 0, 0, 0);
                 }
-                self.compile_body(as_list(nf(hn, "body")));
-                handler_done.push(self.emit(op::JUMP, Some(hn), 0, 0, 0));
+            }
+            // ⚠️ 内层 SETUP_TRY（只有带「最终」块才需要）。a/b 稍后回填。
+            if has_fin {
+                inner_setups.push(self.emit(op::SETUP_TRY, Some(hn), 0, 0, 0));
+            }
+            self.compile_body(as_list(nf(hn, "body")));
+            if has_fin {
+                self.emit(op::POP_TRY, Some(hn), 0, 0, 0);
+            }
+            handler_done.push(self.emit(op::JUMP, Some(hn), 0, 0, 0));
+            if let Some(tn) = to_next {
+                let here = self.here();
+                self.patch(tn, here, 'a');     // 不匹配 → 下一个捕获
             }
         }
 
-        // 未匹配路径：执行 finally 后继续抛（栈顶的 err 由 THROW 弹出）
-        let unmatched_at = self.here();
-        let fin = nf(n, "finalbody");
-        let has_fin = !is_null(fin);
+        // 未匹配路径：执行 finally 后继续抛（栈顶的 err 由 THROW 弹出）。
+        // 也是「信号（尝试体/捕获体）」的重抛入口 —— 三者都走「finally + THROW」。
+        let reraise_at = self.here();
         if has_fin {
             self.compile_body(as_list(fin));
         }
         self.emit(op::THROW, Some(n), 0, 0, 0);
+
+        // 捕获体自己抛出的新异常：直接重抛（**不跑 finally**）。只有有捕获体才有这条路。
+        let mut catch_body_err: Option<i64> = None;
+        let mut to_reraise2: Option<i64> = None;
+        if !inner_setups.is_empty() {
+            catch_body_err = Some(self.here());
+            to_reraise2 = Some(self.emit(op::CHECK_SIGNAL, Some(n), 0, 0, 0));
+            self.emit(op::THROW, Some(n), 0, 0, 0);   // 错误 → 直接重抛
+        }
 
         // 正常路径的 finally
         let fin_start = self.here();
@@ -1380,7 +1403,14 @@ impl<'a> Emitter<'a> {
         self.patch(setup, catch_at, 'a');
         self.patch(setup, if has_fin { fin_start } else { -1 }, 'b');
         self.patch(to_fin, fin_start, 'a');
-        self.patch(to_unmatched, unmatched_at, 'a');
+        self.patch(to_reraise, reraise_at, 'a');
+        if let Some(j) = to_reraise2 {
+            self.patch(j, reraise_at, 'a');
+        }
+        for j in inner_setups {
+            self.patch(j, catch_body_err.unwrap(), 'a');
+            self.patch(j, fin_start, 'b');
+        }
         for j in handler_done {
             self.patch(j, fin_start, 'a');
         }

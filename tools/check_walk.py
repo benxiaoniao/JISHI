@@ -13,18 +13,6 @@
   这个数一旦不是 0，说明语料用了还没接上的节点。
 * **不一致** —— 两边都跑完了但结果不同 ✗ **这才是要立刻查的**。
 
-## ⚠️ 已知登记：一个「形状级」的分叉（**不在这份语料里**）
-
-「捕获体里 `返回` / `中断`」**且**带「最终」块时，四个字节码宿主都**不跑「最终」
-块**，而规范（树遍历解释器）跑 —— 根因在**编译器**：`c_try` 只把**`尝试` 体**
-套进了 finally，**捕获体没有**。树遍历参考执行器站在规范这边，所以**这个形状
-不进 `tests/cases/`**（这里树遍历是基准之一，进了这个工具会红）。
-
-* 登记与**过期报红**在 `tests/test_m80_walk_exceptions.py`
-  的 `test_已知登记_捕获体跳出时最终块的差异`（一旦两边一致，它会失败并提示删掉）；
-* 开发时的形状对拍小工具 `build/_walk_probe.py` 也有一份 `KNOWN_DIVERGENT`（未入库）；
-* 背景见 `docs/设计决策.md` D73 §五。
-
 数据来源：`tests/conformance/baseline/`（已冻结的 ast 与 bytecode 产物，
 不用重新编译，快）。
 
@@ -38,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -61,7 +50,11 @@ def main(argv: "list[str] | None" = None) -> int:
         print(f"❌ 先构建宿主：cd rust && cargo build --release", file=sys.stderr)
         return 2
 
-    tmp = Path(tempfile.gettempdir()) / "_check_walk.json"
+    # ⚠️ 文件名带 pid：本工具也被 pytest 调用（test_m76–m81 的进度仪表测试），
+    # pytest-xdist 并行时多个 worker 同时跑本工具，固定名会互相覆盖。
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_check_walk.json"
+    # 各语料的私有运行目录（跑完整个清理）
+    run_root = Path(tempfile.gettempdir()) / f"{os.getpid()}_check_walk_cwd"
     same = 0
     todo: Counter[str] = Counter()
     bad: list[tuple[str, str, str]] = []
@@ -78,18 +71,28 @@ def main(argv: "list[str] | None" = None) -> int:
         # ⚠️ **报错渲染要对齐**（R6 主体 ⑥）：给 `--walk` 传**源文件路径**（就是
         # 编译字节码时用的那个相对路径），这样树遍历执行器也能打出「源码行 + `^`」，
         # 与字节码 VM 逐字一致。读不到源文件时退回「没有源码行」（两边同口径）。
+        # ⚠️ **每个语料一个私有 cwd**（并行不互相踩）：教程类语料会在 cwd 里
+        # 读写真实文件（`日记.txt` / `账本.csv`），pytest-xdist 并行时多个 worker
+        # 同跑同一语料会互写同一个文件。把源文件按**同名相对路径**复制进私有目录、
+        # 两边都在那里跑 —— 文件名渲染不变，文件 I/O 互相隔离。
         tmp.write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
+        run_dir = run_root / path.stem
+        run_dir.mkdir(parents=True, exist_ok=True)
         walk_args = [str(exe), "--walk", str(tmp)]
         # ⚠️ 源文件路径传**相对路径**（与字节码 payload 里的 filename 完全一致），
         # 否则报错渲染里「文件:行:列」的名字会对不上（一边绝对一边相对）。
         if (ROOT / name).exists():
+            dst = run_dir / name
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, dst)
             walk_args.append(name)
-        r1 = subprocess.run(walk_args, capture_output=True, input=b"")
+        r1 = subprocess.run(walk_args, capture_output=True, input=b"", cwd=str(run_dir))
         walk_out = r1.stdout.decode("utf-8", "replace")
         walk_err = r1.stderr.decode("utf-8", "replace")
 
         tmp.write_text(json.dumps(bc, ensure_ascii=False), encoding="utf-8")
-        r2 = subprocess.run([str(exe), str(tmp)], capture_output=True, input=b"")
+        r2 = subprocess.run([str(exe), str(tmp)], capture_output=True, input=b"",
+                            cwd=str(run_dir))
         vm_out = r2.stdout.decode("utf-8", "replace")
         vm_err = r2.stderr.decode("utf-8", "replace")
 
@@ -124,6 +127,8 @@ def main(argv: "list[str] | None" = None) -> int:
             if we.rstrip("\n") != ve.rstrip("\n"):
                 print(f"    树遍历 stderr: {we[:160]!r}")
                 print(f"    字节码 stderr: {ve[:160]!r}")
+    # 清理本轮所有语料的私有运行目录（失败也不留垃圾）
+    shutil.rmtree(run_root, ignore_errors=True)
     return 1 if bad else 0
 
 

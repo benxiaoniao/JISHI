@@ -1078,7 +1078,15 @@ impl Walker {
                             // `_handler_catches` 一致）；它自己出错就直接往外抛
                             // （此时「最终」不跑 —— Python 也是这样）。
                             let cond = self.eval(t)?;
-                            exception_matches(&exc, &cond)
+                            // 条件不是异常类型也直接往外抛（M56-5 收口）：位置
+                            // 落在**`捕获` 那一行**（Python 用 `h.line`/`h.col`）。
+                            match exception_matches(&exc, &cond) {
+                                Ok(m) => m,
+                                Err(mut e) => {
+                                    self.fill_loc(&mut e, h);
+                                    return Err(e);
+                                }
+                            }
                         }
                     };
                     if !matched {

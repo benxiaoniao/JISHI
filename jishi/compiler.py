@@ -782,15 +782,29 @@ class _Emitter:
     #     POP_TRY
     #     JUMP       fin_start          # 正常路径
     # catch:                             # 栈顶 = 异常对象（VM 放入）
-    #     CHECK_SIGNAL unmatched        # 中断/继续不进捕获 → 走 finally+重抛
-    #     <逐个捕获：DUP/条件/MATCH_EXC/POP_JUMP_IF_FALSE/存名字/块体/JUMP fin_start>
-    # unmatched:                        # 栈顶 = 未匹配异常或信号
+    #     CHECK_SIGNAL reraise          # 中断/继续不进捕获 → 走 finally+重抛
+    #     <逐个捕获：条件/MATCH_EXC/POP_JUMP_IF_FALSE/存名字/
+    #              SETUP_TRY catch_body_err, fin/块体/POP_TRY/JUMP fin_start>
+    # reraise:                          # 栈顶 = 未匹配异常或信号
     #     <finally 副本>
     #     THROW                          # 继续向外传播
+    # catch_body_err:                   # 栈顶 = 捕获体抛出的新异常或信号
+    #     CHECK_SIGNAL reraise          # 信号 → finally+重抛
+    #     THROW                          # 错误 → 直接重抛（**不跑 finally**）
     # fin_start:                         # 正常路径的 finally（无则直接 after）
     #     <finally 副本>
     #     END_FINALLY                    # 有挂起返回则继续返回，否则 fall through
     # after:
+    #
+    # ⚠️ **每个捕获体外面再套一层 `SETUP_TRY`**（R6 收口，D73 §五）：
+    # 异常分发到 catch 时，外层 `SETUP_TRY` 已经被 `dispatch_exception` **弹掉了**，
+    # 于是捕获体里 `返回` / `中断` / `继续` 时栈上没有任何 handler ——
+    # `step_return` / `dispatch_signal` 找不到 finally，就**跳过最终块**了。
+    # 而规范（树遍历解释器）要求捕获体里的控制信号**也要跑最终块**。
+    # 解法：给捕获体再包一层只有 finally 的 handler（`catch_ip = catch_body_err`），
+    # 这样 `返回` 走 `finally_ip`、`中断/继续` 走 `catch_ip`（CHECK_SIGNAL 分流），
+    # 都落进最终块。捕获体**自己抛新错误**则走 `catch_body_err` 的 THROW **直接重抛**
+    # （不跑最终 —— 这是既有的「捕获体出错最终不跑」口径，照 interpreter._do_try）。
     def _c_try(self, st: A.Try):
         setup = self.emit(O.Op.SETUP_TRY, st)
         self.compile_body(st.body)
@@ -798,8 +812,10 @@ class _Emitter:
         to_fin = self.emit(O.Op.JUMP, st)          # 正常路径 → fin_start
 
         catch_at = self.here()
-        to_unmatched = self.emit(O.Op.CHECK_SIGNAL, st)
+        to_reraise = self.emit(O.Op.CHECK_SIGNAL, st)
         handler_done: list[int] = []               # 各捕获体结束的 JUMP（回填到 fin_start）
+        inner_setups: list[int] = []               # 各捕获体的内层 SETUP_TRY（回填 a/b）
+        has_fin = st.finalbody is not None
         for h in st.handlers:
             if h.type is not None:
                 # ⚠️ **这里原先有一句 `DUP_TOP`，是错的**（2026-09-26 修）：
@@ -822,35 +838,58 @@ class _Emitter:
                     self.store_name(h.name, h)
                 else:
                     self.emit(O.Op.POP_TOP, h)
-                self.compile_body(h.body)
-                handler_done.append(self.emit(O.Op.JUMP, h))
-                self.patch(to_next, self.here())   # 不匹配 → 下一个捕获
             else:
-                # 裸捕获：全接（信号已被 CHECK_SIGNAL 排除在 unmatched）
+                # 裸捕获：全接（信号已被 CHECK_SIGNAL 排除在 reraise）
                 if h.name:
                     self.store_name(h.name, h)
                 else:
                     self.emit(O.Op.POP_TOP, h)
-                self.compile_body(h.body)
-                handler_done.append(self.emit(O.Op.JUMP, h))
+            # ⚠️ **内层 SETUP_TRY 覆盖捕获体**（见函数头注释）：只有带「最终」块
+            # 才需要（没最终块就没有「跳过 finally」的 bug）。a/b 稍后回填。
+            if has_fin:
+                inner_setups.append(self.emit(O.Op.SETUP_TRY, h))
+            self.compile_body(h.body)
+            if has_fin:
+                self.emit(O.Op.POP_TRY, h)
+            handler_done.append(self.emit(O.Op.JUMP, h))
+            if h.type is not None:
+                self.patch(to_next, self.here())   # 不匹配 → 下一个捕获
 
-        # 未匹配路径：执行 finally 后继续抛（栈顶的 err 由 THROW 弹出）
-        unmatched_at = self.here()
-        if st.finalbody is not None:
+        # 未匹配路径：执行 finally 后继续抛（栈顶的 err 由 THROW 弹出）。
+        # 也是「信号（尝试体/捕获体）」的重抛入口 —— 三者都走「finally + THROW」。
+        reraise_at = self.here()
+        if has_fin:
             self.compile_body(st.finalbody)
         self.emit(O.Op.THROW, st)
 
+        # 捕获体自己抛出的新异常：直接重抛（**不跑 finally**，见函数头注释）。
+        # 只有「有捕获体（inner_setups 非空）」才有这条路（裸 try/finally 没有捕获体，
+        # 就没有「捕获体抛错」这回事）。
+        catch_body_err: int | None = None
+        to_reraise2: int | None = None
+        if inner_setups:
+            catch_body_err = self.here()
+            # 信号（捕获体里的 中断/继续）→ reraise（finally + 重抛）；错误 → 下一句
+            # THROW 直接重抛。⚠️ 这个 CHECK_SIGNAL 的目标**也要回填**（D73 §五 修）。
+            to_reraise2 = self.emit(O.Op.CHECK_SIGNAL, st)
+            self.emit(O.Op.THROW, st)              # 错误 → 直接重抛
+
         # 正常路径的 finally
         fin_start = self.here()
-        if st.finalbody is not None:
+        if has_fin:
             self.compile_body(st.finalbody)
             self.emit(O.Op.END_FINALLY, st)
 
         # 回填跳转
         self.patch(setup, catch_at, "a")
-        self.patch(setup, fin_start if st.finalbody is not None else -1, "b")
+        self.patch(setup, fin_start if has_fin else -1, "b")
         self.patch(to_fin, fin_start)
-        self.patch(to_unmatched, unmatched_at)
+        self.patch(to_reraise, reraise_at)
+        if to_reraise2 is not None:
+            self.patch(to_reraise2, reraise_at)
+        for j in inner_setups:
+            self.patch(j, catch_body_err, "a")
+            self.patch(j, fin_start, "b")
         for j in handler_done:
             self.patch(j, fin_start)
 

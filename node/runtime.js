@@ -50,6 +50,10 @@ const ERROR_CODES = {
   // 以前这条报错**没有码**，用户看到一个「错误（输入结束）」——
   // 而 Python 侧是 `错误 E2010：输入结束`，查不到码就接不上 `jishi 错误`。
   '输入结束': 'E2010',
+  // M56-5：`抛出 值` 把非异常值包成「异常」（Python 侧 `RunCustomError` E2009）。
+  // 与 Rust 侧同一收口：语义错误都已改成具体类型名（nameErr/funcErr/…），
+  // 剩下的「异常」就是 `抛出` 的包装这一种（见 `makeException`）。
+  '异常': 'E2009',
 };
 
 class JishiError extends Error {
@@ -3066,8 +3070,13 @@ function exceptionMatches(exc, cond, line, col) {
   if (cond instanceof ExcType) {
     return excIsInstance(exc.typeName, cond.name);
   }
-  if (cond instanceof JishiError) return excIsInstance(exc.typeName, cond.typeName);
-  throw typeErr(`「${display(cond)}」不能用于捕获`, line, col);
+  // M56-5 收口：`捕获` 后面必须写异常类型，不是就报 E2002（与 Python 逐字对齐）。
+  // 以前这里 `display(cond)` 给「「5」不能用于捕获」——消息与 Python 不同；
+  // 还多一个 `cond instanceof JishiError` 的分支**悄悄按类型名匹配**，而 Python
+  // 对「捕获一个被捕获到的异常对象」是**报错**（type_name 是「异常」）。都改掉。
+  throw typeErr(
+    `「捕获」后面只能写异常类型（比如 类型错误、值错误），不能写${typeName(cond)}`,
+    line, col);
 }
 
 // make_exception：把 `抛出` 的值规范化成异常对象

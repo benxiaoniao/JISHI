@@ -25,6 +25,7 @@ R6.4 顺带撞见的分叉：三个 Python 执行器底下就是 Python 的 list
 文本按**码点**数（`"😀"[-1]` 要拿到完整的 😀），不是字节数、也不是 UTF-16 码元数。
 """
 
+import os
 import contextlib
 import io
 import shutil
@@ -125,7 +126,7 @@ def engine_outputs() -> dict[str, dict[str, str]]:
         "Python VM": _cap(lambda: VM(compile_source(src, REL), REL).run()),
         "C VM": _cap(lambda: cvm_bind.run_source_c(src, REL)),
     }
-    tmp = Path(tempfile.gettempdir()) / "_m68.json"
+    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m68.json"
     tmp.write_text(compile_to_json(src, REL), encoding="utf-8")
     rust = ROOT / "rust/target/release/jishi-rs.exe"
     if rust.exists():
