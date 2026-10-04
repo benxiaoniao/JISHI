@@ -368,6 +368,22 @@ pub(crate) enum Val {
     Super(Rc<SuperVal>),
     /// 被 `捕获` 住的异常（M56）。见 `ExcValue`。
     Exc(Rc<ExcValue>),
+    /// **列表的活迭代器**（R6 收尾·D77）：容器 + 下标，**边遍历边看当前长度**。
+    ///
+    /// ⚠️ 为什么不是「快照 + 弹」（那是 R6.1 的写法）：快照与规范（Python 的
+    /// 列表迭代器是**按下标活迭代**的）不一致 ——
+    /// `遍历 x 在 列：列.追加(99)` 规范会多打印一个 99，快照不会；
+    /// `列.移除(2)` 规范会跳过被顶上来那个，快照也不会。两者都是**静默给错答案**。
+    ///
+    /// 现在这个是「下标 + 每步查一次 `len()`」：既**活的**（与 Python 一致），
+    /// 又**每步 O(1)**（不会退回 R6.0 那个 `remove(0)` 的 O(n²)）。
+    ListIter(Rc<RefCell<ListIter>>),
+}
+
+/// 列表活迭代器的状态：**借的是原列表**（不是拷贝）+ 当前下标。
+pub(crate) struct ListIter {
+    pub list: JList,
+    pub idx: usize,
 }
 
 /// 造一个列表值（把裸 Vec 包成共享容器）。
@@ -2774,6 +2790,9 @@ pub(crate) fn display(v: &Val) -> String {
         Val::Date(d) => d.to_display(),
         Val::Table(t) => t.display(),
         Val::Slice(s) => slice_repr(s),
+        // 活迭代器是**内部值**（只有 `FOR_ITER` 看得见），但 `display` 得有个分支。
+        // 与 Python 侧对迭代器的处理一致：不假装它是列表。
+        Val::ListIter(_) => "<列表迭代器>".to_string(),
         Val::List(l) => {
             let items: Vec<String> = l.borrow().iter().map(py_repr).collect();
             format!("[{}]", items.join(", "))
@@ -4419,6 +4438,28 @@ const INTERNAL_BUILTIN_NAMES: &[&str] = &["检查实参"];
 /// 过滤规则与 Python 侧 `is_internal_builtin` + `build_lang_spec` 对齐：
 /// 去掉 `$` 开头的（用户写不出来）、去掉内部用的、只留真正的内建函数
 /// （异常类型与 `空` 不是「函数」，不在内建函数清单里）。
+/// `--dump-val-size`：报 `Val` 的**实际字节数**（"结构钉"，2026-10-05 起）。
+///
+/// 为什么要它：`Val` 的大小**决定值栈与局部槽的每格成本**，而加一个新变体
+/// （尤其是**把大载荷内联进来**，比如 `HashMap` / 大数组）会让它悄悄膨胀 ——
+/// 那是「没报错、只是变慢」的一类退化，任何对拍都抓不住。文档里写过 32 字节，
+/// 但**代码里没有钉子**，所以这里把它变成机器可读的事实，由
+/// `tests/test_m82_val_size.py` 钉住。
+pub fn dump_val_size() -> String {
+    // 顺带报**各个内联载荷**的大小 —— 谁把 `Val` 撑大了，一眼可见。
+    // （2026-10-05 实测：`Val` = 128 字节，而文档里写的 32 是**错的**。）
+    format!(
+        "{{\"val\": {}, \"list_iter\": {}, \"func\": {}, \"class\": {}, \
+         \"module_payload\": {}, \"exc_value\": {}}}",
+        std::mem::size_of::<Val>(),
+        std::mem::size_of::<ListIter>(),
+        std::mem::size_of::<Func>(),
+        std::mem::size_of::<Class>(),
+        std::mem::size_of::<(String, HashMap<String, Val>)>(),
+        std::mem::size_of::<ExcValue>(),
+    )
+}
+
 pub fn dump_builtins() -> String {
     let table = new_builtins();
     let mut names: Vec<String> = table.iter()
@@ -4672,7 +4713,9 @@ pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
     //
     // ⚠️ 顺序：`iter_next` 从**尾部**弹，所以这里必须**反转**（见 `reversed_iter`）。
     match obj {
-        Val::List(l) => Ok(reversed_iter(l.borrow().clone())),
+        // ⚠️ **列表 → 活迭代器**（容器 + 下标），不是快照：与 Python 的列表
+        // 迭代器一致（见 `Val::ListIter` 的注释）。集合 / 字典 / 文本仍走快照。
+        Val::List(l) => Ok(Val::ListIter(Rc::new(RefCell::new(ListIter { list: l, idx: 0 })))),
         Val::Set(s) => Ok(reversed_iter(s.borrow().to_items())),
         Val::Str(s) => Ok(reversed_iter(
             s.chars().map(|c| Val::Str(c.to_string())).collect())),
@@ -4691,9 +4734,24 @@ pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
 /// 文件迭代器读一行。
 pub(crate) fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
     match it {
+        // **活迭代器**：每步重新查当前长度（不是拿快照）——遍历中追加的元素会被
+        // 看到、被删掉的不再看到，与 Python 的列表迭代器同一条规矩。
+        // 顺带：`get(idx)` 是 O(1)，所以不会退回 R6.0 那个 `remove(0)` 的 O(n²)。
+        Val::ListIter(st) => {
+            let mut st = st.borrow_mut();
+            let item = { st.list.borrow().get(st.idx).cloned() };
+            match item {
+                Some(v) => {
+                    st.idx += 1;
+                    Ok(Some(v))
+                }
+                None => Ok(None),
+            }
+        }
         Val::List(l) => {
             // ⚠️ `pop()` 而不是 `remove(0)` —— 后者每次搬移整个 Vec（O(n)），
             // 整趟遍历 O(n²)。见 `reversed_iter` 的说明与实测数据。
+            // （这一支现在只剩集合 / 字典 / 文本的快照迭代器在用。）
             Ok(l.borrow_mut().pop())
         }
         Val::File(f) => {

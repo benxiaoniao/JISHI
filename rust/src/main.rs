@@ -33,6 +33,12 @@ fn main() -> ExitCode {
         println!("{}", jishi_ffi::dump_builtins());
         return ExitCode::SUCCESS;
     }
+    // 2026-10-05：报 `Val` 的实际字节数（结构钉）。加变体时若把大载荷内联进来，
+    // 它就会悄悄膨胀 —— 「没报错、只是变慢」那类退化，对拍抓不住。
+    if args[1] == "--dump-val-size" || args[1] == "--dump_val_size" {
+        println!("{}", jishi_ffi::dump_val_size());
+        return ExitCode::SUCCESS;
+    }
     // R6 主体：**树遍历参考执行器** —— 吃**AST JSON**（前端契约的 ast 阶段产物），
     // 不经过字节码。与字节码 VM 互为参考实现（差异就是编译器的问题）。
     // 进度见 `walk.rs`；未实现的节点会明确报错。
