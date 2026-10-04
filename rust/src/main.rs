@@ -39,16 +39,19 @@ fn main() -> ExitCode {
     if args[1] == "--walk" {
         let path = match args.get(2) {
             Some(p) => p,
-            None => { eprintln!("用法：jishi-rs --walk AST.json"); return ExitCode::from(2); }
+            None => { eprintln!("用法：jishi-rs --walk AST.json [源文件.jsh]"); return ExitCode::from(2); }
         };
         let text = match fs::read_to_string(path) {
             Ok(t) => t,
             Err(e) => { eprintln!("读取文件失败：{e}"); return ExitCode::from(1); }
         };
-        return match jishi_ffi::run_walk(&text) {
+        // 可选的源文件路径（R6 主体 ⑥）：报错渲染要打「源码行 + `^`」就得从外面给
+        // 这个（AST JSON 里没有源码）。缺省时退回「没有源码行」，位置行照样打。
+        let source = args.get(3).map(|s| s.as_str());
+        return match jishi_ffi::run_walk(&text, source) {
             Ok(out) => { print!("{out}"); ExitCode::SUCCESS }
             // ⚠️ 先把**出错前已经打印的内容**吐出来，再报错（与字节码 VM 一致）。
-            Err((out, e)) => { print!("{out}"); eprintln!("{e}"); ExitCode::from(1) }
+            Err((out, e)) => { print!("{out}"); eprint!("{e}"); ExitCode::from(1) }
         };
     }
     let path = &args[1];

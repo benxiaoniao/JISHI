@@ -5131,7 +5131,10 @@ impl PartialOrd for Val {
 /// 字节码 VM 在 R6.2 就统一了「出错前写进输出流的内容要吐出来」，参考执行器
 /// 必须一致 —— 否则互拍工具会把「少了半截输出」当成不一致（D68 §四第 ⑥ 步
 /// 「报错渲染对齐」之前，这里先把输出这一半对齐）。
-pub fn run_walk(ast_text: &str) -> Result<String, (String, String)> {
+/// `source_path`：**源文件的路径**（可选）。树遍历的输入是 AST JSON、里面没有
+/// 源码，报错渲染要打「源码行 + `^`」就得从外面给这个路径；给 `None` 时退回
+/// 「没有源码行」（位置行照打，与字节码 VM 读不到源文件同一口径）。
+pub fn run_walk(ast_text: &str, source_path: Option<&str>) -> Result<String, (String, String)> {
     let ast = match json::parse(ast_text) {
         Ok(a) => a,
         Err(e) => return Err((String::new(), format!("AST JSON 解析失败：{e}"))),
@@ -5139,23 +5142,18 @@ pub fn run_walk(ast_text: &str) -> Result<String, (String, String)> {
     let mut w = walk::Walker::new();
     match w.run(&ast) {
         Ok(()) => Ok(w.output),
-        // 渲染成与 `render_error` 的**头行**同形（位置框要读源码文件，宿主没有
-        // 那个上下文；这一步见 `walk.rs` 的「还没做」）。
+        // ⚠️ **报错渲染与字节码 VM 的 `render_error` 共用同一份**（`render_error_with`）
+        // —— 源码行 / `^` / 调用链 / 提示，一处都不会漂。这是 D68 §四第 ⑥ 步。
         Err(e) => {
-            // 头行走**共用**的 `error_head`（与字节码 VM 的 `render_error` 逐字同源：
-            // 标题、空消息不括号、无码时的兜底 —— 三处规则只有一份）。
-            let head = error_head(&e);
-            let mut rendered = match (e.line, e.col) {
-                (Some(l), Some(c)) => format!("{head}\n  ┌─ {l}:{c}"),
-                _ => head,
+            let rendered = match source_path {
+                Some(path) => render_error_with(&e, path, &|line| {
+                    // 与 `Module::source_line` 同一口径：按需从磁盘读那一行，读不到给 None。
+                    std::fs::read_to_string(path).ok().and_then(|text| {
+                        text.lines().nth((line - 1) as usize).map(str::to_string)
+                    })
+                }),
+                None => render_error_with(&e, "<AST>", &|_| None),
             };
-            // 提示语（M56）能渲染就渲染 —— 它**不需要源码**，与 `render_error`
-            // 同一行格式（所以「候选名池」这一条在宿主上也看得见了）。
-            // ⚠️ 还差「源码行 + `^` + 调用链」那一块：那要**源文件名与源码**，
-            // 而树遍历的输入是 AST JSON（里面没有它们）——见 D68 §四第 ⑥ 步。
-            if let Some(hint) = &e.hint {
-                rendered.push_str(&format!("\n  提示：{hint}"));
-            }
             Err((w.output, rendered))
         }
     }
@@ -5296,13 +5294,23 @@ pub(crate) fn error_head(e: &JishiError) -> String {
     }
 }
 
-pub fn render_error(vm: &VM, e: &JishiError) -> String {
+/// 报错的**渲染正文**（不含头行）—— 源码框 + 调用链 + 提示。
+///
+/// ⚠️ 抽出来是因为**两个执行器都要它**，而它只差一件事：源码行从哪来。
+/// 字节码 VM 从 `vm.module`（磁盘）读；树遍历参考执行器从**外部传入的源文件
+/// 路径**读（它的输入是 AST JSON，里面没有源码）。渲染格式必须**只有一份**，
+/// 否则「源码行 / `^` / 调用链」这些用户可见的细节会漂。
+pub(crate) fn render_error_with(
+    e: &JishiError,
+    filename: &str,
+    get_line: &dyn Fn(i64) -> Option<String>,
+) -> String {
     let mut out = error_head(e);
     if let Some(line) = e.line {
         let col = e.col.unwrap_or(1);
-        out.push_str(&format!("\n  ┌─ {}:{}:{}", vm.module.filename, line, col));
+        out.push_str(&format!("\n  ┌─ {filename}:{line}:{col}"));
         out.push_str("\n  │");
-        if let Some(src) = vm.module.source_line(line) {
+        if let Some(src) = get_line(line) {
             let src = src.trim_end_matches(['\n', '\r']);
             out.push_str(&format!("\n{line:>3} │ {src}"));
             let pad = " ".repeat((col.max(1) - 1) as usize);
@@ -5325,4 +5333,8 @@ pub fn render_error(vm: &VM, e: &JishiError) -> String {
     }
     out.push('\n');
     out
+}
+
+pub fn render_error(vm: &VM, e: &JishiError) -> String {
+    render_error_with(e, &vm.module.filename, &|line| vm.module.source_line(line))
 }

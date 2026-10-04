@@ -224,21 +224,24 @@ def test_导入宿主有意不支持从python():
 # ---------------------------------------------------------------------------
 
 def test_报错头行走的是共用实现():
-    """`error_head` **只有一份**（`render_error` 与树遍历共用）。
+    """报错渲染**只有一份**（`render_error_with`，字节码 VM 与树遍历共用）。
 
     以前树遍历自己拼了一遍，于是 `抛出 值错误("x")` 在它那边渲染成
     「错误 E2005：值错误（x）」、字节码 VM 是「错误 E2005：数值不对（x）」——
-    同一段源码两个宿主打出不同的字。抽成共用之后这类漂移从根上没了。
+    同一段源码两个宿主打出不同的字。D73 先抽了 `error_head`（头行），D74 又抽了
+    `render_error_with`（含源码行 / `^` / 调用链），现在整份渲染只有一份。
     """
     walk = (ROOT / "rust" / "src" / "walk.rs").read_text(encoding="utf-8")
     lib = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
-    # `run_walk`（在 lib.rs）渲染头行的那个地方必须调 `error_head`
+    # `run_walk`（在 lib.rs）渲染报错的地方必须走**共用的** `render_error_with`
     i = lib.index("pub fn run_walk")
-    assert "error_head" in lib[i:i + 1600], "树遍历没用共用的报错头行"
+    assert "render_error_with" in lib[i:i + 2000], "树遍历没用共用的报错渲染"
+    assert lib.count("pub(crate) fn render_error_with") == 1, "渲染函数应当只有一份"
+    # 头行那三条规则（标题 / 空消息不括号 / 无码兜底）收在 `error_head`，只有一份
     assert lib.count("pub(crate) fn error_head") == 1, "error_head 应当只有一份"
-    assert lib.count("error_head(e)") >= 1, "render_error 没走 error_head"
+    assert "error_head(e)" in lib, "渲染函数没走 error_head"
     # walk.rs 不许自己拼「错误 {码}：」这种头行
-    assert '错误 {' not in walk, "walk.rs 里又出现了自己拼的报错头行 —— 请改用 error_head"
+    assert '错误 {' not in walk, "walk.rs 里又出现了自己拼的报错头行 —— 请改用共用渲染"
 
 
 def test_不许出现不存在的异常类型名():

@@ -15,25 +15,18 @@
 //! ① 宿主不必把 `core` 的 pyo3 依赖解耦进来（省一层麻烦）；
 //! ② 与 R5「产物优先给文本」同一条思路 —— 宿主只认文本产物。
 //!
-//! ## ⚠️ 现在的进度（如实记）
+//! ## ✅ 现在的进度（语料里出现过的节点**全部实现了**）
 //!
-//! | 已经能跑 | 还没实现（明确报错） |
-//! |---|---|
-//! | 语句：`Assign`（含 `+=` 等）、`ExprStmt`、`If`、`While`、`For`、`Loop`、`Break`、`Continue`、`Pass`、`FuncDef` / `Return`、**`ClassDef`** | `Try` / `Raise` / `Import`（⑤） |
-//! | 表达式：`Num`（含 `真`/`假`）、`Str`、`Name`（含 `空`）、`BinOp`、`Compare`、`BoolOp`、`UnaryOp`、`List`、`Dict`、`Subscript`（读）、`Call`、**`Attr`** | `Slice` / `Comprehension`（后补） |
-//! | 赋值目标：`Name`、`TargetList`（解包，含 `*余`）、**`Attr` / `Subscript`** | — |
+//! `tests/cases/` 里的语料，树遍历执行器**全都跑得通**（`tools/check_walk.py` 的
+//! 「还没实现」那一列是 **0**）。语句 / 表达式 / 赋值目标 / 函数与闭包 / 类与继承 /
+//! 异常与导入 / 切片，一应俱全。具体随时可查：`python tools/check_walk.py`。
+//! 语料里还没出现过的节点（`Comprehension` 推导式之类）会明确报「还没实现「X」」。
 //!
-//! **函数与闭包**（③）：`FuncDef` / `Return` / `Lambda`，作用是**词法链**
-//! （`Scope`）而不是字节码那套「槽位 + 单元表」。⚠️ 树遍历没有字节码的
-//! `local_hints`，所以「赋值前读局部」的提示语要**自己判断**「外层有没有同名变量」。
+//! ## ✅ 报错渲染也与字节码 VM 逐字一致（⑥）
 //!
-//! 具体差什么随时可查：`python tools/check_walk.py`（进度仪表）。
-//! **其余节点会明确报「还没实现「X」」** —— 不静默给错值。
-//!
-//! ⚠️ 还没做「报错渲染与其它执行器逐字对齐」：现在只渲染**头行 + 提示语**，
-//! 还差**源码行 / `^` / 调用链**那一块 —— 那要**源文件名与源码**，而本执行器
-//! 的输入是 AST JSON（里面没有它们）。所以现阶段对拍的是**成功路径的 stdout**
-//! 与「出错前已经打印的内容」。
+//! 源码行 / `^` / 调用链 / 提示 —— 都走**共用的** `render_error_with`（源码行
+//! 从 `--walk` 的「源文件路径」参数读，AST JSON 里没有源码）。调用链由本执行器
+//! 自己的 `call_stack` 拍出（只含「直接函数调用」的帧，见 `call_stack` 的注释）。
 //!
 //! ## 与字节码 VM 的关系
 //!
@@ -53,8 +46,8 @@ use crate::{
     make_exception, make_iterator, name_hint, new_builtins, next_obj_id, reject_kwargs,
     set_attr, set_item, stdlib_module, truthy, type_label,
     unary_neg, unbound_hint, unbound_msg, unbound_shadow_hint, unpack_values,
-    BoundMethod, BuiltinHost, Class, ExcValue, Instance, SliceVal, Val, JishiError,
-    T_NAME, T_NOT_CALLABLE,
+    BoundMethod, BuiltinHost, Class, ExcValue, Instance, SliceVal, TraceFrame, Val,
+    JishiError, T_NAME, T_NOT_CALLABLE,
 };
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -240,6 +233,13 @@ pub(crate) struct Walker {
     /// 内建表 —— **与字节码 VM 共用同一张**（`new_builtins`）。这是「内建语义
     /// 不漂」的保证：内建只有一份实现，两个执行器都调它。
     builtins: HashMap<String, Val>,
+    /// **调用栈**（R6 主体 ⑥）：从外到内，只含「直接函数调用」的帧 —— 出错时拍成
+    /// `JishiError.trace`（与字节码 VM 的 `snapshot_trace` 同口径）。
+    /// ⚠️ 方法调用 / 类实例化 / 内建回调**不进栈**（Python 侧 `_eval_call` 只有
+    /// `UserFunction` 直接调用才 append；`UserFunction.__call__` 那条路明确
+    /// 「不动 _call_stack」）—— 所以这里只有 `eval_call` 的 `Val::WalkFn`（且
+    /// 未绑定）会 push，别的地方调 `call_walk_fn` 一律传 `None`。
+    call_stack: Vec<TraceFrame>,
     pub(crate) output: String,
 }
 
@@ -251,6 +251,7 @@ impl Walker {
             globals,
             locals: None,
             builtins: new_builtins(),
+            call_stack: Vec::new(),
             output: String::new(),
         }
     }
@@ -264,30 +265,51 @@ impl Walker {
         Ok(())
     }
 
+    /// 把当前调用栈拍成调用链（只拍一次；已经有链就不动）。
+    ///
+    /// ⚠️ 口径照字节码 VM 的 `snapshot_trace`：树遍历的 `call_stack` **只含函数帧**
+    /// （模块级不 push），所以不必像 VM 那样 `skip(1)` 跳过模块主帧。栈空时不拍
+    /// （与 Python 侧 `_do_try` 的 `if err.trace is None and self._call_stack` 同义：
+    /// 模块级没有调用链，也不该渲染「调用链」那一块）。
+    fn snapshot_trace(&self, e: &mut JishiError) {
+        if !e.trace.is_empty() || self.call_stack.is_empty() {
+            return;
+        }
+        e.trace = self.call_stack.clone();
+    }
+
+    /// 错误冒泡时补「当前节点」的位置（**只补还没填过的**）。
+    ///
+    /// ⚠️ 对齐字节码 VM 的 `fill_error_loc`：那边用「出错指令」的 line/col，这边用
+    /// 「出错节点」的 —— 同一条源码、同一处错误，两者天然一致（验证过：`1 / 0`
+    /// 的 `BinOp` 节点 col 与 `BINARY_OP` 指令 col 都是 6）。共用函数（`binop` /
+    /// `get_item` / `compare` …）返回的错误**不带位置**，就靠这里在递归冒泡时
+    /// 由「最内层出错节点」补上（内层先补，外层不再覆盖）。
+    fn fill_loc(&self, e: &mut JishiError, n: &Json) {
+        if e.line.is_some() {
+            return;
+        }
+        if let (Some(l), Some(c)) = self.at(n) {
+            e.line = Some(l);
+            e.col = Some(c);
+        }
+    }
+
     // -- 语句 ------------------------------------------------------------
 
     fn exec_stmt(&mut self, n: &Json) -> Result<Flow, JishiError> {
-        match kind(n) {
-            "Assign" => {
-                self.exec_assign(n)?;
-                Ok(Flow::Normal)
-            }
-            "ExprStmt" => {
-                self.eval(field(n, "expr")?)?;
-                Ok(Flow::Normal)
-            }
+        let r = match kind(n) {
+            // ⚠️ 这几个 arm 用 `.map(|_| Flow::Normal)` 而不是 `{ f(n)?; Ok(..) }`：
+            // `?` 会**提前 return、绕过下面的 `fill_loc`**，于是 `exec_import` 等的
+            // 错误（如「不支持从 python 导入」）就没了位置、报错渲染缺源码行框。
+            "Assign" => self.exec_assign(n).map(|_| Flow::Normal),
+            "ExprStmt" => self.eval(field(n, "expr")?).map(|_| Flow::Normal),
             "If" => self.exec_if(n),
             "While" => self.exec_while(n),
             "For" => self.exec_for(n),
             "Loop" => self.exec_loop(n),
-            "FuncDef" => {
-                self.exec_funcdef(n)?;
-                Ok(Flow::Normal)
-            }
-            "ClassDef" => {
-                self.exec_classdef(n)?;
-                Ok(Flow::Normal)
-            }
+            "FuncDef" => self.exec_funcdef(n).map(|_| Flow::Normal),
+            "ClassDef" => self.exec_classdef(n).map(|_| Flow::Normal),
             "Return" => {
                 // `value` 是 JSON `null` 时表示裸 `返回`（前端就是这么编的）
                 let v = match n.get("value") {
@@ -298,14 +320,18 @@ impl Walker {
             }
             "Try" => self.exec_try(n),
             "Raise" => self.exec_raise(n),
-            "Import" => {
-                self.exec_import(n)?;
-                Ok(Flow::Normal)
-            }
+            "Import" => self.exec_import(n).map(|_| Flow::Normal),
             "Break" => Ok(Flow::Break),
             "Continue" => Ok(Flow::Continue),
             "Pass" => Ok(Flow::Normal),
             other => Err(self.unimpl(other, n)),
+        };
+        match r {
+            Err(mut e) => {
+                self.fill_loc(&mut e, n);
+                Err(e)
+            }
+            ok => ok,
         }
     }
 
@@ -555,8 +581,12 @@ impl Walker {
     }
 
     /// 调用一个树遍历函数值。
+    ///
+    /// `call_site` = 调用点的**行号**（`Some(行)` 只对「直接函数调用」；`None` =
+    /// 方法调用 / 类实例化 / 内建回调，这些**不进调用栈**，见 `call_stack` 的注释）。
     fn call_walk_fn(&mut self, f: Rc<WalkFn>, args: Vec<Val>,
-                    knames: &[String], kwvals: &[Val]) -> Result<Val, JishiError> {
+                    knames: &[String], kwvals: &[Val],
+                    call_site: Option<i64>) -> Result<Val, JishiError> {
         // 形参绑定走**共用**的那一份（`bind_params`）—— 报错文案与字节码 VM 同源，
         // 不然「函数「f」需要 2 个参数，但传了 3 个」两边各写一遍迟早会漂。
         // 绑定方法：先把实例塞到实参最前面 —— 它落进第一个形参（`自身`），
@@ -579,6 +609,11 @@ impl Walker {
                 }
             }
         }
+        // 进函数前**压一帧**（只对直接函数调用）—— 出错拍 trace 时它得还在栈上。
+        let traced = call_site.is_some();
+        if let Some(line) = call_site {
+            self.call_stack.push(TraceFrame { func: f.name.clone(), line: Some(line) });
+        }
         // 换入调用现场（**出错也要换回来**，否则递归里的错会污染外层）
         let saved_env = Rc::clone(&self.env);
         let saved_locals = self.locals.take();
@@ -593,7 +628,10 @@ impl Walker {
                     break;
                 }
                 Ok(_) => {}                        // Normal / Break / Continue
-                Err(e) => {
+                Err(mut e) => {
+                    // ⚠️ 错误要**穿出这个函数边界**了 → 此刻拍 trace（帧还在栈上）；
+                    // 若它是被本函数内的「尝试」接住，`exec_stmt` 根本不会走到这。
+                    self.snapshot_trace(&mut e);
                     failed = Some(e);
                     break;
                 }
@@ -601,6 +639,9 @@ impl Walker {
         }
         self.env = saved_env;
         self.locals = saved_locals;
+        if traced {
+            self.call_stack.pop();
+        }
         match failed {
             Some(e) => Err(e),
             None => Ok(out),
@@ -671,7 +712,7 @@ impl Walker {
     // -- 表达式 ----------------------------------------------------------
 
     fn eval(&mut self, n: &Json) -> Result<Val, JishiError> {
-        match kind(n) {
+        let r = match kind(n) {
             "Num" => self.eval_num(n),
             "Str" => Ok(Val::Str(
                 field(n, "value")?.as_str().unwrap_or("").to_string())),
@@ -697,6 +738,13 @@ impl Walker {
             }
             "Call" => self.eval_call(n),
             other => Err(self.unimpl(other, n)),
+        };
+        match r {
+            Err(mut e) => {
+                self.fill_loc(&mut e, n);
+                Err(e)
+            }
+            ok => ok,
         }
     }
 
@@ -920,7 +968,17 @@ impl Walker {
         }
         match callee {
             // 用户函数：形参绑定与报错都走共用的 `bind_params`。
-            Val::WalkFn(f) => self.call_walk_fn(f, args, &knames, &kwvals),
+            // ⚠️ **调用点行号**（Call 节点的 line）只对**未绑定**的函数进调用栈：
+            // `对.算()` 那种（`self_val` 有值）在 Python 侧走 `UserFunction.__call__`，
+            // **不进 `_call_stack`**（trace 里没有方法帧）—— 这里传 `None` 对齐。
+            Val::WalkFn(f) => {
+                let call_line = if f.self_val.is_none() {
+                    n.get("line").and_then(|v| v.as_i64())
+                } else {
+                    None
+                };
+                self.call_walk_fn(f, args, &knames, &kwvals, call_line)
+            }
             // 调用一个**类** = 造实例（`新建 甲(…)`）—— 与字节码 VM 的
             // `make_instance` 同语义：先建空对象，再调它的 `初始化`（首参是自身）。
             Val::Class(c) => self.make_instance(c, args),
@@ -939,8 +997,21 @@ impl Walker {
             // **走共用的那张方法表**（`call_builtin_method` 是自由函数）——
             // 与字节码 VM 逐字同一套语义，不另写一份。
             Val::BoundMethod(bm) => match *bm {
-                BoundMethod::Builtin { name, receiver, .. } =>
-                    call_builtin_method(self, name, *receiver, &args),
+                BoundMethod::Builtin { name, receiver, line, col } => {
+                    match call_builtin_method(self, name, *receiver, &args) {
+                        Ok(v) => Ok(v),
+                        Err(mut e) => {
+                            // ⚠️ 方法内部报错：位置用「取属性」那处（`a.追加` 的 `a`），
+                            // 与字节码 VM 的 `call_bound` 同口径（`bm_pos`）。不用 Call
+                            // 节点的位置（那是 `追加()` 的 `追加`，差好几列）。
+                            if e.line.is_none() && line > 0 {
+                                e.line = Some(line);
+                                e.col = Some(col);
+                            }
+                            Err(e)
+                        }
+                    }
+                }
                 // 树遍历造不出 `BoundMethod::User`（它用 `Val::WalkFn`）
                 BoundMethod::User { name, .. } => Err(err("运行期错误", format!(
                     "树遍历参考执行器拿到了字节码的方法值「{name}」（内部错误）"))),
@@ -993,7 +1064,7 @@ impl Walker {
                     None => Ok(flow),
                 }
             }
-            Err(e) => {
+            Err(mut e) => {
                 // 被捕获的异常是一个**带内容的对象**（与 `dispatch_exception`
                 // 压栈的同一个形状）—— `e.类型` / `e.消息` 因此可读。
                 let exc = ExcValue::from_error(&e);
@@ -1013,6 +1084,10 @@ impl Walker {
                     if !matched {
                         continue;
                     }
+                    // ⚠️ **补拍 trace**（对齐 `_do_try` 的 R5.1）：错误在**本函数内
+                    // 被「尝试」接住、不会穿出函数边界，所以 `call_walk_fn` 拍不到
+                    // —— 这里补上（此刻调用栈还完整）。
+                    self.snapshot_trace(&mut e);
                     // 捕获名 = **当前作用域**的一次赋值（口径 2）
                     if let Some(name) = h.get("name").and_then(|v| v.as_str()) {
                         if !name.is_empty() {
@@ -1198,11 +1273,21 @@ impl BuiltinHost for Walker {
         // 内建现在能**回调用户函数**了（`映射` / `过滤` / `排序按` / `归约` …）——
         // 这正是 ③ 落地后长出来的能力。
         match callee {
-            Val::WalkFn(f) => self.call_walk_fn(f, args, &[], &[]),
+            Val::WalkFn(f) => self.call_walk_fn(f, args, &[], &[], None),
             Val::Class(c) => self.make_instance(c, args),
             Val::BoundMethod(bm) => match *bm {
-                BoundMethod::Builtin { name, receiver, .. } =>
-                    call_builtin_method(self, name, *receiver, &args),
+                BoundMethod::Builtin { name, receiver, line, col } => {
+                    match call_builtin_method(self, name, *receiver, &args) {
+                        Ok(v) => Ok(v),
+                        Err(mut e) => {
+                            if e.line.is_none() && line > 0 {
+                                e.line = Some(line);
+                                e.col = Some(col);
+                            }
+                            Err(e)
+                        }
+                    }
+                }
                 BoundMethod::User { name, .. } => Err(err("运行期错误", format!(
                     "树遍历参考执行器拿到了字节码的方法值「{name}」（内部错误）"))),
             },

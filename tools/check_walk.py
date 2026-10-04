@@ -72,18 +72,26 @@ def main(argv: "list[str] | None" = None) -> int:
         ast, bc = doc.get("ast"), doc.get("bytecode")
         if ast is None or bc is None:
             continue                      # 前端就没跑通（或只到某一阶段）
-        name = path.stem.replace("__", "/")
+        name = doc.get("语料") or path.stem.replace("__", "/")
         total += 1
 
+        # ⚠️ **报错渲染要对齐**（R6 主体 ⑥）：给 `--walk` 传**源文件路径**（就是
+        # 编译字节码时用的那个相对路径），这样树遍历执行器也能打出「源码行 + `^`」，
+        # 与字节码 VM 逐字一致。读不到源文件时退回「没有源码行」（两边同口径）。
         tmp.write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
-        r1 = subprocess.run([str(exe), "--walk", str(tmp)],
-                            capture_output=True, input=b"")
+        walk_args = [str(exe), "--walk", str(tmp)]
+        # ⚠️ 源文件路径传**相对路径**（与字节码 payload 里的 filename 完全一致），
+        # 否则报错渲染里「文件:行:列」的名字会对不上（一边绝对一边相对）。
+        if (ROOT / name).exists():
+            walk_args.append(name)
+        r1 = subprocess.run(walk_args, capture_output=True, input=b"")
         walk_out = r1.stdout.decode("utf-8", "replace")
         walk_err = r1.stderr.decode("utf-8", "replace")
 
         tmp.write_text(json.dumps(bc, ensure_ascii=False), encoding="utf-8")
         r2 = subprocess.run([str(exe), str(tmp)], capture_output=True, input=b"")
         vm_out = r2.stdout.decode("utf-8", "replace")
+        vm_err = r2.stderr.decode("utf-8", "replace")
 
         m = UNIMPL.search(walk_err)
         if m:
@@ -91,12 +99,13 @@ def main(argv: "list[str] | None" = None) -> int:
             if verbose:
                 print(f"  … {name}：还没实现「{m.group(1)}」")
             continue
-        if walk_out == vm_out:
+        # 完整比对：stdout + **报错渲染**（stderr 末尾那个换行不同不算）。
+        if walk_out == vm_out and walk_err.rstrip("\n") == vm_err.rstrip("\n"):
             same += 1
             if verbose:
                 print(f"  ✅ {name}")
         else:
-            bad.append((name, walk_out, vm_out))
+            bad.append((name, walk_out, walk_err, vm_out, vm_err))
             if verbose:
                 print(f"  ❌ {name}")
 
@@ -108,10 +117,13 @@ def main(argv: "list[str] | None" = None) -> int:
             print(f"  {n:>3} × {what}")
     if bad:
         print("\n❌ 不一致（**要立刻查**）：")
-        for name, w, v in bad[:10]:
+        for name, w, we, v, ve in bad[:10]:
             print(f"  {name}")
-            print(f"    树遍历: {w[:200]!r}")
-            print(f"    字节码: {v[:200]!r}")
+            print(f"    树遍历 stdout: {w[:160]!r}")
+            print(f"    字节码 stdout: {v[:160]!r}")
+            if we.rstrip("\n") != ve.rstrip("\n"):
+                print(f"    树遍历 stderr: {we[:160]!r}")
+                print(f"    字节码 stderr: {ve[:160]!r}")
     return 1 if bad else 0
 
 
