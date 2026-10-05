@@ -584,7 +584,7 @@ def test_字节码格式版本四处同步():
     src = serialize.FORMAT_VERSION
     node_js = (ROOT / "node" / "index.js").read_text(encoding="utf-8")
     rust_lib = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
-    core_ser = (ROOT / "core" / "src" / "serialize.rs").read_text(encoding="utf-8")
+    core_ser = (ROOT / "frontend" / "src" / "serialize.rs").read_text(encoding="utf-8")
     m_node = re.search(r"const FORMAT_VERSION = (\d+)", node_js)
     m_rust = re.search(r"pub const BYTECODE_VERSION: i64 = (\d+)", rust_lib)
     m_core = re.search(r"pub const FORMAT_VERSION: i64 = (\d+)", core_ser)

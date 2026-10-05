@@ -109,12 +109,14 @@ def test_未实现的节点明确报错而不是静默给值():
 
 @need_rust
 def test_运算符表与字节码契约一致():
-    """`walk.rs` 的 `binop_code` 必须与 `core/src/opcodes.rs` 的 `BINOP_*` 一致。
+    """`walk.rs` 的 `binop_code` 必须与 `frontend/src/opcodes.rs` 的 `BINOP_*` 一致。
 
-    ⚠️ 两张表分处两个 crate（宿主不能依赖 core —— 那边链着 pyo3），
-    所以用**读文件比对**的方式把它钉住（本项目的漂移检测惯例）。
+    ⚠️ 两张表分处两个 crate —— 用**读文件比对**的方式把它钉住（本项目的漂移检测惯例）。
+    （R7.1-a 之前宿主**不能**依赖那边：前端住在 `core/`，而 `core` 链着 pyo3；
+    现在前端是独立的 `frontend/` crate，宿主**可以**依赖它了 —— 但这条读文件比对
+    照样有效，先留着。）
     """
-    opcodes = (ROOT / "core" / "src" / "opcodes.rs").read_text(encoding="utf-8")
+    opcodes = (ROOT / "frontend" / "src" / "opcodes.rs").read_text(encoding="utf-8")
     walk = (ROOT / "rust" / "src" / "walk.rs").read_text(encoding="utf-8")
     import re
     for name, op in (("ADD", "+"), ("SUB", "-"), ("MUL", "*"), ("DIV", "/"),

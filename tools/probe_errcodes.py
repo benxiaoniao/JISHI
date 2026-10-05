@@ -66,7 +66,7 @@ UNREACHABLE: dict[str, tuple[str, str]] = {
 
 #: 静态复核「死码」时扫的实现目录（**不含 tests / docs**：
 #: 测试里列一份码表不算「有人抛出它」）。
-_IMPL_DIRS = ("jishi", "core/src", "rust/src", "node", "cvm")
+_IMPL_DIRS = ("jishi", "core/src", "frontend/src", "rust/src", "node", "cvm")
 _IMPL_SKIP = {"jishi/errors.py", "jishi/errcodes.py"}
 
 

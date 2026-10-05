@@ -21,6 +21,7 @@ mod stdlib_sigs;
 /// **树遍历参考执行器**（R6 主体）：吃 AST JSON、不经过字节码 ——
 /// 与字节码 VM 互为参考实现。见它自己的文档注释。
 mod walk;
+pub mod errcodes;   // R7.1-b：错误码表 + `jishi 错误 [码]` 的渲染（工具链迁移第一件）
 mod zip;
 use json::Json;
 

@@ -11,6 +11,7 @@ fn main() -> ExitCode {
         eprintln!("      jishi-rs --dump-stdlib");
         eprintln!("      jishi-rs --dump-methods");
         eprintln!("      jishi-rs --dump-builtins");
+        eprintln!("      jishi-rs 错误 [码]        # 查错误码（R7.1-b）");
         return ExitCode::from(2);
     }
     // M51：把宿主**实际带的标准库模块与函数**打成 JSON。
@@ -59,6 +60,21 @@ fn main() -> ExitCode {
             // ⚠️ 先把**出错前已经打印的内容**吐出来，再报错（与字节码 VM 一致）。
             Err((out, e)) => { print!("{out}"); eprint!("{e}"); ExitCode::from(1) }
         };
+    }
+    // R7.1-b：`jishi 错误 [码]` 搬进 Rust（工具链迁移的第一件）。
+    // 输出**逐字照** Python 侧 `cli._cmd_errcode`（含「没有这个码」走 stderr + 退码 2），
+    // 对拍在 `tests/test_m85_errcodes_rust.py`。
+    if args[1] == "错误" || args[1] == "--errcode" {
+        let want = args.get(2).map(|s| s.as_str()).unwrap_or("");
+        let (out, err, code) = jishi_ffi::errcodes::render(want);
+        print!("{out}");
+        eprint!("{err}");
+        return ExitCode::from(code as u8);
+    }
+    // 自报家底（两张表 → JSON 文本），给漂移检测用：Python 侧按同一结构比。
+    if args[1] == "--dump-errcodes" || args[1] == "--dump_errcodes" {
+        println!("{}", jishi_ffi::errcodes::dump_json());
+        return ExitCode::SUCCESS;
     }
     let path = &args[1];
     let text = match fs::read_to_string(path) {
