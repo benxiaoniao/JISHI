@@ -448,7 +448,7 @@ pub fn tokenize(text: &str, _filename: &str) -> Result<Output, LexErr> {
         }
 
         // ---- 分词本行 ----
-        let toks = tokenize_line(&raw, content_start, line_idx, line_no, &mut st)?;
+        let toks = tokenize_line_impl(&raw, content_start, line_idx, line_no, &mut st)?;
         for t in &toks {
             bracket_depth = (bracket_depth + bracket_delta(t)).max(0);
         }
@@ -548,8 +548,24 @@ fn measure_indent(raw: &[char], src: usize, line_no: usize)
 // 行内分词
 // ---------------------------------------------------------------------------
 
-fn tokenize_line(raw: &[char], start: usize, src: usize, line_no: usize,
-                 st: &mut State) -> Result<Vec<Tok>, LexErr> {
+/// 给格式化器用的**公开**单行分词（R7.1-d）。
+///
+/// `line` 是**原始行文本**（未归一化 —— 与 Python 侧
+/// `Tokenizer._tokenize_line(code, 0, 1)` 吃的东西一致）。返回的 `col` / `end_col`
+/// 是**相对该行的 1 基列号**，于是格式化器可以按 `[col-1, end_col)`（OP 是
+/// `[col-1, end_col-1)`）切片取回**原文**（保留全角、引号风格等）。
+///
+/// ⚠️ 每次调用用一个**全新的词法状态**（`pending_triple` 等不复用）——
+/// Python 侧格式化器就是这么用的（每次 `_respacify` 后 `_pending_triple = None`）。
+pub fn tokenize_line(line: &str, line_no: usize) -> Result<Vec<Tok>, LexErr> {
+    let raw = to_chars(line);
+    let mut st = State { pending_triple: None, pending_quote: '"', pending_line: 1,
+                         pending_col: 1 };
+    tokenize_line_impl(&raw, 0, 0, line_no, &mut st)
+}
+
+fn tokenize_line_impl(raw: &[char], start: usize, src: usize, line_no: usize,
+                      st: &mut State) -> Result<Vec<Tok>, LexErr> {
     let mut tokens: Vec<Tok> = Vec::new();
     let mut i = start;
     let n = raw.len();
@@ -901,7 +917,7 @@ fn continue_triple(raw: &[char], src: usize, line_no: usize, st: &mut State)
             let start_col = st.pending_col;
             let tok = Tok::new("STRING", Value::Str(chars_of(&buf)), start_line,
                                start_col, i, Some(src));
-            let rest = tokenize_line(raw, i, src, line_no, st)?;
+            let rest = tokenize_line_impl(raw, i, src, line_no, st)?;
             return Ok((Some(tok), rest, true));
         }
         buf.push(ch);

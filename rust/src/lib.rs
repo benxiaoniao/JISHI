@@ -23,6 +23,7 @@ mod stdlib_sigs;
 mod walk;
 pub mod errcodes;   // R7.1-b：错误码表 + `jishi 错误 [码]` 的渲染（工具链迁移第一件）
 pub mod checker;    // R7.1-c：源码静态检查（checker.py + scope.py 的移植）
+pub mod formatter;  // R7.1-d：代码格式化（formatter.py 的移植）
 mod zip;
 use json::Json;
 
@@ -1324,6 +1325,13 @@ pub struct JishiError {
     /// 而不是去改几百处 `err(...)` 调用点。
     pub line: Option<i64>,
     pub col: Option<i64>,
+    /// `^` 指示行的**下划线区间**（1 基、含两端）：`(起, 止)`。
+    ///
+    /// 缺省（`None`）时按 `(col, col)` 只画一个 `^`；多字符区间渲染成 `~^`
+    /// （与 Python 侧 `errors.JishiError.render` 同形）。
+    /// 2026-10-05（R7.1-d）补：以前宿主**没有**这个字段，于是「关键字粘连」
+    /// 这类**多字符**下划线的错误，Rust 渲染出来比 Python 少几个 `~`。
+    pub underline: Option<(i64, i64)>,
     /// 修法 / 线索提示（M56）：宿主原来**没有**这个字段（M54 记的账），
     /// 于是 Python 侧那句「你是不是想写「长度」？」在宿主上给不出来。
     pub hint: Option<String>,
@@ -1388,7 +1396,8 @@ pub fn error_title(type_name: &str) -> &str {
 pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
-                 line: None, col: None, hint: None, trace: Vec::new() }
+                 line: None, col: None, underline: None, hint: None,
+                 trace: Vec::new() }
 }
 
 /// 带提示语的报错（M56）：`hint` 会渲染成「  提示：…」那一行。
@@ -1413,7 +1422,8 @@ pub(crate) const ITER_SIZE_CHANGED_HINT: &str =
 pub(crate) fn err_with_hint(t: &str, msg: impl Into<String>, hint: String) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
-                 line: None, col: None, hint: Some(hint), trace: Vec::new() }
+                 line: None, col: None, underline: None, hint: Some(hint),
+                 trace: Vec::new() }
 }
 
 // ---------------------------------------------------------------------------
@@ -5529,8 +5539,14 @@ pub(crate) fn render_error_with(
         if let Some(src) = get_line(line) {
             let src = src.trim_end_matches(['\n', '\r']);
             out.push_str(&format!("\n{line:>3} │ {src}"));
-            let pad = " ".repeat((col.max(1) - 1) as usize);
-            out.push_str(&format!("\n    │ {pad}^"));
+            // 下划线区间：缺省退回 `(col, col)`（只画一个 `^`）；有区间时
+            // 多出来的宽度画成 `~`（`(1, 2)` → `~^`）—— 与 Python 侧同形。
+            let (ustart, uend) = e.underline.unwrap_or((col, col));
+            let caret_col = ustart.max(1);
+            let width = (uend.max(ustart) - ustart + 1).max(1) as usize;
+            let pad = " ".repeat((caret_col - 1).max(0) as usize);
+            let marker = format!("{}^", "~".repeat(width - 1));
+            out.push_str(&format!("\n    │ {pad}{marker}"));
         }
         out.push_str("\n  │");
     }
