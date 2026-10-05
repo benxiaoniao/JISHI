@@ -41,6 +41,15 @@ _BIN = _ROOT / "cvm" / "bin"
 #: wheel 内预编译动态库的目录（M11：pip install 即含 C VM，无需本机 gcc）
 _NATIVE = Path(__file__).resolve().parent / "_native"
 
+#: 与 `cvm/include/jsvm.h` 的 `JSVM_ABI_VERSION` **必须一致**。
+#: 装载时拿 `jsvm_abi_version()` 核对 —— 不一致就**明确报错**，不将就着跑。
+#:
+#: 为什么要这条：动态库与宿主的回调签名/结构布局对不上时**不会报错**，只是
+#: 参数错位、算错甚至崩。本项目已经踩过两次同族坑（改了 `cvm/src/`、Python
+#: 加载的却是 `jishi/_native/` 里那份旧库，一句提示都没有）——宁可拦住。
+#: 结构钉：`tests/test_m84_cvm_live_iter.py::test_ABI版本号与头文件一致`。
+_JSVM_ABI_VERSION = 2
+
 
 def _lib_name() -> str:
     import sys
@@ -156,6 +165,20 @@ def load_lib() -> ctypes.CDLL:
     lib.jsvm_global_set.restype = c_int
     lib.jsvm_global_set.argtypes = [c_void_p, c_int]
     lib.jsvm_take_pending_err.argtypes = [c_void_p, JPV]
+
+    # B2（D77 §二）：ABI 自报版本 + 「变更即失效」通知
+    lib.jsvm_abi_version.restype = c_int
+    lib.jsvm_abi_version.argtypes = []
+    _got = int(lib.jsvm_abi_version())
+    if _got != _JSVM_ABI_VERSION:
+        raise RunError(
+            f"内置的基石 C 虚拟机动态库与当前版本不匹配（库报 ABI v{_got}，"
+            f"本版本需要 v{_JSVM_ABI_VERSION}）——两者一起改过，必须重新编译。\n"
+            f"  源码树里请跑：python cvm/build.py\n"
+            f"  安装版请重装：pip install --force-reinstall jishi\n"
+            f"（库文件位置：{_lib_path()}）")
+    lib.jsvm_iter_invalidate.restype = c_int
+    lib.jsvm_iter_invalidate.argtypes = [c_void_p, c_uint32]
 
     _LIB = lib
     return lib
@@ -301,7 +324,11 @@ CB_BUILD_LIST = CFUNCTYPE(c_int, _JPV, c_int, _JPV, c_int, c_int)
 CB_BUILD_DICT = CFUNCTYPE(c_int, _JPV, c_int, _JPV, c_int, c_int)
 CB_ITER_NEW = CFUNCTYPE(c_int, _JPV, _JPV, POINTER(c_int), c_int, c_int)
 CB_ITER_NEXT = CFUNCTYPE(c_int, _JPV, _JPV, POINTER(c_int), c_int, c_int)
-CB_ITER_NEXT_BATCH = CFUNCTYPE(c_int, _JPV, _JPV, c_int, POINTER(c_int),
+# B2（D77 §二）：**多一个 `from`** —— C 侧告诉我们「已经交付了多少个元素」，
+# 取批必须从那个**绝对下标**开始（而不是我们自己的「读到哪」）。差别只在
+# 「缓冲被丢过」时显出来：宿主已经读过、但还没交付的元素要**重新读一遍**，
+# 才能拿到容器改动**之后**的活值（遍历中改列表时的正确性靠它）。
+CB_ITER_NEXT_BATCH = CFUNCTYPE(c_int, _JPV, c_int, _JPV, c_int, POINTER(c_int),
                                c_int, c_int)
 CB_ERROR_HANDLE = CFUNCTYPE(c_int, _JPV)
 CB_MAKE_ERROR = CFUNCTYPE(c_int, _JPV, c_int, c_int, _JPV)
@@ -533,6 +560,19 @@ class CvmHost:
         self._fresh_error: Optional[JishiError] = None
         #: 「延迟合并写的冲刷刚刚失败」的一次性标志（M46 阶段一④）——见 `_guard`。
         self._flush_failed = False
+        #: ---- 「变更即失效」（B2，设计决策 D77 §二）----
+        #: 「正在被遍历的列表」登记表：`id(列表) → (列表本身, {迭代器句柄})`。
+        #:
+        #: 为什么按**对象身份**而不是 C 侧句柄号：宿主每次 `py2c` 都发新句柄号，
+        #: 所以 `对象.属性` / `列[0]` 这类**重新求值**拿到的容器句柄号与 `遍历`
+        #: 那一刻不同 —— 按号比对会**漏判**，而漏判就是静默算错。
+        #: 值里存对象本身是**故意的**：`id()` 会随对象回收被复用，存着它就把
+        #: 寿命钉住了，键不会指向别的对象。
+        #: 只登记**可批量预取且可变**的类型（= 只能是 `list`）：不可批量的迭代器
+        #: 是逐个向宿主要活值的，没有可作废的缓冲，登记了也是白挂。
+        self._iter_lists: dict[int, tuple[list, set[int]]] = {}
+        #: 反向索引：迭代器句柄 → `id(列表)`，句柄释放时用来摘登记（不然会积）。
+        self._iter_owner: dict[int, int] = {}
 
         self.vm = self.lib.jsvm_create()
 
@@ -894,6 +934,21 @@ class CvmHost:
                     kwargs[names[kwname_idx[k]]] = c2py(kwvals[k])
             else:
                 kwargs = None       # 无关键字参数时连空 dict 都不建
+            # B2（保险）：宿主侧的内建若**原地改**了传进来的列表，C 侧看不见
+            # （改动发生在宿主里）。传参这一刻丢缓冲就够了——缓冲空着的时候，
+            # 下次取批必然按已交付计数重读。
+            # 第二种形状：`令 去 = 列.移除` 之后再 `去(x)` —— 被改的列表**不在
+            # 实参里**，只能从绑定方法自己身上把接收者（`_BoundMethod.obj`）
+            # 翻出来。⚠️ 两段都**只在「有列表正被遍历」时**做：推导式
+            # `[x 追加 y]` 走的就是 `GET_ATTR`+`CALL`（不是融合指令），
+            # 那是最热的建表路径，这里必须一分钱不花。
+            if self._iter_lists:
+                src = getattr(f, "obj", None)
+                if isinstance(src, list):
+                    self._touch_iterated(src)
+                for _a in arglist:
+                    if isinstance(_a, list):
+                        self._touch_iterated(_a)
             r = R.call_value(f, arglist, kwargs, line=line, col=col,
                              filename=self.filename)
             # 结果写回：**直接写 JVal 的字段**，省掉构造一个 ctypes `Structure`
@@ -928,7 +983,13 @@ class CvmHost:
 
     def _cb_getattr(self, obj, name_idx, out, line, col):
         try:
-            r = R.get_attr(self.c2py(obj[0]), self.names[name_idx],
+            o = self.c2py(obj[0])
+            # B2：取属性本身不改容器，但它是**拿到绑定方法**的唯一门
+            # （`令 f = 列.追加` 之后 `f(x)` 时，被改的列表就不在调用参数里了）。
+            # 按「可能改了」处理，代价是「遍历列表时读它的方法」会多丢一次
+            # 缓冲 —— 正确性优先，见 `_touch_iterated` 的说明。
+            self._touch_iterated(o)
+            r = R.get_attr(o, self.names[name_idx],
                            line=line, col=col, filename=self.filename)
             out[0] = self.py2c(r)
             return 0
@@ -955,7 +1016,9 @@ class CvmHost:
 
     def _cb_setitem(self, a, b, val, line, col):
         try:
-            R.set_item(self.c2py(a[0]), self.c2py(b[0]), self.c2py(val[0]),
+            o = self.c2py(a[0])
+            self._touch_iterated(o)      # B2：下标赋值 = 改元素（`列[0] = 值`）
+            R.set_item(o, self.c2py(b[0]), self.c2py(val[0]),
                        line=line, col=col, filename=self.filename)
             return 0
         except BaseException as e:
@@ -998,7 +1061,13 @@ class CvmHost:
                     f"「{o}」不能遍历，遍历需要列表、文本、集合或字典；自定义对象可以定义「迭代()」方法",
                     line=line, col=col, filename=self.filename)
             batchable[0] = 1 if wrapper.batchable else 0
-            out[0] = self.py2c(wrapper)
+            v = self.py2c(wrapper)
+            # B2（D77 §二）：可批量预取**且可变**的只有列表，只有它需要登记
+            # 「谁在遍历我」。`wrapper.seq` 就是列表本身（不是副本），所以按
+            # 它的身份登记，之后拿 `对象.属性` / `列[0]` 另求值也认得出来。
+            if isinstance(o, list):
+                self._iter_register(o, int(v.v.u))
+            out[0] = v
             return 0
         except BaseException as e:
             return self._fail(e)
@@ -1107,12 +1176,17 @@ class CvmHost:
             raise RunError("内部错误：原生字符串批量分配失败（内存不足）")
         return ctypes.string_at(ctypes.addressof(out), n * _JVAL_SIZE)
 
-    def _cb_iter_next_batch(self, it, out, cap, n, line, col):
+    def _cb_iter_next_batch(self, it, frm, out, cap, n, line, col):
         try:
             wrapper = self.c2py(it[0])
+            start = int(frm)             # B2：从 C 侧「已交付多少」处开始取
             if wrapper.seq is not None:
-                chunk = wrapper.seq[wrapper.pos:wrapper.pos + cap]
-                wrapper.pos += len(chunk)
+                # ⚠️ **不要**把它改成 `wrapper.pos`（宿主自己的「读到哪」）：
+                # C 侧预取会走在前面，而「遍历中改容器」后缓冲会被丢掉、要求
+                # **重新读**已经读过但还没交付的那一段 —— 用宿主的位置就会
+                # **跳掉**这些元素（`遍历 列: 列.移除(...)` 少打印东西）。
+                chunk = wrapper.seq[start:start + cap]
+                wrapper.pos = start + len(chunk)
             else:
                 chunk = []
                 for _ in range(cap):
@@ -1165,9 +1239,58 @@ class CvmHost:
         except BaseException as e:
             return self._fail(e)
 
+    # -- 「变更即失效」（B2，设计决策 D77 §二）----------------------------------
+
+    def _iter_register(self, obj: list, hid: int) -> None:
+        """登记「迭代器 hid 正在遍历列表 obj」。"""
+        key = id(obj)
+        ent = self._iter_lists.get(key)
+        if ent is None:
+            self._iter_lists[key] = (obj, {hid})
+        else:
+            ent[1].add(hid)
+        self._iter_owner[hid] = key
+
+    def _iter_unregister(self, hid: int) -> None:
+        """迭代器句柄释放时摘掉登记（不摘会越积越多）。"""
+        key = self._iter_owner.pop(hid, None)
+        if key is None:
+            return
+        ent = self._iter_lists.get(key)
+        if ent is None:
+            return
+        ent[1].discard(hid)
+        if not ent[1]:
+            del self._iter_lists[key]
+
+    def _touch_iterated(self, obj: Any) -> None:
+        """`obj` **可能**被改了 → 丢掉「正在遍历它」的迭代器的预取缓冲。
+
+        丢完 C 侧**不动已交付计数**：下次取批仍从同一个起点开始读，于是拿到的
+        必然是改动**之后**的元素（见 `_cb_iter_next_batch` 的 `from`）。
+
+        ⚠️ **宁可多失效、不可漏失效**：多失效只是下次多花一次宿主回调（结果
+        仍正确），漏失效是**静默算错**（把已删掉 / 已重排的元素吐出来）。所以
+        调用点一律按「这个操作**可能**改了它」挂，不按「确定改了」挂。
+        ⚠️ `tuple(...)` 快照是必需的：`jsvm_iter_invalidate` 会释放缓冲里的值，
+        那可能回调 `release_handle` → 反过来改这个集合。
+        """
+        lists = self._iter_lists
+        if not lists:
+            return                       # 常见路径：没有列表在被遍历，零开销
+        ent = lists.get(id(obj))
+        if ent is None:
+            return
+        lib = self.lib
+        vm = self.vm
+        for hid in tuple(ent[1]):
+            lib.jsvm_iter_invalidate(vm, hid)
+
     def _cb_release_handle(self, hid):
         try:
-            self._handles.pop(int(hid), None)
+            _h = int(hid)
+            self._iter_unregister(_h)           # B2：句柄没了，登记也摘掉
+            self._handles.pop(_h, None)
             return 0
         except BaseException as e:
             return self._fail(e)
@@ -1341,6 +1464,7 @@ class CvmHost:
         try:
             o = self.c2py(obj[0])
             v = self.c2py(val[0])
+            self._touch_iterated(o)      # B2：追加 = 改被遍历列表
             if type(o) is list:      # 快路径：最常见场景，省 get_attr+call 分发
                 o.append(v)
                 return 0
@@ -1372,6 +1496,9 @@ class CvmHost:
             if n <= 0:
                 return 0
             o = self._handles[int(hid)]
+            # B2：延迟合并写的落盘点 —— 「循环里往**正在被遍历的**列表追加」正是
+            # 从这里进宿主，所以这一处必须挂（只挂在 `_cb_list_append` 上不够）。
+            self._touch_iterated(o)
             if _LITTLE_ENDIAN:
                 raw = ctypes.string_at(vals, n * _JVAL_SIZE)
                 flat = _batch_fmt("B7xq", n).unpack(raw)
@@ -1404,6 +1531,11 @@ class CvmHost:
             c2py = self.c2py
             o = c2py(obj[0])
             name = self.names[name_idx]
+            # B2：方法是**原地改列表**的唯一门（追加/插入/移除/弹出/清空/扩展/
+            # 排序/反转…）。按「可能改了」处理：确实在读的方法（如 `长度`）
+            # 也会多丢一次缓冲——代价只是下次多一次宿主回调，**正确性优先**。
+            # 反过来漏判就是静默算错，所以这里不区分方法名。
+            self._touch_iterated(o)
             # ⚠️ **也要记下调用点**（R6.7）：`call_value` 里若进了基石函数
             # （用户类方法 `o.方法()`），C 侧重入建帧与**参数绑定**要用它当位置。
             # 以前这里没记 → 重入时读到的是**上一次** `_cb_call` 留下的值（或 0），

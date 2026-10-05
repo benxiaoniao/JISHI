@@ -127,6 +127,15 @@ typedef struct JsIterC {
     int nbuf, pos;
     int exhausted;
     int batchable;         /* 0：逐个向宿主要；1：批量取 */
+    /* ---- 「变更即失效」（B2，设计决策 D77 §二）---- */
+    /*: 已经交付给程序的元素个数 = 宿主下次取批的**绝对起点**（`from`）。
+     * 缓冲被丢掉后按它重取，拿到的就是容器改动**之后**的活值。
+     * 📌 它记的是「交付了多少」，不是「取了多少」—— 正是这个差把
+     * 「预取超前一截」和「容器被改了」两件事解耦了。 */
+    int consumed;
+    /*: 活跃迭代器双向链表（见 `iters_link`）。宿主判定「被遍历的容器被改了」
+     * 时，用 `jsvm_iter_invalidate(vm, host_id)` 找过来丢缓冲。 */
+    struct JsIterC *prev, *next;
 } JsIterC;
 
 static JVal make_iter(JsIterC *it) {
@@ -258,6 +267,9 @@ typedef struct JsVm {
     /* 待冲刷的「字典写入」批次（M46 阶段一④）：与 pa 同一套思路，
      * 把「循环里 字[键] = 值 N 次」压成 1 次。同上，靠 HC() 宏保证冲刷。 */
     JsDictBatch *pd; int pd_n, pd_cap;
+    /* 活跃迭代器链表（B2，设计决策 D77 §二）：宿主发现「被遍历的容器被改了」
+     * 时靠它找到对应的 C 侧迭代器丢缓冲。见 `jsvm_iter_invalidate`。 */
+    JsIterC *iters_head;
 } JsVm;
 
 /* ------------------------------------------------------------------ */
@@ -386,6 +398,35 @@ static void release_buf(JsVm *vm, JsIterC *it) {
     it->pos = 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* 「变更即失效」（B2，设计决策 D77 §二）                                */
+/* ------------------------------------------------------------------ */
+
+/* 把迭代器挂进 / 摘出「活跃」双向链表。
+ *
+ * 为什么需要这张链表：C 侧为了省 FFI 往返会**预取超前一截**，而 `遍历` 期间
+ * 改了被遍历的容器，缓冲里还没交付的元素就作废了。要丢缓冲就得先能**找到**
+ * 正在遍历某个容器的 C 侧迭代器 —— 宿主只会告诉我们「哪个宿主迭代器脏了」
+ * （`jsvm_iter_invalidate` 收的是宿主句柄号），所以这里按 `host_id` 找。
+ *
+ * ⚠️ **谁判定「脏」**：**宿主**（`jishi/cvm_bind.py`）。理由是全在宿主那边才判得准：
+ * C 侧句柄号**不是对象身份**（宿主每次 `py2c` 都发新号），而 `对象.属性` /
+ * `列[0]` 这类**重新求值**拿到的容器会有新号 —— 按号比对必然漏判。
+ * 宿主手里有真正的 Python 对象，按对象身份认容器，一个也漏不掉。 */
+static void iters_link(JsVm *vm, JsIterC *it) {
+    it->prev = NULL;
+    it->next = vm->iters_head;
+    if (vm->iters_head) vm->iters_head->prev = it;
+    vm->iters_head = it;
+}
+
+static void iters_unlink(JsVm *vm, JsIterC *it) {
+    if (it->prev) it->prev->next = it->next;
+    else vm->iters_head = it->next;
+    if (it->next) it->next->prev = it->prev;
+    it->prev = it->next = NULL;
+}
+
 static void release_val(JsVm *vm, JVal v) {
     switch (v.tag) {
     case JS_TAG_HOST: {
@@ -404,6 +445,7 @@ static void release_val(JsVm *vm, JVal v) {
          * 见 FOR_ITER 处的不变式说明）。原先只从 `it->pos` 开始放，等于假定
          * 「消费即转移所有权」，与消费处的 retain 配不上——每消费一个元素漏一份。 */
         release_buf(vm, it);
+        iters_unlink(vm, it);      /* B2：从「活跃」链上摘掉 */
         vm->host->release_handle(it->host_id);
         free(it);
         break;
@@ -566,6 +608,34 @@ JsVm *jsvm_create(void) {
 }
 
 JSVM_API void jsvm_set_host(JsVm *vm, JsHost *host) { vm->host = host; }
+
+JSVM_API int jsvm_abi_version(void) { return JSVM_ABI_VERSION; }
+
+/* 「变更即失效」（B2，设计决策 D77 §二）——**由宿主调**：它发现「某个宿主
+ * 迭代器正在遍历的容器被改了」，就让 C 侧把那个迭代器的预取缓冲丢掉。
+ *
+ * 之后下一次 FOR_ITER 会用**同一个 `consumed`** 重新取批（见 FOR_ITER 的
+ * `iter_next_batch(&hj, it->consumed, ...)`），于是拿到的必然是改动**之后**
+ * 的元素 —— 这正是「预取超前一截」与「容器被改」的解耦点。
+ *
+ * ⚠️ 为什么判定权在宿主：C 侧句柄号**不是对象身份**（宿主每次 `py2c` 都发新
+ * 号），`对象.属性` / `列[0]` 这类重新求值拿到的又是新号 —— 按号比对会**漏判**，
+ * 而漏判就是静默算错。宿主手里有真正的对象身份，按它认一个也漏不掉。
+ *
+ * 返回丢掉的缓冲个数（给宿主/测试核对用）。 */
+JSVM_API int jsvm_iter_invalidate(JsVm *vm, uint32_t host_id) {
+    int dropped = 0;
+    JsIterC *it = vm->iters_head;
+    while (it) {
+        JsIterC *next = it->next;   /* 先取 next：release_buf 可能跑宿主回调 */
+        if (it->host_id == host_id && it->nbuf > 0) {
+            release_buf(vm, it);
+            dropped++;
+        }
+        it = next;
+    }
+    return dropped;
+}
 
 JSVM_API void jsvm_set_stmt_marks(JsVm *vm, int32_t *marks, int nmarks) {
     vm->stmt_marks = marks;
@@ -1854,6 +1924,7 @@ static int run_loop(JsVm *vm) {
                 it->refcnt = 1;
                 it->host_id = (uint32_t)out.v.u;
                 it->batchable = batchable;
+                iters_link(vm, it);     /* B2：挂进活跃链，供宿主「变更即失效」用 */
                 PUSH(vm, make_iter(it));
                 break;
             }
@@ -1873,6 +1944,7 @@ static int run_loop(JsVm *vm) {
                      * 遍历 1000 个文本一次就漏 33KB，LSP / MCP 这类长跑进程会一直涨。 */
                     if (it->pos < it->nbuf) {           /* 缓冲命中：零回调 */
                         JVal v = it->buf[it->pos++];
+                        it->consumed++;                 /* B2：交付计数（= 下次取批的起点） */
                         retain_val(vm, v);
                         PUSH(vm, v);
                         break;
@@ -1889,8 +1961,13 @@ static int run_loop(JsVm *vm) {
                     JVal hj; memset(&hj, 0, sizeof hj);
                     hj.tag = JS_TAG_HOST; hj.v.u = it->host_id;
                     if (it->batchable) {
+                        /* B2（D77 §二）：**从「已交付多少」开始取**，而不是让宿主
+                         * 按它自己「读到哪」继续往下读。差别只在「缓冲被丢过」时
+                         * 显出来：宿主已经读过、但还没交付的元素，这里要**重新读
+                         * 一遍**（那时容器可能已经改了）——拿到的才是活值。
+                         * 宿主侧实现见 `cvm_bind._cb_iter_next_batch`。 */
                         if (HC(vm, iter_next_batch)(
-                                &hj, it->buf, JS_ITER_BUF, &n,
+                                &hj, it->consumed, it->buf, JS_ITER_BUF, &n,
                                 line, col) != 0)
                             goto dispatch_err;
                     } else {
@@ -1907,6 +1984,8 @@ static int run_loop(JsVm *vm) {
                         break;
                     }
                     it->nbuf = n; it->pos = 1;
+                    it->consumed++;                     /* B2：只算**已交付**的这一个；
+                                                         * 缓冲里剩下的还没交付 */
                     retain_val(vm, it->buf[0]);
                     PUSH(vm, it->buf[0]);
                     break;

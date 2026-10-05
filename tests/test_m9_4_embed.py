@@ -2,6 +2,7 @@
 """M9.4 测试：C ABI 稳定化（头文件 + 导出符号 + 嵌入编译）。"""
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -15,9 +16,18 @@ JSVM_DLL = ROOT / "cvm" / "bin" / ("jsvm.dll" if os.name == "nt" else "jsvm.so")
 
 
 def test_jsvm_header_has_abi_version():
+    """头文件得**声明** ABI 版本（这里只验在不在）。
+
+    ⚠️ **别在这里写死版本号**：以前是 `assert "JSVM_ABI_VERSION 1" in text`，
+    于是每次升版本都要回来改这一行（2026-10-05 升 v2 时就卡在这儿）。
+    「版本号该是多少」的**唯一**判据在
+    `tests/test_m84_cvm_live_iter.py::test_ABI版本号与头文件一致`
+    （头文件 ↔ `cvm_bind._JSVM_ABI_VERSION` 两处一致），那里改一处就够。
+    """
     assert JSVM_H.exists(), "jsvm.h 头文件不存在"
     text = JSVM_H.read_text(encoding="utf-8")
-    assert "JSVM_ABI_VERSION 1" in text
+    assert re.search(r"^#define\s+JSVM_ABI_VERSION\s+\d+", text, re.M), \
+        "头文件里没有 JSVM_ABI_VERSION"
     assert "JSVM_API" in text
     assert "typedef struct JVal" in text
     assert "typedef struct JsHost" in text

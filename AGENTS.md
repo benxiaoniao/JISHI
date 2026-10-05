@@ -389,9 +389,22 @@
 - **`cvm/include/opcodes.h` 是自动生成的**（`cvm/build.py` 从
   `jishi/opcodes.py` 生成），**手改会被覆盖**。要加常量先加到 `opcodes.py`
   的对应类（如 `ParamKind` / `CmpOp`），再跑 `python cvm/build.py`。
-- **改 C 代码的完整流程**：改 `cvm/src/jsvm.c` → `python cvm/build.py`
-  → **务必** `cp cvm/bin/jsvm.dll jishi/_native/jsvm.dll`（运行时优先加载
-  `_native/`，不拷就是跑旧 DLL）。
+- **改 C 代码的完整流程**：改 `cvm/src/jsvm.c` → `python cvm/build.py`。
+  ⚠️ **不要再手动 `cp` 到 `_native/`**：R6.7 起 `_lib_path()` **源码树里优先
+  `cvm/bin/`**（判据是「`cvm/src/` 在不在」），所以改完重建就生效；`_native/`
+  那份是给 wheel / PyInstaller 的，由 `tools/build_release.py` 在打包时同步。
+  （**这条以前写反了**，而「改了 C 源、跑的还是旧库、一句提示都没有」踩过两次
+  —— 所以 R6.7 改的是**机制**，不是加一句提醒。）
+- ⚠️ **改 `JsHost` 的签名 = 改 ABI，版本号要两处一起改**：`cvm/include/jsvm.h` 的
+  `JSVM_ABI_VERSION` 与 `jishi/cvm_bind.py` 的 `_JSVM_ABI_VERSION`（装载时用
+  `jsvm_abi_version()` 核对，不一致**明确报错**）。结构钉
+  `tests/test_m84_cvm_live_iter.py`。**只改一处**的后果：宿主头文件与动态库对不上，
+  ctypes 参数错位 —— **不报错，只是算错或崩**（B2 给 `iter_next_batch` 加 `from`
+  就是这么升到 v2 的）。
+- ⚠️ **C 侧句柄号不是对象身份**（B2 踩到，写下来免得重走）：宿主每次 `py2c` 都
+  `_new_handle`，**同一个 Python 对象经不同表达式求值会拿到不同句柄号**（`对.项` /
+  `列[0]` 每次都是新的）。所以「按句柄号认容器」这类判定**必然漏判**，
+  而漏判在语义一致性上是**静默算错**。要在 C 侧认对象，**回宿主按 `id()` 认**。
 - **加语义比较运算符 / 新指令参数可以不动 C**：比较码放 6–9（0–5 是 C VM
   快路径，6 以上回落宿主 `host->compare`）；`UNPACK` 的 `b` 操作数闲置，
   直接拿来传星号位置（M25）。

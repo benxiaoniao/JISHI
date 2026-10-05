@@ -19,8 +19,12 @@
 extern "C" {
 #endif
 
-/* ABI 版本：结构布局或函数签名不兼容时递增 */
-#define JSVM_ABI_VERSION 1
+/* ABI 版本：结构布局或函数签名不兼容时递增
+ *
+ * v2（2026-10-05，设计决策 D77 §二）：`iter_next_batch` 增加 `from` 参数
+ *   —— 宿主必须按「VM 已确认的下标」取批，不许用自己的「已读到哪」。
+ *   原因见该字段的注释（遍历中改容器要拿到**活值**）。 */
+#define JSVM_ABI_VERSION 2
 
 /* 导出宏：Windows 用 dllexport/dllimport；其余用 visibility */
 #if defined(_WIN32)
@@ -105,13 +109,21 @@ typedef struct JsHost {
                        int line, int col);
     int (*iter_next)  (JVal *it, JVal *out, int *done, int line, int col);
     /* 批量预取：list/范围/文本等安全类型一次取一批，循环体零回调。
-     * 填 out[0..n-1]，n==0 表示耗尽。
+     * 填 out[0..n-1]，n==0 表示耗尽。**从绝对下标 `from` 开始取**
+     * （`from` = VM 已经交付给程序的元素个数）。
+     *
+     * ⚠️ **为什么带 `from`**（ABI v2，设计决策 D77 §二）：C 侧为省 FFI 往返会
+     * **预取超前一截**，而 `遍历` 期间**改被遍历的容器**（列表的 追加/移除/
+     * 排序/反转/下标赋值…）会让已进缓冲、还没交付的元素作废。C 侧检测到改动
+     * 就**丢掉缓冲**，下次带**同一个 `from`** 重新取——于是拿到的必然是改动
+     * 之后的活值，与规范（Python 的列表迭代器按下标活迭代）逐字一致。
+     * 宿主**不得**拿自己「上次读到哪」当下标，否则会**跳掉**元素。
      *
      * ⚠️ **所有权**：每个 out[i] 必须是**本宿主新持有的一份引用**（宿主交给
      * C 侧；C 侧负责释放）。**不许**把同一个值的引用重复填进多个槽位，
      * 也不许填「借来的」值——C 侧会为缓冲里每个槽位各放一次。
      * （C 侧不变式见 `jsvm.c` 的 `release_buf`。） */
-    int (*iter_next_batch)(JVal *it, JVal *out, int cap, int *n,
+    int (*iter_next_batch)(JVal *it, int from, JVal *out, int cap, int *n,
                            int line, int col);
     int (*do_import)  (int name_idx, int from_python, JVal *out,
                        int line, int col);
@@ -230,6 +242,28 @@ typedef struct JsHost {
 JSVM_API JsVm *jsvm_create(void);
 JSVM_API void  jsvm_destroy(JsVm *vm);
 JSVM_API void  jsvm_set_host(JsVm *vm, JsHost *host);
+
+/* 运行时自报 ABI 版本（= 编译本库时的 JSVM_ABI_VERSION）。
+ *
+ * 宿主**应当在装载后核对**：动态库与宿主头文件版本不一致时，回调签名/结构
+ * 布局就可能对不上——那类错**不报错，只是算错或崩**（本项目踩过两次
+ * 「改了 C 源、Python 加载的却是另一份旧库，一句提示都没有」）。
+ * 所以宁可**明确报错**，也不静默用错版本。 */
+JSVM_API int jsvm_abi_version(void);
+
+/* 「变更即失效」（B2，设计决策 D77 §二）——**由宿主调**。
+ *
+ * 宿主发现「某个宿主迭代器正在遍历的容器被改了」，就调本函数：C 侧会把那个
+ * 迭代器的**预取缓冲丢掉**，下一次 `FOR_ITER` 便带同一个 `from`（= 已交付
+ * 元素个数）**重新取批**，于是拿到的是改动**之后的活值**。
+ *
+ * 为什么要宿主来判：C 侧句柄号**不是对象身份**（宿主每次 `py2c` 都发新号），
+ * `对象.属性` / `列[0]` 这类重新求值拿到的又是新号 —— 按号比对会**漏判**，
+ * 而漏判是**静默算错**。宿主手里有真正的对象身份。
+ *
+ * `host_id` = `iter_new` 交给 C 侧的那个迭代器句柄。返回丢掉的缓冲个数。
+ * **只在宿主回调里调用**（会在内部释放缓冲里的值，可能回调 `release_handle`）。 */
+JSVM_API int jsvm_iter_invalidate(JsVm *vm, uint32_t host_id);
 
 /* 加载已编译的字节码模块。各数组由宿主持有，生命周期须覆盖 VM 存活期。
  * instrs/code_meta/code_params/kw_flat/kw_off 的扁平格式见 cvm/bytecode.md */
