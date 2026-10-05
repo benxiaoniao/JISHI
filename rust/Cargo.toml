@@ -2,9 +2,12 @@
 name = "jishi-ffi"
 version = "0.1.0"
 edition = "2021"
-description = "基石（jishi）中文编程语言的 Rust 字节码解释器，消费 M13.1 的 JSON 字节码，脱离 Python 独立执行。零第三方依赖。"
+description = "基石（jishi）中文编程语言的 Rust 字节码解释器，消费 M13.1 的 JSON 字节码，脱离 Python 独立执行。**无第三方依赖**（前端用同一仓库的 `jishi-frontend`，那是路径依赖、不是第三方）。"
 
 [dependencies]
+# R7.1-c 起：宿主自己做前端（静态检查 / 格式化 / 后面的 LSP 都要 AST）。
+# 以前前端住在 `core/`（pyo3 扩展）里，宿主用不上 —— R7.1-a 把它抽成了独立 crate。
+jishi-frontend = { path = "../frontend" }
 
 [[bin]]
 name = "jishi-rs"

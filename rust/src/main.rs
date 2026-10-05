@@ -4,6 +4,84 @@ use std::env;
 use std::fs;
 use std::process::ExitCode;
 
+/// `jishi 检查`（源码静态检查，R7.1-c）—— 输出**逐字照** Python 侧
+/// `cli._cmd_static_check`（含 `--json` 的 `indent=2` 排版与退出码约定）。
+fn run_check(rest: &[String]) -> ExitCode {
+    use jishi_ffi::checker;
+
+    let mut json = false;
+    let mut paths: Vec<String> = Vec::new();
+    for a in rest {
+        if a == "--json" {
+            json = true;
+        } else {
+            paths.push(a.clone());
+        }
+    }
+    if paths.is_empty() {
+        paths.push(".".to_string());     // 与 Python 侧默认一致
+    }
+    let sym = checker::Symbols::from_host();
+    let rows = checker::check_paths(&paths, &sym);
+    let code = if rows.is_empty() { ExitCode::SUCCESS } else { ExitCode::from(1) };
+
+    if json {
+        println!("{}", json_check(&rows));
+        return code;
+    }
+    if rows.is_empty() {
+        println!("检查了 {} 个路径，没发现问题。", paths.len());
+        return code;
+    }
+    for (p, it) in &rows {
+        println!("{}", it.format(&jishi_ffi::checker::display_path(p)));
+    }
+    let errors = rows.iter()
+        .filter(|(_, i)| i.level == checker::LEVEL_ERROR).count();
+    let mut files: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for (p, _) in &rows {
+        files.insert(jishi_ffi::checker::display_path(p));
+    }
+    println!("\n共 {} 个问题（错误 {errors} 个 / 警告 {} 个），涉及 {} 个文件。",
+             rows.len(), rows.len() - errors, files.len());
+    println!("（只是提醒，不改你的代码；确认无误可以照常运行）");
+    code
+}
+
+/// `--json` 的载荷 —— **排版逐字照 Python 的 `json.dumps(..., ensure_ascii=False,
+/// indent=2)`**（`{` 后换行、两空格缩进、`[]` / `{}` 空容器写成一行）。
+fn json_check(rows: &[(std::path::PathBuf, jishi_ffi::checker::Issue)]) -> String {
+    use jishi_ffi::checker::jstr;
+
+    let mut s = String::from("{\n  \"ok\": ");
+    s.push_str(if rows.is_empty() { "true" } else { "false" });
+    s.push_str(",\n  \"issues\": ");
+    if rows.is_empty() {
+        s.push_str("[]");
+    } else {
+        s.push_str("[\n");
+        for (i, (p, it)) in rows.iter().enumerate() {
+            if i > 0 {
+                s.push_str(",\n");
+            }
+            s.push_str("    {\n");
+            s.push_str(&format!("      \"file\": {},\n",
+                                jstr(&jishi_ffi::checker::display_path(p))));
+            s.push_str(&format!("      \"code\": {},\n", jstr(&it.code)));
+            s.push_str(&format!("      \"level\": {},\n", jstr(it.level)));
+            s.push_str(&format!("      \"line\": {},\n", it.line));
+            s.push_str(&format!("      \"col\": {},\n", it.col));
+            s.push_str(&format!("      \"message\": {},\n", jstr(&it.message)));
+            s.push_str(&format!("      \"hint\": {},\n", jstr(&it.hint)));
+            s.push_str(&format!("      \"name\": {}\n", jstr(&it.name)));
+            s.push_str("    }");
+        }
+        s.push_str("\n  ]");
+    }
+    s.push_str("\n}");
+    s
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -12,6 +90,7 @@ fn main() -> ExitCode {
         eprintln!("      jishi-rs --dump-methods");
         eprintln!("      jishi-rs --dump-builtins");
         eprintln!("      jishi-rs 错误 [码]        # 查错误码（R7.1-b）");
+        eprintln!("      jishi-rs 检查 [路径...] [--json]   # 源码静态检查（R7.1-c）");
         return ExitCode::from(2);
     }
     // M51：把宿主**实际带的标准库模块与函数**打成 JSON。
@@ -74,6 +153,16 @@ fn main() -> ExitCode {
     // 自报家底（两张表 → JSON 文本），给漂移检测用：Python 侧按同一结构比。
     if args[1] == "--dump-errcodes" || args[1] == "--dump_errcodes" {
         println!("{}", jishi_ffi::errcodes::dump_json());
+        return ExitCode::SUCCESS;
+    }
+    // R7.1-c：`jishi 源码静态检查` 搬进 Rust（四条 lint，逐字对齐 Python 侧）。
+    if args[1] == "检查" || args[1] == "--check" {
+        return run_check(&args[2..]);
+    }
+    // 静态检查用到的四个符号集合（关键字/内建/标准库模块/异常类型）自报家底。
+    if args[1] == "--dump-check-symbols" || args[1] == "--dump_check_symbols" {
+        let sym = jishi_ffi::checker::Symbols::from_host();
+        println!("{}", jishi_ffi::checker::dump_symbols_json(&sym));
         return ExitCode::SUCCESS;
     }
     let path = &args[1];

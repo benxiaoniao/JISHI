@@ -22,6 +22,7 @@ mod stdlib_sigs;
 /// 与字节码 VM 互为参考实现。见它自己的文档注释。
 mod walk;
 pub mod errcodes;   // R7.1-b：错误码表 + `jishi 错误 [码]` 的渲染（工具链迁移第一件）
+pub mod checker;    // R7.1-c：源码静态检查（checker.py + scope.py 的移植）
 mod zip;
 use json::Json;
 
@@ -3741,8 +3742,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     // ⚠️ 这份清单要与 Python 侧 `errors.py` 的异常表、Node 的 `EXCEPTION_TYPES`
     // 同宽 —— M55 补 `断言错误` 时发现它一直缺着（`捕获 断言错误` 在 Rust 上
     // 报「找不到名字」）。lang-spec 的 `exceptions` 节是权威清单。
-    for t in ["异常", "运行期错误", "类型错误", "值错误", "索引错误", "键错误", "除零错误",
-              "文件错误", "断言错误"] {
+    for t in EXCEPTION_NAMES {
         m.insert(t.to_string(), Val::ExcType(t.to_string()));
     }
     // -- M55 补的两个内建（以前 Rust 侧根本没有，`--dump-builtins` 抓出来的）--
@@ -4498,7 +4498,12 @@ pub fn dump_val_size() -> String {
     )
 }
 
-pub fn dump_builtins() -> String {
+/// 内建函数名（排好序）。
+///
+/// ⚠️ **过滤口径与 `--dump-builtins` 完全一样**（那是被
+/// `test_m51_consistency` 钉住、与 Python 侧 `lang-spec` 等宽的那一份）——
+/// 静态检查的「未定义名 / 遮蔽内建」就用它，免得另抄一份会漂。
+pub fn builtin_names() -> Vec<String> {
     let table = new_builtins();
     let mut names: Vec<String> = table.iter()
         .filter(|(n, v)| !n.starts_with('$')
@@ -4507,9 +4512,37 @@ pub fn dump_builtins() -> String {
         .map(|(n, _)| n.clone())
         .collect();
     names.sort();
+    names
+}
+
+/// 基石异常类型名 —— **唯一来源**：`new_builtins()` 注册 `捕获 X` 用的就是这一份。
+pub fn exception_names() -> Vec<&'static str> {
+    EXCEPTION_NAMES.to_vec()
+}
+
+/// 标准库模块名（排好序）—— 与 `--dump-stdlib` 同一张表（被 m51 钉住）。
+pub fn stdlib_names() -> Vec<String> {
+    let mut v: Vec<String> = stdlib::all_modules().iter()
+        .map(|(n, _)| (*n).to_string()).collect();
+    v.sort();
+    v
+}
+
+pub fn dump_builtins() -> String {
+    let names = builtin_names();
     let items: Vec<String> = names.iter().map(|n| format!("\"{n}\"")).collect();
     format!("[{}]", items.join(","))
 }
+
+/// 基石异常类型名（`捕获 X` / `e.类型` / 类型名→错误码 三处共用的那 9 个）。
+///
+/// ⚠️ 这份清单要与 Python 侧 `errors.py` 的 `EXCEPTION_TYPES`、Node 的
+/// `EXCEPTION_TYPES` **同宽** —— M55 补 `断言错误` 时发现它一直缺着。
+/// `lang-spec` 的 `exceptions` 节是权威清单，有测试盯着（`test_m51`）。
+pub(crate) const EXCEPTION_NAMES: [&str; 9] = [
+    "异常", "运行期错误", "类型错误", "值错误", "索引错误", "键错误", "除零错误",
+    "文件错误", "断言错误",
+];
 
 /// 检查一个参数确实可调用（`映射`/`过滤`/`排序按`/`归约` 的报错要说清是哪个方法）。
 fn ensure_callable(v: &Val, name: &str) -> Result<Val, JishiError> {
