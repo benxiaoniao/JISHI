@@ -109,15 +109,15 @@ def _diff_note(a: str, b: str) -> str:
 
 
 def _host_exempt() -> frozenset:
-    """宿主**有意不实现**的标准库模块。
+    """Rust 宿主**有意不实现**的标准库模块（现在是空的 —— `测试` 已补上）。
 
-    ⚠️ 直接 import `test_m51_consistency.HOST_EXEMPT` —— 那是这件事的**单一
-    来源**（`测试` 模块是 Python 独有的自检模块）。**别在这里再抄一份**：
-    本项目为「两处各自解释同一件事」付过代价。谁改了 m51 的豁免，这里一起动。
+    ⚠️ 直接 import `test_m51_consistency.HOST_EXEMPT_BY_HOST["Rust"]` —— 那是
+    这件事的**单一来源**。**别在这里再抄一份**：本项目为「两处各自解释同一件
+    事」付过代价。谁改了 m51 的豁免，这里一起动。
     """
     sys.path.insert(0, str(ROOT / "tests"))
-    from test_m51_consistency import HOST_EXEMPT
-    return HOST_EXEMPT
+    from test_m51_consistency import HOST_EXEMPT_BY_HOST
+    return HOST_EXEMPT_BY_HOST["Rust"]
 
 
 @_need_rust

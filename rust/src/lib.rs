@@ -1655,6 +1655,8 @@ pub struct VM {
     frames: Vec<Frame>,
     last_value: Val,
     output: String,
+    /// 错误流缓冲（目前只有 `测试.汇总` 往里写；见 `write_stderr`）。
+    output_err: String,
 }
 
 /// 建全局表：长度 = 名字个数，**内建按名字预填**，其余留 `None`。
@@ -1681,6 +1683,7 @@ impl VM {
             frames: Vec::new(),
             last_value: Val::None_,
             output: String::new(),
+            output_err: String::new(),
         }
     }
 
@@ -2702,6 +2705,13 @@ pub(crate) trait BuiltinHost {
     fn call_value(&mut self, callee: Val, args: Vec<Val>) -> Result<Val, JishiError>;
     /// 往输出流写文本（`打印` / `输入` 的提示语）。
     fn write_output(&mut self, s: &str);
+    /// 往**错误流**写文本（2026-10-05 为 `测试.汇总` 加的）。
+    ///
+    /// 📌 **为什么要有这个能力**：`测试` 模块的失败明细走 stderr、汇总行走
+    /// stdout（Python 侧 `print(..., file=sys.stderr)` 就是这个口径）；宿主
+    /// 只有一个 stdout 缓冲的话，两边流的内容就对不上（测试比的是每个流的内容）。
+    /// ⚠️ 加方法要**有意识** —— 这个接口是「先把用法列出来」再定的，别随手加。
+    fn write_stderr(&mut self, s: &str);
 }
 
 /// 格式化一个值 —— **与宿主无关的那部分**（容器递归 + 标量显示）。
@@ -2767,6 +2777,9 @@ impl BuiltinHost for VM {
     }
     fn write_output(&mut self, s: &str) {
         self.output.push_str(s);
+    }
+    fn write_stderr(&mut self, s: &str) {
+        self.output_err.push_str(s);
     }
 }
 
@@ -5335,6 +5348,8 @@ pub fn run_walk(ast_text: &str, source_path: Option<&str>) -> Result<String, (St
     };
     let mut w = walk::Walker::new();
     match w.run(&ast) {
+        // 成功路径：程序自己没往错误流写东西（`测试.汇总` 有失败就会抛），
+        // 所以这里只回 stdout。
         Ok(()) => Ok(w.output),
         // ⚠️ **报错渲染与字节码 VM 的 `render_error` 共用同一份**（`render_error_with`）
         // —— 源码行 / `^` / 调用链 / 提示，一处都不会漂。这是 D68 §四第 ⑥ 步。
@@ -5348,7 +5363,9 @@ pub fn run_walk(ast_text: &str, source_path: Option<&str>) -> Result<String, (St
                 }),
                 None => render_error_with(&e, "<AST>", &|_| None),
             };
-            Err((w.output, rendered))
+            // 错误流缓冲（`测试.汇总` 的失败明细）**排在报错块前面** ——
+            // 与 Python 侧的 stderr 内容顺序一致（先 ✗ 明细、再错误块）。
+            Err((w.output, format!("{}{}", w.output_err, rendered)))
         }
     }
 }
@@ -5433,6 +5450,11 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
     let filename = payload.get("filename").and_then(|v| v.as_str())
         .unwrap_or("<输入>").to_string();
     Ok(VM::new(Module { consts, names, kw_names, codes, main, filename }))
+}
+
+/// 取**错误流**缓冲（`测试.汇总` 的失败明细）。与 `get_output` 并列。
+pub fn get_output_err(vm: &VM) -> &str {
+    &vm.output_err
 }
 
 pub fn get_output(vm: &VM) -> &str {

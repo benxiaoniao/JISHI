@@ -52,6 +52,7 @@ mod diffmod;
 mod config;
 mod iter;
 mod log;
+mod testmod;
 
 /// 标准库函数的统一返回类型（省得每处都写一长串）。
 pub(crate) type R = Result<Val, JishiError>;
@@ -90,6 +91,8 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         ("html", htmlmod::module),
         ("对比", diffmod::module),
         ("配置", config::module),
+        // 2026-10-05：补上 `测试`（以前只有 Python 有，宿主挂 HOST_EXEMPT）
+        ("测试", testmod::module),
     ]
 }
 

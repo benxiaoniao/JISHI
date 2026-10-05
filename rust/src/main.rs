@@ -184,10 +184,14 @@ fn main() -> ExitCode {
     match vm.run() {
         Ok(()) => {
             print!("{}", jishi_ffi::get_output(&vm));
+            // 防御：正常跑完时错误流是空的（`测试.汇总` 有失败就会抛）。
+            eprint!("{}", jishi_ffi::get_output_err(&vm));
             ExitCode::SUCCESS
         }
         Err(e) => {
-            // ⚠️ **先把程序已经打印的东西吐出来**（R6.2）：以前只在 `Ok` 分支打
+            // 错误流缓冲（`测试.汇总` 的失败明细）先吐 —— 与 Python 侧的 stderr
+            // 内容顺序一致（先 ✗ 明细、再错误块）。
+            eprint!("{}", jishi_ffi::get_output_err(&vm));
             // `get_output`，于是**报错时前面所有 `打印` 全丢** —— 崩了看不到跑到哪。
             // 三个 Python 执行器是边跑边出，只有宿主不吐；而宿主报错渲染本来就更简，
             // 再把 stdout 丢掉，用户就一点线索都没有了。

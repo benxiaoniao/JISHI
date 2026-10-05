@@ -57,11 +57,27 @@ RUST = rust_exe_path()
 # 显式豁免 / 已知缺口
 # ---------------------------------------------------------------------------
 
-#: Python 侧有、**宿主故意没有**的模块（豁免必须写出来，不许静默跳过）。
+#: Python 侧有、**某个宿主故意没有**的模块（豁免必须写出来，不许静默跳过）。
+#: 这是并集，只用来做「哪几个模块可能缺」的说明；**判据按宿主各算一份**
+#: （见 `HOST_EXEMPT_BY_HOST`）。
 #:
-#: - `测试`：基石自带的测试框架，靠 Python 的进程模型跑用例，
-#:   跨语言宿主没有对应物。
+#: - `测试`：基石自带的测试框架。**Rust 2026-10-05 已补上**（`stdlib/testmod.rs`，
+#:   含它需要的「往 stderr 写」这个宿主能力）；**Node 仍缺** —— R8 会用 wasm 顶替
+#:   JS 宿主，不再往那边投人。
 HOST_EXEMPT: frozenset[str] = frozenset({"测试"})
+
+#: 每个宿主**各自**缺哪些（判据用它算期望；补掉一个就来删一行）。
+HOST_EXEMPT_BY_HOST: dict[str, frozenset[str]] = {
+    "Node": frozenset({"测试"}),
+    "Rust": frozenset(),
+}
+
+#: 反过来：**只有某个宿主有**的模块（Python 侧也有，但另一个宿主没有）。
+#: 只有「两宿主互查」那条判据用得上 —— 那里比的是「谁也不该单边多出东西」。
+HOST_ONLY: dict[str, frozenset[str]] = {
+    "Rust": frozenset({"测试"}),
+    "Node": frozenset(),
+}
 
 #: **已知缺口**：检测出来但本阶段不补的。断言要求「实际缺口**恰好等于**这些」——
 #: 补掉一个就得来删一行，冒出新的立刻报红。
@@ -84,12 +100,16 @@ KNOWN_GAPS: dict[str, set[str]] = {
 # ---------------------------------------------------------------------------
 
 def _py_stdlib() -> dict[str, list[str]]:
-    """Python 侧的事实源：`jishi --lang-spec` 的 stdlib 节（**不含豁免模块**）。"""
+    """Python 侧的事实源：`jishi --lang-spec` 的 stdlib 节（**全量，不剔豁免**）。
+
+    ⚠️ 剔豁免是**按宿主**做的（见 `_expected_for`）—— 同一个模块可能
+    「Rust 有、Node 没有」（`测试` 就是），在这里剔会把有它的那个宿主
+    误判成「多出来的」。
+    """
     spec = ai.build_lang_spec()
     return {
         m["module"]: sorted(f["name"] for f in m["functions"])
         for m in spec["stdlib"]
-        if m["module"] not in HOST_EXEMPT
     }
 
 
@@ -175,8 +195,15 @@ def test_检测本身真的能报红():
     assert _extra(exp, {"数学": ["开方", "平方"], "文本": ["拼接"], "统计": []}) == {"统计"}
 
 
+def _expected_for(host: str) -> dict[str, list[str]]:
+    """某个宿主的期望家底 = Python 侧全量 − 该宿主登记过的豁免。"""
+    full = _py_stdlib()
+    exempt = HOST_EXEMPT_BY_HOST.get(host, frozenset())
+    return {m: fns for m, fns in full.items() if m not in exempt}
+
+
 def test_Node_覆盖_python_侧标准库():
-    expected, actual = _py_stdlib(), _node_stdlib()
+    expected, actual = _expected_for("Node"), _node_stdlib()
     assert actual, "Node 报了个空家底？"
     assert _missing(expected, actual) == KNOWN_GAPS["Node"], (
         "Node 宿主与 Python 侧标准库有漂移：\n" + _report("Node", expected, actual))
@@ -185,7 +212,7 @@ def test_Node_覆盖_python_侧标准库():
 
 
 def test_Rust_覆盖_python_侧标准库():
-    expected, actual = _py_stdlib(), _rust_stdlib()
+    expected, actual = _expected_for("Rust"), _rust_stdlib()
     assert actual, "Rust 报了个空家底？"
     assert _missing(expected, actual) == KNOWN_GAPS["Rust"], (
         "Rust 宿主与 Python 侧标准库有漂移：\n" + _report("Rust", expected, actual))
@@ -200,8 +227,10 @@ def test_两个宿主彼此也不漂移():
     而这里问的是「Node 和 Rust 是否一样」—— 一样才说明没有单边脱落。
     """
     nd, rs = _node_stdlib(), _rust_stdlib()
-    assert _extra(nd, rs) == set(), _report("Rust 比 Node 多", nd, rs)
-    assert _extra(rs, nd) == set(), _report("Node 比 Rust 多", rs, nd)
+    # 「多出来的」必须**恰好**是登记过的那几个（这里是 `测试`：Rust 已补、Node 没有）。
+    # 冒出新的单边差异立刻报红 —— 这正是这条判据要防的。
+    assert _extra(nd, rs) == set(HOST_ONLY["Rust"]), _report("Rust 比 Node 多", nd, rs)
+    assert _extra(rs, nd) == set(HOST_ONLY["Node"]), _report("Node 比 Rust 多", rs, nd)
 
 
 def test_签名表与标准库源码同步():

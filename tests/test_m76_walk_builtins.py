@@ -130,19 +130,23 @@ def test_树遍历用的是共用那张内建表():
 
 
 @need_rust
-def test_接口故意做小_只有五个方法():
+def test_接口故意做小_只有六个方法():
     """`BuiltinHost` 的**方法数**要钉住。
 
-    每加一个方法，树遍历侧就多一处「实现不出来」的负担（现在它只实现了
-    `format_value` / `write_output` / `make_iter`，另两个明确报「还没实现」）。
+    每加一个方法，树遍历侧就多一处实现负担（它只实现了 `format_value` /
+    `write_output` / `make_iter` 那几处，其余明确报「还没实现」）。
     加方法不是不行 —— 但要**有意识地**加，所以这条会先报红。
+
+    📌 **第六个方法 `write_stderr` 是 2026-10-05 有意识加的**：`测试` 模块的
+    `汇总` 把失败明细写 **stderr**、汇总行写 stdout（Python 侧就是这个口径），
+    宿主只有一个 stdout 缓冲就对不上。加它的时候这条测试照设计报红了一次。
     """
     lib = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
     m = re.search(r"pub\(crate\) trait BuiltinHost \{(.*?)\n\}", lib, re.S)
     assert m, "lib.rs 里找不到 BuiltinHost 的声明"
     names = sorted(re.findall(r"fn (\w+)\(", m.group(1)))
     assert names == sorted(["format_value", "lookup_method", "make_iter",
-                            "call_value", "write_output"]), names
+                            "call_value", "write_output", "write_stderr"]), names
 
 
 @need_rust

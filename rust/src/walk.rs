@@ -241,6 +241,8 @@ pub(crate) struct Walker {
     /// 未绑定）会 push，别的地方调 `call_walk_fn` 一律传 `None`。
     call_stack: Vec<TraceFrame>,
     pub(crate) output: String,
+    /// 错误流缓冲（与字节码 VM 同构；目前只有 `测试.汇总` 往里写）。
+    pub(crate) output_err: String,
 }
 
 impl Walker {
@@ -253,6 +255,7 @@ impl Walker {
             builtins: new_builtins(),
             call_stack: Vec::new(),
             output: String::new(),
+            output_err: String::new(),
         }
     }
 
@@ -1306,6 +1309,9 @@ impl BuiltinHost for Walker {
     }
     fn write_output(&mut self, s: &str) {
         self.output.push_str(s);
+    }
+    fn write_stderr(&mut self, s: &str) {
+        self.output_err.push_str(s);
     }
 }
 
