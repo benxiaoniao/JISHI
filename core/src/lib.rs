@@ -14,13 +14,10 @@
 // 这么绕一圈是为了「错误码 → 异常类」的映射只有一处（Python 侧从
 // `jishi.errors` 里按 `code` 现查），Rust 这边不抄一份类表、也就不会漂。
 
-mod compiler;
-mod jishilib;
-mod opcodes;
-mod parser;
-mod serialize;
-mod sha256;
-mod tokenizer;
+// R7.1-a（2026-10-05）：**前端本体已抽成独立 crate** `jishi-frontend`（纯 Rust、
+// 零依赖），与独立宿主 `rust/` 共用同一份实现。本文件只剩「搬运用」的 pyo3 壳。
+// 引用方式不变（还是 `tokenizer::tokenize` 这样写），只是名字来自下面这行 `use`。
+use jishi_frontend::{compiler, opcodes, parser, serialize, tokenizer};
 
 use std::sync::OnceLock;
 
