@@ -383,6 +383,18 @@ fn main() -> ExitCode {
     if args[1] == "格式化" || args[1] == "--format" {
         return run_format(&args[2..]);
     }
+    // R7.2：语言元数据（`jishi --lang-spec`，机器可读）。输出与 Python 侧**逐字节一致**。
+    if args[1] == "--lang-spec" || args[1] == "--lang_spec"
+        || args[1] == "--dump-lang-spec" || args[1] == "--dump_lang_spec"
+    {
+        println!("{}", jishi_ffi::langspec::lang_spec_json());
+        return ExitCode::SUCCESS;
+    }
+    // R7.2：AI 语言卡（由同一份元数据渲染的 Markdown）。
+    if args[1] == "--ai-card" || args[1] == "--ai_card" {
+        println!("{}", jishi_ffi::langspec::render_ai_card());
+        return ExitCode::SUCCESS;
+    }
     // 静态检查用到的四个符号集合（关键字/内建/标准库模块/异常类型）自报家底。
     if args[1] == "--dump-check-symbols" || args[1] == "--dump_check_symbols" {
         let sym = jishi_ffi::checker::Symbols::from_host();

@@ -1371,6 +1371,22 @@
     （`--dump-stdlib` 只报 `Val::Builtin`，常量一致性靠别的对拍测试）；
     ② **同名函数的参数个数与顺序**（本测试只比名字；参数个数一致性
     留给 M52 的基石库层从根上解决）。
+- ✅ **语言元数据的漂移检测已建 —— R7.2**（2026-10-06）：`tests/test_m90_langspec_rust.py`。
+  宿主加了 `--lang-spec` / `--ai-card`（**由宿主自己报家底**），与
+  `jishi --lang-spec` / `jishi --ai-card` **逐字节一致**；另有一条不经 CLI 的
+  结构化对比（直接比 `ai.build_lang_spec()` + `content_hash` 的算法）。
+  - ⚠️ **Rust 侧那张表是生成的**：`rust/src/langdata.rs` 由
+    `python tools/gen_langdata_rs.py` **一次性搬运**（关键字 / 运算符 / 内建文档 /
+    标准库 229 条函数说明 / 错误码 / 等价 Python 写法）。**改了 Python 侧元数据必须
+    重跑生成器再重编宿主**，忘了会被 `test_m90` 当场报红 —— 这就是拍板①说的
+    「Rust 侧显式表 + 两侧各 `--dump` 自报家底来比」。
+  - 📌 输出要逐字节对齐 Python 的 `json.dumps(..., ensure_ascii=False, indent=2)`
+    —— **键顺序也是内容的一部分**；`content_hash` 还是「紧凑 + 键排序」的
+    sha256 前 8 位。所以 `langspec.rs` 自带一个**保序** JSON 值 + 两个序列化器
+    （缩进版 / 排序紧凑版）。
+  - ⚠️ **Windows 上 Python 的 stdout 默认把 `\n` 翻成 `\r\n`**，逐字节比会「看着
+    全红」；`jishi.cli._setup_io()` 已经 `reconfigure(newline="\n")`，所以走 CLI
+    那条路是干净的（自己写脚本比对时别忘了这一点）。
 - ✅ **基石库层已建 —— M52**（2026-09-26）：纯逻辑标准库**只写一份**
   （`jishi/stdlib-jishi/*.jsh`，目前有 `统计`），**编译期展开**进主程序，
   五个引擎共用同一份字节码。完整设计见 `docs/设计决策.md` **D45**。

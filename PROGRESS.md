@@ -141,11 +141,14 @@ S2 的 3 条是已登记的 Node 网络 EBUSY 偶发）。⚠️ 这一轮差点
 **R7.1-a ✅**：抽 `jishi-frontend`（纯 Rust、零依赖）—— 搬得干净（前端那五个文件**代码级零 pyo3**，跨模块引用本就是 `crate::tokenizer::…`，一行没改）；夹具 103/103 + Rust 前端四阶段各 103/103。
 **R7.1-b ✅**：`rust/src/errcodes.rs` + `jishi-rs 错误 [码]` + `--dump-errcodes`：32 个码逐字对拍 + 总览 + 「没有这个码」（stderr+退码 2）+ 别名写法；两张表由 `test_m85` 钉住不许漂。
 （顺手修：`test_m25`/`test_m75`/`probe_errcodes` 里按路径引用 `core/src/*.rs` 的三处 → `frontend/src/`。）
-✅ R7.1 四件（错误码 / 静态检查 / `测试` 模块 / 格式化）全部完成 → 下一步 **R7.2 语言元数据**。 | ✅ 2026-10-05 |
+✅ R7.1 四件（错误码 / 静态检查 / `测试` 模块 / 格式化）全部完成 → 下一步 **R7.2 语言元数据**（已交付，见下）。 | ✅ 2026-10-05 |
 | **R7.1-d 格式化搬进 Rust** | `jishi-rs 格式化 [文件] [--stdin] [--check] [--write] [--indent N]`（含**目录**模式）与 `jishi 格式化` **全语料逐字节一致**（103 个 .jsh × 单文件/目录/各模式；含 `error_cases` 的**词法错**渲染）+ **幂等**（格式化两次 = 一次）。
 🔑 **前置**：`frontend/src/tokenizer.rs` 里私有的 `tokenize_line` 暴露成**公开 API** —— 喂**原始行**、列号落**原文坐标**（全角归一是一对一，列号不错位），格式化器就能**按列切片**取回原文（引号风格 / 全角 / 转义全原样）。OP 的区间是 `[col-1, end_col-1)`、其余 token 是 `[col-1, end_col)`（历史约定不一致）。
 🔴 **顺带补真缺口**：`JishiError` 加 `underline` 字段 + `render_error_with` 支持**多字符下划线**（`~^`）—— 以前宿主渲染「关键字粘连」这类错误比 Python 少几个 `~`（渲染器根本没有这个信息）。
 判据：`test_m89`（对拍 + 幂等 + 模式 + **格式化的符号集合漂移检测**（`--dump-format-tables`）+ **不依赖 Python** 的写死期望）。 | ✅ 2026-10-05 |
+| **R7.2 语言元数据搬进 Rust** | `jishi-rs --lang-spec` / `--ai-card` 与 `jishi --lang-spec` / `--ai-card` **逐字节一致**（56081 字节 JSON + 整份语言卡）。
+**拍板①落地**：`rust/src/langdata.rs` = `tools/gen_langdata_rs.py` **一次性搬运**的显式表（关键字 36 / 运算符 / 内建 30 / 标准库 25 模块 229 函数带说明 / 错误码 35 / 静态检查码 5 / 等价 Python 写法）；`rust/src/langspec.rs` 自带**保序 JSON + 两个序列化器**（缩进版对齐 `json.dumps(indent=2)`、排序紧凑版算 `content_hash`）。
+🔑 对拍能逐字节的前提：输出要照 Python 的 `json.dumps(ensure_ascii=False, indent=2)` 排版，**键顺序也是内容**；Windows 上 Python 的 stdout 会翻 `\r\n`，但 `cli._setup_io()` 已 `reconfigure(newline="\n")`。判据 `test_m90`（逐字节 ×2 + 不经 CLI 的结构化对比 + 独立判据）。 | ✅ 2026-10-06 |
 **① 列表活迭代（已交付）**：Rust 的 VM 与树遍历参考执行器都从「反转快照 + pop」
 改成「容器 + 下标」的**活迭代**（与 Python `list_iterator` 一致），**同时保住 O(1)**
 （`test_m64` 的 O(n²) 护栏 + 计时护栏都过）。增/删两形状五执行器对齐。
