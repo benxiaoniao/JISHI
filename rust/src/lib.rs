@@ -24,6 +24,9 @@ mod walk;
 pub mod errcodes;   // R7.1-b：错误码表 + `jishi 错误 [码]` 的渲染（工具链迁移第一件）
 pub mod checker;    // R7.1-c：源码静态检查（checker.py + scope.py 的移植）
 pub mod formatter;  // R7.1-d：代码格式化（formatter.py 的移植）
+pub mod jsonw;      // R7.2 起：保序 JSON 写出器（--lang-spec 与 LSP 共用）
+pub mod scope;      // R7.3：AST 作用域分析（scope.py 的移植，checker 与 LSP 共用）
+pub mod lsp;        // R7.3：语言服务器（lsp.py 的移植，`jishi-rs lsp`）
 pub mod langdata;   // R7.2：语言元数据的显式表（**生成**，见 tools/gen_langdata_rs.py）
 pub mod langspec;   // R7.2：语言元数据 → JSON（`jishi --lang-spec`）
 mod zip;

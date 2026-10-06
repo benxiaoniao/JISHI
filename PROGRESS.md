@@ -149,6 +149,11 @@ S2 的 3 条是已登记的 Node 网络 EBUSY 偶发）。⚠️ 这一轮差点
 | **R7.2 语言元数据搬进 Rust** | `jishi-rs --lang-spec` / `--ai-card` 与 `jishi --lang-spec` / `--ai-card` **逐字节一致**（56081 字节 JSON + 整份语言卡）。
 **拍板①落地**：`rust/src/langdata.rs` = `tools/gen_langdata_rs.py` **一次性搬运**的显式表（关键字 36 / 运算符 / 内建 30 / 标准库 25 模块 229 函数带说明 / 错误码 35 / 静态检查码 5 / 等价 Python 写法）；`rust/src/langspec.rs` 自带**保序 JSON + 两个序列化器**（缩进版对齐 `json.dumps(indent=2)`、排序紧凑版算 `content_hash`）。
 🔑 对拍能逐字节的前提：输出要照 Python 的 `json.dumps(ensure_ascii=False, indent=2)` 排版，**键顺序也是内容**；Windows 上 Python 的 stdout 会翻 `\r\n`，但 `cli._setup_io()` 已 `reconfigure(newline="\n")`。判据 `test_m90`（逐字节 ×2 + 不经 CLI 的结构化对比 + 独立判据）。 | ✅ 2026-10-06 |
+| **R7.3 LSP 搬进 Rust** | `jishi-rs lsp` 与 `jishi lsp` 同一串 **33 条报文**（覆盖 18 个方法 + 增量编辑 + 版本乱序）**逐字节一致**（40418 字节）；**编辑器自带的** `verify-lsp.js` 两边各跑一遍 **25/25 全过**。
+⚠️ 顺带抽出 **`rust/src/scope.rs`**（作用域分析，checker 与 LSP 共用一份 —— Python 侧就是`scope.py`）与 **`rust/src/jsonw.rs`**（保序 JSON 写出器，`--lang-spec` 与 LSP 共用；加了 `Jv::Null`）。
+🔴 **照抄了一条 Python 的怪行为**：**词法错的 `didOpen` 会让整个 `on_did_open` 抛出、文档根本不注册**（`IncrementalDocument` 在构造里就分词）。这不是「顺手修一修」的地方 —— 照抄才叫逐字一致；判据里两个方向都钉了（语法错要能开、词法错不注册）。
+📌 **性能（同机同时段，R7.3 开工首日重测）**：每次编辑 253/1253/5003/20003 行 —— Python 13.0 / 70.9 / 289.2 / **1224.3ms** vs Rust 2.4 / 11.1 / 49.8 / **207.1ms**（**5.3~6.4x**）。Rust 用**全量**重分词 + 重解析就赢了 Python 的**增量**分词，所以**没有搬 `incremental.py`**（少一份状态机，少一处会漂的地方）。
+判据 `test_m91`：逐字节对拍 + `verify-lsp.js` 双跑 + **不 import jishi / 不 spawn Python** 的独立判据（含「没有 PATH 也能跑」）+ `计时` 性能护栏。 | ✅ 2026-10-06 |
 **① 列表活迭代（已交付）**：Rust 的 VM 与树遍历参考执行器都从「反转快照 + pop」
 改成「容器 + 下标」的**活迭代**（与 Python `list_iterator` 一致），**同时保住 O(1)**
 （`test_m64` 的 O(n²) 护栏 + 计时护栏都过）。增/删两形状五执行器对齐。

@@ -1387,6 +1387,23 @@
   - ⚠️ **Windows 上 Python 的 stdout 默认把 `\n` 翻成 `\r\n`**，逐字节比会「看着
     全红」；`jishi.cli._setup_io()` 已经 `reconfigure(newline="\n")`，所以走 CLI
     那条路是干净的（自己写脚本比对时别忘了这一点）。
+- ✅ **语言服务器已搬进 Rust —— R7.3**（2026-10-06）：`jishi-rs lsp`（`rust/src/lsp.rs`）。
+  - **判据两条都要跑**：`tests/test_m91_lsp_rust.py`（33 条报文**逐字节**对拍 +
+  独立判据 + `计时` 护栏）；以及**编辑器自带的**
+  `editors/vscode-jishi/verify-lsp.js`（两边各跑一遍，各 25 项）。
+  `JISHI_BIN=<二进制> JISHI_ARGS="lsp" node editors/vscode-jishi/verify-lsp.js`。
+  - ⚠️ **改 LSP 行为要跑这两条**；只跑一条会漏（`verify-lsp.js` 只看「有没有结果」，对拍才看内容）。
+  - 🔴 **有一条 Python 的怪行为是「有意照抄」的**：**词法错的 `didOpen` 会让整个
+    `on_did_open` 抛出、文档根本不注册**（`IncrementalDocument` 在构造里就分词，
+    失败即抛出，`dispatch` 又把通知的异常吞掉）。想让「编辑器能打开一份有词法错的
+    文件」，那是**先改 Python 侧**、再两边一起搬 —— 别只在 Rust 这边「顺手修好」，
+    那样报文就不一致了。判据里两个方向都钉着（语法错要能开 / 词法错不注册）。
+  - 📌 **没有搬 `incremental.py`**：Rust **全量**重分词 + 重解析就比 Python 的**增量**
+    快 5~6 倍（20003 行每次编辑 1224ms → 207ms，同机同时段实测）。少一份状态机 =
+    少一处会漂的地方。这条要重开得靠**新实测数据**。
+  - 📌 顺带抽了两个共享模块：`rust/src/scope.rs`（作用域分析，checker 与 LSP 一份，
+    对应 Python 的 `scope.py`）、`rust/src/jsonw.rs`（保序 JSON 写出器，
+    `--lang-spec` 与 LSP 共用）。
 - ✅ **基石库层已建 —— M52**（2026-09-26）：纯逻辑标准库**只写一份**
   （`jishi/stdlib-jishi/*.jsh`，目前有 `统计`），**编译期展开**进主程序，
   五个引擎共用同一份字节码。完整设计见 `docs/设计决策.md` **D45**。

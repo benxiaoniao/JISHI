@@ -311,6 +311,7 @@ fn main() -> ExitCode {
         eprintln!("      jishi-rs 错误 [码]        # 查错误码（R7.1-b）");
         eprintln!("      jishi-rs 检查 [路径...] [--json]   # 源码静态检查（R7.1-c）");
         eprintln!("      jishi-rs 格式化 [文件] [--stdin] [--check] [--write] [--indent N]");
+        eprintln!("      jishi-rs lsp               # 语言服务器（stdio，R7.3）");
         return ExitCode::from(2);
     }
     // M51：把宿主**实际带的标准库模块与函数**打成 JSON。
@@ -389,6 +390,10 @@ fn main() -> ExitCode {
     {
         println!("{}", jishi_ffi::langspec::lang_spec_json());
         return ExitCode::SUCCESS;
+    }
+    // R7.3：语言服务器（stdio + JSON-RPC）—— 编辑器那条路。
+    if args[1] == "lsp" || args[1] == "--lsp" {
+        return ExitCode::from(jishi_ffi::lsp::run_lsp() as u8);
     }
     // R7.2：AI 语言卡（由同一份元数据渲染的 Markdown）。
     if args[1] == "--ai-card" || args[1] == "--ai_card" {

@@ -10,17 +10,8 @@
 
 use jishi_frontend::sha256;
 
+use crate::jsonw::{dump_compact_sorted, dump_indent, Jv};
 use crate::langdata as D;
-
-/// 保序 JSON 值。
-#[derive(Clone)]
-pub enum Jv {
-    Str(String),
-    Int(i64),
-    Bool(bool),
-    Arr(Vec<Jv>),
-    Obj(Vec<(String, Jv)>),
-}
 
 fn s(x: &str) -> Jv {
     Jv::Str(x.to_string())
@@ -32,109 +23,6 @@ fn str_arr(items: &[&str]) -> Jv {
 
 fn pairs(pairs: Vec<(&str, &str)>) -> Jv {
     Jv::Obj(pairs.into_iter().map(|(k, v)| (k.to_string(), s(v))).collect())
-}
-
-/// JSON 字符串字面量 —— 与 Python `json.dumps(..., ensure_ascii=False)` 同口径：
-/// 只转义 `"` `\` 与 C0 控制字符，非 ASCII **原样**输出。
-fn esc(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push('"');
-    for ch in text.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{08}' => out.push_str("\\b"),
-            '\u{0c}' => out.push_str("\\f"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
-}
-
-/// `json.dumps(v, ensure_ascii=False, indent=2)` —— 空容器写成 `[]` / `{}`。
-fn dump_indent(v: &Jv, level: usize, out: &mut String) {
-    match v {
-        Jv::Str(x) => out.push_str(&esc(x)),
-        Jv::Int(i) => out.push_str(&i.to_string()),
-        Jv::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-        Jv::Arr(items) => {
-            if items.is_empty() {
-                out.push_str("[]");
-                return;
-            }
-            let pad = "  ".repeat(level + 1);
-            out.push_str("[\n");
-            for (i, it) in items.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(",\n");
-                }
-                out.push_str(&pad);
-                dump_indent(it, level + 1, out);
-            }
-            out.push('\n');
-            out.push_str(&"  ".repeat(level));
-            out.push(']');
-        }
-        Jv::Obj(kv) => {
-            if kv.is_empty() {
-                out.push_str("{}");
-                return;
-            }
-            let pad = "  ".repeat(level + 1);
-            out.push_str("{\n");
-            for (i, (k, val)) in kv.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(",\n");
-                }
-                out.push_str(&pad);
-                out.push_str(&esc(k));
-                out.push_str(": ");
-                dump_indent(val, level + 1, out);
-            }
-            out.push('\n');
-            out.push_str(&"  ".repeat(level));
-            out.push('}');
-        }
-    }
-}
-
-/// `json.dumps(v, ensure_ascii=False, sort_keys=True)` —— 默认分隔符 `", "` / `": "`。
-/// （`sort_keys` 是**每一层**都排 —— `content_hash` 靠它才稳定。）
-fn dump_compact_sorted(v: &Jv, out: &mut String) {
-    match v {
-        Jv::Str(x) => out.push_str(&esc(x)),
-        Jv::Int(i) => out.push_str(&i.to_string()),
-        Jv::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-        Jv::Arr(items) => {
-            out.push('[');
-            for (i, it) in items.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(", ");
-                }
-                dump_compact_sorted(it, out);
-            }
-            out.push(']');
-        }
-        Jv::Obj(kv) => {
-            let mut ks: Vec<&(String, Jv)> = kv.iter().collect();
-            ks.sort_by(|a, b| a.0.cmp(&b.0));
-            out.push('{');
-            for (i, (k, val)) in ks.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(", ");
-                }
-                out.push_str(&esc(k));
-                out.push_str(": ");
-                dump_compact_sorted(val, out);
-            }
-            out.push('}');
-        }
-    }
 }
 
 /// 组装 `build_lang_spec()`（**不含** `content_hash`，键顺序逐条对应）。
@@ -209,6 +97,7 @@ fn build_spec() -> Vec<(String, Jv)> {
 
     out
 }
+
 
 /// `ai.content_hash(spec)` 的等价物：对**不含 `content_hash`** 的 spec 做
 /// 「紧凑 + 键排序」的 sha256，取前 8 位十六进制。
