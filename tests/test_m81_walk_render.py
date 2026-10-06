@@ -75,7 +75,7 @@ def _render_both(src: str) -> tuple[str, str, str, str]:
 
     w = subprocess.run([str(RUST), "--walk", str(tmp / f"{pid}_m81_ast.json"), rel],
                        capture_output=True, input=b"")
-    v = subprocess.run([str(RUST), str(tmp / f"{pid}_m81_bc.json")],
+    v = subprocess.run([str(RUST), "--load-bytecode", str(tmp / f"{pid}_m81_bc.json")],
                        capture_output=True, input=b"")
     return (w.stdout.decode("utf-8", "replace"), w.stderr.decode("utf-8", "replace"),
             v.stdout.decode("utf-8", "replace"), v.stderr.decode("utf-8", "replace"))

@@ -91,7 +91,7 @@ def main(argv: "list[str] | None" = None) -> int:
         walk_err = r1.stderr.decode("utf-8", "replace")
 
         tmp.write_text(json.dumps(bc, ensure_ascii=False), encoding="utf-8")
-        r2 = subprocess.run([str(exe), str(tmp)], capture_output=True, input=b"",
+        r2 = subprocess.run([str(exe), "--load-bytecode", str(tmp)], capture_output=True, input=b"",
                             cwd=str(run_dir))
         vm_out = r2.stdout.decode("utf-8", "replace")
         vm_err = r2.stderr.decode("utf-8", "replace")

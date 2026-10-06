@@ -301,6 +301,38 @@ fn json_check(rows: &[(std::path::PathBuf, jishi_ffi::checker::Issue)]) -> Strin
     s
 }
 
+/// 临时诊断：Rust 的 spawn 在本机到底哪种 stdio 配置会失败（R7.4 排查用）。
+fn spawn_probe() -> ExitCode {
+    use std::process::{Command, Stdio};
+    let me = std::env::current_exe().unwrap();
+    let targets: Vec<(&str, std::ffi::OsString, Vec<std::ffi::OsString>)> = vec![
+        ("cmd", "cmd".into(), vec!["/c".into(), "echo".into(), "hi".into()]),
+        ("self", me.clone().into_os_string(), vec!["--lang-spec".into()]),
+    ];
+    let names = ["全 piped", "stderr=null", "stdin=null ", "stdout=null", "全 null    "];
+    for (tname, prog, args) in &targets {
+        for mode in 0..5usize {
+            let mut c = Command::new(prog);
+            c.args(args);
+            match mode {
+                0 => { c.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()); }
+                1 => { c.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()); }
+                2 => { c.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()); }
+                3 => { c.stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped()); }
+                _ => { c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()); }
+            }
+            match c.spawn() {
+                Ok(mut ch) => {
+                    let _ = ch.wait();
+                    println!("{tname} / {} -> OK", names[mode]);
+                }
+                Err(e) => println!("{tname} / {} -> {e}", names[mode]),
+            }
+        }
+    }
+    ExitCode::SUCCESS
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -312,6 +344,8 @@ fn main() -> ExitCode {
         eprintln!("      jishi-rs 检查 [路径...] [--json]   # 源码静态检查（R7.1-c）");
         eprintln!("      jishi-rs 格式化 [文件] [--stdin] [--check] [--write] [--indent N]");
         eprintln!("      jishi-rs lsp               # 语言服务器（stdio，R7.3）");
+        eprintln!("      jishi-rs mcp               # MCP 服务器（stdio，R7.4）");
+        eprintln!("      jishi-rs <文件.jsh> [选项]  # 跑源码 / --ast / --json-errors / --sandbox");
         return ExitCode::from(2);
     }
     // M51：把宿主**实际带的标准库模块与函数**打成 JSON。
@@ -395,6 +429,13 @@ fn main() -> ExitCode {
     if args[1] == "lsp" || args[1] == "--lsp" {
         return ExitCode::from(jishi_ffi::lsp::run_lsp() as u8);
     }
+    if args[1] == "--mcp-spawn-probe" {
+        return spawn_probe();
+    }
+    // R7.4：MCP 服务器（stdio + 换行分隔 JSON-RPC）—— agent 那条路。
+    if args[1] == "mcp" || args[1] == "--mcp" {
+        return ExitCode::from(jishi_ffi::mcp::run_mcp() as u8);
+    }
     // R7.2：AI 语言卡（由同一份元数据渲染的 Markdown）。
     if args[1] == "--ai-card" || args[1] == "--ai_card" {
         println!("{}", jishi_ffi::langspec::render_ai_card());
@@ -411,44 +452,11 @@ fn main() -> ExitCode {
         println!("{}", jishi_ffi::formatter::dump_tables_json());
         return ExitCode::SUCCESS;
     }
-    let path = &args[1];
-    let text = match fs::read_to_string(path) {
-        Ok(t) => t,
-        Err(e) => { eprintln!("读取文件失败：{e}"); return ExitCode::from(1); }
-    };
-
-    // 脚本参数（`jishi-rs 字节码.json 参数1 参数2`）→ `系统.参数()`。
-    // 与 Node 宿主的 `process.argv.slice(3)`、Python 侧 `系统._设参数` 同语义：
-    // 不含字节码文件名本身。
-    jishi_ffi::set_args(args[2..].to_vec());
-
-    let mut vm = match jishi_ffi::load_module(&text) {
-        Ok(vm) => vm,
-        Err(e) => { eprintln!("字节码加载失败：{e}"); return ExitCode::from(1); }
-    };
-
-    match vm.run() {
-        Ok(()) => {
-            print!("{}", jishi_ffi::get_output(&vm));
-            // 防御：正常跑完时错误流是空的（`测试.汇总` 有失败就会抛）。
-            eprint!("{}", jishi_ffi::get_output_err(&vm));
-            ExitCode::SUCCESS
-        }
-        Err(e) => {
-            // 错误流缓冲（`测试.汇总` 的失败明细）先吐 —— 与 Python 侧的 stderr
-            // 内容顺序一致（先 ✗ 明细、再错误块）。
-            eprint!("{}", jishi_ffi::get_output_err(&vm));
-            // `get_output`，于是**报错时前面所有 `打印` 全丢** —— 崩了看不到跑到哪。
-            // 三个 Python 执行器是边跑边出，只有宿主不吐；而宿主报错渲染本来就更简，
-            // 再把 stdout 丢掉，用户就一点线索都没有了。
-            // 顺序：stdout → 报错块（与 Python 侧一致：报错在末尾）。
-            print!("{}", jishi_ffi::get_output(&vm));
-            // R6.3：渲染成与 Python 的 `JishiError.render()` **同形**的多行文本
-            // （标题 + 位置 + 源码行 + `^` + 调用链 + 提示）。以前是「一行标题
-            // + 一行位置」，用户看不到自己写的那一行 —— 单二进制是唯一形态之后
-            // （R7/R8）那就等于没报错。见 `docs/embed.md`。
-            eprint!("{}", jishi_ffi::render_error(&vm, &e));
-            ExitCode::from(1)
-        }
-    }
+    // 其余一律交给 CLI 主入口（R7.4）。
+    //
+    // ⚠️ **位置参数的语义从 R7.4 起是「源码」**（与 Python 的 `jishi <文件>` 对齐），
+    // 字节码要走 `--load-bytecode`。以前这里把 `args[1]` 直接当字节码 JSON 读，
+    // 于是 `jishi-rs 你好.jsh` 会得到一句莫名的「字节码加载失败」——
+    // 而单二进制顶上 `jishi` 这个名字之后（R8），那条命令必须能跑。
+    jishi_ffi::run::main_cli(&args[1..])
 }

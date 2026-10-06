@@ -211,7 +211,7 @@ def run_host(which: str, bc: Path, stdin: str = "") -> tuple[str, str]:
     **继承父进程的终端**，遇上 `输入()` 就一起挂住。给空串 → 是管道且立刻 EOF。
     """
     cmd = ([NODE, str(ROOT / "node" / "index.js"), str(bc)] if which == "Node"
-           else [RUST, str(bc)])
+           else [RUST, "--load-bytecode", str(bc)])
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                            input=stdin, cwd=str(ROOT), timeout=120)

@@ -81,7 +81,7 @@ def test_算术语料的两个实现结果一致():
     ast_p = _write_tmp(doc["ast"], "_m75_ast.json")
     bc_p = _write_tmp(doc["bytecode"], "_m75_bc.json")
     walk_out, walk_err = _run(["--walk", str(ast_p)])
-    vm_out, _ = _run([str(bc_p)])
+    vm_out, _ = _run(["--load-bytecode", str(bc_p)])
     assert walk_err == "", walk_err
     assert walk_out == vm_out, f"树遍历与字节码 VM 不一致\n{walk_out!r}\n{vm_out!r}"
     expected = (CASES / "01_算术.out").read_text(encoding="utf-8")

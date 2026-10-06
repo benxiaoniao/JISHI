@@ -159,7 +159,7 @@ def engine_outputs(src: str, rel: str = "形状.jsh",
     if exe.exists():
         tmp = Path(tempfile.gettempdir()) / f"_probe_err_{os.getpid()}.json"
         tmp.write_text(compile_to_json(src, rel), encoding="utf-8")
-        r = subprocess.run([str(exe), str(tmp)], capture_output=True, input=b"")
+        r = subprocess.run([str(exe), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
         out["Rust VM"] = (r.stdout.decode("utf-8", "replace")
                           .strip().replace("\n", " | "))
     node = _node_exe()

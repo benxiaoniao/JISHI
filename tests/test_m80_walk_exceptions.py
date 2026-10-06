@@ -85,7 +85,7 @@ def _three(src: str) -> tuple[str, str, str, str]:
     ast_p = _write(C.jsonable(parse_source(src, "x.jsh")), "_m80_ast.json")
     bc_p = _write(json.loads(compile_to_json(src, "x.jsh")), "_m80_bc.json")
     wo, we = _run(["--walk", str(ast_p)])
-    vo, ve = _run([str(bc_p)])
+    vo, ve = _run(["--load-bytecode", str(bc_p)])
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):

@@ -154,6 +154,19 @@ S2 的 3 条是已登记的 Node 网络 EBUSY 偶发）。⚠️ 这一轮差点
 🔴 **照抄了一条 Python 的怪行为**：**词法错的 `didOpen` 会让整个 `on_did_open` 抛出、文档根本不注册**（`IncrementalDocument` 在构造里就分词）。这不是「顺手修一修」的地方 —— 照抄才叫逐字一致；判据里两个方向都钉了（语法错要能开、词法错不注册）。
 📌 **性能（同机同时段，R7.3 开工首日重测）**：每次编辑 253/1253/5003/20003 行 —— Python 13.0 / 70.9 / 289.2 / **1224.3ms** vs Rust 2.4 / 11.1 / 49.8 / **207.1ms**（**5.3~6.4x**）。Rust 用**全量**重分词 + 重解析就赢了 Python 的**增量**分词，所以**没有搬 `incremental.py`**（少一份状态机，少一处会漂的地方）。
 判据 `test_m91`：逐字节对拍 + `verify-lsp.js` 双跑 + **不 import jishi / 不 spawn Python** 的独立判据（含「没有 PATH 也能跑」）+ `计时` 性能护栏。 | ✅ 2026-10-06 |
+| **R7.4 CLI + MCP 搬进 Rust** | `rust/src/run.rs`（CLI 主入口）+ `rust/src/mcp.rs`（`jishi-rs mcp`）。
+**① CLI**：`jishi-rs <文件.jsh>` / `--stdin` / `--ast` / `--json-errors` / `--sandbox` / `--json-result` / `--timeout` / `--load-bytecode` / `--dump-bytecode`。新闸门 **`tools/check_cli.py`**（89 语料 × 3 模式 × 两个引擎逐字节，另有 10 个**显式登记**的跳过：6 个读标准输入 + 3 个 `从 python 导入`（单二进制的既定能力边界）+ 1 个 `时间.计时` 缺口）→ **不一致 0**。
+**② MCP**：`jishi-rs mcp` 与 `python -m jishi.mcp_server` 同一串 **40 条报文逐字节一致**（7 个工具全过；只有 `duration_ms` 归一）。
+**③ `run_script` 到点真 kill**：子进程隔离 + 到点 `kill()`；宿主自己的沙箱超时**1 秒内**带着协议 JSON 退出。
+🔴 **位置参数语义改了**：`<文件>` 从「字节码 JSON」改成**源码**（与 `jishi <文件>` 对齐），字节码走 `--load-bytecode` —— `tests/` + `tools/` 里 25 个文件、35 处调用点跟着补了开关。
+🔴 **闸门照出 4 个真 bug**（旧判据一条都没覆盖到）：① 宿主把 `值错误("x")` 当**立刻抛**而不是**构造异常**（`令 e = 值错误("x")` 在宿主上直接崩，三个 Python 执行器都能跑）；② `TraceFrame` 少 `col`（调用链那一项恒为 `null`）；③ 树遍历的「找不到名字」`hint` 给 `""` 而另两个执行器给 `null`；④ `文件.路径拼接` **没做 `PurePosixPath` 的归一**（`文件.路径拼接(".", "pyproject.toml")` 宿主给 `./pyproject.toml`、Python 给 `pyproject.toml` —— 还会渗进「找不到文件「X」」的报错）。另修两处显示差异：**空源码行的报错渲染**（多印两行）、**`--ast` 少印 `_super_ok`**。
+⚠️ **本机环境坑**：Windows 上给子进程的 **stdin 造管道稳定失败**（`ERROR_PIPE_BUSY` / os error 231，兄弟症状是 `test_m31` 那条已登记的 `spawnSync node.exe EBUSY`）。`jishi-rs --mcp-spawn-probe` 是复现入口 —— 实测**只有 stdin 方向**有问题；解法是**用临时文件当 stdin**（`--stdin` 语义不变，只是不走管道），临时目录写不进去还会退到当前目录。
+⚠️ **Python 侧两处如实登记**（不是宿主的问题）：① CLI 的沙箱超时会**丢输出**（死循环时 stdout 全空、0.5 秒的超时要跑十几秒 —— 泄漏的守护线程抢 GIL）；② `mcp_server` 的 stdout 以前没像 `cli` 那样 `reconfigure(newline="
+")`，Windows 上吐 CRLF（已修，两侧统一 LF）。
+判据 `test_m92`（CLI，70 项）/ `test_m93`（MCP）：各含**对拍 + 不依赖 Python 的独立判据 + `计时` 护栏**。
+🔴 全量回归又抓出 **15 处** 漏改的调用点（藏在 `_run([str(bc_p)])` 这类局部助手里）——**这种全局语义改动只能靠全量回归收口，不能靠清点**；`check_engines`/`check_walk`/`check_cli` 三条闸门一条都碰不到（它们自己都用了新语义）。
+🔴 先跑出过一次假的「235 failed」：因为**同时**在 `cargo build`（二进制被替换）。**跑回归/量性能前先确认没有构建在后台跑。**
+验收：check_engines 不一致 0；check_walk 76/76；**`check_cli` 一致 282 · 不一致 0**；全量 **3302 通过**（并行 3293 + 计时 9；1 个 `test_repl` 的 harness 临时文件清理瞬态，串行复核 8 项全过）。 | ✅ 2026-10-06 |
 **① 列表活迭代（已交付）**：Rust 的 VM 与树遍历参考执行器都从「反转快照 + pop」
 改成「容器 + 下标」的**活迭代**（与 Python `list_iterator` 一致），**同时保住 O(1)**
 （`test_m64` 的 O(n²) 护栏 + 计时护栏都过）。增/删两形状五执行器对齐。

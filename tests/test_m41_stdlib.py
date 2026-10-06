@@ -99,7 +99,7 @@ def _rust(src: str, rust_exe: Path) -> str:
     bc = tmp_bc_path(ROOT / "_tmp_m41_rs.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")),
                   encoding="utf-8", newline="\n")
-    r = subprocess.run([str(rust_exe), str(bc)], capture_output=True)
+    r = subprocess.run([str(rust_exe), "--load-bytecode", str(bc)], capture_output=True)
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:400]
     return r.stdout.decode("utf-8", "replace")
 

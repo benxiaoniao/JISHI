@@ -615,7 +615,8 @@ impl Walker {
         // 进函数前**压一帧**（只对直接函数调用）—— 出错拍 trace 时它得还在栈上。
         let traced = call_site.is_some();
         if let Some(line) = call_site {
-            self.call_stack.push(TraceFrame { func: f.name.clone(), line: Some(line) });
+            self.call_stack.push(TraceFrame { func: f.name.clone(), line: Some(line),
+                                               col: None });
         }
         // 换入调用现场（**出错也要换回来**，否则递归里的错会污染外层）
         let saved_env = Rc::clone(&self.env);
@@ -1025,7 +1026,13 @@ impl Walker {
             Val::ExcType(t) => {
                 reject_kwargs("异常类型", &knames)?;
                 let msg = args.first().map(display).unwrap_or_default();
-                Err(err(&t, msg))
+                // ⚠️ **构造**异常对象，不是立刻抛（R7.4 修；与字节码 VM 同一分支
+                // 逐字同源 —— 详见 `lib.rs` 那段注释）。
+                Ok(Val::Exc(Rc::new(ExcValue {
+                    type_name: t.clone(),
+                    message: msg,
+                    code: crate::error_code(&t).map(|s| s.to_string()),
+                })))
             }
             // 类型名与提示都照 Python 的 `runtime.call_value`（E2006）——
             // 以前这里报的是「还没实现」，可「不能调用一个整数」根本不是

@@ -69,7 +69,7 @@ def _rust(src: str, rel: str = "错误.jsh") -> tuple[str, str]:
     """Rust VM 跑一遍 → `(stdout, 报错文本)`。"""
     tmp = Path(tempfile.gettempdir()) / f"_m65_{os.getpid()}.json"
     tmp.write_text(compile_to_json(src, rel), encoding="utf-8")
-    r = subprocess.run([str(EXE), str(tmp)], capture_output=True, input=b"")
+    r = subprocess.run([str(EXE), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
     return (r.stdout.decode("utf-8", "replace"),
             r.stderr.decode("utf-8", "replace"))
 
@@ -295,7 +295,7 @@ def test_读不到源文件时仍打得出一行报错():
     src = "令 列 = [1]\n列[9]\n"
     tmp = Path(tempfile.gettempdir()) / f"_m65_gone_{os.getpid()}.json"
     tmp.write_text(compile_to_json(src, "不存在的文件.jsh"), encoding="utf-8")
-    r = subprocess.run([str(EXE), str(tmp)], capture_output=True, input=b"")
+    r = subprocess.run([str(EXE), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
     err = r.stderr.decode("utf-8", "replace")
     assert r.returncode == 1, r.returncode
     assert "错误 E2003" in err, err

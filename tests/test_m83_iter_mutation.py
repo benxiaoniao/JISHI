@@ -69,7 +69,7 @@ def _rust_vm(src: str) -> str:
     tmp = Path(__file__).resolve().parents[1] / "build" / f"_m83_{os.getpid()}.json"
     tmp.parent.mkdir(parents=True, exist_ok=True)
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
-    r = subprocess.run([str(_rust()), str(tmp)], capture_output=True, input=b"")
+    r = subprocess.run([str(_rust()), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
     return r.stdout.decode("utf-8", "replace")
 
 
@@ -120,7 +120,7 @@ def test_活迭代没有退回O_n平方():
     tmp = ROOT / "build" / f"_m83_big_{os.getpid()}.json"
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     t0 = time.perf_counter()
-    r = subprocess.run([str(_rust()), str(tmp)], capture_output=True, input=b"")
+    r = subprocess.run([str(_rust()), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
     dt = time.perf_counter() - t0
     assert r.stdout.decode("utf-8", "replace").strip() == str(n * (n - 1) // 2)
     assert dt < 1.0, f"2 万元素遍历用了 {dt:.2f}s —— 像退回 O(n²) 了"
@@ -158,7 +158,7 @@ def test_集合与字典_Rust侧也报同一条():
     for src, want in ((_SET_ADD, "1\n"), (_DICT_ADD, "甲\n")):
         p = ROOT / "build" / f"_m83_guard_{os.getpid()}.json"
         p.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
-        r = subprocess.run([str(_rust()), str(p)], capture_output=True, input=b"")
+        r = subprocess.run([str(_rust()), "--load-bytecode", str(p)], capture_output=True, input=b"")
         out = r.stdout.decode("utf-8", "replace")
         err = r.stderr.decode("utf-8", "replace")
         assert out == want, f"stdout 不一致：{out!r}"

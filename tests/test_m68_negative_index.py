@@ -130,7 +130,7 @@ def engine_outputs() -> dict[str, dict[str, str]]:
     tmp.write_text(compile_to_json(src, REL), encoding="utf-8")
     rust = ROOT / "rust/target/release/jishi-rs.exe"
     if rust.exists():
-        outs["Rust"] = subprocess.run([str(rust), str(tmp)], capture_output=True,
+        outs["Rust"] = subprocess.run([str(rust), "--load-bytecode", str(tmp)], capture_output=True,
                                       input=b"", cwd=str(ROOT)).stdout.decode("utf-8", "replace")
     if NODE:
         outs["Node"] = subprocess.run([NODE, str(ROOT / "node/index.js"), str(tmp)],

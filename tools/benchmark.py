@@ -287,7 +287,7 @@ def _run_rust(src: str) -> None:
                 os.environ[_T.FRONTEND_ENV] = old
         out.write_text(body, encoding="utf-8")
         _BC_CACHE[src] = path = out
-    subprocess.run([str(_rust_exe()), str(path)],
+    subprocess.run([str(_rust_exe()), "--load-bytecode", str(path)],
                    capture_output=True, input=b"")
 
 
@@ -336,7 +336,7 @@ def _rust_startup() -> float:
     best = float("inf")
     for _ in range(5):
         t0 = time.perf_counter()
-        subprocess.run([str(exe), str(tiny)], capture_output=True, input=b"")
+        subprocess.run([str(exe), "--load-bytecode", str(tiny)], capture_output=True, input=b"")
         best = min(best, time.perf_counter() - t0)
     return best
 

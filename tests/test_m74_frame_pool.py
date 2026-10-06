@@ -73,7 +73,7 @@ def _five(src: str) -> dict[str, str]:
     tmp = Path(tempfile.gettempdir()) / f"_m74_{os.getpid()}.json"
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     if RUST.exists():
-        r = subprocess.run([str(RUST), str(tmp)], capture_output=True, input=b"")
+        r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
         out["Rust"] = r.stdout.decode("utf-8", "replace").rstrip("\n") or \
             ("【错】" + r.stderr.decode("utf-8", "replace").rstrip("\n"))
     if HAS_NODE:
@@ -175,7 +175,7 @@ def test_函数调用不再有哈希表与指令数组分配():
            "遍历 i 在 范围(200000)：\n    总和 = 加一(i)\n打印(总和)\n")
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     t0 = time.perf_counter()
-    r = subprocess.run([str(RUST), str(tmp)], capture_output=True, input=b"")
+    r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
     dt = (time.perf_counter() - t0) * 1000
     assert r.stdout.decode("utf-8", "replace").strip() == "200000", \
         r.stderr.decode("utf-8", "replace")[:200]

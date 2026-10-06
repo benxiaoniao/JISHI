@@ -524,7 +524,15 @@ def _host_run(exe: list[str], src: str, tag: str) -> tuple[bool, str]:
     """跑一个跨语言宿主。返回 `(是否正常退出, 输出+报错)`。"""
     bc = tmp_bc_path(ROOT / f"_tmp_m51_{tag}.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    r = subprocess.run(exe + [str(bc)], capture_output=True, text=True,
+    # ⚠️ **R7.4 之后 Rust 与 Node 的调用方式不一样了**：Rust 宿主的位置参数是
+    # **源码**（字节码要走 `--load-bytecode`），而 Node 宿主的位置参数**仍然是
+    # 字节码路径**（Node 侧一个字节都没改）。这个助手两边共用，所以要**看目标是谁**
+    # 再加开关 —— 无差别加会让 Node 去 `open('--load-bytecode')`。
+    cmd = list(exe)
+    if not any(str(x).endswith("index.js") for x in cmd):
+        cmd.append("--load-bytecode")
+    cmd.append(str(bc))
+    r = subprocess.run(cmd, capture_output=True, text=True,
                        encoding="utf-8", timeout=120)
     return r.returncode == 0, (r.stdout or "") + (r.stderr or "")
 

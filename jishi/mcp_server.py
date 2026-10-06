@@ -426,7 +426,30 @@ def _iter_stdin_lines():
             yield raw.decode("utf-8", "replace")
 
 
+def _setup_io() -> None:
+    """把标准输出/错误固定成「UTF-8 + 不转换换行」（R7.4）。
+
+    📌 与 `cli._setup_io` **同一个理由**，以前 MCP 这条入口漏了：
+    Windows 的文本层会把 `\n` 写成 `\r\n`，于是**同一段应答在不同平台上
+    字节不同** —— 而 MCP 的应答是给机器读的，逐字节比对时这就是「两边不一样」。
+    修在这里（而不是在 Rust 侧照抄平台换行）是因为「同一份程序到哪都一样」
+    本来就是本项目对工具输出的**明确要求**（M33 端到端对拍撞出来的）。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if stream is None or not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            stream.reconfigure(newline="\n")
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def main() -> int:
+    _setup_io()
     for line in _iter_stdin_lines():
         line = line.strip()
         if not line:

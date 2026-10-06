@@ -293,7 +293,7 @@ def main(argv: "list[str] | None" = None) -> int:
     tmp.write_text(compile_to_json(src, REL), encoding="utf-8")
     rust = ROOT / "rust/target/release/jishi-rs.exe"
     if rust.exists():
-        outs["Rust"] = subprocess.run([str(rust), str(tmp)], capture_output=True,
+        outs["Rust"] = subprocess.run([str(rust), "--load-bytecode", str(tmp)], capture_output=True,
                                       input=b"", cwd=str(ROOT)).stdout.decode("utf-8", "replace")
     else:
         print("（注：Rust 宿主没构建，本次少一个执行器；`cd rust && cargo build --release`）")

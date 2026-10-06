@@ -755,7 +755,12 @@ class Interpreter:
                 line=node.line, col=node.col, hint=hint, filename=self.filename)
         # 未定义：给中文报错与"你是不是想写"建议
         candidates = self._suggest(name)
-        hint = ""
+        # ⚠️ 没有候选名就是 **None**（不是空串）—— 与 `runtime.py` 那条
+        # 同源实现、以及字节码 VM / C VM 给出来的 JSON 对齐（R7.4 修：
+        # 以前这里写 `""`，于是 `--json-errors` 里同一个错三个执行器
+        # 两个给 `null`、树遍历给 `""`）。渲染那一边不受影响（`if self.hint:`
+        # 空串本来也不印），差的只是机器可读的那份。
+        hint = None
         if candidates:
             hint = "你是不是想写「" + "」或「".join(candidates) + "」？"
         raise SemanticNameError(

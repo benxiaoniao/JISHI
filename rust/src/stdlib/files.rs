@@ -148,25 +148,10 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
         },
         "路径拼接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            // 对齐 Python 侧：用的是 `PurePosixPath`，**总是 `/`**
-            if args.is_empty() {
-                return Ok(Val::Str(".".to_string()));
-            }
-            let mut acc = as_text(&args[0]);
-            for seg in &args[1..] {
-                let seg = as_text(seg);
-                if seg.starts_with('/') {
-                    acc = seg;
-                } else if acc.is_empty() {
-                    acc = seg;
-                } else if acc.ends_with('/') {
-                    acc.push_str(&seg);
-                } else {
-                    acc.push('/');
-                    acc.push_str(&seg);
-                }
-            }
-            Ok(Val::Str(acc))
+            // 对齐 Python 侧：用的是 `PurePosixPath`，**总是 `/`**。
+            // ⚠️ 它不只是「用 `/` 连起来」—— 见 `pure_posix_join` 的注释。
+            let parts: Vec<String> = args.iter().map(as_text).collect();
+            Ok(Val::Str(pure_posix_join(&parts)))
         },
         "文件名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("文件名", args, 1)?;
@@ -176,5 +161,45 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need("扩展名", args, 1)?;
             Ok(Val::Str(suffix_of(&file_name_of(&as_text(&args[0])))))
         },
+    }
+}
+
+/// `PurePosixPath(*parts)` 的等价物 —— Python 的 `文件.路径拼接` 就是它。
+///
+/// ⚠️ **它不只是「用 `/` 连起来」**：`PurePosixPath` 会**吃掉空段与 `.` 段**
+/// （`("./x", "y")` → `x/y`、`(".", "x")` → `x`、`("a//b", "c")` → `a/b/c`），
+/// 但**保留 `..`**（`("a", "..")` → `a/..`）；整段都空时给 `"."`（绝对路径给 `"/"`）。
+///
+/// 📌 宿主以前只做「拼接」，于是 `文件.路径拼接(".", "pyproject.toml")` 在宿主上
+/// 给 `./pyproject.toml`、在 Python 上给 `pyproject.toml` —— 而这个串还会被塞进
+/// 「找不到文件「X」，无法读取」这类**给用户看的报错**里，一眼就能看出两边不一样
+/// （R7.4 的 CLI 闸门逐字节比出来的）。
+fn pure_posix_join(parts: &[String]) -> String {
+    // ① 先按 `posixpath.join` 拼：绝对段重置、空段不生效、非空段之间补 `/`
+    let mut joined = String::new();
+    for p in parts {
+        if p.starts_with('/') || joined.is_empty() {
+            joined = p.clone();
+        } else {
+            if !joined.ends_with('/') {
+                joined.push('/');
+            }
+            joined.push_str(p);
+        }
+    }
+    // ② 再按 `PurePath` 的解析规则分段：丢掉空段与 `.`，保留 `..`
+    let abs = joined.starts_with('/');
+    let segs: Vec<&str> = joined
+        .split('/')
+        .filter(|s| !s.is_empty() && *s != ".")
+        .collect();
+    if segs.is_empty() {
+        return if abs { "/".to_string() } else { ".".to_string() };
+    }
+    let body = segs.join("/");
+    if abs {
+        format!("/{body}")
+    } else {
+        body
     }
 }

@@ -81,7 +81,7 @@ def _five(src: str) -> dict[str, str]:
     tmp = Path(tempfile.gettempdir()) / f"_m72_{os.getpid()}.json"
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     if RUST.exists():
-        r = subprocess.run([str(RUST), str(tmp)], capture_output=True, input=b"")
+        r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
         out["Rust"] = r.stdout.decode("utf-8", "replace") or \
             ("【错】" + r.stderr.decode("utf-8", "replace").splitlines()[0])
     if HAS_NODE:
@@ -173,7 +173,7 @@ def test_集合写入是线性():
     src = "令 甲 = 集合()\n遍历 i 在 范围(50000)：\n    甲.添加(i)\n打印(长度(甲))\n"
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     t0 = time.perf_counter()
-    r = subprocess.run([str(RUST), str(tmp)], capture_output=True, input=b"")
+    r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
     dt = time.perf_counter() - t0
     assert r.stdout.decode("utf-8", "replace").strip() == "50000", \
         r.stderr.decode("utf-8", "replace")[:200]
@@ -194,7 +194,7 @@ def test_集合删除是线性():
            "遍历 i 在 范围(50000)：\n    甲.移除(i)\n打印(长度(甲))\n")
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     t0 = time.perf_counter()
-    r = subprocess.run([str(RUST), str(tmp)], capture_output=True, input=b"")
+    r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
     dt = time.perf_counter() - t0
     assert r.stdout.decode("utf-8", "replace").strip() == "0", \
         r.stderr.decode("utf-8", "replace")[:200]
@@ -221,7 +221,7 @@ def test_不能放进集合的报错三个执行器一个说法():
     assert "提示：集合的元素要是不可变的（数字、文本…）；列表和字典放不进去" in base, base
 
     if RUST.exists():
-        r = subprocess.run([str(RUST), str(tmp)], capture_output=True, input=b"")
+        r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
         rust_err = r.stderr.decode("utf-8", "replace")
         assert "不能放进集合" in rust_err and "提示：" in rust_err, rust_err
         assert "，集合的元素要是不可变的" not in rust_err, \

@@ -157,7 +157,7 @@ def rust_exe() -> Path:
 
 def _rust_run(src: str, exe: Path) -> tuple[int, str, str]:
     bc = _write_bc(src, "_tmp_m32_rs.json")
-    r = subprocess.run([str(exe), str(bc)], capture_output=True,
+    r = subprocess.run([str(exe), "--load-bytecode", str(bc)], capture_output=True,
                        text=True, encoding="utf-8")
     return r.returncode, r.stdout, r.stderr
 

@@ -131,7 +131,7 @@ def _host_agree(src: str, tmp_path: Path, rust_exe: Path) -> dict:
     out = {}
     if NODE:
         out["Node"] = _run_host([NODE, str(ROOT / "node" / "index.js"), str(bc)])
-    out["Rust"] = _run_host([str(rust_exe), str(bc)])
+    out["Rust"] = _run_host([str(rust_exe), "--load-bytecode", str(bc)])
     return out
 
 

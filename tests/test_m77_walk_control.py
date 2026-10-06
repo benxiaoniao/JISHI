@@ -65,7 +65,7 @@ def _three(src: str) -> tuple[str, str, str, str]:
     ast_p = _write(C.jsonable(parse_source(src, "x.jsh")), "_m77_ast.json")
     bc_p = _write(json.loads(compile_to_json(src, "x.jsh")), "_m77_bc.json")
     wo, we = _run(["--walk", str(ast_p)])
-    vo, _ = _run([str(bc_p)])
+    vo, _ = _run(["--load-bytecode", str(bc_p)])
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):
@@ -127,7 +127,7 @@ def test_控制流语料三条路逐字一致():
     ast_p = _write(doc["ast"], "_m77_c22_ast.json")
     bc_p = _write(doc["bytecode"], "_m77_c22_bc.json")
     wo, we = _run(["--walk", str(ast_p)])
-    vo, _ = _run([str(bc_p)])
+    vo, _ = _run(["--load-bytecode", str(bc_p)])
     assert we == "", we
     assert wo == vo, f"树遍历与字节码 VM 不一致\n{wo!r}\n{vo!r}"
     assert wo == (CASES / "22_控制流.out").read_text(encoding="utf-8")

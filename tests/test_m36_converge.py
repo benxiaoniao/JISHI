@@ -62,7 +62,7 @@ def _run_host(src: str, host: str, rust_exe: "Path | None", tmp: Path) -> str:
     bc = tmp / f"_m36_{host}.json"
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
     cmd = ([NODE, str(ROOT / "node" / "index.js"), str(bc)] if host == "node"
-           else [str(rust_exe), str(bc)])
+           else [str(rust_exe), "--load-bytecode", str(bc)])
     r = subprocess.run(cmd, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     assert r.returncode == 0, f"{host} 非零退出（rc={r.returncode}）：{r.stderr[-300:]}"

@@ -131,7 +131,7 @@ def _host(src: str, which: str) -> str:
     tmp = Path(tempfile.gettempdir()) / f"_m70_{which}_{os.getpid()}.json"
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
     if which == "rust":
-        r = subprocess.run([str(RUST), str(tmp)],
+        r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)],
                            capture_output=True, input=b"")
     else:
         r = subprocess.run([NODE, "node/index.js", str(tmp)],

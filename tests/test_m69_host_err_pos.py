@@ -113,7 +113,7 @@ def _three(src: str, tag: str):
     bc = _bc(src, rel)
     out = {"Python": _run([sys.executable, "-m", "jishi.cli", rel])}
     if RUST.exists():
-        out["Rust"] = _run([str(RUST), str(bc.relative_to(ROOT))])
+        out["Rust"] = _run([str(RUST), "--load-bytecode", str(bc.relative_to(ROOT))])
     if HAS_NODE:
         out["Node"] = _run([NODE, "node/index.js", str(bc.relative_to(ROOT))])
     return out

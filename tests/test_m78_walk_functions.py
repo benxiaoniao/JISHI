@@ -64,7 +64,7 @@ def _three(src: str) -> tuple[str, str, str, str]:
     ast_p = _write(C.jsonable(parse_source(src, "x.jsh")), "_m78_ast.json")
     bc_p = _write(json.loads(compile_to_json(src, "x.jsh")), "_m78_bc.json")
     wo, we = _run(["--walk", str(ast_p)])
-    vo, _ = _run([str(bc_p)])
+    vo, _ = _run(["--load-bytecode", str(bc_p)])
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):
@@ -105,7 +105,7 @@ def test_函数语料三条路逐字一致():
     ast_p = _write(doc["ast"], "_m78_c23_ast.json")
     bc_p = _write(doc["bytecode"], "_m78_c23_bc.json")
     wo, we = _run(["--walk", str(ast_p)])
-    vo, _ = _run([str(bc_p)])
+    vo, _ = _run(["--load-bytecode", str(bc_p)])
     assert we == "", we
     assert wo == vo, f"树遍历与字节码 VM 不一致\n{wo!r}\n{vo!r}"
     assert wo == (CASES / "23_函数与闭包.out").read_text(encoding="utf-8")
@@ -241,7 +241,7 @@ def test_类型函数值五个执行器都给函数():
         cvm_bind.run_source_c(src, "x.jsh")
     outs["CVM"] = buf.getvalue()
     bc_p = _write(json.loads(compile_to_json(src, "x.jsh")), "_m78_ty_bc.json")
-    outs["Rust"], _ = _run([str(bc_p)])
+    outs["Rust"], _ = _run(["--load-bytecode", str(bc_p)])
     r = subprocess.run(["node", "node/index.js", str(bc_p)],
                        capture_output=True, input=b"")
     outs["Node"] = r.stdout.decode("utf-8", "replace")

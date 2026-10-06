@@ -589,6 +589,7 @@ pub fn render_lex_error(e: &LexErr, filename: &str, source: &str) -> String {
         // 多字符下划线（如「关键字粘连」的 `~^`）—— 与 Python 侧同形。
         underline: e.underline.map(|(a, b)| (a as i64, b as i64)),
         hint: e.hint.clone(),
+        fix: None,          // 词法错没有替换建议（`fix` 只有解析器会填）
         trace: Vec::new(),
     };
     render_error_with(&err, filename, &|line| {

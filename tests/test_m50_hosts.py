@@ -59,7 +59,7 @@ def _node_run(src: str) -> tuple[int, str, str]:
 def _rust_run(src: str) -> tuple[int, str, str]:
     bc = tmp_bc_path(ROOT / "_tmp_m50_rust.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    r = subprocess.run([str(RUST), str(bc)], capture_output=True, text=True,
+    r = subprocess.run([str(RUST), "--load-bytecode", str(bc)], capture_output=True, text=True,
                        encoding="utf-8", timeout=120)
     return r.returncode, r.stdout, r.stderr
 

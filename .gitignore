@@ -14,6 +14,10 @@ build/
 # 独立打包构建环境（tools 里跑 PyInstaller 用的隔离 venv）
 build-env/
 
+# 工具误创建：某次以未展开的 `%SystemDrive%` 当路径跑命令留下的 Windows 缓存库
+# （不是我们的产物，但会一直挂在 `git status` 上）
+%SystemDrive%/
+
 # 编辑器
 .idea/
 .vscode/

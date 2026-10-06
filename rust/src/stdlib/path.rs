@@ -17,7 +17,7 @@
 use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::{as_text, need, need_range, table, R};
 use crate::stdlib::datetime::format_system_time;
@@ -102,14 +102,9 @@ fn 递归收(
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "路径";
         "连接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            if args.is_empty() {
-                return Ok(Val::Str(".".to_string()));
-            }
-            let mut buf = PathBuf::from(as_text(&args[0]));
-            for seg in &args[1..] {
-                buf.push(as_text(seg));
-            }
-            Ok(Val::Str(norm_sep(&buf)))
+            // ⚠️ 不能直接 `PathBuf::push` —— 见 `pathlike_join`。
+            let parts: Vec<String> = args.iter().map(as_text).collect();
+            Ok(Val::Str(pathlike_join(&parts)))
         },
         "存在" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("存在", args, 1)?;
@@ -279,4 +274,109 @@ fn home_dir() -> String {
         }
     }
     String::new()
+}
+
+// ---------------------------------------------------------------------------
+// `连接` 用的路径串联（`pathlib.Path` 的 `a / b`，**不是** `PathBuf::push`）
+// ---------------------------------------------------------------------------
+
+/// Python `pathlib.Path` 的 `a / b` 串联语义 —— `路径.连接` 用的就是它。
+///
+/// ⚠️ **不是 `PathBuf::push`**：Rust 的 `push` 只做「拼 + 绝对段替换」，会把
+/// `.` 与空段**原样留着**（`PathBuf::from(".").push("x")` → `./x`），而 pathlib 会
+/// 把它们**吃掉**（`Path(".") / "x"` → `x`）。宿主以前就是这么错的：
+/// `路径.连接(".", "x")` 在宿主上给 `.\x`、在 Python 上给 `x`
+/// （R7.4 顺着 CLI 闸门查 `文件.路径拼接` 时一并查出来的 —— 同族问题）。
+///
+/// 规则（与 `pathlib` 对齐）：
+/// * 段内**两种分隔符都认**（Windows 上 `/` 与 `\`）；
+/// * **吃掉**空段与 `.`、**保留** `..`（pathlib 不做消解，`a / ".."` → `a/..`）；
+/// * 绝对段（带根 / 带盘符）**重置**前面的累积；⚠️ **只带根不带盘符时保留已有盘符**
+///   （`Path("C:/a") / "/b"` → `C:\b`，这是 pathlib 的规矩，照 Rust 写会错）；
+/// * 输出用**平台原生分隔符**（Windows `\`、别处 `/`）；结果为空给 `.`。
+///
+/// ⚠️ **已知边界**：UNC 只覆盖常见的 `\\server\share\…`，`\\?\` 长路径前缀不认
+/// （Python 的 `pathlib` 也不用它拼）。这一条是**如实登记**，不是「差不多」。
+fn pathlike_join(parts: &[String]) -> String {
+    #[cfg(windows)]
+    const SEPS: [char; 2] = ['/', '\\'];
+    #[cfg(not(windows))]
+    const SEPS: [char; 1] = ['/'];
+    let sep = std::path::MAIN_SEPARATOR;
+
+    let mut drive = String::new();
+    let mut rooted = false;
+    let mut comps: Vec<&str> = Vec::new();
+
+    for p in parts {
+        let (d, r, rest) = split_drive_root(p);
+        if r || !d.is_empty() {
+            if !d.is_empty() {
+                drive = d;
+            }
+            rooted = r;
+            comps.clear();
+        }
+        for seg in rest.split(SEPS) {
+            if seg.is_empty() || seg == "." {
+                continue;
+            }
+            comps.push(seg);
+        }
+    }
+
+    if drive.is_empty() && !rooted && comps.is_empty() {
+        return ".".to_string();
+    }
+    let tail = comps.join(&sep.to_string());
+    if rooted {
+        format!("{drive}{sep}{tail}")
+    } else if !drive.is_empty() {
+        // 盘符但无根：`C:` + `x` → `C:x`（**不加分隔符**，pathlib 就是这么给的）
+        format!("{drive}{tail}")
+    } else {
+        tail
+    }
+}
+
+/// 拆出「盘符 / 根 / 其余」，口径照 `ntpath.splitdrive`。
+#[cfg(windows)]
+fn split_drive_root(p: &str) -> (String, bool, &str) {
+    // UNC：`\\server\share\…` → 盘符 `\\server\share`
+    if p.starts_with("\\\\") || p.starts_with("//") {
+        let mut it = p[2..].split(['/', '\\']);
+        let server = it.next().unwrap_or("");
+        let share = it.next().unwrap_or("");
+        if !server.is_empty() && !share.is_empty() {
+            let head = format!("\\\\{server}\\{share}");
+            let rest = &p[2 + server.len() + 1 + share.len()..];
+            let (rooted, tail) = strip_one_sep(rest);
+            return (head, rooted, tail);
+        }
+        let (_, tail) = strip_one_sep(p);
+        return (String::new(), true, tail);
+    }
+    // `X:` 盘符
+    let b = p.as_bytes();
+    if b.len() >= 2 && b[1] == b':' && (b[0] as char).is_ascii_alphabetic() {
+        let (rooted, tail) = strip_one_sep(&p[2..]);
+        return (p[..2].to_string(), rooted, tail);
+    }
+    let (rooted, tail) = strip_one_sep(p);
+    (String::new(), rooted, tail)
+}
+
+#[cfg(not(windows))]
+fn split_drive_root(p: &str) -> (String, bool, &str) {
+    let (rooted, tail) = strip_one_sep(p);
+    (String::new(), rooted, tail)
+}
+
+/// 吃掉开头**一个**分隔符（pathlib 的「根」只算一层）。
+fn strip_one_sep(p: &str) -> (bool, &str) {
+    if p.starts_with('/') || p.starts_with('\\') {
+        (true, &p[1..])
+    } else {
+        (false, p)
+    }
 }

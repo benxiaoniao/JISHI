@@ -3,8 +3,7 @@
 //! 消费 M13.1 产出的 JSON 字节码，脱离 Python 独立执行基石代码。
 //! 语义与 Python VM / JS VM 对齐。
 
-use std::cell::{Ref, RefCell, RefMut};
-use std::io::BufRead;
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
@@ -27,6 +26,9 @@ pub mod formatter;  // R7.1-d：代码格式化（formatter.py 的移植）
 pub mod jsonw;      // R7.2 起：保序 JSON 写出器（--lang-spec 与 LSP 共用）
 pub mod scope;      // R7.3：AST 作用域分析（scope.py 的移植，checker 与 LSP 共用）
 pub mod lsp;        // R7.3：语言服务器（lsp.py 的移植，`jishi-rs lsp`）
+pub mod run;        // R7.4：CLI 主入口（cli.py 的移植）
+pub mod sandbox;    // R7.4：沙箱（sandbox.py 的移植）
+pub mod mcp;        // R7.4：MCP 服务器（mcp_server.py 的移植，`jishi-rs mcp`）
 pub mod langdata;   // R7.2：语言元数据的显式表（**生成**，见 tools/gen_langdata_rs.py）
 pub mod langspec;   // R7.2：语言元数据 → JSON（`jishi --lang-spec`）
 mod zip;
@@ -1293,6 +1295,11 @@ struct Module {
 pub struct TraceFrame {
     pub func: String,
     pub line: Option<i64>,
+    /// 调用点的**列号**（R7.4 补）：Python 侧的调用链是
+    /// `{"func", "line", "col"}` 三项，宿主以前只带前两项 ——
+    /// 于是 `--json-errors` / MCP 的 `trace` 里 `col` 恒为 `null`，
+    /// 同一段程序两边 JSON 对不上（沙箱对拍照出来的）。
+    pub col: Option<i64>,
 }
 
 impl Module {
@@ -1340,6 +1347,13 @@ pub struct JishiError {
     /// 修法 / 线索提示（M56）：宿主原来**没有**这个字段（M54 记的账），
     /// 于是 Python 侧那句「你是不是想写「长度」？」在宿主上给不出来。
     pub hint: Option<String>,
+    /// 「按下就能改」的替换建议 `(旧, 新)`（R7.4 补）。
+    ///
+    /// ⚠️ 只有**解析器**会给它（`print` → `打印` 这类英文关键字/内建的纠正），
+    /// 所以它只出现在语法错上。`--json-errors` 要把它序列化成
+    /// `{"old","new","line","col"}`（Python 侧 `ai.error_to_json`）——
+    /// 以前宿主没这个字段，于是**同一个错两边 JSON 长度都不一样**。
+    pub fix: Option<(String, String)>,
     /// 调用链（R6.3）：**从外到内**，最外层模块帧不算。
     /// 没进过函数调用就是空（那种情况 Python 侧也不印回溯块）。
     pub trace: Vec<TraceFrame>,
@@ -1401,7 +1415,7 @@ pub fn error_title(type_name: &str) -> &str {
 pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
-                 line: None, col: None, underline: None, hint: None,
+                 line: None, col: None, underline: None, hint: None, fix: None,
                  trace: Vec::new() }
 }
 
@@ -1418,6 +1432,18 @@ pub(crate) fn err_coded_hint(t: &str, code: &str, msg: impl Into<String>,
     e
 }
 
+/// `err` 的**带显式错误码**版（沙箱那几条要用）。
+///
+/// 📌 为什么要它：「运行期错误」在 `error_code` 表里**故意没有配码**
+/// （那张表只映射能确定的类型名），而 Python 侧的 `RunError.code` 就是 `E2000`
+/// —— 沙箱的「输出超限 / 超时 / 导入被拦」都是 `RunError`。所以这几条
+/// **自己带上码**，与 `err_coded_hint` 是一对（一个带提示、一个不带）。
+pub(crate) fn err_coded(t: &str, code: &str, msg: impl Into<String>) -> JishiError {
+    let mut e = err(t, msg);
+    e.code = Some(code.to_string());
+    e
+}
+
 /// 「遍历时改了容器的大小」—— 文案与提示**只有一份**（Python 侧 `errors.py` 同名
 /// 常量），五个执行器逐字一致（D77 §二）。
 pub(crate) const ITER_SIZE_CHANGED: &str = "遍历的过程中改了容器的大小（这次遍历没法继续了）";
@@ -1428,7 +1454,7 @@ pub(crate) fn err_with_hint(t: &str, msg: impl Into<String>, hint: String) -> Ji
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
                  line: None, col: None, underline: None, hint: Some(hint),
-                 trace: Vec::new() }
+                 fix: None, trace: Vec::new() }
 }
 
 // ---------------------------------------------------------------------------
@@ -1672,6 +1698,10 @@ pub struct VM {
     output: String,
     /// 错误流缓冲（目前只有 `测试.汇总` 往里写；见 `write_stderr`）。
     output_err: String,
+    /// stdout 上限（字符数；沙箱用，`None` = 不限）。见 `write_output`。
+    output_limit: Option<usize>,
+    /// 上一次写入把上限撑爆了 —— 由 `execute_frame` 在**下一条指令前**抛错。
+    output_overflow: bool,
 }
 
 /// 建全局表：长度 = 名字个数，**内建按名字预填**，其余留 `None`。
@@ -1699,6 +1729,8 @@ impl VM {
             last_value: Val::None_,
             output: String::new(),
             output_err: String::new(),
+            output_limit: None,
+            output_overflow: false,
         }
     }
 
@@ -1823,7 +1855,7 @@ impl VM {
             } else {
                 code.name.clone()
             };
-            chain.push(TraceFrame { func: name, line: fr.call_line });
+            chain.push(TraceFrame { func: name, line: fr.call_line, col: fr.call_col });
         }
         e.trace = chain;
     }
@@ -1842,6 +1874,15 @@ impl VM {
         loop {
             if ip >= instrs.len() {
                 return Ok(Flow::Return);
+            }
+            // 沙箱：上一条指令把 stdout 撑爆了 → 就在这条边界上报错（M9.1）。
+            // 位置由 `fill_error_loc` 补：那时 `frame.ip` 还指着**那条写入的指令**。
+            if self.output_overflow {
+                let lim = self.output_limit.unwrap_or(0);
+                // ⚠️ 自带 `E2000`（Python 侧这三条沙箱错误都是 `RunError`，
+                // 而 `error_code` 表里「运行期错误」故意没配码）。
+                return Err(err_coded("运行期错误", "E2000",
+                                     format!("输出超过上限（{lim} 字符）")));
             }
             // M56：把「正跑到哪一条」写回帧 —— 出错冒泡到 `execute` 时，
             // 靠它查「第几行第几列」（见 `fill_error_loc`）。
@@ -2094,7 +2135,22 @@ impl VM {
                         Val::ExcType(t) => {
                             reject_kwargs("异常类型", &knames)?;
                             let msg = args.first().map(display).unwrap_or_default();
-                            return Err(err(&t, msg));
+                            // ⚠️ **构造**一个异常对象，**不是**立刻抛（R7.4 修的）。
+                            // Python 侧 `ExcType.__call__` 是 `self.cls(message)` —— 造出实例：
+                            // `令 e = 值错误("x")` 之后 `类型(e)` 是「异常」、`e.消息` 拿得到，
+                            // `捕获 值错误` 也接得住。宿主以前**直接 `Err`**，后果有两个：
+                            // ① `令 e = 值错误("x")` 整个崩掉（Python 侧跑得好好的）；
+                            // ② `抛出 值错误("x")` 的报错位置落在**参数那个 CALL 指令**上
+                            //    （(1,7) 而不是 (1,1)）—— 三个 Python 执行器给的都是 (1,1)。
+                            // 语料里没有「只构造不抛」的写法，所以这条一直是静默的
+                            // （R7.4 的沙箱对拍把它照出来了）。
+                            // 压栈而不是 `return` —— 与上面 `builtin =>` 那条一样，
+                            // 调用完继续跑当前帧。
+                            self.stack.push(Val::Exc(Rc::new(ExcValue {
+                                type_name: t.clone(),
+                                message: msg,
+                                code: error_code(&t).map(|s| s.to_string()),
+                            })));
                         }
                         // 类型名与提示都照 Python 的 `runtime.call_value`：
                         // 「这个东西不能调用」是 `RunNotCallableError` 的 title（E2006），
@@ -2287,6 +2343,11 @@ impl VM {
                 op::IMPORT => {
                     let name = self.module.names[ins.a as usize].clone();
                     let src = ins.b;
+                    // 沙箱守卫：**先问它**（与 Python 的 `do_import` 同序）。
+                    // 行/列这里给 0，由 `fill_error_loc` 统一补成这条 `导入` 指令
+                    // 的位置 —— 与内建报错走的是同一条路，所以位置口径一致。
+                    check_import_guard(&name, src == 1, src == 2,
+                                       0, 0, &self.module.filename)?;
                     if src != 0 {
                         return Err(err("运行期错误", format!("Rust 引擎不支持「从 python/本地包」导入「{name}」")));
                     }
@@ -2791,6 +2852,17 @@ impl BuiltinHost for VM {
         VM::call_value(self, callee, args)
     }
     fn write_output(&mut self, s: &str) {
+        // 沙箱的 stdout 上限（M9.1）：超了就**这次写入整个失败**（一个字都不写），
+        // 并立个标记 —— 由 `execute_frame` 在**下一条指令前**抛错。
+        // 为什么不在写的那一刻直接返回 Err：这个 trait 方法的签名是 `-> ()`
+        // （它被内建、标准库共用），为了一个沙箱改接口会连累树遍历侧；
+        // 而「在指令边界抛」对用户和 `尝试/捕获` 的可见行为与 Python 相同。
+        if let Some(lim) = self.output_limit {
+            if self.output.chars().count() + s.chars().count() > lim {
+                self.output_overflow = true;
+                return;
+            }
+        }
         self.output.push_str(s);
     }
     fn write_stderr(&mut self, s: &str) {
@@ -3997,6 +4069,44 @@ fn b_sum(args: &[Val], _vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
 /// 干脆按模块分文件（crypto.rs / regex.rs / zip.rs / http.rs / csv.rs）。
 pub(crate) fn stdlib_module(name: &str) -> Result<Val, JishiError> {
     stdlib::module(name)
+}
+
+// ---------------------------------------------------------------------------
+// 导入守卫（M9.1 沙箱；R7.4 把它搬到宿主）
+// ---------------------------------------------------------------------------
+
+/// 沙箱的导入守卫：`导入 X` 在**真正加载前**先问它一次
+/// （与 Python 的 `do_import` 同序 —— 守卫拒绝时连模块都不去加载）。
+///
+/// 参数 `(模块名, 是否从 python, 是否从本地包, 行, 列, 文件名)`；
+/// 拒绝时自己返回 `Err(JishiError)`（消息就是给用户看的那句）。
+/// ⚠️ 用 `Box<dyn Fn>` 而不是函数指针：守卫要**带上沙箱选项**
+/// （白名单 / allow_write / allow_network / allow_python_import）。
+pub type ImportGuardFn =
+    Box<dyn Fn(&str, bool, bool, i64, i64, &str) -> Result<(), JishiError>>;
+
+thread_local! {
+    /// 当前线程的导入守卫（`None` = 不设防，也就是正常跑程序时的状态）。
+    /// 放 thread_local 的理由与 `测试` 模块的状态一样：同一个进程里可能先后跑
+    /// 多个沙箱 / 对拍好几个执行器，全局静态会串。
+    static IMPORT_GUARD: RefCell<Option<ImportGuardFn>> = RefCell::new(None);
+}
+
+/// 设置 / 卸下导入守卫（`None` = 放行一切）。
+pub fn set_import_guard(g: Option<ImportGuardFn>) {
+    IMPORT_GUARD.with(|c| *c.borrow_mut() = g);
+}
+
+/// 问一次守卫；没设守卫就放行。
+fn check_import_guard(name: &str, from_python: bool, from_local: bool,
+                      line: i64, col: i64, filename: &str) -> Result<(), JishiError> {
+    IMPORT_GUARD.with(|c| {
+        let b = c.borrow();
+        match b.as_ref() {
+            Some(f) => f(name, from_python, from_local, line, col, filename),
+            None => Ok(()),
+        }
+    })
 }
 
 /// `--dump-stdlib`：这个宿主**实际带的标准库模块与函数**，打成 JSON（M51）。
@@ -5467,6 +5577,17 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
     Ok(VM::new(Module { consts, names, kw_names, codes, main, filename }))
 }
 
+/// 设 stdout 上限（字符数；沙箱用，`None` = 不限）。
+pub fn set_output_limit(vm: &mut VM, lim: Option<usize>) {
+    vm.output_limit = lim;
+}
+
+/// 取「最后一个表达式语句的值」—— `eval_expr`（MCP）与 Python 的
+/// `Interpreter._last_value` 同义：`令 x = 1` 这种没有表达式语句的取到 `空`。
+pub(crate) fn last_value(vm: &VM) -> &Val {
+    &vm.last_value
+}
+
 /// 取**错误流**缓冲（`测试.汇总` 的失败明细）。与 `get_output` 并列。
 pub fn get_output_err(vm: &VM) -> &str {
     &vm.output_err
@@ -5541,7 +5662,14 @@ pub(crate) fn render_error_with(
         let col = e.col.unwrap_or(1);
         out.push_str(&format!("\n  ┌─ {filename}:{line}:{col}"));
         out.push_str("\n  │");
-        if let Some(src) = get_line(line) {
+        // ⚠️ **源码行是空串就整段不印**（不是「印一个空的 `  2 │ ` 出来」）——
+        // Python 侧是 `if self.source_line:`，空串为假，于是连 `^` 指示行一起跳过。
+        // 宿主以前只看 `get_line` 有没有返回 `Some`，于是「空行上的错」
+        // （`tests/error_cases/41_块首后空行.jsh`）会多印两行 —— R7.4 的
+        // CLI 闸门逐字节比出来的。
+        if let Some(src) = get_line(line).filter(|s| {
+            !s.trim_end_matches(['\n', '\r']).is_empty()
+        }) {
             let src = src.trim_end_matches(['\n', '\r']);
             out.push_str(&format!("\n{line:>3} │ {src}"));
             // 下划线区间：缺省退回 `(col, col)`（只画一个 `^`）；有区间时

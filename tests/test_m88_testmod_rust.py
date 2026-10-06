@@ -82,7 +82,7 @@ def _env() -> dict:
 
 
 def _run_rust(prog_json: Path):
-    r = subprocess.run([str(_rust()), str(prog_json)], capture_output=True,
+    r = subprocess.run([str(_rust()), "--load-bytecode", str(prog_json)], capture_output=True,
                        input=b"", env=_env(), cwd=str(ROOT))
     return (r.stdout.decode("utf-8", "replace"),
             r.stderr.decode("utf-8", "replace"), r.returncode)

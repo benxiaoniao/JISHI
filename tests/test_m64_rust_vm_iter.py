@@ -82,7 +82,7 @@ def _rust(src: str, timeout: float = 120.0):
     _BC.parent.mkdir(parents=True, exist_ok=True)
     _BC.write_text(compile_to_json(src, "遍历.jsh"), encoding="utf-8")
     t0 = time.perf_counter()
-    r = subprocess.run([str(EXE), str(_BC)], capture_output=True,
+    r = subprocess.run([str(EXE), "--load-bytecode", str(_BC)], capture_output=True,
                        input=b"", timeout=timeout)
     dt = time.perf_counter() - t0
     return r.stdout.decode("utf-8", errors="replace"), dt

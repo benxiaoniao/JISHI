@@ -156,7 +156,7 @@ def _run_rust_vm(src: str, rel: str) -> tuple[str, str]:
     body = compile_to_json(src, rel)
     tmp = Path(tempfile.gettempdir()) / f"_check_engines_{os.getpid()}.json"
     tmp.write_text(body, encoding="utf-8")
-    r = subprocess.run([str(_rust_exe()), str(tmp)],
+    r = subprocess.run([str(_rust_exe()), "--load-bytecode", str(tmp)],
                        capture_output=True, input=b"")
     return (r.stdout.decode("utf-8", errors="replace"),
             r.stderr.decode("utf-8", errors="replace"))
