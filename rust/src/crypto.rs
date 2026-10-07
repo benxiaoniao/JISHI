@@ -360,6 +360,11 @@ fn digest(algo: &str, data: &[u8]) -> String {
     }
 }
 
+/// `sha256` 的十六进制串 —— 包管理的校验和用它（`packages.py::_sha256_file`）。
+pub(crate) fn sha256_hex(data: &[u8]) -> String {
+    sha256(data)
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "加密";
         "摘要" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {

@@ -176,12 +176,16 @@ mod client {
         describe_code(code)
     }
 
+    /// 发一个请求，返回**响应体原始字节**。
+    ///
+    /// 返回字节（不是 `String`）是因为包管理要下 zip（R7.6）—— 文本调用方
+    /// 自己 `from_utf8_lossy`（见模块级的 `request_text`）。
     pub fn request(
         url: &Url,
         method: &str,
         body: Option<&[u8]>,
         timeout: f64,
-    ) -> Result<String, JishiError> {
+    ) -> Result<Vec<u8>, JishiError> {
         let ms = (timeout * 1000.0) as i32;
         let agent = wide(AGENT);
         let session = unsafe {
@@ -290,7 +294,7 @@ mod client {
             buf.truncate(got as usize);
             out.extend_from_slice(&buf);
         }
-        Ok(String::from_utf8_lossy(&out).to_string())
+        Ok(out)
     }
 }
 
@@ -311,7 +315,7 @@ mod client {
         method: &str,
         body: Option<&[u8]>,
         timeout: f64,
-    ) -> Result<String, JishiError> {
+    ) -> Result<Vec<u8>, JishiError> {
         if url.secure {
             return Err(err(
                 "运行期错误",
@@ -368,7 +372,7 @@ mod client {
         if head.to_ascii_lowercase().contains("transfer-encoding: chunked") {
             body_bytes = dechunk(&body_bytes);
         }
-        Ok(String::from_utf8_lossy(&body_bytes).to_string())
+        Ok(body_bytes)
     }
 
     fn dechunk(data: &[u8]) -> Vec<u8> {
@@ -405,6 +409,22 @@ fn timeout_of(args: &[Val], idx: usize) -> Result<f64, JishiError> {
     }
 }
 
+/// `client::request` 的**文本**封装（标准库 `网络.*` 用）—— 字节按 UTF-8 宽松解码。
+fn request_text(url: &Url, method: &str, body: Option<&[u8]>, timeout: f64)
+    -> Result<String, JishiError> {
+    let b = client::request(url, method, body, timeout)?;
+    Ok(String::from_utf8_lossy(&b).to_string())
+}
+
+/// 取一段网址的**原始字节** —— 包管理下载 zip 用（R7.6）。
+///
+/// ⚠️ 只认 `http://` / `https://`（与标准库 `网络.获取` 同一套）。`file://`
+/// 由调用方自己处理（包管理的本地镜像场景，见 `packages.rs`）。
+pub(crate) fn fetch_bytes(url: &str, timeout: f64) -> Result<Vec<u8>, JishiError> {
+    let u = parse_url(url)?;
+    client::request(&u, "GET", None, timeout)
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "网络";
         "获取" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -412,7 +432,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let raw = as_text(&args[0]);
             let t = timeout_of(args, 1)?;
             let url = parse_url(&raw)?;
-            Ok(Val::Str(client::request(&url, "GET", None, t).map_err(|e| {
+            Ok(Val::Str(request_text(&url, "GET", None, t).map_err(|e| {
                 err("运行期错误", format!("访问「{raw}」失败：{}", e.message))
             })?))
         },
@@ -426,7 +446,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Vec::new()
             };
             let url = parse_url(&raw)?;
-            Ok(Val::Str(client::request(&url, "POST", Some(&body), t).map_err(|e| {
+            Ok(Val::Str(request_text(&url, "POST", Some(&body), t).map_err(|e| {
                 err("运行期错误", format!("提交到「{raw}」失败：{}", e.message))
             })?))
         },
@@ -435,7 +455,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let raw = as_text(&args[0]);
             let t = timeout_of(args, 1)?;
             let url = parse_url(&raw)?;
-            let text = client::request(&url, "GET", None, t).map_err(|e| {
+            let text = request_text(&url, "GET", None, t).map_err(|e| {
                 err("运行期错误", format!("访问「{raw}」失败：{}", e.message))
             })?;
             crate::stdlib::jsonmod::parse_pub(&text)

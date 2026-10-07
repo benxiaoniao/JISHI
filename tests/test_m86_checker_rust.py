@@ -78,7 +78,7 @@ def _env() -> dict:
 
 
 def _rust_check(*argv: str):
-    r = subprocess.run([str(_rust()), "检查", *argv], capture_output=True,
+    r = subprocess.run([str(_rust()), "源码静态检查", *argv], capture_output=True,
                        input=b"", env=_env(), cwd=str(ROOT))
     return (r.stdout.decode("utf-8", "replace"),
             r.stderr.decode("utf-8", "replace"), r.returncode)

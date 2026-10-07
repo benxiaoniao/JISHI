@@ -358,17 +358,24 @@ def test_display_of_class_and_function():
     ) == "<类 甲>\n<函数 乙>\n[<类 甲>, <函数 乙>]\n"
 
 
-def test_display_of_builtin_and_module():
+def test_display_of_builtin_and_module(rust_exe):
+    # ⚠️ 2026-10-07 加 Rust：`_agree` 只比 Python VM 与 Node —— 于是宿主把内建
+    # 渲染成 `<内建函数 打印>` 这个**真 bug** 一直没被发现（R7.5 收尾的调试器
+    # `变量 全部` 对拍照出来的）。这里补上 `_agree_rust`，四个引擎一起对。
     assert _agree_all(
         "导入 数学\n打印(打印)\n打印(数学)\n打印([打印, 数学])\n"
     ) == "<内建 打印>\n<模块 数学>\n[<内建 打印>, <模块 数学>]\n"
+    assert _agree_rust(
+        "导入 数学\n打印(打印)\n打印(数学)\n打印([打印, 数学])\n", rust_exe
+    ) == "<内建 打印>\n<模块 数学>\n[<内建 打印>, <模块 数学>]\n"
 
 
-def test_display_of_instance_and_exception_type():
-    assert _agree_all(
-        "类 甲：\n    函数 m(自身)：\n        返回 1\n令 a = 新建 甲()\n"
-        "打印(a)\n打印(值错误)\n"
-    ) == "<甲 实例>\n<异常类型 值错误>\n"
+def test_display_of_instance_and_exception_type(rust_exe):
+    src = ("类 甲：\n    函数 m(自身)：\n        返回 1\n令 a = 新建 甲()\n"
+           "打印(a)\n打印(值错误)\n")
+    assert _agree_all(src) == "<甲 实例>\n<异常类型 值错误>\n"
+    # 同上：宿主以前把异常类型渲染成裸的 `值错误`（少 `<异常类型 …>` 那层）。
+    assert _agree_rust(src, rust_exe) == "<甲 实例>\n<异常类型 值错误>\n"
 
 
 def test_class_text_method_still_wins():

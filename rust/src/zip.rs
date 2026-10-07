@@ -250,6 +250,38 @@ fn walk(dir: &str, prefix: &str, out: &mut Vec<(String, String)>) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 包管理复用的两个底层能力（R7.6）
+// ---------------------------------------------------------------------------
+
+/// 打一个 **stored**（不压缩）zip，返回字节 —— `jishi 发布` / `jishi 索引` 用。
+///
+/// 条目按给定顺序写入。⚠️ 与 Python 的 `zipfile.ZIP_DEFLATED` 只有**内容**一样、
+/// **字节**不同（stored vs deflate）——所以「包体积」与「zip 的 sha256」两边对不上，
+/// 这是与标准库 `压缩.打包` 同一条已知差异（见模块头）。
+pub(crate) fn build_stored(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
+    let mut z = Out::new();
+    for (name, data) in entries {
+        z.add(name, data);
+    }
+    z.finish()
+}
+
+/// 解一个 zip，返回 `(条目名, 内容)`，顺序 = **中央目录顺序**（Python 的
+/// `namelist()` 就是这个顺序）。目录条目（名字以 `/` 结尾）内容为空。
+pub(crate) fn read_all(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, JishiError> {
+    let entries = read_entries(data)?;
+    let mut out = Vec::with_capacity(entries.len());
+    for e in &entries {
+        if e.name.ends_with('/') {
+            out.push((e.name.clone(), Vec::new()));
+            continue;
+        }
+        out.push((e.name.clone(), extract(data, e)?));
+    }
+    Ok(out)
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "压缩";
         "打包" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {

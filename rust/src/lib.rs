@@ -31,6 +31,7 @@ pub mod sandbox;    // R7.4：沙箱（sandbox.py 的移植）
 pub mod mcp;        // R7.4：MCP 服务器（mcp_server.py 的移植，`jishi-rs mcp`）
 pub mod debugger;   // R7.5：调试会话（debugger.py 的移植）
 pub mod dap;        // R7.5：DAP 适配器（dap.py 的移植，`jishi-rs dap`）
+pub mod packages;   // R7.6：包管理（packages.py + cli.py 的包命令）
 pub mod langdata;   // R7.2：语言元数据的显式表（**生成**，见 tools/gen_langdata_rs.py）
 pub mod langspec;   // R7.2：语言元数据 → JSON（`jishi --lang-spec`）
 mod zip;
@@ -3036,8 +3037,12 @@ pub(crate) fn display(v: &Val) -> String {
             format!("<文件 {}（{}）>", h.path, h.state())
         }
         Val::Module(n, _) => format!("<模块 {n}>"),
-        Val::Builtin(n, _) => format!("<内建函数 {n}>"),
-        Val::ExcType(t) => t.clone(),
+        // ⚠️ 与 Python 的 `jishi_repr` **逐字**一致（`<内建 打印>`、
+        // `<异常类型 值错误>`）—— 2026-10-07 修：宿主以前给 `<内建函数 打印>` /
+        // 裸的 `值错误`。旧测试没覆盖到（`test_m32` 的 `_agree` 只比 Python VM
+        // 与 Node，没算上 Rust），是「调试器 `变量 全部` 对拍」照出来的。
+        Val::Builtin(n, _) => format!("<内建 {n}>"),
+        Val::ExcType(t) => format!("<异常类型 {t}>"),
         // 只在「信号穿过 finally」的内部流程里短暂出现，用户看不到
         Val::LoopSignal(c) => if *c == 1 { "中断".to_string() } else { "继续".to_string() },
         Val::BoundMethod(_) => "<方法>".to_string(),

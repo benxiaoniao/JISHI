@@ -116,7 +116,7 @@ def test_错误码_只写数字也认():
 
 
 # ---------------------------------------------------------------------------
-# 二、`jishi-rs 检查 [路径]`（R7.1-c）
+# 二、`jishi-rs 源码静态检查 [路径]`（R7.1-c；R7.6 起与 Python 同名）
 # ---------------------------------------------------------------------------
 
 #: 四条规则各中一次的夹具
@@ -162,7 +162,7 @@ def test_静态检查_四条规则的输出是写死的期望():
         rel = str(d.relative_to(ROOT))
         if os.name == "nt":
             rel = rel.replace("/", "\\")
-        out, err, code = _run("检查", rel)
+        out, err, code = _run("源码静态检查", rel)
         assert out == _expect_check_text(rel + "\\四条.jsh") if os.name == "nt" \
             else out == _expect_check_text(rel + "/四条.jsh")
         assert err == "" and code == 1
@@ -177,7 +177,7 @@ def test_静态检查_json形态字段齐全():
     d.mkdir(parents=True, exist_ok=True)
     (d / "四条.jsh").write_text(_FIXTURE, encoding="utf-8")
     try:
-        out, err, code = _run("检查", str(d.relative_to(ROOT)), "--json")
+        out, err, code = _run("源码静态检查", str(d.relative_to(ROOT)), "--json")
         assert err == "" and code == 1
         payload = json.loads(out)                 # 顺带钉住「是合法 JSON」
         assert payload["ok"] is False
@@ -199,7 +199,7 @@ def test_静态检查_语法错也当一条问题():
     d.mkdir(parents=True, exist_ok=True)
     (d / "坏.jsh").write_text("令 甲 = \n", encoding="utf-8")
     try:
-        out, err, code = _run("检查", str(d.relative_to(ROOT)))
+        out, err, code = _run("源码静态检查", str(d.relative_to(ROOT)))
         assert code == 1 and err == ""
         assert "[error] E0201：" in out, out
         assert "共 1 个问题（错误 1 个 / 警告 0 个）" in out
@@ -215,7 +215,7 @@ def test_静态检查_干净文件退码0():
     (d / "干净.jsh").write_text("打印(1)\n", encoding="utf-8")
     try:
         rel = str(d.relative_to(ROOT))
-        out, err, code = _run("检查", rel)
+        out, err, code = _run("源码静态检查", rel)
         assert out == "检查了 1 个路径，没发现问题。\n"
         assert err == "" and code == 0
     finally:

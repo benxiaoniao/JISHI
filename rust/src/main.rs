@@ -341,10 +341,12 @@ fn main() -> ExitCode {
         eprintln!("      jishi-rs --dump-methods");
         eprintln!("      jishi-rs --dump-builtins");
         eprintln!("      jishi-rs 错误 [码]        # 查错误码（R7.1-b）");
-        eprintln!("      jishi-rs 检查 [路径...] [--json]   # 源码静态检查（R7.1-c）");
+        eprintln!("      jishi-rs 源码静态检查 [路径...] [--json]   # 源码检查（R7.1-c）");
         eprintln!("      jishi-rs 格式化 [文件] [--stdin] [--check] [--write] [--indent N]");
+        eprintln!("      jishi-rs 安装/卸载/列表/发布/索引/检查   # 包管理（R7.6）");
         eprintln!("      jishi-rs lsp               # 语言服务器（stdio，R7.3）");
         eprintln!("      jishi-rs dap               # 调试适配器（stdio，R7.5）");
+        eprintln!("      jishi-rs 调试 <文件.jsh>   # 交互式调试（R7.5 收尾）");
         eprintln!("      jishi-rs mcp               # MCP 服务器（stdio，R7.4）");
         eprintln!("      jishi-rs <文件.jsh> [选项]  # 跑源码 / --ast / --json-errors / --sandbox");
         return ExitCode::from(2);
@@ -412,7 +414,13 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     // R7.1-c：`jishi 源码静态检查` 搬进 Rust（四条 lint，逐字对齐 Python 侧）。
-    if args[1] == "检查" || args[1] == "--check" {
+    //
+    // 🔴 2026-10-07（R7.6）改了命令名：以前这里叫 `检查`，但 Python 侧的 `检查`
+    // 是**包依赖冲突检测**（`_run_package_cmd`），源码检查叫 `源码静态检查`
+    // （别名 `静态检查`）。R7.6 把包管理搬进来时，`检查` 必须让回给包管理 ——
+    // 否则 `jishi-rs 检查` 与 `jishi 检查` 是两条不同的命令，等 Rust 顶上
+    // `jishi` 这个名字时脚本会**静默走错命令**（这是本项目最想避免的一类问题）。
+    if args[1] == "源码静态检查" || args[1] == "静态检查" || args[1] == "--check" {
         return run_check(&args[2..]);
     }
     // R7.1-d：`jishi 格式化` 搬进 Rust（保留注释与字面量原样，只调排版）。
@@ -445,6 +453,12 @@ fn main() -> ExitCode {
         }
         return ExitCode::from(jishi_ffi::dap::run_dap(&engine) as u8);
     }
+    // R7.5 收尾：`jishi 调试`（交互式命令行）搬进 Rust —— 会话核心在 R7.5 已就绪，
+    // 这一轮补的是**命令表**（断点/变量/查看/栈/源码/帮助…）与 `LineDriver`。
+    // `--执行器 vm/cvm` 明确拒绝（与 dap 同一登记）。
+    if args[1] == "调试" || args[1] == "--debug" {
+        return ExitCode::from(jishi_ffi::debugger::run_debug(&args[2..]) as u8);
+    }
     if args[1] == "--mcp-spawn-probe" {
         return spawn_probe();
     }
@@ -467,6 +481,12 @@ fn main() -> ExitCode {
     if args[1] == "--dump-format-tables" || args[1] == "--dump_format_tables" {
         println!("{}", jishi_ffi::formatter::dump_tables_json());
         return ExitCode::SUCCESS;
+    }
+    // R7.6：包管理子命令（安装/卸载/列表/发布/索引/检查）走独立入口 ——
+    // 避免与「运行文件」的位置参数冲突（与 Python 的 `cli.main` 同口径）。
+    if matches!(args[1].as_str(),
+                "安装" | "卸载" | "列表" | "发布" | "索引" | "检查") {
+        return jishi_ffi::packages::run_package_cmd(&args[1..]);
     }
     // 其余一律交给 CLI 主入口（R7.4）。
     //

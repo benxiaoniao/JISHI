@@ -214,7 +214,6 @@ impl Scope {
         self.vars.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 }
-
 /// `循环 N` 的 N —— 与 Python 的 `int(n)` 对齐（树遍历执行器就是那么做的）：
 /// 整数原样、布尔当 0/1、浮点**向零截断**（`int(3.7) == 3`）、文本能解析就用。
 ///
@@ -321,6 +320,17 @@ impl Walker {
     /// 模块作用域（调试器看「模块顶层」那一帧要用它）。
     pub(crate) fn globals(&self) -> Rc<RefCell<Scope>> {
         Rc::clone(&self.globals)
+    }
+
+    /// 内建表的一份快照 `(名字, 值)` —— **只给调试器的「变量 全部」用**。
+    ///
+    /// 为什么要它：Python 把整套内建函数与异常类型装进**模块环境**，所以
+    /// `变量 全部` 在模块顶层会一次列出三十多个；树遍历执行器的内建在
+    /// `Walker::builtins` **另一张表**里。为了命令行会话与 Python **逐字一致**，
+    /// 模块顶层那一帧要能把这批名字也列出来 —— 这是**纯显示**，不往任何作用域里
+    /// 塞东西（调试器不改语义）。
+    pub(crate) fn builtin_entries(&self) -> Vec<(String, Val)> {
+        self.builtins.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
     /// 查一个名字的**当前值**（调试器「查看 名字」直接用 `eval`，这个给
