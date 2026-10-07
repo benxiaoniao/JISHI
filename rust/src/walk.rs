@@ -189,8 +189,7 @@ impl Scope {
         None
     }
     /// 链上**有没有**这个名字（不看值）—— 只用来挑「赋值前读局部」的提示语。
-    fn has_name(&self, name: &str) -> bool {
-        if self.vars.contains_key(name) {
+    fn has_name(&self, name: &str) -> bool {        if self.vars.contains_key(name) {
             return true;
         }
         let mut cur = self.parent.clone();
@@ -205,6 +204,14 @@ impl Scope {
             cur = up;
         }
         false
+    }
+
+    /// 这一层**自己**绑的名字（不含沿链的父层）—— 调试器「看变量」要的正是它。
+    ///
+    /// ⚠️ 只给**调试器**用（R7.5）。语言语义那边一律走 `lookup`（沿链找），
+    /// 因为「赋值即局部 + 闭包读外层」就是要沿链。
+    pub(crate) fn own_vars(&self) -> Vec<(String, Val)> {
+        self.vars.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 }
 
@@ -243,6 +250,45 @@ pub(crate) struct Walker {
     pub(crate) output: String,
     /// 错误流缓冲（与字节码 VM 同构；目前只有 `测试.汇总` 往里写）。
     pub(crate) output_err: String,
+    /// 输出出口（R7.5）。`None` = 只攒在 `output` 缓冲里（CLI / `--walk` 就是
+    /// 这样）；挂了就是**每写一次就报一次**（DAP 把每次 `write` 变成一条
+    /// `output` 事件，粒度必须与 Python 的 `_StreamOut.write` 一致）。
+    /// 参数 `(文本, 是不是 stderr)`。
+    output_sink: Option<Box<dyn FnMut(&str, bool)>>,
+    /// 调试钩子（R7.5）。`None` = 不挂调试器 —— 此时每个语句只多一次判空，
+    /// 语义与性能都不变（这是「调试器不改语义」那条原则的实现方式）。
+    ///
+    /// ⚠️ **为什么是 `Option<Box<dyn>>` 而不是泛型**：泛型会给 `Walker` 多一个
+    /// 类型参数，所有 `Walker::new()` 的调用点都要跟着写 `Walker::<NoDebug>::new()`
+    /// —— 而调试只影响一个入口，不值得污染整个类型。
+    debugger: Option<Box<dyn DebugHooks>>,
+    /// 「调试器看到的当前作用域」——**只在类体里与 `env` 不同**。
+    ///
+    /// Python 侧 `_do_classdef` 是**在外层 env 里**逐句执行的（方法闭包也拿外层
+    /// env，类变量另收一张表）；而 Rust 这边类体跑在**子作用域**里（方法闭包拿
+    /// 子作用域，于是方法能直接读类变量）。两者的**语言语义**在语料上等价
+    /// （`check_walk` / `check_engines` 全绿），但**调试器看到的变量表会不同**。
+    /// 为了让 DAP 的报文与 Python 逐字节一致，这里显式记住「Python 会给哪个
+    /// 作用域」，钩子优先用它。非类体时它是 `None`（= 就用 `env`）。
+    debug_env: Option<Rc<RefCell<Scope>>>,
+}
+
+/// 调试器要执行器提供的三件事（R7.5）。
+///
+/// 📌 **为什么是「三件」而不是更多**：断点、单步、看变量、看调用栈、出错现场，
+/// 全部可以由「每个语句执行前调一次」+「进出用户函数各调一次」推出来 ——
+/// 这正是 Python 侧两条钩子（`before_stmt` / `push_frame`+`pop_frame`）的形状。
+/// 钩子**只读**：它们不写作用域、不跳语句、不改控制流；唯一的例外是
+/// `Err(调试退出)` 那一条信号（见 `lib.rs::DEBUG_QUIT`）。
+pub(crate) trait DebugHooks {
+    /// 每个语句执行前调用。`scope` = 调试器该看到的作用域。
+    fn before_stmt(&mut self, walker: &mut Walker, stmt: &Json,
+                   scope: &Rc<RefCell<Scope>>) -> Result<(), JishiError>;
+    /// 进入一个**用户函数**（`直接函数调用`）时调用。
+    fn push_frame(&mut self, name: &str, scope: &Rc<RefCell<Scope>>,
+                  call_line: i64, call_col: i64);
+    /// 离开那个函数时调用。
+    fn pop_frame(&mut self);
 }
 
 impl Walker {
@@ -256,7 +302,73 @@ impl Walker {
             call_stack: Vec::new(),
             output: String::new(),
             output_err: String::new(),
+            output_sink: None,
+            debugger: None,
+            debug_env: None,
         }
+    }
+
+    /// 挂上「每写一次就报一次」的输出出口（R7.5 · DAP 用）。
+    pub(crate) fn set_output_sink(&mut self, sink: Option<Box<dyn FnMut(&str, bool)>>) {
+        self.output_sink = sink;
+    }
+
+    /// 挂上调试钩子（R7.5）；传 `None` 卸下。**只影响钩子调用，不改任何语义**。
+    pub(crate) fn set_debugger(&mut self, dbg: Option<Box<dyn DebugHooks>>) {
+        self.debugger = dbg;
+    }
+
+    /// 模块作用域（调试器看「模块顶层」那一帧要用它）。
+    pub(crate) fn globals(&self) -> Rc<RefCell<Scope>> {
+        Rc::clone(&self.globals)
+    }
+
+    /// 查一个名字的**当前值**（调试器「查看 名字」直接用 `eval`，这个给
+    /// 「这个名字到底绑没绑」这类判断用）。
+    pub(crate) fn scope_of(&self) -> Rc<RefCell<Scope>> {
+        Rc::clone(self.debug_env.as_ref().unwrap_or(&self.env))
+    }
+
+    /// 在**指定作用域**里求一个表达式的值（调试器「查看 表达式」用）。
+    ///
+    /// 做法是临时把「当前作用域」换成它再求值、求完换回来 —— 与 Python 侧
+    /// `interp.eval_expr(node, env)` 的语义一致（那边是显式传 env）。
+    /// 表达式求值只读，不写作用域（`lambda` 会捕获当前 `env`，所以必须换）。
+    pub(crate) fn eval_in_scope(&mut self, node: &Json,
+                                scope: &Rc<RefCell<Scope>>) -> Result<Val, JishiError> {
+        let saved_env = Rc::clone(&self.env);
+        let saved_locals = self.locals.take();
+        self.env = Rc::clone(scope);
+        let out = self.eval(node);
+        self.env = saved_env;
+        self.locals = saved_locals;
+        out
+    }
+
+    /// 把钩子取出来单独跑一会儿 —— 钩子要在 `&mut Walker` 下工作，而它自己
+    /// 就存在 `Walker` 里，所以必须先「取出来」再调（Rust 的借用规则）。
+    /// 无论钩子返回什么（含 `Err`）都要放回去，否则调试器会**静默失效**。
+    fn with_debugger<T>(
+        &mut self,
+        f: impl FnOnce(&mut dyn DebugHooks, &mut Walker) -> Result<T, JishiError>,
+    ) -> Result<Option<T>, JishiError> {
+        let mut dbg = match self.debugger.take() {
+            Some(d) => d,
+            None => return Ok(None),
+        };
+        let r = f(dbg.as_mut(), self);
+        self.debugger = Some(dbg);
+        r.map(Some)
+    }
+
+    /// `exec_stmt` 开头的那个钩子调用（**每个语句执行前**，含类体里的每一句）。
+    fn hook_before_stmt(&mut self, stmt: &Json) -> Result<(), JishiError> {
+        if self.debugger.is_none() {
+            return Ok(());      // 热路径：没挂调试器时只花一次判空
+        }
+        let scope = self.scope_of();
+        self.with_debugger(|d, w| d.before_stmt(w, stmt, &scope))?;
+        Ok(())
     }
 
     /// 跑一棵 AST（`Program` 节点）。
@@ -275,6 +387,9 @@ impl Walker {
     /// （与 Python 侧 `_do_try` 的 `if err.trace is None and self._call_stack` 同义：
     /// 模块级没有调用链，也不该渲染「调用链」那一块）。
     fn snapshot_trace(&self, e: &mut JishiError) {
+        if e.is_debug_quit() {
+            return;                     // 「退出」不是错误，不拍调用链
+        }
         if !e.trace.is_empty() || self.call_stack.is_empty() {
             return;
         }
@@ -289,8 +404,8 @@ impl Walker {
     /// `get_item` / `compare` …）返回的错误**不带位置**，就靠这里在递归冒泡时
     /// 由「最内层出错节点」补上（内层先补，外层不再覆盖）。
     fn fill_loc(&self, e: &mut JishiError, n: &Json) {
-        if e.line.is_some() {
-            return;
+        if e.line.is_some() || e.is_debug_quit() {
+            return;                     // 「退出」没有位置可言，别给它安一个
         }
         if let (Some(l), Some(c)) = self.at(n) {
             e.line = Some(l);
@@ -301,6 +416,10 @@ impl Walker {
     // -- 语句 ------------------------------------------------------------
 
     fn exec_stmt(&mut self, n: &Json) -> Result<Flow, JishiError> {
+        // 调试钩子（R7.5）：**挂在这一处就够**——断点、单步（进/过/出）、看变量、
+        // 看调用栈全都由此推出。类体里的每一句也走这里（`exec_classdef` 是逐句
+        // 调 `exec_stmt` 的），所以「函数 叫(自身)：」那一行也停得住。
+        self.hook_before_stmt(n)?;
         let r = match kind(n) {
             // ⚠️ 这几个 arm 用 `.map(|_| Flow::Normal)` 而不是 `{ f(n)?; Ok(..) }`：
             // `?` 会**提前 return、绕过下面的 `fill_loc`**，于是 `exec_import` 等的
@@ -475,6 +594,11 @@ impl Walker {
         let saved_locals = self.locals.take();
         self.env = Rc::clone(&scope);
         self.locals = None;                     // 类体不是函数体
+        // ⚠️ 调试器要看到的是**外层作用域**（Python 侧 `_do_classdef` 就在外层
+        // env 里逐句跑）—— 见 `debug_env` 的注释。只为「报文与 Python 一致」，
+        // 与语言语义无关。
+        let saved_debug_env = self.debug_env.take();
+        self.debug_env = Some(Rc::clone(&saved_env));
         let mut failed = None;
         for st in stmts_of(n, "body")? {
             if let Err(e) = self.exec_stmt(st) {
@@ -482,6 +606,7 @@ impl Walker {
                 break;
             }
         }
+        self.debug_env = saved_debug_env;
         let body_vars = {
             let mut b = scope.borrow_mut();
             std::mem::take(&mut b.vars)
@@ -585,11 +710,11 @@ impl Walker {
 
     /// 调用一个树遍历函数值。
     ///
-    /// `call_site` = 调用点的**行号**（`Some(行)` 只对「直接函数调用」；`None` =
+    /// `call_site` = 调用点的 **(行, 列)**（`Some` 只对「直接函数调用」；`None` =
     /// 方法调用 / 类实例化 / 内建回调，这些**不进调用栈**，见 `call_stack` 的注释）。
     fn call_walk_fn(&mut self, f: Rc<WalkFn>, args: Vec<Val>,
                     knames: &[String], kwvals: &[Val],
-                    call_site: Option<i64>) -> Result<Val, JishiError> {
+                    call_site: Option<(i64, i64)>) -> Result<Val, JishiError> {
         // 形参绑定走**共用**的那一份（`bind_params`）—— 报错文案与字节码 VM 同源，
         // 不然「函数「f」需要 2 个参数，但传了 3 个」两边各写一遍迟早会漂。
         // 绑定方法：先把实例塞到实参最前面 —— 它落进第一个形参（`自身`），
@@ -614,15 +739,26 @@ impl Walker {
         }
         // 进函数前**压一帧**（只对直接函数调用）—— 出错拍 trace 时它得还在栈上。
         let traced = call_site.is_some();
-        if let Some(line) = call_site {
+        if let Some((line, col)) = call_site {
             self.call_stack.push(TraceFrame { func: f.name.clone(), line: Some(line),
-                                               col: None });
+                                               col: Some(col) });
         }
         // 换入调用现场（**出错也要换回来**，否则递归里的错会污染外层）
         let saved_env = Rc::clone(&self.env);
         let saved_locals = self.locals.take();
         self.env = Rc::clone(&scope);
         self.locals = Some(Rc::clone(&def.locals));
+        // 调试钩子（R7.5）：**只有直接函数调用才 push**（与 `traced` 同一个条件，
+        // 也与 Python 侧把 `push_frame` 放在 `isinstance(fn, UserFunction)` 那一支
+        // 一致）—— `实例.方法()` 走 `UserFunction.__call__`，那边**不压调试帧**，
+        // 所以 `下一步` 的深度判定在方法调用前后不变，两边行为才逐字相同。
+        if traced {
+            let (line, col) = call_site.unwrap();
+            let _ = self.with_debugger(|d, _w| {
+                d.push_frame(&f.name, &scope, line, col);
+                Ok(())
+            });
+        }
         let mut out = Val::None_;
         let mut failed = None;
         for st in &def.body {
@@ -645,6 +781,10 @@ impl Walker {
         self.locals = saved_locals;
         if traced {
             self.call_stack.pop();
+            let _ = self.with_debugger(|d, _w| {
+                d.pop_frame();
+                Ok(())
+            });
         }
         match failed {
             Some(e) => Err(e),
@@ -976,12 +1116,23 @@ impl Walker {
             // `对.算()` 那种（`self_val` 有值）在 Python 侧走 `UserFunction.__call__`，
             // **不进 `_call_stack`**（trace 里没有方法帧）—— 这里传 `None` 对齐。
             Val::WalkFn(f) => {
-                let call_line = if f.self_val.is_none() {
-                    n.get("line").and_then(|v| v.as_i64())
+                // ⚠️ **调用点 (行, 列)** 只对**未绑定**的函数进调用栈：
+                // `对.算()` 那种（`self_val` 有值）在 Python 侧走
+                // `UserFunction.__call__`，**不进 `_call_stack`**（trace 里没有
+                // 方法帧）—— 这里传 `None` 对齐。列也一起带上：Python 的
+                // `Frame(name, line, col)` 三个字段都在，`--json-errors` 的
+                // `trace` 要原样给出去（R7.5 顺手补齐，以前这里恒为 `null`）。
+                let call_site = if f.self_val.is_none() {
+                    match (n.get("line").and_then(|v| v.as_i64()),
+                           n.get("col").and_then(|v| v.as_i64())) {
+                        (Some(l), Some(c)) => Some((l, c)),
+                        (Some(l), None) => Some((l, 1)),
+                        _ => None,
+                    }
                 } else {
                     None
                 };
-                self.call_walk_fn(f, args, &knames, &kwvals, call_line)
+                self.call_walk_fn(f, args, &knames, &kwvals, call_site)
             }
             // 调用一个**类** = 造实例（`新建 甲(…)`）—— 与字节码 VM 的
             // `make_instance` 同语义：先建空对象，再调它的 `初始化`（首参是自身）。
@@ -1075,6 +1226,17 @@ impl Walker {
                 }
             }
             Err(mut e) => {
+                // 🔴 **「调试退出」不让「捕获」接住，但「最终」照跑**（R7.5）——
+                // 与 Python 的 `_do_try` 里那句
+                // `except (RunBreak, RunContinue, _ReturnSignal, DebugQuit)`
+                // 逐条对应。用户按「退出」是想要立刻结束；一句 `捕获：` 就能吞掉
+                // 它的话，用户只会觉得调试器失灵。
+                if e.is_debug_quit() {
+                    return match self.run_finally(finalbody)? {
+                        Some(f) => Ok(f),
+                        None => Err(e),
+                    };
+                }
                 // 被捕获的异常是一个**带内容的对象**（与 `dispatch_exception`
                 // 压栈的同一个形状）—— `e.类型` / `e.消息` 因此可读。
                 let exc = ExcValue::from_error(&e);
@@ -1316,9 +1478,17 @@ impl BuiltinHost for Walker {
     }
     fn write_output(&mut self, s: &str) {
         self.output.push_str(s);
+        // 调试器（R7.5）：DAP 把每一次 `write` 变成一条 `output` 事件 —— 粒度
+        // 必须与 Python 侧一致（那边 `_StreamOut.write` 就是这么干的）。
+        if let Some(sink) = self.output_sink.as_mut() {
+            sink(s, false);
+        }
     }
     fn write_stderr(&mut self, s: &str) {
         self.output_err.push_str(s);
+        if let Some(sink) = self.output_sink.as_mut() {
+            sink(s, true);
+        }
     }
 }
 

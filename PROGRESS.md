@@ -167,6 +167,12 @@ S2 的 3 条是已登记的 Node 网络 EBUSY 偶发）。⚠️ 这一轮差点
 🔴 全量回归又抓出 **15 处** 漏改的调用点（藏在 `_run([str(bc_p)])` 这类局部助手里）——**这种全局语义改动只能靠全量回归收口，不能靠清点**；`check_engines`/`check_walk`/`check_cli` 三条闸门一条都碰不到（它们自己都用了新语义）。
 🔴 先跑出过一次假的「235 failed」：因为**同时**在 `cargo build`（二进制被替换）。**跑回归/量性能前先确认没有构建在后台跑。**
 验收：check_engines 不一致 0；check_walk 76/76；**`check_cli` 一致 282 · 不一致 0**；全量 **3302 通过**（并行 3293 + 计时 9；1 个 `test_repl` 的 harness 临时文件清理瞬态，串行复核 8 项全过）。 | ✅ 2026-10-06 |
+| **R7.5 DAP 搬进 Rust** | `jishi-rs dap`：① 给**树遍历参考执行器**（`walk.rs`）加调试钩子（`DebugHooks`：`before_stmt` / `push_frame` / `pop_frame`，**只读、不改语义**）；② `rust/src/debugger.rs`（`debugger.py` 的 `_Session`：断点 / 单步 / 变量与栈 / 就地求值 / 出错现场）；③ `rust/src/dap.rs`（20 个请求 + 事件 + 60 余条报文）。
+🔑 **线程模型不一样、报文一样**：Python 是「主线程跑协议 + 脚本线程跑程序」，而 Rust 的 `Walker` **不是 `Send`** → 改成「读线程只做分帧 + 主线程既跑协议又跑程序」，暂停时由 `PauseDriver` **串行泵消息**（顺手答掉 `stackTrace`/`variables`/`evaluate`）。
+🔴 **三种场景与 `jishi dap` 报文逐字节一致**（普通 13327 / 就地求值 13930 / 出错现场 10655 字节）—— 判据必须用**同步客户端**（等应答再发下一条），否则「自由跑时收到的请求」两边时序不同。
+🔴 **顺带修的**：`打印` 的**写出粒度**要与 CPython 的 `print` 一致（每个实参各写一次、分隔符与结尾各一次）—— 拼接结果一样但**事件条数**不一样；`explain` 的标题要走**错误码表**（`RunZeroDivisionError` 的 title 是「不能除以零」不是「除零错误」，同族的坑 R7.1-c 也踩过）；`launch` 之后、`configurationDone` 之前的读请求要够得着会话（`RefCell already borrowed`）。
+⚠️ **如实登记没搬的**：字节码执行器的调试（`--执行器 vm/cvm` 明确拒绝，不静默降级）；`jishi-rs 调试` 那条交互式命令行（会话核心已就绪，缺命令表与「读一行」的驱动）。
+验收：check_engines 不一致 0；check_walk 76/76；全量 **3298 通过** + 计时 9 条（3 个 `test_m31` 的 Node 网络用例是本机**已登记**的 `spawnSync node.exe EBUSY` 环境问题）；测试总数 **3310**。 | ✅ 2026-10-07 |
 **① 列表活迭代（已交付）**：Rust 的 VM 与树遍历参考执行器都从「反转快照 + pop」
 改成「容器 + 下标」的**活迭代**（与 Python `list_iterator` 一致），**同时保住 O(1)**
 （`test_m64` 的 O(n²) 护栏 + 计时护栏都过）。增/删两形状五执行器对齐。

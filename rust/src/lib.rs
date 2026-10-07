@@ -29,6 +29,8 @@ pub mod lsp;        // R7.3：语言服务器（lsp.py 的移植，`jishi-rs lsp
 pub mod run;        // R7.4：CLI 主入口（cli.py 的移植）
 pub mod sandbox;    // R7.4：沙箱（sandbox.py 的移植）
 pub mod mcp;        // R7.4：MCP 服务器（mcp_server.py 的移植，`jishi-rs mcp`）
+pub mod debugger;   // R7.5：调试会话（debugger.py 的移植）
+pub mod dap;        // R7.5：DAP 适配器（dap.py 的移植，`jishi-rs dap`）
 pub mod langdata;   // R7.2：语言元数据的显式表（**生成**，见 tools/gen_langdata_rs.py）
 pub mod langspec;   // R7.2：语言元数据 → JSON（`jishi --lang-spec`）
 mod zip;
@@ -1442,6 +1444,72 @@ pub(crate) fn err_coded(t: &str, code: &str, msg: impl Into<String>) -> JishiErr
     let mut e = err(t, msg);
     e.code = Some(code.to_string());
     e
+}
+
+// ---------------------------------------------------------------------------
+// 调试器「退出」走的是一条**专用**信号（R7.5）
+// ---------------------------------------------------------------------------
+/// 「调试会话退出」用的哨兵类型名。
+///
+/// ⚠️ **为什么不干脆用 `JishiError` 的一种普通类型**：用户按「退出」是想要
+/// **立刻结束**，而不是让程序里的 `尝试/捕获` 把它接住 —— 一句 `捕获：` 就能
+/// 吞掉「退出」的话，用户会觉得调试器失灵。Python 侧为此专门定义了
+/// `DebugQuit(BaseException)`，并在 `_do_try` 里显式放行它（「最终」照跑、
+/// 「捕获」接不住）。Rust 这边错误通道只有 `JishiError`，所以用一个
+/// **不会与用户错误重名**的哨兵名打标，再由 `exec_try` / `snapshot_trace` /
+/// `fill_loc` 三处显式放行 —— 放行点与 Python 侧逐条对应。
+/// （名字带 `$`，用户写不出这个名字。）
+pub(crate) const DEBUG_QUIT: &str = "$调试退出";
+
+/// 造一个「调试退出」信号。
+pub(crate) fn debug_quit() -> JishiError {
+    err(DEBUG_QUIT, "调试会话已结束")
+}
+
+impl JishiError {
+    /// 这条错误是不是「调试退出」信号。
+    pub(crate) fn is_debug_quit(&self) -> bool {
+        self.type_name == DEBUG_QUIT
+    }
+}
+
+/// `frontend::parser::Node` → 宿主的 AST JSON（`{"类型": …, 字段…}`）。
+///
+/// 📌 **为什么需要它**：树遍历执行器（`walk.rs`）吃的是 **AST JSON**。`--walk`
+/// 那条路是 Python 把 AST 序列化好递进来的；而**进程内**要用树遍历（调试器
+/// R7.5）就得自己转一份。字段形状照 `tools/conformance.py::jsonable`
+/// （dataclass → `{"类型": 类名, 字段…}`），键顺序无所谓 —— 树遍历按名字取字段。
+///
+/// ⚠️ `_super_ok` 也带上：Python 侧它是 `setattr` 动态挂的，`jsonable` 会把它
+/// 一起序列化出来（`--ast` 的逐字节对拍就是靠这个对齐的）。
+pub(crate) fn ast_node_to_json(n: &jishi_frontend::parser::Node) -> Json {
+    let mut m = std::collections::BTreeMap::new();
+    m.insert("类型".to_string(), Json::Str(n.kind.to_string()));
+    for (k, v) in &n.fields {
+        m.insert((*k).to_string(), ast_value_to_json(v));
+    }
+    if n.super_ok {
+        m.insert("_super_ok".to_string(), Json::Bool(true));
+    }
+    Json::Obj(m)
+}
+
+fn ast_value_to_json(v: &jishi_frontend::parser::J) -> Json {
+    use jishi_frontend::parser::J as FJ;
+    match v {
+        FJ::Null => Json::Null,
+        FJ::Bool(b) => Json::Bool(*b),
+        FJ::Int(i) => Json::Int(*i as i128),
+        // 超出 `i64` 的整数字面量：前端留的是十进制原文。走上游同一条口径
+        // （`json.rs` 把整数解析成 `i128`），再大就只能当字符串带过去
+        // —— 那种字面量在语料里还没出现过。
+        FJ::Big(s) => s.parse::<i128>().map(Json::Int)
+            .unwrap_or_else(|_| Json::Str(s.clone())),
+        FJ::Float(f) => Json::Float(*f),
+        FJ::Str(s) => Json::Str(s.clone()),
+        FJ::List(items) => Json::Arr(items.iter().map(ast_value_to_json).collect()),
+        FJ::Node(n) => ast_node_to_json(n),
+    }
 }
 
 /// 「遍历时改了容器的大小」—— 文案与提示**只有一份**（Python 侧 `errors.py` 同名
@@ -3465,7 +3533,17 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         for a in args {
             parts.push(vm.format_value(a, true)?);
         }
-        vm.write_output(&parts.join(" "));
+        // ⚠️ **一次写出一个片段**，不要 `join(" ")` 成一次写 —— Python 侧的
+        // `打印` 是 `print(*[...])`，CPython 的 `print` 对**每个**实参各写一次、
+        // 分隔符与结尾各写一次。拼接结果一样，但**写出次数**不一样；
+        // 而 DAP（R7.5）把每次 `write` 变成一条 `output` 事件 —— 条数不同，
+        // 报文序列就对不上了。零实参时只写 `"\n"`（`print()` 就是这个行为）。
+        for (i, p) in parts.iter().enumerate() {
+            if i > 0 {
+                vm.write_output(" ");
+            }
+            vm.write_output(p);
+        }
         vm.write_output("\n");
         Ok(Val::None_)
     }));

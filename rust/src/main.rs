@@ -344,6 +344,7 @@ fn main() -> ExitCode {
         eprintln!("      jishi-rs 检查 [路径...] [--json]   # 源码静态检查（R7.1-c）");
         eprintln!("      jishi-rs 格式化 [文件] [--stdin] [--check] [--write] [--indent N]");
         eprintln!("      jishi-rs lsp               # 语言服务器（stdio，R7.3）");
+        eprintln!("      jishi-rs dap               # 调试适配器（stdio，R7.5）");
         eprintln!("      jishi-rs mcp               # MCP 服务器（stdio，R7.4）");
         eprintln!("      jishi-rs <文件.jsh> [选项]  # 跑源码 / --ast / --json-errors / --sandbox");
         return ExitCode::from(2);
@@ -428,6 +429,21 @@ fn main() -> ExitCode {
     // R7.3：语言服务器（stdio + JSON-RPC）—— 编辑器那条路。
     if args[1] == "lsp" || args[1] == "--lsp" {
         return ExitCode::from(jishi_ffi::lsp::run_lsp() as u8);
+    }
+    // R7.5：调试适配器（stdio + DAP）—— 编辑器那条路。
+    // `--执行器 树遍历`（默认就是它）；别的值由 `run_dap` 明确拒绝（不静默降级）。
+    if args[1] == "dap" || args[1] == "--dap" {
+        let mut engine = "树遍历".to_string();
+        let mut i = 2;
+        while i < args.len() {
+            if (args[i] == "--执行器" || args[i] == "--engine") && i + 1 < args.len() {
+                engine = args[i + 1].clone();
+                i += 2;
+            } else {
+                i += 1;
+            }
+        }
+        return ExitCode::from(jishi_ffi::dap::run_dap(&engine) as u8);
     }
     if args[1] == "--mcp-spawn-probe" {
         return spawn_probe();
