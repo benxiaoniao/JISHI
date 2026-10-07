@@ -1771,6 +1771,21 @@ pub struct VM {
     output_limit: Option<usize>,
     /// 上一次写入把上限撑爆了 —— 由 `execute_frame` 在**下一条指令前**抛错。
     output_overflow: bool,
+    /// **执行步数上限**（R8.1；`u64::MAX` = 不限）—— **只在 `budget` 特征下存在**。
+    ///
+    /// 为什么要它：playground 在 **wasm** 里跑，而 wasm 上**没有线程** ——
+    /// `sandbox.rs` 那套「另起线程 + `recv_timeout`」的超时用不了（`std::thread`
+    /// 在 `wasm32-unknown-unknown` 上会 panic）。于是改成**数回跳**：
+    /// 与「到点真 kill」同一精神，只是单位从「墙上时间」换成「转了多少圈」。
+    ///
+    /// ⚠️ **这是宿主限额、不是语言语义**；而且**默认（原生）不编译进来** ——
+    /// 开了它指令循环的回跳处要多一次判断（实测循环密集负载 **+6%**），
+    /// 原生宿主不需要付这个钱（那边有线程超时）。
+    #[cfg(feature = "budget")]
+    step_limit: u64,
+    /// 已记的步数（= 回跳次数）。
+    #[cfg(feature = "budget")]
+    steps: u64,
 }
 
 /// 建全局表：长度 = 名字个数，**内建按名字预填**，其余留 `None`。
@@ -1800,6 +1815,10 @@ impl VM {
             output_err: String::new(),
             output_limit: None,
             output_overflow: false,
+            #[cfg(feature = "budget")]
+            step_limit: u64::MAX,
+            #[cfg(feature = "budget")]
+            steps: 0,
         }
     }
 
@@ -1940,6 +1959,31 @@ impl VM {
         let module = Rc::clone(&self.module);
         let instrs = &module.codes[code_idx].instrs;
 
+        // R8.1：**步数预算** —— 「一步」= **回跳一次**（循环走完一圈）。
+        //
+        // 只在**回跳**的跳转分支上调它（`op::JUMP` / 条件跳转 / `op::FOR_ITER`），
+        // 于是直线代码一个字节都不多花。⚠️ 我把这个判断放在循环顶试过
+        // （每条指令都过一遍）—— 实测 **1.068x**（8M 次循环迭代、交错 A/B、
+        // 稳定复现，同一次里「同一份二进制的两份拷贝」只有 1.005x，所以不是噪声）。
+        //
+        // ⚠️ 整个宏**只在 `budget` 特征下存在**：连「回跳处多一次比较」也不想让
+        // 原生宿主付（那是它的热路径）。调用点用 `#[cfg(feature = "budget")]` 包着，
+        // 关掉特征时那几行**整个消失** ⇒ 生成码与加这个功能之前一致。
+        //
+        // ⚠️ 这条预算**兜不住没有回跳的失控**（比如无限递归）—— 那种在 wasm 上会撞
+        // 栈上限、由浏览器抛 `RuntimeError`，JS 侧照样接得住（见 `jishi-wasm`）。
+        #[cfg(feature = "budget")]
+        macro_rules! budget_tick {
+            () => {{
+                self.steps = self.steps.wrapping_add(1);
+                if self.steps > self.step_limit {
+                    return Err(err_coded(
+                        "运行期错误", "E2000",
+                        format!("执行步数超过上限（{} 步）", self.step_limit)));
+                }
+            }};
+        }
+
         loop {
             if ip >= instrs.len() {
                 return Ok(Flow::Return);
@@ -1953,6 +1997,10 @@ impl VM {
                 return Err(err_coded("运行期错误", "E2000",
                                      format!("输出超过上限（{lim} 字符）")));
             }
+            // R8.1：**步数预算**只在**回跳**处记（见 `op::JUMP` 那几个分支的调用）。
+            // 直线执行的代码**一个字节都不多花** —— 这是量出来的结论，不是猜的：
+            // 把这条判断放在循环顶（每条指令都过一遍）实测是 **1.068x**，
+            // 8M 次循环迭代的负载上稳定复现。
             // M56：把「正跑到哪一条」写回帧 —— 出错冒泡到 `execute` 时，
             // 靠它查「第几行第几列」（见 `fill_error_loc`）。
             // 每步一次写回的代价可忽略，换来的是**全部**报错自动带位置。
@@ -2084,18 +2132,38 @@ impl VM {
                     let out = if ins.a == 0 { unary_neg(v)? } else { Val::Bool(!truthy(v)) };
                     self.stack.push(out);
                 }
-                op::JUMP => ip = ins.a as usize,
+                op::JUMP => {
+                    let t = ins.a as usize;
+                    #[cfg(feature = "budget")]
+                    if t < ip { budget_tick!(); }   // 回跳 ⇒ 记一步
+                    ip = t;
+                }
                 op::POP_JUMP_IF_FALSE => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    if !truthy(v) { ip = ins.a as usize; }
+                    if !truthy(v) {
+                        let t = ins.a as usize;
+                        #[cfg(feature = "budget")]
+                        if t < ip { budget_tick!(); }
+                        ip = t;
+                    }
                 }
                 op::POP_JUMP_IF_TRUE => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    if truthy(v) { ip = ins.a as usize; }
+                    if truthy(v) {
+                        let t = ins.a as usize;
+                        #[cfg(feature = "budget")]
+                        if t < ip { budget_tick!(); }
+                        ip = t;
+                    }
                 }
                 op::JUMP_IF_FALSE_OR_POP => {
                     let top = self.stack.last().cloned().unwrap_or(Val::None_);
-                    if truthy(top) { self.stack.pop(); } else { ip = ins.a as usize; }
+                    if truthy(top) { self.stack.pop(); } else {
+                        let t = ins.a as usize;
+                        #[cfg(feature = "budget")]
+                        if t < ip { budget_tick!(); }
+                        ip = t;
+                    }
                 }
                 op::POP_TOP => { self.stack.pop(); }
                 op::DUP_TOP => {
@@ -2343,7 +2411,13 @@ impl VM {
                     let next = iter_next(self.stack.last_mut().unwrap())?;
                     match next {
                         Some(v) => self.stack.push(v),
-                        None => { self.stack.pop(); ip = ins.a as usize; }
+                        None => {
+                            self.stack.pop();
+                            let t = ins.a as usize;
+                            #[cfg(feature = "budget")]
+                            if t < ip { budget_tick!(); }
+                            ip = t;
+                        }
                     }
                 }
                 op::UNPACK => {
@@ -5664,6 +5738,21 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
 pub fn set_output_limit(vm: &mut VM, lim: Option<usize>) {
     vm.output_limit = lim;
 }
+
+/// 设**执行步数上限**（`None` = 不限）—— wasm 的 playground 防死循环用（R8.1）。
+///
+/// ⚠️ **只在 `budget` 特征下存在**：开了它指令循环的回跳处要多一次判断
+/// （实测循环密集负载 **+6%**），所以**原生宿主默认不编译进来**。
+/// 「一步」= **回跳一次**（循环走完一圈）；上限在**回跳处**判。
+#[cfg(feature = "budget")]
+pub fn set_step_limit(vm: &mut VM, cap: Option<u64>) {
+    vm.step_limit = cap.unwrap_or(u64::MAX);
+}
+
+/// 关掉 `budget` 特征时的空实现 —— 让 `sandbox.rs` 两边都能编译，
+/// 而不是把 `#[cfg]` 撒得到处都是。
+#[cfg(not(feature = "budget"))]
+pub fn set_step_limit(_vm: &mut VM, _cap: Option<u64>) {}
 
 /// 取「最后一个表达式语句的值」—— `eval_expr`（MCP）与 Python 的
 /// `Interpreter._last_value` 同义：`令 x = 1` 这种没有表达式语句的取到 `空`。

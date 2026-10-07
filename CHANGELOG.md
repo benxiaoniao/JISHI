@@ -5,6 +5,29 @@
 
 ## [未发布]
 
+### 新增（**R8.1：playground 的 wasm 引擎**，2026-10-07）（**面向开发者**）
+
+- ✅ **基石能在浏览器里原生跑了**（不再是 Pyodide 里的 Python 实现）：
+  新增 `wasm/` crate（**裸 C ABI + 手写 JS shim，不上 `wasm-bindgen`** ——
+  保住「零第三方依赖」这条从 R0 起的核心资产）+ `site/jishi-wasm.js` +
+  `tools/build_wasm.py`。wasm 模块 **1.47 MB**。
+- 🔴 **wasm 上两个坑（都写进代码注释了，免得重踩）**：
+  ① **`std::time::Instant::now()` 会 panic**（`time not implemented on this platform`）
+  —— 而 `panic="abort"` 下它表现成一句英文的 `RuntimeError: unreachable`，
+  **看着完全不像时钟问题**；② **没有线程**：`sandbox` 的「另起线程 + 超时」用不了。
+  ⇒ 时钟在 wasm 上恒 0（真实耗时由 shim 用 `performance.now()` 量），
+  超时换成**步数预算**。
+- 🔴 **步数预算做成了 cargo 特征 `budget`，只有 wasm 开**（**这是量出来的**）：
+  判断放指令循环顶实测 **1.068x**、只放回跳处 **1.058x**、同轮「同一份二进制两份拷贝」
+  只有 **1.005x**（所以不是噪声）⇒ 把整个功能关进特征，**原生宿主 1.000x**
+  （与加它之前逐位同效），只有 wasm 付那 6% 换「死循环不冻页面」。
+- **判据** `tests/test_m97_wasm_playground.py`：12 个语料在 wasm 里的结果 JSON 与
+  `jishi-rs --sandbox --json-result` **逐字节一致** + 独立判据（死循环被兜住 /
+  默认预算有限 / 无限递归被接住 / 体积）。
+- ⚠️ **一处如实说明**：wasm 上「跑飞了」按**循环圈数**判 ⇒ 兜不住**没有回跳**的
+  失控（无限递归撞 wasm 栈上限，由 shim 翻成「程序跑飞了」）。
+- ⏳ **站点页面还没换**（`site/playground.html` 仍是 Pyodide）—— 那是 **R8.2**。
+
 ### 新增 / 变更（**R7.5 收尾 + R7.6：调试命令行 + 包管理**，2026-10-07）（**面向开发者**）
 
 - ✅ **`jishi-rs 调试`（交互式调试命令行）补齐**：R7.5 把调试**会话核心**与 DAP

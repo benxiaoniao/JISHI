@@ -1502,6 +1502,40 @@
   - 📌 **`file://` 是预期用法**（本地镜像）—— 判据靠它做到「不联网也能验完整条链」。
   - ⏳ **R7 六件（R7.1–R7.6）全部完成**。
 
+- 🚧 **R8 已开工 —— R8.0 侦察 + R8.1 wasm 引擎**（2026-10-07）：目标 = 单二进制 +
+  wasm + 退役 Python/JS，**收尾后进 0.3.x**。验收 **体积 ≤5MB / 启动 ≤100ms**
+  （开工实测 **4.60MB / 92ms —— 两条都擦线**，要盯着别退；现有 Python 发行包 20MB）。
+  - **R8.0 侦察**在 `docs/路线图.md` §11.10（含 4 条待拍板 → 已拍板）。
+  - 🔴 **高风险单点验证当场做了、且通过了**：`rustup target add wasm32-unknown-unknown`
+    之后，`jishi-frontend` / `jishi-ffi` **零改动**就能编到 wasm；
+    **不需要 `wasm-bindgen`**（裸 C ABI + 手写 shim 就够）。
+  - ✅ **R8.1 已交付**：`wasm/` crate（ABI + `site/jishi-wasm.js` shim）+
+    `tools/build_wasm.py`。判据 `tests/test_m97_wasm_playground.py`：
+    **12 个语料在 wasm 里的结果 JSON 与 `jishi-rs --sandbox --json-result` 逐字节一致**
+    + 独立判据（写死期望 / 死循环被预算兜住 / 默认预算有限 / 无限递归被接住 / 体积）。
+  - 🔴 **wasm 上踩到的两个坑（都写进代码注释了）**：
+    ① **`std::time::Instant::now()` 会 panic**（`time not implemented on this platform`）
+    —— 而 `panic = "abort"` 下它表现成一句英文 `RuntimeError: unreachable`，
+    **看着完全不像时钟问题**。⇒ `sandbox.rs` 的计时在 wasm 上恒 0，
+    真实耗时由 shim 用 `performance.now()` 量。
+    ② **没有线程** ⇒ `sandbox` 的「另起线程 + 超时」用不了（`std::thread::spawn`
+    直接 panic）⇒ 走 `run_sandboxed_direct` + **步数预算**。
+  - 🔴 **步数预算做成了 cargo 特征 `budget`，只有 `wasm/` 开**：
+    「一步」= **回跳一次**（循环走完一圈），在跳转指令处判。
+    ⚠️ **这是量出来的决定**：判断放在指令循环顶（每条指令都过一遍）实测 **1.068x**；
+    改成「只在回跳处判」还是 **1.058x**（同一轮里「同一份二进制的两份拷贝」只差
+    1.005x，所以不是噪声）。⇒ 干脆把整个功能关进特征：**特征关掉时与加它之前
+    逐位同效（1.000x）**，只有 wasm 那条路付那 6%（换来「页面不冻住」）。
+  - ⚠️ **`opt-level="z"` + LTO 那套没敢用**：配上之后 wasm 只有 16KB 且一跑就 trap
+    —— 根因是上面那个 `Instant::now()`，不是 profile。但现在它没被验证过，
+    所以 `wasm/Cargo.toml` 里**暂时不写 `[profile.release]`**（1.47MB），
+    要瘦身得先单独量过再开。
+  - ⚠️ **一处如实说明**：wasm 上判「跑飞了」的单位是**循环圈数**，
+    所以**兜不住没有回跳的失控**（无限递归）—— 那种撞 wasm 栈上限，
+    由 shim 接住并翻成「程序跑飞了」，不是引擎给的错。
+  - ⏳ 接下去 **R8.2**（playground 页面从 Pyodide 换成 wasm）→ R8.3（三平台发行包）
+    → R8.4（退役 Python/Node + 改名 `jishi`）→ R8.5（收尾）。
+
 - ✅ **基石库层已建 —— M52**（2026-09-26）：纯逻辑标准库**只写一份**
   （`jishi/stdlib-jishi/*.jsh`，目前有 `统计`），**编译期展开**进主程序，
   五个引擎共用同一份字节码。完整设计见 `docs/设计决策.md` **D45**。

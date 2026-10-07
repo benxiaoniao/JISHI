@@ -42,6 +42,15 @@ pub struct SandboxOpts {
     pub allow_network: bool,
     /// 允许 Python 桥接导入（宿主不支持，见 `导入` 那条登记）。
     pub allow_python_import: bool,
+    /// **执行步数上限**（R8.1；`None` = 不限）。
+    ///
+    /// ⚠️ 这是给 **wasm** 那条路用的：wasm 上没有线程，`timeout` 那套（另起线程 +
+    /// `recv_timeout`）用不了。默认 `None` ⇒ 与 Python 侧**逐条对齐**、不改行为。
+    ///
+    /// ⚠️ **只有开了 `budget` 特征才真的生效**（`jishi-wasm` 会开）：关着时
+    /// `crate::set_step_limit` 是个空实现，这个字段会被**忽略**——原生宿主不需要它
+    /// （那边有线程超时），而打开它会让指令循环的回跳处多一次判断（实测 +6%）。
+    pub max_steps: Option<u64>,
 }
 
 impl Default for SandboxOpts {
@@ -52,6 +61,7 @@ impl Default for SandboxOpts {
             allow_write: false,
             allow_network: false,
             allow_python_import: false,
+            max_steps: None,
         }
     }
 }
@@ -190,10 +200,36 @@ pub fn error_json(e: &JishiError) -> Jv {
     Jv::Obj(kv)
 }
 
-/// 已耗时（毫秒，`round(x, 2)`）。
-fn ms(start: Instant) -> f64 {
+/// 沙箱计时 —— **wasm 上必须绕开**（R8.1 实测踩到）。
+///
+/// `wasm32-unknown-unknown` **没有时钟**：`std::time::Instant::now()` 会
+/// **panic**（`time not implemented on this platform`）—— 而且 `panic = "abort"`
+/// 下它表现成一句英文的 `RuntimeError: unreachable`，看着完全不像「时钟」的问题。
+/// 所以 wasm 上计时恒为 0，**真实耗时由 JS shim 自己量**（那边有 `performance.now()`）。
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) type Clock = Instant;
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Copy)]
+pub(crate) struct Clock;
+
+#[cfg(not(target_arch = "wasm32"))]
+fn clock_start() -> Clock {
+    Instant::now()
+}
+#[cfg(target_arch = "wasm32")]
+fn clock_start() -> Clock {
+    Clock
+}
+
+/// 已耗时（毫秒，`round(x, 2)`）。wasm 上恒 `0`（见 `Clock`）。
+#[cfg(not(target_arch = "wasm32"))]
+fn ms(start: Clock) -> f64 {
     let x = start.elapsed().as_secs_f64() * 1000.0;
     (x * 100.0).round() / 100.0
+}
+#[cfg(target_arch = "wasm32")]
+fn ms(_start: Clock) -> f64 {
+    0.0
 }
 
 /// `protocol.success`。
@@ -257,12 +293,14 @@ pub fn parse_err_to_jishi(e: &jishi_frontend::parser::ParseErr) -> JishiError {
 }
 
 /// 老老实实跑一遍：编译 → VM → 收 stdout。**不带超时**（那一层在下面）。
-fn run_straight(source: &str, filename: &str, max_stdout: usize)
+fn run_straight(source: &str, filename: &str, max_stdout: usize,
+                max_steps: Option<u64>)
     -> Result<String, JishiError> {
     let bytecode = compile_source(source, filename)?;
     let mut vm = crate::load_module(&bytecode)
         .map_err(|e| run_error(format!("字节码加载失败：{e}"), None))?;
     crate::set_output_limit(&mut vm, Some(max_stdout));
+    crate::set_step_limit(&mut vm, max_steps);
     match vm.run() {
         Ok(()) => Ok(crate::get_output(&vm).to_string()),
         // ⚠️ 出错时**不交 stdout** —— 与 Python `run_sandboxed` 的 `failure()`
@@ -272,12 +310,14 @@ fn run_straight(source: &str, filename: &str, max_stdout: usize)
 }
 
 /// 求一个表达式的值（`eval_sandboxed` 的内层）：跑完取「最后一个表达式语句的值」。
-fn eval_straight(expr: &str, filename: &str, max_stdout: usize)
+fn eval_straight(expr: &str, filename: &str, max_stdout: usize,
+                 max_steps: Option<u64>)
     -> Result<Jv, EvalFail> {
     let bytecode = compile_source(expr, filename).map_err(EvalFail::Err)?;
     let mut vm = crate::load_module(&bytecode)
         .map_err(|e| EvalFail::Err(run_error(format!("字节码加载失败：{e}"), None)))?;
     crate::set_output_limit(&mut vm, Some(max_stdout));
+    crate::set_step_limit(&mut vm, max_steps);
     vm.run().map_err(EvalFail::Err)?;
     match val_to_jv(crate::last_value(&vm)) {
         Ok(v) => Ok(v),
@@ -389,15 +429,18 @@ fn dict_key_text(k: &Val) -> Result<String, String> {
 // ---------------------------------------------------------------------------
 
 /// 在沙箱里跑一段源码，返回 **protocol JSON 文本**（`run_sandboxed` 的等价物）。
+///
+/// ⚠️ 这条路**要线程**（超时靠另起线程 + `recv_timeout`）—— 只给原生宿主用。
+/// **wasm 用 [`run_sandboxed_direct`]**。
 pub fn run_sandboxed(source: &str, opts: &SandboxOpts, filename: &str) -> String {
-    let start = Instant::now();
+    let start = clock_start();
     let (tx, rx) = mpsc::channel::<Result<String, JishiError>>();
     let src = source.to_string();
     let fname = filename.to_string();
     let o = opts.clone();
     std::thread::spawn(move || {
         crate::set_import_guard(Some(make_guard(&o)));
-        let r = run_straight(&src, &fname, o.max_stdout);
+        let r = run_straight(&src, &fname, o.max_stdout, o.max_steps);
         crate::set_import_guard(None);          // 跑完摘掉，别影响同一进程里的别人
         let _ = tx.send(r);
     });
@@ -413,14 +456,14 @@ pub fn run_sandboxed(source: &str, opts: &SandboxOpts, filename: &str) -> String
 /// 或者 `Err(类型名)`（值不是 JSON 能表达的，Python 侧在这里冒 `TypeError`）。
 pub fn eval_sandboxed(expr: &str, opts: &SandboxOpts, filename: &str)
     -> Result<String, String> {
-    let start = Instant::now();
+    let start = clock_start();
     let (tx, rx) = mpsc::channel::<Result<Jv, EvalFail>>();
     let src = expr.to_string();
     let fname = filename.to_string();
     let o = opts.clone();
     std::thread::spawn(move || {
         crate::set_import_guard(Some(make_guard(&o)));
-        let r = eval_straight(&src, &fname, o.max_stdout);
+        let r = eval_straight(&src, &fname, o.max_stdout, o.max_steps);
         crate::set_import_guard(None);
         let _ = tx.send(r);
     });
@@ -429,6 +472,44 @@ pub fn eval_sandboxed(expr: &str, opts: &SandboxOpts, filename: &str)
         Ok(Err(EvalFail::Err(e))) => Ok(failure_json(&e, ms(start))),
         Ok(Err(EvalFail::NotSerializable(name))) => Err(name),
         Err(_) => Ok(failure_json(&timeout_error(opts.timeout), ms(start))),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 不上线程的那条路（**wasm** 用：R8.1）
+// ---------------------------------------------------------------------------
+
+/// 在沙箱里跑一段源码 —— **不开线程**，用**步数预算**兜死循环。
+///
+/// 为什么要另开一条：`wasm32-unknown-unknown` 上**没有线程**，`std::thread::spawn`
+/// 会直接 panic ⇒ 上面那条路的超时机制在浏览器里用不了。这里改成
+/// **同步调用 + `opts.max_steps` 步数上限**（见 `crate::set_step_limit`）：
+/// 死循环跑满预算就报「执行步数超过上限」，页面不会冻住。
+///
+/// 📌 **错误与成功都返回同一份协议 JSON**（与 `run_sandboxed` 同构），
+/// 所以 JS 侧只有一条解析路径。
+pub fn run_sandboxed_direct(source: &str, opts: &SandboxOpts, filename: &str) -> String {
+    let start = clock_start();
+    crate::set_import_guard(Some(make_guard(opts)));
+    let r = run_straight(source, filename, opts.max_stdout, opts.max_steps);
+    crate::set_import_guard(None);
+    match r {
+        Ok(out) => success_json(&out, Jv::Null, ms(start)),
+        Err(e) => failure_json(&e, ms(start)),
+    }
+}
+
+/// 求值一个表达式 —— 不开线程（wasm 用）。语义与 [`eval_sandboxed`] 一致。
+pub fn eval_sandboxed_direct(expr: &str, opts: &SandboxOpts, filename: &str)
+    -> Result<String, String> {
+    let start = clock_start();
+    crate::set_import_guard(Some(make_guard(opts)));
+    let r = eval_straight(expr, filename, opts.max_stdout, opts.max_steps);
+    crate::set_import_guard(None);
+    match r {
+        Ok(v) => Ok(success_json("", v, ms(start))),
+        Err(EvalFail::Err(e)) => Ok(failure_json(&e, ms(start))),
+        Err(EvalFail::NotSerializable(name)) => Err(name),
     }
 }
 

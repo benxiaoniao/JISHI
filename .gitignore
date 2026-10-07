@@ -58,6 +58,11 @@ rust/Cargo.lock
 # `JISHI_FRONTEND=rust` 会明确报错，不会静默回落。
 core/target/
 frontend/target/
+# R8.1：wasm 入口（`wasm/`）—— 与 `rust/` 同为**应用** crate，产物与锁文件都不进仓库。
+# ⚠️ 不写这条的话 `git add wasm/` 会把整个 `target/` 拖进来（`frontend/target/`
+# 当年就是这么差点进去的）。
+wasm/target/
+wasm/Cargo.lock
 core/Cargo.lock
 jishi/_core*.pyd
 jishi/_core*.so

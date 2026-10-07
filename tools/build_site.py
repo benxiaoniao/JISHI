@@ -437,6 +437,17 @@ def main() -> int:
                 (assets_dst / f.name).write_bytes(f.read_bytes())
         print(f"复制品牌资产 → {assets_dst}")
 
+    # wasm playground 的两件（R8.1）：JS 胶水是**源码**（`wasm/jishi-wasm.js`），
+    # 拷过去；`jishi_wasm.wasm` 是**构建产物**，由 `tools/build_wasm.py` 生成
+    # —— 这里**只检查、不替人构建**（构建要 cargo + wasm 目标，不该藏在站点构建里）。
+    _shim = ROOT / "wasm" / "jishi-wasm.js"
+    if _shim.exists():
+        (OUT / _shim.name).write_bytes(_shim.read_bytes())
+        print(f"复制 wasm 胶水 → {OUT / _shim.name}")
+    if not (OUT / "jishi_wasm.wasm").exists():
+        print("⚠️ site/jishi_wasm.wasm 不存在 —— playground 跑不起来。"
+              "先跑：python tools/build_wasm.py")
+
     # Playground（M10.3）：浏览器试玩页
     try:
         from build_playground import build as build_pg
