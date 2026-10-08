@@ -14,7 +14,7 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi.interpreter import run_source
+from oracle.jishi.interpreter import run_source
 
 PROJECTS = Path(__file__).parent.parent / "examples" / "projects"
 
@@ -57,7 +57,7 @@ def test_project_网页采集(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     # 用本地 HTML 替代网络
     import importlib
-    net = importlib.import_module("jishi.stdlib.网络")
+    net = importlib.import_module("oracle.jishi.stdlib.网络")
     html = tmp_path / "测试.html"
     html.write_text(
         '<a href="https://example.com/a">甲</a>\n'

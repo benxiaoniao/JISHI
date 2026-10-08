@@ -35,11 +35,11 @@ sys.path.insert(0, ".")
 
 from conftest import rust_exe_path, tmp_bc_path      # noqa: E402
 
-from jishi import serialize                          # noqa: E402
-from jishi import vm as vm_mod                       # noqa: E402
-from jishi.compiler import compile_source            # noqa: E402
-from jishi.errors import JishiError                  # noqa: E402
-from jishi.interpreter import run_source as tree_run  # noqa: E402
+from oracle.jishi import serialize                          # noqa: E402
+from oracle.jishi import vm as vm_mod                       # noqa: E402
+from oracle.jishi.compiler import compile_source            # noqa: E402
+from oracle.jishi.errors import JishiError                  # noqa: E402
+from oracle.jishi.interpreter import run_source as tree_run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -83,14 +83,14 @@ def _engines(tag: str = "a"):
         return _capture(lambda: vm_mod.VM(compile_source(src, "<t>"), "<t>").run())
 
     def cvm(src):
-        from jishi import cvm_bind
+        from oracle.jishi import cvm_bind
         return _capture(cvm_bind.run_source_c, src, "<t>")
 
     out = [("树遍历", wrap(lambda s: _capture(tree_run, s))),
            ("Python VM", wrap(pyvm)), ("C VM", wrap(cvm))]
     if NODE:
         out.append(("Node", lambda s: _host_run(
-            [NODE, str(ROOT / "node" / "index.js")], s, tag)))
+            [NODE, str(ROOT / "oracle" / "node" / "index.js")], s, tag)))
     if RUST.exists():
         out.append(("Rust", lambda s: _host_run([str(RUST)], s, tag)))
     return out

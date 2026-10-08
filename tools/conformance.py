@@ -94,7 +94,7 @@ CORPUS_SOURCES: tuple[tuple[str, str], ...] = (
     ("lang", "tests/error_cases/*.jsh"),
     ("frontend", "tests/frontend_cases/*.jsh"),
     ("examples", "examples/**/*.jsh"),
-    ("stdlib", "jishi/stdlib-jishi/*.jsh"),
+    ("stdlib", "oracle/jishi/stdlib-jishi/*.jsh"),
 )
 
 
@@ -227,10 +227,10 @@ def run_stages(rel: str, stages: tuple[str, ...] = ALL_STAGES) -> dict[str, Any]
     自然只会是词法/语法那两种 —— R3 的 `--stage diagnostics` 因此**覆盖面是
     「语法及以前」**，不是「全部报错」（R4 的范围因此缩小，见 `docs/前端契约.md` §10.4）。
     """
-    from jishi import compiler as C
-    from jishi import parser as P
-    from jishi import tokenizer as T
-    from jishi.errors import JishiError
+    from oracle.jishi import compiler as C
+    from oracle.jishi import parser as P
+    from oracle.jishi import tokenizer as T
+    from oracle.jishi.errors import JishiError
 
     path = ROOT / rel
     src = path.read_text(encoding="utf-8")
@@ -411,8 +411,8 @@ def cmd_freeze(_args) -> int:
     for o in orphans:
         (BASELINE_DIR / f"{o}.json").unlink()
 
-    from jishi import opcodes as O
-    from jishi.version import VERSION
+    from oracle.jishi import opcodes as O
+    from oracle.jishi.version import VERSION
     manifest = {
         "格式版本": FORMAT_VERSION,
         "生成环境": {"python": sys.version.split()[0], "jishi": VERSION},
@@ -702,8 +702,8 @@ def cmd_emit(args) -> int:
     「提供了但值不对」必须分得开（契约 §3）：前者 `compare` 会报「未提供」，
     后者才是不一致。
     """
-    from jishi import tokenizer as T
-    from jishi.errors import JishiError
+    from oracle.jishi import tokenizer as T
+    from oracle.jishi.errors import JishiError
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

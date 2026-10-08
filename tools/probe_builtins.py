@@ -38,11 +38,11 @@ if hasattr(sys.stdout, "reconfigure"):
     # 行缓冲：这个工具要跑几百个子进程，中途被 Ctrl-C 时至少要看到进度
     sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
 
-from jishi import ai, cvm_bind, serialize  # noqa: E402
-from jishi import vm as vm_mod  # noqa: E402
-from jishi.compiler import compile_source  # noqa: E402
-from jishi.errors import JishiError  # noqa: E402
-from jishi.interpreter import run_source as tree_run  # noqa: E402
+from oracle.jishi import ai, cvm_bind, serialize  # noqa: E402
+from oracle.jishi import vm as vm_mod  # noqa: E402
+from oracle.jishi.compiler import compile_source  # noqa: E402
+from oracle.jishi.errors import JishiError  # noqa: E402
+from oracle.jishi.interpreter import run_source as tree_run  # noqa: E402
 
 PY = sys.executable
 # ⚠️ 两个宿主的**可执行名都别写死**：
@@ -210,7 +210,7 @@ def run_host(which: str, bc: Path, stdin: str = "") -> tuple[str, str]:
     ⚠️ stdin **一定给**（哪怕是空串）：`subprocess` 不给 stdin 时子进程会
     **继承父进程的终端**，遇上 `输入()` 就一起挂住。给空串 → 是管道且立刻 EOF。
     """
-    cmd = ([NODE, str(ROOT / "node" / "index.js"), str(bc)] if which == "Node"
+    cmd = ([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)] if which == "Node"
            else [RUST, "--load-bytecode", str(bc)])
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
@@ -377,7 +377,7 @@ def main(argv: list[str]) -> int:
     name_bad: list[str] = []
     name_skip: list[str] = []
     for label, exe, cmd in (
-        ("Node", node_exe, [NODE, str(ROOT / "node" / "index.js"), "--dump-builtins"]),
+        ("Node", node_exe, [NODE, str(ROOT / "oracle" / "node" / "index.js"), "--dump-builtins"]),
         ("Rust", RUST, [RUST, "--dump-builtins"]),
     ):
         if not exe or not Path(exe).is_file():

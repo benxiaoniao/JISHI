@@ -27,10 +27,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import tokenizer as T                                   # noqa: E402
-from jishi.compiler import compile_source                          # noqa: E402
-from jishi.interpreter import run_source as run_tree               # noqa: E402
-from jishi.vm import VM                                            # noqa: E402
+from oracle.jishi import tokenizer as T                                   # noqa: E402
+from oracle.jishi.compiler import compile_source                          # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree               # noqa: E402
+from oracle.jishi.vm import VM                                            # noqa: E402
 
 
 def _have_rust() -> bool:
@@ -39,7 +39,7 @@ def _have_rust() -> bool:
 
 def _have_cvm() -> bool:
     try:
-        from jishi import cvm_bind
+        from oracle.jishi import cvm_bind
         cvm_bind.load_lib()
         return True
     except Exception:                                              # noqa: BLE001
@@ -95,7 +95,7 @@ def _all_engines(src: str, filename: str = "冒烟.jsh") -> dict:
                 _run(lambda: VM(compile_source(src, filename), filename).run()),
             ]
             if HAS_CVM:
-                from jishi import cvm_bind
+                from oracle.jishi import cvm_bind
                 row.append(_run(lambda: cvm_bind.run_source_c(src, filename)))
             got[front] = tuple(row)
         finally:
@@ -238,7 +238,7 @@ def test_尝试里的赋值不再漏成全局():
     只看输出会漏 —— 输出一样也可能是因为「全局恰好等价」。所以直接反汇编，
     盯着那条指令。这是 ① 唯一的「机器可读」判据。
     """
-    from jishi import opcodes as O
+    from oracle.jishi import opcodes as O
 
     src = ("函数 f()：\n"
            "    尝试：\n"

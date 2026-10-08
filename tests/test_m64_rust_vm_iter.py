@@ -29,9 +29,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi.compiler import compile_to_json, compile_source         # noqa: E402
-from jishi.interpreter import run_source as run_tree               # noqa: E402
-from jishi.vm import VM                                            # noqa: E402
+from oracle.jishi.compiler import compile_to_json, compile_source         # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree               # noqa: E402
+from oracle.jishi.vm import VM                                            # noqa: E402
 
 
 def _exe() -> Path:

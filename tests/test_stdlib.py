@@ -8,8 +8,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi.interpreter import run_source  # noqa: E402
-from jishi.errors import JishiError  # noqa: E402
+from oracle.jishi.interpreter import run_source  # noqa: E402
+from oracle.jishi.errors import JishiError  # noqa: E402
 
 
 def run_capture(src: str) -> str:
@@ -422,7 +422,7 @@ def test_regex_bad_pattern():
 
 def test_network_get(monkeypatch):
     import urllib.request as _ur
-    from jishi import runtime as _rt
+    from oracle.jishi import runtime as _rt
 
     class _Resp:
         def read(self):

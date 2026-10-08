@@ -15,9 +15,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from jishi import cache
-from jishi.parser import parse
-from jishi.tokenizer import tokenize
+from oracle.jishi import cache
+from oracle.jishi.parser import parse
+from oracle.jishi.tokenizer import tokenize
 
 SRC = '令 甲 = 1\n打印(甲 + 1)\n'
 
@@ -91,7 +91,7 @@ def test_cli_冷热两次跑出一样的结果(隔离缓存, tmp_path):
     这是「缓存有没有把 AST 弄坏」的总验收——包装错了字段，
     程序可能还能跑但结果不对。
     """
-    from jishi import cli
+    from oracle.jishi import cli
 
     源 = tmp_path / "示例.jsh"
     源.write_text('令 甲 = []\n'
@@ -113,7 +113,7 @@ def test_cli_冷热两次跑出一样的结果(隔离缓存, tmp_path):
 
 
 def test_cli_no_cache_开关不写缓存(隔离缓存, tmp_path):
-    from jishi import cli
+    from oracle.jishi import cli
 
     源 = tmp_path / "示例.jsh"
     源.write_text('打印(1)\n', encoding="utf-8")

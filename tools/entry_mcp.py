@@ -21,7 +21,7 @@ def _force_utf8() -> None:
 
 _force_utf8()
 
-from jishi.mcp_server import main
+from oracle.jishi.mcp_server import main
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -5694,7 +5694,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "c6c973611d3d92fd60c37f07b697375e84cedfd7c6ed909bc59a1bcccf88f341",
+    "checksum": "ca305da36fe0dd3f31a1db2754a5e2ea1443ac8652533fc720bc748d9ab98c3c",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -12314,7 +12314,7 @@
           "v": " 个序列用"
         }
       ],
-      "filename": "jishi/stdlib-jishi/迭代.jsh",
+      "filename": "oracle/jishi/stdlib-jishi/迭代.jsh",
       "kw_names": [],
       "main": 0,
       "names": [
@@ -26174,5 +26174,5 @@
     }
   ],
   "内容哈希": "sha256:1667156d9a1d9296",
-  "语料": "jishi/stdlib-jishi/迭代.jsh"
+  "语料": "oracle/jishi/stdlib-jishi/迭代.jsh"
 }

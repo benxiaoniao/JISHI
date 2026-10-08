@@ -60,7 +60,7 @@ def _rust_errcode(*argv: str):
 
 
 def _py_errcode(*argv: str):
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", "错误", *argv],
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "错误", *argv],
                        capture_output=True, input=b"", env=_env(), cwd=str(ROOT))
     return (r.stdout.decode("utf-8", "replace"),
             r.stderr.decode("utf-8", "replace"), r.returncode)
@@ -68,8 +68,8 @@ def _py_errcode(*argv: str):
 
 def _py_tables():
     """Python 侧的两张表（**与 `cli._all_error_codes` 同一套抽法**）。"""
-    from jishi import errcodes as EC
-    from jishi import errors as E
+    from oracle.jishi import errcodes as EC
+    from oracle.jishi import errors as E
 
     codes: dict[str, str] = {}
     for obj in vars(E).values():

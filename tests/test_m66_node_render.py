@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from jishi.compiler import compile_to_json                         # noqa: E402
+from oracle.jishi.compiler import compile_to_json                         # noqa: E402
 from probe_runtime_errors import SHAPES, build_source, engine_outputs  # noqa: E402
 
 NODE = shutil.which("node")
@@ -67,9 +67,9 @@ def _both(src: str, tag: str):
     rel, _ = _write(src, tag)
     bc = ROOT / "build" / (Path(rel).stem + ".json")
     bc.write_text(compile_to_json(src, rel), encoding="utf-8")
-    py = subprocess.run([sys.executable, "-m", "jishi.cli", rel],
+    py = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", rel],
                         capture_output=True, input=b"", cwd=str(ROOT))
-    nd = subprocess.run([NODE, "node/index.js", str(bc.relative_to(ROOT))],
+    nd = subprocess.run([NODE, "oracle/node/index.js", str(bc.relative_to(ROOT))],
                         capture_output=True, input=b"", cwd=str(ROOT))
     dec = lambda b: b.decode("utf-8", "replace")              # noqa: E731
     return ((dec(py.stdout), dec(py.stderr)), (dec(nd.stdout), dec(nd.stderr)))
@@ -142,7 +142,7 @@ def test_读不到源文件时不崩也不报IO错():
     bc = ROOT / "build" / f"_m66_missing_{os.getpid()}.json"
     # 故意给一个不存在的文件名
     bc.write_text(compile_to_json(src, "build/不存在的文件.jsh"), encoding="utf-8")
-    r = subprocess.run([NODE, "node/index.js", str(bc.relative_to(ROOT))],
+    r = subprocess.run([NODE, "oracle/node/index.js", str(bc.relative_to(ROOT))],
                        capture_output=True, input=b"", cwd=str(ROOT))
     err = r.stderr.decode("utf-8", "replace")
     assert r.returncode == 1, err

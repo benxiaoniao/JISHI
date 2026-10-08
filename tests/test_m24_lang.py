@@ -15,14 +15,14 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import cvm_bind                        # noqa: E402
-from jishi import runtime as R                    # noqa: E402
-from jishi import vm as vm_mod                    # noqa: E402
-from jishi.compiler import compile_source         # noqa: E402
-from jishi.errors import JishiError               # noqa: E402
-from jishi.interpreter import Interpreter         # noqa: E402
-from jishi.parser import parse                    # noqa: E402
-from jishi.tokenizer import tokenize              # noqa: E402
+from oracle.jishi import cvm_bind                        # noqa: E402
+from oracle.jishi import runtime as R                    # noqa: E402
+from oracle.jishi import vm as vm_mod                    # noqa: E402
+from oracle.jishi.compiler import compile_source         # noqa: E402
+from oracle.jishi.errors import JishiError               # noqa: E402
+from oracle.jishi.interpreter import Interpreter         # noqa: E402
+from oracle.jishi.parser import parse                    # noqa: E402
+from oracle.jishi.tokenizer import tokenize              # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 

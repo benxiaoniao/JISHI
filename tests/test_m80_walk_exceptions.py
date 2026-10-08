@@ -42,10 +42,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 os.environ.setdefault("JISHI_FRONTEND", "python")
 
 import conformance as C                                            # noqa: E402
-from jishi.compiler import compile_to_json                         # noqa: E402
-from jishi.errors import JishiError                                # noqa: E402
-from jishi.interpreter import run_source as run_tree               # noqa: E402
-from jishi.parser import parse_source                              # noqa: E402
+from oracle.jishi.compiler import compile_to_json                         # noqa: E402
+from oracle.jishi.errors import JishiError                                # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree               # noqa: E402
+from oracle.jishi.parser import parse_source                              # noqa: E402
 
 RUST = ROOT / "rust" / "target" / "release" / (
     "jishi-rs.exe" if os.name == "nt" else "jishi-rs")
@@ -238,8 +238,8 @@ def test_报错头行走的是共用实现():
 def test_不许出现不存在的异常类型名():
     """`数值错误` **不是**语言里的异常类型 —— 用它当类型名会让 `捕获 值错误`
     接不住那个错误（宿主曾经有三处这么写）。真正的类型名清单见
-    `jishi/errors.py` 与 lang-spec 的 `exceptions` 节。"""
-    for rel in ("rust/src/lib.rs", "rust/src/walk.rs", "node/runtime.js"):
+    `oracle/jishi/errors.py` 与 lang-spec 的 `exceptions` 节。"""
+    for rel in ("rust/src/lib.rs", "rust/src/walk.rs", "oracle/node/runtime.js"):
         p = ROOT / rel
         if not p.exists():
             continue
@@ -253,10 +253,10 @@ def test_异常类型表与语言规格同宽():
     M55 补 `断言错误` 时发现它一直缺着（`捕获 断言错误` 在 Rust 上报
     「找不到名字」），所以拿测试钉住「清单不许比规格窄」。
     """
-    import jishi.ai as AI                                          # noqa: PLC0415
+    import oracle.jishi.ai as AI                                          # noqa: PLC0415
     names = json.loads(AI.lang_spec_json())["exceptions"]
     lib = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
-    node = (ROOT / "node" / "runtime.js").read_text(encoding="utf-8")
+    node = (ROOT / "oracle" / "node" / "runtime.js").read_text(encoding="utf-8")
     for t in names:
         assert f'"{t}"' in lib, f"宿主的异常类型表里少了「{t}」"
         # Node 那边用**单引号**（`'异常': new ExcType('异常')`），两种都认

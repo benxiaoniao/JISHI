@@ -5,7 +5,7 @@
 
 * **对拍**（§一~§二）：同一串 LSP 报文喂两边，比**原始字节**；再用**编辑器自带的**
   `editors/vscode-jishi/verify-lsp.js` 两边各跑一遍（验收原文就是这个）。
-* **独立判据**（§三）：不 import jishi、不 spawn Python 的**写死期望** ——
+* **独立判据**（§三）：不 import oracle.jishi、不 spawn Python 的**写死期望** ——
   机机器上不装 Python 也要能用。
 * **性能护栏**（§四，打 `计时`）：每次编辑的耗时**不许比 Python 版慢**
   （验收原文的「增量指标不倒退」）。
@@ -194,7 +194,7 @@ def test_报文逐字节一致():
     """33 条报文（覆盖 18 个方法 + 增量编辑 + 版本乱序）喂两边，比原始字节。"""
     with _workspace() as ws:
         payload = b"".join(_frame(m) for m in _script(ws))
-        py_out, _, py_rc = _run([sys.executable, "-m", "jishi.cli", "lsp"], payload, ws)
+        py_out, _, py_rc = _run([sys.executable, "-m", "oracle.jishi.cli", "lsp"], payload, ws)
         rs_out, _, rs_rc = _run([str(_rust()), "lsp"], payload, ws)
 
     assert py_rc == rs_rc, f"退出码不同：py={py_rc} rust={rs_rc}"
@@ -242,14 +242,14 @@ def test_verify_lsp_js_两边都通过():
                            env=env, cwd=str(ROOT))
         return r.stdout.decode("utf-8", "replace")
 
-    py = run_one(sys.executable, "-m jishi.cli lsp")
+    py = run_one(sys.executable, "-m oracle.jishi.cli lsp")
     rs = run_one(str(_rust()), "lsp")
     assert "通过 25 项，失败 0 项" in py, f"Python 版自检没全过：\n{py[-800:]}"
     assert "通过 25 项，失败 0 项" in rs, f"Rust 版自检没全过：\n{rs[-800:]}"
 
 
 # ---------------------------------------------------------------------------
-# 三、独立判据（**不 import jishi、不 spawn Python** —— 不装 Python 也要能用）
+# 三、独立判据（**不 import oracle.jishi、不 spawn Python** —— 不装 Python 也要能用）
 # ---------------------------------------------------------------------------
 
 _INIT = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
@@ -392,7 +392,7 @@ def test_计时_每次编辑不慢于Python(tmp_path):
         t1 = min(_timeit(cmd, edits) for _ in range(2))
         return (t1 - t0) / 20
 
-    py_ms = net([sys.executable, "-m", "jishi.cli", "lsp"])
+    py_ms = net([sys.executable, "-m", "oracle.jishi.cli", "lsp"])
     rs_ms = net([str(_rust()), "lsp"])
     print(f"\n5003 行 · 每次编辑：Python {py_ms:.1f}ms / Rust {rs_ms:.1f}ms")
     assert rs_ms <= py_ms, (

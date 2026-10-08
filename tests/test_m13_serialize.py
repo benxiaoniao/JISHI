@@ -11,9 +11,9 @@ sys.path.insert(0, ".")
 
 import pytest
 
-from jishi.compiler import compile_source
-from jishi import serialize, vm as vm_mod
-from jishi import opcodes as O
+from oracle.jishi.compiler import compile_source
+from oracle.jishi import serialize, vm as vm_mod
+from oracle.jishi import opcodes as O
 
 
 def _run_vm(cmod, filename="<t>"):

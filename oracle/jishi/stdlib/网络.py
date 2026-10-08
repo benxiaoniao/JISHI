@@ -20,7 +20,7 @@ _DEFAULT_TIMEOUT = 10.0
 def 获取(网址, 超时: float = _DEFAULT_TIMEOUT) -> str:
     """用 GET 请求网址，返回响应文本。"""
     try:
-        req = _py_urllib.Request(网址, headers={"User-Agent": "jishi/0.1"})
+        req = _py_urllib.Request(网址, headers={"User-Agent": "oracle/jishi/0.1"})
         with _py_urllib.urlopen(req, timeout=max(0.1, float(超时))) as resp:
             return resp.read().decode("utf-8", errors="replace")
     except _py_urlerr.URLError as e:
@@ -36,7 +36,7 @@ def 提交(网址, 数据="", 超时: float = _DEFAULT_TIMEOUT) -> str:
                 else str(数据).encode("utf-8"))
         req = _py_urllib.Request(
             网址, data=body,
-            headers={"User-Agent": "jishi/0.1",
+            headers={"User-Agent": "oracle/jishi/0.1",
                      "Content-Type": "application/x-www-form-urlencoded"})
         with _py_urllib.urlopen(req, timeout=max(0.1, float(超时))) as resp:
             return resp.read().decode("utf-8", errors="replace")

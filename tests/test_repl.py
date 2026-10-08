@@ -4,7 +4,7 @@ import subprocess
 import sys
 import os
 
-REPL_CMD = [sys.executable, "-m", "jishi.cli", "-i"]
+REPL_CMD = [sys.executable, "-m", "oracle.jishi.cli", "-i"]
 
 
 def run_repl(input_text: str) -> str:

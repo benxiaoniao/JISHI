@@ -75,7 +75,7 @@ def rss_bytes() -> int:
 def measure(src: str, window: int = 200, warm: int = 200,
             windows: int = 3) -> float:
     """反复跑 `src`，返回「每次净增字节数」（多窗口取最小值）。"""
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
 
     for _ in range(warm):
         with redirect_stdout(io.StringIO()):

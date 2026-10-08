@@ -102,7 +102,7 @@
     令 自述 = 文件.读文本(文件.路径拼接(根, "README.md"))
     数据["测试数"] = 夹取(自述, "测试现状：", " 项")
     数据["探针"] = 夹取(自述, "（当前 **", "** 可用")
-    数据["模块"] = 量规模(文件.路径拼接(根, "jishi"), ".py")
+    数据["模块"] = 量规模(文件.路径拼接(根, "oracle/jishi"), ".py")
     数据["示例数"] = 数文件(文件.路径拼接(根, "examples"), ".jsh")
     数据["用例数"] = 数用例(文件.路径拼接(根, "tests"))
     数据["里程碑"] = 读里程碑(文件.路径拼接(根, "PROGRESS.md"))
@@ -273,13 +273,13 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px
     令 倒序 = 数据["模块"][::-1]
     遍历 条 在 倒序:
         令 宽 = 整数(条[0] * 100 / 最大行)
-        表 = 表 + ("<tr><td><code>jishi/" + 转义(条[1]) + "</code></td>"
+        表 = 表 + ("<tr><td><code>oracle/jishi/" + 转义(条[1]) + "</code></td>"
                    +"<td class=\"num\">" + `{条[0]}` + "</td>"
                    +"<td><div class=\"bar\" style=\"width:" + `{宽}`
                    +"%\"></div></td></tr>")
     表 = 表 + "</table>"
     令 正文 = ("<h1>代码规模</h1>"
-        +"<p class=\"lead\">统计范围：<code>jishi/</code> 下这一层的每个 "
+        +"<p class=\"lead\">统计范围：<code>oracle/jishi/</code> 下这一层的每个 "
         +"<code>.py</code>（不含标准库子目录与构建产物）。</p>"
         +表
         +"<h2>测试与示例</h2>"

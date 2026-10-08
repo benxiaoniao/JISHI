@@ -43,7 +43,7 @@ SRC = (
 
 def _cvm_available() -> bool:
     try:
-        from jishi import cvm_bind
+        from oracle.jishi import cvm_bind
 
         cvm_bind.load_lib()
         return True
@@ -55,7 +55,7 @@ class DapClient:
     """一个真的 `jishi dap` 子进程 + DAP 收发小工具。"""
 
     def __init__(self, engine: "str | None" = None, cwd: Path = ROOT):
-        cmd = [sys.executable, "-m", "jishi.cli", "dap"]
+        cmd = [sys.executable, "-m", "oracle.jishi.cli", "dap"]
         if engine:
             cmd += ["--执行器", engine]
         env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
@@ -646,7 +646,7 @@ def test_vscode_extension_declares_debugger():
 def test_dap_cli_rejects_unknown_engine():
     """`--执行器` 的取值由 argparse 兜住；报错里要把可选值列出来。"""
     r = subprocess.run(
-        [sys.executable, "-m", "jishi.cli", "dap", "--执行器", "c++"],
+        [sys.executable, "-m", "oracle.jishi.cli", "dap", "--执行器", "c++"],
         capture_output=True, cwd=str(ROOT))
     assert r.returncode != 0
     err = r.stderr.decode("utf-8", "replace")
@@ -655,10 +655,10 @@ def test_dap_cli_rejects_unknown_engine():
 
 def test_dap_is_reachable_from_cli():
     """`jishi dap` 要能跑，也要在 cli 的用法说明里露面（别只藏在源码里）。"""
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", "dap", "--help"],
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "dap", "--help"],
                        capture_output=True, cwd=str(ROOT))
     assert r.returncode == 0
     assert "在哪个执行器上调试" in r.stdout.decode("utf-8", "replace")
-    cli_src = (ROOT / "jishi" / "cli.py").read_text(encoding="utf-8")
+    cli_src = (ROOT / "oracle" / "jishi" / "cli.py").read_text(encoding="utf-8")
     assert "jishi dap" in cli_src
     assert '"dap"' in cli_src               # 工具子命令的分发列表里要有它

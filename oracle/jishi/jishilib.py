@@ -7,13 +7,13 @@
 `统计` 这类纯逻辑模块，改一处要改三处，还容易悄悄漂移 —— M51 的漂移检测
 就是为了抓这个（当时 Node 少了 12 个函数、Rust 少了 6 个，**都是静默的**）。
 
-从 M52 起，纯逻辑模块写进 `jishi/stdlib-jishi/*.jsh`（**就是基石源码**），
+从 M52 起，纯逻辑模块写进 `oracle/jishi/stdlib-jishi/*.jsh`（**就是基石源码**），
 经本模块在**编译期展开**进主程序，于是五个引擎执行的是**同一份字节码**——
 **结构上不可能不一致**，比「靠对拍发现漂移」强一个量级。
 
 ## 它怎么工作（关键设计）
 
-    jishi/stdlib-jishi/统计.jsh          ← 用基石写的库，只写一遍
+    oracle/jishi/stdlib-jishi/统计.jsh          ← 用基石写的库，只写一遍
                 │ 编译期
                 ▼
     函数 __基石库_统计__():               ← 把整个模块包成**一个函数**
@@ -48,8 +48,8 @@
 
 ## 回落链
 
-`导入 X` → ① **基石库层**（`jishi/stdlib-jishi/X.jsh`，编译期展开）
-         → ② **宿主层**（`jishi/stdlib/X.py` 与两个宿主各自的标准库）
+`导入 X` → ① **基石库层**（`oracle/jishi/stdlib-jishi/X.jsh`，编译期展开）
+         → ② **宿主层**（`oracle/jishi/stdlib/X.py` 与两个宿主各自的标准库）
 
 所以迁移是**渐进**的：搬一个模块就少一份重复，宿主层随时兜底；
 而且**序列化格式没变**，存量字节码产物完全不受影响。
@@ -78,7 +78,7 @@ _SHELL_PREFIX = "__基石库_"
 
 
 def lib_dir() -> str:
-    """基石库目录（`jishi/stdlib-jishi/`）。
+    """基石库目录（`oracle/jishi/stdlib-jishi/`）。
 
     与 `ai._stdlib_dir` 同一套路：源码树里就是包内的那个目录；
     PyInstaller 单文件模式会解压到 `sys._MEIPASS`。

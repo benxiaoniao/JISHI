@@ -25,7 +25,7 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi.lineedit import (                        # noqa: E402
+from oracle.jishi.lineedit import (                        # noqa: E402
     Completer,
     History,
     LineEditor,
@@ -33,7 +33,7 @@ from jishi.lineedit import (                        # noqa: E402
     is_interactive,
     read_line,
 )
-from jishi.repl import _needs_more                  # noqa: E402
+from oracle.jishi.repl import _needs_more                  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -310,14 +310,14 @@ def _fake_windows_keys(monkeypatch, keys):
 @pytestmark_windows
 def test_windows_path_reads_a_line(monkeypatch):
     """真 Windows 分支（逐键 + 重绘）走一遍：它是本机用户实际用的那条路。"""
-    from jishi.lineedit import _read_line_windows
+    from oracle.jishi.lineedit import _read_line_windows
     _fake_windows_keys(monkeypatch, list("令 甲 = 1") + ["\r"])
     assert _read_line_windows("> ", History(), Completer()) == "令 甲 = 1"
 
 
 @pytestmark_windows
 def test_windows_path_handles_arrows_and_backspace(monkeypatch):
-    from jishi.lineedit import _read_line_windows
+    from oracle.jishi.lineedit import _read_line_windows
     # 输入「甲乙丙」→ 左键两次 → 退格（删「甲」）→ 回车
     keys = list("甲乙丙") + [_LEAD, "K", _LEAD, "K", "\x08", "\r"]
     _fake_windows_keys(monkeypatch, keys)
@@ -326,7 +326,7 @@ def test_windows_path_handles_arrows_and_backspace(monkeypatch):
 
 @pytestmark_windows
 def test_windows_path_history_and_tab(monkeypatch):
-    from jishi.lineedit import _read_line_windows
+    from oracle.jishi.lineedit import _read_line_windows
     # 上键取历史 → 回车
     _fake_windows_keys(monkeypatch, [_LEAD, "H", "\r"])
     assert _read_line_windows("> ", History(["上一句"]), Completer()) == "上一句"
@@ -337,7 +337,7 @@ def test_windows_path_history_and_tab(monkeypatch):
 
 @pytestmark_windows
 def test_windows_path_ctrl_c_and_ctrl_d(monkeypatch):
-    from jishi.lineedit import _read_line_windows
+    from oracle.jishi.lineedit import _read_line_windows
     _fake_windows_keys(monkeypatch, list("半句") + ["\x03"])
     with pytest.raises(KeyboardInterrupt):
         _read_line_windows("> ", History(), Completer())
@@ -376,7 +376,7 @@ def test_needs_more_does_not_swallow_real_errors():
 # ---------------------------------------------------------------------------
 
 def _run_repl(text: str) -> str:
-    proc = subprocess.run([sys.executable, "-m", "jishi.cli", "-i"],
+    proc = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "-i"],
                           input=text, capture_output=True, text=True,
                           encoding="utf-8", cwd=str(ROOT), timeout=30)
     return proc.stdout + proc.stderr
@@ -396,7 +396,7 @@ def test_repl_history_command_when_empty(tmp_path):
     """历史文件是空的（或还没有）时要说清楚，而不是打一片空白。"""
     p = tmp_path / "空历史.txt"
     env = dict(os.environ, JISHI_HISTORY=str(p), PYTHONUTF8="1")
-    out = subprocess.run([sys.executable, "-m", "jishi.cli", "-i"],
+    out = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "-i"],
                          input="历史\n退出\n", capture_output=True, text=True,
                          encoding="utf-8", cwd=str(ROOT), env=env,
                          timeout=30).stdout
@@ -413,7 +413,7 @@ def test_repl_writes_history_to_env_path(tmp_path):
     """历史要落到 `JISHI_HISTORY` 指定的文件（测试不该改开发机的家目录）。"""
     p = tmp_path / "历史.txt"
     env = dict(os.environ, JISHI_HISTORY=str(p), PYTHONUTF8="1")
-    subprocess.run([sys.executable, "-m", "jishi.cli", "-i"],
+    subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "-i"],
                    input="令 唯一标记 = 42\n退出\n", capture_output=True,
                    text=True, encoding="utf-8", cwd=str(ROOT), env=env,
                    timeout=30)
@@ -425,11 +425,11 @@ def test_repl_history_is_reused_next_session(tmp_path):
     """下次打开还能翻到上次的输入（历史是**跨会话**的）。"""
     p = tmp_path / "历史.txt"
     env = dict(os.environ, JISHI_HISTORY=str(p), PYTHONUTF8="1")
-    subprocess.run([sys.executable, "-m", "jishi.cli", "-i"],
+    subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "-i"],
                    input="令 上一轮的 = 7\n退出\n", capture_output=True,
                    text=True, encoding="utf-8", cwd=str(ROOT), env=env,
                    timeout=30)
-    out = subprocess.run([sys.executable, "-m", "jishi.cli", "-i"],
+    out = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "-i"],
                          input="历史\n退出\n", capture_output=True, text=True,
                          encoding="utf-8", cwd=str(ROOT), env=env,
                          timeout=30).stdout

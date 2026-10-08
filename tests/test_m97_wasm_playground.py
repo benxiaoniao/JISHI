@@ -14,7 +14,7 @@ R8.1 把**引擎那半边**做完：`wasm/` crate（裸 C ABI，**不上 wasm-bi
 
 * **对拍**：同一批语料，`wasm` 里的结果 JSON 与 `jishi-rs --sandbox --json-result`
   **逐字节一致**（`duration_ms` 归一 —— wasm 上没有时钟，见下）。
-* **独立判据**：写死期望（不 import jishi），R8.4 之后 Python 退场仍然要绿。
+* **独立判据**：写死期望（不 import oracle.jishi），R8.4 之后 Python 退场仍然要绿。
 
 ## 两条**wasm 特有**的坑（都是实测踩出来的，写在这里免得重踩）
 
@@ -172,7 +172,7 @@ def test_对拍_语料结果与原生宿主一致(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 二、独立判据（不 import jishi；R8.4 之后 Python 退场仍要绿）
+# 二、独立判据（不 import oracle.jishi；R8.4 之后 Python 退场仍要绿）
 # ---------------------------------------------------------------------------
 
 @need_wasm
@@ -339,7 +339,7 @@ def _page(sources, tmp, page):
 def test_页面_在Node里真跑一遍(tmp_path, monkeypatch):
     """R8.2 的端到端判据：**生成出来的页面**点「运行」真能出结果。
 
-    三条：预置示例（写死期望，不 import jishi）/ 语法错（码 + 行列 + 出错样式）/
+    三条：预置示例（写死期望，不 import oracle.jishi）/ 语法错（码 + 行列 + 出错样式）/
     运行期错（码 + 标题）。
     """
     import build_playground

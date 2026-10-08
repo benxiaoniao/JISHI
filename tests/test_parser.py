@@ -8,10 +8,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from jishi.tokenizer import tokenize
-from jishi.parser import parse
-from jishi import ast_nodes as A
-from jishi.errors import (
+from oracle.jishi.tokenizer import tokenize
+from oracle.jishi.parser import parse
+from oracle.jishi import ast_nodes as A
+from oracle.jishi.errors import (
     LexKeywordGlueError,
     ParseBlockError,
     ParseMissingColonError,

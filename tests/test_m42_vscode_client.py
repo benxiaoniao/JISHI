@@ -108,7 +108,7 @@ def test_lsp_end_to_end_self_check():
     """跑 `verify-lsp.js`：25 项断言，任何一项挂都是「编辑器里没反应」的前兆。"""
     r = _node("verify-lsp.js", env={
         "JISHI_BIN": sys.executable,
-        "JISHI_ARGS": "-m jishi.cli lsp",
+        "JISHI_ARGS": "-m oracle.jishi.cli lsp",
     }, timeout=180)
     out = r.stdout + r.stderr
     assert r.returncode == 0, f"自检未通过：\n{out[-3000:]}"

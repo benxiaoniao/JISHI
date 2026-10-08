@@ -6,7 +6,7 @@ from contextlib import redirect_stdout
 
 sys.path.insert(0, ".")
 
-from jishi.interpreter import run_source
+from oracle.jishi.interpreter import run_source
 
 
 def run_capture(src: str) -> str:
@@ -88,6 +88,6 @@ def test_builtin_reverse_string():
 
 def test_range_error():
     import pytest
-    from jishi.errors import JishiError
+    from oracle.jishi.errors import JishiError
     with pytest.raises(JishiError):
         run_source("打印(范围(1, 2, 3, 4))\n")

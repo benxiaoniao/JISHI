@@ -26,7 +26,7 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi.lsp import (                              # noqa: E402
+from oracle.jishi.lsp import (                              # noqa: E402
     LspServer,
     SEMANTIC_MODIFIERS,
     SEMANTIC_TYPES,

@@ -9,9 +9,9 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import ai
-from jishi.errors import JishiError
-from jishi.interpreter import run_source
+from oracle.jishi import ai
+from oracle.jishi.errors import JishiError
+from oracle.jishi.interpreter import run_source
 
 
 def test_lang_spec_structure():
@@ -73,7 +73,7 @@ def _run_cli(argv):
     """调用 cli.main，返回 (exit_code, stdout, stderr)。"""
     import io
     from contextlib import redirect_stdout, redirect_stderr
-    from jishi import cli
+    from oracle.jishi import cli
     out, err = io.StringIO(), io.StringIO()
     with redirect_stdout(out), redirect_stderr(err):
         code = cli.main(argv)

@@ -30,14 +30,14 @@ sys.path.insert(0, ".")
 
 from conftest import tmp_bc_path   # noqa: E402
 
-from jishi import cvm_bind                        # noqa: E402
-from jishi import serialize                       # noqa: E402
-from jishi import vm as vm_mod                    # noqa: E402
-from jishi.compiler import compile_source         # noqa: E402
-from jishi.interpreter import Interpreter         # noqa: E402
-from jishi.parser import parse                    # noqa: E402
-from jishi.runtime import jishi_repr              # noqa: E402
-from jishi.tokenizer import tokenize              # noqa: E402
+from oracle.jishi import cvm_bind                        # noqa: E402
+from oracle.jishi import serialize                       # noqa: E402
+from oracle.jishi import vm as vm_mod                    # noqa: E402
+from oracle.jishi.compiler import compile_source         # noqa: E402
+from oracle.jishi.interpreter import Interpreter         # noqa: E402
+from oracle.jishi.parser import parse                    # noqa: E402
+from oracle.jishi.runtime import jishi_repr              # noqa: E402
+from oracle.jishi.tokenizer import tokenize              # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -155,7 +155,7 @@ def test_repr_top_switch():
 
 def test_repl_echo_uses_same_function():
     """REPL 回显不再另抄一份实现（以前 replay 与打印会漂移）。"""
-    from jishi.repl import _repr_jishi
+    from oracle.jishi.repl import _repr_jishi
     assert _repr_jishi(None) == "空"
     assert _repr_jishi(True) == "真"
     assert _repr_jishi("甲") == "'甲'"          # 回显算「容器内」这一侧
@@ -176,7 +176,7 @@ def _compare_host(src: str) -> None:
     bc = tmp_bc_path(ROOT / "_tmp_m27_bc.json")
     bc.write_text(text, encoding="utf-8")
     r = subprocess.run(
-        [NODE, str(ROOT / "node" / "index.js"), str(bc)],
+        [NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
         capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, f"Node 崩溃：{r.stderr[:400]}"
     assert r.stdout == py_out, (

@@ -3,7 +3,7 @@
 
 ## 为什么要有它
 
-M52 让「纯逻辑标准库」可以用**基石**写一份、五个引擎共用（`jishi/stdlib-jishi/`）。
+M52 让「纯逻辑标准库」可以用**基石**写一份、五个引擎共用（`oracle/jishi/stdlib-jishi/`）。
 好处是**不再写三遍**、不再漂移；代价是**慢** —— 库代码走字节码，
 而宿主层那份是各语言的原生实现。
 
@@ -76,10 +76,10 @@ def _bench(runner) -> tuple:
 
 
 def _engines() -> list:
-    from jishi import cvm_bind
-    from jishi import vm as vm_mod
-    from jishi.compiler import compile_source
-    from jishi.interpreter import run_source
+    from oracle.jishi import cvm_bind
+    from oracle.jishi import vm as vm_mod
+    from oracle.jishi.compiler import compile_source
+    from oracle.jishi.interpreter import run_source
 
     return [
         ("树遍历", run_source),

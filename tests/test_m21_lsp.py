@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, ".")
 
-from jishi.lsp import LspServer                     # noqa: E402
+from oracle.jishi.lsp import LspServer                     # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 URI = "file:///测试.jsh"
@@ -285,9 +285,9 @@ def test_unpacked_names_count_as_defined():
     `test_corpus_has_no_false_positive_warnings` 报出来了。这条缺陷在
     `令 甲, 乙 = …`（M25）上早就存在，M41 的 `遍历` 解包让它暴露得更明显。
     """
-    from jishi import lsp as lsp_mod
-    from jishi.parser import parse
-    from jishi.tokenizer import tokenize
+    from oracle.jishi import lsp as lsp_mod
+    from oracle.jishi.parser import parse
+    from oracle.jishi.tokenizer import tokenize
 
     def 已定义(src: str) -> set[str]:
         return lsp_mod._defined_names(

@@ -40,7 +40,7 @@ D63 §三 登记的那个形状：
 
 ## 还有一条「改了没生效」（不在三执行器语义里，但在工具链里）
 
-`jishi/_native/jsvm.dll`（wheel 预编译）与 `cvm/bin/jsvm.dll`（`python cvm/build.py`
+`oracle/jishi/_native/jsvm.dll`（wheel 预编译）与 `cvm/bin/jsvm.dll`（`python cvm/build.py`
 的产物）是**两份**：`_lib_path()` 原先**优先前者** —— 于是「改了 `cvm/src/jsvm.c`、
 也跑了 `cvm/build.py`，但 Python 加载的仍是那份 9 天前的旧 dll」，
 **改了没生效、还一句提示都没有**。本文件末尾有一条测试盯着这件事。
@@ -61,10 +61,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import cvm_bind                                        # noqa: E402
-from jishi.compiler import compile_source, compile_to_json        # noqa: E402
-from jishi.interpreter import run_source as run_tree              # noqa: E402
-from jishi.vm import VM                                           # noqa: E402
+from oracle.jishi import cvm_bind                                        # noqa: E402
+from oracle.jishi.compiler import compile_source, compile_to_json        # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
+from oracle.jishi.vm import VM                                           # noqa: E402
 
 NODE = shutil.which("node")
 HAS_NODE = NODE is not None
@@ -134,7 +134,7 @@ def _host(src: str, which: str) -> str:
         r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)],
                            capture_output=True, input=b"")
     else:
-        r = subprocess.run([NODE, "node/index.js", str(tmp)],
+        r = subprocess.run([NODE, "oracle/node/index.js", str(tmp)],
                            capture_output=True, input=b"")
     err = r.stderr.decode("utf-8", "replace")
     if not err.strip():
@@ -221,7 +221,7 @@ def test_C动态库优先用源码树产物():
     """`cvm/bin/` 存在时就用它 —— 否则「改了 C 源码、重建了，跑的还是旧 dll」。
 
     ⚠️ R6.7 真踩到：C 侧的修法像是**完全没起作用**，查了半天才发现
-    `_lib_path()` 把 wheel 预编译的 `jishi/_native/jsvm.dll`（9 天前那份）
+    `_lib_path()` 把 wheel 预编译的 `oracle/jishi/_native/jsvm.dll`（9 天前那份）
     排在 `cvm/bin/` **前面** —— 改了没生效，还一句提示都没有。
     """
     dev = cvm_bind._BIN / cvm_bind._lib_name()

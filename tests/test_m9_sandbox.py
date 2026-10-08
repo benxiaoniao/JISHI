@@ -8,8 +8,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import protocol
-from jishi.sandbox import SandboxOpts, eval_sandboxed, run_sandboxed
+from oracle.jishi import protocol
+from oracle.jishi.sandbox import SandboxOpts, eval_sandboxed, run_sandboxed
 
 
 # -- 9.2 协议 ----------------------------------------------------------------
@@ -22,7 +22,7 @@ def test_protocol_success():
 
 
 def test_protocol_failure():
-    from jishi.errors import JishiError
+    from oracle.jishi.errors import JishiError
     err = JishiError("测试", line=1, col=2, fix={"old": "a", "new": "b"})
     r = protocol.failure(err, duration_ms=3.0)
     assert r["ok"] is False
@@ -100,7 +100,7 @@ def test_eval_sandboxed():
 # -- 9.3 MCP Server ----------------------------------------------------------
 
 def test_mcp_dispatch_run_script():
-    from jishi.mcp_server import _tool_run_script
+    from oracle.jishi.mcp_server import _tool_run_script
     raw = _tool_run_script({"script": "打印(1 + 2)"})
     r = json.loads(raw)
     assert r["ok"] is True
@@ -108,7 +108,7 @@ def test_mcp_dispatch_run_script():
 
 
 def test_mcp_dispatch_eval_expr():
-    from jishi.mcp_server import _tool_eval_expr
+    from oracle.jishi.mcp_server import _tool_eval_expr
     raw = _tool_eval_expr({"expr": "2 ** 10"})
     r = json.loads(raw)
     assert r["ok"] is True
@@ -116,7 +116,7 @@ def test_mcp_dispatch_eval_expr():
 
 
 def test_mcp_describe_language():
-    from jishi.mcp_server import _tool_describe_language
+    from oracle.jishi.mcp_server import _tool_describe_language
     raw = _tool_describe_language({})
     r = json.loads(raw)
     assert r["ok"] is True
@@ -124,7 +124,7 @@ def test_mcp_describe_language():
 
 
 def test_mcp_tools_list():
-    from jishi.mcp_server import TOOLS
+    from oracle.jishi.mcp_server import TOOLS
     names = [t["name"] for t in TOOLS]
     # M45 把工具面从 3 个补到 7 个（写片段 / 静态检查 / 查错误码 / 查标准库 / 格式化）。
     # 这条断言原先写死 3 个名字，M45 加了工具就红了——改成「前三个在、七个齐」，

@@ -123,7 +123,7 @@ fn tokenize(py: Python<'_>, source: &str, filename: &str)
         Ok(o) => o,
         Err(e) => return Err(to_py_err(py, e)),
     };
-    let cls = py.import("jishi.tokenizer")?.getattr("Token")?;
+    let cls = py.import("oracle.jishi.tokenizer")?.getattr("Token")?;
     let list = PyList::empty(py);
 
     // 一行文本常被同一行的十几个 token 共用 —— 缓存一格就够
@@ -183,7 +183,7 @@ fn j_to_py(py: Python<'_>, v: &parser::J) -> PyResult<Py<PyAny>> {
             list.into_any().unbind()
         }
         J::Node(n) => {
-            let cls = py.import("jishi.ast_nodes")?.getattr(n.kind)?;
+            let cls = py.import("oracle.jishi.ast_nodes")?.getattr(n.kind)?;
             let kwargs = PyDict::new(py);
             for (k, fv) in &n.fields {
                 kwargs.set_item(*k, j_to_py(py, fv)?)?;
@@ -322,7 +322,7 @@ fn const_to_py(py: Python<'_>, c: &compiler::Const) -> PyResult<Py<PyAny>> {
 /// 只给 JSON 的话，rust 前端跑 VM/CVM 时那句提示会**静默消失**，
 /// 两个前端就有了语义差异（R 线的红线）。
 fn to_py_module(py: Python<'_>, m: &compiler::Module) -> PyResult<Py<PyAny>> {
-    let ops = py.import("jishi.opcodes")?;
+    let ops = py.import("oracle.jishi.opcodes")?;
     let mut consts: Vec<Py<PyAny>> = Vec::with_capacity(m.consts.len());
     for c in &m.consts {
         consts.push(const_to_py(py, c)?);

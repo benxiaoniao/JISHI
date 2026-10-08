@@ -17,8 +17,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import cli                              # noqa: E402
-from jishi import packages as PKG                  # noqa: E402
+from oracle.jishi import cli                              # noqa: E402
+from oracle.jishi import packages as PKG                  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 

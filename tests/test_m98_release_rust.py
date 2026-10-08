@@ -9,16 +9,16 @@ R8 的验收之一是「三平台包可用 + 体积 ≤5MB / 启动 ≤100ms」�
 
 ## 🔴 顺带修掉的一个真 bug（本文件的主要判据）
 
-以前 PyInstaller 是 **onedir**，产物落在 `bin/jishi/jishi.exe`（**多套了一层目录**），
+以前 PyInstaller 是 **onedir**，产物落在 `bin/oracle/jishi/jishi.exe`（**多套了一层目录**），
 而 `tools/install.sh` / `tools/install.ps1` 的自检写的是**平铺**的
 `"$BIN_DIR/jishi" --version` / `& "$binDir\jishi.exe"`：
 
 | | 包里的实际路径 | 安装脚本期望的路径 |
 |---|---|---|
-| 0.2.1（PyInstaller） | `bin/jishi/jishi.exe` | `bin/jishi.exe` ← **对不上** |
+| 0.2.1（PyInstaller） | `bin/oracle/jishi/jishi.exe` | `bin/jishi.exe` ← **对不上** |
 
 后果：**Linux / macOS 用 tar.gz + install.sh 装完，自检必失败**，而且 PATH 里加的是
-`~/.jishi/bin`，那下面是个**目录** `jishi/`，所以 `jishi` 命令**根本不在 PATH 上**。
+`~/.jishi/bin`，那下面是个**目录** `oracle/jishi/`，所以 `jishi` 命令**根本不在 PATH 上**。
 Windows 因为推荐走 Inno Setup（`.iss` 里写的是嵌套路径）才没暴露。
 
 换成单二进制之后 `bin/jishi`（或 `bin/jishi.exe`）**本身就是文件**，安装脚本
@@ -83,7 +83,7 @@ def test_安装脚本假设的是平铺_bin():
     # 自检要指向**平铺**的可执行文件
     assert '"$BIN_DIR/jishi" --version' in sh, "install.sh 的自检不再指向平铺 bin/jishi"
     assert '"$binDir\\jishi.exe" --version' in ps, "install.ps1 的自检不再指向平铺 bin\\jishi.exe"
-    # 进 PATH 的是 bin/ 本身（不是 bin/jishi/）
+    # 进 PATH 的是 bin/ 本身（不是 bin/oracle/jishi/）
     assert ".jishi/bin:" in sh, "install.sh 该把 ~/.jishi/bin 加进 PATH"
     assert '$installDir\\bin"' in ps, "install.ps1 该把 <安装目录>\\bin 加进 PATH"
 

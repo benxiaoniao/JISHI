@@ -168,7 +168,7 @@ def test_前端抛非基石错误时拒绝冻结(mini, monkeypatch):
     """
     _write(mini, "a.jsh", "令 a = 1\n")
 
-    import jishi.compiler as Comp
+    import oracle.jishi.compiler as Comp
 
     def boom(*_a, **_k):
         raise RuntimeError("假装编译器崩了")
@@ -182,7 +182,7 @@ def test_check_遇到实现_bug_也报红(mini, monkeypatch):
     _write(mini, "a.jsh", "令 a = 1\n")
     assert C.main(["freeze"]) == 0
 
-    import jishi.compiler as Comp
+    import oracle.jishi.compiler as Comp
 
     def boom(*_a, **_k):
         raise RuntimeError("假装编译器崩了")
@@ -296,7 +296,7 @@ def test_指令集与_MANIFEST_同步():
     指令集是**跨语言约定**（宿主靠它对表），它变了而基线没更新，
     R5 之后就会拿一份过时的指令表去验收。
     """
-    from jishi import opcodes as O
+    from oracle.jishi import opcodes as O
 
     man = json.loads(C.MANIFEST.read_text(encoding="utf-8"))
     assert man["指令集"] == O.OP_NAMES, "指令集与基线清单不同步 —— 重冻基线"

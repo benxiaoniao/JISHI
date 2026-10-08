@@ -13,7 +13,7 @@ EX = ROOT / "examples" / "tutorial"
 
 sys.path.insert(0, str(ROOT))
 
-from jishi.interpreter import run_source  # noqa: E402
+from oracle.jishi.interpreter import run_source  # noqa: E402
 
 
 def run_file_stdout(name: str) -> str:
@@ -96,7 +96,7 @@ def test_tutorial_expense_tracker(tmp_path, monkeypatch):
 
 def _run_cli(path: str, inputs: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-m", "jishi.cli", path],
+        [sys.executable, "-m", "oracle.jishi.cli", path],
         input=inputs, capture_output=True, text=True, encoding="utf-8",
         cwd=str(ROOT), timeout=30)
 

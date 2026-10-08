@@ -9,8 +9,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi.errors import JishiError
-from jishi.interpreter import run_source
+from oracle.jishi.errors import JishiError
+from oracle.jishi.interpreter import run_source
 
 
 def run_capture(src: str) -> str:

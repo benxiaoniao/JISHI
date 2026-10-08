@@ -41,12 +41,12 @@ sys.path.insert(0, ".")
 
 from conftest import rust_exe_path, tmp_bc_path      # noqa: E402
 
-from jishi import ai                                 # noqa: E402
-from jishi import serialize                          # noqa: E402
-from jishi import vm as vm_mod                       # noqa: E402
-from jishi.compiler import compile_source            # noqa: E402
-from jishi.errors import JishiError                  # noqa: E402
-from jishi.interpreter import run_source as tree_run  # noqa: E402
+from oracle.jishi import ai                                 # noqa: E402
+from oracle.jishi import serialize                          # noqa: E402
+from oracle.jishi import vm as vm_mod                       # noqa: E402
+from oracle.jishi.compiler import compile_source            # noqa: E402
+from oracle.jishi.errors import JishiError                  # noqa: E402
+from oracle.jishi.interpreter import run_source as tree_run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -116,7 +116,7 @@ def _py_stdlib() -> dict[str, list[str]]:
 def _node_stdlib() -> dict[str, list[str]]:
     if not NODE:
         pytest.skip("没有 node")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), "--dump-stdlib"],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), "--dump-stdlib"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, f"Node --dump-stdlib 失败：{r.stderr[:300]}"
     return json.loads(r.stdout)
@@ -234,7 +234,7 @@ def test_两个宿主彼此也不漂移():
 
 
 def test_签名表与标准库源码同步():
-    """命名参数的映射表是从 `jishi/stdlib/*.py` 生成的，改了库就要重新生成。
+    """命名参数的映射表是从 `oracle/jishi/stdlib/*.py` 生成的，改了库就要重新生成。
 
     忘了重新生成 → 宿主的 kwargs 映射就会用**旧参数名**，这条直接报红。
     """
@@ -288,7 +288,7 @@ def _py_builtins() -> set[str]:
 def _node_builtins() -> set[str]:
     if not NODE:
         pytest.skip("没有 node")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), "--dump-builtins"],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), "--dump-builtins"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, f"Node --dump-builtins 失败：{r.stderr[:300]}"
     return set(json.loads(r.stdout))
@@ -400,7 +400,7 @@ def _py_methods() -> dict[str, list[str]]:
 def _node_methods() -> dict[str, list[str]]:
     if not NODE:
         pytest.skip("没有 node")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), "--dump-methods"],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), "--dump-methods"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, f"Node --dump-methods 失败：{r.stderr[:300]}"
     return json.loads(r.stdout)
@@ -462,7 +462,7 @@ def test_方法表本身不是空的():
     expected = _py_methods()
     assert set(expected) == {"列表", "字典", "文本", "集合", "文件", "小数"}, (
         f"Python 侧的方法表类目变了：{sorted(expected)}——"
-        "改了就得同步 `jishi/ai.py`、两个宿主的 dump、以及这里的断言")
+        "改了就得同步 `oracle/jishi/ai.py`、两个宿主的 dump、以及这里的断言")
     for t, ms in expected.items():
         assert ms, f"「{t}」的方法表是空的？"
 
@@ -516,7 +516,7 @@ def _py_vm_run(src: str) -> str:
 
 
 def _cvm_run(src: str) -> str:
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
     return _capture(cvm_bind.run_source_c, src, "<t>")
 
 
@@ -560,7 +560,7 @@ def _engines():
     out = [("树遍历", tree), ("Python VM", pyvm), ("C VM", cvm)]
     if NODE:
         out.append(("Node", lambda s: _host_run(
-            [NODE, str(ROOT / "node" / "index.js")], s, "node")))
+            [NODE, str(ROOT / "oracle" / "node" / "index.js")], s, "node")))
     if RUST.exists():
         out.append(("Rust", lambda s: _host_run([str(RUST)], s, "rust")))
     return out

@@ -10,10 +10,10 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import packages as PKG
-from jishi import runtime
-from jishi.errors import JishiError
-from jishi.interpreter import run_source
+from oracle.jishi import packages as PKG
+from oracle.jishi import runtime
+from oracle.jishi.errors import JishiError
+from oracle.jishi.interpreter import run_source
 
 
 # ---------------------------------------------------------------------------
@@ -226,18 +226,18 @@ def test_stdlib_system_exec():
 # ---------------------------------------------------------------------------
 
 def test_sandbox_blocks_path():
-    from jishi.sandbox import SandboxOpts, run_sandboxed
+    from oracle.jishi.sandbox import SandboxOpts, run_sandboxed
     r = run_sandboxed("导入 路径\n", SandboxOpts())
     assert not r["ok"]
 
 
 def test_sandbox_blocks_system():
-    from jishi.sandbox import SandboxOpts, run_sandboxed
+    from oracle.jishi.sandbox import SandboxOpts, run_sandboxed
     r = run_sandboxed("导入 系统\n", SandboxOpts())
     assert not r["ok"]
 
 
 def test_sandbox_allows_crypto():
-    from jishi.sandbox import SandboxOpts, run_sandboxed
+    from oracle.jishi.sandbox import SandboxOpts, run_sandboxed
     r = run_sandboxed('导入 加密\n打印(加密.md5("abc"))\n', SandboxOpts())
     assert r["ok"] and "90015098" in r["stdout"]

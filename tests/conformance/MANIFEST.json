@@ -121,8 +121,8 @@
     },
     {
       "id": "examples__projects__基石自述站__生成",
-      "产物哈希": "sha256:812a60e7d4ac1a43",
-      "内容哈希": "sha256:17b684aa4cdf4ade",
+      "产物哈希": "sha256:b852b4a1d8596d76",
+      "内容哈希": "sha256:f7f4fccd5c763b49",
       "类别": "examples",
       "路径": "examples/projects/基石自述站/生成.jsh"
     },
@@ -232,32 +232,32 @@
       "路径": "examples/tutorial/10_记账程序.jsh"
     },
     {
-      "id": "jishi__stdlib-jishi__参数",
-      "产物哈希": "sha256:136c5e3808ba6bdb",
+      "id": "oracle__jishi__stdlib-jishi__参数",
+      "产物哈希": "sha256:ebdcf3e921376997",
       "内容哈希": "sha256:21e3acc6595ef03e",
       "类别": "stdlib",
-      "路径": "jishi/stdlib-jishi/参数.jsh"
+      "路径": "oracle/jishi/stdlib-jishi/参数.jsh"
     },
     {
-      "id": "jishi__stdlib-jishi__容器",
-      "产物哈希": "sha256:41b06d7485b0ab89",
+      "id": "oracle__jishi__stdlib-jishi__容器",
+      "产物哈希": "sha256:8666547741445d78",
       "内容哈希": "sha256:0a7fe7c6a43a1cb1",
       "类别": "stdlib",
-      "路径": "jishi/stdlib-jishi/容器.jsh"
+      "路径": "oracle/jishi/stdlib-jishi/容器.jsh"
     },
     {
-      "id": "jishi__stdlib-jishi__统计",
-      "产物哈希": "sha256:f470c4a422585294",
+      "id": "oracle__jishi__stdlib-jishi__统计",
+      "产物哈希": "sha256:70061ac8f86f7cf4",
       "内容哈希": "sha256:01769482d8647365",
       "类别": "stdlib",
-      "路径": "jishi/stdlib-jishi/统计.jsh"
+      "路径": "oracle/jishi/stdlib-jishi/统计.jsh"
     },
     {
-      "id": "jishi__stdlib-jishi__迭代",
-      "产物哈希": "sha256:03ecd203d93e7e54",
+      "id": "oracle__jishi__stdlib-jishi__迭代",
+      "产物哈希": "sha256:0fe2d1b4580a490c",
       "内容哈希": "sha256:1667156d9a1d9296",
       "类别": "stdlib",
-      "路径": "jishi/stdlib-jishi/迭代.jsh"
+      "路径": "oracle/jishi/stdlib-jishi/迭代.jsh"
     },
     {
       "id": "tests__cases__01_算术",

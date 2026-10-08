@@ -10,13 +10,13 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import cli
-from jishi import version as _ver
+from oracle.jishi import cli
+from oracle.jishi import version as _ver
 
 
 def test_version_single_source():
     """版本号单一来源：version.py / ai / mcp_server / cli 一致。"""
-    from jishi import ai, mcp_server
+    from oracle.jishi import ai, mcp_server
     assert _ver.VERSION == ai.VERSION == mcp_server.VERSION == cli.VERSION
     # 版本号应是非空的语义化版本串（不写死具体数字，避免每次发版改测试）
     assert _ver.VERSION.count(".") == 2
@@ -108,7 +108,7 @@ def test_run_file_still_works(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 #
 # 2026-09-21 起 CI 连续 6 次全红、四平台都倒在「安装项目（可编辑）」，报
-#     error: package directory 'jishi/_native' does not exist
+#     error: package directory 'oracle/jishi/_native' does not exist
 # 根因：pyproject 的 `packages` 列了 `jishi._native`，setuptools 在**生成构建
 # 元数据**阶段就会检查该目录是否存在；而这个目录里只有 `.dll/.so/.dylib`，
 # 那些扩展名被 .gitignore 排除、不入库 → 干净检出里目录整个消失 → 构建失败。
@@ -157,18 +157,18 @@ def test_packages_directories_exist_in_clean_checkout():
 
 
 def test_native_dir_is_tracked_but_libs_are_not():
-    """`jishi/_native`：目录要入库（占位），动态库本身不入库（各平台产物）。
+    """`oracle/jishi/_native`：目录要入库（占位），动态库本身不入库（各平台产物）。
 
     这两条**必须同时成立**——只满足一边都会出问题：
     - 目录不入库 → CI 构建失败（见上一条测试）；
     - 动态库入库 → 仓库里塞进二进制、且跨平台产物互相覆盖。
     """
     import subprocess
-    out = subprocess.run(["git", "ls-files", "jishi/_native"],
+    out = subprocess.run(["git", "ls-files", "oracle/jishi/_native"],
                          cwd=ROOT, capture_output=True, text=True,
                          encoding="utf-8")
     files = out.stdout.splitlines()
-    assert files, "jishi/_native 在 git 里是空的——干净检出会缺目录"
+    assert files, "oracle/jishi/_native 在 git 里是空的——干净检出会缺目录"
     for f in files:
         assert not f.endswith((".dll", ".so", ".dylib")), (
             f"动态库不该入库：{f}"

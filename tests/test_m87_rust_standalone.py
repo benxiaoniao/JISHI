@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Rust 工具链的**独立判据** —— 不依赖 Python、不 import jishi、不 spawn Python。
+"""Rust 工具链的**独立判据** —— 不依赖 Python、不 import oracle.jishi、不 spawn Python。
 
 ## 为什么单独一份（用户 2026-10-05 提醒）
 
@@ -11,7 +11,7 @@
 `jishi-rs` 二进制，期望值是人工核对过（创建时与 Python 侧逐字比过）之后写进来的。
 **Python 退场之后，这一份仍然要绿。**
 
-⚠️ 判据里**不许出现**：`import jishi`、`sys.executable`、`-m jishi.cli`、
+⚠️ 判据里**不许出现**：`import oracle.jishi`、`sys.executable`、`-m oracle.jishi.cli`、
 或者任何「让 Python 算一个期望值」的写法 —— 那等于把判据又押回 Python 上。
 """
 

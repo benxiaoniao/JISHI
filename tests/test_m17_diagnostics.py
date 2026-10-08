@@ -10,9 +10,9 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import interpreter
-from jishi.errors import JishiError, translate_python_exception
-from jishi.interpreter import Interpreter, run_source
+from oracle.jishi import interpreter
+from oracle.jishi.errors import JishiError, translate_python_exception
+from oracle.jishi.interpreter import Interpreter, run_source
 
 
 def _run(src, filename="<输入>"):
@@ -71,15 +71,15 @@ def test_call_trace_absent_when_no_error():
     src = "函数 加(a, b):\n    返回 a + b\n打印(加(1, 2))\n"
     # 正常执行无异常，也不应有残留帧
     interp = Interpreter()
-    from jishi.tokenizer import tokenize
-    from jishi.parser import parse
+    from oracle.jishi.tokenizer import tokenize
+    from oracle.jishi.parser import parse
     prog = parse(tokenize(src, "x"), src.split("\n"), "x")
     interp.run(prog)
     assert interp._call_stack == []
 
 
 def test_error_to_json_includes_trace():
-    from jishi.ai import error_to_json
+    from oracle.jishi.ai import error_to_json
     src = ("函数 里层():\n"
            "    令 x = [1]\n"
            "    打印(x[5])\n"
@@ -95,7 +95,7 @@ def test_error_to_json_includes_trace():
 # ---------------------------------------------------------------------------
 
 def test_sandbox_timeout_has_hint():
-    from jishi.sandbox import SandboxOpts, run_sandboxed
+    from oracle.jishi.sandbox import SandboxOpts, run_sandboxed
     r = run_sandboxed("令 x = 0\n当 真:\n    x = x + 1\n",
                       SandboxOpts(timeout=0.3))
     assert r["ok"] is False
@@ -104,7 +104,7 @@ def test_sandbox_timeout_has_hint():
 
 
 def test_sandbox_recursion_translated():
-    from jishi.sandbox import SandboxOpts, run_sandboxed
+    from oracle.jishi.sandbox import SandboxOpts, run_sandboxed
     r = run_sandboxed("函数 递归(n):\n    返回 递归(n + 1)\n递归(1)\n",
                       SandboxOpts(timeout=5))
     assert r["ok"] is False
@@ -117,7 +117,7 @@ def test_sandbox_recursion_translated():
 # ---------------------------------------------------------------------------
 
 def test_repl_error_shows_source_line(monkeypatch):
-    from jishi import repl
+    from oracle.jishi import repl
     # 用 input 序列模拟 REPL：输入一行除零，再退出
     buf_out = io.StringIO()
     buf_err = io.StringIO()

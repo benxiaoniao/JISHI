@@ -437,7 +437,7 @@ def _cmd_doctor(args) -> int:
 
     # 3. 安装位置
     try:
-        import jishi as _jishi
+        import oracle.jishi as _jishi
         print(f"  安装位置：{os.path.dirname(os.path.abspath(_jishi.__file__))}")
     except Exception:  # noqa: BLE001
         print("  安装位置：未知")
@@ -565,7 +565,7 @@ def _all_error_codes() -> list:
 def _cmd_errcode(args) -> int:
     """`jishi 错误 [码]`：查错误码的含义 / 常见成因 / 怎么改（M56 第 7 条）。
 
-    码与标题从 `errors.py` **自动抽**（不另抄一份）；说明在 `jishi/errcodes.py`
+    码与标题从 `errors.py` **自动抽**（不另抄一份）；说明在 `oracle/jishi/errcodes.py`
     —— 两边不许有对方没有的码，`tests/test_m56_errcodes.py` 钉着。
     """
     from . import errcodes
@@ -601,7 +601,7 @@ def _cmd_errcode(args) -> int:
     info = errcodes.INFO.get(want)
     print(f"{want}  {title}\n")
     if info is None:                                            # pragma: no cover
-        print("（这个码还没有写说明 —— 请补 jishi/errcodes.py）")
+        print("（这个码还没有写说明 —— 请补 oracle/jishi/errcodes.py）")
         return 0
     print("什么意思")
     print(f"  {info['what']}\n")
@@ -1170,7 +1170,7 @@ def _setup_io() -> None:
       都一样」在重定向输出时就破了（M33 端到端对拍撞出来的）。
       只改输出；读入仍走通用换行，`\n` 与 `\r\n` 都认。
 
-    包成函数是因为入口有两条：`python -m jishi.cli` 直接调 `main()`，
+    包成函数是因为入口有两条：`python -m oracle.jishi.cli` 直接调 `main()`，
     PyInstaller 打包版走 `tools/entry_cli.py`——两条路都得设。
     """
     for stream in (sys.stdout, sys.stderr):

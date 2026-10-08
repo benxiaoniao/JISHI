@@ -153,7 +153,7 @@ S2 的 3 条是已登记的 Node 网络 EBUSY 偶发）。⚠️ 这一轮差点
 ⚠️ 顺带抽出 **`rust/src/scope.rs`**（作用域分析，checker 与 LSP 共用一份 —— Python 侧就是`scope.py`）与 **`rust/src/jsonw.rs`**（保序 JSON 写出器，`--lang-spec` 与 LSP 共用；加了 `Jv::Null`）。
 🔴 **照抄了一条 Python 的怪行为**：**词法错的 `didOpen` 会让整个 `on_did_open` 抛出、文档根本不注册**（`IncrementalDocument` 在构造里就分词）。这不是「顺手修一修」的地方 —— 照抄才叫逐字一致；判据里两个方向都钉了（语法错要能开、词法错不注册）。
 📌 **性能（同机同时段，R7.3 开工首日重测）**：每次编辑 253/1253/5003/20003 行 —— Python 13.0 / 70.9 / 289.2 / **1224.3ms** vs Rust 2.4 / 11.1 / 49.8 / **207.1ms**（**5.3~6.4x**）。Rust 用**全量**重分词 + 重解析就赢了 Python 的**增量**分词，所以**没有搬 `incremental.py`**（少一份状态机，少一处会漂的地方）。
-判据 `test_m91`：逐字节对拍 + `verify-lsp.js` 双跑 + **不 import jishi / 不 spawn Python** 的独立判据（含「没有 PATH 也能跑」）+ `计时` 性能护栏。 | ✅ 2026-10-06 |
+判据 `test_m91`：逐字节对拍 + `verify-lsp.js` 双跑 + **不 import oracle.jishi / 不 spawn Python** 的独立判据（含「没有 PATH 也能跑」）+ `计时` 性能护栏。 | ✅ 2026-10-06 |
 | **R7.4 CLI + MCP 搬进 Rust** | `rust/src/run.rs`（CLI 主入口）+ `rust/src/mcp.rs`（`jishi-rs mcp`）。
 **① CLI**：`jishi-rs <文件.jsh>` / `--stdin` / `--ast` / `--json-errors` / `--sandbox` / `--json-result` / `--timeout` / `--load-bytecode` / `--dump-bytecode`。新闸门 **`tools/check_cli.py`**（89 语料 × 3 模式 × 两个引擎逐字节，另有 10 个**显式登记**的跳过：6 个读标准输入 + 3 个 `从 python 导入`（单二进制的既定能力边界）+ 1 个 `时间.计时` 缺口）→ **不一致 0**。
 **② MCP**：`jishi-rs mcp` 与 `python -m jishi.mcp_server` 同一串 **40 条报文逐字节一致**（7 个工具全过；只有 `duration_ms` 归一）。
@@ -2536,9 +2536,9 @@ LLM 生成中文代码的最高频错误。
 ### 15.4 性能收尾（可选，诚实评估 ROI）
 - 字符串内联：给 JVal 加短字符串内联 tag，评估是否值得（对 benchmark 的
   长串拼接收益有限，但对短串频繁使用有帮助）；**ROI 不足则明确放弃并记录**；
-- 启动时间优化：stdlib 懒加载（`import jishi` 提速）。
+- 启动时间优化：stdlib 懒加载（`import oracle.jishi` 提速）。
 - **现状（2026-09-05 评估结论：两项均放弃，诚实记录）**：
-  - 实测 `import jishi` 仅 0.6ms，jishi CLI 冷启动 220ms 里大头是 Python
+  - 实测 `import oracle.jishi` 仅 0.6ms，jishi CLI 冷启动 220ms 里大头是 Python
     解释器本身（空 python 基线 135ms）+ cli 模块加载（约 85ms），**stdlib
     懒加载可节省 <1ms，ROI 趋近于零** → 放弃。真正的启动优化要等 M16 用
     PyInstaller 打包成独立可执行文件（免 Python 解释器启动，才是根本解）。

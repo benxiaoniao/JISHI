@@ -37,10 +37,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import cvm_bind                                        # noqa: E402
-from jishi.compiler import compile_source, compile_to_json        # noqa: E402
-from jishi.interpreter import run_source as run_tree              # noqa: E402
-from jishi.vm import VM                                           # noqa: E402
+from oracle.jishi import cvm_bind                                        # noqa: E402
+from oracle.jishi.compiler import compile_source, compile_to_json        # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
+from oracle.jishi.vm import VM                                           # noqa: E402
 
 NODE = shutil.which("node")
 HAS_NODE = NODE is not None
@@ -78,7 +78,7 @@ def _five(src: str) -> dict[str, str]:
         out["Rust"] = r.stdout.decode("utf-8", "replace") or \
             ("【错】" + r.stderr.decode("utf-8", "replace").splitlines()[0])
     if HAS_NODE:
-        r = subprocess.run([NODE, "node/index.js", str(tmp)],
+        r = subprocess.run([NODE, "oracle/node/index.js", str(tmp)],
                            capture_output=True, input=b"")
         out["Node"] = r.stdout.decode("utf-8", "replace") or \
             ("【错】" + r.stderr.decode("utf-8", "replace").splitlines()[0])

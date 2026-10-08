@@ -19,8 +19,8 @@ from conftest import tmp_bc_path   # noqa: E402
 
 import pytest
 
-from jishi.compiler import compile_source
-from jishi import serialize, vm as vm_mod
+from oracle.jishi.compiler import compile_source
+from oracle.jishi import serialize, vm as vm_mod
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -34,7 +34,7 @@ def _node_run(bytecode_text: str) -> tuple[int, str]:
     bc = tmp_bc_path(ROOT / "_tmp_bc.json")
     bc.write_text(bytecode_text, encoding="utf-8")
     r = subprocess.run(
-        [NODE, str(ROOT / "node" / "index.js"), str(bc)],
+        [NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
         capture_output=True, text=True, encoding="utf-8")
     return r.returncode, r.stdout
 

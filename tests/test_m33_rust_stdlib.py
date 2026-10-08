@@ -10,7 +10,7 @@
 1. **Rust 侧的输出要按字节收**（`capture_output=True` 后自己 `.decode()`），
    **不能**用 `text=True`：它默认做通用换行转换，会把输出里的 `\\r\\n` 悄悄
    改成 `\\n`。M33 就是靠这一点才发现「Python 侧输出 CRLF、Node/Rust 输出 LF」
-   （见 `jishi/cli.py` 的 `_setup_io`）。
+   （见 `oracle/jishi/cli.py` 的 `_setup_io`）。
 2. **两个宿主共用一个文件系统**，所以写文件的用例必须**可重入**：
    同一个临时目录下，Python 先跑、Rust 后跑，用例自己不能依赖「上一轮留下的
    状态」（M31 在这里栽过一次）。
@@ -36,9 +36,9 @@ sys.path.insert(0, ".")
 
 from conftest import rust_exe_path       # noqa: E402
 
-from jishi import serialize                       # noqa: E402
-from jishi import vm as vm_mod                    # noqa: E402
-from jishi.compiler import compile_source         # noqa: E402
+from oracle.jishi import serialize                       # noqa: E402
+from oracle.jishi import vm as vm_mod                    # noqa: E402
+from oracle.jishi.compiler import compile_source         # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = rust_exe_path()   # 平台感知：Windows 是 .exe，别处没有扩展名

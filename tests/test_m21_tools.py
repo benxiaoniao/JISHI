@@ -15,9 +15,9 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import cli                            # noqa: E402
-from jishi.formatter import format_source        # noqa: E402
-from jishi.tokenizer import tokenize             # noqa: E402
+from oracle.jishi import cli                            # noqa: E402
+from oracle.jishi.formatter import format_source        # noqa: E402
+from oracle.jishi.tokenizer import tokenize             # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -164,7 +164,7 @@ def test_empty_source():
 # ---------------------------------------------------------------------------
 
 def test_raises_on_unlexable_source():
-    from jishi.errors import JishiError
+    from oracle.jishi.errors import JishiError
     with pytest.raises(JishiError):
         format_source('打印("没有结束\n')
 

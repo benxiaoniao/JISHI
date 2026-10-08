@@ -15,15 +15,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jishi import errcodes, errors  # noqa: E402
-from jishi.cli import _all_error_codes, main  # noqa: E402
+from oracle.jishi import errcodes, errors  # noqa: E402
+from oracle.jishi.cli import _all_error_codes, main  # noqa: E402
 
 
 def test_每个错误码都有说明():
     declared = dict(_all_error_codes())
     missing = sorted(set(declared) - set(errcodes.INFO))
     assert not missing, (
-        f"这些错误码还没有说明（补 jishi/errcodes.py）：{'、'.join(missing)}")
+        f"这些错误码还没有说明（补 oracle/jishi/errcodes.py）：{'、'.join(missing)}")
 
 
 def test_说明里没有多余的码():

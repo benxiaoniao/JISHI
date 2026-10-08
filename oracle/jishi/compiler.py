@@ -1261,10 +1261,10 @@ def compile_debug_expr(cmod: O.CompiledModule, frame_code: O.Code,
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    """``python -m jishi.compiler 文件.jsh``：打印反汇编。"""
+    """``python -m oracle.jishi.compiler 文件.jsh``：打印反汇编。"""
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
-        print("用法：python -m jishi.compiler 文件.jsh")
+        print("用法：python -m oracle.jishi.compiler 文件.jsh")
         return 2
     from pathlib import Path
     src = Path(argv[0]).read_text(encoding="utf-8")

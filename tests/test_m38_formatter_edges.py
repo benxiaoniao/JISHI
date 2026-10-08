@@ -4,7 +4,7 @@
 来由：M21 的格式化器已经有「幂等 + token 流等价」的语料对拍，但语料只覆盖了
 `examples/` 与 `tests/cases/` 里**写得规规矩矩**的代码。这里补的是一批
 「用户真会写、但语料里没有」的边界形状，实测挖出四个真问题（都已在
-`jishi/formatter.py` 修掉）：
+`oracle/jishi/formatter.py` 修掉）：
 
 1. **字符串里的 `#` 被当成注释**——`令 甲 = "含 # 号"` 会被从字符串中间劈开，
    格式化直接报「字符串没有正常结束」（插值字符串同理）。修法：注释识别改成
@@ -36,10 +36,10 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import cli                            # noqa: E402
-from jishi.formatter import format_source        # noqa: E402
-from jishi.parser import parse                   # noqa: E402
-from jishi.tokenizer import tokenize             # noqa: E402
+from oracle.jishi import cli                            # noqa: E402
+from oracle.jishi.formatter import format_source        # noqa: E402
+from oracle.jishi.parser import parse                   # noqa: E402
+from oracle.jishi.tokenizer import tokenize             # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -156,7 +156,7 @@ def test_bom_file_runs_and_checks_clean(tmp_path):
     """带 BOM 的文件要能**跑起来**、也要 `--check` 通过（词法器剥 BOM）。"""
     f = tmp_path / "带BOM.jsh"
     f.write_text("\ufeff令 甲 = 1\n打印(甲)\n", encoding="utf-8")
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", str(f)],
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(f)],
                        capture_output=True, text=True, encoding="utf-8",
                        errors="replace", cwd=str(ROOT))
     assert r.returncode == 0, r.stderr

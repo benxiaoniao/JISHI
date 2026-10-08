@@ -18,7 +18,7 @@ stdio 传输（换行分隔的 JSON-RPC 2.0），暴露七个工具（M45 起从
 错误码表来自 `errors` 登记、检查码来自 `checker.CHECK_CATALOG`、标准库签名来自
 扫 `stdlib/*.py`——规格变了工具自动跟着变，不会各说各话。
 
-入口：python -m jishi.mcp_server
+入口：python -m oracle.jishi.mcp_server
 日志一律走 stderr（stdout 被 JSON-RPC 占用）。
 """
 
@@ -35,14 +35,14 @@ from typing import Any, Optional
 def _cli_command() -> list[str]:
     """构造「调用基石 CLI」的命令前缀。
 
-    源码运行时是 ``[python, -m, jishi.cli]``；但 PyInstaller 打包后
+    源码运行时是 ``[python, -m, oracle.jishi.cli]``；但 PyInstaller 打包后
     ``sys.executable`` 指向 ``jishi-mcp.exe`` **自己**，不是 Python 解释器，
     照原样调用会得到「子进程异常退出（code=0）」。此时改用发行目录里同级的
-    ``jishi`` 可执行文件（布局为 ``bin/jishi/jishi.exe`` 与
+    ``jishi`` 可执行文件（布局为 ``bin/oracle/jishi/jishi.exe`` 与
     ``bin/jishi-mcp/jishi-mcp.exe``，互为兄弟目录）。
     """
     if not getattr(sys, "frozen", False):
-        return [sys.executable, "-m", "jishi.cli"]
+        return [sys.executable, "-m", "oracle.jishi.cli"]
 
     exe = Path(sys.executable)
     suffix = ".exe" if os.name == "nt" else ""

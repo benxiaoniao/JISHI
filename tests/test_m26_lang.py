@@ -19,14 +19,14 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import cvm_bind                        # noqa: E402
-from jishi import vm as vm_mod                    # noqa: E402
-from jishi.compiler import compile_source         # noqa: E402
-from jishi.errors import JishiError               # noqa: E402
-from jishi.formatter import format_source         # noqa: E402
-from jishi.interpreter import Interpreter         # noqa: E402
-from jishi.parser import parse                    # noqa: E402
-from jishi.tokenizer import tokenize              # noqa: E402
+from oracle.jishi import cvm_bind                        # noqa: E402
+from oracle.jishi import vm as vm_mod                    # noqa: E402
+from oracle.jishi.compiler import compile_source         # noqa: E402
+from oracle.jishi.errors import JishiError               # noqa: E402
+from oracle.jishi.formatter import format_source         # noqa: E402
+from oracle.jishi.interpreter import Interpreter         # noqa: E402
+from oracle.jishi.parser import parse                    # noqa: E402
+from oracle.jishi.tokenizer import tokenize              # noqa: E402
 
 
 def _tree(src: str) -> str:
@@ -557,7 +557,7 @@ def test_formatter_is_idempotent_with_exact():
 
 def test_decorated_keyword_is_in_language_spec():
     """`用` 进了关键字表，语言元数据（LSP 补全/高亮）才会认得它。"""
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
     spec = build_lang_spec()
     keywords = str(spec.get("keywords", ""))
     assert "用" in keywords

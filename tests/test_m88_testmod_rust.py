@@ -89,7 +89,7 @@ def _run_rust(prog_json: Path):
 
 
 def _run_py(prog: Path):
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", str(prog)],
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(prog)],
                        capture_output=True, input=b"", env=_env(), cwd=str(ROOT))
     return (r.stdout.decode("utf-8", "replace"),
             r.stderr.decode("utf-8", "replace"), r.returncode)
@@ -103,7 +103,7 @@ def _compile(src: str, tag: str) -> tuple[Path, Path]:
     jsh.write_text(src, encoding="utf-8")
     js = d / f"{tag}.json"
     sys.path.insert(0, str(ROOT))
-    from jishi.compiler import compile_to_json
+    from oracle.jishi.compiler import compile_to_json
     js.write_text(compile_to_json(src, str(jsh)), encoding="utf-8")
     return jsh, js
 

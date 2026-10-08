@@ -46,7 +46,7 @@ _NATIVE = Path(__file__).resolve().parent / "_native"
 #:
 #: 为什么要这条：动态库与宿主的回调签名/结构布局对不上时**不会报错**，只是
 #: 参数错位、算错甚至崩。本项目已经踩过两次同族坑（改了 `cvm/src/`、Python
-#: 加载的却是 `jishi/_native/` 里那份旧库，一句提示都没有）——宁可拦住。
+#: 加载的却是 `oracle/jishi/_native/` 里那份旧库，一句提示都没有）——宁可拦住。
 #: 结构钉：`tests/test_m84_cvm_live_iter.py::test_ABI版本号与头文件一致`。
 _JSVM_ABI_VERSION = 2
 
@@ -76,7 +76,7 @@ def _lib_path() -> Path:
     #    —— `cvm/src/` 在，说明这是开发仓库，`python cvm/build.py` 刚编出来的
     #    那份就该被用上。
     #
-    # ⚠️ **以前这里是反的**（包内预编译的 `jishi/_native/` 固定排前面），于是出现
+    # ⚠️ **以前这里是反的**（包内预编译的 `oracle/jishi/_native/` 固定排前面），于是出现
     # 「改了 `cvm/src/jsvm.c`、也跑了 `cvm/build.py`，但 Python 加载的仍是
     # `_native/` 那份**旧** dll」——**改了没生效，而且一句提示都没有**。
     # ⚠️ 而且这个坑**踩过两次**（M40 一次、R6.7 一次），中间那次还把它写进了笔记

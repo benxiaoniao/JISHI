@@ -21,7 +21,7 @@
 不换算的话编辑会落在错位置（M38 B2）。
 
 同步方式：M38 B2 起是**增量同步**（``textDocumentSync.change = 2``）：客户端
-只发改动的那一段，服务端按行复用前缀重新分词（``jishi.incremental``）。
+只发改动的那一段，服务端按行复用前缀重新分词（``oracle.jishi.incremental``）。
 """
 
 from __future__ import annotations

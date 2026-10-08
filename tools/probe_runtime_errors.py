@@ -75,10 +75,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import cvm_bind                                        # noqa: E402
-from jishi.compiler import compile_source, compile_to_json        # noqa: E402
-from jishi.interpreter import run_source as run_tree              # noqa: E402
-from jishi.vm import VM                                           # noqa: E402
+from oracle.jishi import cvm_bind                                        # noqa: E402
+from oracle.jishi.compiler import compile_source, compile_to_json        # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
+from oracle.jishi.vm import VM                                           # noqa: E402
 
 #: 形状名 → 会**抛错**的那段源码（会被包进 `尝试 … 捕获 异常 为 错`）。
 #: 每条都钉住一类**用户真会撞上**的错；不追求覆盖全部，追求覆盖**常见且易漂**的。
@@ -129,7 +129,7 @@ def _node_exe() -> "str | None":
 
 
 def _node_index() -> Path:
-    return ROOT / "node" / "index.js"
+    return ROOT / "oracle" / "node" / "index.js"
 
 
 def _cap(fn) -> str:

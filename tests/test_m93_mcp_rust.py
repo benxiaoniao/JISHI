@@ -8,9 +8,9 @@
 两半照 R7.1 起的规矩：
 
 * **对拍**：同一串报文（换行分隔的 JSON-RPC）喂 `jishi-rs mcp` 与
-  `python -m jishi.mcp_server`，比 **stdout 原始字节**。
+  `python -m oracle.jishi.mcp_server`，比 **stdout 原始字节**。
   只有 `duration_ms` 是墙上时间，比之前归一 —— 其余一个字节都不许差。
-* **独立判据**：不 import jishi、不 spawn Python，把该吐的报文**写死**。
+* **独立判据**：不 import oracle.jishi、不 spawn Python，把该吐的报文**写死**。
 
 ⚠️ **超时那一格不进对拍**：本机 Python 侧的沙箱超时会把输出整个丢掉
 （详见 `test_m92_cli_rust.py` 模块头）。「真 kill」这半只钉宿主：
@@ -70,7 +70,7 @@ def _rs(msgs, timeout: float = 300.0):
 
 
 def _py(msgs, timeout: float = 300.0):
-    return _ask([sys.executable, "-m", "jishi.mcp_server"], msgs, timeout)
+    return _ask([sys.executable, "-m", "oracle.jishi.mcp_server"], msgs, timeout)
 
 
 def _call(i, name, args):
@@ -153,7 +153,7 @@ def test_对拍_报文逐字节():
 
 
 # ---------------------------------------------------------------------------
-# 独立判据（不 import jishi、不 spawn Python）
+# 独立判据（不 import oracle.jishi、不 spawn Python）
 # ---------------------------------------------------------------------------
 
 @need_rust

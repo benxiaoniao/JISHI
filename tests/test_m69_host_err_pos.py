@@ -56,8 +56,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import serialize, tokenizer                        # noqa: E402
-from jishi.compiler import compile_to_json, compile_source     # noqa: E402
+from oracle.jishi import serialize, tokenizer                        # noqa: E402
+from oracle.jishi.compiler import compile_to_json, compile_source     # noqa: E402
 
 
 def _rust_frontend_ok() -> bool:
@@ -111,11 +111,11 @@ def _three(src: str, tag: str):
     """Python CLI / Rust / Node 各跑一遍 → `{名字: (stdout, stderr)}`。"""
     rel = _write(src, tag)
     bc = _bc(src, rel)
-    out = {"Python": _run([sys.executable, "-m", "jishi.cli", rel])}
+    out = {"Python": _run([sys.executable, "-m", "oracle.jishi.cli", rel])}
     if RUST.exists():
         out["Rust"] = _run([str(RUST), "--load-bytecode", str(bc.relative_to(ROOT))])
     if HAS_NODE:
-        out["Node"] = _run([NODE, "node/index.js", str(bc.relative_to(ROOT))])
+        out["Node"] = _run([NODE, "oracle/node/index.js", str(bc.relative_to(ROOT))])
     return out
 
 

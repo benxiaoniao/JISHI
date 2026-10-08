@@ -30,10 +30,10 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 import conformance as C                                            # noqa: E402
-from jishi import compiler as _C                                   # noqa: E402
-from jishi import opcodes as O                                     # noqa: E402
-from jishi import tokenizer as T                                   # noqa: E402
-from jishi.errors import JishiError                                 # noqa: E402
+from oracle.jishi import compiler as _C                                   # noqa: E402
+from oracle.jishi import opcodes as O                                     # noqa: E402
+from oracle.jishi import tokenizer as T                                   # noqa: E402
+from oracle.jishi.errors import JishiError                                 # noqa: E402
 
 
 def _have_rust() -> bool:
@@ -298,9 +298,9 @@ def test_三执行器端到端一致():
     import contextlib
     import io as _io
 
-    from jishi import cvm_bind
-    from jishi.interpreter import run_source
-    from jishi.vm import VM
+    from oracle.jishi import cvm_bind
+    from oracle.jishi.interpreter import run_source
+    from oracle.jishi.vm import VM
 
     srcs = [
         (ROOT / "examples/13_面向对象.jsh").read_text(encoding="utf-8"),

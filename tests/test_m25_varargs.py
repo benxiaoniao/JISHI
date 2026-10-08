@@ -22,17 +22,17 @@ sys.path.insert(0, ".")
 
 from conftest import tmp_bc_path   # noqa: E402
 
-from jishi import cvm_bind                        # noqa: E402
-from jishi import opcodes as O                    # noqa: E402
-from jishi import runtime as R                    # noqa: E402
-from jishi import serialize                       # noqa: E402
-from jishi import vm as vm_mod                    # noqa: E402
-from jishi.compiler import compile_source         # noqa: E402
-from jishi.errors import JishiError               # noqa: E402
-from jishi.formatter import format_source         # noqa: E402
-from jishi.interpreter import Interpreter         # noqa: E402
-from jishi.parser import parse                    # noqa: E402
-from jishi.tokenizer import tokenize              # noqa: E402
+from oracle.jishi import cvm_bind                        # noqa: E402
+from oracle.jishi import opcodes as O                    # noqa: E402
+from oracle.jishi import runtime as R                    # noqa: E402
+from oracle.jishi import serialize                       # noqa: E402
+from oracle.jishi import vm as vm_mod                    # noqa: E402
+from oracle.jishi.compiler import compile_source         # noqa: E402
+from oracle.jishi.errors import JishiError               # noqa: E402
+from oracle.jishi.formatter import format_source         # noqa: E402
+from oracle.jishi.interpreter import Interpreter         # noqa: E402
+from oracle.jishi.parser import parse                    # noqa: E402
+from oracle.jishi.tokenizer import tokenize              # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -444,7 +444,7 @@ def test_param_kind_defaults_to_normal():
 
 def test_cvm_callback_table_has_pack_kwargs():
     """新增宿主回调必须两端对齐——曾因字段错位导致 ctypes 崩溃。"""
-    from jishi.cvm_bind import JsHost
+    from oracle.jishi.cvm_bind import JsHost
     assert "pack_kwargs" in [f[0] for f in JsHost._fields_]
 
 
@@ -495,7 +495,7 @@ def test_floor_and_pow_augmented_assignment_work():
 
 
 def test_operator_longest_match():
-    from jishi.tokenizer import tokenize as tk
+    from oracle.jishi.tokenizer import tokenize as tk
     for src, want in [("甲 **= 3", "**="), ("甲 //= 3", "//="),
                       ("甲 ** 3", "**"), ("甲 // 3", "//"),
                       ("甲 ** -1", "**")]:
@@ -552,7 +552,7 @@ def test_node_host_supports_varargs_and_star_unpack():
            '打印(首, 中, 尾)\n')
     bc = tmp_bc_path(ROOT / "_tmp_m25_node.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    r = subprocess.run([_NODE, str(ROOT / "node" / "index.js"), str(bc)],
+    r = subprocess.run([_NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
                        capture_output=True, text=True, encoding="utf-8",
                        timeout=60)
     assert r.returncode == 0, f"Node 崩溃：{r.stderr[:300]}"
@@ -566,7 +566,7 @@ def test_node_host_version_check_matches_engine():
     —— 版本号本来散在四处，改一处忘三处正是这类检查最容易失效的地方。
     所以这条判据改成两句：**它确实读那个常量** + **常量值与本侧一致**。
     """
-    node_js = (ROOT / "node" / "index.js").read_text(encoding="utf-8")
+    node_js = (ROOT / "oracle" / "node" / "index.js").read_text(encoding="utf-8")
     assert "body.version !== FORMAT_VERSION" in node_js
     m = re.search(r"const FORMAT_VERSION = (\d+)", node_js)
     assert m, "Node 侧应该有 `const FORMAT_VERSION = <数字>`"
@@ -582,7 +582,7 @@ def test_字节码格式版本四处同步():
     两种都难查。所以直接把它们钉在同一根线上（R6.6 立的规矩）。
     """
     src = serialize.FORMAT_VERSION
-    node_js = (ROOT / "node" / "index.js").read_text(encoding="utf-8")
+    node_js = (ROOT / "oracle" / "node" / "index.js").read_text(encoding="utf-8")
     rust_lib = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
     core_ser = (ROOT / "frontend" / "src" / "serialize.rs").read_text(encoding="utf-8")
     m_node = re.search(r"const FORMAT_VERSION = (\d+)", node_js)

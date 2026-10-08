@@ -20,7 +20,7 @@ r"""R8.4（前置）：`医生` / `新项目` / `教程` 搬进 Rust 宿主。
 Python 那版报的是「Python：3.13」「C VM：已加载」「MCP Server：可用」——
 **单二进制世界里这三样根本不存在**。照搬等于给用户看三条**假的检查项**。
 所以它改成报这个二进制真正该关心的事（版本 / 可执行文件 / PATH / 包目录 / 终端 /
-索引源），判据也换成**独立判据**（写死期望、不 import jishi）。
+索引源），判据也换成**独立判据**（写死期望、不 import oracle.jishi）。
 
 ⚠️ 一条容易漏的：诊断命令**不许有副作用**。第一版用了 `packages::ensure_root()`
 把 `.jishi/packages` 建在了**当前目录** —— 判据里专门钉了这条。
@@ -53,8 +53,8 @@ def _env() -> dict:
 
 
 def _py(args: list[str], cwd: Path) -> tuple[int, bytes, bytes]:
-    """跑 Python 版：`python -m jishi.cli <args>`。"""
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", *args],
+    """跑 Python 版：`python -m oracle.jishi.cli <args>`。"""
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", *args],
                        capture_output=True, cwd=str(cwd), env=_env(), timeout=120)
     return r.returncode, r.stdout, r.stderr
 
@@ -140,7 +140,7 @@ def test_对拍_新项目_缺参数退码2(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 二、独立判据：`医生`（有意重写，不 import jishi、不与 Python 比）
+# 二、独立判据：`医生`（有意重写，不 import oracle.jishi、不与 Python 比）
 # ---------------------------------------------------------------------------
 
 @need_rust

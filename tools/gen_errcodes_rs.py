@@ -10,9 +10,9 @@
 
 两张表各有单一来源（照 Python 侧既有约定，别合并）：
 
-* `(码, 标题)` ← **`jishi/errors.py`** 里各 `JishiError` 子类的类属性
+* `(码, 标题)` ← **`oracle/jishi/errors.py`** 里各 `JishiError` 子类的类属性
   （`cli._all_error_codes()` 也是这么抽的）；
-* `码 → 什么意思 / 常见成因 / 怎么改` ← `jishi/errcodes.py` 的 `INFO`。
+* `码 → 什么意思 / 常见成因 / 怎么改` ← `oracle/jishi/errcodes.py` 的 `INFO`。
 
 Rust 侧是**零依赖** crate（自己拼字符串，不用 serde），所以渲染逻辑也一起写在
 生成的文件里，且**逐字照 Python 侧 `cli._cmd_errcode`**。
@@ -27,8 +27,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import errcodes as EC            # noqa: E402
-from jishi import errors as E               # noqa: E402
+from oracle.jishi import errcodes as EC            # noqa: E402
+from oracle.jishi import errors as E               # noqa: E402
 
 OUT = ROOT / "rust" / "src" / "errcodes.rs"
 
@@ -58,8 +58,8 @@ TEMPLATE = r'''// 基石错误码表（R7.1-b，2026-10-05）—— `jishi 错�
 // 两侧一致性由 `tests/test_m85_errcodes_rust.py` 钉住（谁改一侧都报红）。
 //
 // 两张表各有单一来源（与 Python 侧同一条约定，别合并）：
-//   * `(码, 标题)` ← `jishi/errors.py` 各 `JishiError` 子类的类属性；
-//   * `码 → 说明`   ← `jishi/errcodes.py` 的 `INFO`。
+//   * `(码, 标题)` ← `oracle/jishi/errors.py` 各 `JishiError` 子类的类属性；
+//   * `码 → 说明`   ← `oracle/jishi/errcodes.py` 的 `INFO`。
 //
 // 📌 为什么值得搬（北极星第二半「出问题能快速定位」）：错误码在报错里已经给了，
 // 但「E0301 是什么、我该怎么办」以前只能翻源码 —— 对用户是门槛，对模型是
@@ -146,7 +146,7 @@ pub fn render(want: &str) -> (String, String, i32) {
     };
     let mut s = format!("{want}  {title}\n\n");
     match info(&want) {
-        None => s.push_str("（这个码还没有写说明 —— 请补 jishi/errcodes.py）\n"),
+        None => s.push_str("（这个码还没有写说明 —— 请补 oracle/jishi/errcodes.py）\n"),
         Some(i) => {
             s.push_str("什么意思\n");
             s.push_str(&format!("  {}\n\n", i.what));

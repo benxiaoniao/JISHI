@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 // 自动生成，请勿手改 —— 由 `python tools/gen_stdlib_sigs.py` 从
-// jishi/stdlib/*.py 的公开函数签名生成。
+// oracle/jishi/stdlib/*.py 的公开函数签名生成。
 //
 // 用途：宿主收到**命名参数**时（`加密.摘要("abc", 算法="md5")`），按
 // 「模块.函数」查这张表，把名字映射回位置参数 —— 五引擎因此给出同一结果。

@@ -39,7 +39,7 @@ HAS_NODE = NODE is not None
 
 def _py(src: str) -> tuple[bool, str]:
     """树遍历跑一遍 → `(是否跑通, stdout 或 报错全文)`。"""
-    from jishi.interpreter import run_source as run_tree
+    from oracle.jishi.interpreter import run_source as run_tree
     buf = io.StringIO()
     try:
         with redirect_stdout(buf):
@@ -53,10 +53,10 @@ def _node(src: str) -> tuple[bool, str]:
     """Node 宿主跑一遍 → `(是否跑通, stdout + stderr)`。"""
     import tempfile
 
-    from jishi.compiler import compile_to_json
+    from oracle.jishi.compiler import compile_to_json
     tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m67.json"
     tmp.write_text(compile_to_json(src, "标准库.jsh"), encoding="utf-8")
-    r = subprocess.run([NODE, str(ROOT / "node/index.js"), str(tmp)],
+    r = subprocess.run([NODE, str(ROOT / "oracle/node/index.js"), str(tmp)],
                        capture_output=True, input=b"", cwd=str(ROOT))
     return (r.returncode == 0,
             r.stdout.decode("utf-8", "replace") + r.stderr.decode("utf-8", "replace"))

@@ -33,7 +33,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from jishi.version import VERSION  # noqa: E402
+from oracle.jishi.version import VERSION  # noqa: E402
 
 
 def _platform_tag() -> str:
@@ -141,7 +141,7 @@ def _icon_args() -> list[str]:
 def _find_cvm_dll() -> Path:
     """定位 C VM 动态库（优先 wheel 预编译目录，其次源码树 cvm/bin）。"""
     for cand in (
-        ROOT / "jishi" / "_native" / _dll_name(),
+        ROOT / "oracle" / "jishi" / "_native" / _dll_name(),
         ROOT / "cvm" / "bin" / _dll_name(),
     ):
         if cand.exists():
@@ -151,14 +151,14 @@ def _find_cvm_dll() -> Path:
 
 
 def _ensure_native() -> None:
-    """把 C VM DLL 复制到 jishi/_native/，供 PyInstaller 与 wheel 共用。"""
+    """把 C VM DLL 复制到 oracle/jishi/_native/，供 PyInstaller 与 wheel 共用。"""
     src = _find_cvm_dll()
-    dest_dir = ROOT / "jishi" / "_native"
+    dest_dir = ROOT / "oracle" / "jishi" / "_native"
     dest_dir.mkdir(exist_ok=True)
     dest = dest_dir / _dll_name()
     if not dest.exists() or src.stat().st_mtime > dest.stat().st_mtime:
         shutil.copy2(src, dest)
-        print(f"  已同步 C VM 动态库 → jishi/_native/{_dll_name()}")
+        print(f"  已同步 C VM 动态库 → oracle/jishi/_native/{_dll_name()}")
 
 
 def _add_data_args() -> list[str]:
@@ -166,13 +166,13 @@ def _add_data_args() -> list[str]:
     sep = ";" if sys.platform == "win32" else ":"
     args = []
     # 标准库源文件（ai.py 的 _stdlib_api 需要扫描源码）
-    args += ["--add-data", f"{ROOT / 'jishi' / 'stdlib'}{sep}jishi/stdlib"]
+    args += ["--add-data", f"{ROOT / 'jishi' / 'stdlib'}{sep}oracle/jishi/stdlib"]
     # M52：**用基石写的标准库**（`stdlib-jishi/*.jsh`）。`jishilib.lib_dir()`
     # 会优先找 `sys._MEIPASS` 下的这份，少了它打包版一 `导入 统计` 就报
     # 「没有找到标准库模块」。
-    args += ["--add-data", f"{ROOT / 'jishi' / 'stdlib-jishi'}{sep}jishi/stdlib-jishi"]
+    args += ["--add-data", f"{ROOT / 'jishi' / 'stdlib-jishi'}{sep}oracle/jishi/stdlib-jishi"]
     # C VM 动态库
-    args += ["--add-data", f"{ROOT / 'jishi' / '_native'}{sep}jishi/_native"]
+    args += ["--add-data", f"{ROOT / 'jishi' / '_native'}{sep}oracle/jishi/_native"]
     # 品牌资产
     logo = ROOT / "assets" / "基石_logo.png"
     if logo.exists():
@@ -207,9 +207,9 @@ def _build_rust_into(bin_dir: Path) -> None:
 
 
 def _build_python_into(bin_dir: Path, work: Path) -> None:
-    """PyInstaller onedir → `bin/jishi/` + `bin/jishi-mcp/`（**R8.4 前保留**）。
+    """PyInstaller onedir → `bin/oracle/jishi/` + `bin/jishi-mcp/`（**R8.4 前保留**）。
 
-    ⚠️ 这套布局是**嵌套**的（`bin/jishi/jishi.exe`），而 `install.sh` / `install.ps1`
+    ⚠️ 这套布局是**嵌套**的（`bin/oracle/jishi/jishi.exe`），而 `install.sh` / `install.ps1`
     的自检写的是**平铺**的 `bin/jishi` —— 也就是说**这条路上的 zip/tar.gz 装完自检
     是失败的**（见 `build()` 里那段说明）。换成 rust 引擎就没有这个问题；
     这里保留只为「R8.4 之前还能发一版 Python 包」。
@@ -276,7 +276,7 @@ def build(argv: list[str]) -> int:
     #: R8.3（2026-10-08）：发行包默认改用 **cargo 产物**（`rust/` 那个单二进制）。
     #:
     #: 🔴 **顺带修掉一个真 bug**：以前 PyInstaller 是 onedir，产物落在
-    #: `bin/jishi/jishi.exe`（**套了一层目录**），而 `install.sh` / `install.ps1`
+    #: `bin/oracle/jishi/jishi.exe`（**套了一层目录**），而 `install.sh` / `install.ps1`
     #: 的自检写的是 `bin/jishi` / `bin\jishi.exe` —— 于是
     #: **Linux/macOS 装完自检必失败、PATH 也指错目录（bin/ 里是个目录不是可执行文件）**。
     #: Windows 那边因为推荐走 Inno Setup（`.iss` 里写的是嵌套路径）才没暴露。
@@ -325,7 +325,7 @@ def build(argv: list[str]) -> int:
     # 语言卡与系统提示词
     try:
         sys.path.insert(0, str(ROOT))
-        from jishi.ai import render_ai_card
+        from oracle.jishi.ai import render_ai_card
         (share / "ai-card.md").write_text(render_ai_card(), encoding="utf-8")
         sp = ROOT / "docs" / "ai" / "system-prompt.md"
         if sp.exists():

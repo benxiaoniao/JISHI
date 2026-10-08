@@ -181,7 +181,7 @@ def _收集函数(节点们) -> list[dict]:
 
 
 def _stdlib_api() -> list[dict]:
-    """扫描 jishi/stdlib/*.py，提取每个模块导出的函数签名与说明。"""
+    """扫描 oracle/jishi/stdlib/*.py，提取每个模块导出的函数签名与说明。"""
     import os
 
     pkg_dir = _stdlib_dir()

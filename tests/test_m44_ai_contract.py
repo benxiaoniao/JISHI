@@ -23,8 +23,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import ai, checker, cli, errors                # noqa: E402
-from jishi.lsp import LspServer                            # noqa: E402
+from oracle.jishi import ai, checker, cli, errors                # noqa: E402
+from oracle.jishi.lsp import LspServer                            # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 URI = "file:///tmp/m44.jsh"
@@ -249,7 +249,7 @@ def _语料路径():
     缺冒号、英文关键字……），在里面报出问题才是对的。
     """
     files = []
-    for root in (ROOT / "examples", ROOT / "tests", ROOT / "jishi" / "stdlib"):
+    for root in (ROOT / "examples", ROOT / "tests", ROOT / "oracle" / "jishi" / "stdlib"):
         for p in sorted(Path(root).rglob("*.jsh")):
             if "error_cases" in p.parts or "build-env" in p.parts:
                 continue

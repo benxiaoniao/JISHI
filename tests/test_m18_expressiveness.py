@@ -9,9 +9,9 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import runtime
-from jishi.cli import main
-from jishi.interpreter import run_source
+from oracle.jishi import runtime
+from oracle.jishi.cli import main
+from oracle.jishi.interpreter import run_source
 
 
 def _run(src, filename="<输入>"):

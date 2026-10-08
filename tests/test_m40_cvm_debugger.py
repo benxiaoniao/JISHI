@@ -27,17 +27,17 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi.compiler import compile_program          # noqa: E402
-from jishi.debugger import Debugger, VmDebugger, CvmDebugger  # noqa: E402
-from jishi.interpreter import Interpreter           # noqa: E402
-from jishi.parser import parse                      # noqa: E402
-from jishi.tokenizer import tokenize                # noqa: E402
-from jishi.vm import VM                             # noqa: E402
+from oracle.jishi.compiler import compile_program          # noqa: E402
+from oracle.jishi.debugger import Debugger, VmDebugger, CvmDebugger  # noqa: E402
+from oracle.jishi.interpreter import Interpreter           # noqa: E402
+from oracle.jishi.parser import parse                      # noqa: E402
+from oracle.jishi.tokenizer import tokenize                # noqa: E402
+from oracle.jishi.vm import VM                             # noqa: E402
 
 
 def _cvm_available() -> bool:
     try:
-        from jishi import cvm_bind
+        from oracle.jishi import cvm_bind
         cvm_bind.load_lib()
         return True
     except Exception:                                # noqa: BLE001
@@ -66,7 +66,7 @@ def run_session(engine: str, src: str, script, *, breakpoints=(),
                              breakpoints=breakpoints,
                              stop_on_entry=stop_on_entry, script=script)
         elif engine == "cvm":
-            from jishi.cvm_bind import CvmRunner
+            from oracle.jishi.cvm_bind import CvmRunner
 
             cmod = compile_program(program, name, lines)
             dbg = CvmDebugger(CvmRunner(cmod, name), source_lines=lines,
@@ -146,7 +146,7 @@ def test_stmt_marks_reach_c_side():
     src = "令 甲 = 1\n打印(甲)\n"
     program, lines = _parse(src, "x.jsh")
     cmod = compile_program(program, "x.jsh", lines)
-    from jishi.cvm_bind import CvmRunner
+    from oracle.jishi.cvm_bind import CvmRunner
 
     runner = CvmRunner(cmod, "x.jsh")
     marks = list(runner._keep[-1])
@@ -160,8 +160,8 @@ def test_cvm_stoppable_lines_match_tree_walk():
     """三个执行器的「可停行」集合一致。"""
     program, lines = _parse(DEMO, "x.jsh")
     cmod = compile_program(program, "x.jsh", lines)
-    from jishi.cvm_bind import CvmRunner
-    from jishi.debugger import mark_lines, statement_lines
+    from oracle.jishi.cvm_bind import CvmRunner
+    from oracle.jishi.debugger import mark_lines, statement_lines
 
     assert mark_lines(cmod) == statement_lines(program)
     runner = CvmRunner(cmod, "x.jsh")
@@ -335,7 +335,7 @@ def test_parity_debugging_does_not_change_output():
     """带调试器跑与不带，程序自身输出必须相同（钩子只读）。"""
     plain = io.StringIO()
     with redirect_stdout(plain):
-        from jishi.vm import run_source as vm_run
+        from oracle.jishi.vm import run_source as vm_run
         vm_run(DEMO, filename="x.jsh")
     out, err = _all_three(DEMO, ["单步", "单步", "变量", "继续"],
                           stop_on_entry=True)
@@ -402,7 +402,7 @@ def _write(tmp_path: Path, name: str, text: str) -> str:
 
 
 def _run_cli(args, **kw):
-    r = subprocess.run([sys.executable, "-m", "jishi.cli"] + args,
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli"] + args,
                        capture_output=True, cwd=str(ROOT), **kw)
     return (r.returncode, r.stdout.decode("utf-8", "replace"),
             r.stderr.decode("utf-8", "replace"))

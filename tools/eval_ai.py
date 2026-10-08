@@ -155,7 +155,7 @@ def run_jishi(code: str, timeout: float = 20.0,
     f.write_text(code, encoding="utf-8")
     try:
         p = subprocess.run(
-            [str(PYTHON), "-m", "jishi.cli", str(f)],
+            [str(PYTHON), "-m", "oracle.jishi.cli", str(f)],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             cwd=ROOT, timeout=timeout,
         )
@@ -595,7 +595,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print("没有指定模型：用 --模型 传至少一个。", file=sys.stderr)
         return 2
 
-    from jishi.ai import build_lang_spec, content_hash
+    from oracle.jishi.ai import build_lang_spec, content_hash
     spec = build_lang_spec()
     spec_text = json.dumps(spec, ensure_ascii=False)
     spec_hash = content_hash(spec)

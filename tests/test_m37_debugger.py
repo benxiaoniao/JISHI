@@ -26,12 +26,12 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import cli                                   # noqa: E402
-from jishi.debugger import Debugger, parse_lines        # noqa: E402
-from jishi.errors import JishiError                     # noqa: E402
-from jishi.interpreter import Interpreter               # noqa: E402
-from jishi.parser import parse, parse_expression        # noqa: E402
-from jishi.tokenizer import tokenize                    # noqa: E402
+from oracle.jishi import cli                                   # noqa: E402
+from oracle.jishi.debugger import Debugger, parse_lines        # noqa: E402
+from oracle.jishi.errors import JishiError                     # noqa: E402
+from oracle.jishi.interpreter import Interpreter               # noqa: E402
+from oracle.jishi.parser import parse, parse_expression        # noqa: E402
+from oracle.jishi.tokenizer import tokenize                    # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -199,7 +199,7 @@ def test_vars_hide_desugar_temporaries():
     这类临时变量是解析期造的（M26.2），用户在源码里根本看不到它们——
     列出来只会让人怀疑「这个 `__用_1__` 是哪儿来的」。
     """
-    from jishi.interpreter import Environment
+    from oracle.jishi.interpreter import Environment
 
     lines = DEMO.split("\n")
     program = parse(tokenize(DEMO, "t.jsh"), lines, "t.jsh")
@@ -551,7 +551,7 @@ def test_parse_expression_ignores_trailing_newline():
 
 def test_eof_on_stdin_ends_session(monkeypatch):
     """管道用尽（EOF）不能空转，要当成「退出」。"""
-    import jishi.debugger as D
+    import oracle.jishi.debugger as D
 
     class _FakeIn:
         def __init__(self):
@@ -574,7 +574,7 @@ def test_eof_on_stdin_ends_session(monkeypatch):
 
 def test_piped_commands_are_utf8_decoded(monkeypatch):
     """管道里的中文命令按 UTF-8 解码，并自己回显一遍（管道不替用户回显）。"""
-    import jishi.debugger as D
+    import oracle.jishi.debugger as D
 
     class _FakeIn:
         def __init__(self, data: bytes):
@@ -684,7 +684,7 @@ def test_cli_debug_via_pipe_subprocess(tmp_path):
     """真子进程 + 管道输入：中文命令经 stdin 不该变乱码（Windows GBK 坑）。"""
     f = _write(tmp_path, "演示.jsh", DEMO)
     r = subprocess.run(
-        [sys.executable, "-m", "jishi.cli", "调试", f, "--不停在入口", "-b", "2"],
+        [sys.executable, "-m", "oracle.jishi.cli", "调试", f, "--不停在入口", "-b", "2"],
         input="变量\n继续\n".encode("utf-8"),
         capture_output=True, cwd=str(ROOT))
     out = r.stdout.decode("utf-8", "replace")
@@ -715,7 +715,7 @@ def test_ai_card_and_lang_spec_not_promising_debugger():
     语言 API，出现在语言卡里是对的。这条测试原先只搜「调试」，于是把
     `日志.调试` 也当成了违规（M41 踩到）。
     """
-    from jishi.ai import render_ai_card
+    from oracle.jishi.ai import render_ai_card
 
     card = render_ai_card()
     for 词 in ("断点", "单步", "调用栈", "调试器", "jishi 调试"):

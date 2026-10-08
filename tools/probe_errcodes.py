@@ -66,15 +66,15 @@ UNREACHABLE: dict[str, tuple[str, str]] = {
 
 #: 静态复核「死码」时扫的实现目录（**不含 tests / docs**：
 #: 测试里列一份码表不算「有人抛出它」）。
-_IMPL_DIRS = ("jishi", "core/src", "frontend/src", "rust/src", "node", "cvm")
-_IMPL_SKIP = {"jishi/errors.py", "jishi/errcodes.py"}
+_IMPL_DIRS = ("oracle/jishi", "core/src", "frontend/src", "rust/src", "node", "cvm")
+_IMPL_SKIP = {"oracle/jishi/errors.py", "oracle/jishi/errcodes.py"}
 
 
 def front_codes() -> "dict[str, type]":
     """枚举前端（词法 + 语法）的全部错误码 → 异常类。"""
     import inspect
 
-    from jishi import errors as E
+    from oracle.jishi import errors as E
 
     out: "dict[str, type]" = {}
     for obj in vars(E).values():
@@ -108,7 +108,7 @@ def _code_mentions(code: str) -> "list[str]":
     真正的触发一定会走到某个 `raise …` 上，而实现里写的是码或类名。
     所以这里把码**和类名**都查一遍，由调用方判断。
     """
-    import jishi.errors as E
+    import oracle.jishi.errors as E
 
     names = {code}
     for obj in vars(E).values():
@@ -137,7 +137,7 @@ def _code_mentions(code: str) -> "list[str]":
 
 def verify_unreachable(codes: "dict[str, type]") -> "list[str]":
     """复核登记表，返回问题列表（空 = 全部经得起复核）。"""
-    import jishi.errors as E
+    import oracle.jishi.errors as E
 
     problems: "list[str]" = []
     for code, (kind, _why) in UNREACHABLE.items():

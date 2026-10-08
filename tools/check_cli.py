@@ -121,7 +121,7 @@ class Runner:
         return self.run([str(_exe())] + list(args), stdin)
 
     def py(self, args, stdin: bytes = b""):
-        return self.run([sys.executable, "-m", "jishi.cli"] + list(args), stdin)
+        return self.run([sys.executable, "-m", "oracle.jishi.cli"] + list(args), stdin)
 
 
 def _norm(t: bytes) -> bytes:

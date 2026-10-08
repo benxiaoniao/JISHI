@@ -153,12 +153,12 @@ border-radius:50%;background:var(--accent)}
 # ---------------------------------------------------------------------------
 
 def load_spec() -> dict:
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
     return build_lang_spec()
 
 
 def load_version() -> str:
-    from jishi.version import VERSION
+    from oracle.jishi.version import VERSION
     return VERSION
 
 
@@ -357,8 +357,8 @@ def check_examples() -> int:
     为什么必须做：喂给读者的错示例比没有示例更糟 —— 项目在
     `examples/ai/few-shot.md` 上就栽过（48 段里躺着 4 段真错）。
     """
-    from jishi.compiler import compile_source
-    from jishi import vm as vm_mod
+    from oracle.jishi.compiler import compile_source
+    from oracle.jishi import vm as vm_mod
 
     cases = [("首页", HERO_CODE, None)]
     for name, (src, _cap) in FEATURE_CODES.items():
@@ -427,7 +427,7 @@ _S5 = code('导入 数学\\n\\n打印(数学.开方(16))\\n打印(数学.最大�
 _S6 = code('错误 E2002：类型错误（「整数」和「文本」不能做「+」运算）\\n'
       '  ┌─ 例子.jsh:3:6')
 
-_S7 = code('git clone https://github.com/benxiaoniao/JISHI.git\\ncd JISHI\\npython -m jishi.cli examples/projects/待办清单/待办.jsh',
+_S7 = code('git clone https://github.com/benxiaoniao/JISHI.git\\ncd JISHI\\npython -m oracle.jishi.cli examples/projects/待办清单/待办.jsh',
       "clone 下来直接跑仓库里的例子（不用装，源码即可运行）")
 
 def build_index(spec: dict, ver: str) -> str:

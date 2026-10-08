@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from jishi import cli as JCLI              # noqa: E402
-from jishi import packages as PKG          # noqa: E402
+from oracle.jishi import cli as JCLI              # noqa: E402
+from oracle.jishi import packages as PKG          # noqa: E402
 
 #: 一个**必然连不上**的地址：端口 1 上不会有服务，连接立刻被拒（不用等超时）
 DEAD = "http://127.0.0.1:1/%E7%B4%A2%E5%BC%95.json"

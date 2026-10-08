@@ -37,14 +37,14 @@ sys.path.insert(0, ".")
 
 from conftest import tmp_bc_path   # noqa: E402
 
-from jishi import cvm_bind                        # noqa: E402
-from jishi import serialize                       # noqa: E402
-from jishi import vm as vm_mod                    # noqa: E402
-from jishi.compiler import compile_source         # noqa: E402
-from jishi.interpreter import Interpreter         # noqa: E402
-from jishi.errors import JishiError               # noqa: E402
-from jishi.parser import parse                    # noqa: E402
-from jishi.tokenizer import tokenize              # noqa: E402
+from oracle.jishi import cvm_bind                        # noqa: E402
+from oracle.jishi import serialize                       # noqa: E402
+from oracle.jishi import vm as vm_mod                    # noqa: E402
+from oracle.jishi.compiler import compile_source         # noqa: E402
+from oracle.jishi.interpreter import Interpreter         # noqa: E402
+from oracle.jishi.errors import JishiError               # noqa: E402
+from oracle.jishi.parser import parse                    # noqa: E402
+from oracle.jishi.tokenizer import tokenize              # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -83,7 +83,7 @@ def _c_run(src: str) -> str:
 def _node_run(src: str) -> tuple[int, str, str]:
     bc = tmp_bc_path(ROOT / "_tmp_m30_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
                        capture_output=True, text=True, encoding="utf-8")
     return r.returncode, r.stdout, r.stderr
 
@@ -666,7 +666,7 @@ def test_node_stdlib_system_args():
     bc = tmp_bc_path(ROOT / "_tmp_m30_args.json")
     bc.write_text(serialize.dumps(compile_source("导入 系统\n打印(系统.参数())\n", "<t>")),
                   encoding="utf-8")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc), "甲", "乙"],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc), "甲", "乙"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr[:300]
     assert r.stdout == "['甲', '乙']\n"
@@ -683,7 +683,7 @@ def test_node_input_reads_stdin():
     bc.write_text(serialize.dumps(compile_source(
         '令 名字 = 输入("请输入名字：")\n打印("你好 " + 名字)\n', "<t>")),
         encoding="utf-8")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
                        capture_output=True, text=True, encoding="utf-8",
                        input="小明\n")
     assert r.returncode == 0, r.stderr[:300]
@@ -696,7 +696,7 @@ def test_node_input_eof_is_chinese():
     bc = tmp_bc_path(ROOT / "_tmp_m30_in2.json")
     bc.write_text(serialize.dumps(compile_source("令 x = 输入()\n打印(x)\n", "<t>")),
                   encoding="utf-8")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
                        capture_output=True, text=True, encoding="utf-8", input="")
     assert r.returncode != 0
     assert "输入结束" in r.stderr
@@ -717,12 +717,12 @@ def _run_project(project: str, script: str, arg: str, feed: str | None) -> None:
     bc.write_text(serialize.dumps(compile_source(src, str(src_path))), encoding="utf-8")
     cwd = str(src_path.parent)
     r_py = subprocess.run(
-        [sys.executable, "-m", "jishi.cli", script, arg] if feed is None
-        else [sys.executable, "-m", "jishi.cli", script],
+        [sys.executable, "-m", "oracle.jishi.cli", script, arg] if feed is None
+        else [sys.executable, "-m", "oracle.jishi.cli", script],
         capture_output=True, text=True, encoding="utf-8", cwd=cwd, input=feed)
     r_node = subprocess.run(
-        [NODE, str(ROOT / "node" / "index.js"), str(bc), arg] if feed is None
-        else [NODE, str(ROOT / "node" / "index.js"), str(bc)],
+        [NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc), arg] if feed is None
+        else [NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
         capture_output=True, text=True, encoding="utf-8", cwd=cwd, input=feed)
     assert r_node.returncode == r_py.returncode, (
         f"退出码不同：py={r_py.returncode} node={r_node.returncode}\n"

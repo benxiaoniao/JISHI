@@ -64,12 +64,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import cvm_bind                                        # noqa: E402
-from jishi import tokenizer as T                                  # noqa: E402
-from jishi.compiler import compile_source, compile_to_json        # noqa: E402
-from jishi.errors import JishiError                               # noqa: E402
-from jishi.interpreter import run_source as run_tree              # noqa: E402
-from jishi.vm import VM                                           # noqa: E402
+from oracle.jishi import cvm_bind                                        # noqa: E402
+from oracle.jishi import tokenizer as T                                  # noqa: E402
+from oracle.jishi.compiler import compile_source, compile_to_json        # noqa: E402
+from oracle.jishi.errors import JishiError                               # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
+from oracle.jishi.vm import VM                                           # noqa: E402
 
 #: 语料来源（与 `conformance.py` 的 `CORPUS_SOURCES` 同源，但**含 error_cases**）
 SOURCES = (
@@ -77,7 +77,7 @@ SOURCES = (
     "tests/error_cases/*.jsh",
     "tests/frontend_cases/*.jsh",
     "examples/**/*.jsh",
-    "jishi/stdlib-jishi/*.jsh",
+    "oracle/jishi/stdlib-jishi/*.jsh",
 )
 
 #: **豁免**：这些语料**本来就允许**三个执行器不一致，每条都要能复核。
@@ -168,7 +168,7 @@ def _node_exe() -> "str | None":
 
 
 def _node_index() -> Path:
-    return ROOT / "node" / "index.js"
+    return ROOT / "oracle" / "node" / "index.js"
 
 
 def _run_node_vm(src: str, rel: str) -> tuple[str, str]:

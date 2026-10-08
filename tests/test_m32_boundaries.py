@@ -52,14 +52,14 @@ sys.path.insert(0, ".")
 
 from conftest import rust_exe_path, tmp_bc_path   # noqa: E402
 
-from jishi import cvm_bind                        # noqa: E402
-from jishi import serialize                       # noqa: E402
-from jishi import vm as vm_mod                    # noqa: E402
-from jishi.compiler import compile_source         # noqa: E402
-from jishi.errors import JishiError               # noqa: E402
-from jishi.interpreter import Interpreter         # noqa: E402
-from jishi.parser import parse                    # noqa: E402
-from jishi.tokenizer import tokenize              # noqa: E402
+from oracle.jishi import cvm_bind                        # noqa: E402
+from oracle.jishi import serialize                       # noqa: E402
+from oracle.jishi import vm as vm_mod                    # noqa: E402
+from oracle.jishi.compiler import compile_source         # noqa: E402
+from oracle.jishi.errors import JishiError               # noqa: E402
+from oracle.jishi.interpreter import Interpreter         # noqa: E402
+from oracle.jishi.parser import parse                    # noqa: E402
+from oracle.jishi.tokenizer import tokenize              # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -102,7 +102,7 @@ def _write_bc(src: str, name: str) -> Path:
 
 def _node_run(src: str) -> tuple[int, str, str]:
     bc = _write_bc(src, "_tmp_m32_bc.json")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
                        capture_output=True, text=True, encoding="utf-8")
     return r.returncode, r.stdout, r.stderr
 
@@ -561,7 +561,7 @@ def test_rust_bound_method_identity_still_reports_clearly(rust_exe):
 def test_serialize_encodes_big_int_as_string():
     """超出宿主安全整数范围的 int 按十进制字符串编码（旧产物仍可读）。"""
     import json
-    from jishi.serialize import _const_from_json, _const_to_json
+    from oracle.jishi.serialize import _const_from_json, _const_to_json
     small = _const_to_json(42)
     assert small == {"t": "int", "v": 42}
     big = _const_to_json(9223372036854775807)

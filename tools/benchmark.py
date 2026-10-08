@@ -2,8 +2,8 @@
 """基石语言执行器性能基准。
 
 场景全部用基石源码写就，同一份代码分别交给：
-  1. 树遍历解释器（M0，jishi/interpreter.py）—— 语义基准
-  2. Python 字节码虚拟机（M4a，jishi/vm.py）
+  1. 树遍历解释器（M0，oracle/jishi/interpreter.py）—— 语义基准
+  2. Python 字节码虚拟机（M4a，oracle/jishi/vm.py）
   3. C 字节码虚拟机（M4b，cvm/bin/jsvm.dll）
   4. **Rust 字节码虚拟机（R6 起：`rust/target/release/jishi-rs`，独立二进制）**
 
@@ -40,8 +40,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi.interpreter import run_source as run_tree          # noqa: E402
-from jishi import vm as vm_mod                                # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree          # noqa: E402
+from oracle.jishi import vm as vm_mod                                # noqa: E402
 
 #: 各场景的基石源码与建议重复次数（保证单轮耗时可测又不至于太久）
 SCENARIOS = {
@@ -210,13 +210,13 @@ EXECUTORS_ALL = [
 
 
 def _available_executors() -> list[tuple[str, str]]:
-    from jishi import tokenizer as _T
+    from oracle.jishi import tokenizer as _T
 
     out = []
     for label, key in EXECUTORS_ALL:
         if key == "run_cvm":
             try:
-                from jishi import cvm_bind
+                from oracle.jishi import cvm_bind
                 cvm_bind.load_lib()
             except Exception:                                  # noqa: BLE001
                 print("C VM 动态库不可用，少了那一列")
@@ -247,7 +247,7 @@ def _run_vm(src: str) -> None:
 
 
 def _run_cvm(src: str) -> None:
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
 
     buf = io.StringIO()
     with redirect_stdout(buf):
@@ -271,8 +271,8 @@ def _run_rust(src: str) -> None:
 
     path = _BC_CACHE.get(src)
     if path is None:
-        from jishi import tokenizer as _T
-        from jishi.compiler import compile_to_json
+        from oracle.jishi import tokenizer as _T
+        from oracle.jishi.compiler import compile_to_json
 
         out = ROOT / "build" / "_bench_rust_bc.json"
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -319,8 +319,8 @@ def _rust_startup() -> float:
     exe = _rust_exe()
     tiny = ROOT / "build" / "_bench_rust_empty.json"
     tiny.parent.mkdir(parents=True, exist_ok=True)
-    from jishi import tokenizer as _T
-    from jishi.compiler import compile_to_json
+    from oracle.jishi import tokenizer as _T
+    from oracle.jishi.compiler import compile_to_json
 
     old = os.environ.get(_T.FRONTEND_ENV)
     os.environ[_T.FRONTEND_ENV] = "rust"

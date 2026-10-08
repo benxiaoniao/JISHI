@@ -2,11 +2,11 @@
 """构建基石前端核心（Rust）为 **Python 扩展模块**。
 
 用法：
-    python core/build.py            # 构建 + 复制到 jishi/_core.pyd
+    python core/build.py            # 构建 + 复制到 oracle/jishi/_core.pyd
     python core/build.py --check    # 只检查环境（cargo / 扩展在不在），不构建
 
 产物：`core/target/release/_core{,.so,.dylib}` → 复制成
-`jishi/_core.pyd`（Windows）/ `jishi/_core.so`（Linux/macOS）。
+`oracle/jishi/_core.pyd`（Windows）/ `oracle/jishi/_core.so`（Linux/macOS）。
 
 ⚠️ **这个产物不进仓库**（`.gitignore` 已挡）：它是按当前 Python 的 ABI 编的，
 换个 Python 就得重编。没有它时 `JISHI_FRONTEND=rust` 会**明确报错**，
@@ -43,9 +43,9 @@ for _s in (sys.stdout, sys.stderr):
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "core"
 TARGET = CORE / "target" / "release"
-PKG = ROOT / "jishi"
+PKG = ROOT / "oracle" / "jishi"
 
-#: 扩展模块的落点（与 `jishi/tokenizer.py` 里的 `from . import _core` 对应）
+#: 扩展模块的落点（与 `oracle/jishi/tokenizer.py` 里的 `from . import _core` 对应）
 EXT_SUFFIX = ".pyd" if os.name == "nt" else ".so"
 EXT_DST = PKG / f"_core{EXT_SUFFIX}"
 
@@ -168,7 +168,7 @@ def main(argv: "list[str] | None" = None) -> int:
           f"（{EXT_DST.stat().st_size / 1024:.0f} KB）")
     print("   ⚠️ 换 Python 版本要重编（扩展按 ABI 绑死）；"
           "本产物**不进仓库**。")
-    print("   用法：JISHI_FRONTEND=rust python -m jishi.cli 程序.jsh")
+    print("   用法：JISHI_FRONTEND=rust python -m oracle.jishi.cli 程序.jsh")
     return 0
 
 

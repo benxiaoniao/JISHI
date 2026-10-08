@@ -20,8 +20,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import cli                              # noqa: E402
-from jishi.errors import JishiError, _safe_text     # noqa: E402
+from oracle.jishi import cli                              # noqa: E402
+from oracle.jishi.errors import JishiError, _safe_text     # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -157,7 +157,7 @@ def test_mcp_subprocess_uses_utf8_encoding():
     只开文本模式而不指定编码时，Python 会按本地代码页（GBK）编码子进程输入，
     中文源码在管道里就坏了。
     """
-    src = (ROOT / "jishi" / "mcp_server.py").read_text(encoding="utf-8")
+    src = (ROOT / "oracle" / "jishi" / "mcp_server.py").read_text(encoding="utf-8")
     assert 'encoding="utf-8"' in src
     # 裸的文本模式（不给编码）不允许出现在 subprocess.run 调用里
     assert "subprocess.run(\n            args, input=script, capture_output=True, text=True" \
@@ -165,7 +165,7 @@ def test_mcp_subprocess_uses_utf8_encoding():
 
 
 def test_mcp_server_reads_stdin_as_bytes():
-    src = (ROOT / "jishi" / "mcp_server.py").read_text(encoding="utf-8")
+    src = (ROOT / "oracle" / "jishi" / "mcp_server.py").read_text(encoding="utf-8")
     assert '_iter_stdin_lines' in src
     assert 'getattr(sys.stdin, "buffer", None)' in src
 
@@ -180,7 +180,7 @@ def test_mcp_roundtrip_chinese_over_stdio():
     ]
     payload = "".join(json.dumps(m, ensure_ascii=False) + "\n" for m in msgs)
     proc = subprocess.run(
-        [sys.executable, "-m", "jishi.mcp_server"],
+        [sys.executable, "-m", "oracle.jishi.mcp_server"],
         input=payload.encode("utf-8"), capture_output=True,
         timeout=90, cwd=str(ROOT))
 
@@ -199,20 +199,20 @@ def test_mcp_roundtrip_chinese_over_stdio():
 # ---------------------------------------------------------------------------
 
 def test_cli_command_uses_python_in_source_mode(monkeypatch):
-    """源码运行时用 [python, -m, jishi.cli]。"""
-    from jishi import mcp_server
+    """源码运行时用 [python, -m, oracle.jishi.cli]。"""
+    from oracle.jishi import mcp_server
 
     monkeypatch.setattr(sys, "frozen", False, raising=False)
     cmd = mcp_server._cli_command()
-    assert cmd == [sys.executable, "-m", "jishi.cli"]
+    assert cmd == [sys.executable, "-m", "oracle.jishi.cli"]
 
 
 def test_cli_command_prefers_sibling_jishi_when_frozen(tmp_path, monkeypatch):
     """打包后 sys.executable 是自己，必须改用发行目录里同级的 jishi。
 
-    发行版布局：bin/jishi/jishi.exe 与 bin/jishi-mcp/jishi-mcp.exe。
+    发行版布局：bin/oracle/jishi/jishi.exe 与 bin/jishi-mcp/jishi-mcp.exe。
     """
-    from jishi import mcp_server
+    from oracle.jishi import mcp_server
 
     suffix = ".exe" if __import__("os").name == "nt" else ""
     mcp_dir = tmp_path / "bin" / "jishi-mcp"
@@ -233,7 +233,7 @@ def test_cli_command_prefers_sibling_jishi_when_frozen(tmp_path, monkeypatch):
 
 def test_cli_command_same_dir_fallback(tmp_path, monkeypatch):
     """同目录就有 jishi 时优先用它（某些打包布局）。"""
-    from jishi import mcp_server
+    from oracle.jishi import mcp_server
 
     suffix = ".exe" if __import__("os").name == "nt" else ""
     d = tmp_path / "bin"

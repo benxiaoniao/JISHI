@@ -8,9 +8,9 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import runtime
-from jishi.errors import JishiError
-from jishi.interpreter import run_source
+from oracle.jishi import runtime
+from oracle.jishi.errors import JishiError
+from oracle.jishi.interpreter import run_source
 
 
 @pytest.fixture
@@ -155,7 +155,7 @@ def test_dependency_missing(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_version_satisfies():
-    from jishi.packages import version_satisfies
+    from oracle.jishi.packages import version_satisfies
     assert version_satisfies("1.2.3", "*") is True
     assert version_satisfies("1.2.3", "") is True
     assert version_satisfies("1.2.3", "1.2.3") is True
@@ -168,7 +168,7 @@ def test_version_satisfies():
 
 
 def test_parse_index_ok():
-    from jishi.packages import parse_index, resolve_package
+    from oracle.jishi.packages import parse_index, resolve_package
     idx = parse_index("""{
         "格式": "jishi-package-index",
         "版本": 1,
@@ -179,21 +179,21 @@ def test_parse_index_ok():
 
 
 def test_parse_index_bad_format():
-    from jishi.packages import parse_index
+    from oracle.jishi.packages import parse_index
     with pytest.raises(ValueError) as ei:
         parse_index('{"格式": "别的", "版本": 1, "包": {}}')
     assert "不是基石包索引" in str(ei.value)
 
 
 def test_parse_index_bad_version():
-    from jishi.packages import parse_index
+    from oracle.jishi.packages import parse_index
     with pytest.raises(ValueError) as ei:
         parse_index('{"格式": "jishi-package-index", "版本": 99, "包": {}}')
     assert "不兼容" in str(ei.value)
 
 
 def test_parse_index_missing_packages():
-    from jishi.packages import parse_index
+    from oracle.jishi.packages import parse_index
     with pytest.raises(ValueError) as ei:
         parse_index('{"格式": "jishi-package-index", "版本": 1}')
     assert "包" in str(ei.value)

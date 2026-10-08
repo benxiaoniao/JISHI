@@ -9,7 +9,7 @@
 * **对拍**：两侧在**各自独立的 cwd**（`py/` 与 `rs/`）里跑同一条命令，比
   stdout / stderr / 退出码**逐字节**。⚠️ 独立 cwd 是必须的：包管理会往
   `.jishi/packages/` 写东西，共用一个目录会让「第二次跑」看到第一次的状态。
-* **独立判据**：写死的期望，不 import jishi、不 spawn Python。
+* **独立判据**：写死的期望，不 import oracle.jishi、不 spawn Python。
 
 ## 🔴 四处**刻意保留、如实登记**的差异
 
@@ -74,7 +74,7 @@ def _run(cmd, cwd):
 
 
 def _py(args, cwd):
-    return _run([sys.executable, "-m", "jishi.cli"] + list(args), cwd)
+    return _run([sys.executable, "-m", "oracle.jishi.cli"] + list(args), cwd)
 
 
 def _rs(args, cwd):
@@ -341,7 +341,7 @@ def test_对拍_缺参数退码2(both, tmp_path):
 
 @need_rust
 def test_独立_安装_列表_卸载_写死期望(tmp_path):
-    """整条本地链的 stdout **逐字写死**（不 import jishi、不 spawn Python）。"""
+    """整条本地链的 stdout **逐字写死**（不 import oracle.jishi、不 spawn Python）。"""
     work = tmp_path / "w"
     work.mkdir()
     pkg = make_pkg(tmp_path / "src")

@@ -39,11 +39,11 @@ sys.path.insert(0, ".")
 
 from conftest import tmp_bc_path   # noqa: E402
 
-from jishi import cvm_bind                        # noqa: E402
-from jishi import serialize                       # noqa: E402
-from jishi import vm as vm_mod                    # noqa: E402
-from jishi.compiler import compile_source         # noqa: E402
-from jishi.errors import JishiError               # noqa: E402
+from oracle.jishi import cvm_bind                        # noqa: E402
+from oracle.jishi import serialize                       # noqa: E402
+from oracle.jishi import vm as vm_mod                    # noqa: E402
+from oracle.jishi.compiler import compile_source         # noqa: E402
+from oracle.jishi.errors import JishiError               # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -65,7 +65,7 @@ def _py_run(src: str) -> str:
 def _node_run(src: str) -> tuple[int, str, str]:
     bc = tmp_bc_path(ROOT / "_tmp_m31_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
                        capture_output=True, text=True, encoding="utf-8")
     return r.returncode, r.stdout, r.stderr
 
@@ -269,7 +269,7 @@ def test_node_path_exists_and_kind():
         '导入 路径\n'
         '打印(路径.存在("不存在的路径xyz"), 路径.是文件("不存在的路径xyz"),'
         ' 路径.是目录("不存在的路径xyz"))\n'
-        '打印(路径.存在("jishi"), 路径.是目录("jishi"),'
+        '打印(路径.存在("oracle/jishi"), 路径.是目录("oracle/jishi"),'
         ' 路径.是文件("pyproject.toml"))\n'
     ) == "假 假 假\n真 真 真\n"
 
@@ -278,7 +278,7 @@ def test_node_path_cwd_and_home():
     assert _agree(
         '导入 路径\n'
         '打印(路径.当前目录() == 路径.绝对路径("."))\n'
-        '打印(长度(路径.绝对路径("jishi")) > 0, 长度(路径.主目录()) > 0)\n'
+        '打印(长度(路径.绝对路径("oracle/jishi")) > 0, 长度(路径.主目录()) > 0)\n'
     ) == "真\n真 真\n"
 
 
@@ -631,8 +631,8 @@ def _run_project(name: str, script: str, arg: str, feed, tmp_path: Path):
     bc = tmp_bc_path(ROOT / "_tmp_m31_proj.json")
     bc.write_text(serialize.dumps(compile_source(src, str(src_path))),
                   encoding="utf-8")
-    cmd_py = [sys.executable, "-m", "jishi.cli", str(src_path)]
-    cmd_node = [NODE, str(ROOT / "node" / "index.js"), str(bc)]
+    cmd_py = [sys.executable, "-m", "oracle.jishi.cli", str(src_path)]
+    cmd_node = [NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)]
     if arg:
         cmd_py.append(arg)
         cmd_node.append(arg)
@@ -677,14 +677,14 @@ def test_node_real_project_grade_and_log(tmp_path):
 
 def test_python_stdlib_text_conversion_is_chinese():
     """标准库把值转文本时要用统一显示（布尔给「真」，不是 `True`）。"""
-    from jishi.stdlib import 加密 as crypto_mod
+    from oracle.jishi.stdlib import 加密 as crypto_mod
     assert crypto_mod.摘要(True) == crypto_mod.摘要("真")
     assert crypto_mod.摘要(3) == crypto_mod.摘要("3")
 
 
 def test_python_file_writing_is_byte_faithful(tmp_path):
     """写文件不做换行转换，且布尔/空按中文写（与 JS 侧对齐）。"""
-    from jishi.stdlib import 文件 as file_mod
+    from oracle.jishi.stdlib import 文件 as file_mod
     p = tmp_path / "x.txt"
     file_mod.写文本(p, "a\nb\n")
     assert p.read_bytes() == b"a\nb\n"

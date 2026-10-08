@@ -31,7 +31,7 @@ def test_ABI版本号与头文件一致():
     两处一起改过的**唯一**保证就是这个；漏改一处 → 装载时报的版本与库不符，
     或者更糟（版本号都忘了改，那就谁也不知道签名已经变了）。
     """
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
 
     m = re.search(r"^#define\s+JSVM_ABI_VERSION\s+(\d+)", _HEADER.read_text(
         encoding="utf-8"), re.M)
@@ -44,7 +44,7 @@ def test_ABI版本号与头文件一致():
 def test_动态库自报的ABI版本一致():
     """**装载时**就得核对：源码树里可能留着上一次编出来的旧库（踩过两次：
     「改了 C 源，Python 加载的却是另一份旧库，一句提示都没有」）。"""
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
 
     lib = cvm_bind.load_lib()
     assert int(lib.jsvm_abi_version()) == cvm_bind._JSVM_ABI_VERSION, (
@@ -54,8 +54,8 @@ def test_动态库自报的ABI版本一致():
 
 def _run_with_host(src: str):
     """跑一段程序，并把用过的 `CvmHost` 交出来（拿来数回调次数 / 查登记表）。"""
-    from jishi import cvm_bind
-    from jishi.compiler import compile_source
+    from oracle.jishi import cvm_bind
+    from oracle.jishi.compiler import compile_source
 
     class _Spy(cvm_bind.CvmHost):
         def __init__(self, *a, **k):
@@ -146,7 +146,7 @@ def test_失效后重取不跳元素(src, expect):
     用宿主自己的位置当下标就会跳掉「已读过、还没交付」的那几个 —— 症状是
     **少打印元素**（不报错）。这两条正好各卡一个方向。
     """
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
 
     import io
     import contextlib

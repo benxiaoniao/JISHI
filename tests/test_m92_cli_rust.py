@@ -9,7 +9,7 @@
 本文件照 R7.1 起的规矩分两半：
 
 * **对拍**：同一份输入喂 `jishi-rs` 与 `jishi`，比 stdout / stderr / 退出码。
-* **独立判据**：不 import jishi、不 spawn Python —— 把「宿主自己该输出什么」
+* **独立判据**：不 import oracle.jishi、不 spawn Python —— 把「宿主自己该输出什么」
   **写死**。R8 之后 Python 退场，这一半仍要绿。
 
 ⚠️ **位置参数的语义在 R7.4 变了**：`<文件>` 从「字节码 JSON」变成 **源码**
@@ -63,7 +63,7 @@ def _env() -> dict:
     env.setdefault("PYTHONUTF8", "1")
     # ⚠️ 语料在**私有 cwd** 里跑（tutorial 那几个程序会往 cwd 写真实文件，
     # 留在仓库根就是给下一轮 `check_engines` 埋雷）。所以 Python 侧用 PYTHONPATH
-    # 指回仓库根，`-m jishi.cli` 才找得到包。
+    # 指回仓库根，`-m oracle.jishi.cli` 才找得到包。
     env["PYTHONPATH"] = str(ROOT)
     return env
 
@@ -79,7 +79,7 @@ def _rs(args, stdin: bytes = b"", cwd=None, timeout: float = 120.0):
 
 
 def _py(args, stdin: bytes = b"", cwd=None, timeout: float = 120.0):
-    return _run([sys.executable, "-m", "jishi.cli"] + list(args), stdin, cwd,
+    return _run([sys.executable, "-m", "oracle.jishi.cli"] + list(args), stdin, cwd,
                 timeout)
 
 
@@ -184,7 +184,7 @@ def test_对拍_沙箱协议(src, workdir):
 
 
 # ---------------------------------------------------------------------------
-# 二、独立判据（**不 import jishi、不 spawn Python**）
+# 二、独立判据（**不 import oracle.jishi、不 spawn Python**）
 # ---------------------------------------------------------------------------
 
 @need_rust

@@ -25,7 +25,7 @@ const { LspTransport } = require('./lsp-transport');
 
 const JISHI = process.argv[2] || process.env.JISHI_BIN || 'jishi';
 //: 启动参数默认 `["lsp"]`；`JISHI_ARGS` 可覆盖，好让自动化测试用
-//: `python -m jishi.cli lsp` 这种形式跑（不必依赖已安装的入口脚本）。
+//: `python -m oracle.jishi.cli lsp` 这种形式跑（不必依赖已安装的入口脚本）。
 const ARGS = process.env.JISHI_ARGS
   ? process.env.JISHI_ARGS.split(' ').filter(Boolean)
   : ['lsp'];

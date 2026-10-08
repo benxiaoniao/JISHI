@@ -85,7 +85,7 @@ def _rust_check(*argv: str):
 
 
 def _py_check(*argv: str):
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", "源码静态检查",
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "源码静态检查",
                         *argv], capture_output=True, input=b"", env=_env(),
                        cwd=str(ROOT))
     return (r.stdout.decode("utf-8", "replace"),
@@ -123,7 +123,7 @@ def _host_exempt() -> frozenset:
 @_need_rust
 def test_漂移检测_四个符号集合与Python一致():
     """四个集合决定「未定义名 / 遮蔽内建」的判据，**差一个名字就会给出不同结论**。"""
-    from jishi.langdata import LangData
+    from oracle.jishi.langdata import LangData
 
     r = subprocess.run([str(_rust()), "--dump-check-symbols"], capture_output=True,
                        input=b"", env=_env(), cwd=str(ROOT))

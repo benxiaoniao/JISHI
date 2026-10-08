@@ -26,10 +26,10 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi.compiler import compile_source                    # noqa: E402
-from jishi.interpreter import run_source as run_tree         # noqa: E402
-from jishi.stdlib import 系统 as sys_mod                     # noqa: E402
-from jishi.vm import VM                                      # noqa: E402
+from oracle.jishi.compiler import compile_source                    # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree         # noqa: E402
+from oracle.jishi.stdlib import 系统 as sys_mod                     # noqa: E402
+from oracle.jishi.vm import VM                                      # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJ = ROOT / "examples" / "projects" / "基石自述站"
@@ -38,7 +38,7 @@ SCRIPT = PROJ / "生成.jsh"
 
 def _cvm_available() -> bool:
     try:
-        from jishi import cvm_bind
+        from oracle.jishi import cvm_bind
         cvm_bind.load_lib()
         return True
     except Exception:                            # noqa: BLE001
@@ -64,7 +64,7 @@ def test_generator_writes_pages_from_real_repo_data(tmp_path):
     """跑一遍生成器：页面写出来了，而且页上的数字**来自仓库真文件**。"""
     out_dir = tmp_path / "站点"
     r = subprocess.run(
-        [sys.executable, "-m", "jishi.cli", str(SCRIPT),
+        [sys.executable, "-m", "oracle.jishi.cli", str(SCRIPT),
          str(out_dir), str(ROOT)],
         capture_output=True, cwd=str(ROOT))
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[-500:]
@@ -91,17 +91,17 @@ def test_generator_writes_pages_from_real_repo_data(tmp_path):
     assert f"全部 {len(milestones)} 个已完成里程碑" in page
     assert milestones[0].split("|")[1].strip() in page      # 最新那条在里面
 
-    # 规模页里的模块名是当场扫 jishi/ 得到的
+    # 规模页里的模块名是当场扫 oracle/jishi/ 得到的
     scale = _read(out_dir / "规模.html")
     for name in ("vm.py", "debugger.py", "parser.py"):
-        assert f"jishi/{name}" in scale
+        assert f"oracle/jishi/{name}" in scale
     assert "jishi_debugger.py" not in scale
 
 
 def test_generator_reports_what_it_read(tmp_path):
     out_dir = tmp_path / "站点"
     r = subprocess.run(
-        [sys.executable, "-m", "jishi.cli", str(SCRIPT),
+        [sys.executable, "-m", "oracle.jishi.cli", str(SCRIPT),
          str(out_dir), str(ROOT)],
         capture_output=True, cwd=str(ROOT))
     log = r.stdout.decode("utf-8", "replace")
@@ -125,7 +125,7 @@ def _run_with(engine: str, out_dir: Path) -> tuple[str, str]:
             elif engine == "vm":
                 VM(compile_source(src, str(SCRIPT)), str(SCRIPT)).run()
             else:
-                from jishi import cvm_bind
+                from oracle.jishi import cvm_bind
                 cvm_bind.run_source_c(src, filename=str(SCRIPT))
     finally:
         sys_mod._设参数([])
@@ -169,6 +169,6 @@ def test_generator_uses_alias_import_to_keep_builtin_text():
 def test_generator_is_formatted_and_parses():
     """生成器自己也守项目风格：`jishi 格式化 --check` 必须过。"""
     r = subprocess.run(
-        [sys.executable, "-m", "jishi.cli", "格式化", str(SCRIPT), "--check"],
+        [sys.executable, "-m", "oracle.jishi.cli", "格式化", str(SCRIPT), "--check"],
         capture_output=True, cwd=str(ROOT))
     assert r.returncode == 0, r.stdout.decode("utf-8", "replace")

@@ -10,7 +10,7 @@
 
 判据分两半（本项目的惯例，R7.1-c 起的纪律）：
 * **对拍**：与 `jishi dap` 逐字节，三种场景（普通单步 / 就地求值 / 出错现场）。
-* **独立判据**：把「Rust 自己该发什么」写成写死的期望 —— 不 import jishi、
+* **独立判据**：把「Rust 自己该发什么」写成写死的期望 —— 不 import oracle.jishi、
   不 spawn Python，R8 之后 Python 退场它仍然要绿。
 
 ⚠️ 已知边界（写在这里，不靠「读者自己想得到」）：Rust 只支持**树遍历**执行器
@@ -305,7 +305,7 @@ def test_对拍_报文逐字节(mode, tmp_path):
 
     a, ra = run_session([str(EXE), "dap"], prog, bps, evaluate=evaluate,
                         want_error=want_error)
-    b, rb = run_session([sys.executable, "-m", "jishi.cli", "dap"], prog, bps,
+    b, rb = run_session([sys.executable, "-m", "oracle.jishi.cli", "dap"], prog, bps,
                         evaluate=evaluate, want_error=want_error)
     assert ra == rb, (ra, rb)
     if a == b:

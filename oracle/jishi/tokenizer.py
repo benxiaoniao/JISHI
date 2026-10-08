@@ -183,7 +183,7 @@ class Tokenizer:
     def tokenize(self) -> list[Token]:
         """全量分词，并把**每一行的入行状态**记进 ``self.anchors``。
 
-        锚点只在增量分词（``jishi.incremental``）里用；普通调用者忽略它即可。
+        锚点只在增量分词（``oracle.jishi.incremental``）里用；普通调用者忽略它即可。
         """
         tokens, anchors = self._run(0, None, 0)
         self.anchors = anchors
@@ -714,7 +714,7 @@ class Tokenizer:
 # 出了问题把变量去掉就回到今天的状态。
 #
 # ⚠️ R2 只换**这一条全量路径**（`tokenize`）。`Tokenizer` 类（以及依赖它
-# 内部状态的 `jishi.incremental` 增量分词、`formatter` 的按行复用）**仍是
+# 内部状态的 `oracle.jishi.incremental` 增量分词、`formatter` 的按行复用）**仍是
 # Python 实现** —— 它们要的是 `LineAnchor` 那套行级状态，属 R3 之后的事。
 # 不假装「整条前端都换了」。
 
@@ -761,7 +761,7 @@ def _core():
     return mod
 
 
-#: 错误码 → 异常类。**惰性从 `jishi.errors` 现查**，不在这里另抄一份类表
+#: 错误码 → 异常类。**惰性从 `oracle.jishi.errors` 现查**，不在这里另抄一份类表
 #: （抄一份就是又一个漂移源）。
 _LEX_BY_CODE: "Optional[dict[str, type]]" = None
 

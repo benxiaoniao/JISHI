@@ -5,7 +5,27 @@
 
 ## [未发布]
 
-### 变更（**R8.4b-2：`jishi` 让给单二进制，Python 实现退成 `jishi-py`**，2026-10-08）
+### 变更（**R8.4b-2：退役 Python / Node —— 挪到 `oracle/`**，2026-10-08）
+
+- **正式实现收敛到两套**：**Rust**（前端 + 字节码 VM + 完整宿主）与 **C**（`cvm/`）。
+  **Python 与 Node 那两套挪到 `oracle/`**（`oracle/jishi` / `oracle/node`），
+  **不再随发行版分发、不再提供安装入口**，只作两件事：
+  ① 「多个执行器逐字节一致」这条纪律的**判据基准**；② 改语言的人的参考实现。
+  源码里跑 Python 实现走 `python -m oracle.jishi.cli`。
+- `pyproject.toml` 的 `[project.scripts]` **整段清空**（此前先退成 `jishi-py`，
+  随后按「不再对外提供安装入口」拍板删掉）。
+- 改动面：约 640 处引用、233 个文件（68 个是纯重命名）。
+- 🔴 **两处非机械的连带**（都很容易误判成「代码写错了」）：
+  * `core/`（pyo3 扩展）里 **Rust 侧硬编码**的 `py.import("jishi.tokenizer")`
+    必须跟着改 —— 否则整条 Rust 前端链报 `No module named 'jishi.tokenizer'`（要重编扩展）；
+  * **editable 安装要重装**：`pip install -e .` —— 否则 `python -m oracle.jishi.cli`
+    直接 `No module named 'oracle'`。
+- `tools/conformance.py` 的语料发现路径跟着改，**基线已重冻**；
+  `tools/gen_stdlib_sigs.py` 已重跑（`oracle/node/stdlib_sigs.js` + `rust/src/stdlib_sigs.rs`）。
+- 判据：`conformance` 103/103 · `check_engines` 不一致 0 · `check_cli` 一致 282 ·
+  `check_walk` 76/76 · 全量 **3379 通过**（3 个 Node 网络用例是沙箱 `EBUSY`，环境问题）。
+
+### 变更（**R8.4b-2：`jishi` 让给单二进制**，2026-10-08）
 
 - **`jishi` 这个名字现在指单二进制**（发行包里那份，R8.3 起由 cargo 产物改名而来）。
   **Python 实现退成 `jishi-py` / `jishi-py-mcp`**（`pyproject.toml` 的
@@ -13,7 +33,7 @@
 - 为什么必须退名：装了 Python 包就会在 PATH 上放一个 `jishi`，而它跑的是**另一套
   实现**；发行包放的也叫 `jishi` ⇒ **两条路同名**，用户分不清自己敲的是哪一个，
   出问题也说不清是哪套实现。
-- 功能一个没少：Python 实现照旧（`python -m jishi.cli`、`jishi-py`），它的用途是
+- 功能一个没少：Python 实现照旧（`python -m oracle.jishi.cli`、`jishi-py`），它的用途是
   **改语言本身**与**给测试当判据基准**。
 - 📌 **仓库里的 cargo 产物仍叫 `jishi-rs`** —— 那是构建细节（两者要同时存在才能对拍），
   **用户看到的名字在打包时对齐**。判据 `tests/test_m101_rename.py`。
@@ -3275,7 +3295,7 @@ cargo build --manifest-path rust/Cargo.toml --release
   渲染中文报错会 `UnicodeEncodeError`，最终用户看到 PyInstaller 的英文报错。
   修复：错误渲染统一做 `_safe_text` 兜底。
 - **打包版 MCP 无法执行脚本**：打包后 `sys.executable` 是 `jishi-mcp.exe`
-  自己，`-m jishi.cli` 直接失败。修复：frozen 模式下改用发行目录同级的
+  自己，`-m oracle.jishi.cli` 直接失败。修复：frozen 模式下改用发行目录同级的
   `jishi` 可执行文件。
 - 索引/下载地址含中文时未做 URL 编码、已编码地址被二次编码为 `%25`。
 - `jishi 检查` 遇到循环依赖会无限递归。

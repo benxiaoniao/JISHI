@@ -27,9 +27,9 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 import probe_errcodes as PE                                         # noqa: E402
-from jishi import errors as E                                       # noqa: E402
-from jishi import parser as P                                       # noqa: E402
-from jishi import tokenizer as T                                    # noqa: E402
+from oracle.jishi import errors as E                                       # noqa: E402
+from oracle.jishi import parser as P                                       # noqa: E402
+from oracle.jishi import tokenizer as T                                    # noqa: E402
 
 
 class _FakeExt(Exception):
@@ -157,7 +157,7 @@ def test_错误码表的承诺是真能兑现的():
     防的是「文档里有一张表，实现里没有这个类」这种反向漂移
     （`tests/test_m56_errcodes.py` 管另一边：类是有的、说明别落下）。
     """
-    from jishi import errcodes as EC
+    from oracle.jishi import errcodes as EC
 
     known = set(PE.front_codes())
     documented = {c for c in EC.INFO if c.startswith(PE.FRONT_PREFIXES)}
@@ -181,7 +181,7 @@ def test_新语料的渲染是完整的(rel):
     import contextlib
     import io
 
-    from jishi.interpreter import run_source
+    from oracle.jishi.interpreter import run_source
 
     src = (ROOT / rel).read_text(encoding="utf-8")
     with pytest.raises(E.JishiError) as ei:

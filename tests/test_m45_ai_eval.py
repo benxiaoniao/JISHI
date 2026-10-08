@@ -11,7 +11,7 @@
 2. **跑分器契约**（`tools/eval_ai.py`）——判分口径、限流重试、围栏剥离、
    报告字段。这几条错了，跑出去的数字就不可信。
 
-3. **MCP 工具面**（`jishi/mcp_server.py`）——从 3 个补到 7 个，每个都有正例与
+3. **MCP 工具面**（`oracle/jishi/mcp_server.py`）——从 3 个补到 7 个，每个都有正例与
    边界（查不到、参数缺、源码有语法错）。
 
 **不联网**：跑分器里真正发请求的那条路不测（要 key、要钱、结果还不确定）；
@@ -26,10 +26,10 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi import mcp_server                                    # noqa: E402
-from jishi.errors import JishiError                             # noqa: E402
-from jishi.parser import parse                                  # noqa: E402
-from jishi.tokenizer import tokenize                            # noqa: E402
+from oracle.jishi import mcp_server                                    # noqa: E402
+from oracle.jishi.errors import JishiError                             # noqa: E402
+from oracle.jishi.parser import parse                                  # noqa: E402
+from oracle.jishi.tokenizer import tokenize                            # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 TASKS_DIR = ROOT / "evals" / "tasks"
@@ -341,7 +341,7 @@ def test_查标准库_函数不存在时列出该模块的函数():
 
 
 def test_查标准库_覆盖全部十九个模块():
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
     for mod in build_lang_spec()["stdlib"]:
         d = json.loads(mcp_server._dispatch("lookup_stdlib",
                                             {"module": mod["module"]}))
@@ -381,7 +381,7 @@ def test_格式化工具_支持自定义缩进():
 
 def test_工具查到的错误码与语言规格一致():
     """工具不许另抄一份表：它查到的必须是 `build_lang_spec()` 里那一条。"""
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
     spec_codes = {c["code"]: c for c in build_lang_spec()["error_codes"]}
     for code in ("E0000", "E2002", "E0203"):
         got = json.loads(mcp_server._dispatch("lookup_error", {"code": code}))
@@ -389,7 +389,7 @@ def test_工具查到的错误码与语言规格一致():
 
 
 def test_工具查到的标准库与语言规格一致():
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
     spec_mods = {m["module"]: m for m in build_lang_spec()["stdlib"]}
     got = json.loads(mcp_server._dispatch("lookup_stdlib", {"module": "容器"}))
     规格函数 = [f["name"] for f in spec_mods["容器"]["functions"]]
@@ -406,10 +406,10 @@ def test_工具查到的标准库与语言规格一致():
 # 这条用**子进程**验证：同进程内算多少次都一样，只有换进程才暴露。
 
 def _子进程算指纹() -> str:
-    from jishi.ai import build_lang_spec, content_hash
+    from oracle.jishi.ai import build_lang_spec, content_hash
     code = (
         "import sys; sys.path.insert(0, '.'); "
-        "from jishi.ai import build_lang_spec, content_hash; "
+        "from oracle.jishi.ai import build_lang_spec, content_hash; "
         "print(content_hash(build_lang_spec()))"
     )
     import subprocess
@@ -428,7 +428,7 @@ def test_语言规格指纹跨进程稳定():
 
 def test_赋值运算符在规格里按序排列():
     """回归钉子：`assign` 直接从 set 转 list，顺序随 PYTHONHASHSEED 抖动。"""
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
     assign = build_lang_spec()["operators"]["assign"]
     assert assign == sorted(assign), f"assign 未排序：{assign}"
     assert set(assign) == {"=", "+=", "-=", "*=", "/=", "//=", "%=", "**="}
@@ -439,12 +439,12 @@ def test_规格整体可序列化且顺序确定():
     import json as _json
     import subprocess
     import sys as _sys
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
 
     local = _json.dumps(build_lang_spec(), ensure_ascii=False, sort_keys=True)
     code = (
         "import sys, json; sys.path.insert(0, '.'); "
-        "from jishi.ai import build_lang_spec; "
+        "from oracle.jishi.ai import build_lang_spec; "
         "print(json.dumps(build_lang_spec(), ensure_ascii=False, sort_keys=True))"
     )
     r = subprocess.run([_sys.executable, "-c", code], capture_output=True,
@@ -467,7 +467,7 @@ def _run_tree(src: str) -> str:
     import io
     from contextlib import redirect_stdout
 
-    from jishi.interpreter import Interpreter
+    from oracle.jishi.interpreter import Interpreter
     buf = io.StringIO()
     try:
         with redirect_stdout(buf):
@@ -484,8 +484,8 @@ def _run_pvm(src: str) -> str:
     import io
     from contextlib import redirect_stdout
 
-    from jishi import vm as vm_mod
-    from jishi.compiler import compile_source
+    from oracle.jishi import vm as vm_mod
+    from oracle.jishi.compiler import compile_source
     buf = io.StringIO()
     try:
         with redirect_stdout(buf):
@@ -501,7 +501,7 @@ def _run_cvm(src: str) -> str:
     import io
     from contextlib import redirect_stdout
 
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
     buf = io.StringIO()
     try:
         with redirect_stdout(buf):

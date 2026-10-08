@@ -1972,7 +1972,7 @@ def do_import(name: str, from_python: bool = False, from_local: bool = False,
     # 走到这里只有两种情况：该模块还没搬进基石库层，或者是动态拼出来的导入
     # （`执行("导入 统计")` 那种）—— 那就照旧回落宿主层的 Python 实现。
     try:
-        mod = importlib.import_module(f"jishi.stdlib.{name}")
+        mod = importlib.import_module(f"oracle.jishi.stdlib.{name}")
     except ImportError:
         # 📌 本地包与标准库是**两种导入语法**（本地包要写 `导入 X 从 本地包`），
         # 所以「装了包却只写 `导入 X`」是很容易踩的一脚 —— 这时只说

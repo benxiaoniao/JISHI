@@ -24,8 +24,8 @@ from contextlib import redirect_stdout
 
 sys.path.insert(0, ".")
 
-from jishi.errors import JishiError
-from jishi.interpreter import run_source
+from oracle.jishi.errors import JishiError
+from oracle.jishi.interpreter import run_source
 
 #: 评测任务：(任务描述, 标准答案, 期望 stdout)
 TASKS = [
@@ -374,7 +374,7 @@ def _lang_card() -> str:
     """语言卡（只读一次，供 LLM 作为系统提示）。"""
     global _LANG_CARD_CACHE
     if _LANG_CARD_CACHE is None:
-        from jishi.ai import render_ai_card
+        from oracle.jishi.ai import render_ai_card
         _LANG_CARD_CACHE = render_ai_card()
     return _LANG_CARD_CACHE
 

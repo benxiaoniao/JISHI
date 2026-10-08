@@ -2188,7 +2188,7 @@
                     {
                       "col": 31,
                       "line": 105,
-                      "value": "jishi",
+                      "value": "oracle/jishi",
                       "类型": "Str"
                     }
                   ],
@@ -2210,7 +2210,7 @@
                   "类型": "Call"
                 },
                 {
-                  "col": 41,
+                  "col": 48,
                   "line": 105,
                   "value": ".py",
                   "类型": "Str"
@@ -5466,13 +5466,13 @@
                             "left": {
                               "col": 20,
                               "left": {
-                                "col": 52,
+                                "col": 59,
                                 "left": {
-                                  "col": 41,
+                                  "col": 48,
                                   "left": {
                                     "col": 18,
                                     "line": 276,
-                                    "value": "<tr><td><code>jishi/",
+                                    "value": "<tr><td><code>oracle/jishi/",
                                     "类型": "Str"
                                   },
                                   "line": 276,
@@ -5480,16 +5480,16 @@
                                   "right": {
                                     "args": [
                                       {
-                                        "col": 47,
+                                        "col": 54,
                                         "index": {
-                                          "col": 48,
+                                          "col": 55,
                                           "line": 276,
                                           "value": 1,
                                           "类型": "Num"
                                         },
                                         "line": 276,
                                         "obj": {
-                                          "col": 46,
+                                          "col": 53,
                                           "id": "条",
                                           "line": 276,
                                           "类型": "Name"
@@ -5497,9 +5497,9 @@
                                         "类型": "Subscript"
                                       }
                                     ],
-                                    "col": 45,
+                                    "col": 52,
                                     "func": {
-                                      "col": 43,
+                                      "col": 50,
                                       "id": "转义",
                                       "line": 276,
                                       "类型": "Name"
@@ -5513,7 +5513,7 @@
                                 "line": 276,
                                 "op": "+",
                                 "right": {
-                                  "col": 54,
+                                  "col": 61,
                                   "line": 276,
                                   "value": "</code></td>",
                                   "类型": "Str"
@@ -5715,7 +5715,7 @@
                                     "right": {
                                       "col": 10,
                                       "line": 282,
-                                      "value": "<p class=\"lead\">统计范围：<code>jishi/</code> 下这一层的每个 ",
+                                      "value": "<p class=\"lead\">统计范围：<code>oracle/jishi/</code> 下这一层的每个 ",
                                       "类型": "Str"
                                     },
                                     "类型": "BinOp"
@@ -7818,7 +7818,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "053af24d0351176337ec8fdf6f87594ee24b60ab110ba974b6f7a80320f9518b",
+    "checksum": "978b3070029c06c36eaba7bb045257cbfa7eab5e6994370e9d20a8e846008fa4",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -10615,7 +10615,7 @@
             0,
             0,
             105,
-            41,
+            48,
             20,
             2,
             -1,
@@ -13971,49 +13971,49 @@
             0,
             0,
             276,
-            43,
+            50,
             4,
             4,
             0,
             0,
             276,
-            46,
+            53,
             1,
             5,
             0,
             0,
             276,
-            48,
+            55,
             27,
             0,
             0,
             0,
             276,
-            47,
+            54,
             20,
             1,
             -1,
             0,
             276,
-            45,
+            52,
             13,
             0,
             0,
             0,
             276,
-            41,
+            48,
             1,
             96,
             0,
             0,
             276,
-            54,
+            61,
             13,
             0,
             0,
             0,
             276,
-            52,
+            59,
             1,
             97,
             0,
@@ -16385,7 +16385,7 @@
         },
         {
           "t": "str",
-          "v": "jishi"
+          "v": "oracle/jishi"
         },
         {
           "t": "str",
@@ -16657,7 +16657,7 @@
         },
         {
           "t": "str",
-          "v": "<tr><td><code>jishi/"
+          "v": "<tr><td><code>oracle/jishi/"
         },
         {
           "t": "str",
@@ -16685,7 +16685,7 @@
         },
         {
           "t": "str",
-          "v": "<p class=\"lead\">统计范围：<code>jishi/</code> 下这一层的每个 "
+          "v": "<p class=\"lead\">统计范围：<code>oracle/jishi/</code> 下这一层的每个 "
         },
         {
           "t": "str",
@@ -22554,7 +22554,7 @@
       "col": 5,
       "end_col": 6,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "NAME",
       "value": "数据",
       "类型": "Token"
@@ -22563,7 +22563,7 @@
       "col": 7,
       "end_col": 8,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "OP",
       "value": "[",
       "类型": "Token"
@@ -22572,7 +22572,7 @@
       "col": 8,
       "end_col": 11,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "STRING",
       "value": "模块",
       "类型": "Token"
@@ -22581,7 +22581,7 @@
       "col": 12,
       "end_col": 13,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "OP",
       "value": "]",
       "类型": "Token"
@@ -22590,7 +22590,7 @@
       "col": 14,
       "end_col": 15,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "OP",
       "value": "=",
       "类型": "Token"
@@ -22599,7 +22599,7 @@
       "col": 16,
       "end_col": 18,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "NAME",
       "value": "量规模",
       "类型": "Token"
@@ -22608,7 +22608,7 @@
       "col": 19,
       "end_col": 20,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "OP",
       "value": "(",
       "类型": "Token"
@@ -22617,7 +22617,7 @@
       "col": 20,
       "end_col": 21,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "NAME",
       "value": "文件",
       "类型": "Token"
@@ -22626,7 +22626,7 @@
       "col": 22,
       "end_col": 23,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "OP",
       "value": ".",
       "类型": "Token"
@@ -22635,7 +22635,7 @@
       "col": 23,
       "end_col": 26,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "NAME",
       "value": "路径拼接",
       "类型": "Token"
@@ -22644,7 +22644,7 @@
       "col": 27,
       "end_col": 28,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "OP",
       "value": "(",
       "类型": "Token"
@@ -22653,7 +22653,7 @@
       "col": 28,
       "end_col": 28,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "NAME",
       "value": "根",
       "类型": "Token"
@@ -22662,52 +22662,52 @@
       "col": 29,
       "end_col": 30,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "OP",
       "value": ",",
       "类型": "Token"
     },
     {
       "col": 31,
-      "end_col": 37,
+      "end_col": 44,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "STRING",
-      "value": "jishi",
+      "value": "oracle/jishi",
       "类型": "Token"
     },
     {
-      "col": 38,
-      "end_col": 39,
+      "col": 45,
+      "end_col": 46,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "OP",
       "value": ")",
-      "类型": "Token"
-    },
-    {
-      "col": 39,
-      "end_col": 40,
-      "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
-      "type": "OP",
-      "value": ",",
-      "类型": "Token"
-    },
-    {
-      "col": 41,
-      "end_col": 45,
-      "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
-      "type": "STRING",
-      "value": ".py",
       "类型": "Token"
     },
     {
       "col": 46,
       "end_col": 47,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 52,
+      "line": 105,
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
+      "type": "STRING",
+      "value": ".py",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 54,
+      "line": 105,
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -22716,7 +22716,7 @@
       "col": 5,
       "end_col": 1,
       "line": 105,
-      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"jishi\"), \".py\")",
+      "source_line": "    数据[\"模块\"] = 量规模(文件.路径拼接(根, \"oracle/jishi\"), \".py\")",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -29818,7 +29818,7 @@
       "col": 9,
       "end_col": 9,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
       "type": "NAME",
       "value": "表",
       "类型": "Token"
@@ -29827,7 +29827,7 @@
       "col": 11,
       "end_col": 12,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
       "type": "OP",
       "value": "=",
       "类型": "Token"
@@ -29836,7 +29836,7 @@
       "col": 13,
       "end_col": 13,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
       "type": "NAME",
       "value": "表",
       "类型": "Token"
@@ -29845,7 +29845,7 @@
       "col": 15,
       "end_col": 16,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
       "type": "OP",
       "value": "+",
       "类型": "Token"
@@ -29854,106 +29854,106 @@
       "col": 17,
       "end_col": 18,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
       "col": 18,
-      "end_col": 39,
+      "end_col": 46,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
       "type": "STRING",
-      "value": "<tr><td><code>jishi/",
-      "类型": "Token"
-    },
-    {
-      "col": 41,
-      "end_col": 42,
-      "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
-      "type": "OP",
-      "value": "+",
-      "类型": "Token"
-    },
-    {
-      "col": 43,
-      "end_col": 44,
-      "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
-      "type": "NAME",
-      "value": "转义",
-      "类型": "Token"
-    },
-    {
-      "col": 45,
-      "end_col": 46,
-      "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
-      "type": "OP",
-      "value": "(",
-      "类型": "Token"
-    },
-    {
-      "col": 46,
-      "end_col": 46,
-      "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
-      "type": "NAME",
-      "value": "条",
-      "类型": "Token"
-    },
-    {
-      "col": 47,
-      "end_col": 48,
-      "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
-      "type": "OP",
-      "value": "[",
+      "value": "<tr><td><code>oracle/jishi/",
       "类型": "Token"
     },
     {
       "col": 48,
-      "end_col": 48,
+      "end_col": 49,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
-      "type": "NUMBER",
-      "value": 1,
-      "类型": "Token"
-    },
-    {
-      "col": 49,
-      "end_col": 50,
-      "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
       "type": "OP",
-      "value": "]",
+      "value": "+",
       "类型": "Token"
     },
     {
       "col": 50,
       "end_col": 51,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
-      "type": "OP",
-      "value": ")",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "type": "NAME",
+      "value": "转义",
       "类型": "Token"
     },
     {
       "col": 52,
       "end_col": 53,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 53,
+      "line": 276,
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "type": "NAME",
+      "value": "条",
+      "类型": "Token"
+    },
+    {
+      "col": 54,
+      "end_col": 55,
+      "line": 276,
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 55,
+      "end_col": 55,
+      "line": 276,
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 56,
+      "end_col": 57,
+      "line": 276,
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 57,
+      "end_col": 58,
+      "line": 276,
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 59,
+      "end_col": 60,
+      "line": 276,
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
       "type": "OP",
       "value": "+",
       "类型": "Token"
     },
     {
-      "col": 54,
-      "end_col": 67,
+      "col": 61,
+      "end_col": 74,
       "line": 276,
-      "source_line": "        表 = 表 + (\"<tr><td><code>jishi/\" + 转义(条[1]) + \"</code></td>\"",
+      "source_line": "        表 = 表 + (\"<tr><td><code>oracle/jishi/\" + 转义(条[1]) + \"</code></td>\"",
       "type": "STRING",
       "value": "</code></td>",
       "类型": "Token"
@@ -30206,18 +30206,18 @@
       "col": 9,
       "end_col": 10,
       "line": 282,
-      "source_line": "        +\"<p class=\\\"lead\\\">统计范围：<code>jishi/</code> 下这一层的每个 \"",
+      "source_line": "        +\"<p class=\\\"lead\\\">统计范围：<code>oracle/jishi/</code> 下这一层的每个 \"",
       "type": "OP",
       "value": "+",
       "类型": "Token"
     },
     {
       "col": 10,
-      "end_col": 62,
+      "end_col": 69,
       "line": 282,
-      "source_line": "        +\"<p class=\\\"lead\\\">统计范围：<code>jishi/</code> 下这一层的每个 \"",
+      "source_line": "        +\"<p class=\\\"lead\\\">统计范围：<code>oracle/jishi/</code> 下这一层的每个 \"",
       "type": "STRING",
-      "value": "<p class=\"lead\">统计范围：<code>jishi/</code> 下这一层的每个 ",
+      "value": "<p class=\"lead\">统计范围：<code>oracle/jishi/</code> 下这一层的每个 ",
       "类型": "Token"
     },
     {
@@ -33601,6 +33601,6 @@
       "类型": "Token"
     }
   ],
-  "内容哈希": "sha256:17b684aa4cdf4ade",
+  "内容哈希": "sha256:f7f4fccd5c763b49",
   "语料": "examples/projects/基石自述站/生成.jsh"
 }

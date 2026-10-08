@@ -15,7 +15,7 @@ r"""R8.4b：交互式 REPL（`jishi -i`）搬进 Rust。
    两条路名字不一样是 Python 的**既成行为**，看着别扭也得照抄。
 
 ⚠️ **一处如实标注的差异**：Rust 这版**没有行编辑**（`↑/↓` 翻历史、`Tab` 补全）——
-那些在 `jishi/lineedit.py` 里，是另一件独立的事。`历史` 命令照样可用，
+那些在 `oracle/jishi/lineedit.py` 里，是另一件独立的事。`历史` 命令照样可用，
 判据也覆盖了它；只是**真终端里的按键**这一层没有。
 """
 from __future__ import annotations
@@ -54,7 +54,7 @@ def _run(cmd: list[str], session: str, tmp: Path, tag: str) -> tuple[int, bytes,
 
 
 def _agree(session: str, tmp: Path, tag: str) -> None:
-    p = _run([sys.executable, "-m", "jishi.cli", "-i"], session, tmp, "py" + tag)
+    p = _run([sys.executable, "-m", "oracle.jishi.cli", "-i"], session, tmp, "py" + tag)
     r = _run([str(EXE), "-i"], session, tmp, "rs" + tag)
     assert r[0] == p[0], f"退码 py={p[0]} rs={r[0]}"
     assert r[1] == p[1], (f"stdout 不一致：\n--- py ---\n"
@@ -149,7 +149,7 @@ def test_命令_别名与无参数进REPL(tmp_path):
     env = dict(os.environ)
     env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8", PYTHONPATH=str(ROOT),
                JISHI_HISTORY=str(tmp_path / f"h_noarg_{TMP_SUFFIX}.txt"))
-    p = subprocess.run([sys.executable, "-m", "jishi.cli"], input=b"1 + 1\nq\n",
+    p = subprocess.run([sys.executable, "-m", "oracle.jishi.cli"], input=b"1 + 1\nq\n",
                        capture_output=True, cwd=str(ROOT), env=env, timeout=120)
     env["JISHI_HISTORY"] = str(tmp_path / f"h_noarg2_{TMP_SUFFIX}.txt")
     r = subprocess.run([str(EXE)], input=b"1 + 1\nq\n", capture_output=True,

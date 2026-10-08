@@ -47,8 +47,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 os.environ.setdefault("JISHI_FRONTEND", "python")
 
 import conformance as C                                            # noqa: E402
-from jishi.compiler import compile_to_json                         # noqa: E402
-from jishi.parser import parse_source                              # noqa: E402
+from oracle.jishi.compiler import compile_to_json                         # noqa: E402
+from oracle.jishi.parser import parse_source                              # noqa: E402
 
 RUST = ROOT / "rust" / "target" / "release" / (
     "jishi-rs.exe" if os.name == "nt" else "jishi-rs")

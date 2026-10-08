@@ -32,9 +32,9 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 import conformance as C                                            # noqa: E402
-from jishi import parser as P                                      # noqa: E402
-from jishi import tokenizer as T                                   # noqa: E402
-from jishi.errors import JishiError                                 # noqa: E402
+from oracle.jishi import parser as P                                      # noqa: E402
+from oracle.jishi import tokenizer as T                                   # noqa: E402
+from oracle.jishi.errors import JishiError                                 # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ def test_两种行切分口径都给一样的结果(name, src):
     这条测试把**两种口径都跑一遍**，要求结果一样（Rust 侧吃的是 `source=`
     给的原文，所以本来就该一样）。
     """
-    from jishi.incremental import split_lines
+    from oracle.jishi.incremental import split_lines
 
     old = os.environ.get(T.FRONTEND_ENV)
     os.environ[T.FRONTEND_ENV] = "rust"
@@ -276,7 +276,7 @@ def test_语法错误逐字一致(name, src, code):
 @need_rust
 def test_扩展只报已登记的语法错误码():
     """Rust 侧只会抛 E02xx —— 冒出新码就是 Python 侧漏登记（R2 那条的姊妹条）。"""
-    from jishi.errors import ParseError, error_class
+    from oracle.jishi.errors import ParseError, error_class
     assert error_class("E0201") is not JishiError
     assert error_class("E0202") is not JishiError
     assert issubclass(error_class("E0202"), ParseError)
@@ -316,7 +316,7 @@ def test_丢了内容就当场报错(monkeypatch):
     ⚠️ 判据是**精确**的：词法器给 EOF 记的行号恒等于「原文的行列表长度」，
     拿它当标尺比一比就知道有没有丢。
     """
-    from jishi.incremental import split_lines
+    from oracle.jishi.incremental import split_lines
 
     src = "如果 真：\n\n"                      # 末尾空行有意义（错误位置在它上面）
     monkeypatch.setenv(T.FRONTEND_ENV, "rust")
@@ -440,7 +440,7 @@ def test_端到端换前端不改输出(rel, tmp_path, monkeypatch):
     import io
     from contextlib import redirect_stdout
 
-    from jishi.interpreter import run_source
+    from oracle.jishi.interpreter import run_source
 
     src = (ROOT / rel).read_text(encoding="utf-8")
 

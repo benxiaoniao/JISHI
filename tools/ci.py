@@ -72,7 +72,7 @@ def main() -> int:
 
     # 4) 确认 C VM 对拍真的在跑（HAS_CVM 必须为真）
     probe = ("import sys; sys.path.insert(0, r'%s'); "
-             "from jishi import cvm_bind; cvm_bind.load_lib(); "
+             "from oracle.jishi import cvm_bind; cvm_bind.load_lib(); "
              "print('C VM 可用，对拍含 C 用例')") % str(ROOT)
     if not _run([PYTHON, "-c", probe], "C VM 对拍可用性确认"):
         return 1
@@ -102,7 +102,7 @@ def main() -> int:
     #    没构建时**明确报「跳过」**，绝不静默当通过 —— 「跳过」与「通过」
     #    在 CI 输出里长得一样是本项目反复踩过的坑（R0 的冻 bug、M49 的静默校验）。
     probe = ("import sys; sys.path.insert(0, r'%s'); "
-             "from jishi import tokenizer as T; "
+             "from oracle.jishi import tokenizer as T; "
              "print('YES' if T.rust_available() else 'NO')") % str(ROOT)
     got = subprocess.run([PYTHON, "-c", probe], cwd=ROOT, capture_output=True)
     if got.stdout.strip().endswith(b"YES"):

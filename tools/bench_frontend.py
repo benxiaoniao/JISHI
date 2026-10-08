@@ -64,7 +64,7 @@ for _s in (sys.stdout, sys.stderr):
 SOURCES = (
     "tests/cases/*.jsh",
     "examples/**/*.jsh",
-    "jishi/stdlib-jishi/*.jsh",
+    "oracle/jishi/stdlib-jishi/*.jsh",
 )
 
 
@@ -107,7 +107,7 @@ def _frontend(name: str):
     ⚠️ 必须还原：`JISHI_FRONTEND` 留在环境里会污染同一进程后面所有调用
     （`tools/conformance.py` 的 `emit` 踩过同一个坑）。
     """
-    from jishi import tokenizer as T
+    from oracle.jishi import tokenizer as T
 
     old = os.environ.get(T.FRONTEND_ENV)
     os.environ[T.FRONTEND_ENV] = name
@@ -135,7 +135,7 @@ def _section(title: str, py_ms: float, rs_ms: float, core_ms: float,
 
 
 def bench_tokens(src, rounds, core, n_tok) -> None:
-    from jishi.tokenizer import Token, Tokenizer
+    from oracle.jishi.tokenizer import Token, Tokenizer
 
     py_ms = rs_ms = core_ms = float("inf")
     for _ in range(rounds):
@@ -160,8 +160,8 @@ def bench_tokens(src, rounds, core, n_tok) -> None:
 
 
 def bench_ast(src, rounds, core, n_nodes) -> None:
-    from jishi import ast_nodes as A
-    from jishi.parser import parse_source
+    from oracle.jishi import ast_nodes as A
+    from oracle.jishi.parser import parse_source
 
     def py_parse():
         with _frontend("python"):
@@ -190,7 +190,7 @@ def bench_ast(src, rounds, core, n_nodes) -> None:
 
 def bench_bytecode(src, rounds) -> None:
     """R5：源码 → **字节码 JSON 文本**（编译期端到端）。"""
-    from jishi import compiler as C
+    from oracle.jishi import compiler as C
 
     def py_compile():
         with _frontend("python"):
@@ -245,8 +245,8 @@ def main(argv: "list[str] | None" = None) -> int:
     args = ap.parse_args(argv)
     rounds = 3 if args.quick else args.rounds
 
-    from jishi import tokenizer as T
-    from jishi.tokenizer import Tokenizer
+    from oracle.jishi import tokenizer as T
+    from oracle.jishi.tokenizer import Tokenizer
 
     if not T.rust_available():
         print("❌ Rust 前端没构建 —— 先跑 `python core/build.py`", file=sys.stderr)

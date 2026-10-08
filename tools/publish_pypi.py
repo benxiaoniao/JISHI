@@ -18,7 +18,7 @@
     # 或者按 twine 的常规做法写 ~/.pypirc
 
 顺带说一句：本仓库的 `publish_github.py` 是「先隐私屏蔽再发布」，这里**不屏蔽**
-——因为 PyPI 的 sdist/wheel 只含 `jishi/` 包与元数据（不含 tests/tools/docs），
+——因为 PyPI 的 sdist/wheel 只含 `oracle/jishi/` 包与元数据（不含 tests/tools/docs），
 本来就该是干净的；所以反过来做：**扫一遍，发现本机路径就拒绝打包**。
 """
 from __future__ import annotations
@@ -78,15 +78,15 @@ def project_name() -> str:
 
 
 def check_version_sync(version: str) -> None:
-    """三处版本号必须一致：pyproject ↔ jishi/version.py 兜底常量。
+    """三处版本号必须一致：pyproject ↔ oracle/jishi/version.py 兜底常量。
 
     （`tests/test_m16_release.py` 也钉着这条；这里再查一次，是为了**在打包前**
     就拦住——真传上去一个版本号不符的包，是修不回来的。）
     """
-    src = (ROOT / "jishi" / "version.py").read_text(encoding="utf-8")
+    src = (ROOT / "oracle" / "jishi" / "version.py").read_text(encoding="utf-8")
     m = re.search(r'__FALLBACK__\s*=\s*"([^"]+)"', src)
     if not m:
-        raise SystemExit("!! jishi/version.py 里找不到 __FALLBACK__")
+        raise SystemExit("!! oracle/jishi/version.py 里找不到 __FALLBACK__")
     if m.group(1) != version:
         raise SystemExit(
             f"!! 版本号不同步：pyproject={version} / version.py 兜底={m.group(1)}\n"
@@ -205,7 +205,7 @@ def summarize(packages: "list[Path]") -> None:
             print("   ↑ sdist 顶层内容：" + "、".join(tops) +
                   "（setuptools 默认把 tests/ 也放进去——下游拿到 sdist 能自己跑测试）")
     # C VM 动态库是不是只覆盖了本平台？如实说，别让人以为全平台都带
-    native = sorted(p.name for p in (ROOT / "jishi" / "_native").glob("*")
+    native = sorted(p.name for p in (ROOT / "oracle" / "jishi" / "_native").glob("*")
                     if p.suffix in (".dll", ".so", ".dylib"))
     print(f"   随包发出的 C VM 动态库：{native or '（无）'}")
     if not any(n.endswith((".so", ".dylib")) for n in native):
@@ -267,7 +267,7 @@ def main() -> int:
     if state == "版本已存在":
         raise SystemExit(
             f"!! PyPI 上已经有 {name} {version} 了——**同一个版本不能覆盖**。\n"
-            f"   要发新版就改 pyproject.toml 的 version（并同步 jishi/version.py）。")
+            f"   要发新版就改 pyproject.toml 的 version（并同步 oracle/jishi/version.py）。")
     elif state == "包已存在":
         print(f"   {name} 这个包名已存在（本次是**新版本**发布）")
     elif state is None:

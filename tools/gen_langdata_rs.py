@@ -18,8 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi.ai import build_lang_spec  # noqa: E402
-from jishi.version import VERSION  # noqa: E402
+from oracle.jishi.ai import build_lang_spec  # noqa: E402
+from oracle.jishi.version import VERSION  # noqa: E402
 
 
 def rs_str(s: str) -> str:
@@ -65,7 +65,7 @@ def main() -> None:
     add("//! 检测**钉住「两侧一致」—— 这就是 R7.2 拍板①（Rust 侧显式表 + 两侧各")
     add("//! `--dump` 自报家底来比）。改 Python 侧元数据后**必须重跑生成器**，否则会红。")
     add("")
-    add("/// 语言版本（与 `jishi/version.py` 的 `VERSION` 同步）。")
+    add("/// 语言版本（与 `oracle/jishi/version.py` 的 `VERSION` 同步）。")
     add(f"pub const LANG_VERSION: &str = {rs_str(VERSION)};")
     add("")
 

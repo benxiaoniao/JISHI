@@ -52,7 +52,7 @@ def _need_rust(fn):
 
 def _tree(src: str):
     """树遍历（= 规范）。返回 `(打印出来的文本, 抛出来的异常或 None)`。"""
-    from jishi.interpreter import run_source
+    from oracle.jishi.interpreter import run_source
 
     buf = io.StringIO()
     try:
@@ -64,7 +64,7 @@ def _tree(src: str):
 
 
 def _rust_vm(src: str) -> str:
-    from jishi.compiler import compile_to_json
+    from oracle.jishi.compiler import compile_to_json
 
     tmp = Path(__file__).resolve().parents[1] / "build" / f"_m83_{os.getpid()}.json"
     tmp.parent.mkdir(parents=True, exist_ok=True)
@@ -75,7 +75,7 @@ def _rust_vm(src: str) -> str:
 
 def _cvm(src: str):
     """C VM：返回 `(打印出来的文本, 抛出来的异常或 None)`。"""
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
 
     buf = io.StringIO()
     try:
@@ -115,7 +115,7 @@ def test_活迭代没有退回O_n平方():
     n = 20000
     src = (f"令 列 = [i 遍历 i 在 范围({n})]\n令 s = 0\n"
            f"遍历 x 在 列：\n    s = s + x\n打印(s)\n")
-    from jishi.compiler import compile_to_json
+    from oracle.jishi.compiler import compile_to_json
 
     tmp = ROOT / "build" / f"_m83_big_{os.getpid()}.json"
     tmp.write_text(compile_to_json(src, "x.jsh"), encoding="utf-8")
@@ -153,7 +153,7 @@ def test_字典遍历中改大小_树遍历报基石错误():
 @_need_rust
 def test_集合与字典_Rust侧也报同一条():
     """Rust VM 与 Rust 树遍历参考执行器都要报**同一条**（快照 + 大小护栏）。"""
-    from jishi.compiler import compile_to_json
+    from oracle.jishi.compiler import compile_to_json
 
     for src, want in ((_SET_ADD, "1\n"), (_DICT_ADD, "甲\n")):
         p = ROOT / "build" / f"_m83_guard_{os.getpid()}.json"

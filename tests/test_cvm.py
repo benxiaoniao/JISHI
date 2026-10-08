@@ -22,11 +22,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from jishi import vm as vm_mod
-from jishi.compiler import compile_source
-from jishi.errors import JishiError
-from jishi.interpreter import run_source as run_tree
-from jishi.vm import VM
+from oracle.jishi import vm as vm_mod
+from oracle.jishi.compiler import compile_source
+from oracle.jishi.errors import JishiError
+from oracle.jishi.interpreter import run_source as run_tree
+from oracle.jishi.vm import VM
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = Path(__file__).parent / "cases"
@@ -36,7 +36,7 @@ EXAMPLES = ROOT / "examples"
 #: C VM 动态库是否可用（不可用则三执行器用例降级为跳过）
 def _cvm_available() -> bool:
     try:
-        from jishi import cvm_bind
+        from oracle.jishi import cvm_bind
         cvm_bind.load_lib()
         return True
     except Exception:
@@ -101,7 +101,7 @@ def _run_vm(src: str, filename: str) -> tuple[str, str]:
 
 
 def _run_cvm(src: str, filename: str) -> tuple[str, str]:
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
 
     buf = io.StringIO()
     err = ""
@@ -592,7 +592,7 @@ def test_all_snippets_compile():
 
 def test_module_always_halts():
     """模块主代码必须以 HALT 结尾，否则 VM 会跑飞。"""
-    from jishi.opcodes import Op
+    from oracle.jishi.opcodes import Op
 
     for name, src in SNIPPETS.items():
         cmod = compile_source(src, f"<{name}>")
@@ -602,7 +602,7 @@ def test_module_always_halts():
 
 def test_function_bodies_always_return():
     """每个函数体末尾都要有 RETURN（隐式「返回 空」也算）。"""
-    from jishi.opcodes import Op
+    from oracle.jishi.opcodes import Op
 
     for name, src in SNIPPETS.items():
         cmod = compile_source(src, f"<{name}>")
@@ -617,7 +617,7 @@ _JUMP_OPS: set[int] = set()
 
 
 def _init_jump_ops():
-    from jishi.opcodes import Op
+    from oracle.jishi.opcodes import Op
 
     _JUMP_OPS.update({
         Op.JUMP, Op.POP_JUMP_IF_FALSE, Op.POP_JUMP_IF_TRUE,
@@ -946,8 +946,8 @@ def test_native_string_layout():
     """
     import ctypes
 
-    from jishi import cvm_bind as CB
-    from jishi.compiler import compile_source
+    from oracle.jishi import cvm_bind as CB
+    from oracle.jishi.compiler import compile_source
 
     cmod = compile_source('令 x = "字"\n', "<layout>")
     host = CB.CvmHost(cmod, "<layout>", list(cmod.names))
@@ -981,8 +981,8 @@ def test_native_string_batch_matches_single():
     """
     import ctypes
 
-    from jishi import cvm_bind as CB
-    from jishi.compiler import compile_source
+    from oracle.jishi import cvm_bind as CB
+    from oracle.jishi.compiler import compile_source
 
     cmod = compile_source('令 x = "字"\n', "<batch>")
     host = CB.CvmHost(cmod, "<batch>", list(cmod.names))
@@ -1015,8 +1015,8 @@ def test_native_string_surrogate_roundtrip():
     顺带验一条语义前提：代理项在 UTF-8 下也是 3 字节且字节序与码点序一致
     （ED A0 80 < EE 80 80），所以 C 侧的字节比较与 Python 的码点比较同序。
     """
-    from jishi import cvm_bind as CB
-    from jishi.compiler import compile_source
+    from oracle.jishi import cvm_bind as CB
+    from oracle.jishi.compiler import compile_source
 
     cmod = compile_source('令 x = "字"\n', "<surrogate>")
     host = CB.CvmHost(cmod, "<surrogate>", list(cmod.names))
@@ -1039,7 +1039,7 @@ def test_native_string_avoids_host_binop(monkeypatch):
     这条是「优化确实生效」的看门狗：把宿主的 `binop`/`compare` 回调换成
     计数器，跑完断言两边都没被调到。对拍只看输出，抓不到「优化退化成慢路径」。
     """
-    from jishi import cvm_bind as CB
+    from oracle.jishi import cvm_bind as CB
 
     calls = {"binop": 0, "compare": 0}
     orig_binop, orig_compare = CB.CvmHost._cb_binop, CB.CvmHost._cb_compare
@@ -1135,8 +1135,8 @@ def test_text_iteration_matches(monkeypatch):
 @pytest.mark.skipif(not HAS_CVM, reason="C 虚拟机动态库不可用")
 def test_pinned_consts_cleared_on_close(monkeypatch):
     """文本常量的「钉住表」必须随 VM 关闭清空（否则复用 host 会误认指针）。"""
-    from jishi import cvm_bind as CB
-    from jishi.compiler import compile_source
+    from oracle.jishi import cvm_bind as CB
+    from oracle.jishi.compiler import compile_source
 
     cmod = compile_source('令 甲 = "常量文本"\n打印(甲)\n', "<pin>")
     runner = CB.CvmRunner(cmod, "<pin>")
@@ -1175,7 +1175,7 @@ def test_pinned_consts_cleared_on_close(monkeypatch):
 ])
 def test_iter_buffer_releases_every_slot(name, tail, monkeypatch):
     """迭代器缓冲必须把每个槽位都放掉——各条退出路径都要放干净。"""
-    from jishi import cvm_bind as CB
+    from oracle.jishi import cvm_bind as CB
 
     # ⚠️ 规模用 100 个元素（不是 400）：本测试验证的是「迭代器缓冲不漏引用」，
     # 与元素个数无关——100 个元素就足以让「修复前 ~103 个句柄 / 修复后 3–6」
@@ -1218,7 +1218,7 @@ def test_iter_buffer_releases_every_slot(name, tail, monkeypatch):
 def test_method_call_fusion_is_used(monkeypatch):
     """C VM 跑 `X.方法(...)` 时，必须是**一次**回调（`method_call`），
     而不是 `getattr` + `call` 两次。"""
-    from jishi import cvm_bind as CB
+    from oracle.jishi import cvm_bind as CB
 
     counts = {"method_call": 0, "getattr": 0, "call": 0}
     orig_m = CB.CvmHost._cb_method_call
@@ -1308,7 +1308,7 @@ def test_method_call_falls_back_with_keywords(monkeypatch):
     an unexpected keyword argument`），融合版则会把关键字整个丢掉、当成
     位置参数用 —— **报错文本就不一样了**。这条用例钉住「退化成老路径」。
     """
-    from jishi import cvm_bind as CB
+    from oracle.jishi import cvm_bind as CB
 
     counts = {"method_call": 0}
     orig = CB.CvmHost._cb_method_call
@@ -1338,7 +1338,7 @@ def test_default_compile_has_no_fused_opcode():
     `compile_source` 的默认值必须是「不融合」，只有 C VM 的入口显式打开。
     这条是保护其它宿主不被编译器新指令误伤的看门狗。
     """
-    from jishi import opcodes as O
+    from oracle.jishi import opcodes as O
 
     src = '令 甲 = "abc"\n打印(甲.开头是("a"))\n'
     for fuse in (False, None):

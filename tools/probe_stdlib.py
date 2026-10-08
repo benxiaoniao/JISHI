@@ -49,10 +49,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import cvm_bind                                        # noqa: E402
-from jishi.compiler import compile_source, compile_to_json        # noqa: E402
-from jishi.interpreter import run_source as run_tree              # noqa: E402
-from jishi.vm import VM                                           # noqa: E402
+from oracle.jishi import cvm_bind                                        # noqa: E402
+from oracle.jishi.compiler import compile_source, compile_to_json        # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
+from oracle.jishi.vm import VM                                           # noqa: E402
 
 REL = "build/_probe_stdlib_src.jsh"
 CSV = "build/_probe_stdlib.csv"
@@ -299,7 +299,7 @@ def main(argv: "list[str] | None" = None) -> int:
         print("（注：Rust 宿主没构建，本次少一个执行器；`cd rust && cargo build --release`）")
     node = shutil.which("node")
     if node:
-        outs["Node"] = subprocess.run([node, str(ROOT / "node/index.js"), str(tmp)],
+        outs["Node"] = subprocess.run([node, str(ROOT / "oracle/node/index.js"), str(tmp)],
                                       capture_output=True, input=b"",
                                       cwd=str(ROOT)).stdout.decode("utf-8", "replace")
     else:

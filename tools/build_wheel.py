@@ -5,7 +5,7 @@
     python tools/build_wheel.py            # 编译 DLL 到包内 + 构建 wheel + 验证
 
 流程：
-    1. python cvm/build.py --out jishi/_native   编译动态库到包内
+    1. python cvm/build.py --out oracle/jishi/_native   编译动态库到包内
     2. python -m build --wheel                     构建 wheel（package-data 带入 DLL）
     3. zipfile 校验 wheel 内确实含动态库
 
@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-NATIVE = ROOT / "jishi" / "_native"
+NATIVE = ROOT / "oracle" / "jishi" / "_native"
 DIST = ROOT / "dist"
 
 LIBS = {

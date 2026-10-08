@@ -32,8 +32,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 import conformance as C                                            # noqa: E402
-from jishi import tokenizer as T                                   # noqa: E402
-from jishi.errors import JishiError                                 # noqa: E402
+from oracle.jishi import tokenizer as T                                   # noqa: E402
+from oracle.jishi.errors import JishiError                                 # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +207,7 @@ def test_词法错误逐字一致(name, src, code):
 def test_扩展只报已登记的词法错误码():
     """Rust 侧只会抛这七个码（E0101–E0106）。冒出新码就是 Python 侧漏登记。"""
     known = set(T.lex_error_classes())
-    assert known, "从 jishi.errors 里一个词法错误类都没扫到 —— 映射坏了"
+    assert known, "从 oracle.jishi.errors 里一个词法错误类都没扫到 —— 映射坏了"
     assert all(c.startswith("E01") for c in known), known
 
 
@@ -240,8 +240,8 @@ def test_端到端换前端不改输出(rel, tmp_path, monkeypatch):
     import io
     from contextlib import redirect_stdout
 
-    from jishi.errors import JishiError
-    from jishi.interpreter import run_source
+    from oracle.jishi.errors import JishiError
+    from oracle.jishi.interpreter import run_source
 
     src = (ROOT / rel).read_text(encoding="utf-8")
 
@@ -334,7 +334,7 @@ def test_运算符表与_Python_侧同序():
 @need_rust
 def test_扩展版本与包版本一致():
     """扩展是按某个版本编出来的 —— 印出来，出问题时对得上。"""
-    assert _core().core_version() == __import__("jishi.version", fromlist=["VERSION"]).VERSION
+    assert _core().core_version() == __import__("oracle.jishi.version", fromlist=["VERSION"]).VERSION
 
 
 # ---------------------------------------------------------------------------
@@ -360,15 +360,15 @@ def test_rust_开关生效(monkeypatch):
 def test_要_rust_却没有扩展时明确报错(monkeypatch):
     """**绝不许静默回落** —— 「跳过」与「通过」必须分得开（R0 立下的规矩）。
 
-    ⚠️ 只把 `sys.modules['jishi._core']` 置空是**不够**的：
+    ⚠️ 只把 `sys.modules['oracle.jishi._core']` 置空是**不够**的：
     `jishi` 包上已经挂了 `_core` 这个属性，`from . import _core` 会命中
     `_handle_fromlist` 的 `hasattr` 短路、根本不走导入 —— 测试就永远绿。
     要连属性一起摘掉，才算真的模拟出「扩展没构建」。
     """
-    import jishi
+    import oracle.jishi as jishi
     monkeypatch.setenv(T.FRONTEND_ENV, "rust")
     monkeypatch.delattr(jishi, "_core", raising=False)
-    monkeypatch.setitem(sys.modules, "jishi._core", None)
+    monkeypatch.setitem(sys.modules, "oracle.jishi._core", None)
     with pytest.raises(RuntimeError) as ei:
         T.tokenize("令 a = 1\n")
     msg = str(ei.value)

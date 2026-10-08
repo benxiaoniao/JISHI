@@ -4,7 +4,7 @@
 ## 这个文件钉什么
 
 1. **一致性**：同一段程序在树遍历 / Python VM / C VM / Node / Rust 上逐字节一致，
-   而且与**宿主层实现**（`jishi/stdlib/*.py`）也逐字节一致 ——
+   而且与**宿主层实现**（`oracle/jishi/stdlib/*.py`）也逐字节一致 ——
    「换一种实现方式」不能改变行为，这是迁移的底线。
 2. **机制**：`导入 统计` 拿到的仍是**模块对象**（`统计.求和` 照旧能用、
    `打印(统计)` 还是 `<模块 统计>`）、模块私有名字不外泄、别名导入可用、
@@ -14,13 +14,13 @@
 
 ## 机制一句话
 
-`jishi/stdlib-jishi/统计.jsh` 在**编译期**被展开成
+`oracle/jishi/stdlib-jishi/统计.jsh` 在**编译期**被展开成
 
     函数 __基石库_统计__(): <模块源码>  返回 {"求和": 求和, …}     # 外壳函数
     统计 = $造模块("统计", __基石库_统计__())                      # 原 `导入 统计`
 
 于是「库」在字节码层面**只是一次函数调用** —— 三个执行器与两个跨语言宿主
-**一个字都没改**。完整设计见 `jishi/jishilib.py` 的模块文档。
+**一个字都没改**。完整设计见 `oracle/jishi/jishilib.py` 的模块文档。
 """
 
 from __future__ import annotations
@@ -40,12 +40,12 @@ sys.path.insert(0, ".")
 
 from conftest import rust_exe_path, tmp_bc_path      # noqa: E402
 
-from jishi import jishilib                           # noqa: E402
-from jishi import serialize                          # noqa: E402
-from jishi import vm as vm_mod                       # noqa: E402
-from jishi.compiler import compile_source            # noqa: E402
-from jishi.errors import JishiError                  # noqa: E402
-from jishi.interpreter import run_source as tree_run  # noqa: E402
+from oracle.jishi import jishilib                           # noqa: E402
+from oracle.jishi import serialize                          # noqa: E402
+from oracle.jishi import vm as vm_mod                       # noqa: E402
+from oracle.jishi.compiler import compile_source            # noqa: E402
+from oracle.jishi.errors import JishiError                  # noqa: E402
+from oracle.jishi.interpreter import run_source as tree_run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -82,7 +82,7 @@ def _py_vm(src: str) -> str:
 
 
 def _cvm(src: str) -> str:
-    from jishi import cvm_bind
+    from oracle.jishi import cvm_bind
     return _capture(cvm_bind.run_source_c, src, "<t>")
 
 
@@ -125,7 +125,7 @@ def _engines(tag: str = "a"):
     out = [("树遍历", tree), ("Python VM", pyvm), ("C VM", cvm)]
     if NODE:
         out.append(("Node", lambda s: _host_run(
-            [NODE, str(ROOT / "node" / "index.js")], s, tag)))
+            [NODE, str(ROOT / "oracle" / "node" / "index.js")], s, tag)))
     if RUST.exists():
         out.append(("Rust", lambda s: _host_run([str(RUST)], s, tag)))
     return out
@@ -254,7 +254,7 @@ def test_与宿主层实现逐字节一致(mod):
     src = _模块用例[mod]
     lib = _capture(tree_run, src)                   # 默认 → 基石库层
     with lib_off():
-        host = _capture(tree_run, src)              # → 宿主层 `jishi/stdlib/*.py`
+        host = _capture(tree_run, src)              # → 宿主层 `oracle/jishi/stdlib/*.py`
     assert lib == host, f"{mod}: 结果不同\n库: {lib!r}\n宿主: {host!r}"
 
 
@@ -349,7 +349,7 @@ def test_函数体内导入也能展开():
 
 def test_内部内建不进语言规格():
     """`$造模块` 是编译器专用的内部内建，不该出现在 AI 语言卡/补全里。"""
-    from jishi import ai
+    from oracle.jishi import ai
     names = [b["name"] for b in ai.build_lang_spec()["builtins"]]
     assert "$造模块" not in names
 
@@ -397,7 +397,7 @@ def test_循环体里捕获之后继续循环():
     `stack[-1]` 就是那个异常对象 → 崩。
 
     四个引擎共用这份字节码，所以一起崩；**只有树遍历（走 Python 的 try/except）
-    是对的 —— 五引擎对拍才抓得住**。修法见 `jishi/compiler.py::_c_try`。
+    是对的 —— 五引擎对拍才抓得住**。修法见 `oracle/jishi/compiler.py::_c_try`。
     """
     src = ('遍历 段 在 [[1,2], 4, [3]]:\n'
            '    尝试：\n'
@@ -561,7 +561,7 @@ def test_虚拟机销毁后回收函数值不崩():
     snippet = (
         "import sys, gc\n"
         "sys.path.insert(0, r'%s')\n"
-        "from jishi import cvm_bind\n"
+        "from oracle.jishi import cvm_bind\n"
         "val = cvm_bind.run_source_c('函数 f():\\n    返回 1\\nf\\n', '<t>')\n"
         "del val\n"
         "gc.collect()\n"

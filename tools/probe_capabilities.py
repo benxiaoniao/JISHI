@@ -15,8 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from jishi.errors import JishiError          # noqa: E402
-from jishi.interpreter import run_source     # noqa: E402
+from oracle.jishi.errors import JishiError          # noqa: E402
+from oracle.jishi.interpreter import run_source     # noqa: E402
 
 #: (分组, 名称, 源码)——每条都是一段「如果该特性已支持，理应能跑」的最小样例
 CASES: list[tuple[str, str, str]] = [

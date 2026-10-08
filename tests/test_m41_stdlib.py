@@ -35,14 +35,14 @@ sys.path.insert(0, ".")
 
 from conftest import rust_exe_path, tmp_bc_path      # noqa: E402
 
-from jishi import cvm_bind                            # noqa: E402
-from jishi import serialize                           # noqa: E402
-from jishi import vm as vm_mod                        # noqa: E402
-from jishi.compiler import compile_source             # noqa: E402
-from jishi.errors import JishiError                   # noqa: E402
-from jishi.interpreter import Interpreter             # noqa: E402
-from jishi.parser import parse                        # noqa: E402
-from jishi.tokenizer import tokenize                  # noqa: E402
+from oracle.jishi import cvm_bind                            # noqa: E402
+from oracle.jishi import serialize                           # noqa: E402
+from oracle.jishi import vm as vm_mod                        # noqa: E402
+from oracle.jishi.compiler import compile_source             # noqa: E402
+from oracle.jishi.errors import JishiError                   # noqa: E402
+from oracle.jishi.interpreter import Interpreter             # noqa: E402
+from oracle.jishi.parser import parse                        # noqa: E402
+from oracle.jishi.tokenizer import tokenize                  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -80,7 +80,7 @@ def _node(src: str) -> str:
     bc = tmp_bc_path(ROOT / "_tmp_m41_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")),
                   encoding="utf-8", newline="\n")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
                        capture_output=True)
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:400]
     return r.stdout.decode("utf-8", "replace")
@@ -693,7 +693,7 @@ def test_path_recursive_list_five_way(rust_exe, tmp_path):
 
 def test_new_modules_in_lang_spec():
     """新模块要出现在机器可读规格里（AI 靠它知道有哪些模块）。"""
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
 
     spec = build_lang_spec()
     names = {m["module"] for m in spec["stdlib"]}
@@ -710,7 +710,7 @@ def test_container_module_does_not_shadow_set_builtin():
 
 
 def test_new_builtins_in_lang_spec():
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
 
     spec = build_lang_spec()
     names = {b["name"] for b in spec["builtins"]}
@@ -719,7 +719,7 @@ def test_new_builtins_in_lang_spec():
 
 def test_internal_names_still_hidden_from_spec():
     """M40 的纪律不能破：内部名（`$文本`）不许进规格。"""
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
 
     spec = build_lang_spec()
     names = {b["name"] for b in spec["builtins"]}

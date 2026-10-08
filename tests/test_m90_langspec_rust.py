@@ -4,8 +4,8 @@
 两半（用户 2026-10-05 定的纪律：**Rust 最终要替代 Python，判据不能只押在对拍上**）：
 
 * **对拍**（§一~§二）：与 `jishi --lang-spec` / `jishi --ai-card` **逐字节一致**，
-  外加一条**不经过 CLI 包装**的结构化对比（直接比 `jishi.ai.build_lang_spec()`）；
-* **独立判据**（§三）：不 import jishi、不 spawn Python 的**写死期望** ——
+  外加一条**不经过 CLI 包装**的结构化对比（直接比 `oracle.jishi.ai.build_lang_spec()`）；
+* **独立判据**（§三）：不 import oracle.jishi、不 spawn Python 的**写死期望** ——
   R8 之后 Python 退场，这一半仍要绿。
 
 R7.2 的验收原文就是「**JSON 逐字节一致 + 漂移检测**」（拍板①：Rust 侧显式表 +
@@ -55,7 +55,7 @@ def _rust_run(*argv: str) -> tuple[str, str, int]:
 
 
 def _py_run(*argv: str) -> tuple[str, str, int]:
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", *argv],
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", *argv],
                        capture_output=True, input=b"", env=_env(), cwd=str(ROOT))
     return (r.stdout.decode("utf-8", "replace"),
             r.stderr.decode("utf-8", "replace"), r.returncode)
@@ -106,7 +106,7 @@ def test_漂移检测_与build_lang_spec逐字段相等():
     比字符串那两条更强的一点：它不依赖 CLI 的包装形式 —— 就算哪天两边**都**改成了
     另一种排版，内容对不对仍然查得出来。
     """
-    from jishi.ai import build_lang_spec, content_hash
+    from oracle.jishi.ai import build_lang_spec, content_hash
 
     spec = build_lang_spec()
     spec["content_hash"] = content_hash(spec)
@@ -137,7 +137,7 @@ def _diff_json(got, want) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 三、独立判据（**不 import jishi、不 spawn Python** —— R8 之后仍要绿）
+# 三、独立判据（**不 import oracle.jishi、不 spawn Python** —— R8 之后仍要绿）
 # ---------------------------------------------------------------------------
 
 #: 顶层键的**顺序**也是内容的一部分（Python 的 dict 保序）。
@@ -194,7 +194,7 @@ def test_独立判据_lang_spec结构与关键事实():
 def test_独立判据_lang_spec的content_hash对得上():
     """`content_hash` = `sha256(紧凑 + 键排序的 JSON)` 前 8 位 —— **在这里独立重算一遍**。
 
-    ⚠️ 这条不 import jishi：用的是 Python 标准库的 `json` + `hashlib`（R8 之后
+    ⚠️ 这条不 import oracle.jishi：用的是 Python 标准库的 `json` + `hashlib`（R8 之后
     Python 退场了，这个测试文件也就退休了；但在那之前它能独立验证摘要算法）。
     """
     import hashlib

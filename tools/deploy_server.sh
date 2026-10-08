@@ -57,7 +57,7 @@ fi
 
 echo "== 3/4 构建 =="
 python3 tools/build_site.py              # 文档站 + 官网六页（build_home.py）
-python3 -m jishi.cli examples/projects/基石自述站/生成.jsh
+python3 -m oracle.jishi.cli examples/projects/基石自述站/生成.jsh
 
 echo "== 4/4 同步到 web 根 + 装 Nginx =="
 # 具体动作都在 `site_sync.sh` 里（两个部署入口共用一份，避免漂移）：

@@ -3206,7 +3206,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "e3a6267c9ad38562d7087b4af33b9831813f039be0b451ccbbcc4f0e1945162f",
+    "checksum": "b0030a0dbac9d02b66827a48b702fd7c6de28d079e4f0bf157551b7c29b261bf",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -6932,7 +6932,7 @@
           "v": "分块"
         }
       ],
-      "filename": "jishi/stdlib-jishi/容器.jsh",
+      "filename": "oracle/jishi/stdlib-jishi/容器.jsh",
       "kw_names": [],
       "main": 0,
       "names": [
@@ -14595,5 +14595,5 @@
     }
   ],
   "内容哈希": "sha256:0a7fe7c6a43a1cb1",
-  "语料": "jishi/stdlib-jishi/容器.jsh"
+  "语料": "oracle/jishi/stdlib-jishi/容器.jsh"
 }

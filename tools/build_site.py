@@ -465,7 +465,7 @@ def main() -> int:
     try:
         import subprocess
         subprocess.run(
-            [sys.executable, "-m", "jishi.cli",
+            [sys.executable, "-m", "oracle.jishi.cli",
              str(ROOT / "examples" / "projects" / "基石自述站" / "生成.jsh")],
             check=True, capture_output=True, cwd=ROOT)
         print("生成 site/基石自述/（用基石自己跑的生成器）")

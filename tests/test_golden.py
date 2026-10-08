@@ -10,8 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from jishi.interpreter import run_source
-from jishi.errors import JishiError
+from oracle.jishi.interpreter import run_source
+from oracle.jishi.errors import JishiError
 
 CASES = Path(__file__).parent / "cases"
 ERROR_CASES = Path(__file__).parent / "error_cases"

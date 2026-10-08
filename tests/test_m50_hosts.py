@@ -28,9 +28,9 @@ sys.path.insert(0, ".")
 
 from conftest import rust_exe_path, tmp_bc_path      # noqa: E402
 
-from jishi import serialize                          # noqa: E402
-from jishi import vm as vm_mod                       # noqa: E402
-from jishi.compiler import compile_source            # noqa: E402
+from oracle.jishi import serialize                          # noqa: E402
+from oracle.jishi import vm as vm_mod                       # noqa: E402
+from oracle.jishi.compiler import compile_source            # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
@@ -51,7 +51,7 @@ def _py_run(src: str) -> str:
 def _node_run(src: str) -> tuple[int, str, str]:
     bc = tmp_bc_path(ROOT / "_tmp_m50_node.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    r = subprocess.run([NODE, str(ROOT / "node" / "index.js"), str(bc)],
+    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
                        capture_output=True, text=True, encoding="utf-8")
     return r.returncode, r.stdout, r.stderr
 
@@ -69,7 +69,7 @@ def _agree(src: str) -> str:
     py = _py_run(src)
     buf = io.StringIO()
     with redirect_stdout(buf):
-        from jishi import cvm_bind
+        from oracle.jishi import cvm_bind
         cvm_bind.run_source_c(src, "<t>")
     assert buf.getvalue() == py, "C VM 与 Python VM 不一致"
 
@@ -85,7 +85,7 @@ def _agree(src: str) -> str:
 
 def _all_fail(src: str) -> None:
     """五个引擎都必须**报错**（文案各自实现，不要求逐字相同，但都得非零退出）。"""
-    from jishi.errors import JishiError
+    from oracle.jishi.errors import JishiError
     with pytest.raises(JishiError):
         _py_run(src)
     if NODE:

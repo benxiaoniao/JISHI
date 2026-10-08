@@ -43,7 +43,7 @@
 
 - **语言事实必须机器可读**：`jishi --lang-spec`（JSON：关键字 / 运算符 /
   内建 / 标准库 / 异常）与 `jishi --ai-card`（贴进系统提示词的语言卡）。
-  模型不该靠猜——本项目已把它做成**单一来源**（`jishi.ai.build_lang_spec()`）。
+  模型不该靠猜——本项目已把它做成**单一来源**（`oracle.jishi.ai.build_lang_spec()`）。
 - **报错必须可操作**：错误码 + 行列位置 + **修法建议**（`errors.JishiError.fix`
   是机器可读的文本替换建议），让模型能自愈，不要让模型只看到一句「出错了」。
 - **常见任务要有惯用写法**：能进内建/标准库的，不让用户手写绕道——
@@ -393,7 +393,7 @@
   统一用 `cli._read_stdin()`（字节层读 + 显式 UTF-8 解码），MCP 的
   JSON-RPC 读取与子进程传参同理；入口脚本三个流都要 `reconfigure`。
 - **打包版找同级可执行文件**：PyInstaller 冻结后 `sys.executable` 是自己，
-  `-m jishi.cli` 会失败；MCP 需改调发行目录同级的 `jishi`（见
+  `-m oracle.jishi.cli` 会失败；MCP 需改调发行目录同级的 `jishi`（见
   `mcp_server._cli_command`）。发行版布局是 `bin/jishi/` 与 `bin/jishi-mcp/`
   互为兄弟目录。
 - **`cvm/include/opcodes.h` 是自动生成的**（`cvm/build.py` 从
@@ -678,9 +678,17 @@
       **`jishi-py`**（`pyproject.toml` 的 `[project.scripts]`）；判据 `test_m101`。
       📌 **仓库内的 cargo 产物仍叫 `jishi-rs`** —— 那是构建细节（两者要同时存在
       才能对拍），**用户看到的名字在打包时对齐**（`build_release` 落成 `bin/jishi`）。
-    * **⏳ 剩下：退役 Python / Node**（Python 实现挪去只给测试当判据基准；42 个
-      spawn `sys.executable` 的测试要跟着挪）。
-    ⚠️ **缺口已补完 + 名字已分家** ⇒ 剩下的退役不会再动用户能看见的东西。
+    * ✅ **R8.4b-2（退役部分，2026-10-08）**：`jishi/` → **`oracle/jishi/`**、
+      `node/` → **`oracle/node/`**；`pyproject` 的 `[project.scripts]`
+      **整段清空**（不再对外提供安装入口）。
+      📌 **判据基准照旧**：105 个 import / 45 个 spawn `sys.executable` 的测试
+      跟着挪到了 `oracle.jishi.*`，`conformance` / `check_engines` / `check_cli`
+      / `check_walk` 全绿。
+      ⚠️ 两处**只有逐字节对拍才发现**的连带：`core/`（pyo3 扩展）里硬编码的
+      `py.import("jishi.tokenizer")` 要跟着改（否则 Rust 前端整条链报
+      `No module named 'jishi.tokenizer'`）；**editable 安装要重装**
+      （`pip install -e .`，否则 `python -m oracle.jishi.cli` 找不到包）。
+    * ⏳ **剩下 R8.5 收尾**：文档/站点对齐、升 0.2.2、进 0.3.x。
   * R8.5 ⏳ 收尾 → 升 **0.2.2** → 进 0.3.x
 * ⚠️ **版本号仍是 0.2.1**：**R8 全部做完才升 0.2.2**（2026-10-07 用户定）。
   这期间的发布**不带 `--tag`**，快照提交信息照旧「基石（jishi）v0.2.1」。
@@ -695,7 +703,7 @@
 * **R 线的闸门**：`tools/conformance.py`（前端四阶段 vs 冻结基线）+ 三个体检
   （`check_engines` / `check_walk` / `check_cli`）。
   📌 **Rust 要替代 Python，判据就不能只押在「与 Python 对拍」上** ——
-  R7 起每条都配一份**不依赖 Python** 的独立判据（写死期望、不 import jishi、
+  R7 起每条都配一份**不依赖 Python** 的独立判据（写死期望、不 import oracle.jishi、
   不 spawn Python）。模板：`tests/test_m87_rust_standalone.py`、
   `tests/test_m97_wasm_playground.py`。
 
@@ -760,27 +768,27 @@ python tools/conformance.py freeze      # 重新冻结（⚠️ 改完先看 git
 
 # Rust 前端（R2 分词 / R3 语法）：构建扩展 → 产出产物 → 与基线比（验收入口）
 python core/build.py                    # 需要 Rust 工具链；产物 jishi/_core.pyd
-JISHI_FRONTEND=rust python -m jishi.cli 程序.jsh    # 用 Rust 前端跑（默认 python）
+JISHI_FRONTEND=rust python -m oracle.jishi.cli 程序.jsh    # 用 Rust 前端跑（默认 python）
 python tools/conformance.py emit --frontend rust --out build/产物目录
 python tools/conformance.py compare --from build/产物目录 --stage tokens   # ast/bytecode/diagnostics
 python tools/bench_frontend.py          # 分词+语法吞吐（交错 A/B + 打印天花板推导）
 python tools/probe_errcodes.py          # 错误码体检（R4：可达性 + 语料覆盖）
 
 # 运行脚本 / REPL
-python -m jishi.cli 文件.jsh
-python -m jishi.cli -i
+python -m oracle.jishi.cli 文件.jsh
+python -m oracle.jishi.cli -i
 
 # 部署站点（本地构建 → scp → 服务器侧同步 + 装 Nginx）
 # ⚠️ 密钥路径与服务器地址只从环境变量读，绝不写进任何文件
 JISHI_SSH_KEY=/path/key.pem JISHI_SSH_HOST=ubuntu@例子.com bash tools/deploy_push.sh
 
 # 环境自检（含「包索引可达性」；--no-net 跳过联网检查）
-python -m jishi.cli 医生
-python -m jishi.cli 医生 --no-net
+python -m oracle.jishi.cli 医生
+python -m oracle.jishi.cli 医生 --no-net
 
 # 查错误码（什么意思 / 常见成因 / 怎么改）—— 报错里的 E 码可直接贴
-python -m jishi.cli 错误            # 列全部（按词法/语法/语义/运行期分段）
-python -m jishi.cli 错误 E0301      # 查一个（写法容错：301 / E301 / e0301）
+python -m oracle.jishi.cli 错误            # 列全部（按词法/语法/语义/运行期分段）
+python -m oracle.jishi.cli 错误 E0301      # 查一个（写法容错：301 / E301 / e0301）
 
 # 测试（必须全绿）
 python -m pytest tests/

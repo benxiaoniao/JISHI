@@ -14,7 +14,7 @@
    正是 M51–M53 要消灭的东西，而且会漂移。
 2. 让语言侧把签名编进字节码 —— 要改字节码格式，工程量远超「一致性止血」。
 3. **从 Python 侧的标准库源码生成**两张表（本脚本）—— 事实源仍然是
-   `jishi/stdlib/*.py`（与 `jishi --lang-spec` 同源），两宿主只是消费生成物。
+   `oracle/jishi/stdlib/*.py`（与 `jishi --lang-spec` 同源），两宿主只是消费生成物。
    **零手抄、零漂移**。
 
 选 3。
@@ -60,13 +60,13 @@ if str(ROOT) not in sys.path:
 #: 报红才是对的（M50 第一批就是这么翻车的）。
 HOST_EXEMPT: frozenset[str] = frozenset({"测试"})
 
-NODE_OUT = ROOT / "node" / "stdlib_sigs.js"
+NODE_OUT = ROOT / "oracle" / "node" / "stdlib_sigs.js"
 RUST_OUT = ROOT / "rust" / "src" / "stdlib_sigs.rs"
 
 
 def collect() -> dict[str, dict[str, list]]:
-    """扫描 `jishi/stdlib/*.py`，返回 `{模块: {函数: [必填数, [参数名…]]}}`。"""
-    from jishi import ai  # 延迟导入：保证 sys.path 已就绪
+    """扫描 `oracle/jishi/stdlib/*.py`，返回 `{模块: {函数: [必填数, [参数名…]]}}`。"""
+    from oracle.jishi import ai  # 延迟导入：保证 sys.path 已就绪
 
     pkg_dir = Path(ai._stdlib_dir())
     out: dict[str, dict[str, list]] = {}
@@ -136,7 +136,7 @@ def _collect_sigs(nodes: list) -> list[_Sig]:
 NODE_HEAD = """\
 // -*- coding: utf-8 -*-
 // 自动生成，请勿手改 —— 由 `python tools/gen_stdlib_sigs.py` 从
-// jishi/stdlib/*.py 的公开函数签名生成。
+// oracle/jishi/stdlib/*.py 的公开函数签名生成。
 //
 // 用途：宿主收到**命名参数**时（`加密.摘要("abc", 算法="md5")`），按
 // 「模块.函数」查这张表，把名字映射回位置参数 —— 五引擎因此给出同一结果。
@@ -238,7 +238,7 @@ def main(argv: list[str]) -> int:
             if not path.exists() or path.read_text(encoding="utf-8") != text:
                 stale.append(path.relative_to(ROOT).as_posix())
         if stale:
-            print("签名表与 jishi/stdlib/*.py 不同步：")
+            print("签名表与 oracle/jishi/stdlib/*.py 不同步：")
             for s in stale:
                 print(f"  - {s}")
             print("跑 `python tools/gen_stdlib_sigs.py` 重新生成。")

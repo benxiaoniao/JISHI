@@ -10,24 +10,27 @@
 你写下的和你脑子里想说的，是同一句话，**中间少一层英译**。
 
 > **技术栈声明（公开透明）**
-> - 前端（词法/语法/AST/中文报错）由 **Python 实现**；**R2–R6 起另有一份 Rust 前端**
->   （`core/`，`JISHI_FRONTEND=rust` 启用：源码 → 字节码 JSON **端到端 5.37x**，
->   四个阶段与 Python 侧**逐字节一致**，102 个一致性语料守着）
-> - 执行器现有**四个**：**树遍历解释器**（默认，Python）/ **Python 字节码 VM** /
->   **C 字节码 VM**（`cvm/`，自研 C 栈式虚拟机，gcc 编成 DLL/SO，**进程内**，
->   纯计算场景提速最高约 40x，wheel 内自带无需本机 gcc）/
->   **Rust VM**（`rust/`，独立二进制，作第四执行器进对拍判据）
+> - **正式实现只有两套**：**Rust**（前端 + 字节码 VM + 完整宿主，`rust/` + `frontend/`）
+>   与 **C**（`cvm/`，自研 C 栈式虚拟机，纯计算场景提速最高约 40x）。
+>   发行版 = **cargo 单二进制**，运行时**不需要 Python**。
+> - ⚠️ **Python 与 Node 那两套实现已退役**（2026-10-08，R8.4b-2）：挪到 `oracle/`
+>   （`oracle/jishi` = Python 实现、`oracle/node` = Node 宿主），
+>   **不再随发行版分发、不再提供安装入口**，只作两件事——
+>   ① 「多个执行器逐字节一致」这条纪律的**判据基准**；② 改语言的人的参考实现。
+> - 执行器现有**四个**：**树遍历参考执行器**（Rust）/ **Rust 字节码 VM** /
+>   **C 字节码 VM** / **Python 字节码 VM**（判据基准）。
+>   Rust 侧另有一份 `core/`（pyo3 扩展，`JISHI_FRONTEND=rust` 时给 Python 前端用）—— 它也在 `oracle/` 那条判据链里。
 > - ⚠️ **C VM 的去留已实测拍板（2026-10-04）：保留**。长任务（300 万次整数循环）
 >   实测 **C VM 净 489 ms vs Rust VM 净 649 ms**，且 Rust VM 每次还要付约 100 ms
 >   进程启动 —— 两者是**互补**（进程内快执行器 vs 不依赖 Python 的宿主），不是替代
-> - 通过桥接层**可调用任意 Python 库**，标准库为中文薄封装
+> - **标准库有两份对等实现**：Rust 原生 25 模块（发行版走这份）+ Python 薄封装（判据基准）
 > - **在线试玩页跑的就是上面这套引擎**（R8.1/R8.2）：Rust 前端 + 字节码 VM +
 >   原生标准库编成 `wasm32-unknown-unknown`，**裸 C ABI + 手写 JS 胶水**，
 >   没有引入 `wasm-bindgen`；浏览器里**不再另跑一份 Python 实现**
 > - 不 fork、不 patch CPython，也不宣称"完全自主"，以上技术栈如实标注
 >
 > 已是一条「拿到就能写」的完整通用语言：模块系统、面向对象、异常、包管理雏形、
-> AI 原生工具链（语言卡 / 结构化报错 / 评测集）、沙箱 + MCP 集成、wheel 内带 C VM。
+> AI 原生工具链（语言卡 / 结构化报错 / 评测集）、沙箱 + MCP 集成。
 > 定位不是教学玩具，长期目标是可维护的开源项目。
 
 ## 安装
@@ -58,10 +61,10 @@ pip install git+https://github.com/benxiaoniao/JISHI.git
 ⚠️ **这条路要连 GitHub，大陆可能很慢甚至超时**（实测 `git fetch` 会整段超时）。
 能用安装程序就别用这条。
 
-> ⚠️ **源码装出来的是 Python 实现，命令叫 `jishi-py`（不是 `jishi`）**。
-> 从 0.2.2 起 **`jishi` 这个名字留给单二进制**（上面那三种装法装的那个）。
-> 两条实现同名会让人分不清自己敲的是哪一个，所以 Python 这套退了名 ——
-> 它现在的用途是**改语言本身**与**给测试当判据基准**。
+> ⚠️ **`jishi` 这个名字留给单二进制**（上面那三种装法装的那个）。
+> Python 那套实现**已退役**（`oracle/jishi/`）：**不再提供安装入口**，
+> 只作**改语言本身**与**给测试当判据基准**用 —— 源码里跑它走
+> `python -m oracle.jishi.cli`。
 
 **VS Code 扩展**（可选）：扩展市场装 `jishi-lang.vscode-jishi`，有语法高亮、
 补全、跳转与调试器（断点 / 单步 / 看变量）。⚠️ **扩展不自带运行时** ——
@@ -181,8 +184,8 @@ Python / JS），**R8 收尾之后才进 0.3.x**。
 **已经有四条路完全不需要 Python 了** —— 编辑器（LSP + DAP）、AI agent（MCP）、
 脚本（CLI）、包管理，都由 `jishi-rs` **一个二进制**提供；**在线试玩页**也已从
 Pyodide（浏览器里的 Python）换成同一份引擎的 **wasm** 版。
-剩下的是「退役」本身：把 Python 实现挪到只给测试当基准的位置，
-把 `jishi` 这个名字让给 Rust 版（Python 版退成 `jishi-py`）。
+**退役已经做完**（2026-10-08）：Python / Node 两套实现挪到 `oracle/`（只作判据基准），
+`jishi` 这个名字交给单二进制。**剩下 R8.5 收尾**：文档与站点对齐、升 0.2.2、进 0.3.x。
 
 **测试现状：3394 项，3394 通过**（`python -m pytest tests/`）—— 其中 240 余项是
 多执行器（树遍历 / Python VM / C VM / Rust VM / Node）**逐字节对拍**。
@@ -335,7 +338,8 @@ Pyodide（浏览器里的 Python）换成同一份引擎的 **wasm** 版。
 ## 项目结构
 
 ```
-jishi/           前端：词法/语法/AST/语义/报错/执行内核/标准库
+oracle/jishi/    【判据基准】Python 实现：词法/语法/AST/语义/报错/执行内核/标准库
+                （已退役，不分发、不给安装入口；`python -m oracle.jishi.cli`）
   tokenizer.py   词法分析（缩进栈、全角归一化、中文分词消歧、中文引号）
                  ⚠️ `JISHI_FRONTEND=rust` 时 `tokenize()` 转发给 `core/`（R2）
   _core.pyd      Rust 前端的扩展模块（**本机现编、不进仓库**，见 core/build.py）
@@ -375,7 +379,7 @@ cvm/             C 执行内核（M4b）
   include/jsvm.h 公开 C ABI 头文件（M9.4，JSVM_ABI_VERSION=1）
   include/opcodes.h 指令码头文件（由 opcodes.py 生成，两侧同步）
   src/jsvm.c     C 虚拟机主循环
-node/            Node.js 纯 JS 解释器（零依赖，消费 JSON 字节码；M31 起标准库全同步，
+oracle/node/     【判据基准】Node.js 纯 JS 解释器（零依赖，消费 JSON 字节码；标准库全同步，
                  M51 起有 `--dump-stdlib` 自报家底供一致性检测）
 rust/            Rust 绑定（M13.3，jishi-ffi crate + 自研零依赖 JSON 解析器，
                  零依赖标准库，M51 起同样有 `--dump-stdlib`；jishi-rs 是完整宿主）
@@ -475,9 +479,9 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
 
 ```bash
 # 运行脚本 / 交互式 REPL / 查看 AST
-python -m jishi.cli examples/01_猜数字.jsh
-python -m jishi.cli -i
-python -m jishi.cli examples/01_猜数字.jsh --ast
+python -m oracle.jishi.cli examples/01_猜数字.jsh
+python -m oracle.jishi.cli -i
+python -m oracle.jishi.cli examples/01_猜数字.jsh --ast
 
 # 全部测试
 python -m pytest tests/

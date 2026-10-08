@@ -11,7 +11,7 @@ R7.5 把调试**会话核心**（`rust/src/debugger.rs`，对应 `debugger.py` �
 
 * **对拍**：与 `jishi 调试`（默认就是**树遍历**执行器）在同一串 `--命令` 下
   **stdout / stderr / 退出码逐字节一致**；
-* **独立判据**：把「Rust 自己该输出什么」写成写死的期望 —— 不 import jishi、
+* **独立判据**：把「Rust 自己该输出什么」写成写死的期望 —— 不 import oracle.jishi、
   不 spawn Python，R8 之后 Python 退场它仍然要绿。
 
 ⚠️ **已知且刻意保留的差异**（如实登记，见 `AGENTS.md` 的 R7 段）：
@@ -52,7 +52,7 @@ def _env() -> dict:
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
     env.setdefault("PYTHONUTF8", "1")
-    env["PYTHONPATH"] = str(ROOT)      # 私有 cwd 里 `-m jishi.cli` 才找得到包
+    env["PYTHONPATH"] = str(ROOT)      # 私有 cwd 里 `-m oracle.jishi.cli` 才找得到包
     return env
 
 
@@ -67,7 +67,7 @@ def _rs(args, cwd=None):
 
 
 def _py(args, cwd=None):
-    return _run([sys.executable, "-m", "jishi.cli"] + list(args), cwd)
+    return _run([sys.executable, "-m", "oracle.jishi.cli"] + list(args), cwd)
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +178,7 @@ def test_对拍_从标准输入读命令(tmp_path):
     prog = _write(tmp_path, "ok.jsh", PROG_OK)
     stdin = "变量\n查看 单价 * 数量\n栈\n继续\n".encode("utf-8")
     args = ["调试", prog]
-    p = subprocess.run([sys.executable, "-m", "jishi.cli"] + args, input=stdin,
+    p = subprocess.run([sys.executable, "-m", "oracle.jishi.cli"] + args, input=stdin,
                        capture_output=True, env=_env(), cwd=str(ROOT), timeout=60)
     r = subprocess.run([str(EXE)] + args, input=stdin, capture_output=True,
                        env=_env(), cwd=str(ROOT), timeout=60)
@@ -192,7 +192,7 @@ def test_对拍_从标准输入读命令(tmp_path):
 
 @need_rust
 def test_独立_写死的会话期望(tmp_path):
-    """一整场会话的 stdout **逐字写死** —— 不 import jishi、不 spawn Python。"""
+    """一整场会话的 stdout **逐字写死** —— 不 import oracle.jishi、不 spawn Python。"""
     prog = _write(tmp_path, "固定.jsh", "令 甲 = 1\n令 乙 = 2\n打印(甲 + 乙)\n")
     out, err, code = _rs(["调试", prog, "--命令", "单步;变量;栈;继续"])
     assert err == b"", err

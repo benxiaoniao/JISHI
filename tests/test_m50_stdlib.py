@@ -23,7 +23,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from jishi.interpreter import run_source  # noqa: E402
+from oracle.jishi.interpreter import run_source  # noqa: E402
 
 
 def run_capture(src: str) -> str:
@@ -234,8 +234,8 @@ def test_html_原样身份在三个执行器上都保得住():
     所以这里**必须**用三执行器对拍，单测树遍历是抓不到的。
     """
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from jishi import cvm_bind
-    from jishi import vm as vm_mod
+    from oracle.jishi import cvm_bind
+    from oracle.jishi import vm as vm_mod
 
     src = ('导入 html\n'
            '令 r = html.原样("<i>x</i>")\n'
@@ -509,8 +509,8 @@ def test_上下文管理器认得宿主对象():
     已给 `runtime._ctx_lookup` 补第三条路（宿主对象上的同名方法）。
     三个执行器共用那一个函数，所以三边一起好。
     """
-    from jishi import cvm_bind
-    from jishi import vm as vm_mod
+    from oracle.jishi import cvm_bind
+    from oracle.jishi import vm as vm_mod
 
     src = ('导入 时间\n'
            '用 时间.计时("A") 为 t：\n'

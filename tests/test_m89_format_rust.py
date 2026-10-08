@@ -5,7 +5,7 @@
 
 * **对拍**（§一~§四）：全语料**逐字节**一致 + 各模式（--check / --stdin /
   --indent / 目录）+ 符号集合**漂移检测**（`--dump-format-tables`）；
-* **独立判据**（§五）：不 import jishi、不 spawn Python 的**写死期望** ——
+* **独立判据**（§五）：不 import oracle.jishi、不 spawn Python 的**写死期望** ——
   R8 之后 Python 退场，这一半仍要绿。
 
 格式化器的验收原文就是「**全语料逐字节一致**」+「**幂等**」（`formatter.py` 顶注）。
@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 #: 与 Python 侧对拍用的语料目录（**真语料**，别只挑“干净”的）。
 _CORPUS_DIRS = ["tests/cases", "tests/error_cases", "tests/frontend_cases",
-                "examples", "jishi/stdlib-jishi"]
+                "examples", "oracle/jishi/stdlib-jishi"]
 
 
 def _rust() -> Path:
@@ -59,7 +59,7 @@ def _rust_run(*argv: str, stdin: bytes = b"") -> tuple[str, str, int]:
 
 
 def _py_run(*argv: str, stdin: bytes = b"") -> tuple[str, str, int]:
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", *argv],
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", *argv],
                        capture_output=True, input=stdin, env=_env(), cwd=str(ROOT))
     return (r.stdout.decode("utf-8", "replace"),
             r.stderr.decode("utf-8", "replace"), r.returncode)
@@ -187,7 +187,7 @@ def test_漂移检测_格式化符号集合与Python一致():
     加一个运算符只改一侧时，这条会报红 —— 否则要等语料**恰好用到它**才暴露
     （`formatter.py` 里那些 `_BINARY_OPS` 之类，正是「两边各写一份」的高危处）。
     """
-    from jishi import formatter as F
+    from oracle.jishi import formatter as F
 
     a = _rust_run("--dump-format-tables")
     assert a[2] == 0, a[1]
@@ -206,7 +206,7 @@ def test_漂移检测_格式化符号集合与Python一致():
 
 
 # ---------------------------------------------------------------------------
-# 五、独立判据（**不 import jishi、不 spawn Python** —— R8 之后仍要绿）
+# 五、独立判据（**不 import oracle.jishi、不 spawn Python** —— R8 之后仍要绿）
 # ---------------------------------------------------------------------------
 
 #: 人工核对过（与 Python 侧逐字比过）之后写死的期望。

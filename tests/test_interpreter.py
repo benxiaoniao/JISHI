@@ -8,8 +8,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from jishi.interpreter import run_source
-from jishi.errors import (
+from oracle.jishi.interpreter import run_source
+from oracle.jishi.errors import (
     JishiError,
     RunTypeError,
     SemanticFuncError,

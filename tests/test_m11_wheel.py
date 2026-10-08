@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from jishi import cvm_bind as CB
+from oracle.jishi import cvm_bind as CB
 
 
 def test_lib_name_platform():
@@ -31,7 +31,7 @@ def test_lib_path_prefers_dev_in_source_tree(monkeypatch, tmp_path):
     """
     fake_root = tmp_path / "src"
     fake_bin = fake_root / "cvm" / "bin"
-    fake_native = fake_root / "jishi" / "_native"
+    fake_native = fake_root / "oracle" / "jishi" / "_native"
     (fake_root / "cvm" / "src").mkdir(parents=True)     # ← 源码树标志
     fake_bin.mkdir(parents=True)
     fake_native.mkdir(parents=True)
@@ -48,7 +48,7 @@ def test_lib_path_installed_falls_back_to_package_native(monkeypatch, tmp_path):
     """**安装版**（没有 `cvm/src/`）才用包内的 `_native` —— 老语义只在这半边成立。"""
     fake_root = tmp_path / "installed"
     fake_bin = fake_root / "cvm" / "bin"
-    fake_native = fake_root / "jishi" / "_native"
+    fake_native = fake_root / "oracle" / "jishi" / "_native"
     fake_bin.mkdir(parents=True)                        # 有产物、但**没有** cvm/src
     fake_native.mkdir(parents=True)
     pkg_lib = fake_native / CB._lib_name()

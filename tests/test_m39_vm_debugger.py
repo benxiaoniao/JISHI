@@ -34,13 +34,13 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi.compiler import compile_program                    # noqa: E402
-from jishi.debugger import (Debugger, VmDebugger, mark_lines,   # noqa: E402
+from oracle.jishi.compiler import compile_program                    # noqa: E402
+from oracle.jishi.debugger import (Debugger, VmDebugger, mark_lines,   # noqa: E402
                             statement_lines)
-from jishi.interpreter import Interpreter                     # noqa: E402
-from jishi.parser import parse                                # noqa: E402
-from jishi.tokenizer import tokenize                          # noqa: E402
-from jishi.vm import VM                                       # noqa: E402
+from oracle.jishi.interpreter import Interpreter                     # noqa: E402
+from oracle.jishi.parser import parse                                # noqa: E402
+from oracle.jishi.tokenizer import tokenize                          # noqa: E402
+from oracle.jishi.vm import VM                                       # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -397,7 +397,7 @@ def test_marks_match_ast_statement_lines(path):
     # 外壳函数的定义。这里**必须做同样的展开**，否则拿「原 AST 的语句行」
     # 去比「展开后字节码的语句标记」，多出来的库行号会让不变式假红。
     # `expand` 是幂等的（找不到 `导入` 就原样返回），所以不必担心叠加。
-    from jishi import jishilib
+    from oracle.jishi import jishilib
 
     program = jishilib.expand(program)
     cmod = compile_program(program, str(path), lines)
@@ -662,7 +662,7 @@ def test_debugging_does_not_change_errors():
 # ---------------------------------------------------------------------------
 
 def _run_cli(argv, cwd=str(ROOT)):
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", *argv],
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", *argv],
                        capture_output=True, cwd=cwd)
     return (r.returncode, r.stdout.decode("utf-8", "replace"),
             r.stderr.decode("utf-8", "replace"))
@@ -714,7 +714,7 @@ def test_cli_debug_cvm_runs(tmp_path):
     这条留在这里是为了说明「M39 的拒绝」已经被 M40 的实现取代。
     """
     try:
-        from jishi import cvm_bind
+        from oracle.jishi import cvm_bind
         cvm_bind.load_lib()
     except Exception:                                # noqa: BLE001
         pytest.skip("C 虚拟机动态库不可用（先 python cvm/build.py）")
@@ -737,7 +737,7 @@ def test_cli_debug_vm_via_pipe(tmp_path):
     """真子进程 + 管道：中文命令经 stdin 在字节码执行器下也不该变乱码。"""
     f = _write(tmp_path, "演示.jsh", DEMO)
     r = subprocess.run(
-        [sys.executable, "-m", "jishi.cli", "调试", f, "--执行器", "vm",
+        [sys.executable, "-m", "oracle.jishi.cli", "调试", f, "--执行器", "vm",
          "--不停在入口", "-b", str(L_乙)],
         input="变量\n继续\n".encode("utf-8"), capture_output=True, cwd=str(ROOT))
     out = r.stdout.decode("utf-8", "replace")

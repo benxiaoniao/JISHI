@@ -49,16 +49,19 @@ def test_Python_包不再占用_jishi_这个名字():
     assert "jishi-mcp" not in sc, f"`jishi-mcp` 也该退名：{sc}"
 
 
-def test_Python_包退成_jishi_py():
-    """退名之后要有替代入口，而且指的还是同一份实现（不许顺手删功能）。"""
+def test_Python_实现不再对外提供安装入口():
+    """R8.4b-2：`[project.scripts]` **整段清空** —— 不再对外提供安装入口。
+
+    （先退成 `jishi-py`，随后拍板「不再对外提供」⇒ 干脆不留入口。
+    想看 Python 实现走源码内的 `python -m oracle.jishi.cli`。）
+    """
     sc = _scripts()
-    assert sc.get("jishi-py") == "jishi.cli:main", sc
-    assert sc.get("jishi-py-mcp") == "jishi.mcp_server:main", sc
+    assert sc == {}, f"[project.scripts] 该是空的（不再对外提供安装入口）：{sc}"
 
 
 def test_Python_实现仍然可用_只是换了名字():
-    """退名不是删功能：`python -m jishi.cli` 这条路照旧。"""
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", "--version"],
+    """退名不是删功能：`python -m oracle.jishi.cli` 这条路照旧。"""
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "--version"],
                        capture_output=True, cwd=str(ROOT), timeout=120)
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:300]
     assert "0.2" in r.stdout.decode("utf-8", "replace") + r.stderr.decode("utf-8", "replace")

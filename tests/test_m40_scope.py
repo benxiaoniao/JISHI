@@ -21,17 +21,17 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import runtime as R                      # noqa: E402
-from jishi.errors import JishiError                 # noqa: E402
-from jishi.interpreter import Interpreter           # noqa: E402
-from jishi.parser import parse                      # noqa: E402
-from jishi.tokenizer import tokenize                # noqa: E402
-from jishi.vm import run_source as vm_run_source    # noqa: E402
+from oracle.jishi import runtime as R                      # noqa: E402
+from oracle.jishi.errors import JishiError                 # noqa: E402
+from oracle.jishi.interpreter import Interpreter           # noqa: E402
+from oracle.jishi.parser import parse                      # noqa: E402
+from oracle.jishi.tokenizer import tokenize                # noqa: E402
+from oracle.jishi.vm import run_source as vm_run_source    # noqa: E402
 
 
 def _cvm_available() -> bool:
     try:
-        from jishi import cvm_bind
+        from oracle.jishi import cvm_bind
         cvm_bind.load_lib()
         return True
     except Exception:                                # noqa: BLE001
@@ -54,7 +54,7 @@ def _run(engine: str, src: str) -> tuple[str, str]:
             elif engine == "字节码":
                 vm_run_source(src, filename="<用例>")
             else:
-                from jishi import cvm_bind
+                from oracle.jishi import cvm_bind
                 cvm_bind.run_source_c(src, filename="<用例>")
         except JishiError as e:
             err = str(e)
@@ -210,7 +210,7 @@ def test_shadow_hint_text_is_shared_with_compiler():
            "    打印(x)\n"
            "    令 x = 2\n")
     lines = src.split("\n")
-    from jishi.compiler import compile_program
+    from oracle.jishi.compiler import compile_program
     cmod = compile_program(parse(tokenize(src, "x.jsh"), lines, "x.jsh"),
                            "x.jsh", lines)
     hints = [h for code in cmod.codes for h in code.local_hints.values()]
@@ -241,7 +241,7 @@ def test_fstring_works_in_every_host():
 
 def test_internal_builtins_are_hidden_from_language_spec():
     """内部名（`$文本` / `检查实参`）不该出现在语言规格里。"""
-    from jishi.ai import build_lang_spec
+    from oracle.jishi.ai import build_lang_spec
     names = {b["name"] for b in build_lang_spec()["builtins"]}
     assert "$文本" not in names
     assert "检查实参" not in names
@@ -250,7 +250,7 @@ def test_internal_builtins_are_hidden_from_language_spec():
 
 def test_internal_builtins_are_hidden_from_completion():
     """补全同样不该推荐内部名。"""
-    from jishi.langdata import LangData
+    from oracle.jishi.langdata import LangData
     d = LangData()
     assert "$文本" not in d.builtins
     assert "检查实参" not in d.builtins
@@ -258,14 +258,14 @@ def test_internal_builtins_are_hidden_from_completion():
 
 def test_dollar_names_are_not_writable_by_users():
     """`$` 是用户写不出来的字符——这正是它适合当内部名的原因。"""
-    from jishi.errors import JishiError as _E
+    from oracle.jishi.errors import JishiError as _E
     with pytest.raises(_E):
         tokenize("令 $甲 = 1", "<用例>")
 
 
 def test_is_internal_builtin_rule():
     """判据两条：`$` 开头，或说明以「内部用」开头。"""
-    from jishi.runtime import _Builtin, is_internal_builtin
+    from oracle.jishi.runtime import _Builtin, is_internal_builtin
     assert is_internal_builtin("$文本")
     assert is_internal_builtin("检查实参", _Builtin("检查实参", lambda: None,
                                                  "内部用：按类型标注校验"))
@@ -279,7 +279,7 @@ def test_internal_name_does_not_trigger_undefined_warning():
     它**不在**语言规格里（有意过滤，不推荐给用户），但插值展开后会真的出现在
     AST 里——不跳过就会满屏误报。这条是那次回归失败的钉子。
     """
-    from jishi.lsp import LspServer
+    from oracle.jishi.lsp import LspServer
 
     srv = LspServer()
     src = "令 甲 = 1\n打印(`值 {甲}`)\n"
@@ -304,7 +304,7 @@ def test_new_projects_are_formatter_clean():
     for name in ("待办清单", "排序跑分"):
         f = root / "examples" / "projects" / name
         r = subprocess.run(
-            [sys.executable, "-m", "jishi.cli", "格式化", str(f), "--check"],
+            [sys.executable, "-m", "oracle.jishi.cli", "格式化", str(f), "--check"],
             capture_output=True, cwd=str(root))
         assert r.returncode == 0, (
             f"{name} 有文件不合格式化风格：\n"
@@ -320,7 +320,7 @@ def test_cli_reports_shadowing_error(tmp_path):
     f = tmp_path / "遮蔽.jsh"
     f.write_text("令 x = 1\n函数 f()：\n    打印(x)\n    令 x = 2\nf()\n",
                  encoding="utf-8")
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", str(f)],
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(f)],
                        capture_output=True, cwd=str(ROOT))
     err = r.stderr.decode("utf-8", "replace")
     assert r.returncode == 1
@@ -333,7 +333,7 @@ def test_cli_fstring_with_text_import(tmp_path):
     f = tmp_path / "插值.jsh"
     f.write_text("导入 文本\n令 甲 = 6\n打印(`结果 {甲 * 7}`)\n",
                  encoding="utf-8")
-    r = subprocess.run([sys.executable, "-m", "jishi.cli", str(f)],
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(f)],
                        capture_output=True, cwd=str(ROOT))
     out = r.stdout.decode("utf-8", "replace")
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[-300:]

@@ -33,10 +33,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from jishi import errors as E                                      # noqa: E402
-from jishi.compiler import compile_to_json, compile_source         # noqa: E402
-from jishi.interpreter import run_source as run_tree               # noqa: E402
-from jishi.vm import VM                                            # noqa: E402
+from oracle.jishi import errors as E                                      # noqa: E402
+from oracle.jishi.compiler import compile_to_json, compile_source         # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree               # noqa: E402
+from oracle.jishi.vm import VM                                            # noqa: E402
 from probe_runtime_errors import SHAPES, build_source, engine_outputs   # noqa: E402
 
 
@@ -253,7 +253,7 @@ def test_报错渲染与树遍历逐字一致(tag):
     rel, path = _write_src(src, tag)
     tree_out, _ = _py(lambda: run_tree(src, rel))
     # 用 CLI 那条渲染口径（带源码行）
-    from jishi.errors import JishiError as _JE
+    from oracle.jishi.errors import JishiError as _JE
     err_obj = None
     try:
         run_tree(src, rel)

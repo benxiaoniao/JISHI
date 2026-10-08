@@ -25,14 +25,14 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import cvm_bind                        # noqa: E402
-from jishi import serialize                       # noqa: E402
-from jishi import vm as vm_mod                    # noqa: E402
-from jishi.compiler import compile_source         # noqa: E402
-from jishi.errors import JishiError               # noqa: E402
-from jishi.interpreter import Interpreter         # noqa: E402
-from jishi.parser import parse                    # noqa: E402
-from jishi.tokenizer import tokenize              # noqa: E402
+from oracle.jishi import cvm_bind                        # noqa: E402
+from oracle.jishi import serialize                       # noqa: E402
+from oracle.jishi import vm as vm_mod                    # noqa: E402
+from oracle.jishi.compiler import compile_source         # noqa: E402
+from oracle.jishi.errors import JishiError               # noqa: E402
+from oracle.jishi.interpreter import Interpreter         # noqa: E402
+from oracle.jishi.parser import parse                    # noqa: E402
+from oracle.jishi.tokenizer import tokenize              # noqa: E402
 from conftest import rust_exe_path                # noqa: E402
 
 NODE = shutil.which("node")
@@ -61,7 +61,7 @@ def _run_host(src: str, host: str, rust_exe: "Path | None", tmp: Path) -> str:
     """把源码编成字节码丢给宿主跑，返回 stdout（宿主非零退出直接报错）。"""
     bc = tmp / f"_m36_{host}.json"
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    cmd = ([NODE, str(ROOT / "node" / "index.js"), str(bc)] if host == "node"
+    cmd = ([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)] if host == "node"
            else [str(rust_exe), "--load-bytecode", str(bc)])
     r = subprocess.run(cmd, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")

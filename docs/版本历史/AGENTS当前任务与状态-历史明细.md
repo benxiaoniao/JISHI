@@ -747,7 +747,7 @@
     sha256 前 8 位。所以 `langspec.rs` 自带一个**保序** JSON 值 + 两个序列化器
     （缩进版 / 排序紧凑版）。
   - ⚠️ **Windows 上 Python 的 stdout 默认把 `\n` 翻成 `\r\n`**，逐字节比会「看着
-    全红」；`jishi.cli._setup_io()` 已经 `reconfigure(newline="\n")`，所以走 CLI
+    全红」；`oracle.jishi.cli._setup_io()` 已经 `reconfigure(newline="\n")`，所以走 CLI
     那条路是干净的（自己写脚本比对时别忘了这一点）。
 - ✅ **语言服务器已搬进 Rust —— R7.3**（2026-10-06）：`jishi-rs lsp`（`rust/src/lsp.rs`）。
   - **判据两条都要跑**：`tests/test_m91_lsp_rust.py`（33 条报文**逐字节**对拍 +

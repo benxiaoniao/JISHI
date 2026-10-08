@@ -27,7 +27,7 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi import opcodes as O  # noqa: E402
+from oracle.jishi import opcodes as O  # noqa: E402
 
 CVM = ROOT / "cvm"
 INCLUDE = CVM / "include"

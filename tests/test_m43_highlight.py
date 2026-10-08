@@ -26,10 +26,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jishi.ai import build_lang_spec                    # noqa: E402
-from jishi.errors import JishiError                     # noqa: E402
-from jishi.parser import parse                          # noqa: E402
-from jishi.tokenizer import tokenize                    # noqa: E402
+from oracle.jishi.ai import build_lang_spec                    # noqa: E402
+from oracle.jishi.errors import JishiError                     # noqa: E402
+from oracle.jishi.parser import parse                          # noqa: E402
+from oracle.jishi.tokenizer import tokenize                    # noqa: E402
 
 TMLANG = ROOT / "editors" / "vscode-jishi" / "syntaxes" / "jishi.tmLanguage.json"
 SNIPPETS = ROOT / "editors" / "vscode-jishi" / "snippets" / "jishi.code-snippets"

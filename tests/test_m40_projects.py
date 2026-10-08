@@ -22,8 +22,8 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi.interpreter import run_source                    # noqa: E402
-from jishi.stdlib import 系统 as sys_mod                     # noqa: E402
+from oracle.jishi.interpreter import run_source                    # noqa: E402
+from oracle.jishi.stdlib import 系统 as sys_mod                     # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECTS = ROOT / "examples" / "projects"

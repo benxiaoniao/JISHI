@@ -34,15 +34,16 @@ Issues = "https://github.com/benxiaoniao/JISHI/issues"
 #    为什么必须退：装了 Python 包就会有 `jishi` 命令，而它跑的是**另一套实现** ——
 #    两条路同名，用户分不清自己敲的是哪一个。单二进制才是正式的那份。
 #    Python 这套仍然保留（测试的**判据基准** + 改语言的人的入口），只是改了名。
-jishi-py = "jishi.cli:main"
-jishi-py-mcp = "jishi.mcp_server:main"
+# ⚠️ R8.4b-2（2026-10-08）：**不再对外提供安装入口** —— Python 实现已退役到
+#    `oracle/`，只给测试当判据基准与给改语言的人当参考。发行版走 cargo 单二进制，
+#    命令叫 `jishi`。想看 Python 实现：`python -m oracle.jishi.cli`。
 
 [tool.setuptools]
 # `jishi._native` 是**只放动态库的数据目录**（没有 .py）。这里显式列上它，
 # 是为了消掉 setuptools 的保守提醒「Package 'jishi._native' is absent from the
 # packages configuration」——它看到目录里有文件却不在 packages 里就会警告。
 # 真正决定哪些文件进包的是下面的 package-data。
-packages = ["jishi", "jishi.stdlib", "jishi._native"]
+packages = ["oracle.jishi", "oracle.jishi.stdlib", "oracle.jishi._native"]
 
 # M11：wheel 内带预编译 C VM 动态库（pip install 即含三执行器，无需本机 gcc）
 # M52：再加**用基石写的标准库**（`jishi/stdlib-jishi/*.jsh`）。它不是 Python 包

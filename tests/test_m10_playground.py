@@ -30,7 +30,7 @@ def test_页面不再依赖_pyodide(tmp_path, monkeypatch):
     """
     html = _generate(tmp_path, monkeypatch)
     for bad in ("pyodide", "Pyodide", "loadPyodide", "run_source",
-                "__jishi_code", "jishi/interpreter.py", "jishi/stdlib/"):
+                "__jishi_code", "oracle/jishi/interpreter.py", "oracle/jishi/stdlib/"):
         assert bad not in html, f"页面里还残留「{bad}」"
 
 

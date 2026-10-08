@@ -30,12 +30,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 os.environ.setdefault("JISHI_FRONTEND", "python")
 
 import conformance as C                                            # noqa: E402
-from jishi import cvm_bind                                         # noqa: E402
-from jishi.compiler import compile_source, compile_to_json          # noqa: E402
-from jishi.errors import JishiError                                # noqa: E402
-from jishi.interpreter import run_source as run_tree               # noqa: E402
-from jishi.parser import parse_source                              # noqa: E402
-from jishi.vm import VM                                            # noqa: E402
+from oracle.jishi import cvm_bind                                         # noqa: E402
+from oracle.jishi.compiler import compile_source, compile_to_json          # noqa: E402
+from oracle.jishi.errors import JishiError                                # noqa: E402
+from oracle.jishi.interpreter import run_source as run_tree               # noqa: E402
+from oracle.jishi.parser import parse_source                              # noqa: E402
+from oracle.jishi.vm import VM                                            # noqa: E402
 
 BASELINE = ROOT / "tests" / "conformance" / "baseline"
 CASES = ROOT / "tests" / "cases"
@@ -242,7 +242,7 @@ def test_类型函数值五个执行器都给函数():
     outs["CVM"] = buf.getvalue()
     bc_p = _write(json.loads(compile_to_json(src, "x.jsh")), "_m78_ty_bc.json")
     outs["Rust"], _ = _run(["--load-bytecode", str(bc_p)])
-    r = subprocess.run(["node", "node/index.js", str(bc_p)],
+    r = subprocess.run(["node", "oracle/node/index.js", str(bc_p)],
                        capture_output=True, input=b"")
     outs["Node"] = r.stdout.decode("utf-8", "replace")
     assert set(outs.values()) == {"函数\n"}, outs

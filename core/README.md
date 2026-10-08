@@ -24,7 +24,7 @@ python core/build.py --check  # 只看看 cargo / dlltool / 扩展在不在
 ## 怎么用
 
 ```bash
-JISHI_FRONTEND=rust python -m jishi.cli 程序.jsh   # 用 Rust 前端跑（默认 python）
+JISHI_FRONTEND=rust python -m oracle.jishi.cli 程序.jsh   # 用 Rust 前端跑（默认 python）
 ```
 
 ## 现在有什么
@@ -42,7 +42,7 @@ JISHI_FRONTEND=rust python -m jishi.cli 程序.jsh   # 用 Rust 前端跑（默�
 
 ⚠️ **R3 起，Rust 的 `parse` 吃的是「源码文本」而不是 tokens**：AST 只由文本决定，
 而 Python 那边的 `source_lines` 是个**有损**载体（增量分词的行列表会去掉末尾空行）。
-生产入口是 `jishi.parser.parse_source(源码)`；`parse(tokens, lines, f)` 留给 LSP
+生产入口是 `oracle.jishi.parser.parse_source(源码)`；`parse(tokens, lines, f)` 留给 LSP
 增量分词，并带一条**精确守卫**（丢了内容当场报错）。来龙去脉见 `docs/设计决策.md` D56。
 
 **验收判据不是「看起来对」，是 `tools/conformance.py`**：

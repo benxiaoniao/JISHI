@@ -5146,7 +5146,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "28b14a5026cf4e4ef7bf86f65ad3158b85996cd663303bb73c4532862fe7d04a",
+    "checksum": "0740a6f6739fe002b49d876afb00ad1078b1c0dc6b313edac0a8df2e15ad76dd",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -10962,7 +10962,7 @@
           "v": "「参数.解析」还要一个参数列表，"
         }
       ],
-      "filename": "jishi/stdlib-jishi/参数.jsh",
+      "filename": "oracle/jishi/stdlib-jishi/参数.jsh",
       "kw_names": [],
       "main": 0,
       "names": [
@@ -23230,5 +23230,5 @@
     }
   ],
   "内容哈希": "sha256:21e3acc6595ef03e",
-  "语料": "jishi/stdlib-jishi/参数.jsh"
+  "语料": "oracle/jishi/stdlib-jishi/参数.jsh"
 }

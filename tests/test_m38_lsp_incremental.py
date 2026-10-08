@@ -8,7 +8,7 @@
 1. **协议层**：`textDocumentSync.change = 2`（增量），客户端只发改动的那一段，
    服务端按区间应用（行列按 UTF-16 码元换算）；顺带做版本乱序保护。
 2. **实现层**：编辑只影响改动行之后的内容，所以前缀的 token 与每行入行状态
-   可以复用（`jishi.incremental`），只重算后缀。
+   可以复用（`oracle.jishi.incremental`），只重算后缀。
 
 **正确性靠对拍**：随机编辑下，增量分词结果必须与全量分词逐项相同。
 """
@@ -23,10 +23,10 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jishi.errors import JishiError                        # noqa: E402
-from jishi.incremental import IncrementalDocument, split_lines   # noqa: E402
-from jishi.lsp import LspServer, _apply_change, _utf16_len, _utf16_to_index  # noqa: E402
-from jishi.tokenizer import Tokenizer, tokenize            # noqa: E402
+from oracle.jishi.errors import JishiError                        # noqa: E402
+from oracle.jishi.incremental import IncrementalDocument, split_lines   # noqa: E402
+from oracle.jishi.lsp import LspServer, _apply_change, _utf16_len, _utf16_to_index  # noqa: E402
+from oracle.jishi.tokenizer import Tokenizer, tokenize            # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 URI = "file:///调试.jsh"

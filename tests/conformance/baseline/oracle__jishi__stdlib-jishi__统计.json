@@ -4606,7 +4606,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "45366e1cb1c03b9d2c91f80642efaead086e145bafb494fb5c875b18334de475",
+    "checksum": "f05a6523aea79879d05420d0a59326f46fe0a049cfd30651e363bca7faf3cbfb",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -9978,7 +9978,7 @@
           "v": "权重之和是 0，没法算加权平均"
         }
       ],
-      "filename": "jishi/stdlib-jishi/统计.jsh",
+      "filename": "oracle/jishi/stdlib-jishi/统计.jsh",
       "kw_names": [],
       "main": 0,
       "names": [
@@ -20760,5 +20760,5 @@
     }
   ],
   "内容哈希": "sha256:01769482d8647365",
-  "语料": "jishi/stdlib-jishi/统计.jsh"
+  "语料": "oracle/jishi/stdlib-jishi/统计.jsh"
 }

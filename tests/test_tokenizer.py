@@ -8,8 +8,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from jishi.tokenizer import tokenize
-from jishi.errors import (
+from oracle.jishi.tokenizer import tokenize
+from oracle.jishi.errors import (
     LexFullWidthSpaceError,
     LexIndentError,
     LexKeywordGlueError,
