@@ -184,7 +184,7 @@ Pyodide（浏览器里的 Python）换成同一份引擎的 **wasm** 版。
 剩下的是「退役」本身：把 Python 实现挪到只给测试当基准的位置，
 把 `jishi` 这个名字让给 Rust 版（Python 版退成 `jishi-py`）。
 
-**测试现状：3367 项，3367 通过**（`python -m pytest tests/`）—— 其中 240 余项是
+**测试现状：3394 项，3394 通过**（`python -m pytest tests/`）—— 其中 240 余项是
 多执行器（树遍历 / Python VM / C VM / Rust VM / Node）**逐字节对拍**。
 **全量约 3 分钟**：`-n 12 -m "not 计时"` 跑主体，再串行跑 `-m 计时`
 （9 条墙上时间护栏 —— 12 路并行会把墙钟抬高，详见 `AGENTS.md` §1）。
