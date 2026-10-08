@@ -14,9 +14,9 @@
 //! | `--ai-card` / `--lang-spec` / `--format json` | 语言卡 / 机器可读规格（R7.2） |
 //! | `-v` / `--version` | 版本号 |
 //!
-//! ⏳ **没搬的**（都在 `docs/路线图.md` 的 R7.4 里记着）：`-i/--repl`（交互式）与
-//! 医生/新项目/教程 三个子命令。**包管理（R7.6）不在这里** —— 它是
-//! `crate::packages`（`jishi-rs 安装/卸载/列表/发布/索引/检查`），由 `main.rs`
+//! ✅ **R8.4b 起全搬完了**：`-i/--repl`（交互式，见 `crate::repl`）与
+//! 医生/新项目/教程 三个子命令（见 `crate::tools`）都在。**包管理（R7.6）不在这里** ——
+//! 它是 `crate::packages`（`jishi-rs 安装/卸载/列表/发布/索引/检查`），由 `main.rs`
 //! 在进本模块**之前**就分发掉了（与 Python 的 `cli.main` 同一形状）。
 //!
 //! ⚠️ `--dump-bytecode` 有一处**已知差异**：Python 侧编译前会展开「用基石写的
@@ -126,16 +126,9 @@ pub fn main_cli(args: &[String]) -> ExitCode {
         return ExitCode::SUCCESS;
     }
     if o.file.is_none() && !o.stdin {
-        // Python 侧落到 REPL。宿主还没有 REPL —— **明确说清楚**，别假装成功。
-        if o.repl {
-            eprintln!("宿主还没有交互式 REPL（见 docs/路线图.md 的 R7.4 说明）");
-        } else {
-            eprintln!("用法：jishi-rs <文件.jsh> [选项]");
-            eprintln!("      jishi-rs --stdin [选项] < 文件.jsh");
-            eprintln!("      jishi-rs --load-bytecode <字节码.json>");
-            eprintln!("（宿主还没有交互式 REPL，见 docs/路线图.md）");
-        }
-        return ExitCode::from(2);
+        // R8.4b：与 Python 同口径 —— **没给文件就进 REPL**（`jishi` 与 `jishi -i`
+        // 都是这个行为），不再打用法然后退 2。
+        return crate::repl::run_repl();
     }
     run_file(&o)
 }

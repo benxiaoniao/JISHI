@@ -246,6 +246,13 @@ pub(crate) struct Walker {
     /// 「不动 _call_stack」）—— 所以这里只有 `eval_call` 的 `Val::WalkFn`（且
     /// 未绑定）会 push，别的地方调 `call_walk_fn` 一律传 `None`。
     call_stack: Vec<TraceFrame>,
+    /// **模块顶层最后一个「表达式语句」的值**（R8.4b：REPL 回显用）。
+    ///
+    /// 语义与 Python 侧 `Interpreter._last_value` + 哨兵 `_NO_VALUE` 对齐：
+    /// `None` = 「这一段里没有顶层表达式语句」，`Some(Val::None_)` = 「顶层表达式
+    /// 的值**就是 `空`**」。两者**必须分得开** —— Python 当年用 `None` 一个值同时
+    /// 表示这两件事，导致输入 `空` 不回显（M27 修的就是它）。
+    last_value: Option<Val>,
     pub(crate) output: String,
     /// 错误流缓冲（与字节码 VM 同构；目前只有 `测试.汇总` 往里写）。
     pub(crate) output_err: String,
@@ -299,6 +306,7 @@ impl Walker {
             locals: None,
             builtins: new_builtins(),
             call_stack: Vec::new(),
+            last_value: None,
             output: String::new(),
             output_err: String::new(),
             output_sink: None,
@@ -382,6 +390,17 @@ impl Walker {
     }
 
     /// 跑一棵 AST（`Program` 节点）。
+    /// `run` 的 **REPL 版**：先清空 `last_value`，跑完把它取出来（R8.4b）。
+    ///
+    /// Python 侧每次执行前 `interp._last_value = _NO_VALUE`、跑完再看它有没有被赋值。
+    /// 这里把「清 + 取」收进一个方法，免得调用方忘了清 —— 忘了就会把**上一次的值**
+    /// 当成这一次的回显。
+    pub(crate) fn run_capture(&mut self, ast: &Json) -> Result<Option<Val>, JishiError> {
+        self.last_value = None;
+        self.run(ast)?;
+        Ok(self.last_value.take())
+    }
+
     pub(crate) fn run(&mut self, ast: &Json) -> Result<(), JishiError> {
         let body = ast.get("body").and_then(|b| b.as_array())
             .ok_or_else(|| err("运行期错误", "AST 里没有 body（不是 Program 节点？）"))?;
@@ -435,7 +454,16 @@ impl Walker {
             // `?` 会**提前 return、绕过下面的 `fill_loc`**，于是 `exec_import` 等的
             // 错误（如「不支持从 python 导入」）就没了位置、报错渲染缺源码行框。
             "Assign" => self.exec_assign(n).map(|_| Flow::Normal),
-            "ExprStmt" => self.eval(field(n, "expr")?).map(|_| Flow::Normal),
+            "ExprStmt" => {
+                let v = self.eval(field(n, "expr")?)?;
+                // R8.4b：REPL 要回显「模块顶层最后一个表达式语句的值」。
+                // ⚠️ 只在**模块级**记（`locals.is_none()`）—— 函数体里的表达式语句
+                //    不该冒到 REPL 上面去（与 Python 侧 `_last_value` 同口径）。
+                if self.locals.is_none() {
+                    self.last_value = Some(v);
+                }
+                Ok(Flow::Normal)
+            }
             "If" => self.exec_if(n),
             "While" => self.exec_while(n),
             "For" => self.exec_for(n),

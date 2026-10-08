@@ -333,25 +333,39 @@ fn spawn_probe() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// 用法（`-h/--help`）。⚠️ 裸命令行**不再走这里** —— 它进 REPL（R8.4b）。
+fn usage() {
+    eprintln!("用法：jishi-rs <文件.jsh> [选项]  # 跑源码 / --ast / --json-errors / --sandbox");
+    eprintln!("      jishi-rs                  # 没给文件就进交互式 REPL（等同 -i）");
+    eprintln!("      jishi-rs --stdin [选项] < 文件.jsh");
+    eprintln!("      jishi-rs --load-bytecode <字节码.json>");
+    eprintln!("      jishi-rs --dump-stdlib / --dump-methods / --dump-builtins");
+    eprintln!("      jishi-rs 错误 [码]        # 查错误码（R7.1-b）");
+    eprintln!("      jishi-rs 源码静态检查 [路径...] [--json]   # 源码检查（R7.1-c）");
+    eprintln!("      jishi-rs 格式化 [文件] [--stdin] [--check] [--write] [--indent N]");
+    eprintln!("      jishi-rs 安装/卸载/列表/发布/索引/检查   # 包管理（R7.6）");
+    eprintln!("      jishi-rs 医生 [--no-net]   # 环境自检（R8.4）");
+    eprintln!("      jishi-rs 新项目 <名字>     # 生成脚手架（R8.4）");
+    eprintln!("      jishi-rs 教程              # 教程索引（R8.4）");
+    eprintln!("      jishi-rs lsp               # 语言服务器（stdio，R7.3）");
+    eprintln!("      jishi-rs dap               # 调试适配器（stdio，R7.5）");
+    eprintln!("      jishi-rs 调试 <文件.jsh>   # 交互式调试（R7.5 收尾）");
+    eprintln!("      jishi-rs mcp               # MCP 服务器（stdio，R7.4）");
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
+    // R8.4b：**裸命令行进 REPL**（与 Python 的 `jishi` 同行为）；只有显式 `-h/--help`
+    // 才打用法。以前这里一律打用法退 2 —— 那是宿主还没有 REPL 时的权宜。
     if args.len() < 2 {
-        eprintln!("用法：jishi-rs 字节码.json");
-        eprintln!("      jishi-rs --dump-stdlib");
-        eprintln!("      jishi-rs --dump-methods");
-        eprintln!("      jishi-rs --dump-builtins");
-        eprintln!("      jishi-rs 错误 [码]        # 查错误码（R7.1-b）");
-        eprintln!("      jishi-rs 源码静态检查 [路径...] [--json]   # 源码检查（R7.1-c）");
-        eprintln!("      jishi-rs 格式化 [文件] [--stdin] [--check] [--write] [--indent N]");
-        eprintln!("      jishi-rs 安装/卸载/列表/发布/索引/检查   # 包管理（R7.6）");
-        eprintln!("      jishi-rs 医生 [--no-net]   # 环境自检（R8.4）");
-        eprintln!("      jishi-rs 新项目 <名字>     # 生成脚手架（R8.4）");
-        eprintln!("      jishi-rs 教程              # 教程索引（R8.4）");
-        eprintln!("      jishi-rs lsp               # 语言服务器（stdio，R7.3）");
-        eprintln!("      jishi-rs dap               # 调试适配器（stdio，R7.5）");
-        eprintln!("      jishi-rs 调试 <文件.jsh>   # 交互式调试（R7.5 收尾）");
-        eprintln!("      jishi-rs mcp               # MCP 服务器（stdio，R7.4）");
-        eprintln!("      jishi-rs <文件.jsh> [选项]  # 跑源码 / --ast / --json-errors / --sandbox");
+        return jishi_ffi::run::main_cli(&[]);
+    }
+    if args[1] == "-h" || args[1] == "--help" || args[1] == "帮助" {
+        usage();
+        return ExitCode::SUCCESS;
+    }
+    if args[1] == "--usage" {
+        usage();
         return ExitCode::from(2);
     }
     // M51：把宿主**实际带的标准库模块与函数**打成 JSON。
