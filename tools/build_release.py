@@ -180,25 +180,40 @@ def _add_data_args() -> list[str]:
     return args
 
 
-def build(argv: list[str]) -> int:
-    p = argparse.ArgumentParser(description="构建基石发行包")
-    p.add_argument("--no-zip", action="store_true", help="只产 onedir 不打包 zip")
-    p.add_argument("--no-installer", action="store_true",
-                   help="不生成 Windows 安装程序（默认在 Windows 上自动尝试）")
-    p.add_argument("--clean", action="store_true", help="清理构建缓存")
-    args = p.parse_args(argv)
+def _rust_exe_name() -> str:
+    return "jishi-rs.exe" if sys.platform == "win32" else "jishi-rs"
 
-    print(f"== 基石发行版构建 {VERSION} ==")
-    _ensure_native()
 
-    work = ROOT / "build" / "release"
-    dist = ROOT / "dist" / "release"
-    if args.clean:
-        shutil.rmtree(work, ignore_errors=True)
-        shutil.rmtree(dist, ignore_errors=True)
-    work.mkdir(parents=True, exist_ok=True)
-    dist.mkdir(parents=True, exist_ok=True)
+def _build_rust_into(bin_dir: Path) -> None:
+    """`cargo build --release` → **`bin/jishi(.exe)` 单文件**（R8.3）。
 
+    ⚠️ 产物在仓库里叫 `jishi-rs`（`jishi` 这个名字还被 Python 版占着，**R8.4 才交换**）；
+    **发行包里一律改名成 `jishi`** —— 用户看到的是「基石」，不是「基石（Rust 版）」。
+    等 R8.4 做完，仓库里的名字也会跟着换。
+    """
+    crate = ROOT / "rust"
+    print("  运行 cargo build --release ...")
+    subprocess.run(["cargo", "build", "--release"], cwd=str(crate), check=True)
+    src = crate / "target" / "release" / _rust_exe_name()
+    if not src.exists():
+        raise SystemExit(f"cargo 产物不存在：{src}")
+    dst_name = _build_exe_name()
+    dst = bin_dir / dst_name
+    shutil.copy2(src, dst)
+    if sys.platform != "win32":
+        dst.chmod(0o755)
+    n = dst.stat().st_size
+    print(f"  已放入 bin/{dst_name}（{n:,} 字节 = {n / 1024 / 1024:.2f} MB）")
+
+
+def _build_python_into(bin_dir: Path, work: Path) -> None:
+    """PyInstaller onedir → `bin/jishi/` + `bin/jishi-mcp/`（**R8.4 前保留**）。
+
+    ⚠️ 这套布局是**嵌套**的（`bin/jishi/jishi.exe`），而 `install.sh` / `install.ps1`
+    的自检写的是**平铺**的 `bin/jishi` —— 也就是说**这条路上的 zip/tar.gz 装完自检
+    是失败的**（见 `build()` 里那段说明）。换成 rust 引擎就没有这个问题；
+    这里保留只为「R8.4 之前还能发一版 Python 包」。
+    """
     # 用 onedir（启动快、体积适中；onefile 冷启动每次解压，实测慢于预期）
     # 注意：入口用 tools/entry_cli.py（包外绝对导入），避免 PyInstaller 直接
     # 打包包内模块 cli.py 时相对导入失败。
@@ -212,7 +227,6 @@ def build(argv: list[str]) -> int:
                    * _add_data_args(),
                    * _icon_args(),
                    str(ROOT / "tools" / "entry_cli.py")]
-
     print("  运行 PyInstaller ...")
     subprocess.run(pyinstaller, cwd=str(ROOT), check=True)
 
@@ -231,6 +245,57 @@ def build(argv: list[str]) -> int:
          str(ROOT / "tools" / "entry_mcp.py")],
         cwd=str(ROOT), check=True)
 
+    for exe in ("jishi", "jishi-mcp"):
+        src = work / exe
+        if src.exists():
+            shutil.copytree(src, bin_dir / exe, dirs_exist_ok=True)
+
+
+def _make_parser() -> argparse.ArgumentParser:
+    """单独拎出来，好让判据能检查「默认引擎是哪条路」。"""
+    p = argparse.ArgumentParser(description="构建基石发行包")
+    p.add_argument("--engine", choices=("rust", "python"), default="rust",
+                   help="发行物的引擎：rust（默认，cargo 单二进制）或 python（PyInstaller，R8.4 前保留）")
+    p.add_argument("--no-zip", action="store_true", help="只产 onedir 不打包 zip")
+    p.add_argument("--no-installer", action="store_true",
+                   help="不生成 Windows 安装程序（默认在 Windows 上自动尝试）")
+    p.add_argument("--clean", action="store_true", help="清理构建缓存")
+    return p
+
+
+def _build_exe_name() -> str:
+    """发行包里那个可执行文件名（`jishi` / `jishi.exe`）—— **平铺在 `bin/` 下**。"""
+    return "jishi.exe" if sys.platform == "win32" else "jishi"
+
+
+def build(argv: list[str]) -> int:
+    args = _make_parser().parse_args(argv)
+
+    print(f"== 基石发行版构建 {VERSION} ==")
+    engine = args.engine
+    #: R8.3（2026-10-08）：发行包默认改用 **cargo 产物**（`rust/` 那个单二进制）。
+    #:
+    #: 🔴 **顺带修掉一个真 bug**：以前 PyInstaller 是 onedir，产物落在
+    #: `bin/jishi/jishi.exe`（**套了一层目录**），而 `install.sh` / `install.ps1`
+    #: 的自检写的是 `bin/jishi` / `bin\jishi.exe` —— 于是
+    #: **Linux/macOS 装完自检必失败、PATH 也指错目录（bin/ 里是个目录不是可执行文件）**。
+    #: Windows 那边因为推荐走 Inno Setup（`.iss` 里写的是嵌套路径）才没暴露。
+    #: 换成单二进制之后 `bin/jishi`（带 `.exe`）本身就是文件，安装脚本**不用改就对了**。
+    #:
+    #: ⚠️ `--engine python`（PyInstaller）**保留到 R8.4**：Rust 宿主还差
+    #: `医生` / `新项目` / `教程` / `-i`（见 `docs/路线图.md` §11.4），
+    #: 所以它**还不能**当唯一的发行物。
+    if engine == "python":
+        _ensure_native()
+
+    work = ROOT / "build" / "release"
+    dist = ROOT / "dist" / "release"
+    if args.clean:
+        shutil.rmtree(work, ignore_errors=True)
+        shutil.rmtree(dist, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    dist.mkdir(parents=True, exist_ok=True)
+
     # 组装发行目录
     tag = _platform_tag()
     pkg_name = f"jishi-{VERSION}-{tag}"
@@ -240,16 +305,10 @@ def build(argv: list[str]) -> int:
     bin_dir = out / "bin"
     bin_dir.mkdir(parents=True)
 
-    # 把 onedir 产物复制到 bin/
-    for exe in ("jishi", "jishi-mcp"):
-        src = work / exe
-        if not src.exists():
-            continue
-        if (src / f"{exe}.exe").exists():
-            # Windows onedir：复制整个目录
-            shutil.copytree(src, bin_dir / exe, dirs_exist_ok=True)
-        else:
-            shutil.copytree(src, bin_dir / exe, dirs_exist_ok=True)
+    if engine == "rust":
+        _build_rust_into(bin_dir)
+    else:
+        _build_python_into(bin_dir, work)
 
     # share/ 资源
     share = out / "share"

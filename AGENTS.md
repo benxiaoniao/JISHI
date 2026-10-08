@@ -660,8 +660,14 @@
 * **R 线**：R0–R7 已交付 → **正在做 R8**（单二进制 + wasm + 退役 Python/JS）。
   * R8.1 ✅ wasm 引擎（`wasm/` crate + `wasm/jishi-wasm.js` + `tools/build_wasm.py`）
   * R8.2 ✅ 在线试玩页换 wasm（摆脱 Pyodide；页面 432KB → 7KB）
-  * **R8.3 ⏳ 下一步**：三平台发行包从 **PyInstaller** 改走 `cargo build --release`
-  * R8.4 ⏳ 退役 Python/Node + 改名（Python 版退 `jishi-py`，Rust 顶上 `jishi`）
+  * R8.3 ✅ 发行包改走 **`cargo build --release`**（单二进制）：包 **2.91 MB** / 启动 **83 ms**
+    （老 PyInstaller 包约 20 MB）。⚠️ **顺带修掉一个真 bug**：老包的 `bin/` 是**嵌套**的
+    （`bin/jishi/jishi.exe`），而 `install.sh` / `install.ps1` 的自检写的是**平铺**的
+    ⇒ **Linux/macOS 用 tar.gz 装完自检必失败，且 `jishi` 不在 PATH 上**。
+    单二进制天然平铺，**安装脚本一个字没改就对了**。判据 `tests/test_m98_release_rust.py`。
+  * **R8.4 ⏳ 下一步**：退役 Python/Node + 改名（Python 版退 `jishi-py`，Rust 顶上 `jishi`）。
+    ⚠️ **它同时是「发 0.2.2」的前置**：Rust 宿主还差 `医生` / `新项目` / `教程` / `-i`（REPL），
+    不补就换包 = 用户可见的功能倒退。
   * R8.5 ⏳ 收尾 → 升 **0.2.2** → 进 0.3.x
 * ⚠️ **版本号仍是 0.2.1**：**R8 全部做完才升 0.2.2**（2026-10-07 用户定）。
   这期间的发布**不带 `--tag`**，快照提交信息照旧「基石（jishi）v0.2.1」。

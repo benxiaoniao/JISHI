@@ -8,10 +8,10 @@
 ; - 用户级安装（PrivilegesRequired=lowest），默认装到 %LOCALAPPDATA%\Programs\jishi，
 ;   不需要管理员权限；
 ; - 语言图标（M35）：安装程序自身、开始菜单/桌面快捷方式、卸载项、
-;   以及 jishi.exe / jishi-mcp.exe 全部使用 assets\基石.ico（作者提供的 logo，
+;   以及 jishi.exe 使用 assets\基石.ico（作者提供的 logo，
 ;   由 tools/make_logo.py 生成多尺寸 ico）。
 ; - 简体中文向导界面（语言文件随仓库携带，见 tools/inno/ChineseSimplified.isl）；
-; - 可选把 {app}\bin\jishi 追加到用户 PATH；卸载时自动移除；
+; - 可选把 {app}\bin 追加到用户 PATH；卸载时自动移除；**R8.3 起 bin 是平铺的**
 ; - 提供开始菜单与可选桌面快捷方式，注册标准卸载程序。
 
 #ifndef SourceDir
@@ -80,20 +80,20 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 [Icons]
 ; IconFilename 显式指到 share\基石.ico：exe 自带图标，但 .ico 分辨率档位更全
 ; （16/24/32/48/64/128/256），列表视图与「超大图标」下都不糊
-Name: "{group}\基石 jishi"; Filename: "{app}\bin\jishi\{#MyAppExeName}"; \
+Name: "{group}\基石 jishi"; Filename: "{app}\bin\{#MyAppExeName}"; \
     IconFilename: "{app}\share\基石.ico"; Comment: "基石中文编程语言"
 Name: "{group}\卸载 基石 jishi"; Filename: "{uninstallexe}"; \
     IconFilename: "{app}\share\基石.ico"
-Name: "{autodesktop}\基石 jishi"; Filename: "{app}\bin\jishi\{#MyAppExeName}"; \
+Name: "{autodesktop}\基石 jishi"; Filename: "{app}\bin\{#MyAppExeName}"; \
     IconFilename: "{app}\share\基石.ico"; Tasks: desktopicon
 
 [Registry]
 ; 用户 PATH 追加（仅当勾选 addtopath 且尚未包含时）
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
-    ValueData: "{olddata};{app}\bin\jishi"; Tasks: addtopath; Check: NeedsAddPath('{app}\bin\jishi')
+    ValueData: "{olddata};{app}\bin"; Tasks: addtopath; Check: NeedsAddPath('{app}\bin')
 
 [Run]
-Filename: "{app}\bin\jishi\{#MyAppExeName}"; Parameters: "--version"; \
+Filename: "{app}\bin\{#MyAppExeName}"; Parameters: "--version"; \
     Description: "查看版本，确认安装成功"; Flags: postinstall nowait skipifsilent
 
 [Code]
@@ -133,5 +133,5 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
-    RemoveFromPath(ExpandConstant('{app}\bin\jishi'));
+    RemoveFromPath(ExpandConstant('{app}\bin'));
 end;

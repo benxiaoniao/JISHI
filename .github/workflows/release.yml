@@ -40,6 +40,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e . pyinstaller pytest
 
+      # R8.3：发行包改成 **cargo 产物**（单二进制）。runner 自带 rustup，
+      # 但显式钉一下 stable，免得哪天镜像变了。
+      - name: 准备 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
       # Windows 编译 C 虚拟机：用 MSYS2 工具链（runner 预装 MSYS2 但无 gcc）
       - name: 准备 gcc（Windows）
         if: runner.os == 'Windows'
@@ -123,15 +128,28 @@ jobs:
           echo "::error file=.github/workflows/ci.yml,line=1::${DIAG}【失败】${SUMMARY}"
           exit 0
 
+      # R8.3：发行物 = **cargo 单二进制**（`rust/`），不再走 PyInstaller。
+      # ⚠️ 仍用 Python 跑的只有**构建脚本**本身（生成语言卡 / 站点资源），运行时零依赖。
       # Windows 上会自动尝试调用 ISCC 生成 setup.exe
-      - name: 构建发行包
-        run: python tools/build_release.py
+      - name: 构建发行包（cargo）
+        run: python tools/build_release.py --engine rust
 
       - name: 校验产物
         shell: bash
         run: |
           echo "== dist/release =="
           ls -la dist/release/
+          echo "== 包内 bin/ 布局（R8.3 起是平铺的） =="
+          python - <<'PY'
+          import glob, tarfile, zipfile
+          for z in sorted(glob.glob("dist/release/*.zip")):
+              with zipfile.ZipFile(z) as zf:
+                  print(z, "→", [n for n in zf.namelist() if "/bin/" in n and n.count("/") == 2])
+          for t in sorted(glob.glob("dist/release/*.tar.gz")):
+              with tarfile.open(t) as tf:
+                  names = tf.getnames()
+              print(t, "→", [n for n in names if "/bin/" in n and n.count("/") == 2])
+          PY
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4

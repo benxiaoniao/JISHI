@@ -5,6 +5,34 @@
 
 ## [未发布]
 
+### 变更（**R8.3：发行包改走 cargo，单二进制**，2026-10-08）
+
+- ✅ **发行包不再由 PyInstaller 打**：改用 `cargo build --release` 的产物 ——
+  **一个可执行文件**。
+
+  | | 以前（PyInstaller） | 现在（cargo） |
+  |---|---|---|
+  | 包内文件数 | 249 | **13** |
+  | Windows zip | 约 **20 MB** | **2.91 MB** |
+  | 启动（`--version` 中位） | 约 280 ms | **83 ms** |
+
+- 🔴 **顺带修掉一个真 bug：安装包的自检一直是坏的**。老包把 onedir 复制成
+  `bin/jishi/`（多套一层），可执行文件在 `bin/jishi/jishi.exe`；而
+  `install.sh` / `install.ps1` 的自检写的是**平铺**的 `bin/jishi` / `bin\jishi.exe`
+  ⇒ **Linux / macOS 用 tar.gz 装完自检必失败**，而且 PATH 里加的是 `~/.jishi/bin`，
+  那下面是个**目录** ⇒ `jishi` 命令**根本不在 PATH 上**。
+  （Windows 因为推荐走 Inno Setup、`.iss` 里写的是嵌套路径才没暴露。）
+  换成单二进制之后布局天然平铺，**安装脚本一个字没改就对了**；
+  `installer.iss` 里的路径也一并改成平铺。
+- 用法：`python tools/build_release.py`（默认 `--engine rust`）；
+  `--engine python` 保留到 R8.4（见 `docs/版本历史/` 与内部路线图 §11.4 ——
+  Rust 宿主还差 `医生`/`新项目`/`教程`/`-i` 四样，所以**还不能**当唯一的发行物）。
+- **判据** `tests/test_m98_release_rust.py`：结构层（默认引擎 / 安装脚本的平铺契约 /
+  单文件而非目录）+ 产物层（包内 `bin/` 平铺、文件数 < 40、体积 < 8 MB、语言卡随包）。
+- CI：`.github/workflows/release.yml` 打 tag 时三平台各跑一遍 cargo 构建
+  （加了 `dtolnay/rust-toolchain@stable`，并在校验步骤里打印包内 `bin/` 布局）。
+- ⚠️ **不发版**：按约定 **R8 全部做完才升 0.2.2**，所以这一步只动流水线，不打 tag。
+
 ### 变更（**文档大整理：README 只讲「现在」，历史集中归档**，2026-10-08）
 
 架构变革（前端换 Rust、单二进制、wasm）把项目整个换了一遍之后，旧文档已经不适合
