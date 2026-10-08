@@ -248,9 +248,12 @@ def _sanitize(snapshot: Path) -> None:
             re.compile(r"`+" + _PREFIX + _stem + r"\.md`+"),
             re.compile(_PREFIX + _stem + r"\.md"),
             _label))
-    _link = re.compile(r"\[[^\]]*?路线图[^\]]*?\]\(" + _PREFIX + r"路线图[\w\-]*\.md\)")
-    _code = re.compile(r"`+" + _PREFIX + r"路线图[\w\-]*\.md`+")
-    _plain = re.compile(_PREFIX + r"路线图[\w\-]*\.md")
+    # ⚠️ 字符类里**必须允许 `.`**：归档文件名是 `路线图-归档-0.1.md`，
+    #    只写 `[\w\-]*` 匹配不到 `0.1` 那一段 ⇒ 引用抹不掉，公开仓库里留死链。
+    _R = r"路线图[\w.\-]*\.md"
+    _link = re.compile(r"\[[^\]]*?路线图[^\]]*?\]\(" + _PREFIX + _R + r"\)")
+    _code = re.compile(r"`+" + _PREFIX + _R + r"`+")
+    _plain = re.compile(_PREFIX + _R)
     for f in sorted(snapshot.rglob("*")):
         if not f.is_file() or f.name.startswith("publish_"):
             continue
