@@ -134,9 +134,12 @@ pub extern "C" fn jishi_eval(ptr: *const u8, len: usize) -> i32 {
         Ok(text) => set_out(text),
         // 值不是 JSON 能表达的（Python 侧这里冒 `TypeError`）—— 与 MCP 的
         // `eval_expr` 同口径给一句话，不假装它是成功。
+        // ⚠️ 形状**与引擎给的失败一致**（`{ok:false, error:{code,title,…}}`）。
         Err(type_name) => set_out(format!(
-            "{{\"ok\": false, \"errors\": [{{\"type\": \"{type_name}\", \
-             \"message\": \"这个值没法表示成 JSON\"}}]}}")),
+            "{{\"ok\": false, \"error\": {{\"code\": null, \
+             \"title\": \"这个值没法表示成 JSON\", \
+             \"message\": \"类型「{type_name}」不能序列化成 JSON\", \
+             \"line\": null, \"col\": null, \"hint\": null}}}}")),
     }
     0
 }

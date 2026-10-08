@@ -40,6 +40,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))     # 页面生成器（build_playground）
 
 #: 构建产物（`site/` 是产物目录、被 gitignore；`tools/build_wasm.py` 负责生成）。
 WASM = ROOT / "site" / "jishi_wasm.wasm"
@@ -248,3 +249,123 @@ def test_独立_wasm体积记一笔():
     """
     n = WASM.stat().st_size
     assert n < 5 * 1024 * 1024, f"wasm 模块 {n:,} 字节，超过 5MB 了"
+
+
+# ---------------------------------------------------------------------------
+# 三、R8.2：**生成出来的那个页面**真能跑（端到端）
+# ---------------------------------------------------------------------------
+
+#: 在 Node 里用 **DOM 桩**把页面的内联脚本跑起来（真 shim + 真 wasm），
+#: 点「运行」，看输出区拿到什么。
+#:
+#: 为什么值得写：只断言「HTML 里有 `JishiWasm.load` 这个串」是糊不住错的 ——
+#: 页面的渲染逻辑、错误分支、事件绑定全都不在字符串里。这一条才是「页面能用」
+#: 的判据。
+_PAGE_HARNESS = r"""
+const fs = require('fs');
+const [shimPath, wasmPath, pagePath, srcsPath] = process.argv.slice(2);
+
+const html = fs.readFileSync(pagePath, 'utf8');
+const m = html.match(/<script id="jishi-page">([\s\S]*?)<\/script>/);
+if (!m) { console.error('页面里找不到 <script id="jishi-page">'); process.exit(2); }
+
+// ---- DOM 桩：页面只用到 getElementById + textContent/value/disabled/className/addEventListener
+const els = {};
+function mk(id) {
+  return {
+    id: id, textContent: '', value: '', disabled: false, className: '',
+    _h: {},
+    addEventListener(t, f) { (this._h[t] = this._h[t] || []).push(f); },
+    fire(t) { (this._h[t] || []).forEach(f => f({ preventDefault() {} })); },
+  };
+}
+['out', 'run', 'clear', 'status', 'code'].forEach(id => { els[id] = mk(id); });
+els.run.disabled = true;              // 页面里这个按钮初始是 disabled（等引擎）
+els.status.textContent = '正在加载引擎…';
+
+globalThis.window = globalThis;
+globalThis.document = { getElementById(id) { return els[id] || (els[id] = mk(id)); } };
+globalThis.JishiWasm = require(shimPath);
+// fetch 桩：不管 URL 是什么，都从磁盘读那份 wasm（Node 里没有同源策略）
+globalThis.fetch = () => Promise.resolve({
+  ok: true, arrayBuffer: () => Promise.resolve(fs.readFileSync(wasmPath)),
+});
+
+(new Function(m[1]))();               // 跑页面脚本
+
+function ready() {
+  return new Promise((res, rej) => {
+    const t0 = Date.now();
+    (function tick() {
+      if (els.run.disabled === false) return res();
+      if (/失败/.test(els.status.textContent)) return rej(new Error('引擎加载失败：' + els.status.textContent));
+      if (Date.now() - t0 > 30000) return rej(new Error('等引擎就绪超时：' + els.status.textContent));
+      setTimeout(tick, 20);
+    })();
+  });
+}
+
+(async () => {
+  await ready();
+  const readyStatus = els.status.textContent;   // 跑之前的状态（跑完会被覆盖）
+  const srcs = JSON.parse(fs.readFileSync(srcsPath, 'utf8'));
+  const out = [];
+  for (const s of srcs) {
+    els.code.value = s;
+    els.run.fire('click');
+    out.push({ text: els.out.textContent, cls: els.out.className });
+  }
+  process.stdout.write(JSON.stringify({ readyStatus, out }));
+})().catch(e => { console.error(e && e.stack || e); process.exit(1); });
+"""
+
+
+def _page(sources, tmp, page):
+    """在 Node + DOM 桩里跑页面，返回 `{status, out:[{text, cls}]}`。"""
+    tmp = Path(tmp)
+    (tmp / f"page_{TMP_SUFFIX}.js").write_text(_PAGE_HARNESS, encoding="utf-8")
+    (tmp / f"pagesrc_{TMP_SUFFIX}.json").write_text(
+        json.dumps(sources, ensure_ascii=False), encoding="utf-8")
+    r = subprocess.run(
+        ["node", str(tmp / f"page_{TMP_SUFFIX}.js"), str(SHIM), str(WASM),
+         str(page), str(tmp / f"pagesrc_{TMP_SUFFIX}.json")],
+        capture_output=True, cwd=str(ROOT), timeout=180)
+    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:1500]
+    return json.loads(r.stdout.decode("utf-8"))
+
+
+@need_wasm
+@need_node
+def test_页面_在Node里真跑一遍(tmp_path, monkeypatch):
+    """R8.2 的端到端判据：**生成出来的页面**点「运行」真能出结果。
+
+    三条：预置示例（写死期望，不 import jishi）/ 语法错（码 + 行列 + 出错样式）/
+    运行期错（码 + 标题）。
+    """
+    import build_playground
+
+    page = tmp_path / "playground.html"
+    monkeypatch.setattr(build_playground, "OUT", page)
+    build_playground.build()
+
+    got = _page([build_playground.SAMPLE, "打印(甲 +)\n", "打印(1 / 0)\n"],
+                tmp_path, page)
+    assert got["readyStatus"] == "就绪", got["readyStatus"]
+
+    # ① 预置示例：写死期望的**输出文本**（不是「有没有报错」）
+    one = got["out"][0]
+    assert one["cls"] == "", one
+    assert "你好，基石！" in one["text"], one
+    assert "前五个平方：[1, 4, 9, 16, 25]" in one["text"], one
+    assert "斐波那契第 10 项：55" in one["text"], one
+
+    # ② 语法错：错误码 + 行列都要在，而且是「出错」样式
+    two = got["out"][1]
+    assert "E0201" in two["text"], two
+    assert "第 1 行第 7 列" in two["text"], two
+    assert two["cls"] == "err", two
+
+    # ③ 运行期错
+    three = got["out"][2]
+    assert "E2001" in three["text"] and "不能除以零" in three["text"], three
+    assert three["cls"] == "err", three

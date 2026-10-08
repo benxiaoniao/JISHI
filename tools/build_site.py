@@ -448,7 +448,8 @@ def main() -> int:
         print("⚠️ site/jishi_wasm.wasm 不存在 —— playground 跑不起来。"
               "先跑：python tools/build_wasm.py")
 
-    # Playground（M10.3）：浏览器试玩页
+    # Playground（M10.3 / R8.2）：浏览器试玩页
+    # ⚠️ 引擎是 wasm（上面刚拷过去的两件），**不是**浏览器里的 Python —— 顺序不能反。
     try:
         from build_playground import build as build_pg
         build_pg()

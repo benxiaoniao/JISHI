@@ -89,13 +89,16 @@
         stdout: "",
         value: null,
         durationMs: (root.performance || Date).now() - t0,
-        errors: [{
-          type: "运行期错误",
-          title: "程序跑飞了",
+        // ⚠️ 形状**与引擎给的失败一样**（`{ok:false, error:{code,title,…}}`）——
+        // 这是刻意对齐的：页面只该认一个协议。别改成 `errors` 数组。
+        error: {
+          code: null,
+          title: trap ? "程序跑飞了" : "引擎出错",
           message: trap
             ? "执行时撞上了运行环境的限制（常见于无限递归）"
             : String(e && e.message || e),
-        }],
+          line: null, col: null, hint: null,
+        },
       };
     }
     var r;
@@ -103,9 +106,13 @@
       r = JSON.parse(text);
     } catch (_) {
       return {
-        ok: false, stdout: "", value: null, errors: [
-          { type: "运行期错误", title: "内部错误",
-            message: "wasm 返回的结果不是合法 JSON" }],
+        ok: false, stdout: "", value: null,
+        error: {
+          code: null,
+          title: "内部错误",
+          message: "wasm 返回的结果不是合法 JSON（这是引擎的 bug，不是你的代码）",
+          line: null, col: null, hint: null,
+        },
         durationMs: (root.performance || Date).now() - t0,
       };
     }

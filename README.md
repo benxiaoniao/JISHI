@@ -21,6 +21,9 @@
 >   实测 **C VM 净 489 ms vs Rust VM 净 649 ms**，且 Rust VM 每次还要付约 100 ms
 >   进程启动 —— 两者是**互补**（进程内快执行器 vs 不依赖 Python 的宿主），不是替代
 > - 通过桥接层**可调用任意 Python 库**，标准库为中文薄封装
+> - **在线试玩页跑的就是上面这套引擎**（R8.1/R8.2）：Rust 前端 + 字节码 VM +
+>   原生标准库编成 `wasm32-unknown-unknown`，**裸 C ABI + 手写 JS 胶水**，
+>   没有引入 `wasm-bindgen`；浏览器里**不再另跑一份 Python 实现**
 > - 不 fork、不 patch CPython，也不宣称"完全自主"，以上技术栈如实标注
 >
 > 已是一条「拿到就能写」的完整通用语言：模块系统、面向对象、异常、包管理雏形、
@@ -287,8 +290,12 @@ jishi examples/01_猜数字.jsh --ast
   （「零第三方依赖」是这条语言从 R0 起的核心资产）。
 - 判据：12 个语料在 wasm 里的结果 JSON 与原生宿主 `--sandbox --json-result`
   **逐字节一致**；外加「死循环会被停下来」「默认预算有限」这些独立判据。
-- ⚠️ 站点页面本身**还没换**（现在的 playground 仍在浏览器的 Python 运行时里跑），
-  那是下一步。
+- **R8.2 已交付：在线试玩页不再跑 Python 实现** —— `site/playground.html` 从
+  **Pyodide（浏览器里的 Python）** 换成上面这份 wasm。页面从 **432 KB 缩到 7 KB**，
+  且不再从 CDN 拉那约 10 MB 的 Pyodide，只取本站那份 1.47 MB 的 `.wasm`
+  （浏览器会缓存它）。**在线试玩与命令行、编辑器插件从此是同一份引擎。**
+  判据里有一条端到端：把**生成出来的那个页面**放进真实 DOM/Node 环境跑一遍，
+  点「运行」比输出文本；另用**无头 Edge** 实机加载过（引擎就绪、示例跑出正确结果）。
 
 **最近一轮（2026-10-05）：把「遍历中改容器」这一族收干净，并清了 `Val` 这块账**：
 
@@ -1068,7 +1075,13 @@ cvm/             C 执行内核（M4b）
 node/            Node.js 纯 JS 解释器（零依赖，消费 JSON 字节码；M31 起标准库全同步，
                  M51 起有 `--dump-stdlib` 自报家底供一致性检测）
 rust/            Rust 绑定（M13.3，jishi-ffi crate + 自研零依赖 JSON 解析器，
-                 零依赖标准库，M51 起同样有 `--dump-stdlib`）
+                 零依赖标准库，M51 起同样有 `--dump-stdlib`；jishi-rs 是完整宿主）
+frontend/        **R7.1** 前端核心抽出的独立 crate `jishi-frontend`（纯 Rust、零依赖；
+                 core/ 只剩 pyo3 搬运壳，wasm 也复用它）
+wasm/            **R8.1/R8.2** 浏览器入口 crate `jishi-wasm`：把整条链编到
+                 `wasm32-unknown-unknown`（**裸 C ABI，不上 wasm-bindgen**）；
+                 jishi-wasm.js 是手写胶水（源码唯一一份），
+                 构建走 tools/build_wasm.py（产物 site/jishi_wasm.wasm，1.47 MB）
 core/            **R 线（R2 起）**：前端核心的 Rust 落地（pyo3 编成 Python 扩展）
   build.py       一键构建（生成 pyo3 配置 + cargo build + 复制成 jishi/_core.pyd）；
                  ⚠️ 两个环境坑写在它的 docstring 里，**别手敲 cargo**
@@ -1103,7 +1116,9 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
                  gen_stdlib_sigs.py 标准库签名表生成（两宿主的命名参数靠它，M51） /
                  probe_builtins.py 内建体检（每个内建 × 五引擎真跑，M56） /
                  bench_jishilib.py 基石库层 vs 宿主层的倍数（M52） /
-                 build_playground.py 浏览器试玩 / build_wheel.py wheel 打包 /
+                 build_playground.py 浏览器试玩（R8.2 起跑 wasm 引擎）/
+                 build_wasm.py wasm 引擎构建（cargo → site/jishi_wasm.wasm + 胶水）/
+                 build_wheel.py wheel 打包 /
                  ci.py 一键全检 / publish_github.py 公开仓库同步（唯一发布通道）
 ```
 
