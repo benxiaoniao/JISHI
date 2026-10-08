@@ -48,6 +48,8 @@ BRANCH = "master"
 #: 为什么不上传：它们含未定稿的规划与决策，过早公开会绑住手脚；
 #: 其中路线图还含自建分发服务器的实例 ID / 公网 IP。
 #: ⚠️ **按名字长度降序**排（长的先替换），否则短的会把长名字切掉一半。
+#: ⚠️ **按文件名匹配、且递归查找**（2026-10-08 起这些文档归档在
+#: `docs/版本历史/`）—— 改了名字或再搬位置，这里必须跟着改，否则会推到公开仓库。
 INTERNAL_DOCS = (
     ("架构迁移评估.md", "内部架构迁移评估（未公开）"),
     ("架构迁移路径.md", "内部架构迁移路径（未公开）"),
@@ -228,24 +230,27 @@ def _sanitize(snapshot: Path) -> None:
     #    - `docs/架构评估.md`（2026-09-25）：含里程碑编号规划（M51–M53）与
     #      「哪些不砍、哪些要迁移」的**未定稿**技术决策——属内部讨论材料，
     #      对外过早公开会绑住手脚（用户还没拍板）。
-    for rm in sorted((snapshot / "docs").glob("路线图*.md")):
+    # ⚠️ 2026-10-08：内部文档**归档进了 `docs/版本历史/`**，所以匹配一律要**递归**
+    #    （`rglob`）—— 否则排不掉，而排不掉就是**把服务器实例信息推到公开仓库**。
+    for rm in sorted(snapshot.rglob("路线图*.md")):
         rm.unlink()
     # ⚠️ 内部文档一律**两手**：删文件 + 抹掉别处指向它的引用（否则公开仓库里全是
     #    死链）。以后新增内部文档**只改这一处**，别再散落着写正则。
+    #    路径前缀同时允许 `docs/`、`../`、`docs/版本历史/` 三种写法。
+    _PREFIX = r"(?:\.\./|docs/)?(?:版本历史/)?"
     _targets = []
     for _name, _label in INTERNAL_DOCS:
-        _p = snapshot / "docs" / _name
-        if _p.exists():
+        for _p in sorted(snapshot.rglob(_name)):
             _p.unlink()
         _stem = _name[:-3]
         _targets.append((
-            re.compile(r"\[[^\]]*?" + _stem + r"[^\]]*?\]\((?:\.\./|docs/)?" + _stem + r"\.md\)"),
-            re.compile(r"`+(?:\.\./|docs/)?" + _stem + r"\.md`+"),
-            re.compile(r"(?:\.\./|docs/)?" + _stem + r"\.md"),
+            re.compile(r"\[[^\]]*?" + _stem + r"[^\]]*?\]\(" + _PREFIX + _stem + r"\.md\)"),
+            re.compile(r"`+" + _PREFIX + _stem + r"\.md`+"),
+            re.compile(_PREFIX + _stem + r"\.md"),
             _label))
-    _link = re.compile(r"\[[^\]]*?路线图[^\]]*?\]\((?:\.\./|docs/)?路线图[\w\-]*\.md\)")
-    _code = re.compile(r"`+(?:\.\./|docs/)?路线图[\w\-]*\.md`+")
-    _plain = re.compile(r"(?:\.\./|docs/)?路线图[\w\-]*\.md")
+    _link = re.compile(r"\[[^\]]*?路线图[^\]]*?\]\(" + _PREFIX + r"路线图[\w\-]*\.md\)")
+    _code = re.compile(r"`+" + _PREFIX + r"路线图[\w\-]*\.md`+")
+    _plain = re.compile(_PREFIX + r"路线图[\w\-]*\.md")
     for f in sorted(snapshot.rglob("*")):
         if not f.is_file() or f.name.startswith("publish_"):
             continue
@@ -265,23 +270,24 @@ def _sanitize(snapshot: Path) -> None:
         if new != s:
             io.open(f, "w", encoding="utf-8", newline="\n").write(new)
 
-    # 4.1 README「项目结构」是**文件清单**：路线图那一条要整条摘掉
-    #     （否则清单里混进一句「内部路线图（未公开）」，读着像文件名）
-    p = snapshot / "README.md"
-    if p.exists():
-        s = io.open(p, encoding="utf-8").read()
-        s2 = s.replace("设计决策.md、内部路线图（未公开）、调试器.md",
-                       "设计决策.md、调试器.md")
-        if s2 != s:
-            io.open(p, "w", encoding="utf-8", newline="\n").write(s2)
+    # 4.1 README「项目结构」是**文件清单**：里面不该出现「（未公开）」这种标签
+    #     （清单里混进一句替代语，读着像文件名）。
+    #     2026-10-08 起 README 的项目结构**只列公开文档**，所以这里从「修补」
+    #     改成**检查** —— 见下面第 5 步的终检（`README 里出现了（未公开）`）。
 
     # 5. 终检：快照里不允许再出现任何隐私模式
     bad = []
-    if rm.exists():
-        bad.append("docs/路线图.md 仍在快照里（本文件不上传）")
+    # 5.0 内部文档**一个都不能留**（含归档目录）—— 这回是**递归**找
     for _name, _label in INTERNAL_DOCS:
-        if (snapshot / "docs" / _name).exists():
-            bad.append(f"docs/{_name} 仍在快照里（本文件不上传）")
+        for _p in sorted(snapshot.rglob(_name)):
+            bad.append(f"{_p.relative_to(snapshot)} 仍在快照里（本文件不上传）")
+    for _p in sorted(snapshot.rglob("路线图*.md")):
+        bad.append(f"{_p.relative_to(snapshot)} 仍在快照里（含服务器实例信息，不上传）")
+    # 5.0b README 的「项目结构」是文件清单，不该混进替代标签
+    _readme = snapshot / "README.md"
+    if _readme.exists() and "（未公开）" in io.open(_readme, encoding="utf-8").read():
+        bad.append("README.md 里出现了「（未公开）」标签"
+                   "（项目结构清单混进了内部文档名）")
     for f in snapshot.rglob("*"):
         if not f.is_file():
             continue

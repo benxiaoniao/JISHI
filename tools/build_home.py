@@ -8,7 +8,7 @@
    `features` 中文写起来什么样 · `stdlib` 有什么现成的 · `examples` 真能用吗 ·
    `progress` 还在维护吗。
 2. **数字全部自动生成**：版本/关键字/内建/模块/函数从 `jishi --lang-spec` 读，
-   里程碑从 `docs/里程碑.md` 与 `PROGRESS.md` 读，示例规模当场统计。
+   里程碑从 `docs/版本历史/里程碑*.md` 与 `PROGRESS.md` 读，示例规模当场统计。
    手写的数字**一过期就是错的**，而这个项目最不能容忍「总结偏差」。
 3. **示例真能跑**：本文件里出现的基石代码，`--check-examples` 会逐个真跑一遍
    （和 `examples/ai/few-shot.md` 的规矩一致 —— 喂给读者的错示例比没有示例更糟）。
@@ -176,15 +176,22 @@ def count_tests() -> tuple[int, int]:
 
 
 def load_milestones() -> list[tuple[str, str, str]]:
-    """从 `docs/里程碑.md` 的表格读 `(编号, 内容, 状态)`。"""
-    path = ROOT / "docs" / "里程碑.md"
-    if not path.exists():
-        return []
+    """读里程碑表 `(编号, 内容, 状态)`。
+
+    ⚠️ 2026-10-08 起里程碑明细**归档**到 `docs/版本历史/里程碑*.md`
+    （0.1.x 一份、0.2.x 一份）。这里把它们**都**读进来 —— 官网要的是
+    「一路走来做过什么」，不是「现在主线在哪」。
+    """
+    cands = sorted((ROOT / "docs" / "版本历史").glob("里程碑*.md"))
+    legacy = ROOT / "docs" / "里程碑.md"      # 归档前的旧位置，兼容用
+    if legacy.exists():
+        cands.append(legacy)
     out = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        m = re.match(r"\|\s*(M[\d.]+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|", line)
-        if m and m.group(1) != "阶段":
-            out.append((m.group(1), m.group(2), m.group(3)))
+    for path in cands:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"\|\s*(M[\d.]+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|", line)
+            if m and m.group(1) != "阶段":
+                out.append((m.group(1), m.group(2), m.group(3)))
     return out
 
 

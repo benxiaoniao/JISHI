@@ -2,9 +2,17 @@
 
 为 **基石（jishi）**——中文编程语言——提供编辑器支持。
 
-> **先装基石本体**（扩展只负责编辑器那一层）：
-> `pip install git+https://github.com/benxiaoniao/JISHI.git`，装好用 `jishi 医生`
-> 确认环境。（基石**不发布到 PyPI**，自带的分发通道在规划中。）
+> **先装基石本体**（扩展只负责编辑器那一层，**不自带运行时**）。
+>
+> 推荐装**发行版**：从[下载页](https://基石.cn/download.html)取对应平台的安装包
+> —— Windows `jishi-<版本>-windows-x64-setup.exe`（双击装，免管理员）、
+> Linux `tar.gz`（解压后 `bash install.sh`）、macOS arm64。装完跑一次
+> `jishi 医生` 自检，它会顺带告诉你包索引通不通。
+>
+> ⚠️ 基石**不发布到 PyPI**，**没有 `pip install jishi` 这条命令**。
+> 只有要改语言实现的人才从源码装：
+> `pip install git+https://github.com/benxiaoniao/JISHI.git`（需本机 Python 3.10+）。
+>
 > `jishi` 不在 PATH 上时，在设置里指明它——语言服务与调试共用这一项：
 >
 > ```json
