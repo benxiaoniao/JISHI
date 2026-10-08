@@ -79,6 +79,10 @@
    并行时用 `-m "not 计时"` 排除、再串行跑一遍。
    ⚠️ 本机（Windows）上 3 个 Node 网络用例**偶发** `spawnSync … EBUSY` ——
    环境性的（Node 宿主自己 spawn 自己），Linux / CI 不复现，**别当成新问题查**。
+   📌 **2026-10-08 复现到根**：在**沙箱/受限环境**里这条会变成**必现** ——
+   最小复现是 `node -e "require('child_process').spawnSync(process.execPath,['-e',''])"`
+   直接 `EBUSY`（**系统 node 也一样**）。所以「串行重跑必须全过」这个判据在沙箱里
+   对这 3 条不成立，**用最小复现证环境、别改代码**。
    ⚠️ 同理：**12 路满载时**偶有用例报 `SystemExit: 1` / `ERROR`（子进程 spawn 被拖超时），
    大多是载荷问题 —— 判据是**串行重跑那几条**：过 = 载荷，不过 = 真问题。
    ⚠️ **`tools/check_engines.py` 会在仓库根留下教程产物**（`账本.csv` / `成绩.csv` /
