@@ -907,7 +907,9 @@ pub fn list_packages(dest_root: Option<&str>) -> Vec<(String, String, String)> {
 // ---------------------------------------------------------------------------
 
 /// 读索引文本：本地文件直接读，远端 URL 走 HTTP（`file://` 也认）。
-fn read_index_text(index_url: &str) -> Result<String, String> {
+///
+/// `pub(crate)`：`jishi 医生` 的「索引源可达性」那一项要用它（R8.4）。
+pub(crate) fn read_index_text(index_url: &str) -> Result<String, String> {
     if Path::new(index_url).is_file() {
         return fs::read_to_string(index_url).map_err(|e| format!("{e}"));
     }

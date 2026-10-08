@@ -32,6 +32,7 @@ pub mod mcp;        // R7.4：MCP 服务器（mcp_server.py 的移植，`jishi-r
 pub mod debugger;   // R7.5：调试会话（debugger.py 的移植）
 pub mod dap;        // R7.5：DAP 适配器（dap.py 的移植，`jishi-rs dap`）
 pub mod packages;   // R7.6：包管理（packages.py + cli.py 的包命令）
+pub mod tools;      // R8.4：`医生` / `新项目` / `教程`（发行包换单二进制后不能缺）
 pub mod langdata;   // R7.2：语言元数据的显式表（**生成**，见 tools/gen_langdata_rs.py）
 pub mod langspec;   // R7.2：语言元数据 → JSON（`jishi --lang-spec`）
 mod zip;

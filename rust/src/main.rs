@@ -344,6 +344,9 @@ fn main() -> ExitCode {
         eprintln!("      jishi-rs 源码静态检查 [路径...] [--json]   # 源码检查（R7.1-c）");
         eprintln!("      jishi-rs 格式化 [文件] [--stdin] [--check] [--write] [--indent N]");
         eprintln!("      jishi-rs 安装/卸载/列表/发布/索引/检查   # 包管理（R7.6）");
+        eprintln!("      jishi-rs 医生 [--no-net]   # 环境自检（R8.4）");
+        eprintln!("      jishi-rs 新项目 <名字>     # 生成脚手架（R8.4）");
+        eprintln!("      jishi-rs 教程              # 教程索引（R8.4）");
         eprintln!("      jishi-rs lsp               # 语言服务器（stdio，R7.3）");
         eprintln!("      jishi-rs dap               # 调试适配器（stdio，R7.5）");
         eprintln!("      jishi-rs 调试 <文件.jsh>   # 交互式调试（R7.5 收尾）");
@@ -487,6 +490,30 @@ fn main() -> ExitCode {
     if matches!(args[1].as_str(),
                 "安装" | "卸载" | "列表" | "发布" | "索引" | "检查") {
         return jishi_ffi::packages::run_package_cmd(&args[1..]);
+    }
+    // R8.4：`医生` / `新项目` / `教程` —— 发行包换成单二进制之后**不能缺**的三件
+    // （`jishi 医生` 正是安装说明里让用户跑的第一个命令）。
+    // ⚠️ `医生` 是**有意重写**的：Python 版报「Python 版本 / C VM / MCP Server」，
+    //    那三样在单二进制里根本不存在（见 `tools.rs` 模块头）。
+    if args[1] == "医生" || args[1] == "--doctor" {
+        let no_net = args[2..].iter().any(|a| a == "--no-net" || a == "--no_net");
+        return jishi_ffi::tools::run_doctor(no_net);
+    }
+    if args[1] == "新项目" || args[1] == "--new" {
+        match args.get(2) {
+            Some(n) if !n.starts_with('-') => {
+                return jishi_ffi::tools::run_new_project(n);
+            }
+            _ => {
+                // Python 侧走 argparse，打的是英文 usage —— 这里给一句中文即可
+                // （argparse 的换行跟终端宽度有关，照抄没意义；只对齐退码 2）。
+                eprintln!("用法：jishi 新项目 <名字>");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    if args[1] == "教程" || args[1] == "--tutorial" {
+        return jishi_ffi::tools::run_tutorial();
     }
     // 其余一律交给 CLI 主入口（R7.4）。
     //
