@@ -29,8 +29,13 @@ Repository = "https://github.com/benxiaoniao/JISHI"
 Issues = "https://github.com/benxiaoniao/JISHI/issues"
 
 [project.scripts]
-jishi = "jishi.cli:main"
-jishi-mcp = "jishi.mcp_server:main"
+# ⚠️ R8.4b-2（2026-10-08）：`jishi` 这个名字**让给 Rust 单二进制**（发行包里那份，
+#    见 `tools/build_release.py`），Python 实现退成 `jishi-py`。
+#    为什么必须退：装了 Python 包就会有 `jishi` 命令，而它跑的是**另一套实现** ——
+#    两条路同名，用户分不清自己敲的是哪一个。单二进制才是正式的那份。
+#    Python 这套仍然保留（测试的**判据基准** + 改语言的人的入口），只是改了名。
+jishi-py = "jishi.cli:main"
+jishi-py-mcp = "jishi.mcp_server:main"
 
 [tool.setuptools]
 # `jishi._native` 是**只放动态库的数据目录**（没有 .py）。这里显式列上它，

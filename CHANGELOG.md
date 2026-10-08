@@ -5,6 +5,19 @@
 
 ## [未发布]
 
+### 变更（**R8.4b-2：`jishi` 让给单二进制，Python 实现退成 `jishi-py`**，2026-10-08）
+
+- **`jishi` 这个名字现在指单二进制**（发行包里那份，R8.3 起由 cargo 产物改名而来）。
+  **Python 实现退成 `jishi-py` / `jishi-py-mcp`**（`pyproject.toml` 的
+  `[project.scripts]`）。
+- 为什么必须退名：装了 Python 包就会在 PATH 上放一个 `jishi`，而它跑的是**另一套
+  实现**；发行包放的也叫 `jishi` ⇒ **两条路同名**，用户分不清自己敲的是哪一个，
+  出问题也说不清是哪套实现。
+- 功能一个没少：Python 实现照旧（`python -m jishi.cli`、`jishi-py`），它的用途是
+  **改语言本身**与**给测试当判据基准**。
+- 📌 **仓库里的 cargo 产物仍叫 `jishi-rs`** —— 那是构建细节（两者要同时存在才能对拍），
+  **用户看到的名字在打包时对齐**。判据 `tests/test_m101_rename.py`。
+
 ### 新增（**R8.4b-1：交互式 REPL（`jishi -i`）搬进 Rust**，2026-10-08）
 
 发行包改走单二进制（R8.3）之后 `-i` 不能再缺。新增 `rust/src/repl.rs`
