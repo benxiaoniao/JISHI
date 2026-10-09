@@ -34,6 +34,7 @@ from __future__ import annotations
 import io
 import re
 import os
+import socket
 import subprocess
 import sys
 import tarfile
@@ -143,18 +144,122 @@ def _insecure() -> bool:
         "1", "true", "yes", "on")
 
 
+# --------------------------------------------------------------------------
+# git 的网络通道：**直连优先，代理兜底**
+#
+# 2026-10-09 起本机的实情（实测）：
+#   * **只有 GitHub 各域名**被编辑器/连接器的透明代理劫持到 `127.0.0.1`，
+#     其它域名解析正常 —— 而那个本地代理**对 GitHub 一律 502**；
+#   * **直连 GitHub 真实 IP 是通的**（`curl --resolve github.com:443:<真IP>` → 200）；
+#   * 麻烦在于 `git` 不支持 `curl --resolve`，也没有 `curloptResolve` 配置项，
+#     hosts 又不可写 —— 所以**直连这条路要替 git 补一层**（见 `tools/github_relay.py`）。
+#
+# 于是分三档，按优先级：
+#   ① `JISHI_GIT_PROXY` 显式给了代理 → 用它（**备案通道**：将来网络走代理时启用）；
+#   ② 系统解析正常（不是 127.x）→ **什么都不做，直接连**（最干净）；
+#   ③ 被劫持 → 自动起本地中继（`github_relay`），把 git 的代理指过去。
+#      ⚠️ 中继只搬字节，**TLS 端到端**（SNI 仍是 github.com），不是「关证书校验」。
+# --------------------------------------------------------------------------
+
+#: 进程内复用的中继：(server, port)。
+_RELAY: tuple[object, int] | None = None
+#: 追加给 git 子进程的网络环境变量（由 `_setup_git_transport()` 填）。
+_PROXY_ENV: dict[str, str] = {}
+#: 本次用的通道名（打印用）。
+_TRANSPORT = "直连"
+
+
+def _is_loopback(ip: str) -> bool:
+    return ip.startswith("127.") or ip == "::1"
+
+
+def _github_hijacked() -> bool:
+    """GitHub 域名是否被劫持到回环地址。"""
+    try:
+        return _is_loopback(socket.gethostbyname("github.com"))
+    except OSError:
+        return False
+
+
+def _start_relay() -> tuple[object, int]:
+    """起本地 CONNECT 中继（`tools/github_relay.py`）。"""
+    global _RELAY
+    if _RELAY is not None:
+        return _RELAY
+    sys.path.insert(0, str(ROOT / "tools"))
+    import github_relay                                    # noqa: PLC0415
+    server, port = github_relay.start()
+    _RELAY = (server, port)
+    return _RELAY
+
+
+def _setup_git_transport(*, quiet: bool = False) -> None:
+    """决定 git 走哪条路，并备好环境变量（幂等）。"""
+    global _TRANSPORT
+    env = os.environ
+
+    explicit = (env.get("JISHI_GIT_PROXY") or "").strip()
+    if explicit:
+        _PROXY_ENV.update({
+            "http_proxy": explicit, "https_proxy": explicit,
+            "HTTP_PROXY": explicit, "HTTPS_PROXY": explicit,
+            "all_proxy": explicit, "ALL_PROXY": explicit,
+        })
+        _TRANSPORT = f"代理（JISHI_GIT_PROXY={explicit}）"
+        if not quiet:
+            print(f"   网络通道：{_TRANSPORT}")
+        return
+
+    if not _github_hijacked():
+        _TRANSPORT = "直连"
+        if not quiet:
+            print("   网络通道：直连（GitHub 域名解析正常）")
+        return
+
+    # 被劫持：起本地中继 —— 本质仍是**直连真实 IP**，只是替 git 补上 --resolve
+    _, port = _start_relay()
+    url = f"http://127.0.0.1:{port}"
+    _PROXY_ENV.update({
+        "http_proxy": url, "https_proxy": url,
+        "HTTP_PROXY": url, "HTTPS_PROXY": url,
+        "all_proxy": url, "ALL_PROXY": url,
+    })
+    # 清掉继承来的 no_proxy，免得连同 127.0.0.1 一起被排除
+    for k in ("no_proxy", "NO_PROXY"):
+        _PROXY_ENV[k] = ""
+    _TRANSPORT = f"本地中继（直连 GitHub 真 IP，段 {port}）"
+    if not quiet:
+        print(f"   网络通道：{_TRANSPORT}")
+
+
+def _stop_relay() -> None:
+    if _RELAY is None:
+        return
+    sys.path.insert(0, str(ROOT / "tools"))
+    try:
+        import github_relay                                # noqa: PLC0415
+        github_relay.stop(_RELAY[0])                       # type: ignore[arg-type]
+    except Exception:                                      # noqa: BLE001
+        pass
+
+
 def _git_env() -> dict:
     """git 子进程的环境。
 
-    ⚠️ **本机（Windows）的 GitHub 走一个 TLS 中转代理**（`127.0.0.1:9066`，
-    SteamTools）：schannel 的**证书吊销检查**过不去
-    （`CRYPT_E_NO_REVOCATION_CHECK`），换 openssl 后端则报
-    「找不到签发者」。实测 **`GIT_SSL_NO_VERIFY=1` 能通**。
+    ⚠️ **两件独立的事，别混**：
 
-    **默认不开**（关掉校验 = 降低安全性，不该是默认行为；CI/Linux 上也不需要）：
-    要开就 `JISHI_GIT_INSECURE=1 python tools/publish_github.py`。
+    1. **网络通道**（`_PROXY_ENV`，由 `_setup_git_transport()` 决定）——
+       直连 / 本地中继 / `JISHI_GIT_PROXY` 代理，三档之一。
+    2. **TLS 校验**（`JISHI_GIT_INSECURE=1`）—— 本机走中转代理时 schannel 的
+       吊销检查过不去（`CRYPT_E_NO_REVOCATION_CHECK`），换 openssl 后端则报
+       「找不到签发者」；实测 `GIT_SSL_NO_VERIFY=1` 能通。**默认不开**
+       （关校验 = 降安全性，不该是默认；CI/Linux 也不需要）。
+
+    ⚠️ 中继那档**不需要**关校验：TLS 是端到端的，证书仍然正常校验
+    （实测中继档下 `git ls-remote` 不带 `sslVerify=false` 也通）。
     """
     env = dict(os.environ)
+    env.update(_PROXY_ENV)
     if _insecure():
         env["GIT_SSL_NO_VERIFY"] = "true"
     return env
@@ -162,8 +267,17 @@ def _git_env() -> dict:
 
 def _push_hint(stderr: str) -> str:
     """把 git 的英文报错翻成「下一步做什么」。"""
+    net = ("CONNECT tunnel failed", "Could not connect to server",
+           "Failed to connect", "502", "Connection was reset")
+    if any(h in stderr for h in net):
+        return ("\n💡 看着像**网络通道**问题。三档按优先级，任选其一："
+                "\n   ① 直连（默认；GitHub 域名解析正常时就是它）；"
+                "\n   ② 本地中继（域名被劫持到 127.0.0.1 时脚本会自动起，"
+                "也可单独跑 `python tools/github_relay.py --port 8899` 排错）；"
+                "\n   ③ 走代理：`JISHI_GIT_PROXY=http://127.0.0.1:<端口> "
+                "python tools/publish_github.py`（**备案通道**，网络得走代理时启用）。")
     if any(h in stderr for h in _TLS_HINTS):
-        return ("\n💡 看着像**证书/代理**问题（本机 GitHub 走 TLS 中转代理）。"
+        return ("\n💡 看着像**证书**问题（中转代理做 TLS 时的常见坑）。"
                 "试：JISHI_GIT_INSECURE=1 python tools/publish_github.py"
                 "\n   —— 它只是关掉证书校验，快照与屏蔽逻辑不变。")
     return ""
@@ -382,6 +496,7 @@ def main() -> int:
 
     _notify_push()
     print(f"[4/4] force push 到 GitHub（{REPO_HTTPS}）")
+    _setup_git_transport()
     if _insecure():
         print("⚠️ JISHI_GIT_INSECURE=1：本次**关掉了 git 的证书校验**"
               "（代理做 TLS 中转时的应急手段；不影响快照与屏蔽逻辑）")
@@ -407,6 +522,7 @@ def main() -> int:
 
     import shutil
     shutil.rmtree(snapshot, ignore_errors=True)
+    _stop_relay()
     print("✓ 已同步（含屏蔽）并清理临时快照")
     return 0
 
