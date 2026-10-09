@@ -68,6 +68,14 @@ jobs:
       - name: 构建 C 虚拟机
         run: python cvm/build.py
 
+      # 🔴 2026-10-09：同上 ——「全量测试」之前必须把 Rust 两份产物编出来，
+      # 否则 74 个对拍/工具用例**静默跳过**（是 skip，不是 fail）。
+      - name: 构建 Rust 宿主（测试要用）
+        run: cargo build --release --manifest-path rust/Cargo.toml
+
+      - name: 构建前端扩展（pyo3，测试要用）
+        run: python core/build.py
+
       # 全量测试：三执行器对拍（树遍历 / Python VM / C VM 逐字节一致）
 
       # 环境诊断（M35 加）：时区/平台这类「开发机与 CI 不同」的事实，先打出来。

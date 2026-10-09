@@ -52,6 +52,20 @@ jobs:
       - name: 构建 C 虚拟机
         run: python cvm/build.py
 
+      # 🔴 2026-10-09：**测试前必须把 Rust 那两份产物编出来**，否则「全量测试」
+      # 名不副实 —— 实测：没有 `rust/target/release/jishi-rs` 时，74 个
+      # 对拍/工具用例是**直接跳过**（`skipif`）而不是失败，CI 一直静默少跑这一批；
+      # 没有 `oracle/jishi/_core.*` 时前端四阶段那批也跳过。
+      # 症状是「CI 全绿但本地能跑出的问题它看不见」。
+      - name: 准备 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 构建 Rust 宿主（测试要用）
+        run: cargo build --release --manifest-path rust/Cargo.toml
+
+      - name: 构建前端扩展（pyo3，测试要用）
+        run: python core/build.py
+
       # 全量测试：三执行器对拍（树遍历 / Python VM / C VM 逐字节一致）
 
       # 环境诊断（M35 加）：时区/平台这类「开发机与 CI 不同」的事实，先打出来。
