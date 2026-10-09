@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import shutil
 import subprocess
 import sys
@@ -291,7 +292,11 @@ def main(argv: "list[str] | None" = None) -> int:
     }
     tmp = Path(tempfile.gettempdir()) / "_probe_stdlib.json"
     tmp.write_text(compile_to_json(src, REL), encoding="utf-8")
-    rust = ROOT / "rust/target/release/jishi-rs.exe"
+    # ⚠️ 名字要**分平台**：Windows 是 `jishi-rs.exe`，Linux/macOS 是 `jishi-rs`。
+    #    以前这里写死 `.exe` ⇒ **CI（Linux）上查不到 Rust 宿主**，静默少一个执行器
+    #    （五执行器对拍变成四执行器，还只在打印里提一句）。
+    rust = ROOT / "rust/target/release" / (
+        "jishi-rs.exe" if os.name == "nt" else "jishi-rs")
     if rust.exists():
         outs["Rust"] = subprocess.run([str(rust), "--load-bytecode", str(tmp)], capture_output=True,
                                       input=b"", cwd=str(ROOT)).stdout.decode("utf-8", "replace")

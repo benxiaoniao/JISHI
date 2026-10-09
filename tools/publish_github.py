@@ -371,7 +371,14 @@ def _sanitize(snapshot: Path) -> None:
     for f in sorted(snapshot.rglob("*")):
         if not f.is_file() or f.name.startswith("publish_"):
             continue
-        if f.suffix.lower() not in (".md", ".py", ".json", ".txt", ".jsh", ".rst"):
+        # 🔴 **只改文档（`.md`）**。以前这里把 `.py`/`.json`/`.txt` 也算进来，
+        #    结果**把测试里的断言字符串也改了** —— 典型：
+        #    `tests/test_m58_frontend_contract.py` 断言「`前端契约.md` 在屏蔽名单里」，
+        #    快照里被抹成中性标签后断言**必失败**，而**本地源码树没有这一步、
+        #    所以永远绿** —— CI 红了很久都查不出原因（2026-10-09 才逮到）。
+        #    抹引用的目的是「公开文档里不留死链」，那是 `.md` 的事；
+        #    源码/测试里的路径字面量不是链接，也不该被改。
+        if f.suffix.lower() != ".md":
             continue
         try:
             s = io.open(f, encoding="utf-8").read()

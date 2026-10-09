@@ -128,7 +128,9 @@ def engine_outputs() -> dict[str, dict[str, str]]:
     }
     tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m68.json"
     tmp.write_text(compile_to_json(src, REL), encoding="utf-8")
-    rust = ROOT / "rust/target/release/jishi-rs.exe"
+    # ⚠️ 名字要分平台（Windows 是 `.exe`）；写死会在 Linux/macOS 上静默少一个执行器
+    rust = ROOT / "rust/target/release" / (
+        "jishi-rs.exe" if os.name == "nt" else "jishi-rs")
     if rust.exists():
         outs["Rust"] = subprocess.run([str(rust), "--load-bytecode", str(tmp)], capture_output=True,
                                       input=b"", cwd=str(ROOT)).stdout.decode("utf-8", "replace")

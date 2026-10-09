@@ -93,7 +93,11 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python -m pytest tests/ -q --tb=line -rf 2>&1 | tee pytest.log
+          # ⚠️ `--tb=short`（不是 `--tb=line`）：`--tb=line` **每次失败只给一行**，
+          # 多行的断言消息（探针会把「哪几条不一致 + 各引擎的值」打成多行）
+          # 会被吃光，注解里只看得到「AssertionError: 标准库体检没过：」这种空壳
+          # —— 2026-10-09 排查 m67 时正是被这个坑住的。
+          python -m pytest tests/ -q --tb=short -rf 2>&1 | tee pytest.log
 
       # 失败时把「哪些用例挂了」写成 Actions 注解（M35 加）。
       # 来由：CI 一直红，而 job 日志只能登录网页看、公开 API 下载要管理员权限，
