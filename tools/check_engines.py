@@ -58,7 +58,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,17 +147,36 @@ def _rust_exe() -> Path:
     return ROOT / "rust" / "target" / "release" / name
 
 
-def _run_rust_vm(src: str, rel: str) -> tuple[str, str]:
+@contextmanager
+def _in_dir(d: Path):
+    """临时把进程 cwd 切到 `d`（给**进程内**的 Python 三个执行器用）。
+
+    ⚠️ 教程类语料会在 cwd 里读写真实文件（`账本.csv` / `成绩.csv` / `x.txt`）——
+    不隔离就会在**仓库根**留产物（打断一次就污染下一轮）。切之前存、出来还原。
+    """
+    old = os.getcwd()
+    os.chdir(str(d))
+    try:
+        yield
+    finally:
+        os.chdir(old)
+
+
+def _run_rust_vm(src: str, rel: str, cwd: "Path | None" = None) -> tuple[str, str]:
     """Rust VM 跑一遍 → `(stdout, 报错文本)`。
 
     ⚠️ 编译用**当前前端**（`compile_to_json`），所以 `--frontend rust` 时
     这条链是全程原生的：Rust 前端产字节码 JSON → Rust VM 消费。
+
+    ⚠️ `cwd` 是**该语料的私有运行目录**：宿主按 `filename`（= `rel`）现读源文件
+    渲染报错，所以私有目录里必须**按同名相对路径**放着源文件（调用方负责复制）。
     """
     body = compile_to_json(src, rel)
     tmp = Path(tempfile.gettempdir()) / f"_check_engines_{os.getpid()}.json"
     tmp.write_text(body, encoding="utf-8")
     r = subprocess.run([str(_rust_exe()), "--load-bytecode", str(tmp)],
-                       capture_output=True, input=b"")
+                       capture_output=True, input=b"",
+                       cwd=str(cwd) if cwd else None)
     return (r.stdout.decode("utf-8", errors="replace"),
             r.stderr.decode("utf-8", errors="replace"))
 
@@ -171,18 +190,19 @@ def _node_index() -> Path:
     return ROOT / "oracle" / "node" / "index.js"
 
 
-def _run_node_vm(src: str, rel: str) -> tuple[str, str]:
+def _run_node_vm(src: str, rel: str, cwd: "Path | None" = None) -> tuple[str, str]:
     """Node 宿主跑一遍 → `(stdout, 报错文本)`。
 
     与 Rust VM 同一形状：独立进程、吃**字节码 JSON**（当前前端编的）。
     ⚠️ Node 的报错渲染包含**源码行**（它按 `filename` 现读源文件），
-    所以这里给的 `rel` 必须是**相对仓库根的真路径** —— 工作目录就是仓库根。
+    所以给的 `rel` 必须是**相对该语料私有 cwd 的真路径** —— 私有目录里存着源文件。
     """
     body = compile_to_json(src, rel)
     tmp = Path(tempfile.gettempdir()) / f"_check_engines_node_{os.getpid()}.json"
     tmp.write_text(body, encoding="utf-8")
     r = subprocess.run([_node_exe(), str(_node_index()), str(tmp)],
-                       capture_output=True, input=b"")
+                       capture_output=True, input=b"",
+                       cwd=str(cwd) if cwd else None)
     return (r.stdout.decode("utf-8", errors="replace"),
             r.stderr.decode("utf-8", errors="replace"))
 
@@ -251,6 +271,10 @@ def main(argv: "list[str] | None" = None) -> int:
     sys.stdin = io.StringIO("")
 
     files = _corpora()
+    #: 各语料的私有运行目录根（跑完全清）—— 文件名带 pid：本工具也被 pytest 调用，
+    #: pytest-xdist 并行时多个 worker 同时跑，固定名会互相覆盖。
+    run_root = Path(tempfile.gettempdir()) / f"{os.getpid()}_check_engines_cwd"
+    shutil.rmtree(run_root, ignore_errors=True)
     bad: list[tuple] = []
     exempted: list[str] = []
     rust_stdout_bad: list[tuple] = []
@@ -266,17 +290,28 @@ def main(argv: "list[str] | None" = None) -> int:
             continue
         src = Path(path).read_text(encoding="utf-8")
         lines = src.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-        tree_out, tree_err = _run(lambda: run_tree(src, rel), lines)
-        vm_out, vm_err = _run(lambda: VM(compile_source(src, rel), rel).run(),
-                              lines)
-        cvm_out, cvm_err = _run(lambda: cvm_bind.run_source_c(src, rel), lines)
+        # ⚠️ **每个语料一个私有 cwd**（与 `check_walk.py` 同法，2026-10-09 补）：
+        #    教程类语料会在 cwd 里读写真实文件（`账本.csv` / `成绩.csv` / `x.txt`），
+        #    跑在仓库根就会留产物、**打断一次就污染下一轮**（第一台引擎读到翻倍数据 → 假红）。
+        #    源文件**按同名相对路径**复制进私有目录，五个执行器都在那里跑 ——
+        #    报错渲染里的文件名（`rel`）不变，文件 I/O 互相隔离。
+        run_dir = run_root / rel.replace("/", "__")
+        run_dir.mkdir(parents=True, exist_ok=True)
+        dst = run_dir / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, dst)
+        with _in_dir(run_dir):
+            tree_out, tree_err = _run(lambda: run_tree(src, rel), lines)
+            vm_out, vm_err = _run(lambda: VM(compile_source(src, rel), rel).run(),
+                                  lines)
+            cvm_out, cvm_err = _run(lambda: cvm_bind.run_source_c(src, rel), lines)
         # 两段都比：**报错前的输出**与**报错文本**都是可观察行为
         ok = (tree_out, tree_err) == (vm_out, vm_err) == (cvm_out, cvm_err)
         if use_rust_vm:
             # ⚠️ `compile_to_json` 对**编译不过**的语料会抛（`error_cases` 里一堆）
             # —— 那种语料根本没字节码，Rust VM 无从跑起，直接跳过（不是不一致）。
             try:
-                r_out, r_err = _run_rust_vm(src, rel)
+                r_out, r_err = _run_rust_vm(src, rel, run_dir)
             except Exception:                                  # noqa: BLE001
                 r_out = r_err = None
             if r_out is not None:
@@ -297,7 +332,7 @@ def main(argv: "list[str] | None" = None) -> int:
             # ⚠️ 与 Rust VM 同样：编译不过的语料（`error_cases` 里一堆）没有字节码，
             # 宿主无从跑起，直接跳过（**不是**不一致）。
             try:
-                n_out, n_err = _run_node_vm(src, rel)
+                n_out, n_err = _run_node_vm(src, rel, run_dir)
             except Exception:                                      # noqa: BLE001
                 n_out = n_err = None
             if n_out is not None:
@@ -366,6 +401,8 @@ def main(argv: "list[str] | None" = None) -> int:
         print("\n（豁免）")
         for rel in exempted:
             print(f"   · {rel} —— {EXEMPT.get(rel, '计时类噪声（文件名带「跑分/基准」）')}")
+    # 清理本轮所有语料的私有运行目录（失败也不留垃圾）—— 「仓库根不留产物」的落点
+    shutil.rmtree(run_root, ignore_errors=True)
     # 登记过期也当失败：留着它就等于给将来的问题留了张通行证
     stale = [r for r in HOST_KNOWN_GAPS if r not in registered] if (use_rust_vm or use_node) else []
     if stale:

@@ -5,6 +5,42 @@
 
 ## [未发布]
 
+_（下一版从 0.3.x 开始）_
+
+---
+
+## [0.2.2] - 2026-10-09（**R 线收官**：单二进制 + wasm + 退役 Python / Node）
+
+> **0.2.x「架构变革」的完成版。** 前端与宿主从 Python 换到 Rust：发行版变成
+> **一个 cargo 二进制**（运行时不需要 Python）、在线试玩页改用 **wasm**、
+> **Python / Node 两套实现退役到 `oracle/`**（只作判据基准与参考实现）。
+> 下面是 R 线每一步的明细（R0 起累积；R8 期间版本一直保持在 0.2.1，
+> 到 R8.5 收尾才升上来）。
+
+### 变更（**R8.5：收尾 —— 升 0.2.2 + 两笔遗留清账**，2026-10-09）（**面向开发者**）
+
+- **版本号 0.2.1 → 0.2.2**（`pyproject.toml` / `oracle/jishi/version.py` /
+  `frontend`+`core` 的 `Cargo.toml`；重跑 `tools/gen_langdata_rs.py` 刷新
+  `rust/src/langdata.rs` 的 `LANG_VERSION`）。
+- **`[profile.release]` 开 LTO + strip**（此前是默认 profile）。**先量再开**：
+  同机同时段交错 A/B（4M 次循环算力基准）——
+
+  | profile | exe 体积 | 启动 | 算力（越小越快） |
+  |---|---|---|---|
+  | 默认 | 4.63 MB | 9.3 ms | 1087 ms |
+  | `opt-level="z"`+LTO+strip | 2.01 MB | 9.1 ms | 1353 ms（**+24% 慢**） |
+  | **`opt-level=3`+LTO+strip**（采用） | **2.91 MB** | **9.0 ms** | **1056 ms（0.97x）** |
+
+  `opt-level="z"` 拿 24% 算力换那 0.9 MB —— **不值**（体积本就远在验收线内）。
+  🔴 **不能加 `panic="abort"`**：`lsp.rs` 用 `catch_unwind` 把 panic 转成
+  `INTERNAL_ERROR` 回包，abort 就捕获不到 ⇒ LSP 从「回错误」变成「整进程挂」。
+- **`tools/check_engines.py` 改成「每语料一个私有 cwd」**（同 `check_walk.py`）：
+  教程类语料会在 cwd 里读写真实文件（`账本.csv` / `成绩.csv` / `x.txt`），
+  工具以前直接在仓库根跑 —— **打断一次就留残留，下一轮第一台引擎读到翻倍数据报假红**。
+  现在源文件按同名相对路径复制进私有目录，五个执行器都在那里跑；判据
+  `tests/test_m102_check_engines_cwd.py`。
+- 文档与站点对齐：README / AGENTS / 本 CHANGELOG / 内部路线图；官网与版本历史页重建。
+
 ### 变更（**R8.4b-2：退役 Python / Node —— 挪到 `oracle/`**，2026-10-08）
 
 - **正式实现收敛到两套**：**Rust**（前端 + 字节码 VM + 完整宿主）与 **C**（`cvm/`）。
