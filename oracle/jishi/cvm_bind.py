@@ -36,7 +36,13 @@ from .opcodes import BINOP_TO_SYMBOL, CMPOP_TO_SYMBOL, BinOp, CmpOp, UnOp
 # 动态库定位与加载
 # ---------------------------------------------------------------------------
 
-_ROOT = Path(__file__).resolve().parents[1]
+# ⚠️ `parents[2]` —— 本文件在 `oracle/jishi/` 下（R8.4 从 `jishi/` 搬来），
+#    仓库根是**往上第三层**。这里原本写 `parents[1]`（搬之前是对的），
+#    搬完就变成 `oracle/` 了 ⇒ 源码树的 `cvm/bin/` 永远找不到，
+#    只能退化去用 `_native/` 里那份**旧的**预编译库 —— 正是下面注释里说的那个坑。
+#    本地有残留的 `_native/jsvm.dll` 把它遮住了，**CI（干净检出）上直接报
+#    「找不到 C 虚拟机动态库」**。判据 `test_m84` 钉着（2026-10-09 修）。
+_ROOT = Path(__file__).resolve().parents[2]
 _BIN = _ROOT / "cvm" / "bin"
 #: wheel 内预编译动态库的目录（M11：pip install 即含 C VM，无需本机 gcc）
 _NATIVE = Path(__file__).resolve().parent / "_native"

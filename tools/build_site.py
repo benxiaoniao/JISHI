@@ -22,6 +22,12 @@ import sys
 import webbrowser
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+#: 备案信息与官网页脚共用一处（**法定要求**：主页最下方展示 + 链接备案系统）。
+from build_home import (                                             # noqa: E402
+    ICP_BEIAN, ICP_URL, POLICE_BEIAN, POLICE_URL,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 OUT = ROOT / "site"
@@ -53,10 +59,35 @@ PAGES: list[tuple[Path, str, str]] = [
     (Path("docs/tutorial/05_字典与结构化数据.md"), "05 字典与结构化数据", "教程"),
     (Path("docs/tutorial/06_文件与标准库.md"), "06 文件与标准库", "教程"),
     (Path("docs/tutorial/07_综合实战.md"), "07 综合实战", "教程"),
+    # ---- 版本历史（2026-10-09 上站）------------------------------------
+    # ⚠️ 这几份是**归档区**（`docs/版本历史/`）：写的是「我们是怎么走到今天的」，
+    #    **不是设计参考**。用户 2026-10-09 要求把它们放到站上（只要不含隐私）——
+    #    这里放的是**不含服务器信息的四份**；含自建分发服务器实例信息的
+    #    `路线图-归档-0.1.md` / `架构评估.md` / `架构迁移评估.md` **不上站**
+    #    （与 `tools/publish_github.py` 的 `INTERNAL_DOCS` 同一口径）。
+    (Path("docs/版本历史/README.md"), "版本历史 · 说明", "版本历史"),
+    (Path("docs/版本历史/里程碑.md"), "里程碑 · 0.1.x", "版本历史"),
+    (Path("docs/版本历史/里程碑-0.2.md"), "里程碑 · 0.2.x（含 R 线）", "版本历史"),
+    (Path("docs/版本历史/R线交付记录.md"), "R 线交付记录", "版本历史"),
+    (Path("docs/版本历史/AGENTS当前任务与状态-历史明细.md"), "任务与状态（历史）", "版本历史"),
 ]
 for _i, (_p, _t, _g) in enumerate(PAGES):
     if not _p.is_absolute():
         PAGES[_i] = (ROOT / _p, _t, _g)
+
+#: **不上站点的内部文档**（与 `tools/publish_github.py` 的 `INTERNAL_DOCS` 同源）。
+#: 站上正文若链接到它们会变成**死链**（文件根本没渲染成 HTML），所以构建时统一
+#: 抹成中性文字。新增内部文档**只改这一处**。
+#: ⚠️ 为什么这些文档不上站：`路线图` 含自建分发服务器的实例信息；其余是未定稿评估。
+INTERNAL_DOCS = ("路线图", "架构评估", "架构迁移评估", "一致性夹具", "前端契约")
+
+
+def _neutralize_internal_links(text: str) -> str:
+    """把指向**内部文档**的 Markdown 链接抹成中性文字（否则站上是死链）。"""
+    for name in INTERNAL_DOCS:
+        pat = re.compile(r"\[([^\]]*?)\]\([^)\s]*?" + name + r"[^)\s]*?\.md[^)\s]*?\)")
+        text = pat.sub(lambda m: f"{m.group(1)}（内部文档，未公开）", text)
+    return text
 
 CSS = """\
 :root{--bg:#fff;--fg:#1f2430;--muted:#5c6370;--accent:#0b5fff;--code-bg:#f6f8fa;
@@ -126,7 +157,10 @@ def _link_repl(m: re.Match, page: Path) -> str:
         for p, _t, _g in PAGES:
             if (ROOT / p).resolve() == dst_abs:
                 dst_html = (OUT / p).with_suffix(".html").resolve()
-                href = dst_html.relative_to(src_html.parent).as_posix()
+                # ⚠️ 用 `os.path.relpath` 而**不是** `relative_to`：跨目录
+                # （如 `docs/版本历史/README.md` 里的 `../../README.md`）
+                # 时 `relative_to` 会直接抛 ValueError。
+                href = os.path.relpath(dst_html, src_html.parent).replace("\\", "/")
                 break
         if href is None:
             href = target  # 指向站外或本站没有的文件，原样保留
@@ -164,6 +198,7 @@ def slugify(title: str, used: set[str]) -> str:
 
 def render_md(text: str, page: Path) -> str:
     """Markdown（子集）→ HTML 正文。"""
+    text = _neutralize_internal_links(text)
     lines = text.split("\n")
     out: list[str] = []
     used_anchors: set[str] = set()
@@ -327,7 +362,13 @@ def build_page(md_path: Path, title: str, group: str,
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)} · 基石语言</title>
-<style>{CSS}</style>
+<style>{CSS}
+footer.site-foot{{border-top:1px solid var(--border);margin-top:44px;padding-top:20px;
+display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:center;
+font-size:13px;color:var(--muted)}}
+footer.site-foot a{{color:var(--muted);display:inline-flex;align-items:center;gap:5px}}
+footer.site-foot img{{height:16px;width:auto;display:block}}
+</style>
 </head>
 <body>
 <div class="layout">
@@ -338,6 +379,10 @@ def build_page(md_path: Path, title: str, group: str,
 <main>
 {body}
 <div class="pager"><span>{prev}</span><span>{nxt}</span></div>
+<footer class="site-foot">
+  <a href="{ICP_URL}" target="_blank" rel="noopener noreferrer">{ICP_BEIAN}</a>
+  <a href="{POLICE_URL}" target="_blank" rel="noreferrer"><img src="/assets/备案图标.png" alt="公安备案图标">{POLICE_BEIAN}</a>
+</footer>
 </main>
 </div>
 </body>
@@ -355,6 +400,11 @@ PAGE_DESC = {
     "docs/真实项目.md": "五类真实项目 + 行数比基线（口径、逐项数据）+ 别扭点清单",
     "docs/ai/system-prompt.md": "教 LLM 写基石的官方系统提示词",
     "examples/ai/few-shot.md": "20 个「任务描述 → 基石代码」few-shot 示例对",
+    "docs/版本历史/README.md": "归档区索引：为什么有这一块、判断「现在」该看哪几处",
+    "docs/版本历史/里程碑.md": "0.1.x 逐里程碑明细（M0–M45）：每一版做了什么、踩了什么坑",
+    "docs/版本历史/里程碑-0.2.md": "0.2.x 逐轮明细（M46–M56 + R 线）：反向时间序",
+    "docs/版本历史/R线交付记录.md": "R0–R8.5 的交付记录：前端换 Rust、单二进制、wasm、退役 Python/Node",
+    "docs/版本历史/AGENTS当前任务与状态-历史明细.md": "AGENTS §3 的历史明细（已从主线文档搬出）",
 }
 
 
@@ -378,9 +428,16 @@ def build_llms_txt() -> str:
 
 
 def build_llms_full() -> str:
-    """生成 llms-full.txt：所有页面 Markdown 原文拼接（LLM 全文语料）。"""
+    """生成 llms-full.txt：所有页面 Markdown 原文拼接（LLM 全文语料）。
+
+    ⚠️ **不含「版本历史」**：那是**归档区**（文档自己写明「不作为设计参考」），
+    喂给模型只会把「当时的判断」当成「现在的规范」。llms.txt 索引里**仍然列出**
+    它们（人要点得进去），只是不进全文语料。
+    """
     parts = ["# 基石语言（jishi）—— 完整文档\n"]
-    for md_path, title, _group in PAGES:
+    for md_path, title, group in PAGES:
+        if group == "版本历史":
+            continue
         parts.append(f"\n\n---\n\n## {title}\n")
         parts.append(md_path.read_text(encoding="utf-8"))
     return "".join(parts)
@@ -439,14 +496,24 @@ def main() -> int:
 
     # wasm playground 的两件（R8.1）：JS 胶水是**源码**（`wasm/jishi-wasm.js`），
     # 拷过去；`jishi_wasm.wasm` 是**构建产物**，由 `tools/build_wasm.py` 生成
-    # —— 这里**只检查、不替人构建**（构建要 cargo + wasm 目标，不该藏在站点构建里）。
+    # —— 这里不替人构建（构建要 cargo + wasm 目标，不该藏在站点构建里），
+    # **但缺了就直接失败**。
+    #
+    # 🔴 2026-10-09：以前这里只是 print 一句警告 —— 于是「没构建 wasm 的站点」
+    #    照样能构建成功、照样能部署，线上试玩页就一直是坏的（实测线上到
+    #    R8.2 之后仍挂着旧的 Pyodide 页、`/jishi_wasm.wasm` 404）。
+    #    **警告不算数**：这类「跳过校验」必须与「校验通过」可区分。
     _shim = ROOT / "wasm" / "jishi-wasm.js"
-    if _shim.exists():
-        (OUT / _shim.name).write_bytes(_shim.read_bytes())
-        print(f"复制 wasm 胶水 → {OUT / _shim.name}")
+    if not _shim.exists():
+        raise SystemExit(f"❌ 缺 {_shim.relative_to(ROOT)} —— 试玩页跑不起来。"
+                         "它是源码，应随仓库一起在。")
+    (OUT / _shim.name).write_bytes(_shim.read_bytes())
+    print(f"复制 wasm 胶水 → {OUT / _shim.name}")
     if not (OUT / "jishi_wasm.wasm").exists():
-        print("⚠️ site/jishi_wasm.wasm 不存在 —— playground 跑不起来。"
-              "先跑：python tools/build_wasm.py")
+        raise SystemExit(
+            "❌ 缺 site/jishi_wasm.wasm —— 试玩页会加载失败，**不做半成品站点**。\n"
+            "   先跑：python tools/build_wasm.py（需要 cargo 与 wasm32 目标；\n"
+            "   `rustup target add wasm32-unknown-unknown`）")
 
     # Playground（M10.3 / R8.2）：浏览器试玩页
     # ⚠️ 引擎是 wasm（上面刚拷过去的两件），**不是**浏览器里的 Python —— 顺序不能反。

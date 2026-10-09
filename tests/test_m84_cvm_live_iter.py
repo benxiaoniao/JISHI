@@ -155,3 +155,24 @@ def test_失效后重取不跳元素(src, expect):
     with contextlib.redirect_stdout(buf):
         cvm_bind.run_source_c(src, filename="x.jsh")
     assert buf.getvalue() == expect
+
+
+def test_动态库定位指向仓库根():
+    """`cvm_bind` 认定的「仓库根」必须真的是仓库根。
+
+    🔴 2026-10-09 抓到的真 bug：R8.4 把 `jishi/` 搬成 `oracle/jishi/` 之后，
+    `cvm_bind._ROOT = parents[1]` 就把 **`oracle/`** 当成了仓库根 ⇒
+    `cvm/bin/` 永远找不到，只能退化去用 `_native/` 里那份**旧的**预编译库
+    （正是本文件上面注释说的那个坑）。**本地有残留的 `_native/jsvm.dll` 遮着**，
+    CI 干净检出上直接 `找不到 C 虚拟机动态库（libjsvm.so）`。
+
+    这条判据**不依赖有没有预编译产物** —— 它只问「路径算对了没」。
+    """
+    from oracle.jishi import cvm_bind
+
+    assert cvm_bind._ROOT == ROOT, (
+        f"cvm_bind._ROOT = {cvm_bind._ROOT}，应为仓库根 {ROOT}"
+        "（包从 `jishi/` 搬到 `oracle/jishi/` 之后要 `parents[2]`）")
+    assert cvm_bind._BIN == ROOT / "cvm" / "bin", cvm_bind._BIN
+    # 源码树里 `cvm/src/` 在 ⇒ 必须优先用 `cvm/bin/` 那份（R6.7 的机制）
+    assert (ROOT / "cvm" / "src").is_dir()

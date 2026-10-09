@@ -38,11 +38,15 @@ OUT = ROOT / "site"
 
 sys.path.insert(0, str(ROOT))
 
-#: ICP 备案号 —— **法定要求**：主页最下方展示，并链接工信部备案系统。
-#: 这类信息本身是**公开登记**，所以进仓库没问题；但**服务器地址 / 实例 ID /
-#: 备案主体信息**绝不能进仓库（见 `AGENTS.md` §8 与 `docs/路线图.md`）。
+#: ICP 备案号 + 公安联网备案号 —— **法定要求**：主页最下方展示，各自链接到
+#: 对应的备案查询系统。这类信息本身是**公开登记**，所以进仓库没问题；但
+#: **服务器地址 / 实例 ID / 备案主体信息**绝不能进仓库（见 `AGENTS.md` §8）。
 ICP_BEIAN = "苏ICP备2026073372号"
 ICP_URL = "https://beian.miit.gov.cn/"
+#: 公安联网备案：链接格式与图标是公安部备案系统规定的（图标随仓库放在 assets/）。
+POLICE_BEIAN = "苏公网安备32011402012805号"
+POLICE_URL = ("https://beian.mps.gov.cn/#/query/webSearch?code=32011402012805")
+POLICE_ICON = "assets/备案图标.png"
 GITHUB = "https://github.com/benxiaoniao/JISHI"
 
 #: 导航（所有页共用）
@@ -129,8 +133,10 @@ color:var(--muted);font-size:14px;text-align:center}
 footer .links{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;
 margin-bottom:14px}
 footer .links a{color:var(--muted)}
-footer .icp{margin-top:8px}
-footer .icp a{color:var(--muted)}
+footer .icp{margin-top:8px;display:flex;gap:16px;justify-content:center;
+flex-wrap:wrap;align-items:center}
+footer .icp a{color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+footer .icp img{height:16px;width:auto;display:block}
 .tag{display:inline-block;border:1px solid var(--border);border-radius:999px;
 padding:1px 10px;font-size:12.5px;color:var(--muted);margin-right:6px}
 .timeline{border-left:2px solid var(--border);margin:18px 0 6px;padding-left:20px}
@@ -284,7 +290,10 @@ def page(title: str, body: str, now: str, desc: str) -> str:
     <a href="{GITHUB}">GitHub</a>
   </div>
   <div>基石（jishi）· 一门中文编程语言 · MIT-0 许可</div>
-  <div class="icp"><a href="{ICP_URL}" target="_blank" rel="noopener noreferrer">{ICP_BEIAN}</a></div>
+  <div class="icp">
+    <a href="{ICP_URL}" target="_blank" rel="noopener noreferrer">{ICP_BEIAN}</a>
+    <a href="{POLICE_URL}" target="_blank" rel="noreferrer"><img src="{POLICE_ICON}" alt="公安备案图标">{POLICE_BEIAN}</a>
+  </div>
 </div></footer>
 </body>
 </html>
@@ -511,7 +520,7 @@ def build_index(spec: dict, ver: str) -> str:
 <h2>三分钟就能跑起来</h2>
 <p class="lead"><b>Windows</b> 下载 <code>jishi-{ver}-windows-x64-setup.exe</code>
 双击装（<b>不用先装 Python</b>）；Linux / macOS 有对应压缩包；
-想改代码的可以 <code>pip install git+…</code>。
+想改语言本身的看仓库的<b>源码构建</b>（cargo 单二进制，不再是 pip 装）。
 安装包<b>就放在本站</b>，不必去 GitHub —— <a href="download.html">下载页</a>
 有各平台的包和逐版本的升级说明。</p>
 {code(_hero_cmd, "装好之后：跑程序、做一次环境自检")}
@@ -526,6 +535,7 @@ def build_start(ver: str) -> str:
     # 才允许 f-string 表达式里有反斜杠，3.10/3.11 直接 SyntaxError ——
     # 而 CI 的 matrix 里有 3.10（2026-09-30 修：这条曾让 CI 的 3.10 一直红）。
     _cmd_linux = 'tar -xzf jishi-<版本>-linux-x64.tar.gz\\ncd jishi-<版本>-linux-x64 && bash install.sh'
+    _cmd_src = 'git clone https://github.com/benxiaoniao/JISHI.git\\ncd JISHI/rust && cargo build --release'
     _ex_hello = '令 名字 = "世界"\\n打印("你好，" + 名字 + "！")'
     _ex_calc = '令 单价 = 12.5\\n令 数量 = 3\\n打印(单价 * 数量)'
     _ex_loop = '遍历 数 在 范围(1, 6)：\\n    打印(数, "的平方是", 数 * 数)'
@@ -546,9 +556,10 @@ def build_start(ver: str) -> str:
     <p>解压后跑 <code>install.sh</code>。Linux 是 x64；macOS 目前<b>只有
     Apple 芯片（arm64）</b>版，没有 Intel 版。</p>
 {code(_cmd_linux)}</div>
-  <div class="card"><h3>③ 从源码装</h3>
-    <p>给想改代码的人：需要本机有 Python 3.10 以上。</p>
-    {code('pip install git+https://github.com/benxiaoniao/JISHI.git')}
+  <div class="card"><h3>③ 从源码构建（给要改语言本身的人）</h3>
+    <p>正式实现是 Rust，构建只要 cargo。<b>这不是安装方式</b> —— Python 那套
+    实现已退役，<b>没有 <code>pip install</code> 入口了</b>。</p>
+    {code(_cmd_src)}
     <p>⚠️ 这条路要连 GitHub，<b>大陆可能很慢甚至超时</b>。</p></div>
   <div class="card"><h3>④ 什么都不装</h3>
     <p>用<a href="playground.html">在线试玩</a> —— 浏览器里直接写、直接跑，
@@ -564,8 +575,9 @@ def build_start(ver: str) -> str:
 <code>jishi</code>，也可以在设置里指到别处）。</p>
 </div>
 <div class="note">
-<p><b>装完先跑一次 <code>jishi 医生</code>：</b>它会查版本、C 虚拟机、终端编码，
-以及<b>包索引通不通</b>（装第三方包要用这一步）。哪一步有问题，它会直接说怎么修。</p>
+<p><b>装完先跑一次 <code>jishi 医生</code>：</b>它会查版本、引擎与可执行文件位置、
+在不在 PATH 上、包目录、终端编码，以及<b>包索引通不通</b>（装第三方包要用这一步）。
+哪一步有问题，它会直接说怎么修。</p>
 </div>
 
 <h2>二、第一个程序</h2>
@@ -826,11 +838,12 @@ def build_examples(spec: dict) -> str:
 def build_progress(ver: str) -> str:
     total, passed = count_tests()
     ms = load_milestones()
-    recent = ms[-8:][::-1] if ms else []
-    items = "".join(
+    #: 展示 0.1.x 后段的里程碑（`ms` 来自归档的 `里程碑*.md` 的 `M*` 表行）。
+    older = ms[-8:][::-1] if ms else []
+    older_items = "".join(
         f'<div class="item"><b>{html.escape(num)}</b>'
         f'<span class="when">{html.escape(st)}</span><br>{html.escape(desc)}</div>'
-        for num, desc, st in recent)
+        for num, desc, st in older)
 
     test_line = (f"测试用例 {total} 项（{passed} 通过）" if total
                  else "测试用例见仓库")
@@ -842,65 +855,66 @@ def build_progress(ver: str) -> str:
 
 <div class="stats">
   <div class="stat"><div class="k">当前版本</div><div class="v">{ver}</div></div>
-  <div class="stat"><div class="k">里程碑</div><div class="v">{len(ms)}<small>个已完成</small></div></div>
   <div class="stat"><div class="k">测试</div><div class="v">{total or '—'}<small>项</small></div></div>
-  <div class="stat"><div class="k">引擎</div><div class="v">5</div></div>
+  <div class="stat"><div class="k">标准库</div><div class="v">25<small>个模块</small></div></div>
+  <div class="stat"><div class="k">执行器</div><div class="v">5<small>行为一致</small></div></div>
 </div>
 <p>{test_line}，每次改动都要全量回归通过才提交。</p>
 
-<h2>最近这些里程碑在做的事</h2>
-<div class="timeline">{items}</div>
-<p>完整的里程碑明细（M0 起逐条）在
-<a href="docs/语言规格.html">文档</a>与仓库的 <code>PROGRESS.md</code> 里。</p>
-
-<h2>最近一轮：让「装得上」在中国大陆成立</h2>
-<p>M49 做的是分发。原先装包默认走 GitHub，<b>大陆访问时通时不通</b>
-（实测 <code>git</code> 拉取会整段超时）—— 这不算「能用」。</p>
+<h2>0.2.x「架构变革」已收官</h2>
+<p>这一段做的是<b>把实现整个换掉</b>：前端与宿主从 Python 换到 Rust，
+发行物换成一个二进制。到 <b>v0.2.2</b> 全部交付。</p>
+<div class="stats">
+  <div class="stat"><div class="k">发行包</div><div class="v">2.91 MB<small>单二进制 · 启动 &lt;100 ms</small></div></div>
+  <div class="stat"><div class="k">在线试玩</div><div class="v">wasm<small>页面 432KB → 7KB</small></div></div>
+  <div class="stat"><div class="k">正式实现</div><div class="v">2<small>Rust 与 C</small></div></div>
+  <div class="stat"><div class="k">一致性</div><div class="v">逐字节<small>103 语料 × 四阶段</small></div></div>
+</div>
 <ul>
-  <li><b>官网与自建源上线</b>：<a href="https://xn--3jsy75e.cn/">基石.cn</a>
-  用上了自己的域名，源站在大陆 —— <b>包索引和发行包都托管在这里</b>。</li>
-  <li><b>两个索引源按优先级回退</b>：自建源优先、GitHub 兜底；一个源读不到
-  就自动换下一个，不用你重试，也不用等一个长超时。</li>
-  <li><b>报错给做法</b>：全都连不上时，列清试过哪些地址（含失败原因），并给出
-  <code>--index</code> / <code>--local-zip</code> 两条能照做的路。</li>
-  <li><b><code>jishi 医生</code> 能体检索引</b>：装包之前先看清哪个源通、里面有多少包。</li>
+  <li><b>前端整条链换 Rust</b>：源码 → 词法 → 语法 → 字节码，端到端 <b>5.37×</b>，
+  与 Python 侧<b>逐字节一致</b>（103 个语料 × 四阶段守着）。</li>
+  <li><b>发行包改成一个 cargo 二进制</b>：从 249 个文件 / 约 20 MB
+  降到 <b>13 个文件 / 2.91 MB</b>，<b>运行时不依赖 Python</b>。</li>
+  <li><b>四条路都不再需要 Python</b>：编辑器（LSP / DAP）、AI agent（MCP）、
+  脚本（CLI）、包管理，全由一个二进制提供。</li>
+  <li><b>在线试玩改跑 wasm</b>：浏览器里跑的就是上面这份引擎
+  （同一份 Rust 前端 + 字节码 VM + 原生标准库），不再从 CDN 拉一份 Python。</li>
+  <li><b>Python / Node 两套实现退役</b>：挪到 <code>oracle/</code>，只作
+  「多执行器逐字节一致」这条纪律的<b>判据基准</b>与参考实现。</li>
 </ul>
+<p>每一步的完整记录见 <a href="docs/版本历史/R线交付记录.html">R 线交付记录</a>。</p>
 
-<h2>上一轮：把报错变成「能照着做」</h2>
-<p>M56 分了四批，全都围绕同一件事 —— <b>出问题的时候别让人猜</b>：</p>
-<ul>
-  <li><b>内建体检</b>：给每一个内建写一条最小程序，在五个引擎上真跑一遍。
-  建起来当场就抓到「<code>超()</code> 在两个宿主上根本不能用」。</li>
-  <li><b>宿主报错对齐</b>：Node 有 16 个内建的参数检查是缺的（其中 3 个会
-  <b>静默给错答案</b>），Rust 的异常丢了消息 —— 都补上了，现在五边逐字一致。</li>
-  <li><b>错误码索引</b>：新增 <code>jishi 错误 E0301</code>，32 个码都能查
-  「什么意思 / 常见成因 / 怎么改」。</li>
-  <li><b>文件语义</b>：位置口径、换行符、按字符读，三个只在中文/CRLF 上才暴露的
-  不一致全修了（顺带修掉一个「把汉字切两半然后怪文件不是 UTF-8」的误导性报错）。</li>
-  <li><b>提示语</b>：两个宿主也能说「你是不是想写「长度」？」了 ——
-  为此把 Python 的 <code>difflib</code> 逐字复刻进了 JS 与 Rust，
-  并用 4000 组随机对拍确认一致。</li>
-</ul>
+<h2>更早的里程碑（0.1.x 后段）</h2>
+<div class="timeline">{older_items}</div>
+<p>M0 起逐条的完整明细见
+<a href="docs/版本历史/里程碑.html">里程碑（0.1.x）</a> 与
+<a href="docs/版本历史/里程碑-0.2.html">里程碑（0.2.x + R 线）</a>,
+以及 <a href="docs/版本历史/README.html">版本历史说明</a>。</p>
 
 <h2>还没做 / 做不好的</h2>
 <div class="note warn">
-<p><b>生态。</b>第三方包管理能用（<code>jishi 安装 基础库</code>），
+<p><b>标准库还不够全。</b>现有 25 个中文模块，覆盖数学、时间日期、文本、表格、
+正则、编码、压缩、文件、网络这些日常最常碰的；但<b>还谈不上「应有尽有」</b>
+—— 这正是下一步第一件要做的事。</p>
+<p><b>生态还小。</b>第三方包管理能用（<code>jishi 安装 基础库</code>），
 但仓库里目前只有几个演示包。没有「装个库解决一切」的体验。</p>
-<p><b>性能。</b>做过针对性优化（C 虚拟机的字符串已原生实现），
-容器密集读的场景仍慢于 CPython。没有拿它跟别的语言比过总体跑分 ——
-因为没测过的东西不该写。</p>
-<p><b>平台。</b>Windows 上功能最全（作者用的就是 Windows）；Linux/macOS
-能跑但要自己编译 C 虚拟机；手机、WebAssembly 都还没做。</p>
-<p><b>标准库还有缺口。</b>比如 <code>时间.计时</code> 一处已知缺口，
-如实写在测试里，没有藏。</p>
+<p><b>有些场景它更慢。</b>C 虚拟机在纯计算场景最快约 40×，但容器密集读的
+场景仍慢于 CPython。没测过的东西不写 —— 具体数字都在文档里。</p>
+<p><b>平台。</b>Windows / Linux / macOS 三平台都有发行包（macOS 只有 Apple 芯片）；
+手机端没做。</p>
 </div>
 
 <h2>接下来想做的</h2>
-<ul>
-  <li><b>性能</b>：先量再改 —— C 虚拟机的容器读侧是已知的短板。</li>
-  <li><b>对模型更友好</b>：让大模型更容易写对基石（语言卡、示例库、错误码都已就位）。</li>
-  <li><b>文档与教程</b>：继续补真实场景的写法。</li>
-</ul>
+<p>0.2.x 把「实现换完、装得上、跑得起来」这件事结了。下一步分两段走：</p>
+<ol>
+  <li><b>先把标准库补充完整。</b>按<b>真实项目驱动</b>定范围 —— 拿几个真实小程序
+  去跑，看它们缺什么，按<b>实际缺口</b>补，而不是照别的语言抄一份清单。
+  补一处就补一条判据（五个引擎同宽）。</li>
+  <li><b>再往「契合 AI」上深入。</b>语言事实已经机器可读（语言卡 / 结构化报错 /
+  错误码 / few-shot 示例库）。下一步让大模型<b>更容易一次写对</b>：
+  常见任务的惯用写法、更可操作的报错、以及能真跑通的示例。</li>
+</ol>
+<p>版本号连续推进（0.2.3、0.2.4…），不跳号。</p>
 
 <div class="note">
 <p>这个项目的做事方式是：<b>每个里程碑都要有可演示的成果 + 测试护航</b>，
@@ -908,8 +922,8 @@ def build_progress(ver: str) -> str:
 </div>
 """
     return page("进展 · 基石（jishi）", body, "progress.html",
-                "基石走到哪了：里程碑时间线、最近四批交付、以及如实写下的"
-                "已知边界与下一步计划。")
+                "基石走到哪了：R 线里程碑收官、如实写下的已知边界，"
+                "以及下一步「先把标准库补全、再契合 AI」的计划。")
 
 
 # ---------------------------------------------------------------------------

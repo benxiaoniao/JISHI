@@ -86,6 +86,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         white-space:pre-wrap; word-break:break-word; margin:0; }
   pre.err { color:#ff7b72; }
   .hint { color:var(--muted); font-size:12px; margin-top:8px; line-height:1.7; }
+  .pg-foot { border-top:1px solid var(--border); margin-top:26px; padding:16px 0 30px;
+             display:flex; gap:16px; flex-wrap:wrap; align-items:center;
+             justify-content:center; font-size:12.5px; color:var(--muted); }
+  .pg-foot a { color:var(--muted); display:inline-flex; align-items:center; gap:5px;
+               text-decoration:none; }
+  .pg-foot a:hover { text-decoration:underline; }
+  .pg-foot img { height:16px; width:auto; display:block; }
   code { font-family:var(--mono); background:rgba(127,127,127,.14);
          padding:1px 4px; border-radius:4px; }
 </style>
@@ -110,6 +117,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     首次加载约 <b>1.5 MB</b>，之后由浏览器缓存；死循环会被步数预算拦下，
     不会冻住页面。快捷键：<code>Ctrl↵</code> 运行。
   </div>
+  <footer class="pg-foot">
+    <a href="__ICP_URL__" target="_blank" rel="noopener noreferrer">__ICP__</a>
+    <a href="__POLICE_URL__" target="_blank" rel="noreferrer"><img src="assets/备案图标.png" alt="公安备案图标">__POLICE__</a>
+  </footer>
 </div>
 
 <script src="jishi-wasm.js"></script>
@@ -209,7 +220,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
 def build() -> None:
     """把模板写进 `OUT`（模块级变量，测试可 monkeypatch）。"""
-    page = HTML_TEMPLATE.replace("__SAMPLE__", _html.escape(SAMPLE, quote=False))
+    #: 备案信息与官网页脚**共用一处**（法定要求：主页最下方展示）。
+    from build_home import ICP_BEIAN, ICP_URL, POLICE_BEIAN, POLICE_URL
+    page = (HTML_TEMPLATE
+            .replace("__SAMPLE__", _html.escape(SAMPLE, quote=False))
+            .replace("__ICP_URL__", ICP_URL)
+            .replace("__ICP__", _html.escape(ICP_BEIAN))
+            .replace("__POLICE_URL__", POLICE_URL)
+            .replace("__POLICE__", _html.escape(POLICE_BEIAN)))
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(page, encoding="utf-8")
     try:
