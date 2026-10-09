@@ -474,7 +474,7 @@ def build_index(spec: dict, ver: str) -> str:
   <div class="stat"><div class="k">当前版本</div><div class="v">{ver}<small>早期</small></div></div>
   {test_cell}
   <div class="stat"><div class="k">标准库</div><div class="v">{len(spec['stdlib'])}<small>模块 · {n_fn} 函数</small></div></div>
-  <div class="stat"><div class="k">引擎</div><div class="v">5<small>个，行为一致</small></div></div>
+  <div class="stat"><div class="k">执行器</div><div class="v">5<small>个，逐字节一致</small></div></div>
   <div class="stat"><div class="k">真实项目</div><div class="v">{len(projects)}<small>个在仓库里</small></div></div>
 </div>
 
@@ -484,9 +484,10 @@ def build_index(spec: dict, ver: str) -> str:
     <p>不是「把英文关键词翻译一遍」，而是按中文语序取名：
     <code>遍历 名字 在 名单</code>、<code>如果 分数 &gt;= 90</code>。
     {len(spec['keywords'])} 个关键字、{len(spec['builtins'])} 个内建，全是日常词。</p></div>
-  <div class="card"><h3>五个引擎，结果一致</h3>
-    <p>树遍历、Python 字节码 VM、C 虚拟机，外加 Node 与 Rust 两个跨语言宿主 ——
-    同一段程序在五边跑出来的输出<b>逐字节相同</b>，有对拍测试盯着。</p></div>
+  <div class="card"><h3>多套实现，结果一致</h3>
+    <p><b>Rust</b>（前端 + 字节码 VM + 完整宿主）与 <b>C 虚拟机</b>是两份正式实现；
+    Python、Node 两套已退役到 <code>oracle/</code>，只作判据基准。同一段程序在
+    各执行器上跑出来的输出<b>逐字节相同</b>，每次提交全量对拍。</p></div>
   <div class="card"><h3>报错直接告诉你怎么办</h3>
     <p>错误码 + 行列位置 + 修法提示。写错名字会说
     「你是不是想写「长度」？」；拿到错误码还能反查：
@@ -526,7 +527,7 @@ def build_index(spec: dict, ver: str) -> str:
 {code(_hero_cmd, "装好之后：跑程序、做一次环境自检")}
 """
     return page("基石（jishi）—— 一门中文编程语言", body, "index.html",
-                "基石是一门中文编程语言，关键字与报错都是中文。五个引擎语义一致，"
+                "基石是一门中文编程语言，关键字与报错都是中文。多套实现逐字节一致，"
                 "标准库 25 个中文模块。看语法、看示例、直接上手。")
 
 
@@ -698,8 +699,9 @@ def build_features(spec: dict) -> str:
 <p>有些中文编程工具是把中文先翻成 Python 再跑 —— 那样报错位置、调用栈、
 性能都会走样。基石是**自己实现的语言**：有自己的词法、语法、字节码与虚拟机，
 报错里给的是基石的行列位置，<code>jishi 错误 E0301</code> 查的也是基石的错误码。</p>
-<p>它还带了两个跨语言宿主（Node 与 Rust），四个实现跑同一份字节码，
-输出必须逐字节一致 —— 这条有测试盯着，不一致就是 bug。</p>
+<p>而且实现不只一份：<b>Rust</b>（前端 + 字节码 VM + 完整宿主）与 <b>C 虚拟机</b>
+是两份正式实现，另有 Python / Node 两套只作判据基准 —— 同一段程序跑出来的
+字节码与输出必须<b>逐字节一致</b>，这条有测试盯着，不一致就是 bug。</p>
 </div>
 
 <h2>尚未定型的地方</h2>
@@ -857,7 +859,7 @@ def build_progress(ver: str) -> str:
   <div class="stat"><div class="k">当前版本</div><div class="v">{ver}</div></div>
   <div class="stat"><div class="k">测试</div><div class="v">{total or '—'}<small>项</small></div></div>
   <div class="stat"><div class="k">标准库</div><div class="v">25<small>个模块</small></div></div>
-  <div class="stat"><div class="k">执行器</div><div class="v">5<small>行为一致</small></div></div>
+  <div class="stat"><div class="k">执行器</div><div class="v">5<small>个，逐字节一致</small></div></div>
 </div>
 <p>{test_line}，每次改动都要全量回归通过才提交。</p>
 
@@ -909,7 +911,7 @@ def build_progress(ver: str) -> str:
 <ol>
   <li><b>先把标准库补充完整。</b>按<b>真实项目驱动</b>定范围 —— 拿几个真实小程序
   去跑，看它们缺什么，按<b>实际缺口</b>补，而不是照别的语言抄一份清单。
-  补一处就补一条判据（五个引擎同宽）。</li>
+  补一处就补一条判据（各执行器同宽）。</li>
   <li><b>再往「契合 AI」上深入。</b>语言事实已经机器可读（语言卡 / 结构化报错 /
   错误码 / few-shot 示例库）。下一步让大模型<b>更容易一次写对</b>：
   常见任务的惯用写法、更可操作的报错、以及能真跑通的示例。</li>
