@@ -242,3 +242,30 @@ def test_命名参数里keyword_only的不算进位置个数():
            '打印(json.dumps({"甲": 1}, ensure_ascii=假))\n')
     ok, out = _py(src)
     assert ok, f"keyword-only 的命名参数被误算成位置参数了：{out[:200]}"
+
+
+def test_机器架构的平台映射表_三平台都齐():
+    r"""`系统.机器架构` 在三个平台上**各是什么值** —— 把 Rust 侧那张映射表钉住。
+
+    为什么要在**源码**上钉：这个值各平台不同（Windows `AMD64` / Linux `x86_64` /
+    macOS `arm64`），而 **Rust 的 `ARCH` 与宿主 `uname -m` 有两处对不上名**：
+
+    | 平台 | `uname -m`（= `platform.machine()`） | Rust 的 `std::env::consts::ARCH` |
+    |---|---|---|
+    | Windows | `AMD64` | `x86_64` |
+    | **macOS arm64** | **`arm64`** | **`aarch64`** |
+
+    这两处都只有**跑到那个平台**才会红 —— 2026-10-10 就是先在 CI 的 macos-arm64
+    上红了一次（Rust 给 `aarch64`、其余四个给 `arm64`），而本机（Windows）怎么跑
+    都绿。这条判据**在任何平台上都会当场报出来**，不用等 macOS 那轮。
+    """
+    src = (ROOT / "rust" / "src" / "stdlib" / "system.rs").read_text(encoding="utf-8")
+    for want, why in (
+        ('("windows", "x86_64") => "AMD64"', "Windows 上 Python 给 AMD64"),
+        ('("windows", "aarch64") => "ARM64"', "Windows on ARM 上 Python 给 ARM64"),
+        ('("macos", "aarch64") => "arm64"',
+         "Apple 的 uname -m 给 arm64，Rust 的 ARCH 是 aarch64 —— 必须翻"),
+    ):
+        assert want in src, f"`machine()` 少了这条映射（{why}）：{want}"
+    # 兜底那支要在（Linux 两边同名，原样输出即可）
+    assert "(_, arch) => arch.to_string()" in src, "少了兜底分支"

@@ -80,13 +80,20 @@ fn os_name() -> String {
     }
 }
 
-/// `platform.machine()` 的名字。Windows 上 Python 给 `AMD64`，
-/// 而 Rust 的 `ARCH` 一律是 `x86_64`——所以要翻译一次。
+/// `platform.machine()` 的名字 —— **五执行器必须逐字一致**（`probe_stdlib.py` 会比）。
+///
+/// 坑都在「Rust 的名字与宿主 `uname -m` 不一样」上：
+/// * Windows：Python 给 `AMD64`，Rust 的 `ARCH` 是 `x86_64` ⇒ 要翻；
+/// * **macOS arm64**：Apple 的 `uname -m` 给 **`arm64`**，而 Rust 的 `ARCH` 是
+///   **`aarch64`** ⇒ 也要翻（2026-10-10 在 CI 的 macos-arm64 上抓到，
+///   Windows / Linux 都复现不了）；
+/// * Linux：两边都叫 `x86_64` / `aarch64` ⇒ 原样即可。
 fn machine() -> String {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("windows", "x86_64") => "AMD64".to_string(),
         ("windows", "x86") => "x86".to_string(),
         ("windows", "aarch64") => "ARM64".to_string(),
+        ("macos", "aarch64") => "arm64".to_string(),
         (_, arch) => arch.to_string(),
     }
 }
