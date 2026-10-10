@@ -1,0 +1,3088 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 9,
+        "name": "html",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 10,
+        "name": "文件",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 11,
+        "name": "json",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 12,
+        "name": "文本",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "line": 14,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "待办文件",
+          "line": 14,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 10,
+          "line": 14,
+          "value": "待办.json",
+          "类型": "Str"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 15,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "页面文件",
+          "line": 15,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 10,
+          "line": 15,
+          "value": "待办.html",
+          "类型": "Str"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 16,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "默认待办",
+          "line": 16,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 10,
+          "elements": [
+            {
+              "col": 11,
+              "line": 16,
+              "value": "买菜",
+              "类型": "Str"
+            },
+            {
+              "col": 17,
+              "line": 16,
+              "value": "写周报",
+              "类型": "Str"
+            },
+            {
+              "col": 24,
+              "line": 16,
+              "value": "给猫铲屎",
+              "类型": "Str"
+            }
+          ],
+          "line": 16,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "annotations": [],
+        "body": [
+          {
+            "branches": [
+              [
+                {
+                  "col": 8,
+                  "line": 20,
+                  "op": "非",
+                  "operand": {
+                    "args": [
+                      {
+                        "col": 18,
+                        "id": "待办文件",
+                        "line": 20,
+                        "类型": "Name"
+                      }
+                    ],
+                    "col": 17,
+                    "func": {
+                      "attr": "文件存在",
+                      "col": 12,
+                      "line": 20,
+                      "obj": {
+                        "col": 10,
+                        "id": "文件",
+                        "line": 20,
+                        "类型": "Name"
+                      },
+                      "类型": "Attr"
+                    },
+                    "keywords": [],
+                    "line": 20,
+                    "类型": "Call"
+                  },
+                  "类型": "UnaryOp"
+                },
+                [
+                  {
+                    "col": 9,
+                    "line": 21,
+                    "value": {
+                      "col": 12,
+                      "id": "默认待办",
+                      "line": 21,
+                      "类型": "Name"
+                    },
+                    "类型": "Return"
+                  }
+                ]
+              ]
+            ],
+            "col": 5,
+            "line": 20,
+            "orelse": null,
+            "类型": "If"
+          },
+          {
+            "body": [
+              {
+                "col": 9,
+                "line": 23,
+                "value": {
+                  "args": [
+                    {
+                      "col": 21,
+                      "id": "待办文件",
+                      "line": 23,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 20,
+                  "func": {
+                    "attr": "读文件",
+                    "col": 16,
+                    "line": 23,
+                    "obj": {
+                      "col": 12,
+                      "id": "json",
+                      "line": 23,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 23,
+                  "类型": "Call"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "finalbody": null,
+            "handlers": [
+              {
+                "body": [
+                  {
+                    "col": 9,
+                    "line": 25,
+                    "value": {
+                      "col": 12,
+                      "id": "默认待办",
+                      "line": 25,
+                      "类型": "Name"
+                    },
+                    "类型": "Return"
+                  }
+                ],
+                "col": 5,
+                "line": 24,
+                "name": null,
+                "type": {
+                  "col": 8,
+                  "id": "异常",
+                  "line": 24,
+                  "类型": "Name"
+                },
+                "类型": "ExceptHandler"
+              }
+            ],
+            "line": 22,
+            "类型": "Try"
+          }
+        ],
+        "col": 1,
+        "defaults": [],
+        "line": 19,
+        "name": "读待办",
+        "param_kind": [],
+        "params": [],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 29,
+            "value": {
+              "col": 10,
+              "left": {
+                "col": 10,
+                "left": {
+                  "col": 10,
+                  "left": {
+                    "col": 10,
+                    "left": {
+                      "col": 10,
+                      "left": {
+                        "col": 9,
+                        "line": 29,
+                        "value": "<!doctype html>\n<html>\n",
+                        "类型": "Str"
+                      },
+                      "line": 30,
+                      "op": "+",
+                      "right": {
+                        "args": [
+                          {
+                            "col": 20,
+                            "line": 30,
+                            "value": "meta",
+                            "类型": "Str"
+                          },
+                          {
+                            "col": 28,
+                            "keys": [
+                              {
+                                "col": 29,
+                                "line": 30,
+                                "value": "charset",
+                                "类型": "Str"
+                              }
+                            ],
+                            "line": 30,
+                            "values": [
+                              {
+                                "col": 40,
+                                "line": 30,
+                                "value": "utf-8",
+                                "类型": "Str"
+                              }
+                            ],
+                            "类型": "Dict"
+                          }
+                        ],
+                        "col": 19,
+                        "func": {
+                          "attr": "空元素",
+                          "col": 15,
+                          "line": 30,
+                          "obj": {
+                            "col": 11,
+                            "id": "html",
+                            "line": 30,
+                            "类型": "Name"
+                          },
+                          "类型": "Attr"
+                        },
+                        "keywords": [],
+                        "line": 30,
+                        "类型": "Call"
+                      },
+                      "类型": "BinOp"
+                    },
+                    "line": 31,
+                    "op": "+",
+                    "right": {
+                      "col": 11,
+                      "line": 31,
+                      "value": "\n<title>待办</title>\n",
+                      "类型": "Str"
+                    },
+                    "类型": "BinOp"
+                  },
+                  "line": 32,
+                  "op": "+",
+                  "right": {
+                    "args": [
+                      {
+                        "col": 19,
+                        "line": 32,
+                        "value": "h1",
+                        "类型": "Str"
+                      },
+                      {
+                        "col": 25,
+                        "line": 32,
+                        "value": "待办清单",
+                        "类型": "Str"
+                      }
+                    ],
+                    "col": 18,
+                    "func": {
+                      "attr": "标签",
+                      "col": 15,
+                      "line": 32,
+                      "obj": {
+                        "col": 11,
+                        "id": "html",
+                        "line": 32,
+                        "类型": "Name"
+                      },
+                      "类型": "Attr"
+                    },
+                    "keywords": [],
+                    "line": 32,
+                    "类型": "Call"
+                  },
+                  "类型": "BinOp"
+                },
+                "line": 33,
+                "op": "+",
+                "right": {
+                  "args": [
+                    {
+                      "col": 21,
+                      "id": "待办们",
+                      "line": 33,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 20,
+                  "func": {
+                    "attr": "无序列表",
+                    "col": 15,
+                    "line": 33,
+                    "obj": {
+                      "col": 11,
+                      "id": "html",
+                      "line": 33,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 33,
+                  "类型": "Call"
+                },
+                "类型": "BinOp"
+              },
+              "line": 34,
+              "op": "+",
+              "right": {
+                "col": 11,
+                "line": 34,
+                "value": "\n</html>\n",
+                "类型": "Str"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 28,
+        "name": "生成页面",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "待办们"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [],
+        "body": [
+          {
+            "col": 5,
+            "line": 38,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "待办们",
+              "line": 38,
+              "类型": "Name"
+            },
+            "value": {
+              "args": [],
+              "col": 16,
+              "func": {
+                "col": 13,
+                "id": "读待办",
+                "line": 38,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 38,
+              "类型": "Call"
+            },
+            "类型": "Assign"
+          },
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 12,
+                  "id": "页面文件",
+                  "line": 39,
+                  "类型": "Name"
+                },
+                {
+                  "args": [
+                    {
+                      "col": 23,
+                      "id": "待办们",
+                      "line": 39,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 22,
+                  "func": {
+                    "col": 18,
+                    "id": "生成页面",
+                    "line": 39,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 39,
+                  "类型": "Call"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "写文本",
+                "col": 7,
+                "line": 39,
+                "obj": {
+                  "col": 5,
+                  "id": "文件",
+                  "line": 39,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 39,
+              "类型": "Call"
+            },
+            "line": 39,
+            "类型": "ExprStmt"
+          },
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 15,
+                      "line": 40,
+                      "value": "已生成 {}，共 {} 条",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 32,
+                      "id": "页面文件",
+                      "line": 40,
+                      "类型": "Name"
+                    },
+                    {
+                      "args": [
+                        {
+                          "col": 41,
+                          "id": "待办们",
+                          "line": 40,
+                          "类型": "Name"
+                        }
+                      ],
+                      "col": 40,
+                      "func": {
+                        "col": 38,
+                        "id": "长度",
+                        "line": 40,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 40,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "格式化",
+                    "col": 10,
+                    "line": 40,
+                    "obj": {
+                      "col": 8,
+                      "id": "文本",
+                      "line": 40,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 40,
+                  "类型": "Call"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 5,
+                "id": "打印",
+                "line": 40,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 40,
+              "类型": "Call"
+            },
+            "line": 40,
+            "类型": "ExprStmt"
+          },
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 8,
+                  "line": 41,
+                  "value": "请手动打开它 —— 页面里改不了内容，改完还得重新跑一遍（见绕道 R006）",
+                  "类型": "Str"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 5,
+                "id": "打印",
+                "line": 41,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 41,
+              "类型": "Call"
+            },
+            "line": 41,
+            "类型": "ExprStmt"
+          }
+        ],
+        "col": 1,
+        "defaults": [],
+        "line": 37,
+        "name": "主程序",
+        "param_kind": [],
+        "params": [],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [],
+          "col": 4,
+          "func": {
+            "col": 1,
+            "id": "主程序",
+            "line": 44,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 44,
+          "类型": "Call"
+        },
+        "line": 44,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "67c7b9094ea119a73854d7e6e14617d4597dc14498b24141b7c9f4e96aa5fe34",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            9,
+            1,
+            3,
+            0,
+            0,
+            0,
+            9,
+            1,
+            31,
+            1,
+            0,
+            -1,
+            10,
+            1,
+            3,
+            1,
+            0,
+            0,
+            10,
+            1,
+            31,
+            2,
+            0,
+            -1,
+            11,
+            1,
+            3,
+            2,
+            0,
+            0,
+            11,
+            1,
+            31,
+            3,
+            0,
+            -1,
+            12,
+            1,
+            3,
+            3,
+            0,
+            0,
+            12,
+            1,
+            1,
+            0,
+            0,
+            0,
+            14,
+            10,
+            3,
+            4,
+            0,
+            0,
+            14,
+            1,
+            1,
+            1,
+            0,
+            0,
+            15,
+            10,
+            3,
+            5,
+            0,
+            0,
+            15,
+            1,
+            1,
+            2,
+            0,
+            0,
+            16,
+            11,
+            1,
+            3,
+            0,
+            0,
+            16,
+            17,
+            1,
+            4,
+            0,
+            0,
+            16,
+            24,
+            23,
+            3,
+            0,
+            0,
+            16,
+            10,
+            3,
+            6,
+            0,
+            0,
+            16,
+            1,
+            22,
+            1,
+            0,
+            0,
+            19,
+            1,
+            3,
+            10,
+            0,
+            0,
+            19,
+            1,
+            22,
+            2,
+            0,
+            0,
+            28,
+            1,
+            3,
+            15,
+            0,
+            0,
+            28,
+            1,
+            22,
+            3,
+            0,
+            0,
+            37,
+            1,
+            3,
+            20,
+            0,
+            0,
+            37,
+            1,
+            2,
+            20,
+            0,
+            0,
+            44,
+            1,
+            20,
+            0,
+            -1,
+            0,
+            44,
+            4,
+            38,
+            0,
+            0,
+            0,
+            44,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 19,
+          "freevars": [],
+          "instrs": [
+            2,
+            1,
+            0,
+            0,
+            20,
+            10,
+            25,
+            7,
+            0,
+            0,
+            20,
+            12,
+            2,
+            4,
+            0,
+            0,
+            20,
+            18,
+            20,
+            1,
+            -1,
+            0,
+            20,
+            17,
+            14,
+            1,
+            0,
+            0,
+            20,
+            8,
+            17,
+            9,
+            0,
+            0,
+            20,
+            8,
+            2,
+            6,
+            0,
+            0,
+            21,
+            12,
+            21,
+            0,
+            0,
+            0,
+            21,
+            9,
+            16,
+            9,
+            0,
+            0,
+            20,
+            5,
+            39,
+            17,
+            -1,
+            0,
+            22,
+            5,
+            2,
+            2,
+            0,
+            0,
+            23,
+            12,
+            25,
+            8,
+            0,
+            0,
+            23,
+            16,
+            2,
+            4,
+            0,
+            0,
+            23,
+            21,
+            20,
+            1,
+            -1,
+            0,
+            23,
+            20,
+            21,
+            0,
+            0,
+            0,
+            23,
+            9,
+            40,
+            0,
+            0,
+            0,
+            22,
+            5,
+            16,
+            26,
+            0,
+            0,
+            22,
+            5,
+            42,
+            25,
+            0,
+            0,
+            22,
+            5,
+            2,
+            9,
+            0,
+            0,
+            24,
+            8,
+            43,
+            0,
+            0,
+            0,
+            24,
+            5,
+            17,
+            25,
+            0,
+            0,
+            24,
+            5,
+            9,
+            0,
+            0,
+            0,
+            24,
+            5,
+            2,
+            6,
+            0,
+            0,
+            25,
+            12,
+            21,
+            0,
+            0,
+            0,
+            25,
+            9,
+            16,
+            26,
+            0,
+            0,
+            24,
+            5,
+            41,
+            0,
+            0,
+            0,
+            22,
+            5,
+            1,
+            5,
+            0,
+            0,
+            19,
+            1,
+            21,
+            0,
+            0,
+            0,
+            19,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "读待办",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 28,
+          "freevars": [],
+          "instrs": [
+            1,
+            6,
+            0,
+            0,
+            29,
+            9,
+            2,
+            0,
+            0,
+            0,
+            30,
+            11,
+            25,
+            12,
+            0,
+            0,
+            30,
+            15,
+            1,
+            7,
+            0,
+            0,
+            30,
+            20,
+            1,
+            8,
+            0,
+            0,
+            30,
+            29,
+            1,
+            9,
+            0,
+            0,
+            30,
+            40,
+            24,
+            1,
+            0,
+            0,
+            30,
+            28,
+            20,
+            2,
+            -1,
+            0,
+            30,
+            19,
+            13,
+            0,
+            0,
+            0,
+            30,
+            10,
+            1,
+            10,
+            0,
+            0,
+            31,
+            11,
+            13,
+            0,
+            0,
+            0,
+            31,
+            10,
+            2,
+            0,
+            0,
+            0,
+            32,
+            11,
+            25,
+            13,
+            0,
+            0,
+            32,
+            15,
+            1,
+            11,
+            0,
+            0,
+            32,
+            19,
+            1,
+            12,
+            0,
+            0,
+            32,
+            25,
+            20,
+            2,
+            -1,
+            0,
+            32,
+            18,
+            13,
+            0,
+            0,
+            0,
+            32,
+            10,
+            2,
+            0,
+            0,
+            0,
+            33,
+            11,
+            25,
+            14,
+            0,
+            0,
+            33,
+            15,
+            4,
+            0,
+            0,
+            0,
+            33,
+            21,
+            20,
+            1,
+            -1,
+            0,
+            33,
+            20,
+            13,
+            0,
+            0,
+            0,
+            33,
+            10,
+            1,
+            13,
+            0,
+            0,
+            34,
+            11,
+            13,
+            0,
+            0,
+            0,
+            34,
+            10,
+            21,
+            0,
+            0,
+            0,
+            29,
+            5,
+            1,
+            5,
+            0,
+            0,
+            28,
+            1,
+            21,
+            0,
+            0,
+            0,
+            28,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "待办们"
+          ],
+          "name": "生成页面",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            11
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "待办们"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 37,
+          "freevars": [],
+          "instrs": [
+            2,
+            10,
+            0,
+            0,
+            38,
+            13,
+            20,
+            0,
+            -1,
+            0,
+            38,
+            16,
+            5,
+            0,
+            0,
+            0,
+            38,
+            5,
+            2,
+            1,
+            0,
+            0,
+            39,
+            5,
+            25,
+            16,
+            0,
+            0,
+            39,
+            7,
+            2,
+            5,
+            0,
+            0,
+            39,
+            12,
+            2,
+            15,
+            0,
+            0,
+            39,
+            18,
+            4,
+            0,
+            0,
+            0,
+            39,
+            23,
+            20,
+            1,
+            -1,
+            0,
+            39,
+            22,
+            20,
+            2,
+            -1,
+            0,
+            39,
+            11,
+            9,
+            0,
+            0,
+            0,
+            39,
+            5,
+            2,
+            17,
+            0,
+            0,
+            40,
+            5,
+            2,
+            3,
+            0,
+            0,
+            40,
+            8,
+            25,
+            18,
+            0,
+            0,
+            40,
+            10,
+            1,
+            14,
+            0,
+            0,
+            40,
+            15,
+            2,
+            5,
+            0,
+            0,
+            40,
+            32,
+            2,
+            19,
+            0,
+            0,
+            40,
+            38,
+            4,
+            0,
+            0,
+            0,
+            40,
+            41,
+            20,
+            1,
+            -1,
+            0,
+            40,
+            40,
+            20,
+            3,
+            -1,
+            0,
+            40,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            40,
+            7,
+            9,
+            0,
+            0,
+            0,
+            40,
+            5,
+            2,
+            17,
+            0,
+            0,
+            41,
+            5,
+            1,
+            15,
+            0,
+            0,
+            41,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            41,
+            7,
+            9,
+            0,
+            0,
+            0,
+            41,
+            5,
+            1,
+            5,
+            0,
+            0,
+            37,
+            1,
+            21,
+            0,
+            0,
+            0,
+            37,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "待办们"
+          ],
+          "name": "主程序",
+          "nlocals": 1,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "待办.json"
+        },
+        {
+          "t": "str",
+          "v": "待办.html"
+        },
+        {
+          "t": "str",
+          "v": "买菜"
+        },
+        {
+          "t": "str",
+          "v": "写周报"
+        },
+        {
+          "t": "str",
+          "v": "给猫铲屎"
+        },
+        {
+          "t": "none"
+        },
+        {
+          "t": "str",
+          "v": "<!doctype html>\n<html>\n"
+        },
+        {
+          "t": "str",
+          "v": "meta"
+        },
+        {
+          "t": "str",
+          "v": "charset"
+        },
+        {
+          "t": "str",
+          "v": "utf-8"
+        },
+        {
+          "t": "str",
+          "v": "\n<title>待办</title>\n"
+        },
+        {
+          "t": "str",
+          "v": "h1"
+        },
+        {
+          "t": "str",
+          "v": "待办清单"
+        },
+        {
+          "t": "str",
+          "v": "\n</html>\n"
+        },
+        {
+          "t": "str",
+          "v": "已生成 {}，共 {} 条"
+        },
+        {
+          "t": "str",
+          "v": "请手动打开它 —— 页面里改不了内容，改完还得重新跑一遍（见绕道 R006）"
+        }
+      ],
+      "filename": "examples/绕道探针/本地小服务/服务.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "html",
+        "文件",
+        "json",
+        "文本",
+        "待办文件",
+        "页面文件",
+        "默认待办",
+        "文件存在",
+        "读文件",
+        "异常",
+        "读待办",
+        "待办们",
+        "空元素",
+        "标签",
+        "无序列表",
+        "生成页面",
+        "写文本",
+        "打印",
+        "格式化",
+        "长度",
+        "主程序"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 9,
+      "source_line": "导入 html",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 9,
+      "source_line": "导入 html",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "导入 html",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 10,
+      "source_line": "导入 文件",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 10,
+      "source_line": "导入 文件",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "导入 文件",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "导入 json",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 11,
+      "source_line": "导入 json",
+      "type": "NAME",
+      "value": "json",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "导入 json",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 12,
+      "source_line": "导入 文本",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 12,
+      "source_line": "导入 文本",
+      "type": "NAME",
+      "value": "文本",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "导入 文本",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "令 待办文件 = \"待办.json\"",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 6,
+      "line": 14,
+      "source_line": "令 待办文件 = \"待办.json\"",
+      "type": "NAME",
+      "value": "待办文件",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 14,
+      "source_line": "令 待办文件 = \"待办.json\"",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 18,
+      "line": 14,
+      "source_line": "令 待办文件 = \"待办.json\"",
+      "type": "STRING",
+      "value": "待办.json",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "令 待办文件 = \"待办.json\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "令 页面文件 = \"待办.html\"",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 6,
+      "line": 15,
+      "source_line": "令 页面文件 = \"待办.html\"",
+      "type": "NAME",
+      "value": "页面文件",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 15,
+      "source_line": "令 页面文件 = \"待办.html\"",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 18,
+      "line": 15,
+      "source_line": "令 页面文件 = \"待办.html\"",
+      "type": "STRING",
+      "value": "待办.html",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "令 页面文件 = \"待办.html\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 6,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "NAME",
+      "value": "默认待办",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "STRING",
+      "value": "买菜",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 21,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "STRING",
+      "value": "写周报",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 29,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "STRING",
+      "value": "给猫铲屎",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "令 默认待办 = [\"买菜\", \"写周报\", \"给猫铲屎\"]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 19,
+      "source_line": "函数 读待办():",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 19,
+      "source_line": "函数 读待办():",
+      "type": "NAME",
+      "value": "读待办",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 19,
+      "source_line": "函数 读待办():",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 19,
+      "source_line": "函数 读待办():",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 19,
+      "source_line": "函数 读待办():",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "函数 读待办():",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "KEYWORD",
+      "value": "如果",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "KEYWORD",
+      "value": "非",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 16,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "NAME",
+      "value": "文件存在",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "NAME",
+      "value": "待办文件",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    如果 非 文件.文件存在(待办文件):",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "        返回 默认待办",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 21,
+      "source_line": "        返回 默认待办",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 21,
+      "source_line": "        返回 默认待办",
+      "type": "NAME",
+      "value": "默认待办",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "        返回 默认待办",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 22,
+      "source_line": "    尝试:",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 22,
+      "source_line": "    尝试:",
+      "type": "KEYWORD",
+      "value": "尝试",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 22,
+      "source_line": "    尝试:",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 22,
+      "source_line": "    尝试:",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "        返回 json.读文件(待办文件)",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 23,
+      "source_line": "        返回 json.读文件(待办文件)",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 23,
+      "source_line": "        返回 json.读文件(待办文件)",
+      "type": "NAME",
+      "value": "json",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 23,
+      "source_line": "        返回 json.读文件(待办文件)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 19,
+      "line": 23,
+      "source_line": "        返回 json.读文件(待办文件)",
+      "type": "NAME",
+      "value": "读文件",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 23,
+      "source_line": "        返回 json.读文件(待办文件)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 24,
+      "line": 23,
+      "source_line": "        返回 json.读文件(待办文件)",
+      "type": "NAME",
+      "value": "待办文件",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 23,
+      "source_line": "        返回 json.读文件(待办文件)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "        返回 json.读文件(待办文件)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "    捕获 异常:",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 24,
+      "source_line": "    捕获 异常:",
+      "type": "KEYWORD",
+      "value": "捕获",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 24,
+      "source_line": "    捕获 异常:",
+      "type": "NAME",
+      "value": "异常",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 24,
+      "source_line": "    捕获 异常:",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "    捕获 异常:",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        返回 默认待办",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 25,
+      "source_line": "        返回 默认待办",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 25,
+      "source_line": "        返回 默认待办",
+      "type": "NAME",
+      "value": "默认待办",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        返回 默认待办",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "函数 生成页面(待办们):",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "函数 生成页面(待办们):",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 28,
+      "source_line": "函数 生成页面(待办们):",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 28,
+      "source_line": "函数 生成页面(待办们):",
+      "type": "NAME",
+      "value": "生成页面",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 28,
+      "source_line": "函数 生成页面(待办们):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 28,
+      "source_line": "函数 生成页面(待办们):",
+      "type": "NAME",
+      "value": "待办们",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 28,
+      "source_line": "函数 生成页面(待办们):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 28,
+      "source_line": "函数 生成页面(待办们):",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "函数 生成页面(待办们):",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "    返回 (\"<!doctype html>\\n<html>\\n\"",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 29,
+      "source_line": "    返回 (\"<!doctype html>\\n<html>\\n\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 29,
+      "source_line": "    返回 (\"<!doctype html>\\n<html>\\n\"",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 35,
+      "line": 29,
+      "source_line": "    返回 (\"<!doctype html>\\n<html>\\n\"",
+      "type": "STRING",
+      "value": "<!doctype html>\n<html>\n",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 18,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "NAME",
+      "value": "空元素",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 25,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "STRING",
+      "value": "meta",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 37,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "STRING",
+      "value": "charset",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 46,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "STRING",
+      "value": "utf-8",
+      "类型": "Token"
+    },
+    {
+      "col": 47,
+      "end_col": 48,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 49,
+      "line": 30,
+      "source_line": "         +html.空元素(\"meta\", {\"charset\": \"utf-8\"})",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 31,
+      "source_line": "         +\"\\n<title>待办</title>\\n\"",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 33,
+      "line": 31,
+      "source_line": "         +\"\\n<title>待办</title>\\n\"",
+      "type": "STRING",
+      "value": "\n<title>待办</title>\n",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 32,
+      "source_line": "         +html.标签(\"h1\", \"待办清单\")",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 32,
+      "source_line": "         +html.标签(\"h1\", \"待办清单\")",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 32,
+      "source_line": "         +html.标签(\"h1\", \"待办清单\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 32,
+      "source_line": "         +html.标签(\"h1\", \"待办清单\")",
+      "type": "NAME",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 32,
+      "source_line": "         +html.标签(\"h1\", \"待办清单\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 32,
+      "source_line": "         +html.标签(\"h1\", \"待办清单\")",
+      "type": "STRING",
+      "value": "h1",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 32,
+      "source_line": "         +html.标签(\"h1\", \"待办清单\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 30,
+      "line": 32,
+      "source_line": "         +html.标签(\"h1\", \"待办清单\")",
+      "type": "STRING",
+      "value": "待办清单",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 32,
+      "source_line": "         +html.标签(\"h1\", \"待办清单\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 33,
+      "source_line": "         +html.无序列表(待办们)",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 33,
+      "source_line": "         +html.无序列表(待办们)",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 33,
+      "source_line": "         +html.无序列表(待办们)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 19,
+      "line": 33,
+      "source_line": "         +html.无序列表(待办们)",
+      "type": "NAME",
+      "value": "无序列表",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 33,
+      "source_line": "         +html.无序列表(待办们)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 23,
+      "line": 33,
+      "source_line": "         +html.无序列表(待办们)",
+      "type": "NAME",
+      "value": "待办们",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 33,
+      "source_line": "         +html.无序列表(待办们)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 34,
+      "source_line": "         +\"\\n</html>\\n\")",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 23,
+      "line": 34,
+      "source_line": "         +\"\\n</html>\\n\")",
+      "type": "STRING",
+      "value": "\n</html>\n",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 34,
+      "source_line": "         +\"\\n</html>\\n\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 34,
+      "source_line": "         +\"\\n</html>\\n\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "函数 主程序():",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 37,
+      "source_line": "函数 主程序():",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 37,
+      "source_line": "函数 主程序():",
+      "type": "NAME",
+      "value": "主程序",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 37,
+      "source_line": "函数 主程序():",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 37,
+      "source_line": "函数 主程序():",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 37,
+      "source_line": "函数 主程序():",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "函数 主程序():",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "    令 待办们 = 读待办()",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 38,
+      "source_line": "    令 待办们 = 读待办()",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 38,
+      "source_line": "    令 待办们 = 读待办()",
+      "type": "NAME",
+      "value": "待办们",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 38,
+      "source_line": "    令 待办们 = 读待办()",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 15,
+      "line": 38,
+      "source_line": "    令 待办们 = 读待办()",
+      "type": "NAME",
+      "value": "读待办",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 38,
+      "source_line": "    令 待办们 = 读待办()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 38,
+      "source_line": "    令 待办们 = 读待办()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "    令 待办们 = 读待办()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "NAME",
+      "value": "写文本",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "NAME",
+      "value": "页面文件",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "NAME",
+      "value": "生成页面",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 25,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "NAME",
+      "value": "待办们",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 39,
+      "source_line": "    文件.写文本(页面文件, 生成页面(待办们))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "NAME",
+      "value": "文本",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 13,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "NAME",
+      "value": "格式化",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 29,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "STRING",
+      "value": "已生成 {}，共 {} 条",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 35,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "NAME",
+      "value": "页面文件",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 43,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "NAME",
+      "value": "待办们",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 45,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 46,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "    打印(文本.格式化(\"已生成 {}，共 {} 条\", 页面文件, 长度(待办们)))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 41,
+      "source_line": "    打印(\"请手动打开它 —— 页面里改不了内容，改完还得重新跑一遍（见绕道 R006）\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 41,
+      "source_line": "    打印(\"请手动打开它 —— 页面里改不了内容，改完还得重新跑一遍（见绕道 R006）\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 47,
+      "line": 41,
+      "source_line": "    打印(\"请手动打开它 —— 页面里改不了内容，改完还得重新跑一遍（见绕道 R006）\")",
+      "type": "STRING",
+      "value": "请手动打开它 —— 页面里改不了内容，改完还得重新跑一遍（见绕道 R006）",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 49,
+      "line": 41,
+      "source_line": "    打印(\"请手动打开它 —— 页面里改不了内容，改完还得重新跑一遍（见绕道 R006）\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 41,
+      "source_line": "    打印(\"请手动打开它 —— 页面里改不了内容，改完还得重新跑一遍（见绕道 R006）\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 44,
+      "source_line": "主程序()",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 3,
+      "line": 44,
+      "source_line": "主程序()",
+      "type": "NAME",
+      "value": "主程序",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 44,
+      "source_line": "主程序()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 44,
+      "source_line": "主程序()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 44,
+      "source_line": "主程序()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 44,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:a4e3be4c36ff3391",
+  "语料": "examples/绕道探针/本地小服务/服务.jsh"
+}

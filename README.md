@@ -189,7 +189,7 @@ Pyodide（浏览器里的 Python）换成同一份引擎的 **wasm** 版。
 **Python / Node 两套实现已退役**（挪到 `oracle/`，只作判据基准），`jishi`
 这个名字交给单二进制。**R8 收尾完成 ⇒ 版本升到 0.2.2。**
 
-**测试现状：3404 项，3404 通过**（`python -m pytest tests/`）—— 其中 240 余项是
+**测试现状：3428 项，3428 通过**（`python -m pytest tests/`）—— 其中 240 余项是
 多执行器（树遍历 / Python VM / C VM / Rust VM / Node）**逐字节对拍**。
 **全量约 3 分钟**：`-n 12 -m "not 计时"` 跑主体，再串行跑 `-m 计时`
 （9 条墙上时间护栏 —— 12 路并行会把墙钟抬高，详见 `AGENTS.md` §1）。
@@ -405,7 +405,9 @@ core/            **R 线（R2 起）**：前端核心的 Rust 落地（pyo3 编�
 tests/           测试（含三执行器对拍 + 跨宿主对拍 + M51/M54/M55 漂移检测 +
                  R2/R3/R4 的 Rust 前端守门测试 `test_m59_tokenizer_rust.py` /
                  `test_m60_parser_rust.py` / `test_m61_frontend_errors.py`）
-examples/        示例脚本（含 tutorial/ 10 个教程配套示例、ai/ few-shot 库、embed/ C 嵌入示例、packages/ 包管理示例）
+examples/        示例与真实程序：tutorial/（10 课配套示例）、projects/（6 个真实项目，
+                 参与行数比）、绕道探针/（撞标准库缺口的「量尺」，**不**参与行数比）、
+                 ai/（few-shot 库）、embed/（C 嵌入示例）、packages/（包管理示例）
 docs/            语言规格.md（语法/语义/标准库 API）、设计决策.md（D1 起的取舍记录）、
                  调试器.md、工具链.md（LSP/REPL/格式化）、真实项目.md、embed.md（嵌入其它宿主）、
                  ai/（系统提示词 / 提示词指南）、tutorial/（教程 10 章）、
