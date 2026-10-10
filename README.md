@@ -468,13 +468,18 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
 
 ## 环境要求
 
-- **Python ≥3.10**（运行时零第三方依赖；测试用 pytest，
-  `tools/make_logo.py` 图像处理用 pillow——均为开发期工具，与运行时无关）
-- **使用（源码安装）**：`pip install git+https://github.com/benxiaoniao/JISHI.git`
-  即含预编译 C VM，无需 gcc（`tools/build_wheel.py` 打出的 wheel 内带 DLL/SO）
-- **从源码开发**：需要 C 编译器构建 C VM（`python cvm/build.py`），
-  装 MinGW-w64（Windows）或 zig / gcc 均可；无编译器也能跑树遍历解释器，
-  C VM 自动降级、其余功能照常
+- **使用**：从 <https://基石.cn/download.html> 下载对应平台的发行包（Windows 安装程序 /
+  Linux / macOS 压缩包）—— 发行版是 **cargo 单二进制**，**不用先装 Python**，
+  也**没有 `pip install` 这条路**（见上「安装」一节）。
+- **从源码开发**：需要 **Rust 工具链**（构建前端 + 宿主 + C VM 的宿主侧），
+  以及 **C 编译器**（`python cvm/build.py` 构建 C 虚拟机：MinGW-w64 / gcc / clang 均可；
+  没有也能跑，C VM 自动降级）。
+- **Python ≥3.13**：**只用于构建脚本与测试套件**（生成语言卡、构建站点、
+  跑判据对拍），**不是运行时依赖**。运行时零第三方依赖；测试用 pytest，
+  `tools/make_logo.py` 图像处理用 pillow —— 均为开发期工具。
+  （2026-10-10 起 CI 只测这一个版本：原先的 3.10 + 3.13 两档是照作者本机设的，
+  对这个语言项目并非真需求；跨版本语法陷阱另由 `test_m57_conformance.py`
+  的 AST 扫描兜底。）
 - Windows 注意：venv 可执行文件在 `Scripts/` 而非 `bin/`。
 
 ## 开发：运行与测试

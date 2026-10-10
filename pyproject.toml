@@ -13,7 +13,10 @@ name = "jishi"
 version = "0.2.2"
 description = "基石 —— 一门像 Python 一样简单易用的中文编程语言"
 readme = "README.md"
-requires-python = ">=3.10"
+# 只测一个版本（2026-10-10 作者定）：Python 侧已退役（只作判据基准），
+# 版本约束只影响作者自己，没必要拿两倍 runner 额度去守。CI 测的就是
+# 这个版本 —— **声明必须与实际测过的一致**，不许「声明 3.10、只测 3.13」。
+requires-python = ">=3.13"
 # SPDX 表达式 + license-files（PEP 639 的新写法）。旧的 `license = {file = ...}`
 # 被 setuptools 标为已弃用，并写明 2027-02-18 之后构建会失败。
 # MIT-0 = MIT No Attribution：保留 MIT 的免责声明，但**不要求署名**，

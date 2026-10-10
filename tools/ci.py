@@ -61,17 +61,19 @@ def main() -> int:
 
     # 2) 全量测试（含三执行器对拍）
     #
-    # 🔴 **`计时` 那批要能排掉**（2026-10-10）：它们断言的是**墙上时间**
-    #    （如「20 万次调用 < 300ms」），共享 CI runner 比开发机慢得多 ——
-    #    实测同一份代码本机 202ms、CI Windows 上 **301ms**（就超了 1.3 毫秒！
-    #    另一轮 386ms）。**绝对耗时阈值在 CI 上没有判别力，只会假红挡发版。**
-    #    CI 里由 workflow 传 `JISHI_SKIP_TIMING=1`；**本机默认不排** ——
-    #    `AGENTS.md` §1 的配方本来就是「本机串行跑 `-m 计时`」，那才是它的判据。
-    #    ⚠️ 别把这条写成「CI 上无条件排」：那就分不清「本机跑」与「CI 跑」了。
-    timing = (["-m", "not 计时"]
-              if os.environ.get("JISHI_SKIP_TIMING") else [])
-    if not _run([PYTHON, "-m", "pytest", str(ROOT / "tests"), "-q", *timing],
-                "pytest 全量测试"):
+    # ⚠️ **CI 上跳过这一遍**（2026-10-10）：workflow 里前面那步「全量测试」跑的
+    #    就是同一条命令，再跑一遍是纯浪费 —— 实测 Windows runner 上这一遍要
+    #    **3924 秒（65 分钟）**，两个步骤叠一起把 job 拖到 **2 小时 10 分**。
+    #    由 workflow 传 `JISHI_SKIP_PYTEST=1`；**本机跑不该跳**（`ci.py` 的定位
+    #    就是「一键全检」，本地一次跑完）。
+    #    另外 CI 那步带了 `-m "not 计时"` —— 墙上护栏在共享 runner 上没有判别力
+    #    （同一份代码本机 202ms、CI Windows **301ms**，只超 1.3 毫秒就判红）。
+    if os.environ.get("JISHI_SKIP_PYTEST"):
+        print("\n=== pytest 全量测试 ===")
+        print("--- pytest 全量测试: 跳过"
+              "（JISHI_SKIP_PYTEST=1：调用方已经跑过一遍，不重复） ---")
+    elif not _run([PYTHON, "-m", "pytest", str(ROOT / "tests"), "-q"],
+                  "pytest 全量测试"):
         return 1
 
     # 3) 一致性夹具（R0 建）：前端四个阶段与冻结基线逐项比对。
