@@ -1,0 +1,600 @@
+{
+  "ast": {
+    "body": [
+      {
+        "base": null,
+        "body": [
+          {
+            "annotations": [
+              null,
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 3,
+                "value": {
+                  "col": 12,
+                  "id": "x",
+                  "line": 3,
+                  "类型": "Name"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null,
+              null
+            ],
+            "line": 2,
+            "name": "方法",
+            "param_kind": [
+              0,
+              0
+            ],
+            "params": [
+              "自身",
+              "x"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          }
+        ],
+        "col": 1,
+        "line": 1,
+        "name": "甲",
+        "类型": "ClassDef"
+      },
+      {
+        "col": 1,
+        "line": 5,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "对",
+          "line": 5,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [],
+          "col": 8,
+          "func": {
+            "col": 7,
+            "id": "甲",
+            "line": 5,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 5,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [],
+          "col": 5,
+          "func": {
+            "attr": "方法",
+            "col": 2,
+            "line": 6,
+            "obj": {
+              "col": 1,
+              "id": "对",
+              "line": 6,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 6,
+          "类型": "Call"
+        },
+        "line": 6,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "f2d78d8b0f3fc48ca86208410af7571f4dde20cd687239fcb0be10380b9b6fac",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            1,
+            9,
+            0,
+            0,
+            0,
+            1,
+            1,
+            22,
+            1,
+            0,
+            0,
+            2,
+            5,
+            1,
+            1,
+            0,
+            0,
+            1,
+            1,
+            45,
+            1,
+            0,
+            0,
+            1,
+            1,
+            3,
+            2,
+            0,
+            0,
+            1,
+            1,
+            2,
+            2,
+            0,
+            0,
+            5,
+            7,
+            20,
+            0,
+            -1,
+            0,
+            5,
+            8,
+            3,
+            3,
+            0,
+            0,
+            5,
+            1,
+            2,
+            3,
+            0,
+            0,
+            6,
+            1,
+            25,
+            4,
+            0,
+            0,
+            6,
+            2,
+            20,
+            0,
+            -1,
+            0,
+            6,
+            5,
+            38,
+            0,
+            0,
+            0,
+            6,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 2,
+          "freevars": [],
+          "instrs": [
+            4,
+            1,
+            0,
+            0,
+            3,
+            12,
+            21,
+            0,
+            0,
+            0,
+            3,
+            9,
+            1,
+            0,
+            0,
+            0,
+            2,
+            5,
+            21,
+            0,
+            0,
+            0,
+            2,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身",
+            "x"
+          ],
+          "name": "方法",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            0,
+            1
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "自身",
+            "x"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "none"
+        },
+        {
+          "t": "str",
+          "v": "甲"
+        }
+      ],
+      "filename": "tests/error_cases/36_实例方法参数个数.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "自身",
+        "x",
+        "甲",
+        "对",
+        "方法"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "类 甲：",
+      "type": "KEYWORD",
+      "value": "类",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "类 甲：",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 1,
+      "source_line": "类 甲：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "类 甲：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "NAME",
+      "value": "方法",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "    函数 方法(自身, x)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "        返回 x",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 3,
+      "source_line": "        返回 x",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 3,
+      "source_line": "        返回 x",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "        返回 x",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "令 对 = 甲()",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "令 对 = 甲()",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "令 对 = 甲()",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 5,
+      "source_line": "令 对 = 甲()",
+      "type": "NAME",
+      "value": "对",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 5,
+      "source_line": "令 对 = 甲()",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 5,
+      "source_line": "令 对 = 甲()",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 5,
+      "source_line": "令 对 = 甲()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 5,
+      "source_line": "令 对 = 甲()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "令 对 = 甲()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "对.方法()",
+      "type": "NAME",
+      "value": "对",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 6,
+      "source_line": "对.方法()",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 6,
+      "source_line": "对.方法()",
+      "type": "NAME",
+      "value": "方法",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 6,
+      "source_line": "对.方法()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 6,
+      "source_line": "对.方法()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "对.方法()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:df1fb18f42a3fd8c",
+  "语料": "tests/error_cases/36_实例方法参数个数.jsh"
+}

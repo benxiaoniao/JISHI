@@ -1,0 +1,14 @@
+[package]
+name = "jishi-frontend"
+version = "0.2.2"
+edition = "2021"
+description = "基石（jishi）前端核心 —— 分词 / 语法 → AST / 编译器 → 字节码 / 基石库层展开。**纯 Rust、零依赖**，被两个消费者共用：`core`（pyo3 扩展，供 Python 侧与一致性夹具用）与 `rust`（独立宿主二进制 jishi-rs，见 R7 工具链迁移）。"
+license = "MIT-0"
+publish = false
+
+[lib]
+name = "jishi_frontend"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3

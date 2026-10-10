@@ -1,0 +1,1651 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 2,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "清单",
+          "line": 2,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "elements": [
+            {
+              "col": 9,
+              "line": 2,
+              "value": "牛奶",
+              "类型": "Str"
+            },
+            {
+              "col": 15,
+              "line": 2,
+              "value": "面包",
+              "类型": "Str"
+            },
+            {
+              "col": 21,
+              "line": 2,
+              "value": "鸡蛋",
+              "类型": "Str"
+            }
+          ],
+          "line": 2,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 7,
+              "line": 3,
+              "value": "苹果",
+              "类型": "Str"
+            }
+          ],
+          "col": 6,
+          "func": {
+            "attr": "追加",
+            "col": 3,
+            "line": 3,
+            "obj": {
+              "col": 1,
+              "id": "清单",
+              "line": 3,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 3,
+          "类型": "Call"
+        },
+        "line": 3,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 7,
+              "line": 4,
+              "value": "面包",
+              "类型": "Str"
+            }
+          ],
+          "col": 6,
+          "func": {
+            "attr": "移除",
+            "col": 3,
+            "line": 4,
+            "obj": {
+              "col": 1,
+              "id": "清单",
+              "line": 4,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 4,
+          "类型": "Call"
+        },
+        "line": 4,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 5,
+              "value": "清单：",
+              "类型": "Str"
+            },
+            {
+              "col": 11,
+              "id": "清单",
+              "line": 5,
+              "类型": "Name"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 5,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 5,
+          "类型": "Call"
+        },
+        "line": 5,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 6,
+              "value": "共",
+              "类型": "Str"
+            },
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "id": "清单",
+                  "line": 6,
+                  "类型": "Name"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "col": 9,
+                "id": "长度",
+                "line": 6,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 6,
+              "类型": "Call"
+            },
+            {
+              "col": 17,
+              "line": 6,
+              "value": "样东西",
+              "类型": "Str"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 6,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 6,
+          "类型": "Call"
+        },
+        "line": 6,
+        "类型": "ExprStmt"
+      },
+      {
+        "branches": [
+          [
+            {
+              "args": [
+                {
+                  "col": 10,
+                  "line": 7,
+                  "value": "牛奶",
+                  "类型": "Str"
+                }
+              ],
+              "col": 9,
+              "func": {
+                "attr": "包含",
+                "col": 6,
+                "line": 7,
+                "obj": {
+                  "col": 4,
+                  "id": "清单",
+                  "line": 7,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 7,
+              "类型": "Call"
+            },
+            [
+              {
+                "col": 5,
+                "expr": {
+                  "args": [
+                    {
+                      "col": 8,
+                      "line": 8,
+                      "value": "牛奶还在",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 7,
+                  "func": {
+                    "col": 5,
+                    "id": "打印",
+                    "line": 8,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 8,
+                  "类型": "Call"
+                },
+                "line": 8,
+                "类型": "ExprStmt"
+              }
+            ]
+          ]
+        ],
+        "col": 1,
+        "line": 7,
+        "orelse": null,
+        "类型": "If"
+      },
+      {
+        "col": 1,
+        "line": 9,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "句子",
+          "line": 9,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "line": 9,
+          "value": "  基石语言真好学  ",
+          "类型": "Str"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 10,
+              "value": "去掉空白后：",
+              "类型": "Str"
+            },
+            {
+              "args": [],
+              "col": 20,
+              "func": {
+                "attr": "去空白",
+                "col": 16,
+                "line": 10,
+                "obj": {
+                  "col": 14,
+                  "id": "句子",
+                  "line": 10,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 10,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 10,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 10,
+          "类型": "Call"
+        },
+        "line": 10,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 11,
+              "value": "以「基石」开头：",
+              "类型": "Str"
+            },
+            {
+              "args": [
+                {
+                  "col": 29,
+                  "line": 11,
+                  "value": "基石",
+                  "类型": "Str"
+                }
+              ],
+              "col": 28,
+              "func": {
+                "attr": "开头是",
+                "col": 24,
+                "line": 11,
+                "obj": {
+                  "args": [],
+                  "col": 22,
+                  "func": {
+                    "attr": "去空白",
+                    "col": 18,
+                    "line": 11,
+                    "obj": {
+                      "col": 16,
+                      "id": "句子",
+                      "line": 11,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 11,
+                  "类型": "Call"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 11,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 11,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 11,
+          "类型": "Call"
+        },
+        "line": 11,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "1d3f743d1bf6cb756db3a77c5d198746877535a8e41c3566b655bed58369b9e5",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            2,
+            9,
+            1,
+            1,
+            0,
+            0,
+            2,
+            15,
+            1,
+            2,
+            0,
+            0,
+            2,
+            21,
+            23,
+            3,
+            0,
+            0,
+            2,
+            8,
+            3,
+            0,
+            0,
+            0,
+            2,
+            1,
+            2,
+            0,
+            0,
+            0,
+            3,
+            1,
+            1,
+            3,
+            0,
+            0,
+            3,
+            7,
+            47,
+            0,
+            0,
+            0,
+            3,
+            6,
+            38,
+            0,
+            0,
+            0,
+            3,
+            1,
+            2,
+            0,
+            0,
+            0,
+            4,
+            1,
+            25,
+            1,
+            0,
+            0,
+            4,
+            3,
+            1,
+            1,
+            0,
+            0,
+            4,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            6,
+            38,
+            0,
+            0,
+            0,
+            4,
+            1,
+            2,
+            2,
+            0,
+            0,
+            5,
+            1,
+            1,
+            4,
+            0,
+            0,
+            5,
+            4,
+            2,
+            0,
+            0,
+            0,
+            5,
+            11,
+            20,
+            2,
+            -1,
+            0,
+            5,
+            3,
+            38,
+            0,
+            0,
+            0,
+            5,
+            1,
+            2,
+            2,
+            0,
+            0,
+            6,
+            1,
+            1,
+            5,
+            0,
+            0,
+            6,
+            4,
+            2,
+            3,
+            0,
+            0,
+            6,
+            9,
+            2,
+            0,
+            0,
+            0,
+            6,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            6,
+            11,
+            1,
+            6,
+            0,
+            0,
+            6,
+            17,
+            20,
+            3,
+            -1,
+            0,
+            6,
+            3,
+            38,
+            0,
+            0,
+            0,
+            6,
+            1,
+            2,
+            0,
+            0,
+            0,
+            7,
+            4,
+            25,
+            4,
+            0,
+            0,
+            7,
+            6,
+            1,
+            0,
+            0,
+            0,
+            7,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            7,
+            9,
+            17,
+            37,
+            0,
+            0,
+            7,
+            9,
+            2,
+            2,
+            0,
+            0,
+            8,
+            5,
+            1,
+            7,
+            0,
+            0,
+            8,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            8,
+            7,
+            38,
+            0,
+            0,
+            0,
+            8,
+            5,
+            16,
+            37,
+            0,
+            0,
+            7,
+            1,
+            1,
+            8,
+            0,
+            0,
+            9,
+            8,
+            3,
+            5,
+            0,
+            0,
+            9,
+            1,
+            2,
+            2,
+            0,
+            0,
+            10,
+            1,
+            1,
+            9,
+            0,
+            0,
+            10,
+            4,
+            2,
+            5,
+            0,
+            0,
+            10,
+            14,
+            25,
+            6,
+            0,
+            0,
+            10,
+            16,
+            20,
+            0,
+            -1,
+            0,
+            10,
+            20,
+            20,
+            2,
+            -1,
+            0,
+            10,
+            3,
+            38,
+            0,
+            0,
+            0,
+            10,
+            1,
+            2,
+            2,
+            0,
+            0,
+            11,
+            1,
+            1,
+            10,
+            0,
+            0,
+            11,
+            4,
+            2,
+            5,
+            0,
+            0,
+            11,
+            16,
+            25,
+            6,
+            0,
+            0,
+            11,
+            18,
+            20,
+            0,
+            -1,
+            0,
+            11,
+            22,
+            25,
+            7,
+            0,
+            0,
+            11,
+            24,
+            1,
+            11,
+            0,
+            0,
+            11,
+            29,
+            20,
+            1,
+            -1,
+            0,
+            11,
+            28,
+            20,
+            2,
+            -1,
+            0,
+            11,
+            3,
+            38,
+            0,
+            0,
+            0,
+            11,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "牛奶"
+        },
+        {
+          "t": "str",
+          "v": "面包"
+        },
+        {
+          "t": "str",
+          "v": "鸡蛋"
+        },
+        {
+          "t": "str",
+          "v": "苹果"
+        },
+        {
+          "t": "str",
+          "v": "清单："
+        },
+        {
+          "t": "str",
+          "v": "共"
+        },
+        {
+          "t": "str",
+          "v": "样东西"
+        },
+        {
+          "t": "str",
+          "v": "牛奶还在"
+        },
+        {
+          "t": "str",
+          "v": "  基石语言真好学  "
+        },
+        {
+          "t": "str",
+          "v": "去掉空白后："
+        },
+        {
+          "t": "str",
+          "v": "以「基石」开头："
+        },
+        {
+          "t": "str",
+          "v": "基石"
+        }
+      ],
+      "filename": "examples/tutorial/03_清单.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "清单",
+        "移除",
+        "打印",
+        "长度",
+        "包含",
+        "句子",
+        "去空白",
+        "开头是"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "NAME",
+      "value": "清单",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 12,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "STRING",
+      "value": "牛奶",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 18,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "STRING",
+      "value": "面包",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 24,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "STRING",
+      "value": "鸡蛋",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "令 清单 = [\"牛奶\", \"面包\", \"鸡蛋\"]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 3,
+      "source_line": "清单.追加(\"苹果\")",
+      "type": "NAME",
+      "value": "清单",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 3,
+      "source_line": "清单.追加(\"苹果\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 3,
+      "source_line": "清单.追加(\"苹果\")",
+      "type": "NAME",
+      "value": "追加",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 3,
+      "source_line": "清单.追加(\"苹果\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 10,
+      "line": 3,
+      "source_line": "清单.追加(\"苹果\")",
+      "type": "STRING",
+      "value": "苹果",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 3,
+      "source_line": "清单.追加(\"苹果\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "清单.追加(\"苹果\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 4,
+      "source_line": "清单.移除(\"面包\")",
+      "type": "NAME",
+      "value": "清单",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 4,
+      "source_line": "清单.移除(\"面包\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 4,
+      "source_line": "清单.移除(\"面包\")",
+      "type": "NAME",
+      "value": "移除",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 4,
+      "source_line": "清单.移除(\"面包\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 10,
+      "line": 4,
+      "source_line": "清单.移除(\"面包\")",
+      "type": "STRING",
+      "value": "面包",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 4,
+      "source_line": "清单.移除(\"面包\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "清单.移除(\"面包\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 5,
+      "source_line": "打印(\"清单：\", 清单)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 5,
+      "source_line": "打印(\"清单：\", 清单)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 8,
+      "line": 5,
+      "source_line": "打印(\"清单：\", 清单)",
+      "type": "STRING",
+      "value": "清单：",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 5,
+      "source_line": "打印(\"清单：\", 清单)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 5,
+      "source_line": "打印(\"清单：\", 清单)",
+      "type": "NAME",
+      "value": "清单",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 5,
+      "source_line": "打印(\"清单：\", 清单)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "打印(\"清单：\", 清单)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "STRING",
+      "value": "共",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "NAME",
+      "value": "清单",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 21,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "STRING",
+      "value": "样东西",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "打印(\"共\", 长度(清单), \"样东西\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 7,
+      "source_line": "如果 清单.包含(\"牛奶\")：",
+      "type": "KEYWORD",
+      "value": "如果",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 7,
+      "source_line": "如果 清单.包含(\"牛奶\")：",
+      "type": "NAME",
+      "value": "清单",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 7,
+      "source_line": "如果 清单.包含(\"牛奶\")：",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 7,
+      "source_line": "如果 清单.包含(\"牛奶\")：",
+      "type": "NAME",
+      "value": "包含",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 7,
+      "source_line": "如果 清单.包含(\"牛奶\")：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 7,
+      "source_line": "如果 清单.包含(\"牛奶\")：",
+      "type": "STRING",
+      "value": "牛奶",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 7,
+      "source_line": "如果 清单.包含(\"牛奶\")：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 7,
+      "source_line": "如果 清单.包含(\"牛奶\")：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "如果 清单.包含(\"牛奶\")：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "    打印(\"牛奶还在\")",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 8,
+      "source_line": "    打印(\"牛奶还在\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 8,
+      "source_line": "    打印(\"牛奶还在\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 13,
+      "line": 8,
+      "source_line": "    打印(\"牛奶还在\")",
+      "type": "STRING",
+      "value": "牛奶还在",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 8,
+      "source_line": "    打印(\"牛奶还在\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "    打印(\"牛奶还在\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "令 句子 = \"  基石语言真好学  \"",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "令 句子 = \"  基石语言真好学  \"",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 9,
+      "source_line": "令 句子 = \"  基石语言真好学  \"",
+      "type": "NAME",
+      "value": "句子",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 9,
+      "source_line": "令 句子 = \"  基石语言真好学  \"",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 20,
+      "line": 9,
+      "source_line": "令 句子 = \"  基石语言真好学  \"",
+      "type": "STRING",
+      "value": "  基石语言真好学  ",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "令 句子 = \"  基石语言真好学  \"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 11,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "STRING",
+      "value": "去掉空白后：",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "NAME",
+      "value": "句子",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 19,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "NAME",
+      "value": "去空白",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "打印(\"去掉空白后：\", 句子.去空白())",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 13,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "STRING",
+      "value": "以「基石」开头：",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "NAME",
+      "value": "句子",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 21,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "NAME",
+      "value": "去空白",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 27,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "NAME",
+      "value": "开头是",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 32,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "STRING",
+      "value": "基石",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "打印(\"以「基石」开头：\", 句子.去空白().开头是(\"基石\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:59e95c0938e7f39c",
+  "语料": "examples/tutorial/03_清单.jsh"
+}

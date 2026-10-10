@@ -1,0 +1,98 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": [
+      9,
+      11
+    ],
+    "修正": {
+      "new": "与",
+      "old": "and"
+    },
+    "列": 9,
+    "提示": "把「and」换成「与」即可",
+    "标题": "这里出现了意外的内容",
+    "消息": "「and」是英文写法，基石用中文——你是不是想写「与」？",
+    "渲染": "错误 E0201：这里出现了意外的内容（「and」是英文写法，基石用中文——你是不是想写「与」？）\n  ┌─ tests/error_cases/33_英文运算符and.jsh:1:9\n  │\n  1 │ 令 x = 1 and 2\n    │         ~~^\n  │\n  提示：把「and」换成「与」即可",
+    "码": "E0201",
+    "行": 1,
+    "阶段": "语法"
+  },
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 x = 1 and 2",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "令 x = 1 and 2",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "令 x = 1 and 2",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 1,
+      "source_line": "令 x = 1 and 2",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 1,
+      "source_line": "令 x = 1 and 2",
+      "type": "NAME",
+      "value": "and",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 1,
+      "source_line": "令 x = 1 and 2",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 x = 1 and 2",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:35c7319c93d33724",
+  "语料": "tests/error_cases/33_英文运算符and.jsh"
+}

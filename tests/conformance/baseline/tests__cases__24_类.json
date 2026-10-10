@@ -1,0 +1,9609 @@
+{
+  "ast": {
+    "body": [
+      {
+        "base": null,
+        "body": [
+          {
+            "col": 5,
+            "line": 6,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "界",
+              "line": 6,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 11,
+              "line": 6,
+              "value": "动物界",
+              "类型": "Str"
+            },
+            "类型": "Assign"
+          },
+          {
+            "annotations": [
+              null,
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 8,
+                "op": "=",
+                "target": {
+                  "attr": "名字",
+                  "col": 11,
+                  "line": 8,
+                  "obj": {
+                    "col": 9,
+                    "id": "自身",
+                    "line": 8,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "value": {
+                  "col": 17,
+                  "id": "名字",
+                  "line": 8,
+                  "类型": "Name"
+                },
+                "类型": "Assign"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null,
+              null
+            ],
+            "line": 7,
+            "name": "初始化",
+            "param_kind": [
+              0,
+              0
+            ],
+            "params": [
+              "自身",
+              "名字"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 10,
+                "value": {
+                  "col": 12,
+                  "line": 10,
+                  "value": "……",
+                  "类型": "Str"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 9,
+            "name": "叫",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "自身"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 12,
+                "value": {
+                  "col": 31,
+                  "left": {
+                    "col": 24,
+                    "left": {
+                      "col": 18,
+                      "left": {
+                        "attr": "名字",
+                        "col": 14,
+                        "line": 12,
+                        "obj": {
+                          "col": 12,
+                          "id": "自身",
+                          "line": 12,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "line": 12,
+                      "op": "+",
+                      "right": {
+                        "col": 20,
+                        "line": 12,
+                        "value": "（",
+                        "类型": "Str"
+                      },
+                      "类型": "BinOp"
+                    },
+                    "line": 12,
+                    "op": "+",
+                    "right": {
+                      "attr": "界",
+                      "col": 28,
+                      "line": 12,
+                      "obj": {
+                        "col": 26,
+                        "id": "自身",
+                        "line": 12,
+                        "类型": "Name"
+                      },
+                      "类型": "Attr"
+                    },
+                    "类型": "BinOp"
+                  },
+                  "line": 12,
+                  "op": "+",
+                  "right": {
+                    "col": 33,
+                    "line": 12,
+                    "value": "）",
+                    "类型": "Str"
+                  },
+                  "类型": "BinOp"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 11,
+            "name": "介绍",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "自身"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          }
+        ],
+        "col": 1,
+        "line": 5,
+        "name": "动物",
+        "类型": "ClassDef"
+      },
+      {
+        "base": "动物",
+        "body": [
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 15,
+                "value": {
+                  "col": 20,
+                  "left": {
+                    "args": [],
+                    "col": 17,
+                    "func": {
+                      "attr": "叫",
+                      "col": 15,
+                      "line": 15,
+                      "obj": {
+                        "args": [
+                          {
+                            "col": 12,
+                            "id": "自身",
+                            "line": 15,
+                            "类型": "Name"
+                          },
+                          {
+                            "col": 12,
+                            "line": 15,
+                            "value": "猫",
+                            "类型": "Str"
+                          }
+                        ],
+                        "col": 13,
+                        "func": {
+                          "col": 12,
+                          "id": "超",
+                          "line": 15,
+                          "类型": "Name"
+                        },
+                        "keywords": [],
+                        "line": 15,
+                        "类型": "Call"
+                      },
+                      "类型": "Attr"
+                    },
+                    "keywords": [],
+                    "line": 15,
+                    "类型": "Call"
+                  },
+                  "line": 15,
+                  "op": "+",
+                  "right": {
+                    "col": 22,
+                    "line": 15,
+                    "value": "喵",
+                    "类型": "Str"
+                  },
+                  "类型": "BinOp"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 14,
+            "name": "叫",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "自身"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          }
+        ],
+        "col": 1,
+        "line": 13,
+        "name": "猫",
+        "类型": "ClassDef"
+      },
+      {
+        "base": "动物",
+        "body": [
+          {
+            "annotations": [
+              null,
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "expr": {
+                  "args": [
+                    {
+                      "col": 17,
+                      "id": "名字",
+                      "line": 18,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 16,
+                  "func": {
+                    "attr": "初始化",
+                    "col": 12,
+                    "line": 18,
+                    "obj": {
+                      "args": [
+                        {
+                          "col": 9,
+                          "id": "自身",
+                          "line": 18,
+                          "类型": "Name"
+                        },
+                        {
+                          "col": 9,
+                          "line": 18,
+                          "value": "狗",
+                          "类型": "Str"
+                        }
+                      ],
+                      "col": 10,
+                      "func": {
+                        "col": 9,
+                        "id": "超",
+                        "line": 18,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 18,
+                      "类型": "Call"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 18,
+                  "类型": "Call"
+                },
+                "line": 18,
+                "类型": "ExprStmt"
+              },
+              {
+                "col": 9,
+                "line": 19,
+                "op": "=",
+                "target": {
+                  "attr": "忠诚",
+                  "col": 11,
+                  "line": 19,
+                  "obj": {
+                    "col": 9,
+                    "id": "自身",
+                    "line": 19,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "value": {
+                  "col": 17,
+                  "line": 19,
+                  "value": true,
+                  "类型": "Num"
+                },
+                "类型": "Assign"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null,
+              null
+            ],
+            "line": 17,
+            "name": "初始化",
+            "param_kind": [
+              0,
+              0
+            ],
+            "params": [
+              "自身",
+              "名字"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 21,
+                "value": {
+                  "col": 12,
+                  "line": 21,
+                  "value": "汪汪",
+                  "类型": "Str"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 20,
+            "name": "叫",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "自身"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          }
+        ],
+        "col": 1,
+        "line": 16,
+        "name": "狗",
+        "类型": "ClassDef"
+      },
+      {
+        "col": 1,
+        "line": 22,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "咪",
+          "line": 22,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 12,
+              "line": 22,
+              "value": "咪咪",
+              "类型": "Str"
+            }
+          ],
+          "col": 11,
+          "func": {
+            "col": 7,
+            "id": "猫",
+            "line": 22,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 22,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "attr": "名字",
+              "col": 5,
+              "line": 23,
+              "obj": {
+                "col": 4,
+                "id": "咪",
+                "line": 23,
+                "类型": "Name"
+              },
+              "类型": "Attr"
+            },
+            {
+              "args": [],
+              "col": 13,
+              "func": {
+                "attr": "叫",
+                "col": 11,
+                "line": 23,
+                "obj": {
+                  "col": 10,
+                  "id": "咪",
+                  "line": 23,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 23,
+              "类型": "Call"
+            },
+            {
+              "attr": "界",
+              "col": 18,
+              "line": 23,
+              "obj": {
+                "col": 17,
+                "id": "咪",
+                "line": 23,
+                "类型": "Name"
+              },
+              "类型": "Attr"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 23,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 23,
+          "类型": "Call"
+        },
+        "line": 23,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "id": "咪",
+              "line": 24,
+              "类型": "Name"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 24,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 24,
+          "类型": "Call"
+        },
+        "line": 24,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [],
+              "col": 8,
+              "func": {
+                "attr": "介绍",
+                "col": 5,
+                "line": 25,
+                "obj": {
+                  "col": 4,
+                  "id": "咪",
+                  "line": 25,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 25,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 25,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 25,
+          "类型": "Call"
+        },
+        "line": 25,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 26,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "汪",
+          "line": 26,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 12,
+              "line": 26,
+              "value": "旺财",
+              "类型": "Str"
+            }
+          ],
+          "col": 11,
+          "func": {
+            "col": 7,
+            "id": "狗",
+            "line": 26,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 26,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "attr": "名字",
+              "col": 5,
+              "line": 27,
+              "obj": {
+                "col": 4,
+                "id": "汪",
+                "line": 27,
+                "类型": "Name"
+              },
+              "类型": "Attr"
+            },
+            {
+              "args": [],
+              "col": 13,
+              "func": {
+                "attr": "叫",
+                "col": 11,
+                "line": 27,
+                "obj": {
+                  "col": 10,
+                  "id": "汪",
+                  "line": 27,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 27,
+              "类型": "Call"
+            },
+            {
+              "attr": "忠诚",
+              "col": 18,
+              "line": 27,
+              "obj": {
+                "col": 17,
+                "id": "汪",
+                "line": 27,
+                "类型": "Name"
+              },
+              "类型": "Attr"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 27,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 27,
+          "类型": "Call"
+        },
+        "line": 27,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 8,
+                  "id": "汪",
+                  "line": 28,
+                  "类型": "Name"
+                },
+                {
+                  "col": 11,
+                  "id": "狗",
+                  "line": 28,
+                  "类型": "Name"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 4,
+                "id": "是实例",
+                "line": 28,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 28,
+              "类型": "Call"
+            },
+            {
+              "args": [
+                {
+                  "col": 19,
+                  "id": "汪",
+                  "line": 28,
+                  "类型": "Name"
+                },
+                {
+                  "col": 22,
+                  "id": "动物",
+                  "line": 28,
+                  "类型": "Name"
+                }
+              ],
+              "col": 18,
+              "func": {
+                "col": 15,
+                "id": "是实例",
+                "line": 28,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 28,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 28,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 28,
+          "类型": "Call"
+        },
+        "line": 28,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "id": "汪",
+                  "line": 29,
+                  "类型": "Name"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "类型",
+                "line": 29,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 29,
+              "类型": "Call"
+            },
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "id": "狗",
+                  "line": 29,
+                  "类型": "Name"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "col": 11,
+                "id": "类型",
+                "line": 29,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 29,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 29,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 29,
+          "类型": "Call"
+        },
+        "line": 29,
+        "类型": "ExprStmt"
+      },
+      {
+        "base": null,
+        "body": [
+          {
+            "annotations": [
+              null,
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 32,
+                "op": "=",
+                "target": {
+                  "attr": "余额",
+                  "col": 11,
+                  "line": 32,
+                  "obj": {
+                    "col": 9,
+                    "id": "自身",
+                    "line": 32,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "value": {
+                  "col": 17,
+                  "id": "余额",
+                  "line": 32,
+                  "类型": "Name"
+                },
+                "类型": "Assign"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null,
+              null
+            ],
+            "line": 31,
+            "name": "初始化",
+            "param_kind": [
+              0,
+              0
+            ],
+            "params": [
+              "自身",
+              "余额"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "annotations": [
+              null,
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 34,
+                "op": "+=",
+                "target": {
+                  "attr": "余额",
+                  "col": 11,
+                  "line": 34,
+                  "obj": {
+                    "col": 9,
+                    "id": "自身",
+                    "line": 34,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "value": {
+                  "col": 18,
+                  "id": "数额",
+                  "line": 34,
+                  "类型": "Name"
+                },
+                "类型": "Assign"
+              },
+              {
+                "col": 9,
+                "line": 35,
+                "value": {
+                  "col": 12,
+                  "id": "自身",
+                  "line": 35,
+                  "类型": "Name"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null,
+              null
+            ],
+            "line": 33,
+            "name": "存",
+            "param_kind": [
+              0,
+              0
+            ],
+            "params": [
+              "自身",
+              "数额"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 37,
+                "value": {
+                  "attr": "余额",
+                  "col": 14,
+                  "line": 37,
+                  "obj": {
+                    "col": 12,
+                    "id": "自身",
+                    "line": 37,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 36,
+            "name": "查",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "自身"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          }
+        ],
+        "col": 1,
+        "line": 30,
+        "name": "账户",
+        "类型": "ClassDef"
+      },
+      {
+        "col": 1,
+        "line": 38,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "账",
+          "line": 38,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 13,
+              "line": 38,
+              "value": 100,
+              "类型": "Num"
+            }
+          ],
+          "col": 12,
+          "func": {
+            "col": 7,
+            "id": "账户",
+            "line": 38,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 38,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [],
+              "col": 19,
+              "func": {
+                "attr": "查",
+                "col": 17,
+                "line": 39,
+                "obj": {
+                  "args": [
+                    {
+                      "col": 14,
+                      "line": 39,
+                      "value": 25,
+                      "类型": "Num"
+                    }
+                  ],
+                  "col": 13,
+                  "func": {
+                    "attr": "存",
+                    "col": 11,
+                    "line": 39,
+                    "obj": {
+                      "args": [
+                        {
+                          "col": 8,
+                          "line": 39,
+                          "value": 50,
+                          "类型": "Num"
+                        }
+                      ],
+                      "col": 7,
+                      "func": {
+                        "attr": "存",
+                        "col": 5,
+                        "line": 39,
+                        "obj": {
+                          "col": 4,
+                          "id": "账",
+                          "line": 39,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 39,
+                      "类型": "Call"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 39,
+                  "类型": "Call"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 39,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 39,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 39,
+          "类型": "Call"
+        },
+        "line": 39,
+        "类型": "ExprStmt"
+      },
+      {
+        "base": null,
+        "body": [
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 42,
+                "op": "=",
+                "target": {
+                  "attr": "计",
+                  "col": 11,
+                  "line": 42,
+                  "obj": {
+                    "col": 9,
+                    "id": "自身",
+                    "line": 42,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "value": {
+                  "col": 16,
+                  "line": 42,
+                  "value": 0,
+                  "类型": "Num"
+                },
+                "类型": "Assign"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 41,
+            "name": "初始化",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "自身"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 44,
+                "op": "+=",
+                "target": {
+                  "attr": "计",
+                  "col": 11,
+                  "line": 44,
+                  "obj": {
+                    "col": 9,
+                    "id": "自身",
+                    "line": 44,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "value": {
+                  "col": 17,
+                  "line": 44,
+                  "value": 1,
+                  "类型": "Num"
+                },
+                "类型": "Assign"
+              },
+              {
+                "col": 9,
+                "line": 45,
+                "value": {
+                  "attr": "计",
+                  "col": 14,
+                  "line": 45,
+                  "obj": {
+                    "col": 12,
+                    "id": "自身",
+                    "line": 45,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 43,
+            "name": "加一",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "自身"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          }
+        ],
+        "col": 1,
+        "line": 40,
+        "name": "计数器",
+        "类型": "ClassDef"
+      },
+      {
+        "col": 1,
+        "line": 46,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "计",
+          "line": 46,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [],
+          "col": 13,
+          "func": {
+            "col": 7,
+            "id": "计数器",
+            "line": 46,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 46,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [],
+              "col": 8,
+              "func": {
+                "attr": "加一",
+                "col": 5,
+                "line": 47,
+                "obj": {
+                  "col": 4,
+                  "id": "计",
+                  "line": 47,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 47,
+              "类型": "Call"
+            },
+            {
+              "args": [],
+              "col": 16,
+              "func": {
+                "attr": "加一",
+                "col": 13,
+                "line": 47,
+                "obj": {
+                  "col": 12,
+                  "id": "计",
+                  "line": 47,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 47,
+              "类型": "Call"
+            },
+            {
+              "attr": "计",
+              "col": 21,
+              "line": 47,
+              "obj": {
+                "col": 20,
+                "id": "计",
+                "line": 47,
+                "类型": "Name"
+              },
+              "类型": "Attr"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 47,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 47,
+          "类型": "Call"
+        },
+        "line": 47,
+        "类型": "ExprStmt"
+      },
+      {
+        "base": null,
+        "body": [
+          {
+            "annotations": [
+              null,
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 50,
+                "op": "=",
+                "target": {
+                  "attr": "项",
+                  "col": 11,
+                  "line": 50,
+                  "obj": {
+                    "col": 9,
+                    "id": "自身",
+                    "line": 50,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "value": {
+                  "col": 16,
+                  "id": "项",
+                  "line": 50,
+                  "类型": "Name"
+                },
+                "类型": "Assign"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null,
+              null
+            ],
+            "line": 49,
+            "name": "初始化",
+            "param_kind": [
+              0,
+              0
+            ],
+            "params": [
+              "自身",
+              "项"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 52,
+                "value": {
+                  "attr": "项",
+                  "col": 14,
+                  "line": 52,
+                  "obj": {
+                    "col": 12,
+                    "id": "自身",
+                    "line": 52,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 51,
+            "name": "迭代",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "自身"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          }
+        ],
+        "col": 1,
+        "line": 48,
+        "name": "序列",
+        "类型": "ClassDef"
+      },
+      {
+        "body": [
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 8,
+                  "id": "x",
+                  "line": 54,
+                  "类型": "Name"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 5,
+                "id": "打印",
+                "line": 54,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 54,
+              "类型": "Call"
+            },
+            "line": 54,
+            "类型": "ExprStmt"
+          }
+        ],
+        "col": 1,
+        "iter": {
+          "args": [
+            {
+              "col": 14,
+              "elements": [
+                {
+                  "col": 15,
+                  "line": 53,
+                  "value": 1,
+                  "类型": "Num"
+                },
+                {
+                  "col": 18,
+                  "line": 53,
+                  "value": 2,
+                  "类型": "Num"
+                },
+                {
+                  "col": 21,
+                  "line": 53,
+                  "value": 3,
+                  "类型": "Num"
+                }
+              ],
+              "line": 53,
+              "类型": "List"
+            }
+          ],
+          "col": 13,
+          "func": {
+            "col": 8,
+            "id": "序列",
+            "line": 53,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 53,
+          "类型": "Call"
+        },
+        "line": 53,
+        "target": {
+          "col": 4,
+          "id": "x",
+          "line": 53,
+          "类型": "Name"
+        },
+        "类型": "For"
+      },
+      {
+        "base": null,
+        "body": [
+          {
+            "annotations": [
+              null,
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 57,
+                "op": "=",
+                "target": {
+                  "attr": "项",
+                  "col": 11,
+                  "line": 57,
+                  "obj": {
+                    "col": 9,
+                    "id": "自身",
+                    "line": 57,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "value": {
+                  "col": 16,
+                  "id": "项",
+                  "line": 57,
+                  "类型": "Name"
+                },
+                "类型": "Assign"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null,
+              null
+            ],
+            "line": 56,
+            "name": "初始化",
+            "param_kind": [
+              0,
+              0
+            ],
+            "params": [
+              "自身",
+              "项"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 59,
+                "value": {
+                  "attr": "项",
+                  "col": 14,
+                  "line": 59,
+                  "obj": {
+                    "col": 12,
+                    "id": "自身",
+                    "line": 59,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 58,
+            "name": "迭代",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "自身"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          }
+        ],
+        "col": 1,
+        "line": 55,
+        "name": "有长度",
+        "类型": "ClassDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 14,
+                      "elements": [
+                        {
+                          "col": 15,
+                          "line": 60,
+                          "value": 7,
+                          "类型": "Num"
+                        },
+                        {
+                          "col": 18,
+                          "line": 60,
+                          "value": 8,
+                          "类型": "Num"
+                        }
+                      ],
+                      "line": 60,
+                      "类型": "List"
+                    }
+                  ],
+                  "col": 13,
+                  "func": {
+                    "col": 7,
+                    "id": "有长度",
+                    "line": 60,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 60,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "长度",
+                "line": 60,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 60,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 60,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 60,
+          "类型": "Call"
+        },
+        "line": 60,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 61,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "列",
+          "line": 61,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 7,
+          "elements": [
+            {
+              "col": 8,
+              "line": 61,
+              "value": 1,
+              "类型": "Num"
+            },
+            {
+              "col": 11,
+              "line": 61,
+              "value": 2,
+              "类型": "Num"
+            },
+            {
+              "col": 14,
+              "line": 61,
+              "value": 3,
+              "类型": "Num"
+            }
+          ],
+          "line": 61,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 6,
+              "line": 62,
+              "value": 4,
+              "类型": "Num"
+            }
+          ],
+          "col": 5,
+          "func": {
+            "attr": "追加",
+            "col": 2,
+            "line": 62,
+            "obj": {
+              "col": 1,
+              "id": "列",
+              "line": 62,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 62,
+          "类型": "Call"
+        },
+        "line": 62,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 63,
+        "op": "=",
+        "target": {
+          "col": 2,
+          "index": {
+            "col": 3,
+            "line": 63,
+            "value": 0,
+            "类型": "Num"
+          },
+          "line": 63,
+          "obj": {
+            "col": 1,
+            "id": "列",
+            "line": 63,
+            "类型": "Name"
+          },
+          "类型": "Subscript"
+        },
+        "value": {
+          "col": 8,
+          "line": 63,
+          "value": 9,
+          "类型": "Num"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 64,
+        "op": "=",
+        "target": {
+          "col": 2,
+          "index": {
+            "col": 3,
+            "line": 64,
+            "op": "-",
+            "operand": {
+              "col": 4,
+              "line": 64,
+              "value": 1,
+              "类型": "Num"
+            },
+            "类型": "UnaryOp"
+          },
+          "line": 64,
+          "obj": {
+            "col": 1,
+            "id": "列",
+            "line": 64,
+            "类型": "Name"
+          },
+          "类型": "Subscript"
+        },
+        "value": {
+          "col": 9,
+          "line": 64,
+          "value": 7,
+          "类型": "Num"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "id": "列",
+              "line": 65,
+              "类型": "Name"
+            },
+            {
+              "args": [
+                {
+                  "col": 10,
+                  "id": "列",
+                  "line": 65,
+                  "类型": "Name"
+                }
+              ],
+              "col": 9,
+              "func": {
+                "col": 7,
+                "id": "长度",
+                "line": 65,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 65,
+              "类型": "Call"
+            },
+            {
+              "args": [],
+              "col": 18,
+              "func": {
+                "attr": "弹出",
+                "col": 15,
+                "line": 65,
+                "obj": {
+                  "col": 14,
+                  "id": "列",
+                  "line": 65,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 65,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 65,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 65,
+          "类型": "Call"
+        },
+        "line": 65,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 66,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "字典",
+          "line": 66,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "keys": [],
+          "line": 66,
+          "values": [],
+          "类型": "Dict"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 67,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "index": {
+            "col": 4,
+            "line": 67,
+            "value": "新",
+            "类型": "Str"
+          },
+          "line": 67,
+          "obj": {
+            "col": 1,
+            "id": "字典",
+            "line": 67,
+            "类型": "Name"
+          },
+          "类型": "Subscript"
+        },
+        "value": {
+          "col": 11,
+          "line": 67,
+          "value": 1,
+          "类型": "Num"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "id": "字典",
+              "line": 68,
+              "类型": "Name"
+            },
+            {
+              "col": 10,
+              "index": {
+                "col": 11,
+                "line": 68,
+                "value": "新",
+                "类型": "Str"
+              },
+              "line": 68,
+              "obj": {
+                "col": 8,
+                "id": "字典",
+                "line": 68,
+                "类型": "Name"
+              },
+              "类型": "Subscript"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 68,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 68,
+          "类型": "Call"
+        },
+        "line": 68,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "4f841d8031b62b239761eeda308bb203667b6071a86b09bc08ec601e4b97c756",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            5,
+            1,
+            9,
+            0,
+            0,
+            0,
+            5,
+            1,
+            1,
+            1,
+            0,
+            0,
+            6,
+            11,
+            5,
+            0,
+            0,
+            0,
+            6,
+            5,
+            22,
+            1,
+            0,
+            0,
+            7,
+            5,
+            22,
+            2,
+            0,
+            0,
+            9,
+            5,
+            22,
+            3,
+            0,
+            0,
+            11,
+            5,
+            1,
+            5,
+            0,
+            0,
+            5,
+            1,
+            45,
+            3,
+            0,
+            0,
+            5,
+            1,
+            10,
+            0,
+            0,
+            0,
+            6,
+            5,
+            4,
+            0,
+            0,
+            0,
+            6,
+            5,
+            26,
+            2,
+            0,
+            0,
+            6,
+            5,
+            3,
+            3,
+            0,
+            0,
+            5,
+            1,
+            1,
+            0,
+            0,
+            0,
+            13,
+            1,
+            9,
+            0,
+            0,
+            0,
+            13,
+            1,
+            2,
+            3,
+            0,
+            0,
+            13,
+            1,
+            22,
+            4,
+            0,
+            0,
+            14,
+            5,
+            1,
+            6,
+            0,
+            0,
+            13,
+            1,
+            45,
+            1,
+            1,
+            0,
+            13,
+            1,
+            3,
+            6,
+            0,
+            0,
+            13,
+            1,
+            1,
+            0,
+            0,
+            0,
+            16,
+            1,
+            9,
+            0,
+            0,
+            0,
+            16,
+            1,
+            2,
+            3,
+            0,
+            0,
+            16,
+            1,
+            22,
+            5,
+            0,
+            0,
+            17,
+            5,
+            22,
+            6,
+            0,
+            0,
+            20,
+            5,
+            1,
+            8,
+            0,
+            0,
+            16,
+            1,
+            45,
+            2,
+            1,
+            0,
+            16,
+            1,
+            3,
+            9,
+            0,
+            0,
+            16,
+            1,
+            2,
+            6,
+            0,
+            0,
+            22,
+            7,
+            1,
+            11,
+            0,
+            0,
+            22,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            22,
+            11,
+            3,
+            10,
+            0,
+            0,
+            22,
+            1,
+            2,
+            11,
+            0,
+            0,
+            23,
+            1,
+            2,
+            10,
+            0,
+            0,
+            23,
+            4,
+            25,
+            1,
+            0,
+            0,
+            23,
+            5,
+            2,
+            10,
+            0,
+            0,
+            23,
+            10,
+            25,
+            5,
+            0,
+            0,
+            23,
+            11,
+            20,
+            0,
+            -1,
+            0,
+            23,
+            13,
+            2,
+            10,
+            0,
+            0,
+            23,
+            17,
+            25,
+            2,
+            0,
+            0,
+            23,
+            18,
+            20,
+            3,
+            -1,
+            0,
+            23,
+            3,
+            38,
+            0,
+            0,
+            0,
+            23,
+            1,
+            2,
+            11,
+            0,
+            0,
+            24,
+            1,
+            2,
+            10,
+            0,
+            0,
+            24,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            24,
+            3,
+            38,
+            0,
+            0,
+            0,
+            24,
+            1,
+            2,
+            11,
+            0,
+            0,
+            25,
+            1,
+            2,
+            10,
+            0,
+            0,
+            25,
+            4,
+            25,
+            12,
+            0,
+            0,
+            25,
+            5,
+            20,
+            0,
+            -1,
+            0,
+            25,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            25,
+            3,
+            38,
+            0,
+            0,
+            0,
+            25,
+            1,
+            2,
+            9,
+            0,
+            0,
+            26,
+            7,
+            1,
+            12,
+            0,
+            0,
+            26,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            26,
+            11,
+            3,
+            13,
+            0,
+            0,
+            26,
+            1,
+            2,
+            11,
+            0,
+            0,
+            27,
+            1,
+            2,
+            13,
+            0,
+            0,
+            27,
+            4,
+            25,
+            1,
+            0,
+            0,
+            27,
+            5,
+            2,
+            13,
+            0,
+            0,
+            27,
+            10,
+            25,
+            5,
+            0,
+            0,
+            27,
+            11,
+            20,
+            0,
+            -1,
+            0,
+            27,
+            13,
+            2,
+            13,
+            0,
+            0,
+            27,
+            17,
+            25,
+            8,
+            0,
+            0,
+            27,
+            18,
+            20,
+            3,
+            -1,
+            0,
+            27,
+            3,
+            38,
+            0,
+            0,
+            0,
+            27,
+            1,
+            2,
+            11,
+            0,
+            0,
+            28,
+            1,
+            2,
+            14,
+            0,
+            0,
+            28,
+            4,
+            2,
+            13,
+            0,
+            0,
+            28,
+            8,
+            2,
+            9,
+            0,
+            0,
+            28,
+            11,
+            20,
+            2,
+            -1,
+            0,
+            28,
+            7,
+            2,
+            14,
+            0,
+            0,
+            28,
+            15,
+            2,
+            13,
+            0,
+            0,
+            28,
+            19,
+            2,
+            3,
+            0,
+            0,
+            28,
+            22,
+            20,
+            2,
+            -1,
+            0,
+            28,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            28,
+            3,
+            38,
+            0,
+            0,
+            0,
+            28,
+            1,
+            2,
+            11,
+            0,
+            0,
+            29,
+            1,
+            2,
+            15,
+            0,
+            0,
+            29,
+            4,
+            2,
+            13,
+            0,
+            0,
+            29,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            29,
+            6,
+            2,
+            15,
+            0,
+            0,
+            29,
+            11,
+            2,
+            9,
+            0,
+            0,
+            29,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            29,
+            13,
+            20,
+            2,
+            -1,
+            0,
+            29,
+            3,
+            38,
+            0,
+            0,
+            0,
+            29,
+            1,
+            1,
+            0,
+            0,
+            0,
+            30,
+            1,
+            9,
+            0,
+            0,
+            0,
+            30,
+            1,
+            22,
+            7,
+            0,
+            0,
+            31,
+            5,
+            22,
+            8,
+            0,
+            0,
+            33,
+            5,
+            22,
+            9,
+            0,
+            0,
+            36,
+            5,
+            1,
+            13,
+            0,
+            0,
+            30,
+            1,
+            45,
+            3,
+            0,
+            0,
+            30,
+            1,
+            3,
+            18,
+            0,
+            0,
+            30,
+            1,
+            2,
+            18,
+            0,
+            0,
+            38,
+            7,
+            1,
+            14,
+            0,
+            0,
+            38,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            38,
+            12,
+            3,
+            19,
+            0,
+            0,
+            38,
+            1,
+            2,
+            11,
+            0,
+            0,
+            39,
+            1,
+            2,
+            19,
+            0,
+            0,
+            39,
+            4,
+            25,
+            20,
+            0,
+            0,
+            39,
+            5,
+            1,
+            15,
+            0,
+            0,
+            39,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            39,
+            7,
+            25,
+            20,
+            0,
+            0,
+            39,
+            11,
+            1,
+            16,
+            0,
+            0,
+            39,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            39,
+            13,
+            25,
+            21,
+            0,
+            0,
+            39,
+            17,
+            20,
+            0,
+            -1,
+            0,
+            39,
+            19,
+            20,
+            1,
+            -1,
+            0,
+            39,
+            3,
+            38,
+            0,
+            0,
+            0,
+            39,
+            1,
+            1,
+            0,
+            0,
+            0,
+            40,
+            1,
+            9,
+            0,
+            0,
+            0,
+            40,
+            1,
+            22,
+            10,
+            0,
+            0,
+            41,
+            5,
+            22,
+            11,
+            0,
+            0,
+            43,
+            5,
+            1,
+            19,
+            0,
+            0,
+            40,
+            1,
+            45,
+            2,
+            0,
+            0,
+            40,
+            1,
+            3,
+            23,
+            0,
+            0,
+            40,
+            1,
+            2,
+            23,
+            0,
+            0,
+            46,
+            7,
+            20,
+            0,
+            -1,
+            0,
+            46,
+            13,
+            3,
+            22,
+            0,
+            0,
+            46,
+            1,
+            2,
+            11,
+            0,
+            0,
+            47,
+            1,
+            2,
+            22,
+            0,
+            0,
+            47,
+            4,
+            25,
+            24,
+            0,
+            0,
+            47,
+            5,
+            20,
+            0,
+            -1,
+            0,
+            47,
+            8,
+            2,
+            22,
+            0,
+            0,
+            47,
+            12,
+            25,
+            24,
+            0,
+            0,
+            47,
+            13,
+            20,
+            0,
+            -1,
+            0,
+            47,
+            16,
+            2,
+            22,
+            0,
+            0,
+            47,
+            20,
+            25,
+            22,
+            0,
+            0,
+            47,
+            21,
+            20,
+            3,
+            -1,
+            0,
+            47,
+            3,
+            38,
+            0,
+            0,
+            0,
+            47,
+            1,
+            1,
+            0,
+            0,
+            0,
+            48,
+            1,
+            9,
+            0,
+            0,
+            0,
+            48,
+            1,
+            22,
+            12,
+            0,
+            0,
+            49,
+            5,
+            22,
+            13,
+            0,
+            0,
+            51,
+            5,
+            1,
+            20,
+            0,
+            0,
+            48,
+            1,
+            45,
+            2,
+            0,
+            0,
+            48,
+            1,
+            3,
+            26,
+            0,
+            0,
+            48,
+            1,
+            2,
+            26,
+            0,
+            0,
+            53,
+            8,
+            1,
+            18,
+            0,
+            0,
+            53,
+            15,
+            1,
+            21,
+            0,
+            0,
+            53,
+            18,
+            1,
+            22,
+            0,
+            0,
+            53,
+            21,
+            23,
+            3,
+            0,
+            0,
+            53,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            53,
+            13,
+            29,
+            0,
+            0,
+            0,
+            53,
+            1,
+            34,
+            146,
+            155,
+            0,
+            53,
+            1,
+            30,
+            153,
+            0,
+            0,
+            53,
+            1,
+            3,
+            27,
+            0,
+            0,
+            53,
+            1,
+            2,
+            11,
+            0,
+            0,
+            54,
+            5,
+            2,
+            27,
+            0,
+            0,
+            54,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            54,
+            7,
+            38,
+            0,
+            0,
+            0,
+            54,
+            5,
+            16,
+            146,
+            0,
+            0,
+            53,
+            1,
+            35,
+            0,
+            0,
+            0,
+            53,
+            1,
+            16,
+            157,
+            0,
+            0,
+            53,
+            1,
+            9,
+            0,
+            0,
+            0,
+            53,
+            1,
+            35,
+            0,
+            0,
+            0,
+            53,
+            1,
+            1,
+            0,
+            0,
+            0,
+            55,
+            1,
+            9,
+            0,
+            0,
+            0,
+            55,
+            1,
+            22,
+            14,
+            0,
+            0,
+            56,
+            5,
+            22,
+            15,
+            0,
+            0,
+            58,
+            5,
+            1,
+            23,
+            0,
+            0,
+            55,
+            1,
+            45,
+            2,
+            0,
+            0,
+            55,
+            1,
+            3,
+            28,
+            0,
+            0,
+            55,
+            1,
+            2,
+            11,
+            0,
+            0,
+            60,
+            1,
+            2,
+            29,
+            0,
+            0,
+            60,
+            4,
+            2,
+            28,
+            0,
+            0,
+            60,
+            7,
+            1,
+            24,
+            0,
+            0,
+            60,
+            15,
+            1,
+            25,
+            0,
+            0,
+            60,
+            18,
+            23,
+            2,
+            0,
+            0,
+            60,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            60,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            60,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            60,
+            3,
+            38,
+            0,
+            0,
+            0,
+            60,
+            1,
+            1,
+            18,
+            0,
+            0,
+            61,
+            8,
+            1,
+            21,
+            0,
+            0,
+            61,
+            11,
+            1,
+            22,
+            0,
+            0,
+            61,
+            14,
+            23,
+            3,
+            0,
+            0,
+            61,
+            7,
+            3,
+            30,
+            0,
+            0,
+            61,
+            1,
+            2,
+            30,
+            0,
+            0,
+            62,
+            1,
+            1,
+            26,
+            0,
+            0,
+            62,
+            6,
+            47,
+            0,
+            0,
+            0,
+            62,
+            5,
+            38,
+            0,
+            0,
+            0,
+            62,
+            1,
+            2,
+            30,
+            0,
+            0,
+            63,
+            1,
+            1,
+            17,
+            0,
+            0,
+            63,
+            3,
+            1,
+            27,
+            0,
+            0,
+            63,
+            8,
+            28,
+            0,
+            0,
+            0,
+            63,
+            1,
+            2,
+            30,
+            0,
+            0,
+            64,
+            1,
+            1,
+            18,
+            0,
+            0,
+            64,
+            4,
+            14,
+            0,
+            0,
+            0,
+            64,
+            3,
+            1,
+            24,
+            0,
+            0,
+            64,
+            9,
+            28,
+            0,
+            0,
+            0,
+            64,
+            1,
+            2,
+            11,
+            0,
+            0,
+            65,
+            1,
+            2,
+            30,
+            0,
+            0,
+            65,
+            4,
+            2,
+            29,
+            0,
+            0,
+            65,
+            7,
+            2,
+            30,
+            0,
+            0,
+            65,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            65,
+            9,
+            2,
+            30,
+            0,
+            0,
+            65,
+            14,
+            25,
+            31,
+            0,
+            0,
+            65,
+            15,
+            20,
+            0,
+            -1,
+            0,
+            65,
+            18,
+            20,
+            3,
+            -1,
+            0,
+            65,
+            3,
+            38,
+            0,
+            0,
+            0,
+            65,
+            1,
+            24,
+            0,
+            0,
+            0,
+            66,
+            8,
+            3,
+            32,
+            0,
+            0,
+            66,
+            1,
+            2,
+            32,
+            0,
+            0,
+            67,
+            1,
+            1,
+            28,
+            0,
+            0,
+            67,
+            4,
+            1,
+            18,
+            0,
+            0,
+            67,
+            11,
+            28,
+            0,
+            0,
+            0,
+            67,
+            1,
+            2,
+            11,
+            0,
+            0,
+            68,
+            1,
+            2,
+            32,
+            0,
+            0,
+            68,
+            4,
+            2,
+            32,
+            0,
+            0,
+            68,
+            8,
+            1,
+            28,
+            0,
+            0,
+            68,
+            11,
+            27,
+            0,
+            0,
+            0,
+            68,
+            10,
+            20,
+            2,
+            -1,
+            0,
+            68,
+            3,
+            38,
+            0,
+            0,
+            0,
+            68,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "$tmp1"
+          ],
+          "name": "<模块>",
+          "nlocals": 1,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 7,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            8,
+            9,
+            4,
+            1,
+            0,
+            0,
+            8,
+            17,
+            26,
+            1,
+            0,
+            0,
+            8,
+            9,
+            1,
+            0,
+            0,
+            0,
+            7,
+            5,
+            21,
+            0,
+            0,
+            0,
+            7,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身",
+            "名字"
+          ],
+          "name": "初始化",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            0,
+            1
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "自身",
+            "名字"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 9,
+          "freevars": [],
+          "instrs": [
+            1,
+            2,
+            0,
+            0,
+            10,
+            12,
+            21,
+            0,
+            0,
+            0,
+            10,
+            9,
+            1,
+            0,
+            0,
+            0,
+            9,
+            5,
+            21,
+            0,
+            0,
+            0,
+            9,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身"
+          ],
+          "name": "叫",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "自身"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 11,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            12,
+            12,
+            25,
+            1,
+            0,
+            0,
+            12,
+            14,
+            1,
+            3,
+            0,
+            0,
+            12,
+            20,
+            13,
+            0,
+            0,
+            0,
+            12,
+            18,
+            4,
+            0,
+            0,
+            0,
+            12,
+            26,
+            25,
+            2,
+            0,
+            0,
+            12,
+            28,
+            13,
+            0,
+            0,
+            0,
+            12,
+            24,
+            1,
+            4,
+            0,
+            0,
+            12,
+            33,
+            13,
+            0,
+            0,
+            0,
+            12,
+            31,
+            21,
+            0,
+            0,
+            0,
+            12,
+            9,
+            1,
+            0,
+            0,
+            0,
+            11,
+            5,
+            21,
+            0,
+            0,
+            0,
+            11,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身"
+          ],
+          "name": "介绍",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "自身"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 14,
+          "freevars": [],
+          "instrs": [
+            2,
+            4,
+            0,
+            0,
+            15,
+            12,
+            4,
+            0,
+            0,
+            0,
+            15,
+            12,
+            1,
+            6,
+            0,
+            0,
+            15,
+            12,
+            20,
+            2,
+            -1,
+            0,
+            15,
+            13,
+            25,
+            5,
+            0,
+            0,
+            15,
+            15,
+            20,
+            0,
+            -1,
+            0,
+            15,
+            17,
+            1,
+            7,
+            0,
+            0,
+            15,
+            22,
+            13,
+            0,
+            0,
+            0,
+            15,
+            20,
+            21,
+            0,
+            0,
+            0,
+            15,
+            9,
+            1,
+            0,
+            0,
+            0,
+            14,
+            5,
+            21,
+            0,
+            0,
+            0,
+            14,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身"
+          ],
+          "name": "叫",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "自身"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 17,
+          "freevars": [],
+          "instrs": [
+            2,
+            4,
+            0,
+            0,
+            18,
+            9,
+            4,
+            0,
+            0,
+            0,
+            18,
+            9,
+            1,
+            8,
+            0,
+            0,
+            18,
+            9,
+            20,
+            2,
+            -1,
+            0,
+            18,
+            10,
+            25,
+            7,
+            0,
+            0,
+            18,
+            12,
+            4,
+            1,
+            0,
+            0,
+            18,
+            17,
+            20,
+            1,
+            -1,
+            0,
+            18,
+            16,
+            9,
+            0,
+            0,
+            0,
+            18,
+            9,
+            4,
+            0,
+            0,
+            0,
+            19,
+            9,
+            1,
+            9,
+            0,
+            0,
+            19,
+            17,
+            26,
+            8,
+            0,
+            0,
+            19,
+            9,
+            1,
+            0,
+            0,
+            0,
+            17,
+            5,
+            21,
+            0,
+            0,
+            0,
+            17,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身",
+            "名字"
+          ],
+          "name": "初始化",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            0,
+            1
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "自身",
+            "名字"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 20,
+          "freevars": [],
+          "instrs": [
+            1,
+            10,
+            0,
+            0,
+            21,
+            12,
+            21,
+            0,
+            0,
+            0,
+            21,
+            9,
+            1,
+            0,
+            0,
+            0,
+            20,
+            5,
+            21,
+            0,
+            0,
+            0,
+            20,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身"
+          ],
+          "name": "叫",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "自身"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 31,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            32,
+            9,
+            4,
+            1,
+            0,
+            0,
+            32,
+            17,
+            26,
+            16,
+            0,
+            0,
+            32,
+            9,
+            1,
+            0,
+            0,
+            0,
+            31,
+            5,
+            21,
+            0,
+            0,
+            0,
+            31,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身",
+            "余额"
+          ],
+          "name": "初始化",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            0,
+            16
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "自身",
+            "余额"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 33,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            34,
+            9,
+            10,
+            0,
+            0,
+            0,
+            34,
+            9,
+            25,
+            16,
+            0,
+            0,
+            34,
+            9,
+            4,
+            1,
+            0,
+            0,
+            34,
+            18,
+            13,
+            0,
+            0,
+            0,
+            34,
+            9,
+            26,
+            16,
+            0,
+            0,
+            34,
+            9,
+            4,
+            0,
+            0,
+            0,
+            35,
+            12,
+            21,
+            0,
+            0,
+            0,
+            35,
+            9,
+            1,
+            0,
+            0,
+            0,
+            33,
+            5,
+            21,
+            0,
+            0,
+            0,
+            33,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身",
+            "数额"
+          ],
+          "name": "存",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            0,
+            17
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "自身",
+            "数额"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 36,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            37,
+            12,
+            25,
+            16,
+            0,
+            0,
+            37,
+            14,
+            21,
+            0,
+            0,
+            0,
+            37,
+            9,
+            1,
+            0,
+            0,
+            0,
+            36,
+            5,
+            21,
+            0,
+            0,
+            0,
+            36,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身"
+          ],
+          "name": "查",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "自身"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 41,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            42,
+            9,
+            1,
+            17,
+            0,
+            0,
+            42,
+            16,
+            26,
+            22,
+            0,
+            0,
+            42,
+            9,
+            1,
+            0,
+            0,
+            0,
+            41,
+            5,
+            21,
+            0,
+            0,
+            0,
+            41,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身"
+          ],
+          "name": "初始化",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "自身"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 43,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            44,
+            9,
+            10,
+            0,
+            0,
+            0,
+            44,
+            9,
+            25,
+            22,
+            0,
+            0,
+            44,
+            9,
+            1,
+            18,
+            0,
+            0,
+            44,
+            17,
+            13,
+            0,
+            0,
+            0,
+            44,
+            9,
+            26,
+            22,
+            0,
+            0,
+            44,
+            9,
+            4,
+            0,
+            0,
+            0,
+            45,
+            12,
+            25,
+            22,
+            0,
+            0,
+            45,
+            14,
+            21,
+            0,
+            0,
+            0,
+            45,
+            9,
+            1,
+            0,
+            0,
+            0,
+            43,
+            5,
+            21,
+            0,
+            0,
+            0,
+            43,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身"
+          ],
+          "name": "加一",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "自身"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 49,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            50,
+            9,
+            4,
+            1,
+            0,
+            0,
+            50,
+            16,
+            26,
+            25,
+            0,
+            0,
+            50,
+            9,
+            1,
+            0,
+            0,
+            0,
+            49,
+            5,
+            21,
+            0,
+            0,
+            0,
+            49,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身",
+            "项"
+          ],
+          "name": "初始化",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            0,
+            25
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "自身",
+            "项"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 51,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            52,
+            12,
+            25,
+            25,
+            0,
+            0,
+            52,
+            14,
+            21,
+            0,
+            0,
+            0,
+            52,
+            9,
+            1,
+            0,
+            0,
+            0,
+            51,
+            5,
+            21,
+            0,
+            0,
+            0,
+            51,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身"
+          ],
+          "name": "迭代",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "自身"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 56,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            57,
+            9,
+            4,
+            1,
+            0,
+            0,
+            57,
+            16,
+            26,
+            25,
+            0,
+            0,
+            57,
+            9,
+            1,
+            0,
+            0,
+            0,
+            56,
+            5,
+            21,
+            0,
+            0,
+            0,
+            56,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身",
+            "项"
+          ],
+          "name": "初始化",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            0,
+            25
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "自身",
+            "项"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 58,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            59,
+            12,
+            25,
+            25,
+            0,
+            0,
+            59,
+            14,
+            21,
+            0,
+            0,
+            0,
+            59,
+            9,
+            1,
+            0,
+            0,
+            0,
+            58,
+            5,
+            21,
+            0,
+            0,
+            0,
+            58,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "自身"
+          ],
+          "name": "迭代",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "自身"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "none"
+        },
+        {
+          "t": "str",
+          "v": "动物界"
+        },
+        {
+          "t": "str",
+          "v": "……"
+        },
+        {
+          "t": "str",
+          "v": "（"
+        },
+        {
+          "t": "str",
+          "v": "）"
+        },
+        {
+          "t": "str",
+          "v": "动物"
+        },
+        {
+          "t": "str",
+          "v": "猫"
+        },
+        {
+          "t": "str",
+          "v": "喵"
+        },
+        {
+          "t": "str",
+          "v": "狗"
+        },
+        {
+          "t": "true"
+        },
+        {
+          "t": "str",
+          "v": "汪汪"
+        },
+        {
+          "t": "str",
+          "v": "咪咪"
+        },
+        {
+          "t": "str",
+          "v": "旺财"
+        },
+        {
+          "t": "str",
+          "v": "账户"
+        },
+        {
+          "t": "int",
+          "v": 100
+        },
+        {
+          "t": "int",
+          "v": 50
+        },
+        {
+          "t": "int",
+          "v": 25
+        },
+        {
+          "t": "int",
+          "v": 0
+        },
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "str",
+          "v": "计数器"
+        },
+        {
+          "t": "str",
+          "v": "序列"
+        },
+        {
+          "t": "int",
+          "v": 2
+        },
+        {
+          "t": "int",
+          "v": 3
+        },
+        {
+          "t": "str",
+          "v": "有长度"
+        },
+        {
+          "t": "int",
+          "v": 7
+        },
+        {
+          "t": "int",
+          "v": 8
+        },
+        {
+          "t": "int",
+          "v": 4
+        },
+        {
+          "t": "int",
+          "v": 9
+        },
+        {
+          "t": "str",
+          "v": "新"
+        }
+      ],
+      "filename": "tests/cases/24_类.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "自身",
+        "名字",
+        "界",
+        "动物",
+        "超",
+        "叫",
+        "猫",
+        "初始化",
+        "忠诚",
+        "狗",
+        "咪",
+        "打印",
+        "介绍",
+        "汪",
+        "是实例",
+        "类型",
+        "余额",
+        "数额",
+        "账户",
+        "账",
+        "存",
+        "查",
+        "计",
+        "计数器",
+        "加一",
+        "项",
+        "序列",
+        "x",
+        "有长度",
+        "长度",
+        "列",
+        "弹出",
+        "字典"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "类 动物：",
+      "type": "KEYWORD",
+      "value": "类",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 5,
+      "source_line": "类 动物：",
+      "type": "NAME",
+      "value": "动物",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 5,
+      "source_line": "类 动物：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "类 动物：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "    令 界 = \"动物界\"",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 6,
+      "source_line": "    令 界 = \"动物界\"",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 6,
+      "source_line": "    令 界 = \"动物界\"",
+      "type": "NAME",
+      "value": "界",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 6,
+      "source_line": "    令 界 = \"动物界\"",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 15,
+      "line": 6,
+      "source_line": "    令 界 = \"动物界\"",
+      "type": "STRING",
+      "value": "动物界",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "    令 界 = \"动物界\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 7,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 7,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "NAME",
+      "value": "初始化",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 7,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 7,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 7,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 7,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "NAME",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 7,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 7,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "        自身.名字 = 名字",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 8,
+      "source_line": "        自身.名字 = 名字",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 8,
+      "source_line": "        自身.名字 = 名字",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 8,
+      "source_line": "        自身.名字 = 名字",
+      "type": "NAME",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 8,
+      "source_line": "        自身.名字 = 名字",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 8,
+      "source_line": "        自身.名字 = 名字",
+      "type": "NAME",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "        自身.名字 = 名字",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "    函数 叫(自身)：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 9,
+      "source_line": "    函数 叫(自身)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 9,
+      "source_line": "    函数 叫(自身)：",
+      "type": "NAME",
+      "value": "叫",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 9,
+      "source_line": "    函数 叫(自身)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 9,
+      "source_line": "    函数 叫(自身)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 9,
+      "source_line": "    函数 叫(自身)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 9,
+      "source_line": "    函数 叫(自身)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "    函数 叫(自身)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "        返回 \"……\"",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 10,
+      "source_line": "        返回 \"……\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 10,
+      "source_line": "        返回 \"……\"",
+      "type": "STRING",
+      "value": "……",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "        返回 \"……\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "    函数 介绍(自身)：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 11,
+      "source_line": "    函数 介绍(自身)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 11,
+      "source_line": "    函数 介绍(自身)：",
+      "type": "NAME",
+      "value": "介绍",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 11,
+      "source_line": "    函数 介绍(自身)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 11,
+      "source_line": "    函数 介绍(自身)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 11,
+      "source_line": "    函数 介绍(自身)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 11,
+      "source_line": "    函数 介绍(自身)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "    函数 介绍(自身)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "NAME",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 22,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "STRING",
+      "value": "（",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 29,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "NAME",
+      "value": "界",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 35,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "STRING",
+      "value": "）",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "        返回 自身.名字 + \"（\" + 自身.界 + \"）\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "类 猫 继承 动物：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "类 猫 继承 动物：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "类 猫 继承 动物：",
+      "type": "KEYWORD",
+      "value": "类",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 13,
+      "source_line": "类 猫 继承 动物：",
+      "type": "NAME",
+      "value": "猫",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 13,
+      "source_line": "类 猫 继承 动物：",
+      "type": "KEYWORD",
+      "value": "继承",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 13,
+      "source_line": "类 猫 继承 动物：",
+      "type": "NAME",
+      "value": "动物",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 13,
+      "source_line": "类 猫 继承 动物：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "类 猫 继承 动物：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "    函数 叫(自身)：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 14,
+      "source_line": "    函数 叫(自身)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 14,
+      "source_line": "    函数 叫(自身)：",
+      "type": "NAME",
+      "value": "叫",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 14,
+      "source_line": "    函数 叫(自身)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 14,
+      "source_line": "    函数 叫(自身)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 14,
+      "source_line": "    函数 叫(自身)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 14,
+      "source_line": "    函数 叫(自身)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "    函数 叫(自身)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "NAME",
+      "value": "超",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "NAME",
+      "value": "叫",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 24,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "STRING",
+      "value": "喵",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "        返回 超().叫() + \"喵\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "类 狗 继承 动物：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "类 狗 继承 动物：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "类 狗 继承 动物：",
+      "type": "KEYWORD",
+      "value": "类",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 16,
+      "source_line": "类 狗 继承 动物：",
+      "type": "NAME",
+      "value": "狗",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 16,
+      "source_line": "类 狗 继承 动物：",
+      "type": "KEYWORD",
+      "value": "继承",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 16,
+      "source_line": "类 狗 继承 动物：",
+      "type": "NAME",
+      "value": "动物",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 16,
+      "source_line": "类 狗 继承 动物：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "类 狗 继承 动物：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "NAME",
+      "value": "初始化",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "NAME",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "    函数 初始化(自身, 名字)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "NAME",
+      "value": "超",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 15,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "NAME",
+      "value": "初始化",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "NAME",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 18,
+      "source_line": "        超().初始化(名字)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 19,
+      "source_line": "        自身.忠诚 = 真",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 19,
+      "source_line": "        自身.忠诚 = 真",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 19,
+      "source_line": "        自身.忠诚 = 真",
+      "type": "NAME",
+      "value": "忠诚",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 19,
+      "source_line": "        自身.忠诚 = 真",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 19,
+      "source_line": "        自身.忠诚 = 真",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "        自身.忠诚 = 真",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    函数 叫(自身)：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 20,
+      "source_line": "    函数 叫(自身)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 20,
+      "source_line": "    函数 叫(自身)：",
+      "type": "NAME",
+      "value": "叫",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 20,
+      "source_line": "    函数 叫(自身)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 20,
+      "source_line": "    函数 叫(自身)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 20,
+      "source_line": "    函数 叫(自身)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 20,
+      "source_line": "    函数 叫(自身)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    函数 叫(自身)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "        返回 \"汪汪\"",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 21,
+      "source_line": "        返回 \"汪汪\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 21,
+      "source_line": "        返回 \"汪汪\"",
+      "type": "STRING",
+      "value": "汪汪",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "        返回 \"汪汪\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "NAME",
+      "value": "咪",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "KEYWORD",
+      "value": "新建",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "NAME",
+      "value": "猫",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "STRING",
+      "value": "咪咪",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 22,
+      "source_line": "令 咪 = 新建 猫(\"咪咪\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "NAME",
+      "value": "咪",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "NAME",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "NAME",
+      "value": "咪",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "NAME",
+      "value": "叫",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "NAME",
+      "value": "咪",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 19,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "NAME",
+      "value": "界",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "打印(咪.名字, 咪.叫(), 咪.界)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 24,
+      "source_line": "打印(咪)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 24,
+      "source_line": "打印(咪)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 24,
+      "source_line": "打印(咪)",
+      "type": "NAME",
+      "value": "咪",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 24,
+      "source_line": "打印(咪)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "打印(咪)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 25,
+      "source_line": "打印(咪.介绍())",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 25,
+      "source_line": "打印(咪.介绍())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 25,
+      "source_line": "打印(咪.介绍())",
+      "type": "NAME",
+      "value": "咪",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 25,
+      "source_line": "打印(咪.介绍())",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 25,
+      "source_line": "打印(咪.介绍())",
+      "type": "NAME",
+      "value": "介绍",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 25,
+      "source_line": "打印(咪.介绍())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 25,
+      "source_line": "打印(咪.介绍())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 25,
+      "source_line": "打印(咪.介绍())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "打印(咪.介绍())",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "令 汪 = 新建 狗(\"旺财\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 26,
+      "source_line": "令 汪 = 新建 狗(\"旺财\")",
+      "type": "NAME",
+      "value": "汪",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 26,
+      "source_line": "令 汪 = 新建 狗(\"旺财\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 26,
+      "source_line": "令 汪 = 新建 狗(\"旺财\")",
+      "type": "KEYWORD",
+      "value": "新建",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 26,
+      "source_line": "令 汪 = 新建 狗(\"旺财\")",
+      "type": "NAME",
+      "value": "狗",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 26,
+      "source_line": "令 汪 = 新建 狗(\"旺财\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 26,
+      "source_line": "令 汪 = 新建 狗(\"旺财\")",
+      "type": "STRING",
+      "value": "旺财",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 26,
+      "source_line": "令 汪 = 新建 狗(\"旺财\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "令 汪 = 新建 狗(\"旺财\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "NAME",
+      "value": "汪",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "NAME",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "NAME",
+      "value": "汪",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "NAME",
+      "value": "叫",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "NAME",
+      "value": "汪",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "NAME",
+      "value": "忠诚",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 27,
+      "source_line": "打印(汪.名字, 汪.叫(), 汪.忠诚)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "NAME",
+      "value": "是实例",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "NAME",
+      "value": "汪",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "NAME",
+      "value": "狗",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 17,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "NAME",
+      "value": "是实例",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 19,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "NAME",
+      "value": "汪",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "NAME",
+      "value": "动物",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "打印(是实例(汪, 狗), 是实例(汪, 动物))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "NAME",
+      "value": "类型",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "NAME",
+      "value": "汪",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "NAME",
+      "value": "类型",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "NAME",
+      "value": "狗",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "打印(类型(汪), 类型(狗))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 30,
+      "source_line": "类 账户：",
+      "type": "KEYWORD",
+      "value": "类",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 30,
+      "source_line": "类 账户：",
+      "type": "NAME",
+      "value": "账户",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 30,
+      "source_line": "类 账户：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 30,
+      "source_line": "类 账户：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "NAME",
+      "value": "初始化",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "NAME",
+      "value": "余额",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 31,
+      "source_line": "    函数 初始化(自身, 余额)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "        自身.余额 = 余额",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 32,
+      "source_line": "        自身.余额 = 余额",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 32,
+      "source_line": "        自身.余额 = 余额",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 32,
+      "source_line": "        自身.余额 = 余额",
+      "type": "NAME",
+      "value": "余额",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 32,
+      "source_line": "        自身.余额 = 余额",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 32,
+      "source_line": "        自身.余额 = 余额",
+      "type": "NAME",
+      "value": "余额",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "        自身.余额 = 余额",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "NAME",
+      "value": "存",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "NAME",
+      "value": "数额",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 33,
+      "source_line": "    函数 存(自身, 数额)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 34,
+      "source_line": "        自身.余额 += 数额",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 34,
+      "source_line": "        自身.余额 += 数额",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 34,
+      "source_line": "        自身.余额 += 数额",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 34,
+      "source_line": "        自身.余额 += 数额",
+      "type": "NAME",
+      "value": "余额",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 17,
+      "line": 34,
+      "source_line": "        自身.余额 += 数额",
+      "type": "OP",
+      "value": "+=",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 34,
+      "source_line": "        自身.余额 += 数额",
+      "type": "NAME",
+      "value": "数额",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 34,
+      "source_line": "        自身.余额 += 数额",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 35,
+      "source_line": "        返回 自身",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 35,
+      "source_line": "        返回 自身",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 35,
+      "source_line": "        返回 自身",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 36,
+      "source_line": "    函数 查(自身)：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 36,
+      "source_line": "    函数 查(自身)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 36,
+      "source_line": "    函数 查(自身)：",
+      "type": "NAME",
+      "value": "查",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 36,
+      "source_line": "    函数 查(自身)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 36,
+      "source_line": "    函数 查(自身)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 36,
+      "source_line": "    函数 查(自身)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 36,
+      "source_line": "    函数 查(自身)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 36,
+      "source_line": "    函数 查(自身)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "        返回 自身.余额",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 37,
+      "source_line": "        返回 自身.余额",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 37,
+      "source_line": "        返回 自身.余额",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 37,
+      "source_line": "        返回 自身.余额",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 37,
+      "source_line": "        返回 自身.余额",
+      "type": "NAME",
+      "value": "余额",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "        返回 自身.余额",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "KEYWORD",
+      "value": "新建",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "NAME",
+      "value": "账户",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 15,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "NUMBER",
+      "value": 100,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "令 账 = 新建 账户(100)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "NAME",
+      "value": "存",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "NUMBER",
+      "value": 50,
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "NAME",
+      "value": "存",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "NUMBER",
+      "value": 25,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 18,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "NAME",
+      "value": "查",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 39,
+      "source_line": "打印(账.存(50).存(25).查())",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "类 计数器：",
+      "type": "KEYWORD",
+      "value": "类",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 5,
+      "line": 40,
+      "source_line": "类 计数器：",
+      "type": "NAME",
+      "value": "计数器",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 40,
+      "source_line": "类 计数器：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "类 计数器：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 41,
+      "source_line": "    函数 初始化(自身)：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 41,
+      "source_line": "    函数 初始化(自身)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 41,
+      "source_line": "    函数 初始化(自身)：",
+      "type": "NAME",
+      "value": "初始化",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 41,
+      "source_line": "    函数 初始化(自身)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 41,
+      "source_line": "    函数 初始化(自身)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 41,
+      "source_line": "    函数 初始化(自身)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 41,
+      "source_line": "    函数 初始化(自身)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 41,
+      "source_line": "    函数 初始化(自身)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 42,
+      "source_line": "        自身.计 = 0",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 42,
+      "source_line": "        自身.计 = 0",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 42,
+      "source_line": "        自身.计 = 0",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 42,
+      "source_line": "        自身.计 = 0",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 42,
+      "source_line": "        自身.计 = 0",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 42,
+      "source_line": "        自身.计 = 0",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 42,
+      "source_line": "        自身.计 = 0",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 43,
+      "source_line": "    函数 加一(自身)：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 43,
+      "source_line": "    函数 加一(自身)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 43,
+      "source_line": "    函数 加一(自身)：",
+      "type": "NAME",
+      "value": "加一",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 43,
+      "source_line": "    函数 加一(自身)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 43,
+      "source_line": "    函数 加一(自身)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 43,
+      "source_line": "    函数 加一(自身)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 43,
+      "source_line": "    函数 加一(自身)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 43,
+      "source_line": "    函数 加一(自身)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 44,
+      "source_line": "        自身.计 += 1",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 44,
+      "source_line": "        自身.计 += 1",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 44,
+      "source_line": "        自身.计 += 1",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 44,
+      "source_line": "        自身.计 += 1",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 16,
+      "line": 44,
+      "source_line": "        自身.计 += 1",
+      "type": "OP",
+      "value": "+=",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 44,
+      "source_line": "        自身.计 += 1",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 44,
+      "source_line": "        自身.计 += 1",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 45,
+      "source_line": "        返回 自身.计",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 45,
+      "source_line": "        返回 自身.计",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 45,
+      "source_line": "        返回 自身.计",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 45,
+      "source_line": "        返回 自身.计",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 45,
+      "source_line": "        返回 自身.计",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "KEYWORD",
+      "value": "新建",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 12,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "NAME",
+      "value": "计数器",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 46,
+      "source_line": "令 计 = 新建 计数器()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "NAME",
+      "value": "加一",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "NAME",
+      "value": "加一",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 20,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 22,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 47,
+      "source_line": "打印(计.加一(), 计.加一(), 计.计)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 48,
+      "source_line": "类 序列：",
+      "type": "KEYWORD",
+      "value": "类",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 48,
+      "source_line": "类 序列：",
+      "type": "NAME",
+      "value": "序列",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 48,
+      "source_line": "类 序列：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 48,
+      "source_line": "类 序列：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "NAME",
+      "value": "初始化",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 49,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 50,
+      "source_line": "        自身.项 = 项",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 50,
+      "source_line": "        自身.项 = 项",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 50,
+      "source_line": "        自身.项 = 项",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 50,
+      "source_line": "        自身.项 = 项",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 50,
+      "source_line": "        自身.项 = 项",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 50,
+      "source_line": "        自身.项 = 项",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 50,
+      "source_line": "        自身.项 = 项",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 51,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 51,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 51,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "NAME",
+      "value": "迭代",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 51,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 51,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 51,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 51,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 51,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 52,
+      "source_line": "        返回 自身.项",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 52,
+      "source_line": "        返回 自身.项",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 52,
+      "source_line": "        返回 自身.项",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 52,
+      "source_line": "        返回 自身.项",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 52,
+      "source_line": "        返回 自身.项",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 52,
+      "source_line": "        返回 自身.项",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "KEYWORD",
+      "value": "新建",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "NAME",
+      "value": "序列",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 18,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 21,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "NUMBER",
+      "value": 3,
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 53,
+      "source_line": "遍历 x 在 新建 序列([1, 2, 3])：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 54,
+      "source_line": "    打印(x)",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 54,
+      "source_line": "    打印(x)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 54,
+      "source_line": "    打印(x)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 54,
+      "source_line": "    打印(x)",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 54,
+      "source_line": "    打印(x)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 54,
+      "source_line": "    打印(x)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 55,
+      "source_line": "类 有长度：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 55,
+      "source_line": "类 有长度：",
+      "type": "KEYWORD",
+      "value": "类",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 5,
+      "line": 55,
+      "source_line": "类 有长度：",
+      "type": "NAME",
+      "value": "有长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 55,
+      "source_line": "类 有长度：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 55,
+      "source_line": "类 有长度：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "NAME",
+      "value": "初始化",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 56,
+      "source_line": "    函数 初始化(自身, 项)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 57,
+      "source_line": "        自身.项 = 项",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 57,
+      "source_line": "        自身.项 = 项",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 57,
+      "source_line": "        自身.项 = 项",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 57,
+      "source_line": "        自身.项 = 项",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 57,
+      "source_line": "        自身.项 = 项",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 57,
+      "source_line": "        自身.项 = 项",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 57,
+      "source_line": "        自身.项 = 项",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 58,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 58,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 58,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "NAME",
+      "value": "迭代",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 58,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 58,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 58,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 58,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 58,
+      "source_line": "    函数 迭代(自身)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "        返回 自身.项",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 59,
+      "source_line": "        返回 自身.项",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 59,
+      "source_line": "        返回 自身.项",
+      "type": "NAME",
+      "value": "自身",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 59,
+      "source_line": "        返回 自身.项",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 59,
+      "source_line": "        返回 自身.项",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "        返回 自身.项",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "KEYWORD",
+      "value": "新建",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 12,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "NAME",
+      "value": "有长度",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "NUMBER",
+      "value": 7,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 18,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "NUMBER",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 60,
+      "source_line": "打印(长度(新建 有长度([7, 8])))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "NAME",
+      "value": "列",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "NUMBER",
+      "value": 3,
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 61,
+      "source_line": "令 列 = [1, 2, 3]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 62,
+      "source_line": "列.追加(4)",
+      "type": "NAME",
+      "value": "列",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 62,
+      "source_line": "列.追加(4)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 62,
+      "source_line": "列.追加(4)",
+      "type": "NAME",
+      "value": "追加",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 62,
+      "source_line": "列.追加(4)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 62,
+      "source_line": "列.追加(4)",
+      "type": "NUMBER",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 62,
+      "source_line": "列.追加(4)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 62,
+      "source_line": "列.追加(4)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 63,
+      "source_line": "列[0] = 9",
+      "type": "NAME",
+      "value": "列",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 63,
+      "source_line": "列[0] = 9",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 63,
+      "source_line": "列[0] = 9",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 63,
+      "source_line": "列[0] = 9",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 63,
+      "source_line": "列[0] = 9",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 63,
+      "source_line": "列[0] = 9",
+      "type": "NUMBER",
+      "value": 9,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 63,
+      "source_line": "列[0] = 9",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 64,
+      "source_line": "列[-1] = 7",
+      "type": "NAME",
+      "value": "列",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 64,
+      "source_line": "列[-1] = 7",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 64,
+      "source_line": "列[-1] = 7",
+      "type": "OP",
+      "value": "-",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 64,
+      "source_line": "列[-1] = 7",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 64,
+      "source_line": "列[-1] = 7",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 64,
+      "source_line": "列[-1] = 7",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 64,
+      "source_line": "列[-1] = 7",
+      "type": "NUMBER",
+      "value": 7,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 64,
+      "source_line": "列[-1] = 7",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "NAME",
+      "value": "列",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "NAME",
+      "value": "列",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "NAME",
+      "value": "列",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "NAME",
+      "value": "弹出",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 65,
+      "source_line": "打印(列, 长度(列), 列.弹出())",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 66,
+      "source_line": "令 字典 = {}",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 66,
+      "source_line": "令 字典 = {}",
+      "type": "NAME",
+      "value": "字典",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 66,
+      "source_line": "令 字典 = {}",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 66,
+      "source_line": "令 字典 = {}",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 66,
+      "source_line": "令 字典 = {}",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 66,
+      "source_line": "令 字典 = {}",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 67,
+      "source_line": "字典[\"新\"] = 1",
+      "type": "NAME",
+      "value": "字典",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 67,
+      "source_line": "字典[\"新\"] = 1",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 67,
+      "source_line": "字典[\"新\"] = 1",
+      "type": "STRING",
+      "value": "新",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 67,
+      "source_line": "字典[\"新\"] = 1",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 67,
+      "source_line": "字典[\"新\"] = 1",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 67,
+      "source_line": "字典[\"新\"] = 1",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 67,
+      "source_line": "字典[\"新\"] = 1",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "NAME",
+      "value": "字典",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "NAME",
+      "value": "字典",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 13,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "STRING",
+      "value": "新",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 68,
+      "source_line": "打印(字典, 字典[\"新\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 68,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:58af346c65189828",
+  "语料": "tests/cases/24_类.jsh"
+}

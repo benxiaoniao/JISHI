@@ -1,0 +1,24 @@
+[package]
+name = "jishi-core"
+version = "0.2.2"
+edition = "2021"
+description = "基石（jishi）前端核心的 **Python 扩展壳** —— 前端本身在 `../frontend`（R7.1-a 起从本 crate 抽出去，好让独立宿主二进制也能用），这里只做「Rust 值 ↔ Python 对象」的搬运 + 错误映射。"
+license = "MIT-0"
+publish = false
+
+[lib]
+# 编成 Python 扩展模块：产物 `_core.dll/.so/.dylib` 复制成 `jishi/_core.pyd`
+# （Linux/macOS 是 `_core.so`）后 `import jishi._core` 即可。
+name = "_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.29", features = ["extension-module"] }
+# R7.1-a：前端抽成独立 crate（纯 Rust、零依赖），与 `rust/`（独立宿主）共用同一份
+# 实现 —— 免得「同一件前端」长出两份会漂的代码。路径依赖不是第三方依赖。
+jishi-frontend = { path = "../frontend" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

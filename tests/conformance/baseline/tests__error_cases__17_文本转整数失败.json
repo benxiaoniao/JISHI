@@ -1,0 +1,168 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "expr": {
+          "args": [],
+          "col": 10,
+          "func": {
+            "attr": "转整数",
+            "col": 6,
+            "line": 1,
+            "obj": {
+              "col": 1,
+              "line": 1,
+              "value": "abc",
+              "类型": "Str"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 1,
+          "类型": "Call"
+        },
+        "line": 1,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "58048b8188a62195aef59bb0c0eb95eb95ef06fd310fa3f923a22695e4c41f62",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            1,
+            25,
+            0,
+            0,
+            0,
+            1,
+            6,
+            20,
+            0,
+            -1,
+            0,
+            1,
+            10,
+            38,
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "abc"
+        }
+      ],
+      "filename": "tests/error_cases/17_文本转整数失败.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "转整数"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 5,
+      "line": 1,
+      "source_line": "\"abc\".转整数()",
+      "type": "STRING",
+      "value": "abc",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 1,
+      "source_line": "\"abc\".转整数()",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 1,
+      "source_line": "\"abc\".转整数()",
+      "type": "NAME",
+      "value": "转整数",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 1,
+      "source_line": "\"abc\".转整数()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 1,
+      "source_line": "\"abc\".转整数()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "\"abc\".转整数()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:9659511d7cc68860",
+  "语料": "tests/error_cases/17_文本转整数失败.jsh"
+}
