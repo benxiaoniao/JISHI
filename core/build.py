@@ -21,6 +21,11 @@
 2. **`windows-gnu` 目标需要 `dlltool`**（pyo3-ffi 用它生成导入库）。
    它随 MinGW 一起来了（和 `gcc` 同目录），但常常不在 PATH 里 ——
    本脚本按与 `cvm/build.py` 同样的候选清单找它，也可用 `JISHI_MINGW` 指定。
+3. **macOS 上必须给 `-undefined dynamic_lookup`**（2026-10-10）：扩展是 **bundle**，
+   `Py*` / `_Py_TrueStruct` 那批符号靠**运行时**从宿主解释器解析；不给这条就是
+   `ld: symbol(s) not found for architecture arm64`。pyo3 的 `extension-module`
+   本该自己加，但我们喂了 `PYO3_CONFIG_FILE`（第 1 条的对策）之后那条路没走到，
+   所以在 Darwin 上显式补进 `RUSTFLAGS`。
 """
 
 from __future__ import annotations
@@ -119,6 +124,16 @@ def cargo_env() -> dict:
         env["PATH"] = str(mingw) + os.pathsep + env.get("PATH", "")
     env["PYO3_CONFIG_FILE"] = str(write_pyo3_config())
     env.setdefault("PYTHONUTF8", "1")
+    if sys.platform == "darwin":
+        # 🔴 macOS 的 Python 扩展是 **bundle**：`Py*` / `_Py_TrueStruct` 那批符号
+        #    靠**运行时**从宿主解释器解析，链接时必须给 `-undefined dynamic_lookup`
+        #    —— 否则就是
+        #    `ld: symbol(s) not found for architecture arm64`（2026-10-10 CI 退出码 101）。
+        #    pyo3 的 `extension-module` 本该自己加这条；但我们喂了 PYO3_CONFIG_FILE
+        #    之后那条路没走到（本机 Windows 上喂配置是**必要**的 —— 见模块头注），
+        #    所以在 macOS 上显式补一句（重复也无害）。
+        extra = "-C link-arg=-undefined -C link-arg=dynamic_lookup"
+        env["RUSTFLAGS"] = (env.get("RUSTFLAGS", "") + " " + extra).strip()
     return env
 
 

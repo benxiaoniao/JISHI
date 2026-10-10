@@ -80,7 +80,9 @@ jobs:
         shell: bash
         run: |
           set +e
-          python core/build.py 2>&1 | tee pyo3.log
+          # ⚠️ `-u`：不缓冲 stdout —— 否则 stdout/stderr 在日志里**交错错乱**，
+          #    排查时看到的顺序是假的（2026-10-10 就被这个误导过）。
+          python -u core/build.py 2>&1 | tee pyo3.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
             echo "::error file=.github/workflows/ci.yml,line=1::pyo3 扩展构建失败（rc=$rc）：$(tail -c 1800 pyo3.log | tr -d '\r' | tr '\n' ' ')"
