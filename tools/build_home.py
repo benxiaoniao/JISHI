@@ -1039,7 +1039,12 @@ def build_download(ver: str) -> str:
             '<p class="lead">想核对完整性：本站也放了 '
             '<a href="download/SHA256SUMS">SHA256SUMS</a>（与 GitHub 那份相同）。'
             '下载后在同目录执行 <code>sha256sum -c SHA256SUMS</code>；'
-            'Windows 上用 <code>certutil -hashfile 文件名 SHA256</code> 手动比对。</p>')
+            'Windows 上用 <code>certutil -hashfile 文件名 SHA256</code> 手动比对。'
+            '⚠️ 若清单里出现一行以 <code>SHA256SUMS</code> 结尾的记录，那是早先的'
+            '打包脚本把<b>它自己的空文件</b>也算了进去（值恒为 '
+            '<code>e3b0c442…</code>）—— 那一行必然 FAILED，<b>忽略它即可</b>；'
+            '要核对的只是 <code>jishi-</code> 开头的各行。'
+            '（2026-10-11 已修脚本，此后的清单不再有这一行。）</p>')
 
     # ---- 二、版本历史：升级点直接抽自 CHANGELOG ----
     items = []

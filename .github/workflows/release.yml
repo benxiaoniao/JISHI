@@ -212,7 +212,14 @@ jobs:
         run: |
           cd artifacts
           rm -f SHA256SUMS
-          find . -maxdepth 1 -type f -exec sha256sum {} \; | sed 's|\./||' > SHA256SUMS
+          # ⚠️ 必须**排除 `SHA256SUMS` 自己**（2026-10-11 才发现）：`> SHA256SUMS`
+          #    会先把这个空文件创建出来，紧接着的 `find .` 就把它也算了一行 ——
+          #    于是清单里多出 `e3b0c442…b855  SHA256SUMS`（**空字符串**的 SHA256）。
+          #    后果：用户 `sha256sum -c SHA256SUMS` 时那一行必然 FAILED，看着像包坏了。
+          #    两头堵：`! -name` 排除自己 + 写临时文件、最后才改名。
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -exec sha256sum {} \; \
+            | sed 's|\./||' > /tmp/SHA256SUMS.new
+          mv /tmp/SHA256SUMS.new SHA256SUMS
           echo "== 发布文件 =="
           ls -la
           echo "== SHA256SUMS =="

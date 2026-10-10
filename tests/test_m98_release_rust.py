@@ -96,6 +96,36 @@ def test_发行脚本产出的是单文件不是目录():
     assert "copytree" not in rust, "rust 引擎不该产生目录"
 
 
+def test_校验清单不把自己算进去():
+    r"""`SHA256SUMS` 里**不许有关于它自己的一行**。
+
+    🔴 来历（2026-10-11）：`release.yml` 原来这么写 ——
+
+        rm -f SHA256SUMS
+        find . -maxdepth 1 -type f -exec sha256sum {} \; | sed 's|\./||' > SHA256SUMS
+
+    bash 会**先**执行重定向（创建**空**的 `SHA256SUMS`），**再**跑 `find .` ——
+    于是刚建出来的空文件被算了一行：
+
+        e3b0c442…b855  SHA256SUMS      ← `e3b0c442…` 正是**空字符串**的 SHA256
+
+    后果：用户照着下载页说的 `sha256sum -c SHA256SUMS` 一跑，那一行必然
+    `FAILED` —— 三个包全对，却看着像包坏了。
+
+    这条判据在**源码**上钉：① 生成清单的 `find` 排除自己；② 不提前创建同名文件。
+    """
+    wf = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "-exec sha256sum" in wf, "release.yml 里应当有生成清单的 find"
+    before = wf.split("-exec sha256sum")[0]
+    assert "! -name SHA256SUMS" in before, \
+        "生成清单的 `find` 必须排除 SHA256SUMS 自己（否则清单里会多一行空串哈希）"
+    # 另一头：别写回同一个名字（重定向会先把空文件建出来）
+    bad = [ln for ln in wf.splitlines()
+           if "> SHA256SUMS" in ln and not ln.lstrip().startswith("#")]
+    assert not bad, \
+        f"清单不要直接 `> SHA256SUMS`（先写临时文件再 mv）：{bad}"
+
+
 # ---------------------------------------------------------------------------
 # 二、产物层：有包就验，没有就跳过（不替人构建）
 # ---------------------------------------------------------------------------
