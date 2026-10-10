@@ -147,6 +147,21 @@ def main(argv: "list[str] | None" = None) -> int:
     print(f"🔧 构建 {CORE.name}/（pyo3 → {EXT_DST.name}）…")
     proc = subprocess.run([cargo, "build", "--release"], cwd=str(CORE), env=env)
     if proc.returncode != 0:
+        # 兜底：**不喂 PYO3_CONFIG_FILE**，让 pyo3 自己去探测当前解释器。
+        #
+        # ⚠️ 这条**不能**当首选：Windows 上 pyo3 的构建脚本会去跑一次 Python，
+        #    受限环境里直接 `os error 231`（那就是写 `PYO3_CONFIG_FILE` 的起因）。
+        #    但在 POSIX 上它是最省事的逃生门 —— 我们按配置写死的 `lib_dir`
+        #    （框架式 CPython 上常与真实位置不符）会让链接步骤失败，
+        #    而 pyo3 自己探测时用的是解释器给的权威答案。
+        #    2026-10-10：macOS runner 上这一步退出码 101，就是这个形状。
+        print("⚠️ 第一次构建失败，改用「让 pyo3 自己探测解释器」重试一次…",
+              file=sys.stderr)
+        env2 = dict(env)
+        env2.pop("PYO3_CONFIG_FILE", None)
+        env2["PYO3_PYTHON"] = sys.executable
+        proc = subprocess.run([cargo, "build", "--release"], cwd=str(CORE), env=env2)
+    if proc.returncode != 0:
         print("❌ 构建失败（上面是 cargo 的输出）", file=sys.stderr)
         return proc.returncode
 

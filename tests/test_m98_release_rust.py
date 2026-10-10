@@ -106,6 +106,35 @@ has_pkg = pytest.mark.skipif(
            "`python tools/build_release.py --engine rust`")
 
 
+def _zip_names(z: Path) -> list[str]:
+    """打开 zip 读清单；**打不开时给一句能照做的话**。
+
+    ⚠️ 来历（2026-10-10）：一次「拉 0.2.2 镜像时网络断掉」在 `dist/release/`
+    留下 **9 字节的占位文件**（内容其实是 404 页），`zipfile` 直接抛
+    `BadZipFile: File is not a zip file` —— 从报错里看不出该干什么。
+    """
+    try:
+        with zipfile.ZipFile(z) as zf:
+            return zf.namelist()
+    except zipfile.BadZipFile as e:
+        raise AssertionError(
+            f"{z.name} 打不开（{e}）—— 大概是**残包/占位文件**"
+            f"（只有 {z.stat().st_size} 字节）。删掉它再跑："
+            f"`rm -f 'dist/release/{z.name}'*`") from e
+
+
+def _tar_names(t: Path) -> list[str]:
+    """同 `_zip_names`，给 tar.gz 用。"""
+    try:
+        with tarfile.open(t) as tf:
+            return tf.getnames()
+    except tarfile.TarError as e:
+        raise AssertionError(
+            f"{t.name} 打不开（{e}）—— 大概是**残包/占位文件**"
+            f"（只有 {t.stat().st_size} 字节）。删掉它再跑："
+            f"`rm -f 'dist/release/{t.name}'*`") from e
+
+
 def _bin_entries(names: list[str]) -> list[str]:
     """包内 `bin/` 的**直接子项**（相对包根，去掉包名那一层）。"""
     out = []
@@ -130,8 +159,7 @@ def test_产物_包内_bin_是平铺的():
     """**R8.3 的核心判据**：cargo 打的包里，`bin/` 下只有一个可执行文件、没有中间目录。"""
     checked, skipped = 0, 0
     for z in ZIPS:
-        with zipfile.ZipFile(z) as zf:
-            names = zf.namelist()
+        names = _zip_names(z)
         if _is_legacy(names):
             skipped += 1
             continue
@@ -139,8 +167,7 @@ def test_产物_包内_bin_是平铺的():
         assert tops == [f"bin/{EXE}"], f"{z.name} 的 bin/ 不是平铺的：{tops[:6]}"
         checked += 1
     for t in TARS:
-        with tarfile.open(t) as tf:
-            names = tf.getnames()
+        names = _tar_names(t)
         if _is_legacy(names):
             skipped += 1
             continue
@@ -157,15 +184,13 @@ def test_产物_体积与文件数_换cargo的收益看得见():
     """单二进制把发行包从「几百个文件 / 20MB」压到「十几个文件 / 3MB 量级」。"""
     modern = []
     for z in ZIPS:
-        with zipfile.ZipFile(z) as zf:
-            if not _is_legacy(zf.namelist()):
-                modern.append(z)
+        if not _is_legacy(_zip_names(z)):
+            modern.append(z)
     if not modern:
         pytest.skip("dist/release 里只有 PyInstaller 老包；"
                     "跑 `python tools/build_release.py --engine rust`")
     z = modern[0]
-    with zipfile.ZipFile(z) as zf:
-        names = [n for n in zf.namelist() if not n.endswith("/")]
+    names = [n for n in _zip_names(z) if not n.endswith("/")]
     assert len(names) < 40, f"{z.name} 里 {len(names)} 个文件 —— 是不是又打成 onedir 了？"
     mb = z.stat().st_size / 1024 / 1024
     assert mb < 8, f"{z.name} 有 {mb:.2f} MB（cargo 单二进制应在 3MB 量级）"

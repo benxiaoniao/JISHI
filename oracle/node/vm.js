@@ -798,10 +798,22 @@ const SYS_FUNCS = {
   }),
   '系统版本': new R.Builtin('系统版本', () => _os.release()),
   '机器架构': new R.Builtin('机器架构', () => {
+    // 口径要与 Python 的 `platform.machine()` **逐字一致**（五执行器对拍会抓到）：
+    //   * Windows：`platform.machine()` 取 `PROCESSOR_ARCHITECTURE` → `AMD64`；
+    //   * POSIX：  取 `uname -m` → `x86_64`（macOS 上 `arm64` / `x86_64`）。
+    // 🔴 **不能用 `os.arch()`**：它给的是 `x64` / `arm64`，在 Linux 上对不上
+    //    `x86_64`（2026-10-10 被 `tools/probe_stdlib.py` 在 CI 上抓到）。
+    // 🔴 **也不能在 Windows 上用 `os.machine()`**：Windows 上它给 `x86_64`，
+    //    而 Python 给 `AMD64` —— 会把 Windows 弄坏（本机实测）。
+    // `os.machine()` 需要 Node ≥ 18.9，POSIX 上取不到时退回 `os.arch()`。
     const a = _os.arch();
-    if (a === 'x64') return 'AMD64';
-    if (a === 'ia32') return 'x86';
-    return a;
+    if (process.platform === 'win32') {
+      if (a === 'x64') return 'AMD64';
+      if (a === 'ia32') return 'x86';
+      if (a === 'arm64') return 'ARM64';
+      return a;
+    }
+    return typeof _os.machine === 'function' ? _os.machine() : a;
   }),
   '处理器': new R.Builtin('处理器', () => {
     const cpus = _os.cpus();

@@ -204,6 +204,28 @@ def _net_seconds(n: int, *, tries: int = 3) -> float:
     return max(best - base, 0.0)
 
 
+def _net_pair(n_small: int, n_large: int, *, tries: int = 5) -> "tuple[float, float]":
+    """**交错**量出两个规模的净耗时。
+
+    ⚠️ 为什么必须交错（2026-10-10 在 CI 上栽过）：原来先把 base 量 3 次、
+    再把 small 量 3 次、最后把 large 量 3 次 —— 中途来一阵负载（共享 runner
+    很常见），**后量到的那档被整体抬高**，于是「比值」量到的是**负载**而不是
+    **量级**：同一份代码本机比值 ~4，CI 上读到过 **20.9**（差的正是这一档）。
+    交错之后两档看到的是同一段负载；每档取 min（最不受打扰的那次）。
+    """
+    base = small = large = float("inf")
+    exprs = {
+        "base": "令 空转 = 1\n",
+        "small": f"令 计数 = 0\n遍历 i 在 范围({n_small})：\n    计数 = 1\n打印(计数)\n",
+        "large": f"令 计数 = 0\n遍历 i 在 范围({n_large})：\n    计数 = 1\n打印(计数)\n",
+    }
+    for _ in range(tries):
+        base = min(base, _rust(exprs["base"])[1])
+        small = min(small, _rust(exprs["small"])[1])
+        large = min(large, _rust(exprs["large"])[1])
+    return max(small - base, 0.0), max(large - base, 0.0)
+
+
 @need_rust_vm
 def test_遍历不是平方的():
     """**翻倍测试**：元素数 ×4，耗时该是 ×4 上下；平方的话会是 ×16。
@@ -213,8 +235,7 @@ def test_遍历不是平方的():
     9 这个界两边都够不着。
     """
     # 规模取大一点：净耗时太小的话噪声占主导（000 那种护栏会直接跳过）
-    small = _net_seconds(20000)
-    large = _net_seconds(80000)
+    small, large = _net_pair(20000, 80000)
     # n 太小的时候噪声占主导（两者都可能接近 0），那种情况不判定
     if small < 0.002 or large < 0.002:
         pytest.skip(f"耗时太短、噪声占主导（{small * 1000:.1f} / "

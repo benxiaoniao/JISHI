@@ -73,8 +73,19 @@ jobs:
       - name: 构建 Rust 宿主（测试要用）
         run: cargo build --release --manifest-path rust/Cargo.toml
 
+      # ⚠️ 用 bash 包一层：cargo 失败时只在 job 日志里留痕（而日志要登录网页才看得到），
+      #    这里顺手把它写成 Actions 注解 —— 2026-10-09 macos 上这一步退出码 101、
+      #    注解却是空的，查了半天。诊断信息必须是**公开 API 拿得到**的。
       - name: 构建前端扩展（pyo3，测试要用）
-        run: python core/build.py
+        shell: bash
+        run: |
+          set +e
+          python core/build.py 2>&1 | tee pyo3.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "::error file=.github/workflows/ci.yml,line=1::pyo3 扩展构建失败（rc=$rc）：$(tail -c 1800 pyo3.log | tr -d '\r' | tr '\n' ' ')"
+          fi
+          exit "$rc"
 
       # 全量测试：三执行器对拍（树遍历 / Python VM / C VM 逐字节一致）
 
@@ -107,7 +118,14 @@ jobs:
           # 多行的断言消息（探针会把「哪几条不一致 + 各引擎的值」打成多行）
           # 会被吃光，注解里只看得到「AssertionError: 标准库体检没过：」这种空壳
           # —— 2026-10-09 排查 m67 时正是被这个坑住的。
-          python -m pytest tests/ -q --tb=short -rf 2>&1 | tee pytest.log
+          #
+          # 🔴 **只跑「非墙上护栏」的用例**（`-m "not 计时"`）：`计时` 那批断言的是
+          # **墙上时间**（例：「20 万次调用 < 300ms」），而共享 runner 的负载能把
+          # 同一份代码抬到 2~3 倍 —— 实测本机 202ms、CI Windows 上 386ms，
+          # 于是**假红挡住发版**（2026-10-09 的 v0.2.2 就是这么连红三轮的）。
+          # 绝对耗时阈值在 CI 上**没有判别力**；墙上护栏照 `AGENTS.md` §1 的配方
+          # **在本机串行跑**（`python -m pytest tests/ -m 计时`）。
+          python -m pytest tests/ -q --tb=short -rf -m "not 计时" 2>&1 | tee pytest.log
 
       # 失败时把「哪些用例挂了」写成 Actions 注解（M35 加）。
       # 来由：CI 一直红，而 job 日志只能登录网页看、公开 API 下载要管理员权限，
