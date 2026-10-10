@@ -33,6 +33,7 @@
                                  既有 bug 里有三个是夹具全程绿的情况下存在的。
 """
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -59,7 +60,17 @@ def main() -> int:
         return 1
 
     # 2) 全量测试（含三执行器对拍）
-    if not _run([PYTHON, "-m", "pytest", str(ROOT / "tests"), "-q"],
+    #
+    # 🔴 **`计时` 那批要能排掉**（2026-10-10）：它们断言的是**墙上时间**
+    #    （如「20 万次调用 < 300ms」），共享 CI runner 比开发机慢得多 ——
+    #    实测同一份代码本机 202ms、CI Windows 上 **301ms**（就超了 1.3 毫秒！
+    #    另一轮 386ms）。**绝对耗时阈值在 CI 上没有判别力，只会假红挡发版。**
+    #    CI 里由 workflow 传 `JISHI_SKIP_TIMING=1`；**本机默认不排** ——
+    #    `AGENTS.md` §1 的配方本来就是「本机串行跑 `-m 计时`」，那才是它的判据。
+    #    ⚠️ 别把这条写成「CI 上无条件排」：那就分不清「本机跑」与「CI 跑」了。
+    timing = (["-m", "not 计时"]
+              if os.environ.get("JISHI_SKIP_TIMING") else [])
+    if not _run([PYTHON, "-m", "pytest", str(ROOT / "tests"), "-q", *timing],
                 "pytest 全量测试"):
         return 1
 
