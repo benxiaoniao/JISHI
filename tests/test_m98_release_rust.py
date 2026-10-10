@@ -154,6 +154,21 @@ def _is_legacy(names: list[str]) -> bool:
     return any("/_internal/" in n for n in names)
 
 
+def _exe_for(pkg: Path) -> str:
+    """**这个包所属平台**在 `bin/` 下的可执行文件名。
+
+    🔴 不能拿模块级的 `EXE` 去判（它按**跑测试的宿主**取）：
+    `dist/release/` 里可能同时躺着多个平台的包 —— 在 Windows 上跑测试时去验
+    Linux/macOS 的 tar.gz，就会拿 `bin/jishi.exe` 去要求一个只有 `bin/jishi` 的包。
+
+    ⚠️ 来历（2026-10-11）：0.2.1 是 PyInstaller 老包（`_is_legacy` 直接跳过），
+    直到拉进 0.2.2 的 cargo 包，这条才第一次真的去验非 Windows 的包 —— 于是
+    在开发机（Windows）上假红了一次。**判据必须按包自己的平台判**，
+    否则它换个机器、换一批包就会变。
+    """
+    return "jishi.exe" if "-windows-" in pkg.name else "jishi"
+
+
 @has_pkg
 def test_产物_包内_bin_是平铺的():
     """**R8.3 的核心判据**：cargo 打的包里，`bin/` 下只有一个可执行文件、没有中间目录。"""
@@ -164,7 +179,7 @@ def test_产物_包内_bin_是平铺的():
             skipped += 1
             continue
         tops = _bin_entries(names)
-        assert tops == [f"bin/{EXE}"], f"{z.name} 的 bin/ 不是平铺的：{tops[:6]}"
+        assert tops == [f"bin/{_exe_for(z)}"], f"{z.name} 的 bin/ 不是平铺的：{tops[:6]}"
         checked += 1
     for t in TARS:
         names = _tar_names(t)
@@ -172,7 +187,7 @@ def test_产物_包内_bin_是平铺的():
             skipped += 1
             continue
         tops = _bin_entries(names)
-        assert tops == [f"bin/{EXE}"], f"{t.name} 的 bin/ 不是平铺的：{tops[:6]}"
+        assert tops == [f"bin/{_exe_for(t)}"], f"{t.name} 的 bin/ 不是平铺的：{tops[:6]}"
         checked += 1
     if not checked:
         pytest.skip(f"{len(ZIPS) + len(TARS)} 个包全是 PyInstaller 老包，"
