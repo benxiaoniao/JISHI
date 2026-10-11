@@ -727,13 +727,18 @@ impl Walker {
         if param_kind.is_empty() {
             param_kind = vec![0; params.len()];      // 前端不给就全是「普通」
         }
-        let mut defaults = Vec::with_capacity(params.len());
+        // 默认值存**紧凑尾部**（只留有默认值的那些）。AST JSON 里 `defaults`
+        // 与形参**等长对齐**、`null` 表示「该参数没默认值」；但 `bind_params`
+        // 收到的是**值**，而 `空` 就是 `Val::None_` —— 拿它当哨兵会把
+        // 「默认值是空」误判成「没有默认值」（2026-10-11 修）。
+        let mut defaults: Vec<Val> = Vec::new();
         if let Some(ds) = n.get("defaults").and_then(|v| v.as_array()) {
             for d in ds {
-                defaults.push(if matches!(d, Json::Null) { Val::None_ } else { self.eval(d)? });
+                if !matches!(d, Json::Null) {
+                    defaults.push(self.eval(d)?);
+                }
             }
         }
-        defaults.resize(params.len(), Val::None_);
         let body = stmts_of(n, "body")?.to_vec();
         let locals = Rc::new(assigned_names(&body));
         Ok(WalkFn {

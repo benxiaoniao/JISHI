@@ -95,7 +95,10 @@ class FuncDef(Node):
     name: str
     params: list[str]
     body: list[Node]
-    #: 与 params 等长；None 表示该参数无默认值（M7 默认参数）
+    #: 与 params **等长对齐**；`None` 表示该参数没写默认值（M7 默认参数）。
+    #: ⚠️ 这一层无歧义（写成 `空` 的默认值是 Name 节点，不是 `None`）；
+    #: 但**运行期**存的是值、`空` 就是 `None`，所以那几处一律转成
+    #: **紧凑尾部**（只有写了默认值的那些），别把 `None` 当哨兵用。
     defaults: list = field(default_factory=list)
     #: 与 params 等长；类型标注的**文本**（M24.3），None 表示没写（M24.3）。
     #: 存文本而不是 AST 是有意的：标注不参与求值，只作文档与可选校验的键，
@@ -119,6 +122,7 @@ class Lambda(Node):
 
     params: list[str]
     body: list[Node]
+    #: 与 params 等长对齐，语义同 `FuncDef.defaults`（见那里的说明）
     defaults: list = field(default_factory=list)
     annotations: list = field(default_factory=list)
     #: 形参种类（M25），与 params 对齐；与 FuncDef 同义

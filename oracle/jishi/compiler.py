@@ -578,7 +578,11 @@ class _Emitter:
         cur = self.scope
         for name in code.freevars:
             self.emit(O.Op.LOAD_CELL, st, cur.cell_index(name))
-        # 默认参数：在定义处作用域求值，压栈（M7）
+        # 默认参数：在定义处作用域求值，压栈（M7）。
+        # ⚠️ `st.defaults` 与形参**等长对齐**（`None` = 该参数没默认值），
+        # 所以只把非 `None` 的压栈并计数 —— 字节码里的 `ndefaults` 就是
+        # 「尾部有几个参数带默认值」。值本身可能是 `空`，那是**值**层面的事，
+        # 在运行期用「紧凑尾部 + 按下标折算」处理（别拿 `空` 当哨兵）。
         ndefaults = 0
         for d in st.defaults:
             if d is not None:

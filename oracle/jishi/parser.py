@@ -888,6 +888,12 @@ class Parser:
         """
         self._expect_op("(")
         params: list[str] = []
+        # `defaults` 与 `params` **等长对齐**，`None` 表示「这个参数没写默认值」。
+        # ⚠️ 这一层是**无歧义**的：写成 `空` 的默认值在 AST 里是 Name 节点
+        # （不是 `None`），所以「没默认值」与「默认值是 `空`」分得开。
+        # 真正会出问题的是**运行期**：那里存的是**值**，`空` 就是 `None`，
+        # 拿它当「没默认值」的哨兵就撞车了 ⇒ 运行期一律存**紧凑尾部**
+        # （见 `interpreter.py` / `vm.py` / `rust/src/lib.rs` / `node/vm.js`）。
         defaults: list = []
         annotations: list = []
         kinds: list[int] = []

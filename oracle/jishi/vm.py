@@ -284,7 +284,10 @@ class VM:
         """把实参绑到形参上，返回 ``(locals, 参数值列表)``。
 
         报错措辞与树遍历 ``_eval_call`` 逐字一致。
-        defaults 与形参对齐（None 无默认），缺实参时补默认值（M7）。
+        ``defaults`` 是**紧凑尾部**（只有写了默认值的那些；**不是**与形参对齐
+        的占位表）—— 尾部 ``len(defaults)`` 个「普通参数」有默认值，
+        按 ``first_def = npos - len(defaults)`` 折算（M7；2026-10-11 改成这种
+        表示法，好让「默认值是 `空`」不被误当成「没有默认值」）。
         M25 起支持 `*参数`（收多余位置实参成列表）与 `**选项`（收未匹配关键字成字典）。
         """
         params = code.params
@@ -325,10 +328,13 @@ class VM:
                     hint=f"它的参数是：{'、'.join(params[:npos])}")
         if dstar_pos >= 0:
             bound.setdefault(params[dstar_pos], {})
-        for i, p in enumerate(params[:npos]):
-            d = (defaults or [])[i] if i < len(defaults or []) else None
-            if p not in bound and d is not None:
-                bound[p] = d
+        # 默认值：紧凑尾部，按下标补（不能靠 `d is not None` —— 默认值可能就是 `空`）
+        ds = defaults or []
+        first_def = npos - len(ds)
+        for i in range(max(first_def, 0), npos):
+            p = params[i]
+            if p not in bound:
+                bound[p] = ds[i - first_def]
         missing = [p for p in params[:npos] if p not in bound]
         if missing:
             raise RunTypeError(
@@ -535,20 +541,13 @@ class VM:
                         if ndefaults:
                             tail_values = stack[-ndefaults:]
                             del stack[-ndefaults:]
-                            # 扩成与形参表等长（None 占位）。
-                            # M25：默认值只在「普通参数」的尾部，`*参数` /
-                            # `**选项` 不参与，所以前缀长度按 npos 算——
-                            # 用 len(params) 会在 `f(a, b=10, *余)` 这种
-                            # 「默认值后面还有收集参数」的写法上错位。
-                            sub = codes[ins.a]
-                            kinds = sub.param_kind or [0] * len(sub.params)
-                            npos = next(
-                                (i for i, k in enumerate(kinds)
-                                 if k != O.ParamKind.NORMAL),
-                                len(sub.params))
-                            pad = npos - ndefaults
-                            defaults = ([None] * pad + tail_values
-                                        + [None] * (len(sub.params) - npos))
+                            # 🔴 直接存**紧凑尾部**，**不要**扩成与形参表等长
+                            # （以前用 `None` 占位 → 与「默认值是 `空`」撞车，
+                            # `f(a, b = 空)` 省略 b 会误报缺少参数；2026-10-11 修）。
+                            # 尾部这 `ndefaults` 个「普通参数」有默认值（M25：
+                            # `*参数` / `**选项` 不参与默认值），绑定侧按
+                            # `first_def = npos - ndefaults` 折算即可。
+                            defaults = list(tail_values)
                         else:
                             defaults = None
                         if ncells:

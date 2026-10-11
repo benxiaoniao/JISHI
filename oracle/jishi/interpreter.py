@@ -170,10 +170,17 @@ class UserFunction:
                     hint=f"它的参数是：{'、'.join(self.params[:npos])}")
         if dstar_pos >= 0:
             call_env.set(self.params[dstar_pos], extra)
-        for i, p in enumerate(self.params[:npos]):
-            d = self.defaults[i] if i < len(self.defaults) else None
-            if p not in call_env.vars and d is not None:
-                call_env.set(p, d)
+        # 默认值：`self.defaults` 是**紧凑尾部** —— 尾部 `len(defaults)` 个参数
+        # 有默认值（与 C VM 的 `first_def = npos - ndefaults` 同一算法）。
+        # ⚠️ **不能**写成「遍历所有参数、`d is not None` 才补」：默认值本身
+        # 可能就是 `空`（= None），那样会被当成「没有默认值」而误报缺少参数
+        # （2026-10-11 修）。
+        n_def = len(self.defaults)
+        first_def = npos - n_def
+        for i in range(max(first_def, 0), npos):
+            p = self.params[i]
+            if p not in call_env.vars:
+                call_env.set(p, self.defaults[i - first_def])
         # 只查本层（call_env.vars），避免闭包里的同名变量造成误判
         missing = [p for p in self.params[:npos] if p not in call_env.vars]
         if missing:
@@ -349,10 +356,13 @@ class Interpreter:
         elif isinstance(stmt, A.Continue):
             raise RunContinue("继续", line=stmt.line, col=stmt.col, filename=self.filename)
         elif isinstance(stmt, A.FuncDef):
+            # 默认值存**紧凑尾部**（只留有默认值的那些）：AST 那份与形参等长
+            # 对齐、`None` 表示「没默认值」，但**运行期** `空` 就是 `None`，
+            # 拿 `None` 当哨兵会把「默认值是空」误判成「没有默认值」。
             fn = UserFunction(
                 stmt.name, stmt.params, stmt.body, env, self,
-                defaults=[self.eval_expr(d, env) if d is not None else None
-                          for d in stmt.defaults],
+                defaults=[self.eval_expr(d, env)
+                          for d in stmt.defaults if d is not None],
                 annotations=list(getattr(stmt, "annotations", []) or []),
                 param_kind=list(getattr(stmt, "param_kind", []) or []))
             env.set(stmt.name, fn)
@@ -554,8 +564,8 @@ class Interpreter:
             if isinstance(node, A.FuncDef):
                 fn = UserFunction(
                     node.name, node.params, node.body, env, self,
-                    defaults=[self.eval_expr(d, env) if d is not None
-                              else None for d in node.defaults],
+                    defaults=[self.eval_expr(d, env)
+                              for d in node.defaults if d is not None],
                     annotations=list(getattr(node, "annotations", []) or []),
                     param_kind=list(getattr(node, "param_kind", []) or []))
                 methods[node.name] = fn
@@ -685,8 +695,8 @@ class Interpreter:
             # （闭包 = 当前环境），这样调用、报错、类型标注校验全都复用既有逻辑。
             return UserFunction(
                 expr.name, expr.params, expr.body, env, self,
-                defaults=[self.eval_expr(d, env) if d is not None else None
-                          for d in (expr.defaults or [])],
+                defaults=[self.eval_expr(d, env)
+                          for d in (expr.defaults or []) if d is not None],
                 annotations=list(getattr(expr, "annotations", []) or []),
                 param_kind=list(getattr(expr, "param_kind", []) or []))
         if isinstance(expr, A.List):

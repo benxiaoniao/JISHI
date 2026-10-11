@@ -172,10 +172,16 @@ class VM {
                            `它的参数是：${params.slice(0, npos).join('、')}`);
     }
     if (dstarPos >= 0) bound.set(params[dstarPos], extra);
+    // 默认值：**紧凑尾部** —— 尾部 `defaults.length` 个「普通参数」有默认值，
+    // 按下标折算。⚠️ 不能写 `defaults[i] != null` 那套（也就是**别**拿 `null`
+    // 当哨兵）：默认值本身可能就是 `空`，会被误判成「没有默认值」而报缺少参数
+    // （2026-10-11 修；C VM 一直按下标算）。
     if (defaults) {
-      params.forEach((p, i) => {
-        if (i < npos && !bound.has(p) && defaults[i] != null) bound.set(p, defaults[i]);
-      });
+      const firstDef = npos - defaults.length;
+      for (let i = Math.max(firstDef, 0); i < npos; i++) {
+        const p = params[i];
+        if (!bound.has(p)) bound.set(p, defaults[i - firstDef]);
+      }
     }
     const missing = params.slice(0, npos).filter(p => !bound.has(p));
     if (missing.length) throw R.typeErr(`函数「${code.name}」缺少参数：${missing.join('、')}`, line, col);
@@ -326,16 +332,10 @@ class VM {
             const ndefaults = ins.c;
             let defaults = null;
             if (ndefaults) {
-              const tailValues = stack.splice(stack.length - ndefaults, ndefaults);
-              // 默认值只在「普通参数」尾部，*参数/**选项 不参与（M25）
-              const sub = codes[ins.a];
-              const subKinds = sub.paramKind || [];
-              let subNpos = sub.params.length;
-              for (let i = 0; i < subKinds.length; i++) {
-                if (subKinds[i] !== 0) { subNpos = i; break; }
-              }
-              const pad = subNpos - ndefaults;
-              defaults = new Array(pad).fill(null).concat(tailValues);
+              // 🔴 存**紧凑尾部**，**不要** pad 成与形参表等长 —— 以前用
+              // `null` 占位，与「默认值是 `空`」撞车（`f(a, b = 空)` 省略 b
+              // 会误报缺少参数）。绑定侧按 `npos - defaults.length` 折算。
+              defaults = stack.splice(stack.length - ndefaults, ndefaults);
             }
             const cells = ncells ? stack.splice(stack.length - ncells, ncells) : [];
             stack.push(new R.VmFunction(codes[ins.a].name, codes[ins.a], cells, this, defaults));

@@ -2319,20 +2319,14 @@ impl VM {
                     let ndefaults = ins.c as usize;
                     let defaults = if ndefaults > 0 {
                         let n = self.stack.len();
-                        let tail: Vec<Val> = self.stack.drain(n - ndefaults..).collect();
-                        // 默认值只属于「普通参数」的尾部——`*参数` / `**选项`
-                        // 不能有默认值，也不参与对齐。所以 pad 要按
-                        // 「普通参数个数」算，不能按全部形参个数算：
-                        // `函数 带默认(甲, 乙 = 10, *余)` 若按 3 个形参 pad，
-                        // 默认值会被算到「余」头上，`带默认(1)` 就报「缺少参数：乙」。
-                        // （Python 侧 vm.py 在 M25 修过同一个坑。）
-                        let sub_kinds = &self.module.codes[code_idx].param_kind;
-                        let sub_nparams = self.module.codes[code_idx].params.len();
-                        let sub_npos = sub_kinds.iter().position(|k| *k != 0)
-                            .unwrap_or(sub_nparams);
-                        let mut d = vec![Val::None_; sub_npos - ndefaults];
-                        d.extend(tail);
-                        Some(d)
+                        // 🔴 存**紧凑尾部**，**不要** pad 成与形参表等长。
+                        // 以前用 `Val::None_` 占位 → 与「默认值是 `空`」撞车
+                        // （`函数 带默认(甲, 乙 = 空)` 省略乙会误报缺少参数）。
+                        // 尾部这 `ndefaults` 个「普通参数」有默认值
+                        // （`*参数` / `**选项` 不能有默认值、也不参与），
+                        // `bind_params` 按 `first_def = npos - len` 折算即可。
+                        // （2026-10-11 修；C VM 一直是这个写法。）
+                        Some(self.stack.drain(n - ndefaults..).collect())
                     } else { None };
                     let cells = if ncells > 0 {
                         let n = self.stack.len();
@@ -5490,8 +5484,15 @@ pub(crate) fn bind_params(name: &str, params: &[String], param_kind: &[i64],
         bound[dp] = Some(dict_new(extra));
     }
     if let Some(d) = defaults {
-        for (i, dv) in d.iter().enumerate() {
-            if i < npos && bound[i].is_none() && !matches!(dv, Val::None_) {
+        // `defaults` 是**紧凑尾部**（只有写了默认值的那些）—— 尾部
+        // `d.len()` 个「普通参数」有默认值，按下标折算。
+        // 🔴 **不能**写成「`!matches!(dv, Val::None_)` 才补」：默认值本身
+        // 可能就是 `空`（= `Val::None_`），那样会被当成「没有默认值」
+        // 而误报缺少参数（2026-10-11 修）。
+        let first_def = npos.saturating_sub(d.len());
+        for (k, dv) in d.iter().enumerate() {
+            let i = first_def + k;
+            if i < npos && bound[i].is_none() {
                 bound[i] = Some(dv.clone());
             }
         }
