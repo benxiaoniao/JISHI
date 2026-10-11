@@ -11,6 +11,32 @@ const fs = require('fs');
 
 const MAX_FRAMES = 1000;
 
+// 「宽字符」/「零宽」区间 —— 必须与 Python 侧 `_宽区间` 和 Rust 的 `WIDE_RANGES`
+// 逐条一致（判据 tests/test_m106_display_width.py 会比对三处实现）。
+const WIDE_RANGES = [
+  [0x1100, 0x115f], [0x2e80, 0x303e], [0x3041, 0x33ff], [0x3400, 0x4dbf],
+  [0x4e00, 0x9fff], [0xa000, 0xa4cf], [0xac00, 0xd7a3], [0xf900, 0xfaff],
+  [0xfe30, 0xfe6f], [0xff00, 0xff60], [0xffe0, 0xffe6],
+  [0x1f300, 0x1f64f], [0x1f900, 0x1f9ff],
+  [0x20000, 0x2fffd], [0x30000, 0x3fffd],
+];
+const ZERO_RANGES = [
+  [0x0300, 0x036f], [0x0483, 0x0489], [0x200b, 0x200f], [0xfe00, 0xfe0f],
+];
+
+function charWidth(cp) {
+  for (const [lo, hi] of ZERO_RANGES) if (lo <= cp && cp <= hi) return 0;
+  for (const [lo, hi] of WIDE_RANGES) if (lo <= cp && cp <= hi) return 2;
+  return 1;
+}
+
+/** 这段文本在等宽终端里占几列 —— 一个汉字 2 列、组合符 0 列。 */
+function displayWidth(s) {
+  let n = 0;
+  for (const ch of String(s)) n += charWidth(ch.codePointAt(0));
+  return n;
+}
+
 // 指令号（与 jishi/opcodes.py 的 Op 完全一致）
 const Op = {
   HALT: 0, LOAD_CONST: 1, LOAD_GLOBAL: 2, STORE_GLOBAL: 3,
@@ -1226,6 +1252,57 @@ const TABLE_FUNCS = {
       ['最小', new R.FloatBox(Math.min(...vals))],
     ]);
   }),
+  // M106 补：`分组汇总` / `连接`（与 Python 侧 `表格.py` 同行为）
+  '分组汇总': new R.Builtin('分组汇总', (t, 分组列, 值列) => {
+    const tab = asTable(t);
+    const ig = colIndex(tab, 分组列);
+    const iv = colIndex(tab, 值列);
+    const buckets = new Map();
+    for (const row of tab.rows) {
+      const cell = row[iv];
+      const n = Number(cell);
+      if (cell === '' || cell === undefined || Number.isNaN(n)) {
+        throw R.typeErr(`列「${值列}」里有不是数字的值「${cell}」，没法汇总`);
+      }
+      const k = R.setKey(row[ig]);
+      if (!buckets.has(k)) buckets.set(k, { k: row[ig], vals: [] });
+      buckets.get(k).vals.push(n);
+    }
+    const out = new Map();
+    for (const { k, vals } of buckets.values()) {
+      const total = vals.reduce((a, b) => a + b, 0);
+      out.set(k, new Map([
+        ['个数', vals.length],
+        ['总和', new R.FloatBox(total)],
+        ['平均', new R.FloatBox(total / vals.length)],
+        ['最大', new R.FloatBox(Math.max(...vals))],
+        ['最小', new R.FloatBox(Math.min(...vals))],
+      ]));
+    }
+    return out;
+  }),
+  '连接': new R.Builtin('连接', (a, b, 键甲, 键乙) => {
+    const A = asTable(a);
+    const B = asTable(b);
+    const ia = colIndex(A, 键甲);
+    const ib = colIndex(B, 键乙 === undefined ? 键甲 : 键乙);
+    const idx = new Map();                 // 乙表按键索引（同一个键只留第一条）
+    B.rows.forEach((row, j) => {
+      const k = R.setKey(row[ib]);
+      if (!idx.has(k)) idx.set(k, j);
+    });
+    const headers = [...A.headers];
+    B.headers.forEach((h, j) => { if (j !== ib) headers.push(h); });
+    const rows = [];
+    for (const row of A.rows) {
+      const k = R.setKey(row[ia]);
+      if (idx.has(k)) {
+        const other = B.rows[idx.get(k)];
+        rows.push([...row, ...other.filter((_, m) => m !== ib)]);
+      }
+    }
+    return makeTable(headers, rows);
+  }),
   '转置': new R.Builtin('转置', (行列表) => {
     const rows = R.asIterable(行列表, '要转置的内容');
     if (rows.length === 0) return [];
@@ -2141,6 +2218,24 @@ const ITER_FUNCS = {
     for (const x of seqFor('计数', it)) if (R.truthy(R.callValue(cond, [x]))) n += 1;
     return n;
   }),
+  // M106 补：`归约` / `分区`（与基石库层 `stdlib-jishi/迭代.jsh` 同行为）
+  '归约': new R.Builtin('归约', (it, f, ...init) => {
+    const all = seqFor('归约', it);
+    let acc; let start;
+    if (init.length === 0) {
+      if (all.length === 0) throw R.valueErr('「归约」拿到的序列是空的，又没有给初值');
+      acc = all[0]; start = 1;
+    } else { acc = init[0]; start = 0; }
+    for (let i = start; i < all.length; i++) acc = R.callValue(f, [acc, all[i]]);
+    return acc;
+  }),
+  '分区': new R.Builtin('分区', (it, cond) => {
+    const yes = []; const no = [];
+    for (const x of seqFor('分区', it)) {
+      if (R.truthy(R.callValue(cond, [x]))) yes.push(x); else no.push(x);
+    }
+    return [yes, no];
+  }),
   // M51 补：这四个是 M50 第一批加的（「既有模块补缺」），只做了 Python 侧。
   '累积': new R.Builtin('累积', (it, init = 0) => {
     const out = []; let acc = init;
@@ -3045,25 +3140,36 @@ const STDLIB = {
   '文本': new R.Module('文本', {
     '拼接': new R.Builtin('拼接', (seq, sep = '') =>
       R.asIterable(seq, '要拼接的内容').map((x) => R.pyStr(x)).join(String(sep))),
-    // 居中/左右对齐：Python 的 center/ljust/rjust 在**填不满**时原样返回，
-    // JS 的 padStart 走另一套（字符数按 code unit 算），所以自己按码点算
+    // 居中/左右对齐：Python 的 center/ljust/rjust 在**填不满**时原样返回；
+    // ⚠️ 宽度按**显示宽度**算（一个汉字 2 列）—— M106 改的，中文表格才对得齐。
+    '显示宽度': new R.Builtin('显示宽度', (s) => displayWidth(s)),
     '居中': new R.Builtin('居中', (s, width, fill = ' ') => {
       const text = String(s); const w = Number(width);
-      const len = [...text].length; const f = String(fill) || ' ';
-      if (len >= w) return text;
-      const total = w - len;
-      const left = Math.floor(total / 2);
-      return f.repeat(left) + text + f.repeat(total - left);
+      const f = String(fill) || ' ';
+      const n = displayWidth(text);
+      if (n >= w) return text;
+      const unit = charWidth(f.codePointAt(0)) || 1;
+      const cnt = Math.floor((w - n) / unit);
+      if (cnt === 0) return text;
+      // CPython `str.center` 的偏置（**左多**）：`'ab'.center(5)` → `'  ab '`
+      const left = Math.floor(cnt / 2) + (cnt & w & 1);
+      return f.repeat(left) + text + f.repeat(cnt - left);
     }),
     '左对齐': new R.Builtin('左对齐', (s, width, fill = ' ') => {
       const text = String(s); const w = Number(width);
-      const len = [...text].length; const f = String(fill) || ' ';
-      return len >= w ? text : text + f.repeat(w - len);
+      const f = String(fill) || ' ';
+      const n = displayWidth(text);
+      if (n >= w) return text;
+      const cnt = Math.floor((w - n) / (charWidth(f.codePointAt(0)) || 1));
+      return cnt === 0 ? text : text + f.repeat(cnt);
     }),
     '右对齐': new R.Builtin('右对齐', (s, width, fill = ' ') => {
       const text = String(s); const w = Number(width);
-      const len = [...text].length; const f = String(fill) || ' ';
-      return len >= w ? text : f.repeat(w - len) + text;
+      const f = String(fill) || ' ';
+      const n = displayWidth(text);
+      if (n >= w) return text;
+      const cnt = Math.floor((w - n) / (charWidth(f.codePointAt(0)) || 1));
+      return cnt === 0 ? text : f.repeat(cnt) + text;
     }),
     '补零': new R.Builtin('补零', (s, width) => {
       const text = String(s); const w = Number(width);
@@ -3130,11 +3236,12 @@ const STDLIB = {
     '填充': new R.Builtin('填充', (s, width, fill = ' ') => {
       const text = String(s); const w = Number(width); const f = String(fill);
       if ([...f].length !== 1) throw R.typeErr('「填充」的填充字符要传一个字符');
-      const len = [...text].length;
-      if (len >= w) return text;
-      const total = w - len;
-      const left = Math.floor(total / 2);          // 与 Python str.center 同侧
-      return f.repeat(left) + text + f.repeat(total - left);
+      const n = displayWidth(text);
+      if (n >= w) return text;
+      const cnt = Math.floor((w - n) / (charWidth(f.codePointAt(0)) || 1));
+      if (cnt === 0) return text;
+      const left = Math.floor(cnt / 2) + (cnt & w & 1);   // CPython：左多（不是各半）
+      return f.repeat(left) + text + f.repeat(cnt - left);
     }),
     '截断': new R.Builtin('截断', (s, width, ellipsis = '…') => {
       const text = String(s); const w = Math.trunc(Number(width)); const e = String(ellipsis);

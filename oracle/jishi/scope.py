@@ -82,6 +82,12 @@ def defined_names(program: A.Program) -> set[str]:
         if isinstance(node, A.FuncDef):
             names.add(node.name)
             names.update(p for p in node.params if p)
+        elif isinstance(node, A.Lambda):
+            # 🔴 匿名函数的形参（M106 补）：以前**漏了这一支** —— 于是
+            # `迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙)` 会被静态检查误报
+            # 「名字「甲」在这份文件里没有定义过」。`FuncDef` 一直是对的，
+            # 只有 `Lambda` 漏了（`_所有绑定` 里反而有，两条路走岔了）。
+            names.update(p for p in node.params if p)
         elif isinstance(node, A.ClassDef):
             names.add(node.name)
         elif isinstance(node, A.ExceptHandler):

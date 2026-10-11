@@ -1,8 +1,8 @@
-//! 标准库 `迭代`（Python 侧 `jishi/stdlib/迭代.py`，12 个函数）。
+//! 标准库 `迭代`（Python 侧 `jishi/stdlib/迭代.py`，14 个函数）。
 //!
 //! 遍历序列时的常用整理动作。`带下标` / `配对` 是**内建**（在 lib.rs 里，
 //! 与 Python 的 enumerate / zip 同地位），本模块装它们之外的：分组、滑窗、
-//! 去重、展开、取前/后、求和、计数、累积、组合、排列、笛卡尔积。
+//! 去重、展开、取前/后、求和、计数、累积、组合、排列、笛卡尔积、归约、分区。
 
 use crate::BuiltinHost;
 use std::collections::HashMap;
@@ -128,6 +128,44 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             }
             Ok(Val::Int(n))
+        },
+        // M106 补：`归约` / `分区`（行为与基石库层 `stdlib-jishi/迭代.jsh` 一致）
+        "归约" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            need_range("归约", args, 2, 3)?;
+            let items = to_vec(&args[0])?;
+            let f = args[1].clone();
+            let mut it = items.into_iter();
+            let mut acc = if args.len() > 2 {
+                args[2].clone()
+            } else {
+                match it.next() {
+                    Some(v) => v,
+                    None => {
+                        return Err(err(
+                            "值错误",
+                            "「归约」拿到的序列是空的，又没有给初值",
+                        ))
+                    }
+                }
+            };
+            for x in it {
+                acc = vm.call_value(f.clone(), vec![acc, x])?;
+            }
+            Ok(acc)
+        },
+        "分区" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            need_range("分区", args, 2, 2)?;
+            let items = to_vec(&args[0])?;
+            let f = args[1].clone();
+            let (mut yes, mut no): (Vec<Val>, Vec<Val>) = (Vec::new(), Vec::new());
+            for x in items {
+                if truthy(vm.call_value(f.clone(), vec![x.clone()])?) {
+                    yes.push(x);
+                } else {
+                    no.push(x);
+                }
+            }
+            Ok(list_new(vec![list_new(yes), list_new(no)]))
         },
         // M51 补：这四个是 M50 第一批加的（「既有模块补缺」），当时只做了
         // Python 侧，宿主**静默缺失**。

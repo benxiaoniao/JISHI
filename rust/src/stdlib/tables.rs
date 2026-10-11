@@ -1,4 +1,4 @@
-//! 标准库 `表格`（Python 侧 `jishi/stdlib/表格.py`，12 个函数）。
+//! 标准库 `表格`（Python 侧 `jishi/stdlib/表格.py`，14 个函数）。
 //!
 //! CSV 的读写**自己写**（没有 `csv` crate）。要对齐的是 Python `csv` 模块的
 //! **默认方言**，有两个容易漏的点：
@@ -403,6 +403,97 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 (Val::Str("最小".into()), Val::Float(min)),
             ];
             Ok(crate::dict_new(pairs))
+        },
+        // M106 补：`分组汇总` / `连接`（与 Python 侧 `表格.py` 同行为）
+        "分组汇总" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("分组汇总", args, 3)?;
+            let t = as_table(&args[0])?;
+            let ig = column_index(&t, &args[1])?;
+            let iv = column_index(&t, &args[2])?;
+            let mut buckets: Vec<(Val, Vec<f64>)> = Vec::new();
+            // ⚠️ 用「单元格的显示文本」当归并键：CSV 读出来的列**全是文本**，
+            // 所以与 Python 侧「拿原值当键」在实际数据上一致。
+            let mut at: HashMap<String, usize> = HashMap::new();
+            for r in &t.rows {
+                let k = r.get(ig).cloned().unwrap_or(Val::None_);
+                let cell = r.get(iv).cloned().unwrap_or(Val::None_);
+                let s = as_text(&cell);
+                let f = s.trim().parse::<f64>().map_err(|_| {
+                    err(
+                        "类型错误",
+                        format!(
+                            "列「{}」里有不是数字的值「{s}」，没法汇总",
+                            as_text(&args[2])
+                        ),
+                    )
+                })?;
+                let key = as_text(&k);
+                let idx = match at.get(&key) {
+                    Some(i) => *i,
+                    None => {
+                        at.insert(key, buckets.len());
+                        buckets.push((k, Vec::new()));
+                        buckets.len() - 1
+                    }
+                };
+                buckets[idx].1.push(f);
+            }
+            let mut out: Vec<(Val, Val)> = Vec::new();
+            for (k, values) in buckets {
+                let count = values.len();
+                let total: f64 = values.iter().sum();
+                out.push((
+                    k,
+                    crate::dict_new(vec![
+                        (Val::Str("个数".into()), Val::Int(count as i128)),
+                        (Val::Str("总和".into()), Val::Float(total)),
+                        (Val::Str("平均".into()), Val::Float(total / count as f64)),
+                        (
+                            Val::Str("最大".into()),
+                            Val::Float(values.iter().cloned().fold(f64::NEG_INFINITY, f64::max)),
+                        ),
+                        (
+                            Val::Str("最小".into()),
+                            Val::Float(values.iter().cloned().fold(f64::INFINITY, f64::min)),
+                        ),
+                    ]),
+                ));
+            }
+            Ok(crate::dict_new(out))
+        },
+        "连接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("连接", args, 3, 4)?;
+            let a = as_table(&args[0])?;
+            let b = as_table(&args[1])?;
+            let ia = column_index(&a, &args[2])?;
+            let kb = if args.len() > 3 { args[3].clone() } else { args[2].clone() };
+            let ib = column_index(&b, &kb)?;
+            // 乙表按键建索引（同一个键只留**第一条**）
+            let mut idx: HashMap<String, usize> = HashMap::new();
+            for (j, r) in b.rows.iter().enumerate() {
+                let k = as_text(&r.get(ib).cloned().unwrap_or(Val::None_));
+                idx.entry(k).or_insert(j);
+            }
+            let mut headers = a.headers.clone();
+            for (j, h) in b.headers.iter().enumerate() {
+                if j != ib {
+                    headers.push(h.clone());
+                }
+            }
+            let mut rows: Vec<Vec<Val>> = Vec::new();
+            for r in &a.rows {
+                let k = as_text(&r.get(ia).cloned().unwrap_or(Val::None_));
+                if let Some(&j) = idx.get(&k) {
+                    let mut row = r.clone();
+                    for (m, v) in b.rows[j].iter().enumerate() {
+                        if m != ib {
+                            row.push(v.clone());
+                        }
+                    }
+                    rows.push(row);
+                }
+            }
+            Ok(table_new(headers, rows))
         },
         "转置" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("转置", args, 1)?;

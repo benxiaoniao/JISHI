@@ -159,6 +159,14 @@ pub(crate) fn defined_names(prog: &Node) -> HashSet<String> {
                 names.insert(p);
             }
         }
+        "Lambda" => {
+            // 🔴 匿名函数的形参（M106 补）：**以前漏了这一支** —— 于是
+            // `函数(甲, 乙)：甲 + 乙` 这种合法写法会被静态检查误报
+            // 「名字「甲」在这份文件里没有定义过」。Python 侧 `scope.py` 同步修了。
+            for p in str_list_field(n, "params") {
+                names.insert(p);
+            }
+        }
         "ClassDef" => {
             if let Some(s) = n.fields.iter()
                 .find(|(k, _)| *k == "name").and_then(|(_, v)| str_at(v)) {

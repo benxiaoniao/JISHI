@@ -21,6 +21,53 @@ fn center_left(marg: usize, width: usize) -> usize {
     marg / 2 + (marg & width & 1)
 }
 
+/// 「宽字符」的码点区间 —— 在等宽终端里占 **2 列**。
+///
+/// ⚠️ **必须与 `oracle/jishi/stdlib/文本.py` 的 `_宽区间` 逐条一致**
+/// （判据 `tests/test_m106_display_width.py` 会当场比对三处实现）。
+const WIDE_RANGES: &[(u32, u32)] = &[
+    (0x1100, 0x115F),   // 韩文字母
+    (0x2E80, 0x303E),   // CJK 部首 + 康熙部首 + CJK 符号与标点
+    (0x3041, 0x33FF),   // 平假名 / 片假名 / 注音符号 / CJK 兼容
+    (0x3400, 0x4DBF),   // CJK 扩展 A
+    (0x4E00, 0x9FFF),   // CJK 基本区
+    (0xA000, 0xA4CF),   // 彝文
+    (0xAC00, 0xD7A3),   // 韩文音节
+    (0xF900, 0xFAFF),   // CJK 兼容表意
+    (0xFE30, 0xFE6F),   // CJK 兼容形式
+    (0xFF00, 0xFF60),   // 全角 ASCII 变体
+    (0xFFE0, 0xFFE6),   // 全角符号（￥ ￦ 等）
+    (0x1F300, 0x1F64F), // emoji（多数终端按 2 列）
+    (0x1F900, 0x1F9FF), // emoji 补充区
+    (0x20000, 0x2FFFD), // CJK 扩展 B 及以后
+    (0x30000, 0x3FFFD),
+];
+
+/// 「零宽」区间：组合符 / 零宽控制符 —— 不占列。
+const ZERO_RANGES: &[(u32, u32)] = &[
+    (0x0300, 0x036F), // 组合变音符
+    (0x0483, 0x0489), // 组合西里尔符
+    (0x200B, 0x200F), // 零宽空格 / 方向标记
+    (0xFE00, 0xFE0F), // 变体选择符
+];
+
+/// 一个码点占几列。
+fn char_width(c: char) -> usize {
+    let cp = c as u32;
+    if ZERO_RANGES.iter().any(|&(lo, hi)| lo <= cp && cp <= hi) {
+        return 0;
+    }
+    if WIDE_RANGES.iter().any(|&(lo, hi)| lo <= cp && cp <= hi) {
+        return 2;
+    }
+    1
+}
+
+/// 这段文本在等宽终端里占几列 —— 一个汉字算 2，组合符算 0。
+fn display_width(s: &str) -> usize {
+    s.chars().map(char_width).sum()
+}
+
 /// 取「填充字符」：Python 要求恰好一个字符，否则抛错。
 fn one_char(v: &Val) -> Result<char, JishiError> {
     let s = super::as_text(v);
@@ -382,7 +429,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let s = super::as_text(&args[0]);
             let w = as_intish(&args[1])?.max(0) as usize;
             let fill = if args.len() > 2 { one_char(&args[2])? } else { ' ' };
-            let n = s.chars().count();
+            let n = display_width(&s);
             if n >= w {
                 return Ok(Val::Str(s));
             }
@@ -395,12 +442,16 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 repeat_char(fill, marg - left)
             )))
         },
+        "显示宽度" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("显示宽度", args, 1)?;
+            Ok(Val::Int(display_width(&super::as_text(&args[0])) as i128))
+        },
         "左对齐" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("左对齐", args, 2, 3)?;
             let s = super::as_text(&args[0]);
             let w = as_intish(&args[1])?.max(0) as usize;
             let fill = if args.len() > 2 { one_char(&args[2])? } else { ' ' };
-            let n = s.chars().count();
+            let n = display_width(&s);
             Ok(Val::Str(if n >= w {
                 s
             } else {
@@ -412,7 +463,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let s = super::as_text(&args[0]);
             let w = as_intish(&args[1])?.max(0) as usize;
             let fill = if args.len() > 2 { one_char(&args[2])? } else { ' ' };
-            let n = s.chars().count();
+            let n = display_width(&s);
             Ok(Val::Str(if n >= w {
                 s
             } else {
@@ -561,12 +612,14 @@ pub(crate) fn module() -> HashMap<String, Val> {
             if fchars.len() != 1 {
                 return Err(err("类型错误", "「填充」的填充字符要传一个字符"));
             }
-            let n = s.chars().count();
+            let n = display_width(&s);
             if n >= w {
                 return Ok(Val::Str(s));
             }
             let total = w - n;
-            let left = total / 2;      // 与 Python str.center 同侧（左少右多）
+            // ⚠️ 居中**不是**「左右各一半」：CPython `str.center` 是
+            //    `left = marg // 2 + (marg & width & 1)`（**左多**）。
+            let left = center_left(total, w);
             let mut out = String::new();
             for _ in 0..left { out.push(fchars[0]); }
             out.push_str(&s);

@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 27,
     "frontend": 1,
-    "lang": 74,
+    "lang": 75,
     "stdlib": 4
   },
   "语料": [
@@ -275,8 +275,8 @@
     },
     {
       "id": "oracle__jishi__stdlib-jishi__迭代",
-      "产物哈希": "sha256:0fe2d1b4580a490c",
-      "内容哈希": "sha256:1667156d9a1d9296",
+      "产物哈希": "sha256:4dcf5e8513755a63",
+      "内容哈希": "sha256:3549313c0a16e47f",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/迭代.jsh"
     },
@@ -461,6 +461,13 @@
       "内容哈希": "sha256:1a1a3d9f10bc0b70",
       "类别": "lang",
       "路径": "tests/cases/26_遍历中改列表.jsh"
+    },
+    {
+      "id": "tests__cases__27_标准库新增",
+      "产物哈希": "sha256:5a5e55cfa4bef29b",
+      "内容哈希": "sha256:d4b90880878600cf",
+      "类别": "lang",
+      "路径": "tests/cases/27_标准库新增.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -806,5 +813,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 106
+  "语料数": 107
 }

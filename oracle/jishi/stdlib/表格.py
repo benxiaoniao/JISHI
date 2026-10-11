@@ -13,7 +13,7 @@ from ..errors import RunFileError, RunTypeError
 
 __all__ = [
     "读表格", "写表格", "写字典表格", "读字典表格", "追加",
-    "表头", "数据行", "挑选", "筛选", "排序按", "汇总", "转置",
+    "表头", "数据行", "挑选", "筛选", "排序按", "汇总", "分组汇总", "连接", "转置",
 ]
 
 
@@ -183,6 +183,70 @@ def 汇总(t: _Table, 列名) -> dict:
         "最大": max(values),
         "最小": min(values),
     }
+
+
+def 分组汇总(t: _Table, 分组列, 值列) -> dict:
+    """按「分组列」的取值分组，对「值列」做统计，返回 `{组: 汇总字典}`。
+
+    每组的那个汇总字典与 `汇总(t, 列名)` **长得一模一样**
+    （个数 / 总和 / 平均 / 最大 / 最小）—— 学会一个就会另一个。
+
+    例（按班级算数学平均）：:
+
+        令 各班 = 表格.分组汇总(表, "班级", "数学")
+        打印(各班["一班"]["平均"])
+
+    ⚠️ 组按**首次出现**的顺序放进字典（不排序 —— 键可能是文本，也可能是数字，
+    混着排序会炸）。
+    """
+    i组 = _column_index(t, 分组列)
+    i值 = _column_index(t, 值列)
+    桶: dict = {}
+    for row in t.rows:
+        桶.setdefault(row[i组], []).append(row[i值])
+    出: dict = {}
+    for 组, 值们 in 桶.items():
+        数值 = []
+        for v in 值们:
+            try:
+                数值.append(float(v))
+            except (TypeError, ValueError):
+                raise RunTypeError(
+                    f"列「{值列}」里有不是数字的值「{v}」，没法汇总")
+        出[组] = {
+            "个数": len(数值),
+            "总和": sum(数值),
+            "平均": sum(数值) / len(数值),
+            "最大": max(数值),
+            "最小": min(数值),
+        }
+    return 出
+
+
+def 连接(表甲: _Table, 表乙: _Table, 键甲, 键乙="") -> _Table:
+    """按某一列把两张表**接起来**（只留两边都有的键），返回新表格。
+
+    `键乙` 不写就当作和 `键甲` 同名的列。新表的列 = 甲表的列 + 乙表的列
+    （乙表那个键列不再重复，免得同一列出现两次）。
+
+    例：`表格.连接(学生表, 成绩表, "学号")`
+
+    ⚠️ 只做**内连接**（两边都有的键才留）；乙表同一个键有多行时**只取第一条**
+    —— 需要「一对多展开」的场景请先自己把乙表理成一对一。
+    """
+    i甲 = _column_index(表甲, 键甲)
+    i乙 = _column_index(表乙, 键乙 if 键乙 else 键甲)
+    索引: dict = {}
+    for row in 表乙.rows:
+        索引.setdefault(row[i乙], row)
+    出表头 = list(表甲.headers) + [
+        h for j, h in enumerate(表乙.headers) if j != i乙]
+    出行 = []
+    for row in 表甲.rows:
+        配对 = 索引.get(row[i甲])
+        if 配对 is not None:
+            出行.append(list(row) + [v for j, v in enumerate(配对) if j != i乙])
+    return _Table(出表头, 出行)
 
 
 def 转置(行列表: list) -> list:
