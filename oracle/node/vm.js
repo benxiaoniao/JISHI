@@ -885,6 +885,18 @@ const SYS_FUNCS = {
     return r.status === null ? -1 : r.status;
   }),
   '主机名': new R.Builtin('主机名', () => _os.hostname()),
+  '打开': new R.Builtin('打开', (p) => {
+    // 目标不存在（且不是网址）→ 假、什么都不启动（五个引擎一致的规矩）
+    const 目标 = pText(p);
+    if (!目标.includes('://') && !fs.existsSync(目标)) return false;
+    const cmd = process.platform === 'win32' ? 'cmd'
+      : (process.platform === 'darwin' ? 'open' : 'xdg-open');
+    const args = process.platform === 'win32' ? ['/C', 'start', '', 目标] : [目标];
+    try {
+      const r = _cp.spawnSync(cmd, args, { stdio: 'ignore' });
+      return !r.error;
+    } catch (e) { return false; }
+  }),
   // 脚本收到的命令行参数（`node index.js 字节码.json 参数1 参数2`）：
   // argv[0]=node、argv[1]=index.js、argv[2]=字节码文件，所以从第 3 个起
   '参数': new R.Builtin('参数', () => process.argv.slice(3)),
@@ -1409,6 +1421,71 @@ function normSep(p) {
 // 薄封装平台的 `path` + `fs`，语义对齐 Python 的 pathlib。
 // 平台差异说明：`连接` 的结果在 Windows 上是 `a\b`（pathlib 与 `path` 一样），
 // 这是**平台一致**而不是语义偏差。
+// -- 通配匹配 / 唯一名（M108：路径.按模式找 · 路径.临时目录 / 文件.原子写）--
+//
+// 通配规则**五个引擎共用同一套**（见 Python 侧 jishi/stdlib/路径.py 里
+// `_解析集合` 上面那段）：`*` / `?` / `[abc]` / `[a-z]` / `[!abc]`（`^` 不是取反）；
+// 未闭合的 `[` 按普通字符；其余按字面（`\` **不是**转义符）；**区分大小写**。
+// 不套各语言的正则 / glob —— 它们在细节上对不齐，会分叉。
+//
+// ⚠️ 用 `Array.from` 取**码点**（不是 UTF-16 码元），与 Python / Rust 的
+// 「按字符」口径一致（否则 emoji 这类代理对会被拆开）。
+function globMatch(pattern, name) {
+  const p = Array.from(pattern);
+  const s = Array.from(name);
+  let pi = 0;
+  let si = 0;
+  let star = -1;      // 最近一个 `*` 在模式里的位置
+  let mark = 0;       // 那个 `*` 之后、名字里已经被吃掉的位置
+  while (si < s.length) {
+    let ate = false;
+    if (pi < p.length) {
+      const c = p[pi];
+      if (c === '*') { star = pi; mark = si; pi += 1; ate = true; }
+      else if (c === '?') { pi += 1; si += 1; ate = true; }
+      else if (c === '[') {
+        const set = parseSet(p, pi);
+        if (set === null) {
+          if (s[si] === '[') { pi += 1; si += 1; ate = true; }
+        } else {
+          const hit = set.items.some(([a, b]) => a <= s[si] && s[si] <= b);
+          if (hit !== set.neg) { pi = set.next; si += 1; ate = true; }
+        }
+      } else if (c === s[si]) { pi += 1; si += 1; ate = true; }
+    }
+    if (ate) continue;
+    if (star >= 0) { pi = star + 1; mark += 1; si = mark; }
+    else return false;
+  }
+  while (pi < p.length && p[pi] === '*') pi += 1;
+  return pi === p.length;
+}
+
+function parseSet(p, start) {
+  const n = p.length;
+  let i = start + 1;
+  let neg = false;
+  if (i < n && p[i] === '!') { neg = true; i += 1; }
+  const items = [];
+  if (i < n && p[i] === ']') { items.push([']', ']']); i += 1; }
+  while (i < n && p[i] !== ']') {
+    if (i + 2 < n && p[i + 1] === '-' && p[i + 2] !== ']') {
+      items.push([p[i], p[i + 2]]); i += 3;
+    } else {
+      items.push([p[i], p[i]]); i += 1;
+    }
+  }
+  if (i >= n) return null;                     // 没有配对的 `]`
+  return { neg, items, next: i + 1 };
+}
+
+//: 由系统保证唯一的一小段名字（进程号 + 毫秒 + 自增计数）
+let _唯一计数 = 0;
+function uniqueName() {
+  _唯一计数 += 1;
+  return `${process.pid}-${Date.now()}-${_唯一计数}`;
+}
+
 const PATH_FUNCS = {
   '连接': new R.Builtin('连接', (...parts) => {
     if (parts.length === 0) return '.';
@@ -1492,6 +1569,48 @@ const PATH_FUNCS = {
     if (!fs.existsSync(src)) throw R.valueErr(`「${src}」不存在`);
     fs.renameSync(src, dst);
     return dst;
+  }),
+  '递归删除': new R.Builtin('递归删除', (p) => {
+    // 与 Python 的 `shutil.rmtree` / Rust 的 `remove_dir_all` 对齐：
+    // 文件直接删、目录连树一起删；不存在给假。
+    const target = pText(p);
+    const st = statOf(target);
+    if (!st) return false;
+    if (st.isFile()) { fs.unlinkSync(target); return true; }
+    fs.rmSync(target, { recursive: true, force: true });
+    return true;
+  }),
+  '按模式找': new R.Builtin('按模式找', (p, pattern = '*', recursive = true) => {
+    const dir = pText(p);
+    const st = statOf(dir);
+    if (!st || !st.isDirectory()) throw R.valueErr(`「${dir}」不是目录`);
+    const pat = String(pattern);
+    const out = [];
+    const walk = (base, rel) => {
+      for (const name of fs.readdirSync(base).sort(cmpCodepoint)) {
+        const full = _path.join(base, name);
+        const st2 = statOf(full);
+        if (st2 && st2.isDirectory()) {
+          if (recursive === true) walk(full, _path.join(rel, name));
+          continue;
+        }
+        if (globMatch(pat, name)) out.push(_path.join(rel, name));
+      }
+    };
+    walk(dir, '');
+    return out.sort(cmpCodepoint);
+  }),
+  '系统临时目录': new R.Builtin('系统临时目录', () => normSep(_os.tmpdir())),
+  '临时目录': new R.Builtin('临时目录', (prefix = '') => {
+    // 建一个**唯一**临时目录并返回路径（对齐 `tempfile.mkdtemp`）
+    const dir = _path.join(_os.tmpdir(), `${String(prefix)}${uniqueName()}`);
+    fs.mkdirSync(dir);
+    return normSep(dir);
+  }),
+  '临时文件': new R.Builtin('临时文件', (suffix = '') => {
+    const f = _path.join(_os.tmpdir(), `${uniqueName()}${String(suffix)}`);
+    fs.writeFileSync(f, '');
+    return normSep(f);
   }),
   '大小': new R.Builtin('大小', (p) => {
     const target = pText(p);
@@ -1577,6 +1696,22 @@ const FILE_FUNCS = {
     const st = statOf(target);
     if (!st || !st.isFile()) throw R.fileErr(`找不到文件「${target}」，没法获取大小`);
     return st.size;
+  }),
+  '原子写': new R.Builtin('原子写', (p, content) => {
+    // 先写**同目录**的临时文件再改名（同盘 rename 才是原子的）。对齐
+    // Python 的 `os.replace` / Rust 的 `fs::rename`。
+    const target = pText(p);
+    const dir = _path.dirname(target) || '.';
+    fs.mkdirSync(dir, { recursive: true });
+    const 临时 = _path.join(dir, `${_path.basename(target)}.${uniqueName()}.tmp`);
+    try {
+      fs.writeFileSync(临时, pText(content), 'utf8');
+      fs.renameSync(临时, target);
+    } catch (e) {
+      try { fs.unlinkSync(临时); } catch (e2) { /* 清不掉就算了 */ }
+      throw R.fileErr(`写「${target}」失败：${e && e.message ? e.message : e}`);
+    }
+    return null;
   }),
   '路径拼接': new R.Builtin('路径拼接', (...parts) => {
     if (parts.length === 0) return '.';

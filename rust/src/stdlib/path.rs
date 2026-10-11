@@ -1,4 +1,4 @@
-//! 标准库 `路径`（Python 侧 `jishi/stdlib/路径.py`，17 个函数）。
+//! 标准库 `路径`（Python 侧 `jishi/stdlib/路径.py`，22 个函数）。
 //!
 //! 对齐的是 Python 的 `pathlib`（**不是** 直接套 `std::path`），有三处
 //! 「照着 Rust 写就会错」的地方：
@@ -95,6 +95,146 @@ fn 递归收(
             }
         }
         out.push(相对.to_string_lossy().to_string());
+    }
+    Ok(())
+}
+
+/// 由系统保证**唯一**的一小段名字（进程号 + 纳秒时间 + 自增计数）。
+///
+/// `路径.临时目录` / `文件.原子写` 都用它拼临时名字 —— 不用随机数（那是另一个
+/// 模块的事），也绝不靠「猜不会撞」。
+pub(crate) fn 唯一名() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static 计数: AtomicU64 = AtomicU64::new(0);
+    let n = 计数.fetch_add(1, Ordering::Relaxed);
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{}-{}-{}", std::process::id(), t, n)
+}
+
+/// 通配匹配（`路径.按模式找` 用）—— **五个引擎共用同一套小规则**。
+///
+/// 规则见 Python 侧 `jishi/stdlib/路径.py` 里 `_解析集合` 上面那段：
+/// `*` / `?` / `[abc]` / `[a-z]` / `[!abc]`（`^` 不是取反）；未闭合的 `[` 按普通字符；
+/// 其余按字面（`\` **不是**转义符）；**区分大小写**。
+/// 不套 `glob` crate 也不用正则 —— 各语言的正则在细节上对不齐，会分叉。
+pub(crate) fn 模式匹配(模式: &str, 名: &str) -> bool {
+    let p: Vec<char> = 模式.chars().collect();
+    let s: Vec<char> = 名.chars().collect();
+    let mut pi = 0usize;
+    let mut si = 0usize;
+    let mut 星位: isize = -1; // 最近一个 `*` 在模式里的位置
+    let mut 星后 = 0usize; // 那个 `*` 之后、名字里已经被吃掉的位置
+    while si < s.len() {
+        let mut 吃 = false;
+        if pi < p.len() {
+            let c = p[pi];
+            if c == '*' {
+                星位 = pi as isize;
+                星后 = si;
+                pi += 1;
+                吃 = true;
+            } else if c == '?' {
+                pi += 1;
+                si += 1;
+                吃 = true;
+            } else if c == '[' {
+                match 解析集合(&p, pi) {
+                    None => {
+                        if s[si] == '[' {
+                            pi += 1;
+                            si += 1;
+                            吃 = true;
+                        }
+                    }
+                    Some((否定, 项, 下一位)) => {
+                        let 中 = 项.iter().any(|(a, b)| *a <= s[si] && s[si] <= *b);
+                        if 中 != 否定 {
+                            pi = 下一位;
+                            si += 1;
+                            吃 = true;
+                        }
+                    }
+                }
+            } else if c == s[si] {
+                pi += 1;
+                si += 1;
+                吃 = true;
+            }
+        }
+        if 吃 {
+            continue;
+        }
+        if 星位 >= 0 {
+            pi = 星位 as usize + 1; // 回溯：让那个 `*` 多吞一个字符
+            星后 += 1;
+            si = 星后;
+        } else {
+            return false;
+        }
+    }
+    while pi < p.len() && p[pi] == '*' {
+        pi += 1;
+    }
+    pi == p.len()
+}
+
+/// 从 `p[起] == '['` 解析一个字符集；没有配对的 `]` 就返回 `None`。
+fn 解析集合(p: &[char], 起: usize) -> Option<(bool, Vec<(char, char)>, usize)> {
+    let n = p.len();
+    let mut i = 起 + 1;
+    let mut 否定 = false;
+    if i < n && p[i] == '!' {
+        否定 = true;
+        i += 1;
+    }
+    let mut 项: Vec<(char, char)> = Vec::new();
+    if i < n && p[i] == ']' {
+        项.push((']', ']')); // 紧跟的 `]` 是普通字符
+        i += 1;
+    }
+    while i < n && p[i] != ']' {
+        if i + 2 < n && p[i + 1] == '-' && p[i + 2] != ']' {
+            项.push((p[i], p[i + 2]));
+            i += 3;
+        } else {
+            项.push((p[i], p[i]));
+            i += 1;
+        }
+    }
+    if i >= n {
+        return None; // 没有配对的 `]`
+    }
+    Some((否定, 项, i + 1))
+}
+
+/// 按通配模式递归（或不递归）收集文件（`路径.按模式找` 用），返回**相对路径**。
+fn 按模式收(
+    dir: &Path,
+    rel: &Path,
+    pat: &str,
+    recursive: bool,
+    out: &mut Vec<String>,
+) -> Result<(), crate::JishiError> {
+    let entries = fs::read_dir(dir)
+        .map_err(|e| err("文件错误", format!("读目录「{}」失败：{e}", dir.display())))?;
+    for entry in entries {
+        let entry = entry
+            .map_err(|e| err("文件错误", format!("读目录「{}」失败：{e}", dir.display())))?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let full = entry.path();
+        let 相对 = rel.join(&name);
+        if full.is_dir() {
+            if recursive {
+                按模式收(&full, &相对, pat, true, out)?;
+            }
+            continue;
+        }
+        if 模式匹配(pat, &name) {
+            out.push(相对.to_string_lossy().to_string());
+        }
     }
     Ok(())
 }
@@ -199,6 +339,23 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Bool(false))
         },
+        "递归删除" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("递归删除", args, 1)?;
+            let p = as_text(&args[0]);
+            let path = Path::new(&p);
+            if path.is_file() {
+                fs::remove_file(path)
+                    .map_err(|e| err("文件错误", format!("删除「{p}」失败：{e}")))?;
+                return Ok(Val::Bool(true));
+            }
+            if path.is_dir() {
+                // ⚠️ 破坏性：连目录树一起删（对齐 Python 的 `shutil.rmtree`）
+                fs::remove_dir_all(path)
+                    .map_err(|e| err("文件错误", format!("删除目录「{p}」失败：{e}")))?;
+                return Ok(Val::Bool(true));
+            }
+            Ok(Val::Bool(false))
+        },
         "列出" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("列出", args, 1)?;
             let p = as_text(&args[0]);
@@ -227,6 +384,23 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             let mut out: Vec<String> = Vec::new();
             递归收(path, Path::new(""), &suffix, &mut out)?;
+            out.sort();
+            Ok(list_new(out.into_iter().map(Val::Str).collect()))
+        },
+        "按模式找" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("按模式找", args, 1, 3)?;
+            let p = as_text(&args[0]);
+            let pat = if args.len() >= 2 { as_text(&args[1]) } else { "*".to_string() };
+            let recursive = match args.get(2) {
+                Some(Val::Bool(b)) => *b,
+                _ => true,
+            };
+            let path = Path::new(&p);
+            if !path.is_dir() {
+                return Err(err("值错误", format!("「{p}」不是目录")));
+            }
+            let mut out: Vec<String> = Vec::new();
+            按模式收(path, Path::new(""), &pat, recursive, &mut out)?;
             out.sort();
             Ok(list_new(out.into_iter().map(Val::Str).collect()))
         },
@@ -260,6 +434,24 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .modified()
                 .map_err(|e| err("文件错误", format!("读「{p}」的修改时间失败：{e}")))?;
             Ok(Val::Str(format_system_time(mtime)))
+        },
+        "系统临时目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("系统临时目录", args, 0)?;
+            Ok(Val::Str(norm_sep(&std::env::temp_dir())))
+        },
+        "临时目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("临时目录", args, 0, 1)?;
+            let 前缀 = if args.is_empty() { String::new() } else { as_text(&args[0]) };
+            let p = std::env::temp_dir().join(format!("{前缀}{}", 唯一名()));
+            fs::create_dir(&p).map_err(|e| err("文件错误", format!("建不了临时目录：{e}")))?;
+            Ok(Val::Str(norm_sep(&p)))
+        },
+        "临时文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("临时文件", args, 0, 1)?;
+            let 后缀 = if args.is_empty() { String::new() } else { as_text(&args[0]) };
+            let p = std::env::temp_dir().join(format!("{}{后缀}", 唯一名()));
+            fs::File::create(&p).map_err(|e| err("文件错误", format!("建不了临时文件：{e}")))?;
+            Ok(Val::Str(norm_sep(&p)))
         },
     }
 }

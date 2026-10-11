@@ -57,9 +57,9 @@
     "python": "3.13.14"
   },
   "类别计数": {
-    "examples": 28,
+    "examples": 29,
     "frontend": 1,
-    "lang": 77,
+    "lang": 78,
     "stdlib": 4
   },
   "语料": [
@@ -121,8 +121,8 @@
     },
     {
       "id": "examples__projects__基石自述站__生成",
-      "产物哈希": "sha256:b852b4a1d8596d76",
-      "内容哈希": "sha256:f7f4fccd5c763b49",
+      "产物哈希": "sha256:4f062b7d7f5b389d",
+      "内容哈希": "sha256:2a5dad2889e0b0fc",
       "类别": "examples",
       "路径": "examples/projects/基石自述站/生成.jsh"
     },
@@ -246,16 +246,23 @@
       "路径": "examples/绕道探针/接口汇总/汇总.jsh"
     },
     {
+      "id": "examples__绕道探针__文件批处理__整理",
+      "产物哈希": "sha256:81d73b2d4c744d2c",
+      "内容哈希": "sha256:fa70395a83500b73",
+      "类别": "examples",
+      "路径": "examples/绕道探针/文件批处理/整理.jsh"
+    },
+    {
       "id": "examples__绕道探针__本地小服务__服务",
-      "产物哈希": "sha256:8c74e36de2d39edf",
-      "内容哈希": "sha256:a4e3be4c36ff3391",
+      "产物哈希": "sha256:a814e98c1570c0f0",
+      "内容哈希": "sha256:ed90997a7ee96f49",
       "类别": "examples",
       "路径": "examples/绕道探针/本地小服务/服务.jsh"
     },
     {
       "id": "examples__绕道探针__记账本__记账",
-      "产物哈希": "sha256:ab0d0f37f55a917c",
-      "内容哈希": "sha256:cb658604656ad2ed",
+      "产物哈希": "sha256:43e4a03a1bac98a5",
+      "内容哈希": "sha256:21a1751d37a81947",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/记账.jsh"
     },
@@ -489,6 +496,13 @@
       "内容哈希": "sha256:414c9d68f122da78",
       "类别": "lang",
       "路径": "tests/cases/29_标准库_M107.jsh"
+    },
+    {
+      "id": "tests__cases__30_标准库_M108",
+      "产物哈希": "sha256:f5cc47a6bdea8a0a",
+      "内容哈希": "sha256:919fe808a029d98c",
+      "类别": "lang",
+      "路径": "tests/cases/30_标准库_M108.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -834,5 +848,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 110
+  "语料数": 112
 }

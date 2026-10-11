@@ -1287,11 +1287,33 @@ function pyStr(v) {
   return String(v);
 }
 
-function pyRepr(v) {
-  if (typeof v === 'string') {
-    // Python repr：单引号 + 转义
-    return "'" + v.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n') + "'";
+// 容器内文本的引用（`pyStr` 里列表/字典的元素）。规则与 Python 的 `repr(str)`
+// 在**常见字符**上逐字一致：定界引号选择（含 `'` 且不含 `"` 时改用 `"`）、
+// 转义 `\` 与定界引号、`\n` / `\r` / `\t`。
+//
+// ⚠️ 已知残留差异：其余不可打印字符 Python 写 `\xNN` / `\uNNNN`（要判
+// `isprintable()`，依赖整张 Unicode 分类表），这里**原样输出** —— 与 Rust 侧
+// `引用文本` 同一套小规则（见 docs/设计决策.md 里「repr(str) 那是个填不满的坑」）。
+//
+// 🔴 以前只 replace 了 `\` `'` `\n`，于是：`\t`/`\r` 不转义、含 `'` 时也不换
+// 双引号 —— 与 Python 对不上（2026-10-11 M108 撞出来）。
+function quoteText(s) {
+  const useDouble = s.includes("'") && !s.includes('"');
+  const q = useDouble ? '"' : "'";
+  let out = q;
+  for (const c of s) {
+    if (c === '\\') out += '\\\\';
+    else if (c === '\n') out += '\\n';
+    else if (c === '\r') out += '\\r';
+    else if (c === '\t') out += '\\t';
+    else if (c === q) out += '\\' + c;
+    else out += c;
   }
+  return out + q;
+}
+
+function pyRepr(v) {
+  if (typeof v === 'string') return quoteText(v);
   if (v === true) return '真';
   if (v === false) return '假';
   if (v === null || v === undefined) return '空';

@@ -1,4 +1,4 @@
-//! 标准库 `文件`（Python 侧 `jishi/stdlib/文件.py`，16 个函数）。
+//! 标准库 `文件`（Python 侧 `jishi/stdlib/文件.py`，17 个函数）。
 //!
 //! **换行保真**：写 `\n` 就是 `\n`，不做平台转换。
 //!
@@ -145,6 +145,32 @@ pub(crate) fn module() -> HashMap<String, Val> {
             match fs::metadata(&p) {
                 Ok(m) if m.is_file() => Ok(Val::Int(m.len() as i128)),
                 _ => Err(err("文件错误", format!("找不到文件「{p}」，没法获取大小"))),
+            }
+        },
+        "原子写" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("原子写", args, 2)?;
+            let p = as_text(&args[0]);
+            let path = Path::new(&p);
+            // 临时文件必须与目标**同目录**（同盘才能 `rename` 成原子操作）
+            let dir = match path.parent() {
+                Some(d) if !d.as_os_str().is_empty() => d.to_path_buf(),
+                _ => std::path::PathBuf::from("."),
+            };
+            fs::create_dir_all(&dir)
+                .map_err(|e| err("文件错误", format!("写「{p}」失败：建不了目录（{e}）")))?;
+            let 本名 = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "临时".to_string());
+            let 临时 = dir.join(format!("{本名}.{}.tmp", super::path::唯一名()));
+            fs::write(&临时, as_text(&args[1]).as_bytes())
+                .map_err(|e| err("文件错误", format!("写「{p}」失败：{e}")))?;
+            match fs::rename(&临时, &p) {
+                Ok(()) => Ok(Val::None_),
+                Err(e) => {
+                    let _ = fs::remove_file(&临时); // 出错清掉临时文件
+                    Err(err("文件错误", format!("写「{p}」失败：{e}")))
+                }
             }
         },
         "路径拼接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {

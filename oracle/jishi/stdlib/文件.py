@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import os as _py_os
 import shutil as _py_shutil
+import tempfile as _py_tempfile
 from pathlib import Path as _py_Path, PurePosixPath as _py_PurePosixPath
 
 from ..errors import RunFileError
@@ -12,7 +14,7 @@ from ..runtime import jishi_repr
 __all__ = [
     "写文本", "读文本", "追加文本", "写行", "按行读",
     "文件存在", "是文件", "是目录", "列出目录",
-    "创建目录", "删除文件", "复制", "文件大小",
+    "创建目录", "删除文件", "复制", "文件大小", "原子写",
     "路径拼接", "文件名", "扩展名",
 ]
 
@@ -118,6 +120,37 @@ def 文件大小(路径) -> int:
     if not p.is_file():
         raise RunFileError(f"找不到文件「{路径}」，没法获取大小")
     return p.stat().st_size
+
+
+def 原子写(路径, 内容: str) -> None:
+    """**原子写入**：先写同目录下的临时文件，再改名覆盖目标。
+
+    直接覆盖写有个隐患：写到一半程序崩了（或断电），目标文件就变成半截内容
+    —— 账本、索引、配置这类「坏了就麻烦」的文件最怕这个。原子写保证
+    **要么是完整的旧内容、要么是完整的新内容**，不会出现半截。
+
+    做法：临时文件与目标**同目录**（保证改名是同盘操作，`os.replace` 才是
+    原子的），写完再改名。任何一步出错都会清掉临时文件并把错误抛出来。
+    """
+    p = _path(路径)
+    目录 = p.parent if str(p.parent) else _py_Path(".")
+    值 = jishi_repr(内容, top=True)
+    try:
+        目录.mkdir(parents=True, exist_ok=True)
+        fd, 临时 = _py_tempfile.mkstemp(
+            dir=str(目录), prefix=p.name + ".", suffix=".tmp")
+    except OSError as e:
+        raise RunFileError(f"写「{路径}」失败：建不了临时文件（{e}）")
+    try:
+        with _py_os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(值)
+        _py_os.replace(临时, str(p))
+    except OSError as e:
+        try:
+            _py_os.unlink(临时)
+        except OSError:
+            pass
+        raise RunFileError(f"写「{路径}」失败：{e}")
 
 
 def 路径拼接(*部分) -> str:

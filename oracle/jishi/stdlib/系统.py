@@ -16,7 +16,7 @@ from ..errors import RunError, RunValueError
 __all__ = [
     "系统名", "系统版本", "机器架构", "处理器",
     "当前目录", "改目录", "环境变量", "设环境变量",
-    "执行", "退出码", "主机名", "参数",
+    "执行", "退出码", "打开", "主机名", "参数",
 ]
 
 
@@ -107,6 +107,36 @@ def 退出码(命令, 超时: float = 10.0) -> int:
     except OSError as e:
         raise RunError(f"执行命令失败：{e}")
     return r.returncode
+
+
+def 打开(路径) -> bool:
+    """用系统的**默认程序**打开一个文件（或网址），成功返回真、失败返回假。
+
+    想「生成完报告自动打开」时用它，不必自己按系统拼 `start` / `open` /
+    `xdg-open`——三平台差异替你吸收了。**不抛异常**：没有图形界面 / 找不到
+    默认程序时返回假，让调用方自己决定怎么办（打印一行提示、或者干脆不管）。
+
+    ⚠️ **目标不存在（且不是网址）时直接返回假、什么都不启动** —— 这条规矩五
+    个执行器一致，既能挡掉「路径打错却弹出个空白窗口」，也让行为可判。
+    含 `://` 的一律当网址交给系统（`https://…`、`file://…`）。
+
+    注意「成功」只代表**已经交给了系统去打开**，不代表窗口真的弹出来了
+    —— 异步启动，不等着那程序退出。
+    """
+    目标 = str(路径)
+    if "://" not in 目标 and not _os.path.exists(目标):
+        return False
+    try:
+        if _os.name == "nt":
+            _os.startfile(目标)                      # noqa: S606
+            return True
+        程序 = "open" if _py_platform.system() == "Darwin" else "xdg-open"
+        _py_subprocess.Popen(
+            [程序, 目标],
+            stdout=_py_subprocess.DEVNULL, stderr=_py_subprocess.DEVNULL)
+        return True
+    except Exception:                                # noqa: BLE001
+        return False
 
 
 def 主机名() -> str:

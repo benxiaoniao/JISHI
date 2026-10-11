@@ -3135,9 +3135,46 @@ pub(crate) fn display(v: &Val) -> String {
     }
 }
 
+/// 容器内文本的引用（`jishi_repr(top=False)` 那一支）。
+///
+/// 与 Python 的 `repr(str)` 在**常见字符**上逐字一致：
+/// 定界引号的选择（文本含 `'` 且不含 `"` 时改用 `"`）、转义 `\` 与定界引号、
+/// 以及 `\n` / `\r` / `\t`。
+///
+/// ⚠️ **已知残留差异**（如实登记）：其余不可打印字符 Python 会写成 `\xNN` /
+/// `\uNNNN`（要判 `str.isprintable()`，依赖整张 Unicode 分类表），本宿主
+/// **原样输出**。这与 Node 侧 `pyRepr` 对齐（两边同一套小规则）——
+/// 见 `docs/设计决策.md` 里「`repr(str)` 全套转义规则是个填不满的坑」那段。
+///
+/// 🔴 以前这里是 `format!("'{s}'")`：**一个字符都不转义**，于是 Windows 上
+/// `打印(路径.递归列出(…))` 在 Rust 给 `['子\a.md']`、在 Python 给
+/// `['子\\a.md']` —— 五个执行器不一致（2026-10-11 M108 补 `路径.按模式找`
+/// 时撞出来：新函数返回的正是这种带 `\` 的相对路径）。
+pub(crate) fn 引用文本(s: &str) -> String {
+    let 用双引号 = s.contains('\'') && !s.contains('"');
+    let 界 = if 用双引号 { '"' } else { '\'' };
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push(界);
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c == 界 => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push(界);
+    out
+}
+
 pub(crate) fn py_repr(v: &Val) -> String {
     match v {
-        Val::Str(s) => format!("'{s}'"),
+        Val::Str(s) => 引用文本(s),
         // 空/真/假 用中文——与 Python 侧 jishi_repr、JS 侧 pyRepr 一致（M27）
         Val::Bool(true) => "真".to_string(),
         Val::Bool(false) => "假".to_string(),

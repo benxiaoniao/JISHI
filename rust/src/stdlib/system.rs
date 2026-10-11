@@ -1,4 +1,4 @@
-//! 标准库 `系统`（Python 侧 `jishi/stdlib/系统.py`，12 个函数）。
+//! 标准库 `系统`（Python 侧 `jishi/stdlib/系统.py`，13 个函数）。
 //!
 //! 薄封装 `std::env` / `std::process`。两处要绕一下：
 //!
@@ -14,11 +14,61 @@
 use crate::BuiltinHost;
 use std::collections::HashMap;
 use std::io::Read;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use super::{as_num, as_text, need, need_range, script_args, table, to_vec, R};
 use crate::{err, Val};
+
+// ---------------------------------------------------------------------------
+// 默认程序打开（`系统.打开`）
+// ---------------------------------------------------------------------------
+
+/// 用系统默认程序打开一个文件 / 网址。**目标不存在（且不是网址）直接返回
+/// `false`、什么都不启动** —— 这条规矩与另外四个执行器一致（见 Python 侧的
+/// 说明），既挡掉「路径打错弹空白窗」，又让行为可判。
+fn 打开(目标: &str) -> bool {
+    if !目标.contains("://") && !Path::new(目标).exists() {
+        return false;
+    }
+    启动(目标)
+}
+
+#[cfg(windows)]
+fn 启动(目标: &str) -> bool {
+    // `cmd /C start "" <目标>`：第一个空串是**窗口标题占位**（不占位的话，
+    // 带引号的路径会被当成标题）。`start` 就是 Windows 上「用默认程序打开」。
+    Command::new("cmd")
+        .args(["/C", "start", "", 目标])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .is_ok()
+}
+
+#[cfg(target_os = "macos")]
+fn 启动(目标: &str) -> bool {
+    Command::new("open")
+        .arg(目标)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .is_ok()
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn 启动(目标: &str) -> bool {
+    Command::new("xdg-open")
+        .arg(目标)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .is_ok()
+}
 
 // ---------------------------------------------------------------------------
 // 系统版本
@@ -278,6 +328,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "主机名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("主机名", args, 0)?;
             Ok(Val::Str(hostname()))
+        },
+        "打开" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("打开", args, 1)?;
+            let 目标 = as_text(&args[0]);
+            Ok(Val::Bool(打开(&目标)))
         },
         "参数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("参数", args, 0)?;
