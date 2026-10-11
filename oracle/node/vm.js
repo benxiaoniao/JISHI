@@ -1313,6 +1313,31 @@ const TABLE_FUNCS = {
     }
     return out;
   }),
+  // M107：字典列表 ↔ 表格（JSON 接口回来的数据直接能做表格运算）
+  '从记录': new R.Builtin('从记录', (记录们) => {
+    const recs = R.asIterable(记录们, '「从记录」的内容');
+    const cols = [];
+    const dicts = [];
+    for (const rec of recs) {
+      if (!(rec instanceof Map)) {
+        throw R.typeErr(`「从记录」的每一项都要是字典，遇到了「${R.display(rec)}」`);
+      }
+      for (const k of rec.keys()) {
+        if (!cols.includes(k)) cols.push(k);
+      }
+      dicts.push(rec);
+    }
+    const rows = dicts.map((d) => cols.map((c) => (d.has(c) ? d.get(c) : null)));
+    return makeTable(cols.map((c) => String(c)), rows);
+  }),
+  '转记录': new R.Builtin('转记录', (t) => {
+    const tab = asTable(t);
+    return tab.rows.map((row) => {
+      const d = new Map();
+      tab.headers.forEach((h, i) => d.set(h, row[i]));
+      return d;
+    });
+  }),
 };
 
 // ---------------------------------------------------------------------------
@@ -2009,25 +2034,31 @@ const ZIP_FUNCS = {
   }),
 };
 
-// -- 网络（M31）--
+// -- 网络（M31；M107 补：请求头 / 提交JSON / 获取详情 / 下载）--
 // **Node 没有同步 HTTP**（`fetch` 是异步的，而基石没有 await 语法）。
 // 方案：`spawnSync` 起一个**自身的子进程**执行异步请求，结果经 stdout 回传。
 // 零第三方依赖，也不要求系统装了 `curl`。代价是每次请求多一次进程启动
 // （本机实测约 40ms），换来与 Python 侧 `urllib` 一样的**同步**调用形态。
+//
+// ⚠️ 子进程把**状态码 + 响应头 + 正文字节（base64）**一起回传成 JSON ——
+// 这样 `获取详情` / `下载` 才拿得到状态码与原始字节（`fetch` 非 2xx 不抛）。
 const NET_CHILD = [
-  "const [method, url, body, timeout] = process.argv.slice(1);",
+  "const [method, url, body, timeout, headersJSON] = process.argv.slice(1);",
   "(async () => {",
   "  const ctl = new AbortController();",
   "  const timer = setTimeout(() => ctl.abort(), Math.max(100, Number(timeout) * 1000));",
   "  try {",
+  "    let extra = {};",
+  "    try { extra = JSON.parse(headersJSON || '{}'); } catch (e) { extra = {}; }",
   "    const opt = { method, signal: ctl.signal,",
-  "                  headers: { 'User-Agent': 'jishi/0.1' } };",
-  "    if (method === 'POST') {",
-  "      opt.body = body;",
-  "      opt.headers['Content-Type'] = 'application/x-www-form-urlencoded';",
-  "    }",
+  "                  headers: { 'User-Agent': 'jishi/0.1', ...extra } };",
+  "    if (method === 'POST' || method === 'PUT' || method === 'PATCH') opt.body = body;",
   "    const resp = await fetch(url, opt);",
-  "    process.stdout.write(await resp.text());",
+  "    const buf = Buffer.from(await resp.arrayBuffer());",
+  "    const headers = {};",
+  "    resp.headers.forEach((v, k) => { headers[k] = v; });",
+  "    process.stdout.write(JSON.stringify({ status: resp.status, headers,",
+  "      body: buf.toString('base64') }));",
   "  } catch (e) {",
   "    process.stderr.write(String((e && e.message) ? e.message : e));",
   "    process.exitCode = 1;",
@@ -2037,12 +2068,32 @@ const NET_CHILD = [
   "})();",
 ].join('\n');
 
-function netRequest(method, url, body, timeout) {
+// 请求头字典（Map）→ 普通对象（ASCII 校验；Content-Length/Host 不让用户写）
+function netHeaders(请求头) {
+  if (请求头 == null) return {};
+  if (!(请求头 instanceof Map)) {
+    throw R.typeErr('「请求头」要传一个字典，例如 {"X-Token": "abc"}');
+  }
+  const out = {};
+  for (const [k, v] of 请求头) {
+    const 名 = pText(k);
+    const 值 = pText(v);
+    if (!/^[\x00-\xff]*$/.test(名)) throw R.typeErr(`请求头**名字**「${名}」必须是 ASCII（英文数字）`);
+    if (!/^[\x00-\xff]*$/.test(值)) throw R.typeErr(`请求头「${名}」的值里有中文，发不出去`);
+    const 低 = 名.toLowerCase();
+    if (低 === 'content-length' || 低 === 'host') continue;
+    out[名] = 值;
+  }
+  return out;
+}
+
+function netRequest(method, url, body, timeout, headers) {
   const site = pText(url);
   const secs = Number(timeout);
+  const headersJSON = JSON.stringify(headers || {});
   const args = ['-e', NET_CHILD, method, site,
-                (body === null || body === undefined) ? '' : pText(body),
-                String(secs)];
+                (body === null || body === undefined) ? '' : body,
+                String(secs), headersJSON];
   const res = _cp.spawnSync(process.execPath, args, {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
@@ -2052,22 +2103,68 @@ function netRequest(method, url, body, timeout) {
   if (res.status !== 0) {
     const lines = String(res.stderr || '').trim().split('\n');
     const why = lines[lines.length - 1] || '未知原因';
-    throw R.runErr(`${method === 'POST' ? '提交到' : '访问'}「${site}」失败：${why}`);
+    throw R.runErr(`访问「${site}」失败：${why}`);
   }
-  return res.stdout;
+  let obj;
+  try { obj = JSON.parse(res.stdout); } catch (e) {
+    throw R.runErr(`访问「${site}」失败：响应不是有效 JSON`);
+  }
+  return {
+    status: Number(obj.status) || 0,
+    headers: obj.headers || {},
+    bodyBuf: Buffer.from(obj.body || '', 'base64'),
+  };
+}
+
+// 非 2xx 按统一口径报错（各引擎措辞一致）
+function net要成功(resp, 动作, 网址) {
+  if (resp.status >= 200 && resp.status < 300) return resp;
+  throw R.runErr(`${动作}「${网址}」失败：HTTP ${resp.status}`);
 }
 
 const NET_FUNCS = {
-  '获取': new R.Builtin('获取', (url, timeout = 10.0) =>
-    netRequest('GET', url, null, timeout)),
-  '提交': new R.Builtin('提交', (url, data = '', timeout = 10.0) =>
-    netRequest('POST', url, data, timeout)),
-  '获取JSON': new R.Builtin('获取JSON', (url, timeout = 10.0) => {
-    const text = netRequest('GET', url, null, timeout);
+  '获取': new R.Builtin('获取', (url, timeout = 10.0, 请求头 = null) => {
+    const r = netRequest('GET', url, null, timeout, netHeaders(请求头));
+    return net要成功(r, '访问', pText(url)).bodyBuf.toString('utf8');
+  }),
+  '提交': new R.Builtin('提交', (url, data = '', timeout = 10.0, 请求头 = null) => {
+    const h = netHeaders(请求头);
+    if (!('content-type' in Object.fromEntries(
+      Object.entries(h).map(([k, v]) => [k.toLowerCase(), v])))) {
+      h['Content-Type'] = 'application/x-www-form-urlencoded';
+    }
+    const r = netRequest('POST', url, data, timeout, h);
+    return net要成功(r, '提交到', pText(url)).bodyBuf.toString('utf8');
+  }),
+  '提交JSON': new R.Builtin('提交JSON', (url, 对象, timeout = 10.0, 请求头 = null) => {
+    const h = netHeaders(请求头);
+    if (!h['Content-Type']) h['Content-Type'] = 'application/json; charset=utf-8';
+    const body = jsonEncode(对象, null);
+    const r = netRequest('POST', url, body, timeout, h);
+    return net要成功(r, '提交到', pText(url)).bodyBuf.toString('utf8');
+  }),
+  '获取JSON': new R.Builtin('获取JSON', (url, timeout = 10.0, 请求头 = null) => {
+    const r = netRequest('GET', url, null, timeout, netHeaders(请求头));
+    const text = net要成功(r, '访问', pText(url)).bodyBuf.toString('utf8');
     try { return jsonDecode(text); } catch (e) {
       throw R.valueErr(`「${pText(url)}」返回的不是有效 JSON：`
         + `${e && e.message ? e.message : e}`);
     }
+  }),
+  '获取详情': new R.Builtin('获取详情', (url, timeout = 10.0, 请求头 = null) => {
+    const r = netRequest('GET', url, null, timeout, netHeaders(请求头));
+    const 头表 = new Map(Object.entries(r.headers).map(([k, v]) => [k, v]));
+    return new Map([
+      ['状态', r.status],
+      ['响应头', 头表],
+      ['正文', r.bodyBuf.toString('utf8')],
+    ]);
+  }),
+  '下载': new R.Builtin('下载', (url, 路径, timeout = 10.0, 请求头 = null) => {
+    const r = netRequest('GET', url, null, timeout, netHeaders(请求头));
+    net要成功(r, '下载', pText(url));
+    fs.writeFileSync(pText(路径), r.bodyBuf);
+    return r.bodyBuf.length;
   }),
 };
 
@@ -2670,6 +2767,155 @@ class RawHtml {
 function _htmlContent(v) {
   return (v instanceof RawHtml) ? v.s : _escapeHtml(v);
 }
+
+// ---------------------------------------------------------------------------
+// M107：html 解析方向（取文本 / 取链接 / 取表格）
+// 规则与 Python 侧 `stdlib/html.py` 逐字对齐（那份是判据基准）—— 见那里的说明。
+// ---------------------------------------------------------------------------
+const _HTML_空白 = ' \t\n\r\u000b\u000c';
+function htmlIsBlank(c) { return _HTML_空白.includes(c); }
+function htmlIsNameChar(c) { return /^[A-Za-z0-9\-_:.]$/.test(c); }
+
+function html解实体(t) {
+  if (!t.includes('&')) return t;
+  const chars = Array.from(t);
+  let out = '';
+  let i = 0;
+  const 表 = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+  while (i < chars.length) {
+    if (chars[i] !== '&') { out += chars[i]; i += 1; continue; }
+    const 分号 = chars.indexOf(';', i + 1);
+    if (分号 < 0 || 分号 - i > 10) { out += '&'; i += 1; continue; }
+    const 体 = chars.slice(i + 1, 分号).join('');
+    let 码 = null;
+    if (体.startsWith('#')) {
+      const 数 = 体.slice(1);
+      const 十 = (数[0] === 'x' || 数[0] === 'X')
+        ? parseInt(数.slice(1), 16) : parseInt(数, 10);
+      if (Number.isInteger(十)) 码 = 十;
+    }
+    let 认了 = false;
+    if (码 !== null) {
+      认了 = 码 >= 0 && 码 <= 0x10FFFF && !(码 >= 0xD800 && 码 <= 0xDFFF);
+    } else {
+      认了 = Object.prototype.hasOwnProperty.call(表, 体);
+    }
+    if (认了) {
+      if (码 !== null) out += String.fromCodePoint(码);
+      else out += 表[体];
+      i = 分号 + 1;
+      continue;
+    }
+    out += '&';
+    i += 1;
+  }
+  return out;
+}
+
+function html压空白(t) {
+  let out = '';
+  let 上个是空白 = false;
+  for (const c of t) {
+    if (htmlIsBlank(c)) {
+      if (!上个是空白) out += ' ';
+      上个是空白 = true;
+    } else {
+      out += c;
+      上个是空白 = false;
+    }
+  }
+  return out.replace(/^ +| +$/g, '');
+}
+
+// 扫成 [类型, 名, 体]；类型 0=文本 1=开始 2=结束
+function html扫(s) {
+  const chars = Array.from(String(s));
+  const n = chars.length;
+  const out = [];
+  let i = 0;
+  while (i < n) {
+    const lt = chars.indexOf('<', i);
+    if (lt < 0) { out.push([0, '', chars.slice(i).join('')]); break; }
+    if (lt > i) out.push([0, '', chars.slice(i, lt).join('')]);
+    if (chars.slice(lt, lt + 4).join('') === '<!--') {
+      let 末2 = -1;
+      for (let k = lt + 4; k + 2 < n; k++) {
+        if (chars[k] === '-' && chars[k + 1] === '-' && chars[k + 2] === '>') { 末2 = k + 2; break; }
+      }
+      i = 末2 < 0 ? n : 末2 + 1;
+      continue;
+    }
+    if (lt + 1 < n && (chars[lt + 1] === '!' || chars[lt + 1] === '?')) {
+      const 末 = chars.indexOf('>', lt + 1);
+      i = 末 < 0 ? n : 末 + 1;
+      continue;
+    }
+    const 末 = chars.indexOf('>', lt + 1);
+    if (末 < 0) { out.push([0, '', chars.slice(lt).join('')]); break; }
+    let 体 = chars.slice(lt + 1, 末).join('');
+    i = 末 + 1;
+    const 结束 = 体.startsWith('/');
+    if (结束) 体 = 体.slice(1);
+    let j = 0;
+    while (j < 体.length && htmlIsBlank(体[j])) j += 1;
+    const 起 = j;
+    while (j < 体.length && htmlIsNameChar(体[j])) j += 1;
+    const 名 = 体.slice(起, j).toLowerCase();
+    if (!名) continue;
+    if (名 === 'script' || 名 === 'style') {
+      if (!结束) {
+        const 针 = '</' + 名;
+        let 找到 = -1;
+        for (let k = i; k < n; k++) {
+          if (chars.slice(k, k + 针.length).join('').toLowerCase() === 针) { 找到 = k; break; }
+        }
+        if (找到 < 0) i = n;
+        else {
+          const 尖 = chars.indexOf('>', 找到);
+          i = 尖 < 0 ? n : 尖 + 1;
+        }
+      }
+      continue;
+    }
+    out.push([结束 ? 2 : 1, 名, 体]);
+  }
+  return out;
+}
+
+function html文本节点(节点们) {
+  let 块 = '';
+  for (const [类型, , 体] of 节点们) if (类型 === 0) 块 += 体;
+  return html压空白(html解实体(块));
+}
+
+function html取属性(标签体, 名) {
+  const 低 = 标签体.toLowerCase();
+  const body = Array.from(标签体);
+  const 针 = 名.toLowerCase();
+  let i = 0;
+  while (i < 低.length) {
+    const k = 低.indexOf(针, i);
+    if (k < 0) return null;
+    const 前好 = k === 0 || !htmlIsNameChar(低[k - 1]);
+    let 后 = k + 针.length;
+    while (后 < 低.length && htmlIsBlank(低[后])) 后 += 1;
+    if (前好 && 后 < 低.length && 低[后] === '=') {
+      后 += 1;
+      while (后 < 低.length && htmlIsBlank(低[后])) 后 += 1;
+      if (后 < 低.length && (低[后] === '"' || 低[后] === "'")) {
+        const 引 = 低[后];
+        const 末 = body.indexOf(引, 后 + 1);
+        if (末 < 0) return html解实体(body.slice(后 + 1).join(''));
+        return html解实体(body.slice(后 + 1, 末).join(''));
+      }
+      let 末 = 后;
+      while (末 < 低.length && !htmlIsBlank(低[末]) && 低[末] !== '>') 末 += 1;
+      return html解实体(body.slice(后, 末).join(''));
+    }
+    i = k + 针.length;
+  }
+  return null;
+}
 const _ATTR_ALIAS = { '类名': 'class', '对应': 'for' };
 /** 属性字典（基石字典 = Map）→ 属性串；`空` 值只输出属性名（布尔属性）。
  *  ⚠️ 用字典而不是关键字参数，理由见 Python 侧 html.py 的 `_属性串`。 */
@@ -2717,6 +2963,56 @@ const HTML_FUNCS = {
   '无序列表': new R.Builtin('无序列表', (items, attrs = null) => {
     const lis = seqFor('无序列表', items).map((x) => `<li>${_htmlContent(x)}</li>`).join('');
     return `<ul${_attrStr(attrs)}>${lis}</ul>`;
+  }),
+  // M107：解析方向
+  '取文本': new R.Builtin('取文本', (片段) => html文本节点(html扫(pText(片段)))),
+  '取链接': new R.Builtin('取链接', (页面) => {
+    const 节点们 = html扫(pText(页面));
+    const 出 = [];
+    let i = 0;
+    while (i < 节点们.length) {
+      const [类型, 名, 体] = 节点们[i];
+      if (类型 === 1 && 名 === 'a') {
+        const 地址 = html取属性(体, 'href');
+        if (地址 !== null) {
+          const 块 = [];
+          let j = i + 1;
+          while (j < 节点们.length) {
+            const [t2, n2] = 节点们[j];
+            if (t2 === 2 && n2 === 'a') break;
+            块.push(节点们[j]);
+            j += 1;
+          }
+          出.push([html文本节点(块), 地址]);
+          i = j + 1;
+          continue;
+        }
+      }
+      i += 1;
+    }
+    return 出;
+  }),
+  '取表格': new R.Builtin('取表格', (页面) => {
+    const 节点们 = html扫(pText(页面));
+    let i = 0;
+    while (i < 节点们.length && !(节点们[i][0] === 1 && 节点们[i][1] === 'table')) i += 1;
+    const 出 = [];
+    let 行 = [];
+    let 在一格 = false;
+    let 格块 = [];
+    while (i < 节点们.length) {
+      const [类型, 名, 体] = 节点们[i];
+      if (类型 === 2 && 名 === 'table') break;
+      else if (类型 === 1 && 名 === 'tr') 行 = [];
+      else if (类型 === 2 && 名 === 'tr') { if (行.length) 出.push(行); }
+      else if (类型 === 1 && (名 === 'td' || 名 === 'th')) { 在一格 = true; 格块 = []; }
+      else if (类型 === 2 && (名 === 'td' || 名 === 'th')) {
+        if (在一格) 行.push(html文本节点(格块));
+        在一格 = false;
+      } else if (在一格 && 类型 === 0) 格块.push([0, '', 体]);
+      i += 1;
+    }
+    return 出;
   }),
 };
 

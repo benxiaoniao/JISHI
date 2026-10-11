@@ -57,9 +57,9 @@
     "python": "3.13.14"
   },
   "类别计数": {
-    "examples": 27,
+    "examples": 28,
     "frontend": 1,
-    "lang": 76,
+    "lang": 77,
     "stdlib": 4
   },
   "语料": [
@@ -156,8 +156,8 @@
     },
     {
       "id": "examples__projects__网页采集__采集",
-      "产物哈希": "sha256:9bda4f146d10eba0",
-      "内容哈希": "sha256:8620e22e45f36a9c",
+      "产物哈希": "sha256:8e8473c41ae525bd",
+      "内容哈希": "sha256:70c4ac6c160071a9",
       "类别": "examples",
       "路径": "examples/projects/网页采集/采集.jsh"
     },
@@ -237,6 +237,13 @@
       "内容哈希": "sha256:1789624f9416e984",
       "类别": "examples",
       "路径": "examples/绕道探针/并发批量/批量.jsh"
+    },
+    {
+      "id": "examples__绕道探针__接口汇总__汇总",
+      "产物哈希": "sha256:aac1a2e627e348c9",
+      "内容哈希": "sha256:b842b359ba42c6d6",
+      "类别": "examples",
+      "路径": "examples/绕道探针/接口汇总/汇总.jsh"
     },
     {
       "id": "examples__绕道探针__本地小服务__服务",
@@ -475,6 +482,13 @@
       "内容哈希": "sha256:abaddc2a9d4f7ae7",
       "类别": "lang",
       "路径": "tests/cases/28_默认值可为空.jsh"
+    },
+    {
+      "id": "tests__cases__29_标准库_M107",
+      "产物哈希": "sha256:99fd57e059fd0783",
+      "内容哈希": "sha256:414c9d68f122da78",
+      "类别": "lang",
+      "路径": "tests/cases/29_标准库_M107.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -820,5 +834,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 108
+  "语料数": 110
 }

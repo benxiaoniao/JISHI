@@ -515,5 +515,52 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 cols.into_iter().map(crate::list_new).collect(),
             ))
         },
+        // M107：字典列表 ↔ 表格（JSON 接口回来的数据直接能做表格运算）
+        "从记录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("从记录", args, 1)?;
+            let recs = to_vec(&args[0])?;
+            let mut cols: Vec<Val> = Vec::new();
+            let mut dicts: Vec<Vec<(Val, Val)>> = Vec::with_capacity(recs.len());
+            for rec in &recs {
+                let d = match rec {
+                    Val::Dict(d) => d.borrow().to_items(),
+                    other => {
+                        return Err(err(
+                            "类型错误",
+                            format!("「从记录」的每一项都要是字典，遇到了「{}」",
+                                    crate::type_label(other)),
+                        ))
+                    }
+                };
+                for (k, _) in &d {
+                    if !cols.iter().any(|c| c == k) {
+                        cols.push(k.clone());
+                    }
+                }
+                dicts.push(d);
+            }
+            let headers: Vec<Val> = cols.iter().map(|k| Val::Str(as_text(k))).collect();
+            let mut rows: Vec<Vec<Val>> = Vec::with_capacity(dicts.len());
+            for d in &dicts {
+                let mut row: Vec<Val> = Vec::with_capacity(cols.len());
+                for c in &cols {
+                    row.push(d.iter().find(|(k, _)| k == c)
+                        .map(|(_, v)| v.clone()).unwrap_or(Val::None_));
+                }
+                rows.push(row);
+            }
+            Ok(table_new(headers, rows))
+        },
+        "转记录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("转记录", args, 1)?;
+            let t = as_table(&args[0])?;
+            let mut out: Vec<Val> = Vec::with_capacity(t.rows.len());
+            for row in &t.rows {
+                let pairs: Vec<(Val, Val)> = t.headers.iter().cloned()
+                    .zip(row.iter().cloned()).collect();
+                out.push(crate::dict_new(pairs));
+            }
+            Ok(crate::list_new(out))
+        },
     }
 }

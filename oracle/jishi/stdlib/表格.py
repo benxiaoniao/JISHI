@@ -13,6 +13,7 @@ from ..errors import RunFileError, RunTypeError
 
 __all__ = [
     "读表格", "写表格", "写字典表格", "读字典表格", "追加",
+    "从记录", "转记录",
     "表头", "数据行", "挑选", "筛选", "排序按", "汇总", "分组汇总", "连接", "转置",
 ]
 
@@ -247,6 +248,43 @@ def 连接(表甲: _Table, 表乙: _Table, 键甲, 键乙="") -> _Table:
         if 配对 is not None:
             出行.append(list(row) + [v for j, v in enumerate(配对) if j != i乙])
     return _Table(出表头, 出行)
+
+
+def 从记录(记录们: list) -> _Table:
+    """把**字典列表**变成表格 —— JSON 接口回来的数据直接能做表格运算。
+
+    列名取所有记录里出现过（按**首次出现**顺序），缺的格子填空。
+
+    例（这才是它存在的理由）：::
+
+        令 订单们 = 网络.获取JSON(网址)["本页"]     # [{"客户": "甲", "金额": 12}, …]
+        令 表 = 表格.从记录(订单们)
+        打印(表格.分组汇总(表, "客户", "金额"))
+
+    ⚠️ **M107 之前没有它**：那时只能先 `表格.写字典表格` 落一个临时 CSV、
+    再 `表格.读表格` 读回来 —— 一次纯内存的整理被迫走了一遍磁盘（探针
+    「接口汇总」的绕道 R103）。
+    """
+    if not isinstance(记录们, (list, tuple)):
+        raise RunTypeError("「从记录」要传一个**字典列表**（例如 JSON 接口返回的那种）")
+    列名: list = []
+    for rec in 记录们:
+        if not isinstance(rec, dict):
+            raise RunTypeError(
+                f"「从记录」的每一项都要是字典，遇到了「{type(rec).__name__}」")
+        for k in rec:
+            if k not in 列名:
+                列名.append(k)
+    行 = [[rec.get(k) for k in 列名] for rec in 记录们]
+    return _Table([str(k) for k in 列名], 行)
+
+
+def 转记录(t: _Table) -> list:
+    """把表格变成**字典列表** —— 好喂给 `json.写文件` 或 `网络.提交JSON`。"""
+    if not isinstance(t, _Table):
+        raise RunTypeError("「转记录」要传一个表格（用 表格.读表格 或 表格.从记录 得到）")
+    头 = [str(h) for h in t.headers]
+    return [dict(zip(头, row)) for row in t.rows]
 
 
 def 转置(行列表: list) -> list:
