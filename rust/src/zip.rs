@@ -1,4 +1,4 @@
-//! 标准库 `压缩`（Python 侧 `jishi/stdlib/压缩.py`，3 个函数）。
+//! 标准库 `压缩`（Python 侧 `jishi/stdlib/压缩.py`，5 个函数）。
 //!
 //! **zip 容器与 deflate 解压都自己写**（没有 `zip` / `flate2` crate）。
 //!
@@ -31,7 +31,7 @@ use crate::{err, JishiError, Val};
 // CRC-32
 // ---------------------------------------------------------------------------
 
-fn crc32(data: &[u8]) -> u32 {
+pub(crate) fn crc32(data: &[u8]) -> u32 {
     let mut crc: u32 = 0xFFFF_FFFF;
     for &b in data {
         crc ^= b as u32;
@@ -282,6 +282,97 @@ pub(crate) fn read_all(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, JishiError
     Ok(out)
 }
 
+
+// ---------------------------------------------------------------------------
+// gzip 单文件（`压缩文件` / `解压文件`）
+// ---------------------------------------------------------------------------
+
+/// 打一个 **gzip** 文件（`1f 8b` 头 + deflate + CRC32 + 长度）。
+///
+/// ⚠️ **deflate 部分用的是 `stored`（不压缩）**，与 `打包` 同一个理由：
+/// 零依赖下没有 DEFLATE **压缩器**（LZ77 + 两套霍夫曼树），而「stored 块」
+/// 本来就是 deflate 的合法形式（`BFINAL|BTYPE=00` + 对齐 + LEN/NLEN + 原数据）。
+/// ⇒ **压出来的字节与 Python / Node 不同**（那边用真 deflate），
+/// 但**解压回来一定是同一份** —— 判据只比「解压结果」与「能不能被解压」。
+/// 见 `docs/embed.md`。
+///
+/// 头里的 `MTIME` 写 **0**（不写当前时间）：同一份内容每次压出来字节相同，
+/// 否则「内容一样」的两份产物永远不一样。
+fn gzip_stored(data: &[u8]) -> Vec<u8> {
+    // 1f 8b | CM=8(deflate) | FLG=0 | MTIME=0 | XFL=0 | OS=255(未知)
+    let mut out: Vec<u8> = vec![0x1f, 0x8b, 0x08, 0x00, 0, 0, 0, 0, 0x00, 0xff];
+    if data.is_empty() {
+        out.extend_from_slice(&[0x01, 0x00, 0x00, 0xff, 0xff]); // 空的最后一个 stored 块
+    } else {
+        let mut i = 0usize;
+        while i < data.len() {
+            let n = (data.len() - i).min(65535);
+            let last = i + n >= data.len();
+            out.push(if last { 0x01 } else { 0x00 }); // BFINAL + BTYPE=00 + 5 位补齐
+            out.extend_from_slice(&(n as u16).to_le_bytes());
+            out.extend_from_slice(&(!(n as u16)).to_le_bytes());
+            out.extend_from_slice(&data[i..i + n]);
+            i += n;
+        }
+    }
+    out.extend_from_slice(&crc32(data).to_le_bytes());
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out
+}
+
+/// 解开一个 gzip（别人用真 deflate 压的也认 —— 走 `inflate`），并校验 CRC32 与长度。
+fn gunzip(data: &[u8]) -> Result<Vec<u8>, String> {
+    if data.len() < 18 || data[0] != 0x1f || data[1] != 0x8b || data[2] != 0x08 {
+        return Err("不是有效的 gzip 数据".to_string());
+    }
+    let flg = data[3];
+    let mut i = 10usize;
+    if flg & 0x04 != 0 {
+        // FEXTRA
+        if i + 2 > data.len() {
+            return Err("gzip 头不完整".to_string());
+        }
+        let xlen = u16::from_le_bytes([data[i], data[i + 1]]) as usize;
+        i += 2 + xlen;
+    }
+    for bit in [0x08u8, 0x10] {
+        // FNAME / FCOMMENT：以 0 结尾的串
+        if flg & bit != 0 {
+            while i < data.len() && data[i] != 0 {
+                i += 1;
+            }
+            i += 1;
+        }
+    }
+    if flg & 0x02 != 0 {
+        i += 2; // FHCRC
+    }
+    if i + 8 > data.len() {
+        return Err("gzip 头不完整".to_string());
+    }
+    let body = &data[i..data.len() - 8];
+    let want_crc = u32::from_le_bytes([
+        data[data.len() - 8],
+        data[data.len() - 7],
+        data[data.len() - 6],
+        data[data.len() - 5],
+    ]);
+    let want_len = u32::from_le_bytes([
+        data[data.len() - 4],
+        data[data.len() - 3],
+        data[data.len() - 2],
+        data[data.len() - 1],
+    ]);
+    let out = crate::inflate::inflate_raw(body)?;
+    if crc32(&out) != want_crc {
+        return Err("CRC32 校验不过（内容可能损坏）".to_string());
+    }
+    if (out.len() as u32) != want_len {
+        return Err("长度校验不过（内容可能损坏）".to_string());
+    }
+    Ok(out)
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "压缩";
         "打包" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -363,6 +454,38 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     .map_err(|x| err("运行期错误", format!("写「{dest}」失败：{x}")))?;
             }
             Ok(Val::Str(target))
+        },
+        "压缩文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("压缩文件", args, 2)?;
+            let gz_path = as_text(&args[0]);
+            let data = as_text(&args[1]).into_bytes();
+            let bytes = gzip_stored(&data);
+            if let Some(dir) = Path::new(&gz_path).parent() {
+                if !dir.as_os_str().is_empty() {
+                    let _ = fs::create_dir_all(dir);
+                }
+            }
+            fs::write(&gz_path, &bytes)
+                .map_err(|e| err("运行错误", format!("压缩到「{gz_path}」失败：{e}")))?;
+            Ok(Val::Str(gz_path))
+        },
+        "解压文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("解压文件", args, 1)?;
+            let gz_path = as_text(&args[0]);
+            if !Path::new(&gz_path).is_file() {
+                return Err(err("值错误", format!("「{gz_path}」不是文件")));
+            }
+            let bytes = fs::read(&gz_path)
+                .map_err(|e| err("运行错误", format!("读「{gz_path}」失败：{e}")))?;
+            let out = gunzip(&bytes)
+                .map_err(|e| err("运行错误", format!("解压「{gz_path}」失败：{e}")))?;
+            match String::from_utf8(out) {
+                Ok(s) => Ok(Val::Str(s)),
+                Err(_) => Err(err(
+                    "运行错误",
+                    format!("「{gz_path}」解出来的不是 UTF-8 文本，没法按文本返回"),
+                )),
+            }
         },
         "列出内容" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("列出内容", args, 1)?;

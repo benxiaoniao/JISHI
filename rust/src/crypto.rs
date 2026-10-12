@@ -1,4 +1,4 @@
-//! 标准库 `加密`（Python 侧 `jishi/stdlib/加密.py`，7 个函数）。
+//! 标准库 `加密`（Python 侧 `jishi/stdlib/加密.py`，10 个函数）。
 //!
 //! **四种摘要算法全部自己写**（md5 / sha1 / sha256 / sha512）。
 //! `Cargo.toml` 的 `[dependencies]` 是空的，没有 RustCrypto 可用；
@@ -16,7 +16,7 @@ use crate::BuiltinHost;
 use std::collections::HashMap;
 
 // 本文件在 crate 根下（不在 stdlib/ 里），所以走完整路径
-use crate::stdlib::{as_text, need, need_range, table, R};
+use crate::stdlib::{as_num, as_text, need, need_range, table, R};
 use crate::{err, JishiError, Val};
 
 // ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@ const MD5_K: [u32; 64] = [
     0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391,
 ];
 
-pub(crate) fn md5(data: &[u8]) -> String {
+fn md5_raw(data: &[u8]) -> Vec<u8> {
     let mut h: [u32; 4] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476];
 
     // 补位：0x80 + 若干 0，末尾 8 字节是**小端**的比特长度
@@ -97,12 +97,12 @@ pub(crate) fn md5(data: &[u8]) -> String {
     for v in h {
         out.extend_from_slice(&v.to_le_bytes());
     }
-    hex(&out)
+    out
 }
 
 // -- SHA-1 ------------------------------------------------------------------
 
-pub(crate) fn sha1(data: &[u8]) -> String {
+fn sha1_raw(data: &[u8]) -> Vec<u8> {
     let mut h: [u32; 5] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
 
     // 补位：大端比特长度
@@ -158,7 +158,7 @@ pub(crate) fn sha1(data: &[u8]) -> String {
     for v in h {
         out.extend_from_slice(&v.to_be_bytes());
     }
-    hex(&out)
+    out
 }
 
 // -- SHA-256 ----------------------------------------------------------------
@@ -174,7 +174,7 @@ const SHA256_K: [u32; 64] = [
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
-pub(crate) fn sha256(data: &[u8]) -> String {
+fn sha256_raw(data: &[u8]) -> Vec<u8> {
     let mut h: [u32; 8] = [
         0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
         0x5be0cd19,
@@ -236,7 +236,7 @@ pub(crate) fn sha256(data: &[u8]) -> String {
     for x in h {
         out.extend_from_slice(&x.to_be_bytes());
     }
-    hex(&out)
+    out
 }
 
 // -- SHA-512 ----------------------------------------------------------------
@@ -264,7 +264,7 @@ const SHA512_K: [u64; 80] = [
     0x4cc5d4becb3e42b6, 0x597f299cfc657e2a, 0x5fcb6fab3ad6faec, 0x6c44198c4a475817,
 ];
 
-pub(crate) fn sha512(data: &[u8]) -> String {
+fn sha512_raw(data: &[u8]) -> Vec<u8> {
     let mut h: [u64; 8] = [
         0x6a09e667f3bcc908,
         0xbb67ae8584caa73b,
@@ -330,7 +330,40 @@ pub(crate) fn sha512(data: &[u8]) -> String {
     for x in h {
         out.extend_from_slice(&x.to_be_bytes());
     }
-    hex(&out)
+    out
+}
+
+// ---------------------------------------------------------------------------
+// 系统熵源（`安全随机字节`）
+// ---------------------------------------------------------------------------
+
+#[cfg(windows)]
+#[link(name = "advapi32")]
+extern "system" {
+    /// `SystemFunction036`（文档里也叫 `RtlGenRandom`）—— 从系统 CSPRNG 取字节。
+    fn SystemFunction036(rand: *mut u8, len: u32) -> u8;
+}
+
+/// 往 `buf` 里填**不可预测**的随机字节（取操作系统熵源）。
+///
+/// ⚠️ **不要用 `随机` 模块那个 xorshift**：它自己都写着「不适合密码学用途」。
+/// 盐、令牌、回调随机串必须走这里。
+#[cfg(windows)]
+fn 系统熵(buf: &mut [u8]) -> Result<(), String> {
+    let ok = unsafe { SystemFunction036(buf.as_mut_ptr(), buf.len() as u32) };
+    if ok == 0 {
+        Err("系统随机源不可用".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+fn 系统熵(buf: &mut [u8]) -> Result<(), String> {
+    use std::io::Read;
+    let mut f = std::fs::File::open("/dev/urandom")
+        .map_err(|e| format!("打开 /dev/urandom 失败：{e}"))?;
+    f.read_exact(buf).map_err(|e| format!("读 /dev/urandom 失败：{e}"))
 }
 
 // ---------------------------------------------------------------------------
@@ -351,13 +384,82 @@ fn normalize(algo: &Val) -> Result<String, JishiError> {
     }
 }
 
-fn digest(algo: &str, data: &[u8]) -> String {
+/// 原始摘要字节（HMAC / PBKDF2 要用字节，不能拿十六进制串去拼）。
+fn raw(algo: &str, data: &[u8]) -> Vec<u8> {
     match algo {
-        "md5" => md5(data),
-        "sha1" => sha1(data),
-        "sha256" => sha256(data),
-        _ => sha512(data),
+        "md5" => md5_raw(data),
+        "sha1" => sha1_raw(data),
+        "sha256" => sha256_raw(data),
+        _ => sha512_raw(data),
     }
+}
+
+/// 算法名 → 分块长度（HMAC 用：摘要块大小）。
+fn block_size(algo: &str) -> usize {
+    if algo == "sha512" {
+        128
+    } else {
+        64 // md5 / sha1 / sha256 都是 64
+    }
+}
+
+/// 十六进制摘要（对外的四个函数与 `摘要` 都用它）。
+fn hex_digest(algo: &str, data: &[u8]) -> String {
+    hex(&raw(algo, data))
+}
+
+pub(crate) fn md5(data: &[u8]) -> String {
+    hex(&md5_raw(data))
+}
+
+pub(crate) fn sha1(data: &[u8]) -> String {
+    hex(&sha1_raw(data))
+}
+
+pub(crate) fn sha256(data: &[u8]) -> String {
+    hex(&sha256_raw(data))
+}
+
+pub(crate) fn sha512(data: &[u8]) -> String {
+    hex(&sha512_raw(data))
+}
+
+/// HMAC（RFC 2104）：`H((K ⊕ opad) ‖ H((K ⊕ ipad) ‖ 消息))`。
+///
+/// 密钥比块长就先摘要一次；短了就右侧补 0 到块长。**自己写**，与 Python 的
+/// `hmac.new(...)` 逐字节对拍 —— 没有依赖，也只有几十行。
+fn hmac(algo: &str, key: &[u8], msg: &[u8]) -> Vec<u8> {
+    let bs = block_size(algo);
+    let mut k = if key.len() > bs { raw(algo, key) } else { key.to_vec() };
+    k.resize(bs, 0);
+    let mut inner: Vec<u8> = k.iter().map(|b| b ^ 0x36).collect();
+    inner.extend_from_slice(msg);
+    let ih = raw(algo, &inner);
+    let mut outer: Vec<u8> = k.iter().map(|b| b ^ 0x5c).collect();
+    outer.extend_from_slice(&ih);
+    raw(algo, &outer)
+}
+
+/// PBKDF2-HMAC（RFC 2898），只出**一块**（dkLen = 摘要长度）。
+///
+/// 口令摘要只需要「口令 + 盐 → 一个定长串」，所以一块就够；
+/// 这样也不用处理 dkLen 跨块拼接的边界。
+fn pbkdf2(algo: &str, pwd: &[u8], salt: &[u8], iters: u32) -> Vec<u8> {
+    let mut block = salt.to_vec();
+    block.extend_from_slice(&1u32.to_be_bytes()); // INT(1)
+    let mut u = hmac(algo, pwd, &block);
+    let mut t = u.clone();
+    for _ in 1..iters {
+        u = hmac(algo, pwd, &u);
+        for i in 0..t.len() {
+            t[i] ^= u[i];
+        }
+    }
+    t
+}
+
+fn digest(algo: &str, data: &[u8]) -> String {
+    hex_digest(algo, data)
 }
 
 /// `sha256` 的十六进制串 —— 包管理的校验和用它（`packages.py::_sha256_file`）。
@@ -401,6 +503,41 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need("支持的算法", args, 0)?;
             let names = ["md5", "sha1", "sha256", "sha512"];
             Ok(crate::list_new(names.iter().map(|s| Val::Str(s.to_string())).collect()))
+        },
+        "HMAC" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("HMAC", args, 2, 3)?;
+            let algo = if args.len() > 2 { normalize(&args[2])? } else { "sha256".to_string() };
+            let key = as_text(&args[0]).into_bytes();
+            let msg = as_text(&args[1]).into_bytes();
+            Ok(Val::Str(hex(&hmac(&algo, &key, &msg))))
+        },
+        "口令摘要" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("口令摘要", args, 2, 4)?;
+            // 参数顺序：口令, 盐, 迭代, 算法（后两个可省）
+            let iters: u32 = match args.get(2) {
+                Some(v) => {
+                    let n = as_num(v)? as i64;
+                    if n < 1 {
+                        return Err(err("值错误", format!("迭代次数要是正整数，现在是 {n}")));
+                    }
+                    n.min(u32::MAX as i64) as u32
+                }
+                None => 100_000, // 与 Python 侧 PBKDF2_默认迭代 一致
+            };
+            let algo = if args.len() > 3 { normalize(&args[3])? } else { "sha256".to_string() };
+            let pwd = as_text(&args[0]).into_bytes();
+            let salt = as_text(&args[1]).into_bytes();
+            Ok(Val::Str(hex(&pbkdf2(&algo, &pwd, &salt, iters))))
+        },
+        "安全随机字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("安全随机字节", args, 1)?;
+            let n = as_num(&args[0])? as i64;
+            if n < 1 {
+                return Err(err("值错误", format!("长度要是正整数，现在是 {n}")));
+            }
+            let mut buf = vec![0u8; n as usize];
+            系统熵(&mut buf).map_err(|e| err("运行错误", format!("取不到系统随机源：{e}")))?;
+            Ok(Val::Str(hex(&buf)))
         },
     }
 }

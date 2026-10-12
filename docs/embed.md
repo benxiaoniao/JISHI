@@ -246,11 +246,15 @@ rust/target/release/jishi-rs.exe 字节码.json   # 由 jishi --dump-bytecode �
    所以报中文错而不是给近似值。
 5. **`类型标注` 表里 `空` / `函数` 两条写不出来**：它们是关键字，语法上不能作
    类型名（三个侧同样如此，不是 Rust 独有）。
-6. **`压缩.打包` 写的是 `stored`（不压缩）条目**。零依赖下没有 DEFLATE
-   **压缩器**（LZ77 + 两套霍夫曼树，几百行的活），而 zip 规范里 `stored`
-   本来就是合法形式。**解压**躲不掉——别人打的包默认都是 deflate，
-   所以 inflate 是完整实现的（三种块都支持）。结果：Rust 打的包**文件大一点、
-   但完全合规**，Python 的 `zipfile` 读得出来（测试里拿它当裁判）。
+6. **`压缩.打包` 与 `压缩.压缩文件` 都写 `stored`（不压缩）**。零依赖下没有
+   DEFLATE **压缩器**（LZ77 + 两套霍夫曼树，几百行的活），而 zip 的 `stored`
+   条目、gzip 的 `stored` 块（`BFINAL|BTYPE=00`）本来就是合法形式。
+   **解压**躲不掉——别人打的包 / 压的 gz 默认都是 deflate，所以 inflate 是
+   完整实现的（三种块都支持，见 `inflate.rs`）。
+   结果：Rust 产出的 **zip / gz 文件大一点、但完全合规**，
+   Python 的 `zipfile` / `gzip` 照样读得出来（测试里拿它当裁判）。
+   ⚠️ 推论：**压缩后的字节各宿主不同** ⇒ 判据只比「解压结果 + 互相能否解开」，
+   不比压缩产物本身。
 7. **非 Windows 平台上 `https://` 用不了**：那边走裸 `TcpStream`，没有 TLS，
    于是 `网络.获取("https://…")` **明确报错**并说明原因（不静默降级成明文）。
    Windows 侧绑 `winhttp.dll`，`https` 正常。

@@ -1,17 +1,25 @@
 # -*- coding: utf-8 -*-
-"""基石标准库：压缩。薄封装 Python 的 zipfile，中文 API。
+"""基石标准库：压缩。薄封装 Python 的 zipfile / gzip，中文 API。
 
-提供 zip 的打包 / 解压 / 查看。零第三方依赖。
+- **zip**（`打包` / `解压` / `列出内容`）：一箱多件，能装目录树。
+- **gzip**（`压缩文件` / `解压文件`）：**单个文件**一个流，解压时不用先读目录表
+  —— 日志轮转、备份单份产物常用它。
+
+零第三方依赖。
 """
 
 from __future__ import annotations
 
+import gzip as _py_gzip
 import os as _os
 import zipfile as _py_zip
 
 from ..errors import RunError, RunValueError
+from ..runtime import jishi_repr
 
-__all__ = ["打包", "解压", "列出内容"]
+__all__ = [
+    "打包", "解压", "列出内容", "压缩文件", "解压文件",
+]
 
 
 def 打包(zip路径, *文件或目录) -> str:
@@ -69,3 +77,50 @@ def 列出内容(zip路径) -> list:
             return zf.namelist()
     except _py_zip.BadZipFile as e:
         raise RunError(f"「{zip路径}」不是有效的 zip：{e}")
+
+
+def 压缩文件(gz路径, 内容) -> str:
+    """把**一份内容**压成 `.gz` 单文件，返回这个 gz 的路径。
+
+    与 `打包`（zip）的分工：zip 是「一箱多件、要目录表」，gzip 是「一个文件
+    一个流」—— 日志轮转、单个产物存档用它更合适（解压端不用先解析目录表）。
+    ⚠️ 文本按 UTF-8 编码后压；`解压文件` 再按 UTF-8 解回来。
+    """
+    值 = jishi_repr(内容, top=True)
+    目标 = str(gz路径)
+    目录 = _os.path.dirname(目标)
+    try:
+        if 目录:
+            _os.makedirs(目录, exist_ok=True)
+        # `mtime=0`：同一份内容每次压出来的**头部一个字节都不变**（否则 gzip
+        # 会把当前时间写进头里，两份「内容相同」的产物就永远不一样）。
+        # `filename=""`：**不写原始文件名** —— 传了 fileobj 时 gzip 默认会把
+        # `fileobj.name` 写进头里的 FNAME 字段，于是「同一份内容存成不同的文件名」
+        # 会压出不同的字节（Node / Rust 那边都不写 FNAME）。
+        with open(目标, "wb") as f:
+            with _py_gzip.GzipFile(filename="", fileobj=f, mode="wb",
+                                   mtime=0) as gz:
+                gz.write(值.encode("utf-8"))
+    except OSError as e:
+        raise RunError(f"压缩到「{gz路径}」失败：{e}")
+    return 目标
+
+
+def 解压文件(gz路径) -> str:
+    """把 `.gz` 单文件解开，返回里面的文本（按 UTF-8 解码）。
+
+    ⚠️ 解出来的**不是 UTF-8 文本**时会明确报错（基石里文本就是文本；
+    要处理二进制请走 `编码` 模块）。
+    """
+    目标 = str(gz路径)
+    if not _os.path.isfile(目标):
+        raise RunValueError(f"「{gz路径}」不是文件")
+    try:
+        with _py_gzip.open(目标, "rb") as gz:
+            原 = gz.read()
+    except (OSError, EOFError) as e:
+        raise RunError(f"解压「{gz路径}」失败：{e}")
+    try:
+        return 原.decode("utf-8")
+    except UnicodeDecodeError:
+        raise RunError(f"「{gz路径}」解出来的不是 UTF-8 文本，没法按文本返回")

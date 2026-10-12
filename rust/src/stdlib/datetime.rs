@@ -470,6 +470,58 @@ fn days_in_month(y: i32, m: u32) -> i64 {
     }
 }
 
+/// `加月` / `加年` 的公共实现：按**日历月**推，月末**收**到那个月的最后一天。
+///
+/// 与 Python 侧 `日期.加月` 逐字对齐（`divmod` 的向下取整语义 ⇒ Rust 的
+/// `div_euclid` / `rem_euclid`）。`月数` 可以是负数。
+fn shift_months(月数: i64, 日期: &Val) -> Result<String, JishiError> {
+    let (y, m, d) = parse_date(日期)?;
+    let 总月 = y as i64 * 12 + (m as i64 - 1) + 月数;
+    let 年 = 总月.div_euclid(12) as i32;
+    let 月 = 总月.rem_euclid(12) as u32 + 1;
+    let 日 = (d as i64).min(days_in_month(年, 月));
+    Ok(format!("{:04}-{:02}-{:02}", 年, 月, 日))
+}
+
+/// 解析 ISO 8601 的**日期那一段**（`解析ISO`）。
+///
+/// 认 `2026-10-12` / `2026-10-12T08:30:00` / `…Z` / `…+08:00` / `2026-10-12 08:30`。
+/// ⚠️ **只取字面日期，不按后面的时区偏移换算** —— 与 Python 侧同一个规则
+/// （时区换算要整套时区库，不在标准库里做）。手写扫描，不引正则。
+fn parse_iso_date(v: &Val) -> Result<String, JishiError> {
+    let s = as_text(v).trim().to_string();
+    let bad = || {
+        err(
+            "值错误",
+            format!(
+                "「{}」不是有效的 ISO 日期，例如 2026-10-12 或 2026-10-12T08:30:00Z",
+                as_text(v)
+            ),
+        )
+    };
+    let b: Vec<char> = s.chars().collect();
+    if b.len() < 10 {
+        return Err(bad());
+    }
+    let 都数字 = |a: usize, z: usize| b[a..z].iter().all(|c| c.is_ascii_digit());
+    if b[4] != '-' || b[7] != '-' || !都数字(0, 4) || !都数字(5, 7) || !都数字(8, 10) {
+        return Err(bad());
+    }
+    if b.len() > 10 && b[10] != 'T' && b[10] != ' ' {
+        return Err(bad());
+    }
+    let 年: i32 = b[0..4].iter().collect::<String>().parse().map_err(|_| bad())?;
+    let 月: u32 = b[5..7].iter().collect::<String>().parse().map_err(|_| bad())?;
+    let 日: u32 = b[8..10].iter().collect::<String>().parse().map_err(|_| bad())?;
+    if !(1..=12).contains(&月) || 日 < 1 || 日 as i64 > days_in_month(年, 月) {
+        return Err(err(
+            "值错误",
+            format!("「{}」里的日期不存在（{} 年 {} 月没有 {} 日）", as_text(v), 年, 月, 日),
+        ));
+    }
+    Ok(format!("{:04}-{:02}-{:02}", 年, 月, 日))
+}
+
 fn date_dt(y: i32, m: u32, d: u32) -> Dt {
     Dt {
         year: y,
@@ -543,6 +595,20 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
             need("减天数", args, 2)?;
             let n = as_intish(&args[0])?;
             Ok(Val::Str(shift_days(&args[1], -(n as i64))?))
+        },
+        "加月" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("加月", args, 2)?;
+            let n = as_intish(&args[0])?;
+            Ok(Val::Str(shift_months(n as i64, &args[1])?))
+        },
+        "加年" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("加年", args, 2)?;
+            let n = as_intish(&args[0])?;
+            Ok(Val::Str(shift_months((n as i64) * 12, &args[1])?))
+        },
+        "解析ISO" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("解析ISO", args, 1)?;
+            Ok(Val::Str(parse_iso_date(&args[0])?))
         },
         "相差天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("相差天数", args, 2)?;

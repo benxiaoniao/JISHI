@@ -1836,6 +1836,38 @@ function daysInYear(y) {
   return ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365;
 }
 
+function daysInMonth(y, m) {
+  if (m === 2) return daysInYear(y) === 366 ? 29 : 28;
+  return [1, 3, 5, 7, 8, 10, 12].includes(m) ? 31 : 30;
+}
+
+/** `加月` / `加年` 的公共实现：按**日历月**推，月末**收**到该月最后一天。 */
+function shiftMonths(delta, text) {
+  const d = parseDate(text);
+  const total = d.getFullYear() * 12 + d.getMonth() + Math.trunc(Number(delta));
+  // JS 的 `/` 是浮点除法、`%` 会留负号 ⇒ 用 floorMod 拿到「向下取整」那份
+  const y = Math.floor(total / 12);
+  const m = ((total % 12) + 12) % 12 + 1;
+  const day = Math.min(d.getDate(), daysInMonth(y, m));
+  return `${pad4(y)}-${pad2(m)}-${pad2(day)}`;
+}
+
+/** `解析ISO`：只取**字面日期**，不按后面的时区偏移换算（与另两处同一条规则）。 */
+function parseIsoDate(v) {
+  const s = String(pText(v)).trim();
+  if (!/^\d{4}-\d{2}-\d{2}([T ]|$)/.test(s)) {
+    throw R.valueErr(`「${pText(v)}」不是有效的 ISO 日期，`
+      + "例如 2026-10-12 或 2026-10-12T08:30:00Z");
+  }
+  const y = Number(s.slice(0, 4));
+  const m = Number(s.slice(5, 7));
+  const da = Number(s.slice(8, 10));
+  if (m < 1 || m > 12 || da < 1 || da > daysInMonth(y, m)) {
+    throw R.valueErr(`「${pText(v)}」里的日期不存在（${y} 年 ${m} 月没有 ${da} 日）`);
+  }
+  return `${pad4(y)}-${pad2(m)}-${pad2(da)}`;
+}
+
 // -- 日期（M31）--
 const DATE_FUNCS = {
   '今天': new R.Builtin('今天', () => strftimeLocal(new Date(), '%Y-%m-%d')),
@@ -1855,6 +1887,9 @@ const DATE_FUNCS = {
     d.setDate(d.getDate() - Math.trunc(Number(n)));
     return strftimeLocal(d, '%Y-%m-%d');
   }),
+  '加月': new R.Builtin('加月', (n, text) => shiftMonths(n, text)),
+  '加年': new R.Builtin('加年', (n, text) => shiftMonths(Number(n) * 12, text)),
+  '解析ISO': new R.Builtin('解析ISO', (v) => parseIsoDate(v)),
   '相差天数': new R.Builtin('相差天数', (a, b) =>
     Math.round((parseDate(a) - parseDate(b)) / 86400000)),
   '早于': new R.Builtin('早于', (a, b) => parseDate(a) < parseDate(b)),
@@ -1915,6 +1950,9 @@ function normAlgo(algo) {
   return name;
 }
 
+/** 摘要长度（字节）—— PBKDF2 的 dkLen 要对齐它，才与 Python 的默认一致。 */
+const HASH_LEN = { md5: 16, sha1: 20, sha256: 32, sha512: 64 };
+
 function digestOf(text, algo) {
   return _crypto.createHash(normAlgo(algo))
     .update(Buffer.from(pText(text), 'utf8')).digest('hex');
@@ -1947,6 +1985,25 @@ const CRYPTO_FUNCS = {
     return h.digest('hex');
   }),
   '支持的算法': new R.Builtin('支持的算法', () => HASH_ALGOS.slice().sort(cmpCodepoint)),
+  'HMAC': new R.Builtin('HMAC', (key, msg, algo = 'sha256') => {
+    const name = normAlgo(algo);
+    return _crypto.createHmac(name, Buffer.from(pText(key), 'utf8'))
+      .update(Buffer.from(pText(msg), 'utf8'))
+      .digest('hex');
+  }),
+  '口令摘要': new R.Builtin('口令摘要', (pwd, salt, iters = 100000, algo = 'sha256') => {
+    const name = normAlgo(algo);
+    const n = Math.trunc(Number(iters));
+    if (!(n >= 1)) throw R.valueErr(`迭代次数要是正整数，现在是 ${iters}`);
+    // dkLen 取摘要长度，与 Python 的 `pbkdf2_hmac(algo, …)` 默认值一致
+    return _crypto.pbkdf2Sync(Buffer.from(pText(pwd), 'utf8'),
+      Buffer.from(pText(salt), 'utf8'), n, HASH_LEN[name], name).toString('hex');
+  }),
+  '安全随机字节': new R.Builtin('安全随机字节', (n) => {
+    const k = Math.trunc(Number(n));
+    if (!(k >= 1)) throw R.valueErr(`长度要是正整数，现在是 ${n}`);
+    return _crypto.randomBytes(k).toString('hex');
+  }),
 };
 
 // -- 压缩（M31）--
@@ -2166,6 +2223,37 @@ const ZIP_FUNCS = {
       throw R.runErr(`「${pText(zipPath)}」不是有效的 zip：`
         + `${e && e.message ? e.message : e}`);
     }
+  }),
+  '压缩文件': new R.Builtin('压缩文件', (gzPath, content) => {
+    const target = pText(gzPath);
+    const dir = _path.dirname(target);
+    try {
+      if (dir) fs.mkdirSync(dir, { recursive: true });
+      // `mtime: 0`：头部不写当前时间，同一份内容每次压出来的字节相同
+      // （与 Python 侧 `GzipFile(mtime=0)` 对齐）
+      fs.writeFileSync(target, _zlib.gzipSync(
+        Buffer.from(pText(content), 'utf8'), { level: 9, mtime: 0 }));
+    } catch (e) {
+      throw R.runErr(`压缩到「${target}」失败：${e && e.message ? e.message : e}`);
+    }
+    return target;
+  }),
+  '解压文件': new R.Builtin('解压文件', (gzPath) => {
+    const target = pText(gzPath);
+    const st = statOf(target);
+    if (!st || !st.isFile()) throw R.valueErr(`「${target}」不是文件`);
+    let raw = null;
+    try {
+      raw = _zlib.gunzipSync(fs.readFileSync(target));
+    } catch (e) {
+      throw R.runErr(`解压「${target}」失败：${e && e.message ? e.message : e}`);
+    }
+    const text = raw.toString('utf8');
+    // Node 的解码会把非法字节替换成 U+FFFD；用回环检测判断「本来就不是 UTF-8」
+    if (!Buffer.from(text, 'utf8').equals(raw)) {
+      throw R.runErr(`「${target}」解出来的不是 UTF-8 文本，没法按文本返回`);
+    }
+    return text;
   }),
 };
 
