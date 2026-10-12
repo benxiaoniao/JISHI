@@ -344,6 +344,8 @@ fn usage() {
     eprintln!("      jishi-rs 源码静态检查 [路径...] [--json]   # 源码检查（R7.1-c）");
     eprintln!("      jishi-rs 格式化 [文件] [--stdin] [--check] [--write] [--indent N]");
     eprintln!("      jishi-rs 安装/卸载/列表/发布/索引/检查   # 包管理（R7.6）");
+    eprintln!("      jishi-rs 升级 [--演练] [--源 <地址>] [--本地包 <文件>]   # 升级语言本体（M110）");
+    eprintln!("      jishi-rs 卸载 [--自身] [--是]     # 卸语言本体（不带包名也是它，需二次确认）");
     eprintln!("      jishi-rs 医生 [--no-net]   # 环境自检（R8.4）");
     eprintln!("      jishi-rs 新项目 <名字>     # 生成脚手架（R8.4）");
     eprintln!("      jishi-rs 教程              # 教程索引（R8.4）");
@@ -501,6 +503,22 @@ fn main() -> ExitCode {
     }
     // R7.6：包管理子命令（安装/卸载/列表/发布/索引/检查）走独立入口 ——
     // 避免与「运行文件」的位置参数冲突（与 Python 的 `cli.main` 同口径）。
+    //
+    // M110 起 `卸载` 有两个含义（2026-10-11 用户拍板）：
+    //   `卸载 <包名>`   → 卸**包**（老行为）
+    //   `卸载` 不带包名 / `卸载 --自身` → 卸**语言本体**
+    // ⚠️ 不带包名那条太容易误触 ⇒ 那边有二次确认（非交互要 `--是`）。
+    if args[1] == "升级" {
+        return ExitCode::from(jishi_ffi::selfupdate::cmd_update(&args[2..]) as u8);
+    }
+    if args[1] == "卸载" {
+        let rest = &args[2..];
+        let 有包名 = rest.iter().any(|a| !a.starts_with('-'));
+        let 自身 = rest.iter().any(|a| a == "--自身" || a == "--self");
+        if 自身 || !有包名 {
+            return ExitCode::from(jishi_ffi::selfupdate::cmd_uninstall_self(rest) as u8);
+        }
+    }
     if matches!(args[1].as_str(),
                 "安装" | "卸载" | "列表" | "发布" | "索引" | "检查") {
         return jishi_ffi::packages::run_package_cmd(&args[1..]);

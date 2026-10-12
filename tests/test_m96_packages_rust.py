@@ -328,11 +328,24 @@ def test_对拍_错误路径(both, tmp_path):
 
 @need_rust
 def test_对拍_缺参数退码2(both, tmp_path):
-    """argparse 的 usage 文案是**已登记差异**，这里只钉退出码。"""
-    for args in (["安装"], ["卸载"], ["发布"], ["索引"]):
+    """argparse 的 usage 文案是**已登记差异**，这里只钉退出码。
+
+    ⚠️ **`卸载` 不带包名不在这一组里**（M110 起）：那时它走的是「卸**语言本体**」，
+    与「缺参数」是两件事 —— 见 `tests/test_m110_selfupdate.py`。
+    这里只比「真的缺参数」的那三个。
+    """
+    for args in (["安装"], ["发布"], ["索引"]):
         _, _, pc = _py(args, both[0].dir)
         _, _, rc = _rs(args, both[1].dir)
         assert pc == rc == 2, (args, pc, rc)
+
+
+@need_rust
+def test_卸载带包名仍然是对拍的缺参数(both, tmp_path):
+    """`卸载` **带**包名时仍是包管理：缺参数那条路要退 2（M110 不许把它抢走）。"""
+    _, _, pc = _py(["卸载", "--列表"], both[0].dir)
+    _, _, rc = _rs(["卸载", "--列表"], both[1].dir)
+    assert pc == rc == 2, (pc, rc)
 
 
 # ---------------------------------------------------------------------------

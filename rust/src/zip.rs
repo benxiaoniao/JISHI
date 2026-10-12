@@ -321,7 +321,7 @@ fn gzip_stored(data: &[u8]) -> Vec<u8> {
 }
 
 /// 解开一个 gzip（别人用真 deflate 压的也认 —— 走 `inflate`），并校验 CRC32 与长度。
-fn gunzip(data: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn gunzip(data: &[u8]) -> Result<Vec<u8>, String> {
     if data.len() < 18 || data[0] != 0x1f || data[1] != 0x8b || data[2] != 0x08 {
         return Err("不是有效的 gzip 数据".to_string());
     }

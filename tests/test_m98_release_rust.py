@@ -84,7 +84,10 @@ def test_安装脚本假设的是平铺_bin():
     assert '"$BIN_DIR/jishi" --version' in sh, "install.sh 的自检不再指向平铺 bin/jishi"
     assert '"$binDir\\jishi.exe" --version' in ps, "install.ps1 的自检不再指向平铺 bin\\jishi.exe"
     # 进 PATH 的是 bin/ 本身（不是 bin/oracle/jishi/）
-    assert ".jishi/bin:" in sh, "install.sh 该把 ~/.jishi/bin 加进 PATH"
+    # ⚠️ M110 起安装目录可由 `JISHI_HOME` 覆盖 ⇒ PATH 行跟着变量走，
+    #    所以这里认的是 `$INSTALL_DIR/bin`（而不是写死 `~/.jishi/bin`）——
+    #    意图没变（加的是**安装目录下的 bin**），但把「写死」也一并钉掉。
+    assert '"$INSTALL_DIR/bin:' in sh, "install.sh 该把 <安装目录>/bin 加进 PATH"
     assert '$installDir\\bin"' in ps, "install.ps1 该把 <安装目录>\\bin 加进 PATH"
 
 

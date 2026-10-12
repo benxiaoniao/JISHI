@@ -6,7 +6,8 @@
 set -e
 
 VERSION="__VERSION__"   # 构建发行包时由 tools/build_release.py 注入实际版本
-INSTALL_DIR="$HOME/.jishi"
+# 安装目录：默认 ~/.jishi，可用 JISHI_HOME 覆盖（自动化 / 多版本并存时用）
+INSTALL_DIR="${JISHI_HOME:-$HOME/.jishi}"
 BIN_DIR="$INSTALL_DIR/bin"
 # 脚本所在目录（发行包根目录）
 SRC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,7 +19,13 @@ mkdir -p "$INSTALL_DIR"
 cp -R "$SRC_ROOT/bin" "$INSTALL_DIR/"
 [ -d "$SRC_ROOT/share" ] && cp -R "$SRC_ROOT/share" "$INSTALL_DIR/"
 
+# 1.5 记下装的是哪个版本（`jishi 升级` 靠它判断「本机现在是哪一版」；
+#     在 Inno 版里这行不存在也没关系 —— 那时直接问正在跑的那个可执行文件）
+echo "$VERSION" > "$INSTALL_DIR/VERSION"
+
 # 2. 把 bin 加入 PATH（追加到 shell rc，幂等）
+#    ⚠️ `JISHI_NO_PATH=1` 时**跳过改 shell 配置** —— 自动化（CI / 升级演练）里
+#    不该动用户的 rc 文件。
 RC_FILE=""
 case "$SHELL" in
   */zsh) RC_FILE="$HOME/.zshrc" ;;
@@ -26,8 +33,10 @@ case "$SHELL" in
   *) RC_FILE="$HOME/.bashrc" ;;
 esac
 
-EXPORT_LINE="export PATH=\"\$HOME/.jishi/bin:\$PATH\""
-if ! grep -qF "$INSTALL_DIR/bin" "$RC_FILE" 2>/dev/null; then
+EXPORT_LINE="export PATH=\"$INSTALL_DIR/bin:\$PATH\""
+if [ -n "${JISHI_NO_PATH:-}" ]; then
+  echo "  （JISHI_NO_PATH=1：跳过改 PATH）"
+elif ! grep -qF "$INSTALL_DIR/bin" "$RC_FILE" 2>/dev/null; then
   echo "$EXPORT_LINE" >> "$RC_FILE"
   echo "  已把 $INSTALL_DIR/bin 加入 $RC_FILE"
 else

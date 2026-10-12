@@ -919,7 +919,7 @@ pub(crate) fn read_index_text(index_url: &str) -> Result<String, String> {
 }
 
 /// 取一段网址的字节：`file://` 直接读文件，其余走 HTTP。
-fn fetch(url: &str, timeout: f64) -> Result<Vec<u8>, String> {
+pub(crate) fn fetch(url: &str, timeout: f64) -> Result<Vec<u8>, String> {
     if let Some(rest) = url.strip_prefix("file://") {
         // `file:///C:/x` → rest = `/C:/x`；Windows 上要把开头的 `/` 去掉。
         let mut p = rest;

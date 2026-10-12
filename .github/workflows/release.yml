@@ -207,6 +207,20 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      # M110：语言本体版本清单（`jishi 升级` 的入口）。
+      # ⚠️ **必须在「统一校验和」之前生成** —— 这样它自己也进 SHA256SUMS；
+      #    否则镜像同步那边会遇到「资产不在清单里」，而那正是「拿没校验
+      #    充当校验通过」的形状（`fetch_release_mirror.py` 会硬报错）。
+      # ⚠️ **也只能在这里生成**：它是「三平台合并之后」的产物，只有 CI 手里
+      #    同时有三个平台的真包。本机 `build_release.py` 只产一个平台，
+      #    生成出来的清单是残的（`build_version_manifest.py` 会拒绝那种）。
+      - name: 生成语言本体版本清单（版本.json）
+        shell: bash
+        run: |
+          python tools/build_version_manifest.py artifacts \
+            --输出 artifacts/版本.json
+          cat artifacts/版本.json
+
       - name: 汇总产物并生成统一校验和
         shell: bash
         run: |

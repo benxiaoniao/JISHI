@@ -3,7 +3,7 @@
 # 用法：bash uninstall.sh
 
 set -e
-INSTALL_DIR="$HOME/.jishi"
+INSTALL_DIR="${JISHI_HOME:-$HOME/.jishi}"   # 与 install.sh 同一个口径
 
 echo "== 卸载基石 jishi =="
 

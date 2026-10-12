@@ -34,6 +34,7 @@ pub mod dap;        // R7.5：DAP 适配器（dap.py 的移植，`jishi-rs dap`�
 pub mod packages;   // R7.6：包管理（packages.py + cli.py 的包命令）
 pub mod tools;      // R8.4：`医生` / `新项目` / `教程`（发行包换单二进制后不能缺）
 pub mod repl;       // R8.4b：交互式 REPL（repl.py 的移植，`-i`）
+pub mod selfupdate; // M110：语言本体的升级与卸载（`jishi 升级` / `jishi 卸载 --自身`）
 pub mod langdata;   // R7.2：语言元数据的显式表（**生成**，见 tools/gen_langdata_rs.py）
 pub mod langspec;   // R7.2：语言元数据 → JSON（`jishi --lang-spec`）
 mod zip;

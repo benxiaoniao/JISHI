@@ -93,16 +93,26 @@ def main() -> int:
             continue
 
         sums_name = None
+        版本清单资产 = None
         for a in assets:
             if a["name"] == "SHA256SUMS":
                 sums_name = a
                 # ⚠️ `force=True`：这个文件名不随版本变，必须每次都取这一版的
                 download(a["browser_download_url"], OUT / a["name"], a["size"],
                          force=True)
+            elif a["name"] == "版本.json":
+                # M110：`jishi 升级` 的入口清单。同 SHA256SUMS 的道理 ——
+                # 文件名不随版本变，**必须 force**，否则「大小一样就跳过」
+                # 会把上一版的清单当成这一版的。
+                版本清单资产 = a
         if sums_name is None:
             # **没有清单就不发布**：一份没校验过的包，与 GitHub 上那份是不是
             # 同一个东西无从得知 —— 宁可停下，也不要放一个「大概是吧」出去。
             raise SystemExit(f"❌ {tag} 里没有 SHA256SUMS，无法校验，拒绝发布")
+
+        if 版本清单资产 is not None:
+            download(版本清单资产["browser_download_url"], OUT / "版本.json",
+                     版本清单资产["size"], force=True)
 
         wanted = [a for a in assets if a["name"] != "SHA256SUMS"]
         for a in wanted:

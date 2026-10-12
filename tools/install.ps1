@@ -5,7 +5,9 @@
 $ErrorActionPreference = "Stop"
 
 $version = "__VERSION__"   # 构建发行包时由 tools/build_release.py 注入实际版本
-$installDir = Join-Path $env:USERPROFILE ".jishi"
+# 安装目录：默认 ~/.jishi，可用 JISHI_HOME 覆盖（自动化 / 多版本并存时用）
+if ($env:JISHI_HOME) { $installDir = $env:JISHI_HOME }
+else { $installDir = Join-Path $env:USERPROFILE ".jishi" }
 $binDir = Join-Path $installDir "bin"
 
 Write-Host "== 基石 jishi $version 安装 ==" -ForegroundColor Cyan
@@ -23,10 +25,17 @@ if (Test-Path (Join-Path $srcRoot "share")) {
     Copy-Item -Recurse -Force (Join-Path $srcRoot "share") $installDir
 }
 
+# 2.5 记下装的是哪个版本（`jishi 升级` 靠它判断「本机现在是哪一版」）
+Set-Content -Path (Join-Path $installDir "VERSION") -Value $version -NoNewline -Encoding ascii
+
 # 3. 把 bin 加入用户 PATH（幂等：已存在则不重复）
+#    ⚠️ `JISHI_NO_PATH=1` 时**跳过改 PATH** —— 自动化（CI / 升级演练）里
+#    不该动用户的环境变量。
 $binPath = Join-Path $installDir "bin\jishi"
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($userPath -notlike "*$installDir\bin*") {
+if ($env:JISHI_NO_PATH) {
+    Write-Host "  （JISHI_NO_PATH=1：跳过改 PATH）" -ForegroundColor Yellow
+} elseif ($userPath -notlike "*$installDir\bin*") {
     $newPath = "$userPath;$installDir\bin"
     [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
     Write-Host "  已把 $installDir\bin 加入用户 PATH" -ForegroundColor Green
