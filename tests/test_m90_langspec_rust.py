@@ -172,7 +172,7 @@ def test_独立判据_lang_spec结构与关键事实():
     d = json.loads(r[0])
 
     assert list(d) == _TOP_KEYS, f"顶层键或顺序变了：{list(d)}"
-    assert d["version"] == "0.2.2", d["version"]
+    assert d["version"] == "0.2.3", d["version"]
     assert len(d["keywords"]) == 36 and list(d["keywords"])[0] == "令"
     assert d["keywords"]["令"] == "声明/赋值变量"
     assert [b["name"] for b in d["builtins"]] == _BUILTINS
@@ -211,7 +211,7 @@ def test_独立判据_ai_card关键段():
     r = _rust_run("--ai-card")
     assert r[2] == 0 and r[1] == "", (r[2], r[1][:200])
     out = r[0]
-    assert out.startswith("# 基石（jishi）语言卡 v0.2.2（"), out[:60]
+    assert out.startswith("# 基石（jishi）语言卡 v0.2.3（"), out[:60]
     for seg in ["## 关键字（全部）", "## 内建函数", "## 标准库（`导入 模块名`）",
                 "## 对象方法", "## 运算符", "## 语法速览", "## 惯用法示例",
                 "## 常见错误对照（写中文，别写英文）", "## 报错怎么读、怎么查（M56）"]:
