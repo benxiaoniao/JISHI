@@ -241,3 +241,37 @@ def test_跑仓库脚本的job必须先检出仓库():
                               f"但该 job 没有先检出仓库")
     assert not 坏, ("这些 job 会在干净 runner 上挂（脚本文件根本不在）：\n  - "
                     + "\n  - ".join(坏))
+
+
+# ---------------------------------------------------------------------------
+# 五、发布资产名必须是纯 ASCII
+# ---------------------------------------------------------------------------
+
+def test_发布资产名必须是纯ASCII():
+    """🔴 为什么有这一条（2026-10-14 发布 v0.2.3 时踩到）：
+
+    版本清单本来叫 `版本.json` —— 上传后 **GitHub 把它改写成 `default.json`**，
+    原名只留在资产的 `label` 字段里（`softprops/action-gh-release` 的源码里就写着
+    「GitHub can rewrite uploaded asset names」，并专门做了「把原名恢复进 label」这步）。
+    后果很隐蔽：**自建源照常能取到清单**，只有走 **GitHub 兜底**时才 404 ——
+    本地测不出来、站点上也看不出来。
+
+    ⇒ 判据：**发布资产名一律纯 ASCII**。这里钉住清单文件名 —— Rust 侧的两个默认地址、
+    以及镜像同步脚本认的那个资产名。
+    """
+    import re
+
+    rust = (ROOT / "rust" / "src" / "selfupdate.rs").read_text(encoding="utf-8")
+    块 = re.search(r"DEFAULT_RELEASE_INDEX_URLS[^=]*=\s*\[(.*?)\];", rust, re.S)
+    assert 块, "找不到 DEFAULT_RELEASE_INDEX_URLS"
+    地址 = re.findall(r'"(https?://[^"]+)"', 块.group(1))
+    assert len(地址) == 2, 地址
+    for u in 地址:
+        名 = u.rsplit("/", 1)[-1]
+        assert 名.isascii(), (
+            f"发布资产名「{名}」不是纯 ASCII —— GitHub 会把它改写成 `default.json`"
+            "（原名只留在 label 里），走 GitHub 那条就永远 404")
+
+    mirror = (ROOT / "tools" / "fetch_release_mirror.py").read_text(encoding="utf-8")
+    for 名 in re.findall(r'a\["name"\]\s*==\s*"([^"]+)"', mirror):
+        assert 名.isascii(), f"镜像同步脚本在按非 ASCII 名找资产：「{名}」"

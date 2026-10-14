@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""生成**语言本体版本清单**（`版本.json`）—— `jishi 升级` 靠它找新版（M110）。
+"""生成**语言本体版本清单**（`jishi-release.json`）—— `jishi 升级` 靠它找新版（M110）。
 
 用法::
 
     python tools/build_version_manifest.py dist/release
-    python tools/build_version_manifest.py dist/release --输出 /tmp/版本.json
+    python tools/build_version_manifest.py dist/release --输出 /tmp/jishi-release.json
 
 它在发行目录里扫这些文件名（`tools/build_release.py` / CI 产出的那些）::
 
@@ -127,16 +127,16 @@ def 生成(目录: Path, 版本: str | None = None, 日期: str | None = None) -
 
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(description="生成语言本体版本清单（版本.json）")
+    ap = argparse.ArgumentParser(description="生成语言本体版本清单（jishi-release.json）")
     ap.add_argument("目录", type=Path, help="发行目录（如 dist/release）")
     ap.add_argument("--版本", default=None, help="只收录这一版（默认取最高版本）")
     ap.add_argument("--日期", default=None, help="这一版的发布日期（默认今天）")
-    ap.add_argument("--输出", type=Path, default=None, help="写到哪（默认 <目录>/版本.json）")
+    ap.add_argument("--输出", type=Path, default=None, help="写到哪（默认 <目录>/jishi-release.json）")
     args = ap.parse_args(argv)
 
     清单 = 生成(args.目录, args.版本, args.日期)
     正文 = json.dumps(清单, ensure_ascii=False, indent=2) + "\n"
-    出 = args.输出 or (args.目录 / "版本.json")
+    出 = args.输出 or (args.目录 / "jishi-release.json")
     出.write_text(正文, encoding="utf-8", newline="\n")
     平台们 = sorted(清单["版本"][清单["最新"]]["平台"])
     print(f"✓ 版本清单：{出}（最新 {清单['最新']} · 平台 {'、'.join(平台们)}）")

@@ -19,7 +19,7 @@
 //!
 //! ## 版本清单
 //!
-//! 站点与 GitHub Release 各有一份 `版本.json`（同一份字节，由
+//! 站点与 GitHub Release 各有一份 `jishi-release.json`（同一份字节，由
 //! `tools/build_version_manifest.py` 生成）。
 //!
 //! ⚠️ 清单里**只写文件名**（不写绝对地址）—— 下载时按「镜像前缀 + 文件名」拼，
@@ -50,10 +50,13 @@ pub const RELEASE_VERSION: i64 = 1;
 /// GitHub 那条走 `releases/latest/download/` —— 它**永远指向最新那一版**，
 /// 所以清单地址本身不必随版本改。
 ///
-/// ⚠️ `版本.json` 是中文名，路径里要 percent-encode（HTTP 路径按 ASCII 走）。
+/// 🔴 **文件名必须是纯 ASCII**：GitHub 会把**非 ASCII 的资产名改写成 `default.json`**
+/// （2026-10-14 发布 v0.2.3 时踩到 —— `softprops/action-gh-release` 的源码里就写着
+/// 「GitHub can rewrite uploaded asset names」，它把原名塞回 `label`）。
+/// 以前叫 `版本.json` ⇒ 「GitHub 兜底」那条永远 404。现改 `jishi-release.json`。
 pub const DEFAULT_RELEASE_INDEX_URLS: [&str; 2] = [
-    "https://xn--3jsy75e.cn/download/%E7%89%88%E6%9C%AC.json",
-    "https://github.com/benxiaoniao/JISHI/releases/latest/download/%E7%89%88%E6%9C%AC.json",
+    "https://xn--3jsy75e.cn/download/jishi-release.json",
+    "https://github.com/benxiaoniao/JISHI/releases/latest/download/jishi-release.json",
 ];
 
 /// 覆盖默认清单来源的环境变量名。
@@ -316,7 +319,7 @@ impl Drop for 临时区 {
 /// 该资产的所有可试地址，**按顺序**：
 ///
 /// 1. **清单自己的目录** —— 离线镜像 / 自建镜像 / `jishi 升级 --源 <地址>` 都靠它
-///    （`file:///tmp/镜像/版本.json` ⇒ 资产从 `/tmp/镜像/` 取）
+///    （`file:///tmp/镜像/jishi-release.json` ⇒ 资产从 `/tmp/镜像/` 取）
 /// 2. 自建站 `https://基石.cn/download/`
 /// 3. GitHub Release 兜底
 ///

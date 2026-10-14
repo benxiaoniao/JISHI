@@ -221,12 +221,12 @@ jobs:
       # ⚠️ **也只能在这里生成**：它是「三平台合并之后」的产物，只有 CI 手里
       #    同时有三个平台的真包。本机 `build_release.py` 只产一个平台，
       #    生成出来的清单是残的（`build_version_manifest.py` 会拒绝那种）。
-      - name: 生成语言本体版本清单（版本.json）
+      - name: 生成语言本体版本清单（jishi-release.json）
         shell: bash
         run: |
           python tools/build_version_manifest.py artifacts \
-            --输出 artifacts/版本.json
-          cat artifacts/版本.json
+            --输出 artifacts/jishi-release.json
+          cat artifacts/jishi-release.json
 
       - name: 汇总产物并生成统一校验和
         shell: bash

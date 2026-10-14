@@ -130,7 +130,7 @@ def _做镜像(目录: Path, 版本: str, 源包: Path | None = None) -> Path:
                         str(目录), "--版本", 版本],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr
-    return 目录 / "版本.json"
+    return 目录 / "jishi-release.json"
 
 
 def _file_url(p: Path) -> str:
@@ -251,7 +251,7 @@ def test_升级_多镜像回退(tmp_path):
     _装到(家, 旧版)
     镜像 = tmp_path / "镜像"
     清单 = _做镜像(镜像, 新版)
-    坏源 = _file_url(tmp_path / "没有这个目录" / "版本.json")
+    坏源 = _file_url(tmp_path / "没有这个目录" / "jishi-release.json")
 
     r = _跑(["升级", "--源", 坏源, "--源", _file_url(清单)], {"JISHI_HOME": str(家)})
     assert r.returncode == 0, r.stdout + r.stderr
@@ -264,7 +264,7 @@ def test_升级_清单格式不对要报错(tmp_path):
     (家 / "VERSION").write_text("0.1.0\n", encoding="ascii")
     镜像 = tmp_path / "镜像"
     镜像.mkdir()
-    假 = 镜像 / "版本.json"
+    假 = 镜像 / "jishi-release.json"
     假.write_text(json.dumps({"格式": "别的什么东西", "格式版本": 1, "最新": "9.9.9"},
                              ensure_ascii=False), encoding="utf-8")
     r = _跑(["升级", "--源", _file_url(假)], {"JISHI_HOME": str(家)})
@@ -276,7 +276,7 @@ def test_升级_所有源都读不到要给人话(tmp_path):
     家 = tmp_path / "家"
     家.mkdir()
     (家 / "VERSION").write_text("0.1.0\n", encoding="ascii")
-    坏 = _file_url(tmp_path / "没有" / "版本.json")
+    坏 = _file_url(tmp_path / "没有" / "jishi-release.json")
     r = _跑(["升级", "--源", 坏], {"JISHI_HOME": str(家)})
     assert r.returncode != 0
     出 = r.stdout + r.stderr
@@ -294,7 +294,7 @@ def test_安装形态_JISHI_HOME里有卸载器就算安装程序版(tmp_path):
     (家 / "VERSION").write_text("0.2.2\n", encoding="ascii")
     (家 / "unins000.exe").write_bytes(b"stub")     # 假装是 Inno 装出来的
 
-    清单 = tmp_path / "版本.json"
+    清单 = tmp_path / "jishi-release.json"
     清单.write_text(json.dumps({
         "格式": "jishi-release-index", "格式版本": 1, "最新": "9.9.9",
         "版本": {"9.9.9": {"日期": "x", "平台": {平台: {"包": {
@@ -312,7 +312,7 @@ def test_安装形态_没有卸载器就是便携版(tmp_path):
     家 = tmp_path / "家"
     家.mkdir()
     (家 / "VERSION").write_text("0.2.2\n", encoding="ascii")
-    清单 = tmp_path / "版本.json"
+    清单 = tmp_path / "jishi-release.json"
     清单.write_text(json.dumps({
         "格式": "jishi-release-index", "格式版本": 1, "最新": "9.9.9",
         "版本": {"9.9.9": {"日期": "x", "平台": {平台: {"包": {
@@ -392,7 +392,7 @@ def test_版本清单_只写文件名不写绝对地址(tmp_path):
                         str(tmp_path), "--版本", "9.9.9"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr
-    m = json.loads((tmp_path / "版本.json").read_text(encoding="utf-8"))
+    m = json.loads((tmp_path / "jishi-release.json").read_text(encoding="utf-8"))
     assert m["格式"] == "jishi-release-index" and m["格式版本"] == 1
     assert m["最新"] == "9.9.9"
     包 = m["版本"]["9.9.9"]["平台"][平台]["包"]
@@ -451,22 +451,22 @@ def test_安装脚本支持JISHI_HOME覆盖():
 # ---------------------------------------------------------------------------
 
 def test_release工作流_清单排在统一校验和之前():
-    """🔴 **顺序是有意义的**：`版本.json` 必须先于 `SHA256SUMS` 生成，
+    """🔴 **顺序是有意义的**：`jishi-release.json` 必须先于 `SHA256SUMS` 生成，
     这样它自己也进那份清单；否则镜像同步那边会遇到「资产不在清单里」
     —— 而那正是「拿没校验充当校验通过」的形状。"""
     yml = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "build_version_manifest.py" in yml, "发版工作流没生成版本清单"
     i清单 = yml.index("生成语言本体版本清单")
     i校验和 = yml.index("汇总产物并生成统一校验和")
-    assert i清单 < i校验和, "版本.json 必须排在 SHA256SUMS 之前"
+    assert i清单 < i校验和, "jishi-release.json 必须排在 SHA256SUMS 之前"
 
 
 def test_镜像同步会强制拉版本清单():
     """清单的文件名不随版本变 ⇒ 必须 `force` 重下，否则「大小一样就跳过」会把
     上一版的清单当成这一版的（`SHA256SUMS` 踩过一模一样的坑）。"""
     t = (ROOT / "tools" / "fetch_release_mirror.py").read_text(encoding="utf-8")
-    assert '"版本.json"' in t, "镜像同步没拉版本清单"
-    i = t.index('"版本.json"')
+    assert '"jishi-release.json"' in t, "镜像同步没拉版本清单"
+    i = t.index('"jishi-release.json"')
     assert "force=True" in t[i:i + 600], "拉版本清单没带 force"
 
 
