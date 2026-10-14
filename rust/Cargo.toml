@@ -1,0 +1,46 @@
+[package]
+name = "jishi-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "基石（jishi）中文编程语言的 Rust 字节码解释器，消费 M13.1 的 JSON 字节码，脱离 Python 独立执行。**无第三方依赖**（前端用同一仓库的 `jishi-frontend`，那是路径依赖、不是第三方）。"
+
+[features]
+# **wasm 的 playground 专用**：给 VM 加「步数预算」（防死循环，见 `lib.rs` 的
+# `budget_tick`）。⚠️ **默认关** —— 开了它指令循环的回跳处会多一次判断，
+# 实测在循环密集负载上 **+6%**（8M 次迭代、交错 A/B、稳定复现）。
+# 原生宿主（CLI/MCP/对拍/benchmark）**不需要**它：那边有「另起线程 + 超时」。
+budget = []
+
+[dependencies]
+# R7.1-c 起：宿主自己做前端（静态检查 / 格式化 / 后面的 LSP 都要 AST）。
+# 以前前端住在 `core/`（pyo3 扩展）里，宿主用不上 —— R7.1-a 把它抽成了独立 crate。
+jishi-frontend = { path = "../frontend" }
+
+[[bin]]
+name = "jishi-rs"
+path = "src/main.rs"
+
+[lib]
+name = "jishi_ffi"
+path = "src/lib.rs"
+
+[profile.release]
+# R8.5b 瘦身实测（2026-10-09，见 `docs/路线图.md` §11.10）。**结论：开 LTO + strip，
+# 但不用 `opt-level = "z"`** —— 三个变体同机同时段交错 A/B（4M 次循环算力基准）：
+#
+#   | profile                    | exe 体积    | 启动    | 算力（越小越快）      |
+#   |----------------------------|------------|--------|--------------------|
+#   | 默认                        | 4.63 MB    | 9.3 ms | 1087 ms            |
+#   | `opt-level="z"`+LTO+strip  | 2.01 MB    | 9.1 ms | 1353 ms（**+24% 慢**）|
+#   | **opt=3 + LTO + strip**    | **2.91 MB**| **9.0 ms** | **1056 ms（0.97x，略快）** |
+#
+# `opt-level="z"` 拿 24% 算力换那 0.9 MB —— **不值**（体积本就远在验收线内）。
+# LTO 反而让算力略快（跨 crate 内联）。
+#
+# 🔴 **不能用 `panic = "abort"`**：`lsp.rs` 用 `catch_unwind` 把 panic 转成
+#    `INTERNAL_ERROR` 回包；abort 就捕获不到 ⇒ LSP 从「回错误」变成「整个进程挂掉」。
+lto = true
+codegen-units = 1
+strip = "symbols"
+opt-level = 3
+

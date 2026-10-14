@@ -1,0 +1,210 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 6,
+              "comparators": [
+                {
+                  "col": 8,
+                  "line": 1,
+                  "value": "a",
+                  "类型": "Str"
+                }
+              ],
+              "left": {
+                "col": 4,
+                "line": 1,
+                "value": 1,
+                "类型": "Num"
+              },
+              "line": 1,
+              "ops": [
+                "<"
+              ],
+              "类型": "Compare"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 1,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 1,
+          "类型": "Call"
+        },
+        "line": 1,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "b24adc9e84752bd1ad90712ead1a5b8a091be2c8507c4b9bafdddd8b0b567ae6",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            2,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            4,
+            1,
+            1,
+            0,
+            0,
+            1,
+            8,
+            15,
+            2,
+            0,
+            0,
+            1,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            1,
+            3,
+            38,
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "str",
+          "v": "a"
+        }
+      ],
+      "filename": "tests/error_cases/21_比较类型错误.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "打印"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 1,
+      "source_line": "打印(1 < \"a\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 1,
+      "source_line": "打印(1 < \"a\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 1,
+      "source_line": "打印(1 < \"a\")",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 1,
+      "source_line": "打印(1 < \"a\")",
+      "type": "OP",
+      "value": "<",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "打印(1 < \"a\")",
+      "type": "STRING",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 1,
+      "source_line": "打印(1 < \"a\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "打印(1 < \"a\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:05d60cc8d36fbe5c",
+  "语料": "tests/error_cases/21_比较类型错误.jsh"
+}
