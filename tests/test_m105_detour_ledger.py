@@ -160,3 +160,63 @@ def test_探针_本地小服务_生成静态页(monkeypatch, tmp_path):
     page = (tmp_path / "待办.html").read_text(encoding="utf-8")
     assert "<li>买菜</li>" in page, page
     assert 'charset="utf-8"' in page, page
+
+
+# ---------------------------------------------------------------------------
+# 四、台账要**过得了发布脚本的「抹引用」**（M111 发版时踩到的第二个坑）
+# ---------------------------------------------------------------------------
+
+def test_台账经发布脚本抹引用后一个字不变(tmp_path):
+    """🔴 为什么单独立一条（2026-10-14，M111 发版时逮到）：
+
+    发布脚本 `publish_github._sanitize()` 会把**指向内部文档的引用**抹成中性标签
+    （目的是「公开仓库里不留死链」）。而台账是**生成物**，它里面原本写着
+    ``docs/路线图.md`` ⇒ 在**发布快照**上被抹成「内部路线图（未公开）」，
+    于是 `test_台账与探针里的条目一致`（拿**生成器的新鲜输出**去比）在 CI 上必失败。
+
+    📌 **它躲过了本地所有检查**：源码树里**没有抹引用这一步**，所以本地永远绿 ——
+    「CI 红、本地绿」的经典形态（同族：M104 的 `前端契约.md` 那次）。
+    而且 CI 自己红了 **7 轮没人看**（Release 只在打 tag 时跑，CI 的结果没人盯）。
+
+    ⇒ 修法：**生成器原样就写出中性表述**，别写指向未公开文件的路径。
+    这条判据把这个不变量钉住：**台账过一遍抹引用，必须一个字节都不变**。
+    """
+    import publish_github as pg
+
+    snap = tmp_path / "snap"
+    (snap / "docs").mkdir(parents=True)
+    # `_sanitize` 会**无条件**读这两份，缺了它自己会崩（那不是本判据要测的东西）
+    (snap / "README.md").write_text("# 基石\n", encoding="utf-8")
+    (snap / "docs" / "设计决策.md").write_text("# 设计决策\n", encoding="utf-8")
+    生成 = dl.render(dl.collect())
+    (snap / "docs" / "绕道台账.md").write_text(生成, encoding="utf-8", newline="\n")
+
+    pg._sanitize(snap)
+
+    台账 = snap / "docs" / "绕道台账.md"
+    assert 台账.exists(), "台账被发布脚本删了？它是**要公开**的文档"
+    assert 台账.read_text(encoding="utf-8") == 生成, (
+        "台账过一遍发布脚本的「抹引用」就变了 —— 生成器里又写上了指向内部文档的"
+        "路径（`docs/路线图.md` 之类）。改成原样写中性表述"
+        "（例如「内部路线图（未公开）」），两边就一致了")
+
+
+def test_发布脚本确实会抹掉内部文档的引用(tmp_path):
+    """反向的「别测了个空」：确认 `_sanitize` 真的会动这种引用。
+
+    否则哪天抹引用被改坏了，上面那条会**变成永远绿**而没人发现。
+    """
+    import publish_github as pg
+
+    snap = tmp_path / "snap"
+    (snap / "docs").mkdir(parents=True)
+    (snap / "README.md").write_text("# 基石\n", encoding="utf-8")
+    (snap / "docs" / "设计决策.md").write_text("# 设计决策\n", encoding="utf-8")
+    (snap / "docs" / "某文档.md").write_text(
+        "见 `docs/路线图.md` §12。\n", encoding="utf-8")
+
+    pg._sanitize(snap)
+
+    改后 = (snap / "docs" / "某文档.md").read_text(encoding="utf-8")
+    assert "路线图.md" not in 改后, f"抹引用没生效？{改后!r}"
+    assert "内部路线图（未公开）" in 改后, 改后
