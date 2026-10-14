@@ -190,3 +190,54 @@ def test_站点版本与语言版本一致():
     want = _pyproject_version()
     assert f">{want}<" in text or f"版本 {want}" in text, (
         f"站点首页没有 {want} —— 重跑站点生成器")
+
+
+# ---------------------------------------------------------------------------
+# 四、工作流：跑仓库脚本的 job 必须先检出仓库
+# ---------------------------------------------------------------------------
+
+def _作业块(text: str) -> dict:
+    """把工作流文本按 job 切开（**不引第三方 YAML 库** —— 本项目零第三方依赖）。"""
+    lines = text.splitlines()
+    i = next((k for k, l in enumerate(lines) if l.strip() == "jobs:"), None)
+    if i is None:
+        return {}
+    块, 当前 = {}, None
+    for l in lines[i + 1:]:
+        if l.startswith("  ") and not l.startswith("   ") and l.rstrip().endswith(":"):
+            当前 = l.strip()[:-1]
+            块[当前] = []
+        elif 当前 is not None:
+            块[当前].append(l)
+    return 块
+
+
+def test_跑仓库脚本的job必须先检出仓库():
+    """🔴 为什么有这一条（2026-10-14，M111 **第二次**发版失败）：
+
+    `Release` 的 `release` job 里「生成语言本体版本清单」要跑
+    `tools/build_version_manifest.py` —— 但那个 job **从来没 `actions/checkout`**。
+    于是 Python 连脚本文件都打不开（`can't open file …` ⇒ **退出码 2**）：
+    **三个平台的包都构建好了，最后发布这一步 5 秒就挂。**
+
+    0.2.2 时这一步还不存在（release job 只要「下载产物 + shell 拼校验和」），
+    所以一直没暴露 —— **0.2.3 是它第一次真跑**。
+
+    ⇒ 判据：`run:` 里出现 `tools/` 的步骤（**注释行不算**），
+    它所在的 job 必须有一个 `actions/checkout` 排在前头。
+    """
+    import re
+    坏 = []
+    for wf in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        for jn, lines in _作业块(wf.read_text(encoding="utf-8")).items():
+            代码 = [l for l in lines if not l.lstrip().startswith("#")]
+            i_checkout = next(
+                (k for k, l in enumerate(代码) if "actions/checkout" in l), None)
+            for k, l in enumerate(代码):
+                if not re.search(r"\btools/", l):
+                    continue
+                if i_checkout is None or i_checkout > k:
+                    坏.append(f"{wf.name} · job「{jn}」· 第 {k} 行跑了 tools/ 里的东西，"
+                              f"但该 job 没有先检出仓库")
+    assert not 坏, ("这些 job 会在干净 runner 上挂（脚本文件根本不在）：\n  - "
+                    + "\n  - ".join(坏))
