@@ -1,0 +1,815 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 2,
+        "name": "数据库",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "line": 4,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "库",
+          "line": 4,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 14,
+              "line": 4,
+              "value": ":memory:",
+              "类型": "Str"
+            }
+          ],
+          "col": 13,
+          "func": {
+            "attr": "打开",
+            "col": 10,
+            "line": 4,
+            "obj": {
+              "col": 7,
+              "id": "数据库",
+              "line": 4,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 4,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 8,
+              "id": "库",
+              "line": 5,
+              "类型": "Name"
+            },
+            {
+              "col": 11,
+              "line": 5,
+              "value": "标签",
+              "类型": "Str"
+            },
+            {
+              "col": 17,
+              "elements": [
+                {
+                  "col": 18,
+                  "line": 5,
+                  "value": "名字",
+                  "类型": "Str"
+                }
+              ],
+              "line": 5,
+              "类型": "List"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "建表",
+            "col": 4,
+            "line": 5,
+            "obj": {
+              "col": 1,
+              "id": "数据库",
+              "line": 5,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 5,
+          "类型": "Call"
+        },
+        "line": 5,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 8,
+              "id": "库",
+              "line": 6,
+              "类型": "Name"
+            },
+            {
+              "col": 11,
+              "line": 6,
+              "value": "标签",
+              "类型": "Str"
+            },
+            {
+              "col": 17,
+              "keys": [
+                {
+                  "col": 18,
+                  "line": 6,
+                  "value": "名字",
+                  "类型": "Str"
+                }
+              ],
+              "line": 6,
+              "values": [
+                {
+                  "col": 24,
+                  "elements": [
+                    {
+                      "col": 25,
+                      "line": 6,
+                      "value": "甲",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 30,
+                      "line": 6,
+                      "value": "乙",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 6,
+                  "类型": "List"
+                }
+              ],
+              "类型": "Dict"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "插入",
+            "col": 4,
+            "line": 6,
+            "obj": {
+              "col": 1,
+              "id": "数据库",
+              "line": 6,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 6,
+          "类型": "Call"
+        },
+        "line": 6,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "8f384efd43491510ad68baa505cc08ab849929fcdfc0f8be7802e980b7060de2",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            2,
+            1,
+            3,
+            0,
+            0,
+            0,
+            2,
+            1,
+            2,
+            0,
+            0,
+            0,
+            4,
+            7,
+            25,
+            1,
+            0,
+            0,
+            4,
+            10,
+            1,
+            0,
+            0,
+            0,
+            4,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            13,
+            3,
+            2,
+            0,
+            0,
+            4,
+            1,
+            2,
+            0,
+            0,
+            0,
+            5,
+            1,
+            25,
+            3,
+            0,
+            0,
+            5,
+            4,
+            2,
+            2,
+            0,
+            0,
+            5,
+            8,
+            1,
+            1,
+            0,
+            0,
+            5,
+            11,
+            1,
+            2,
+            0,
+            0,
+            5,
+            18,
+            23,
+            1,
+            0,
+            0,
+            5,
+            17,
+            20,
+            3,
+            -1,
+            0,
+            5,
+            7,
+            38,
+            0,
+            0,
+            0,
+            5,
+            1,
+            2,
+            0,
+            0,
+            0,
+            6,
+            1,
+            25,
+            4,
+            0,
+            0,
+            6,
+            4,
+            2,
+            2,
+            0,
+            0,
+            6,
+            8,
+            1,
+            1,
+            0,
+            0,
+            6,
+            11,
+            1,
+            2,
+            0,
+            0,
+            6,
+            18,
+            1,
+            3,
+            0,
+            0,
+            6,
+            25,
+            1,
+            4,
+            0,
+            0,
+            6,
+            30,
+            23,
+            2,
+            0,
+            0,
+            6,
+            24,
+            24,
+            1,
+            0,
+            0,
+            6,
+            17,
+            20,
+            3,
+            -1,
+            0,
+            6,
+            7,
+            38,
+            0,
+            0,
+            0,
+            6,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": ":memory:"
+        },
+        {
+          "t": "str",
+          "v": "标签"
+        },
+        {
+          "t": "str",
+          "v": "名字"
+        },
+        {
+          "t": "str",
+          "v": "甲"
+        },
+        {
+          "t": "str",
+          "v": "乙"
+        }
+      ],
+      "filename": "tests/error_cases/49_数据库_存不进的值.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "数据库",
+        "打开",
+        "库",
+        "建表",
+        "插入"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 2,
+      "source_line": "导入 数据库",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "导入 数据库",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "导入 数据库",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "NAME",
+      "value": "打开",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 23,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "STRING",
+      "value": ":memory:",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "令 库 = 数据库.打开(\":memory:\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 3,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "NAME",
+      "value": "建表",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "STRING",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "STRING",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "数据库.建表(库, \"标签\", [\"名字\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 3,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "NAME",
+      "value": "插入",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "STRING",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "STRING",
+      "value": "名字",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 27,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "STRING",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 32,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "STRING",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "数据库.插入(库, \"标签\", {\"名字\": [\"甲\", \"乙\"]})",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:226c686f3e8cb565",
+  "语料": "tests/error_cases/49_数据库_存不进的值.jsh"
+}

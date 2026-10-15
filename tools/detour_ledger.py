@@ -48,6 +48,15 @@ ENTRY_RE = re.compile(
 #: README 里「绕道清单」小节的标题（扫描从这里开始，到下一个小节为止）
 SECTION = "## 绕道清单"
 
+#: README 里声明「这个探针已经毕业」的行：**缺口全消掉之后，它就不再是量尺**。
+#: 单独一行写 `状态：已毕业`（M112 起：《记账本》撞出来的两条绕道补完之后，
+#: 这个项目已经不需要绕道了 —— 它从「量尺」变成了「新能力的示范」）。
+#:
+#: ⚠️ 两边的规矩都要守：**没标「已毕业」的探针必须至少有一条绕道**（否则量尺失效），
+#: **标了的必须一条都没有**（否则「已毕业」就成了免检牌）。判据在
+#: `tests/test_m105_detour_ledger.py`。
+GRADUATED_RE = re.compile(r"^状态：已毕业")
+
 
 def stdlib_api() -> dict[str, set[str]]:
     """`{模块名: {函数名, …}}` —— 直接扫 `oracle/jishi/stdlib/*.py` 的源码。
@@ -102,6 +111,19 @@ def parse_section(readme: Path) -> list[dict]:
                 "项目": readme.parent.name,
                 "来源": f"{readme.parent.name}/README.md",
             })
+    return 出
+
+
+def graduated() -> list[str]:
+    """标了「状态：已毕业」的探针项目名（缺口全消、不再当量尺的那种）。"""
+    if not PROBES.is_dir():
+        return []
+    出: list[str] = []
+    for readme in sorted(PROBES.glob("*/README.md")):
+        for line in readme.read_text(encoding="utf-8").splitlines():
+            if GRADUATED_RE.match(line):
+                出.append(readme.parent.name)
+                break
     return 出
 
 
@@ -168,6 +190,14 @@ def check(entries: list[dict]) -> list[str]:
                 problems.append(
                     f"{e['编号']} 标着「增强 {目标名}」，但这个函数**还不存在** "
                     f"—— 那应该写成「缺 {目标名}」")
+
+    # 5) 「已毕业」不能当免检牌：标了就必须**一条绕道都没有**
+    毕业的 = set(graduated())
+    for 项目 in sorted(毕业的):
+        if any(e["项目"] == 项目 for e in entries):
+            problems.append(
+                f"「{项目}」标着「状态：已毕业」，但它的绕道清单里还留着条目 "
+                f"—— 要么条目没消干净，要么该把「已毕业」撤掉")
     return problems
 
 
@@ -221,6 +251,21 @@ def render(entries: list[dict]) -> str:
             行.append(f"- `{名}` —— {'、'.join(编号们)}")
     else:
         行.append("- （还没有）")
+
+    # 已毕业的探针：**缺口全消了，它不再是量尺**（M112 起《记账本》就是第一个）
+    毕业的 = graduated()
+    if 毕业的:
+        行 += [
+            "",
+            "## 已毕业的探针（绕道全消，不再是量尺）",
+            "",
+            "这些项目原来撞出来的缺口**都补上了** —— 它们现在从「量尺」变成了",
+            "「新能力的示范」。README 里标了 `状态：已毕业`，绕道清单必须是空的",
+            "（判据两边都盯着：没标的必须至少一条，标了的必须一条都没有）。",
+            "",
+        ]
+        for 名 in 毕业的:
+            行.append(f"- `{名}`")
     行 += [
         "",
         "> 📌 上面这些**都还不是承诺**：进哪一批、做不做，照**内部路线图（未公开）**§12.1 的",

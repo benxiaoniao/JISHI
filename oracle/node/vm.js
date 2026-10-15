@@ -3605,6 +3605,540 @@ function _shapeOf(v) {
   return `${R.typeName(v)} 类型`;
 }
 
+// ---------------------------------------------------------------------------
+// M112：数据库（数据持久化）—— 与 Python 侧 `jishi/stdlib/数据库.py` 逐函数对齐
+//
+// 用 Node 内置的 `node:sqlite`（22.5+）。**注意三件事**（都是实测踩出来的）：
+//
+// 1. 它是**实验性 API**，`require` 时会往 **stderr** 打一条 ExperimentalWarning
+//    —— 而 stderr 是五引擎对拍的一部分（报错渲染逐字比），绝不能混进去。
+//    ⇒ 先临时换掉 `process.emitWarning` 再 require，随即换回来。
+// 2. 它**把 JS `number` 一律绑成 REAL**，只有 `BigInt` 才是 INTEGER。
+//    ⇒ 写整数必须传 `BigInt`，否则本机存进去的是浮点，与 Python / Rust 不同。
+// 3. 读的时候要开 `setReadBigInts(true)`：这样 **bigint = INTEGER、number = REAL**
+//    —— 这是 JS 侧唯一能分清两种数字的办法（`columns()` 的 `type` 是 null）。
+//    REAL 还要包 `R.FloatBox`（不然 `100.0` 会显示成 `100`）。
+// ---------------------------------------------------------------------------
+
+let _DatabaseSync = null;
+try {
+  const _origEmitWarning = process.emitWarning;
+  process.emitWarning = () => {};
+  ({ DatabaseSync: _DatabaseSync } = require('node:sqlite'));
+  process.emitWarning = _origEmitWarning;
+} catch (e) {
+  _DatabaseSync = null;      // 太老的 Node：下面「打开」时明确报错，不静默
+}
+
+/** 库句柄（= 打开时给的路径文本）→ 连接。 */
+const _dbConns = new Map();
+
+function _dbHandle(v) {
+  const h = typeof v === 'string' ? v : R.display(v);
+  if (h === '') throw R.valueErr('库句柄不能是空的');
+  if (!_dbConns.has(h)) {
+    throw R.valueErr(`这个库还没打开：「${h}」`, undefined, undefined,
+      '先用 令 库 = 数据库.打开("路径") 打开，再把「库」传给后面的函数');
+  }
+  return h;
+}
+
+function _dbConn(v) { return _dbConns.get(_dbHandle(v)); }
+
+/** 表名 / 字段名 → SQL 标识符（内部双引号翻倍，防注入）。 */
+function _dbName(v) {
+  const s = typeof v === 'string' ? v : R.display(v);
+  if (s === '') throw R.valueErr('表名 / 字段名不能是空的');
+  if (s.indexOf('\0') >= 0) throw R.valueErr(`表名 / 字段名里不能有 NUL 字符：「${s}」`);
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+function _dbRaw(v) { return typeof v === 'string' ? v : R.display(v); }
+
+/** 「一个字段名」或「一串字段名」→ 裸名字数组（与 Python 侧 `_字段名单` 同口径）。 */
+function _dbNames(v, who) {
+  if (typeof v === 'string') return [v];
+  if (!Array.isArray(v) || v.length === 0) {
+    throw R.valueErr(`${who}要给一个非空的字段名列表`, undefined, undefined,
+      '例如 ["日期", "类别", "金额"]');
+  }
+  return v.map(_dbRaw);
+}
+
+/** 基石的值 → 能进 SQLite 的值。**进不去就明确报错**，不静默。 */
+function _dbStore(v, field) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'boolean') return v ? 1n : 0n;         // 布尔 → INTEGER 1/0
+  if (R.isFloatBox(v)) return v.value;                     // 浮点 → REAL
+  if (typeof v === 'number') {
+    if (!Number.isInteger(v)) return v;                    // 兜底：非整数的 number 当浮点
+    // ⚠️ **整数必须给 BigInt**：node:sqlite 把 JS number 一律绑成 REAL
+    if (!Number.isSafeInteger(v)) {
+      throw R.valueErr(`「${field}」这个整数超出了能安全表示的范围（±2^53）`,
+        undefined, undefined, '特别大的数存成文本（文本(值)），或者拆成两部分存');
+    }
+    return BigInt(v);
+  }
+  if (typeof v === 'string') return v;
+  if (v && v.__jishiType === 'datetime') return R.display(v);   // 与其它引擎同口径
+  if (R.isDecimal(v)) {
+    return Number(R.display(v));                           // SQLite 只有浮点
+  }
+  if (Array.isArray(v)) {
+    throw R.typeErr(`「${field}」这个值是「列表」，存不进数据库`, undefined, undefined,
+      '用 json.文本化(值) 先转成文本再存；多个值就拆成多条记录');
+  }
+  if (v instanceof Map) {
+    throw R.typeErr(`「${field}」这个值是「字典」，存不进数据库`, undefined, undefined,
+      '用 json.文本化(值) 先转成文本再存；或者拆成几张表');
+  }
+  if (v instanceof Uint8Array) {
+    throw R.typeErr(`「${field}」这个值是二进制，基石没有字节类型，存不进数据库`,
+      undefined, undefined, '先用 编码.base64编码(值) 转成文本再存');
+  }
+  throw R.typeErr(`「${field}」这个值是「${R.typeName(v)}」，存不进数据库`,
+    undefined, undefined, '数据库里只放 整数 / 浮点 / 文本 / 真假 / 空 / 日期');
+}
+
+/** SQLite 的值 → 基石的值（`bigint` 说明是 INTEGER、`number` 说明是 REAL）。 */
+function _dbRead(v, col) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'bigint') {
+    if (v > 9007199254740991n || v < -9007199254740991n) {
+      throw R.valueErr(`「${col}」这一列是超过 2^53 的大整数，JS 侧读不出来`,
+        undefined, undefined, '这个平台读不了这么大的数；别把它放进库里，或者存成文本');
+    }
+    return Number(v);
+  }
+  if (typeof v === 'number') return new R.FloatBox(v);     // REAL：包一层才显示 100.0
+  if (typeof v === 'string') return v;
+  if (v instanceof Uint8Array) {
+    throw R.typeErr(`「${col}」这一列存的是二进制，基石没有字节类型，读不出来`,
+      undefined, undefined,
+      '存的时候先用 编码.base64编码 转成文本；只要看长度就用 数据库.执行查询');
+  }
+  return v;
+}
+
+/** 跑一句 SQL，返回 `{cols, rows}`（rows 是数组的数组）。 */
+function _dbRun(conn, sql, params) {
+  let st;
+  try {
+    st = conn.prepare(sql);
+  } catch (e) {
+    throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
+  }
+  st.setReadBigInts(true);
+  let cols = null;
+  try {
+    cols = st.columns().map((c) => c.name);        // 保序、**允许重名**
+  } catch (e) {
+    cols = null;
+  }
+  let rows;
+  try {
+    rows = params && params.length ? st.all(...params) : st.all();
+  } catch (e) {
+    throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
+  }
+  if (!cols || cols.length === 0) cols = rows.length ? Object.keys(rows[0]) : [];
+  // 🔴 node:sqlite 把每行给成**普通对象** —— 列名重复时后面的会盖掉前面的。
+  //    这是 JS 侧的硬限制（Python 给元组、Rust 按下标取，都没这问题）。
+  //    **不许静默**：发现重名就明确报错 + 给修法。
+  if (rows.length && Object.keys(rows[0]).length < cols.length) {
+    throw R.typeErr('这句 SQL 里有重名的列，JS 侧读不出来（同一行会被后面的盖掉）',
+      undefined, undefined, '在 SQL 里给它们起别名，例如 SELECT 金额 AS 分组, 金额 AS 值');
+  }
+  const out = rows.map((r) => cols.map((c) => _dbRead(r[c], c)));
+  return { cols, rows: out };
+}
+
+/** node:sqlite 的报错 → 那句 SQLite 自己的话（与另两个引擎尽量同口径）。 */
+function _dbMsg(e) {
+  const m = e && e.message ? String(e.message) : String(e);
+  return m.replace(/^.*?: /, '');
+}
+
+/** 表的列名（按建表顺序）。表不在就报错，并把现有的表列出来。 */
+function _dbCols(conn, table) {
+  const q = _dbName(table);
+  const r = _dbRun(conn, `PRAGMA table_info(${q})`, []);
+  if (r.rows.length === 0) {
+    const all = _dbRun(conn,
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      []).rows.map((x) => x[0]);
+    const hint = all.length ? `现在有这些表：${all.join('、')}` : '这个库还是空的（先 数据库.建表）';
+    throw R.valueErr(`没有表「${_dbRaw(table)}」`, undefined, undefined, hint);
+  }
+  return r.rows.map((x) => x[1]);        // 第 2 列是 name
+}
+
+/** 「条件」字典 → `{sql, params}`。 */
+function _dbCond(cond) {
+  if (cond === null || cond === undefined) return { sql: '', params: [] };
+  if (!(cond instanceof Map)) {
+    throw R.typeErr(`「条件」要给一个字典（字段 → 值），给过来的却是「${R.typeName(cond)}」`,
+      undefined, undefined, '例如 {"类别": "餐饮"}；比大小写 {"金额": {">": 100}}');
+  }
+  if (cond.size === 0) return { sql: '', params: [] };
+  const keys = [...cond.keys()].map(_dbRaw).sort();
+  const parts = [];
+  const params = [];
+  for (const kRaw of keys) {
+    const k = [...cond.keys()].find((x) => _dbRaw(x) === kRaw);
+    const v = cond.get(k);
+    const field = _dbName(k);
+    if (v instanceof Map) {
+      if (v.size === 0) throw R.valueErr(`「${kRaw}」的条件是空字典，不知道要比什么`);
+      for (const opRaw of [...v.keys()].map(_dbRaw).sort()) {
+        const op = [...v.keys()].find((x) => _dbRaw(x) === opRaw);
+        const x = v.get(op);
+        if (['>', '<', '>=', '<=', '!='].indexOf(opRaw) >= 0) {
+          parts.push(`${field} ${opRaw} ?`);
+          params.push(_dbStore(x, kRaw));
+        } else if (opRaw === '包含') {
+          parts.push(`instr(${field}, ?) > 0`);
+          params.push(String(x === null || x === undefined ? '' : (typeof x === 'string' ? x : R.display(x))));
+        } else if (opRaw === '非空') {
+          parts.push(`${field} IS ${R.truthy(x) ? 'NOT ' : ''}NULL`);
+        } else {
+          throw R.valueErr(`不认识的比较符号「${opRaw}」`, undefined, undefined,
+            '能用：> < >= <= != 包含 非空');
+        }
+      }
+    } else {
+      parts.push(`${field} = ?`);
+      params.push(_dbStore(v, kRaw));
+    }
+  }
+  return { sql: ' WHERE ' + parts.join(' AND '), params };
+}
+
+/** 排序片段。**永远拿 rowid 兜底** —— 不然等值的行之间顺序不定。 */
+function _dbOrder(sort, desc) {
+  const dir = desc ? ' DESC' : '';
+  if (sort === null || sort === undefined || sort === '') return ` ORDER BY rowid${dir}`;
+  const cols = _dbNames(sort, '排序字段').map(_dbName);
+  return ` ORDER BY ${cols.join(', ')}, rowid${dir}`;
+}
+
+/** 记录数组 → 基石列表（每条是字典）。 */
+function _dbRecords(r) {
+  return r.rows.map((row) => {
+    const m = new Map();
+    r.cols.forEach((c, i) => m.set(c, row[i]));
+    return m;
+  });
+}
+
+const DB_FUNCS = {
+  '打开': new R.Builtin('打开', (路径) => {
+    const p = _dbRaw(路径);
+    if (_dbConns.has(p)) return p;
+    if (_DatabaseSync === null) {
+      throw R.runErr('这个 Node 没有内置 SQLite（需要 22.5 以上）');
+    }
+    if (p !== ':memory:') {
+      const path = require('node:path');
+      const dir = path.dirname(path.resolve(p));
+      if (!require('node:fs').existsSync(dir)) {
+        throw R.fileErr(`目录不存在，建不了库：「${dir}」`);
+      }
+    }
+    let c;
+    try {
+      c = new _DatabaseSync(p);
+    } catch (e) {
+      throw R.runErr(`打不开库「${p}」：${_dbMsg(e)}`);
+    }
+    c.exec('PRAGMA foreign_keys = ON');     // 三个引擎都显式设一次
+    _dbConns.set(p, c);
+    return p;
+  }),
+  '关闭': new R.Builtin('关闭', (库) => {
+    const h = typeof 库 === 'string' ? 库 : R.display(库);
+    const c = _dbConns.get(h);
+    if (c) { try { c.close(); } catch (e) { /* 已经关了 */ } _dbConns.delete(h); }
+    return null;
+  }),
+  '表们': new R.Builtin('表们', (库) => {
+    const r = _dbRun(_dbConn(库),
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name", []);
+    return r.rows.map((x) => x[0]);
+  }),
+  '有表': new R.Builtin('有表', (库, 表名) => {
+    const r = _dbRun(_dbConn(库),
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?", [_dbRaw(表名)]);
+    return r.rows.length > 0;
+  }),
+  '建表': new R.Builtin('建表', (库, 表名, 字段们) => {
+    const conn = _dbConn(库);
+    const table = _dbName(表名);
+    const raw = _dbNames(字段们, `表「${_dbRaw(表名)}」的字段们`);
+    if (raw.indexOf('id') >= 0) {
+      throw R.valueErr('字段名里不用写 id', undefined, undefined,
+        '每张表自动带一个 id 主键，把 id 从字段列表里去掉就行');
+    }
+    try {
+      conn.exec(`CREATE TABLE IF NOT EXISTS ${table} ` +
+        `(id INTEGER PRIMARY KEY AUTOINCREMENT, ${raw.map(_dbName).join(', ')})`);
+    } catch (e) {
+      throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
+    }
+    return null;
+  }),
+  '建索引': new R.Builtin('建索引', (库, 表名, 字段们, 唯一) => {
+    const conn = _dbConn(库);
+    const cols = _dbCols(conn, 表名);
+    const raw = _dbNames(字段们, '索引字段');
+    const missing = raw.filter((x) => cols.indexOf(x) < 0);
+    if (missing.length) {
+      throw R.valueErr(`表「${_dbRaw(表名)}」里没有这些字段：${missing.join('、')}`,
+        undefined, undefined, `它有：${cols.join('、')}`);
+    }
+    const idxName = '"' + _dbRaw(表名).replace(/"/g, '""') + '__' + raw.join('__') + '"';
+    try {
+      conn.exec(`CREATE ${R.truthy(唯一) ? 'UNIQUE ' : ''}INDEX IF NOT EXISTS ` +
+        `${idxName} ON ${_dbName(表名)} (${raw.map(_dbName).join(', ')})`);
+    } catch (e) {
+      throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
+    }
+    return null;
+  }),
+  '插入': new R.Builtin('插入', (库, 表名, 记录) => {
+    const conn = _dbConn(库);
+    if (!(记录 instanceof Map)) {
+      throw R.typeErr(`「记录」要给一个字典，给过来的却是「${R.typeName(记录)}」`,
+        undefined, undefined, '例如 {"日期": "2026-10-15", "金额": 2550}');
+    }
+    const cols = _dbCols(conn, 表名);
+    const items = [...记录.entries()];
+    if (items.some(([k]) => _dbRaw(k) === 'id')) {
+      throw R.valueErr('id 是自动给的，不用写', undefined, undefined, '把 id 从记录里去掉');
+    }
+    const bad = items.map(([k]) => _dbRaw(k)).filter((k) => cols.indexOf(k) < 0);
+    if (bad.length) {
+      throw R.valueErr(`表「${_dbRaw(表名)}」里没有这些字段：${bad.join('、')}`,
+        undefined, undefined, `它有：${cols.join('、')}`);
+    }
+    items.sort((a, b) => (_dbRaw(a[0]) < _dbRaw(b[0]) ? -1 : _dbRaw(a[0]) > _dbRaw(b[0]) ? 1 : 0));
+    const names = items.map(([k]) => _dbName(k)).join(', ');
+    const marks = items.map(() => '?').join(', ');
+    const params = items.map(([k, v]) => _dbStore(v, _dbRaw(k)));
+    let out;
+    try {
+      out = conn.prepare(`INSERT INTO ${_dbName(表名)} (${names}) VALUES (${marks})`).run(...params);
+    } catch (e) {
+      throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
+    }
+    return Number(out.lastInsertRowid);
+  }),
+  '批量插入': new R.Builtin('批量插入', (库, 表名, 记录们) => {
+    const conn = _dbConn(库);
+    if (!Array.isArray(记录们)) {
+      throw R.typeErr(`「记录们」要给一个列表，给过来的却是「${R.typeName(记录们)}」`);
+    }
+    if (记录们.length === 0) return 0;
+    const cols = _dbCols(conn, 表名);
+    const all = [];
+    for (const it of 记录们) {
+      if (!(it instanceof Map)) {
+        throw R.typeErr(`记录们里混进了「${R.typeName(it)}」，应该每条都是字典`);
+      }
+      for (const k of it.keys()) {
+        const s = _dbRaw(k);
+        if (s === 'id') {
+          throw R.valueErr('id 是自动给的，不用写', undefined, undefined, '把 id 从记录里去掉');
+        }
+        if (all.indexOf(s) < 0) all.push(s);
+      }
+    }
+    all.sort();
+    const bad = all.filter((k) => cols.indexOf(k) < 0);
+    if (bad.length) {
+      throw R.valueErr(`表「${_dbRaw(表名)}」里没有这些字段：${bad.join('、')}`,
+        undefined, undefined, `它有：${cols.join('、')}`);
+    }
+    const st = conn.prepare(`INSERT INTO ${_dbName(表名)} ` +
+      `(${all.map(_dbName).join(', ')}) VALUES (${all.map(() => '?').join(', ')})`);
+    conn.exec('BEGIN');
+    try {
+      for (const it of 记录们) {
+        const params = all.map((k) => {
+          const key = [...it.keys()].find((x) => _dbRaw(x) === k);
+          return key === undefined ? null : _dbStore(it.get(key), k);
+        });
+        st.run(...params);
+      }
+      conn.exec('COMMIT');
+    } catch (e) {
+      try { conn.exec('ROLLBACK'); } catch (e2) { /* 忽略 */ }
+      throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
+    }
+    return 记录们.length;
+  }),
+  '查询': new R.Builtin('查询', (库, 表名, 条件, 排序, 倒序, 条数) => {
+    const conn = _dbConn(库);
+    const cols = _dbCols(conn, 表名);
+    if (排序 !== undefined && 排序 !== null && 排序 !== '') {
+      const want = _dbNames(排序, '排序字段');
+      const missing = want.filter((x) => cols.indexOf(x) < 0);
+      if (missing.length) {
+        throw R.valueErr(`表「${_dbRaw(表名)}」里没有这些字段：${missing.join('、')}`,
+          undefined, undefined, `它有：${cols.join('、')}`);
+      }
+    }
+    const n = 条数 === undefined || 条数 === null ? 0 : Number(R.unwrap(条数));
+    if (!Number.isInteger(n) || n < 0) {
+      throw R.valueErr(`条数要给非负整数，给的是「${R.display(条数)}」`);
+    }
+    const c = _dbCond(条件);
+    const limit = n > 0 ? ` LIMIT ${n}` : '';
+    const sql = `SELECT * FROM ${_dbName(表名)}${c.sql}${_dbOrder(排序, R.truthy(倒序))}${limit}`;
+    return _dbRecords(_dbRun(conn, sql, c.params));
+  }),
+  '条数': new R.Builtin('条数', (库, 表名, 条件) => {
+    const conn = _dbConn(库);
+    _dbCols(conn, 表名);
+    const c = _dbCond(条件);
+    const r = _dbRun(conn, `SELECT COUNT(*) FROM ${_dbName(表名)}${c.sql}`, c.params);
+    return r.rows.length ? r.rows[0][0] : 0;
+  }),
+  '汇总': new R.Builtin('汇总', (库, 表名, 按, 求和, 条件) => {
+    const conn = _dbConn(库);
+    const cols = _dbCols(conn, 表名);
+    const 分组裸 = _dbRaw(按);
+    const 求和裸 = _dbRaw(求和);
+    for (const x of [分组裸, 求和裸]) {
+      if (cols.indexOf(x) < 0) {
+        throw R.valueErr(`表「${_dbRaw(表名)}」里没有这些字段：${x}`,
+          undefined, undefined, `它有：${cols.join('、')}`);
+      }
+    }
+    const c = _dbCond(条件);
+    // ⚠️ 按 rowid 取回来（确定顺序），分组与累加都在本地做。
+    //    **两列都起别名** —— 免得「按金额分组 + 对金额求和」这种写法撞上重名列
+    //    （JS 侧行对象会把重名列盖掉，见 `_dbRun`）。
+    const r = _dbRun(conn,
+      `SELECT ${_dbName(按)} AS __g, ${_dbName(求和)} AS __v FROM ${_dbName(表名)}${c.sql} ORDER BY rowid`,
+      c.params);
+    const buckets = [];
+    const index = new Map();
+    for (const [g, v] of r.rows) {
+      if (v === null) {
+        throw R.typeErr(`「${求和裸}」这一列里有空值，没法汇总`, undefined, undefined,
+          '先把空值补上，或者用条件把它们排除掉');
+      }
+      const num = R.isFloatBox(v) ? v.value : R.unwrap(v);
+      if (typeof num !== 'number') {
+        throw R.typeErr(`「${求和裸}」这一列里有不是数字的值「${R.display(v)}」，没法汇总`);
+      }
+      const k = R.setKey(g);
+      if (!index.has(k)) { index.set(k, buckets.length); buckets.push({ g, vals: [] }); }
+      buckets[index.get(k)].vals.push(num);
+    }
+    const out = new Map();
+    for (const b of buckets) {
+      const total = b.vals.reduce((a, x) => a + x, 0);
+      // ⚠️ 字典的键要用**原值**（`R.setKey` 给的是内部哈希键，形如 `s:餐饮`，
+      //    拿它当键会打印成 `s:餐饮`）—— 与 `表格.分组汇总` 同一写法。
+      out.set(b.g, new Map([
+        ['个数', b.vals.length],
+        ['总和', new R.FloatBox(total)],
+        ['平均', new R.FloatBox(total / b.vals.length)],
+        ['最大', new R.FloatBox(Math.max(...b.vals))],
+        ['最小', new R.FloatBox(Math.min(...b.vals))],
+      ]));
+    }
+    return out;
+  }),
+  '修改': new R.Builtin('修改', (库, 表名, 条件, 新值) => {
+    const conn = _dbConn(库);
+    if (!(新值 instanceof Map) || 新值.size === 0) {
+      throw R.typeErr('「新值」要给一个非空字典', undefined, undefined, '例如 {"金额": 3000}');
+    }
+    if (!(条件 instanceof Map) || 条件.size === 0) {
+      throw R.valueErr('「修改」必须给条件', undefined, undefined,
+        '要改整张表就用 数据库.执行(库, "UPDATE ...")；要改一部分就用 {"类别": "餐饮"} 这种条件');
+    }
+    const cols = _dbCols(conn, 表名);
+    for (const k of 新值.keys()) {
+      const s = _dbRaw(k);
+      if (s === 'id') throw R.valueErr('id 是主键，不能改');
+      if (cols.indexOf(s) < 0) {
+        throw R.valueErr(`表「${_dbRaw(表名)}」里没有这些字段：${s}`,
+          undefined, undefined, `它有：${cols.join('、')}`);
+      }
+    }
+    const c = _dbCond(条件);
+    const ks = [...新值.keys()].map(_dbRaw).sort();
+    const sets = ks.map((k) => `${_dbName(k)} = ?`).join(', ');
+    const params = ks.map((k) => {
+      const key = [...新值.keys()].find((x) => _dbRaw(x) === k);
+      return _dbStore(新值.get(key), k);
+    }).concat(c.params);
+    let out;
+    try {
+      out = conn.prepare(`UPDATE ${_dbName(表名)} SET ${sets}${c.sql}`).run(...params);
+    } catch (e) {
+      throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
+    }
+    return Number(out.changes);
+  }),
+  '删除': new R.Builtin('删除', (库, 表名, 条件) => {
+    const conn = _dbConn(库);
+    if (!(条件 instanceof Map) || 条件.size === 0) {
+      throw R.valueErr('「删除」必须给条件', undefined, undefined,
+        '要清空整张表就用 数据库.执行(库, "DELETE FROM 表名")');
+    }
+    _dbCols(conn, 表名);
+    const c = _dbCond(条件);
+    let out;
+    try {
+      out = conn.prepare(`DELETE FROM ${_dbName(表名)}${c.sql}`).run(...c.params);
+    } catch (e) {
+      throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
+    }
+    return Number(out.changes);
+  }),
+  '执行': new R.Builtin('执行', (库, SQL) => {
+    const conn = _dbConn(库);
+    const sql = _dbRaw(SQL);
+    if (_dbLikeSelect(sql)) {
+      throw R.valueErr('「执行」只跑写操作的 SQL；你给的是 SELECT', undefined, undefined,
+        '要取回记录用 数据库.执行查询(库, SQL)');
+    }
+    let out;
+    try {
+      out = conn.prepare(sql).run();
+    } catch (e) {
+      throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
+    }
+    return Number(out.changes);
+  }),
+  '执行查询': new R.Builtin('执行查询', (库, SQL) => {
+    const conn = _dbConn(库);
+    const sql = _dbRaw(SQL);
+    if (!_dbLikeSelect(sql)) {
+      throw R.valueErr('「执行查询」只跑 SELECT；你给的不是 SELECT', undefined, undefined,
+        '写操作用 数据库.执行(库, SQL)');
+    }
+    return _dbRecords(_dbRun(conn, sql, []));
+  }),
+};
+
+/** 是不是一句 SELECT（跳过开头的行注释）。 */
+function _dbLikeSelect(sql) {
+  let s = String(sql).replace(/^\s+/, '');
+  while (s.indexOf('--') === 0) {
+    const i = s.indexOf('\n');
+    s = i < 0 ? '' : s.slice(i + 1).replace(/^\s+/, '');
+  }
+  return s.slice(0, 7).toLowerCase() === 'select ' ||
+         s.slice(0, 7).toLowerCase() === 'select\n' ||
+         s.slice(0, 7).toLowerCase() === 'select\r';
+}
+
 const STDLIB = {
   '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
@@ -3810,6 +4344,8 @@ const STDLIB = {
   'html': new R.Module('html', HTML_FUNCS),
   '对比': new R.Module('对比', DIFF_FUNCS),
   '标识': new R.Module('标识', ID_FUNCS),
+  // M112：数据持久化（走 Node 内置的 `node:sqlite`）
+  '数据库': new R.Module('数据库', DB_FUNCS),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }

@@ -57,9 +57,9 @@
     "python": "3.13.14"
   },
   "类别计数": {
-    "examples": 30,
+    "examples": 31,
     "frontend": 1,
-    "lang": 79,
+    "lang": 82,
     "stdlib": 4
   },
   "语料": [
@@ -268,10 +268,17 @@
     },
     {
       "id": "examples__绕道探针__记账本__记账",
-      "产物哈希": "sha256:43e4a03a1bac98a5",
-      "内容哈希": "sha256:21a1751d37a81947",
+      "产物哈希": "sha256:ff607eeffa235a07",
+      "内容哈希": "sha256:8f46752833fe1e0b",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/记账.jsh"
+    },
+    {
+      "id": "examples__绕道探针__记账本__迁移",
+      "产物哈希": "sha256:247785306ca8267c",
+      "内容哈希": "sha256:12a659ad50e2a080",
+      "类别": "examples",
+      "路径": "examples/绕道探针/记账本/迁移.jsh"
     },
     {
       "id": "oracle__jishi__stdlib-jishi__参数",
@@ -517,6 +524,13 @@
       "内容哈希": "sha256:457e6b14cf7cf66a",
       "类别": "lang",
       "路径": "tests/cases/31_标准库_M109.jsh"
+    },
+    {
+      "id": "tests__cases__31_标准库_M112",
+      "产物哈希": "sha256:4343423287140bf5",
+      "内容哈希": "sha256:36f3d38ee3ef70ba",
+      "类别": "lang",
+      "路径": "tests/cases/31_标准库_M112.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -855,6 +869,20 @@
       "路径": "tests/error_cases/47_方括号没闭合.jsh"
     },
     {
+      "id": "tests__error_cases__48_数据库_表不存在",
+      "产物哈希": "sha256:1105185d4ba6c65a",
+      "内容哈希": "sha256:315935052c15376c",
+      "类别": "lang",
+      "路径": "tests/error_cases/48_数据库_表不存在.jsh"
+    },
+    {
+      "id": "tests__error_cases__49_数据库_存不进的值",
+      "产物哈希": "sha256:ed873624e797deda",
+      "内容哈希": "sha256:226c686f3e8cb565",
+      "类别": "lang",
+      "路径": "tests/error_cases/49_数据库_存不进的值.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:293975765ad4c964",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -862,5 +890,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 114
+  "语料数": 118
 }

@@ -154,9 +154,9 @@ _BUILTINS = ["打印", "输入", "整数", "小数", "文本", "精确", "序数
 _METHOD_CATS = ["列表", "字典", "文本", "集合", "文件", "小数"]
 
 _STDLIB_MODULES = ["html", "json", "加密", "压缩", "参数", "容器", "对比", "数学",
-                   "文件", "文本", "日志", "日期", "时间", "标识", "正则", "测试",
-                   "系统", "统计", "编码", "网络", "表格", "路径", "迭代", "配置",
-                   "随机"]
+                   "数据库", "文件", "文本", "日志", "日期", "时间", "标识", "正则",
+                   "测试", "系统", "统计", "编码", "网络", "表格", "路径", "迭代",
+                   "配置", "随机"]
 
 _EXCEPTIONS = ["异常", "运行期错误", "类型错误", "值错误", "索引错误", "键错误",
                "除零错误", "文件错误", "断言错误"]
@@ -179,7 +179,7 @@ def test_独立判据_lang_spec结构与关键事实():
     assert d["builtins"][0]["doc"] == "输出内容到屏幕"
     assert list(d["methods"]) == _METHOD_CATS
     assert [m["module"] for m in d["stdlib"]] == _STDLIB_MODULES
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 257
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 272
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     assert len(d["error_codes"]) == 35

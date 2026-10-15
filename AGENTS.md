@@ -61,7 +61,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **3577 项**）。
+3. **测试命令**：`python -m pytest tests/`（当前 **3609 项**）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
    .venv/Scripts/python.exe -m pytest tests/ -q -n 12 -m "not 计时"   # 主体 ~3.5 分钟
@@ -163,6 +163,19 @@
   **构建一律走 `python core/build.py`**，别手敲 cargo。
 - ⚠️ **`jishi/_core.pyd` 不进仓库**（按当前 Python 的 ABI 编，换版本就得重编）。
   没有它而设了 `JISHI_FRONTEND=rust` → **明确报错并给修法**，绝不静默回落。
+- 🔴 **`rust/` 从 M112 起有第三方依赖了**（就一个：`rusqlite` bundled，给 `数据库` 模块）。
+  ⇒ **`cargo build` 现在需要 C 编译器**（要编 `sqlite3.c`）：
+  本机得让 gcc 在 PATH 里 —— `PATH="D:/CLion/CLion 2026.2.1/bin/mingw/bin:$PATH" cargo build`
+  （和 `cvm/build.py` / `core/build.py` 用的是同一套 MinGW 候选位置）；CI 三平台本来就装了。
+  报错长这样：`cc-rs: failed to find tool "gcc.exe"`。
+  ⚠️ **wasm 侧必须关掉它**：`wasm/Cargo.toml` 的 `jishi-ffi` 写了
+  `default-features = false`（浏览器链不了 sqlite3.c）；关掉之后 `导入 数据库`
+  会报一句**准确**的话（「这个平台没有内置 SQLite」），**不许**回落到
+  「没有找到标准库模块」那种会让人以为名字写错的提示。
+- ⚠️ **新模块要重跑两个生成器**（不然命名参数在宿主上报「暂不支持命名参数」）：
+  `python tools/gen_stdlib_sigs.py`（→ `rust/src/stdlib_sigs.rs` +
+  `oracle/node/stdlib_sigs.js`）与 `python tools/gen_langdata_rs.py`（→ `rust/src/langdata.rs`）。
+  M112 之后是 **26 模块 / 272 函数**。
 - ⚠️ **前端「端到端倍数」有天花板**（R2/R3 量出来的）：把 `Token` / AST 节点
   交给 Python 这件事本身就有地板（11.7 万 Token ≈ 39 ms、7 万 AST 节点 ≈ 28 ms）。
   R2 实测分词 **核心 7.05x / 端到端 3.72x / 天花板 4.23x**；R3 实测语法
@@ -771,6 +784,8 @@
 | `tools/check_cli.py` 的 8 条不一致 | Python 侧 `导入 文本` 打一句提示、Rust 宿主不打（R7.4 起**没接进 CI** 才烂掉的）。已登记路线图 §12.3.6，**未修** |
 | 🔴 **CI 从 2026-10-10 起连红 7 轮，没人看** | 两条既有失败（M108 语料的平台相关黄金输出、台账过不了发布脚本的抹引用）让 `CI` 工作流一路红到 M111 发版才被 Release 撞出来。**闸门不接进「会被人看见」的地方 = 没有闸门** —— 待拍板：给 CI 失败加通知，或每轮里程碑后手工看一眼 Actions |
 | `rust/src/walk.rs` 未实现列表推导式 `Comprehension` | **有意**不实现（它自己头注写明「语料里还没出现过的节点会明确报「还没实现」」）。`examples/` 里 4 个语料的 AST 含 `Comprehension` 但没被走到，所以 `check_walk` 仍是 0 —— **别拿「检查是绿的」当「都实现了」** |
+| 🔴 **命名参数跳过中间的可选参数**：Python 允许，宿主硬报 E2002 | **既有分叉**（2026-10-15 做 M112 时查出来的，**不是 M112 引入的**）：`测试.近似(1.0, 1.05, 说明="差不多")` 在 Python 能跑、Rust 宿主报「中间不能留空」。根因：`rust/src/stdlib_sigs.rs` 只记「必填个数」，**不知道每个参数的默认值**，中间缺了无从补。**13 个既有函数**都是这个形状（`网络.提交JSON` / `加密.口令摘要` / `html.标签`…）。要修得让 `tools/gen_stdlib_sigs.py` 把**默认值**也导出到签名表。⇒ **语料里一律用位置实参**绕开 |
+| 🔴 **把「被捕获的异常」打印出来**两边不一样 | **既有分叉**（同上一轮查出）：Python 打的是**全渲染**（含位置与提示），宿主只打首行；连消息本身也不同（`数学.正弦("x")` 在 Python 是 `must be real number, not str`）。⇒ **语料/示例里不要 `捕获 … 再 打印(错)`**，要么不捕获、要么只打印自己的话 |
 | `docs/版本历史/` 里的材料 | **归档，不是参考**（已抛弃的路径 / 过时结论）；判断「现在」看 `README.md` + 本文件 + 设计决策 |
 | 其余遗留项 | 逐条结论见「内部路线图（未公开）」的「遗留项清单」（做 / 有替代 / 不做，没有含糊搁置） |
 
@@ -808,7 +823,7 @@
   默认先问「能不能用内建或标准库实现」。
 - 可按需补的遗留项（不阻塞）：短字符串内联、字节码执行器的调试器、
   LSP 增量同步、非 Windows 平台的 https。
-- 当前版本 **0.2.3**；全量测试 **3577 项**（`-n 12 -m "not 计时"` 3568 + `-m 计时` 9）。⚠️ 其中 3 个 Node 网络用例**偶发**环境性失败（`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题；Linux/CI 不复现）—— 别当成新问题查。
+- 当前版本 **0.2.3**；全量测试 **3609 项**（`-n 12 -m "not 计时"` 3600 + `-m 计时` 9）。⚠️ 其中 3 个 Node 网络用例**偶发**环境性失败（`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题；Linux/CI 不复现）—— 别当成新问题查。
   ⚠️ **本机跑全量回归要分段跑**（我这里是 3 段）：一次跑完全部时，会撞上
   **WorkBuddy 沙箱的「批量删除守卫」**（`sitecustomize.py` 在**单次工具调用**里
   累计删除超过阈值就 `SystemExit(1)`），而 pytest 自己的临时目录清理正好会触发它 ——
