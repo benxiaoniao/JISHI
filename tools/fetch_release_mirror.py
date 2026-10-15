@@ -75,6 +75,32 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def 挑要镜像的(资产们: list[dict], 清单: dict[str, str], tag: str) -> list[dict]:
+    """从 Release 的资产里挑出「该镜像的」—— **就按清单（`SHA256SUMS`）挑**。
+
+    清单外的一律**不镜像**，但分两种处理（2026-10-15 加）：
+
+    * **长得像发行包的（`jishi-…`）不在清单里 ⇒ 硬错误**。那说明「手上这份清单
+      不是这一版的」—— 那时候「跳过校验」与「校验通过」看起来一模一样。
+    * **别的清单外资产 ⇒ 只报一声、跳过**。典型来源是**重跑一次 Release 留下的
+      旧资产**（例如被 GitHub 改名过的 `default.json`）。它们不是这一版的东西；
+      为此拦住整个发布，只会让「重跑一次 Release」变成「镜像永远同步不了」。
+    """
+    要 = []
+    for a in 资产们:
+        if a["name"] in ("SHA256SUMS", "jishi-release.json"):
+            continue                       # 这两个单独处理（都要 force 覆盖）
+        if a["name"] in 清单:
+            要.append(a)
+            continue
+        if a["name"].startswith("jishi-"):
+            raise SystemExit(
+                f"❌ {tag} 的 SHA256SUMS 里没有 {a['name']} —— 清单与发行包对不上，"
+                f"拒绝发布（不能拿「没校验」充当「校验通过」）")
+        print(f"   ⚠️ 清单外的资产，本站不镜像：{a['name']}")
+    return 要
+
+
 def main() -> int:
     versions = sys.argv[1:]
     if not versions:
@@ -114,31 +140,34 @@ def main() -> int:
             download(版本清单资产["browser_download_url"], OUT / "jishi-release.json",
                      版本清单资产["size"], force=True)
 
-        wanted = [a for a in assets if a["name"] != "SHA256SUMS"]
-        for a in wanted:
-            download(a["browser_download_url"], OUT / a["name"], a["size"])
-
-        # 逐个校验：官网那份必须与 GitHub 那份逐字节相同
+        # 清单（`SHA256SUMS`）**定义「这一版有哪些资产」** —— 先读它，再决定下什么。
         sums_file = OUT / "SHA256SUMS"
         want: dict[str, str] = {}
         for line in sums_file.read_text(encoding="utf-8").splitlines():
             parts = line.split()
             if len(parts) >= 2:
                 want[parts[-1].lstrip("*")] = parts[0]
+
+        # 清单和清单本身之外，Release 里还有的那几个 —— 按清单挑。
+        wanted = 挑要镜像的(assets, want, tag)
+
+        for a in wanted:
+            download(a["browser_download_url"], OUT / a["name"], a["size"])
+
+        # 逐个校验：官网那份必须与 GitHub 那份逐字节相同
         for a in wanted:
             name = a["name"]
-            if name not in want:
-                # ⚠️ 这里**必须是硬错误**，不能只警告：清单里没有这个名字，
-                # 说明「手上这份清单不是这一版的」—— 校验已经被跳过了，
-                # 而「跳过校验」和「校验通过」看起来一模一样。
-                raise SystemExit(
-                    f"❌ {tag} 的 SHA256SUMS 里没有 {name} —— 清单与资产对不上，"
-                    f"拒绝发布（不能拿「没校验」充当「校验通过」）")
             got = sha256(OUT / name)
             ok = got == want[name]
             print(f"   {'✓' if ok else '❌'} {name}")
             if not ok:
                 raise SystemExit(f"❌ {name} 校验和不一致，别发布")
+
+        # 版本清单自己也在 SHA256SUMS 里 —— 一并校验
+        if 版本清单资产 is not None:
+            if sha256(OUT / "jishi-release.json") != want.get("jishi-release.json"):
+                raise SystemExit("❌ jishi-release.json 校验和不一致，别发布")
+            print("   ✓ jishi-release.json")
 
     total = sum(f.stat().st_size for f in OUT.glob("jishi-*"))
     print(f"\n✓ 就绪 → {OUT}（共 {total // 1024 // 1024} MB）")

@@ -421,7 +421,11 @@ def test_版本清单的哈希与包逐字节对得上(tmp_path):
     assert 包["大小"] == 真.stat().st_size
     assert 包["校验和"] == "sha256:" + hashlib.sha256(真.read_bytes()).hexdigest()
 
-    # 与发行目录里的 SHA256SUMS 再对一遍（那份是 build_release.py 生成的）
+    # 与发行目录里的 SHA256SUMS 再对一遍（那份是发版时生成的）。
+    # ⚠️ `dist/release/SHA256SUMS` **每版只有一份**（镜像同步按最新版覆盖，
+    #    因为「本站那份必须与 GitHub 那份逐字节相同」），所以只有当被测版本
+    #    **就是**镜像里最新那一版时这一半才适用 —— 否则（例如 0.2.3 发布之后
+    #    还在测 0.2.2 的升级演练）跳过这一半，别拿它当「对不上」。
     和 = RELEASE / "SHA256SUMS"
     if 和.is_file():
         want = None
@@ -429,8 +433,8 @@ def test_版本清单的哈希与包逐字节对得上(tmp_path):
             格 = 行.split()
             if len(格) == 2 and 格[1] == 真.name:
                 want = 格[0]
-        assert want is not None, f"SHA256SUMS 里没有 {真.name}"
-        assert want == 包["校验和"].removeprefix("sha256:")
+        if want is not None:
+            assert want == 包["校验和"].removeprefix("sha256:")
 
 
 # ---------------------------------------------------------------------------
@@ -465,9 +469,9 @@ def test_镜像同步会强制拉版本清单():
     """清单的文件名不随版本变 ⇒ 必须 `force` 重下，否则「大小一样就跳过」会把
     上一版的清单当成这一版的（`SHA256SUMS` 踩过一模一样的坑）。"""
     t = (ROOT / "tools" / "fetch_release_mirror.py").read_text(encoding="utf-8")
-    assert '"jishi-release.json"' in t, "镜像同步没拉版本清单"
-    i = t.index('"jishi-release.json"')
-    assert "force=True" in t[i:i + 600], "拉版本清单没带 force"
+    assert 'OUT / "jishi-release.json"' in t, "镜像同步没拉版本清单"
+    i = t.index('OUT / "jishi-release.json"')
+    assert "force=True" in t[i:i + 200], "拉版本清单没带 force"
 
 
 def test_升级与卸载都在CLI用法里():
