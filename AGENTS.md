@@ -165,8 +165,8 @@
   没有它而设了 `JISHI_FRONTEND=rust` → **明确报错并给修法**，绝不静默回落。
 - 🔴 **`rust/` 从 M112 起有第三方依赖了**（就一个：`rusqlite` bundled，给 `数据库` 模块）。
   ⇒ **`cargo build` 现在需要 C 编译器**（要编 `sqlite3.c`）：
-  本机得让 gcc 在 PATH 里 —— `PATH="D:/CLion/CLion 2026.2.1/bin/mingw/bin:$PATH" cargo build`
-  （和 `cvm/build.py` / `core/build.py` 用的是同一套 MinGW 候选位置）；CI 三平台本来就装了。
+  本机得让 gcc 出现在 PATH 里（候选位置照抄 `cvm/build.py` 的那套，
+  或用 `JISHI_MINGW` 指一个 MinGW 目录）；CI 三平台本来就装了 gcc。
   报错长这样：`cc-rs: failed to find tool "gcc.exe"`。
   ⚠️ **wasm 侧必须关掉它**：`wasm/Cargo.toml` 的 `jishi-ffi` 写了
   `default-features = false`（浏览器链不了 sqlite3.c）；关掉之后 `导入 数据库`
