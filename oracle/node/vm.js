@@ -769,6 +769,11 @@ function makeIterator(obj, line, col) {
     const chars = [...obj];
     let i = 0;
     it = { next: () => i < chars.length ? { value: chars[i++], done: false } : { done: true } };
+  } else if (R.isBytes(obj)) {
+    // 字节（M113）：逐个给**整数** 0-255。不可变，快照即可（D79 §三）。
+    const arr = [...obj.buf];
+    let i = 0;
+    it = { next: () => i < arr.length ? { value: arr[i++], done: false } : { done: true } };
   } else if (R.isFile(obj)) {
     // 文件对象按行迭代（M26）：真句柄，大文件不必整个读进内存
     it = obj[Symbol.iterator]();
@@ -916,6 +921,11 @@ function jsonEncode(v, indent) {
     // 大整数按数字字面量写（`String(1n)` 就是 `"1"`，不带那个 `n`）（M32）
     if (typeof x === 'bigint') return x.toString();
     if (typeof x === 'string') return JSON.stringify(x);
+    if (R.isBytes(x)) {
+      // M113：JSON 没有二进制，字节必须显式转文本（D79 §三）
+      throw R.valueErr('JSON 里放不了字节', undefined, undefined,
+        'JSON 只有文本，先把字节转成文本再放，比如 编码.base64编码(字节)');
+    }
     if (R.isDecimal(x)) return x.toString();
     // 有缩进时：元素前换行缩进一层、收尾换行回到本层（Python 的 indent 规则）；
     // 无缩进时：`', '` 与 `': '`——Python 的默认分隔符就是带空格的
@@ -1372,6 +1382,12 @@ function pText(v) {
   return R.pyStr(v);
 }
 
+/** 值 → Buffer（HMAC / 口令摘要 的键、消息、盐用；字节原样）。 */
+function toBuf(v) {
+  if (R.isBytes(v)) return v.buf;
+  return Buffer.from(pText(v), 'utf8');
+}
+
 /** 按 Unicode 码点比较（Python 的 `sorted()` 就是这个序，JS 默认是 UTF-16 码元序）。 */
 function cmpCodepoint(a, b) {
   const A = [...a]; const B = [...b];
@@ -1640,6 +1656,20 @@ const FILE_FUNCS = {
     const st = statOf(target);
     if (!st || !st.isFile()) throw R.fileErr(`找不到文件「${target}」，没法读取`);
     return fs.readFileSync(target, 'utf8');
+  }),
+  // M113：读整个文件成**字节**
+  '读字节': new R.Builtin('读字节', (p) => {
+    const target = pText(p);
+    const st = statOf(target);
+    if (!st || !st.isFile()) throw R.fileErr(`找不到文件「${target}」，没法读取`);
+    return new R.JishiBytes(fs.readFileSync(target));
+  }),
+  '写字节': new R.Builtin('写字节', (p, data) => {
+    if (!R.isBytes(data)) {
+      throw R.fileErr(`「写字节」要传字节，得到了「${R.display(data)}」`);
+    }
+    fs.writeFileSync(pText(p), data.buf);
+    return null;
   }),
   '追加文本': new R.Builtin('追加文本', (p, content) => {
     fs.appendFileSync(pText(p), pText(content), 'utf8');
@@ -1987,8 +2017,8 @@ const CRYPTO_FUNCS = {
   '支持的算法': new R.Builtin('支持的算法', () => HASH_ALGOS.slice().sort(cmpCodepoint)),
   'HMAC': new R.Builtin('HMAC', (key, msg, algo = 'sha256') => {
     const name = normAlgo(algo);
-    return _crypto.createHmac(name, Buffer.from(pText(key), 'utf8'))
-      .update(Buffer.from(pText(msg), 'utf8'))
+    return _crypto.createHmac(name, toBuf(key))
+      .update(toBuf(msg))
       .digest('hex');
   }),
   '口令摘要': new R.Builtin('口令摘要', (pwd, salt, iters = 100000, algo = 'sha256') => {
@@ -1996,13 +2026,13 @@ const CRYPTO_FUNCS = {
     const n = Math.trunc(Number(iters));
     if (!(n >= 1)) throw R.valueErr(`迭代次数要是正整数，现在是 ${iters}`);
     // dkLen 取摘要长度，与 Python 的 `pbkdf2_hmac(algo, …)` 默认值一致
-    return _crypto.pbkdf2Sync(Buffer.from(pText(pwd), 'utf8'),
-      Buffer.from(pText(salt), 'utf8'), n, HASH_LEN[name], name).toString('hex');
+    return _crypto.pbkdf2Sync(toBuf(pwd), toBuf(salt), n, HASH_LEN[name], name).toString('hex');
   }),
   '安全随机字节': new R.Builtin('安全随机字节', (n) => {
     const k = Math.trunc(Number(n));
     if (!(k >= 1)) throw R.valueErr(`长度要是正整数，现在是 ${n}`);
-    return _crypto.randomBytes(k).toString('hex');
+    // M113：返回**字节**（以前给十六进制文本）
+    return new R.JishiBytes(_crypto.randomBytes(k));
   }),
 };
 
@@ -2895,13 +2925,14 @@ const STATS_FUNCS = {
 /** 编码：base64 / 十六进制 / URL（对齐 Python 侧 编码.py）。 */
 function _toBytesFor(name, v) {
   if (typeof v === 'string') return Buffer.from(v, 'utf8');
+  if (R.isBytes(v)) return v.buf;
   if (Buffer.isBuffer(v)) return v;
   const s = R.seqOf(v, true, undefined, undefined);
-  if (s === null) throw R.valueErr(`「${name}」要传文本、字节列表或 bytes`);
+  if (s === null) throw R.valueErr(`「${name}」要传文本、字节或 0-255 的整数列表`);
   const out = [];
   s.forEach((x, i) => {
     if (typeof x === 'boolean' || !_isInt(x)) {
-      throw R.valueErr(`「${name}」里第 ${i + 1} 个不是 0-255 的整数`);
+      throw R.valueErr(`「${name}」里第 ${i + 1} 个不是 0-255 的整数：${x}`);
     }
     if (x < 0 || x > 255) {
       throw R.valueErr(`「${name}」里第 ${i + 1} 个超出范围（要 0-255）：${x}`);
@@ -2917,9 +2948,9 @@ function _wantBytes(name, v) {
     }
     return Buffer.from(v, 'ascii');
   }
-  if (Buffer.isBuffer(v)) return v;
+  if (R.isBytes(v) || Buffer.isBuffer(v)) return _toBytesFor(name, v);
   const s = R.seqOf(v, true, undefined, undefined);
-  if (s === null) throw R.valueErr(`「${name}」要传文本或字节列表`);
+  if (s === null) throw R.valueErr(`「${name}」要传文本或字节`);
   return _toBytesFor(name, v);
 }
 
@@ -2932,7 +2963,8 @@ const ENCODE_FUNCS = {
     if (!/^[A-Za-z0-9+/]*={0,2}$/.test(s) || s.length % 4 !== 0) {
       throw R.valueErr(`这不是合法的 base64 内容：${s}`);
     }
-    return [...Buffer.from(s, 'base64')];
+    // M113：返回**字节**（以前给 0-255 的整数列表）
+    return new R.JishiBytes(Buffer.from(s, 'base64'));
   }),
   '十六进制编码': new R.Builtin('十六进制编码', (v, upper = false) => {
     const h = _toBytesFor('十六进制编码', v).toString('hex');
@@ -2940,14 +2972,17 @@ const ENCODE_FUNCS = {
   }),
   '十六进制解码': new R.Builtin('十六进制解码', (v) => {
     const raw = _wantBytes('十六进制解码', v);
-    let s = raw.toString('ascii').replace(/[ \t]/g, '')
+    const 原文 = raw.toString('ascii');
+    let s = 原文.replace(/[ \t]/g, '')
       .replace(/0[xX]/g, '').replace(/,/g, '');
-    if (s === '') return [];
+    if (s === '') return new R.JishiBytes(Buffer.alloc(0));
     if (s.length % 2) s = '0' + s;
     if (!/^[0-9a-fA-F]*$/.test(s)) {
-      throw R.valueErr(`这不是合法的十六进制内容：${s}`);
+      // ⚠️ 与 Rust / Python 一致：报**原文**（去空白前），不带宿主细节
+      throw R.valueErr(`这不是合法的十六进制内容：${原文}`);
     }
-    return [...Buffer.from(s, 'hex')];
+    // M113：返回**字节**
+    return new R.JishiBytes(Buffer.from(s, 'hex'));
   }),
   'url编码': new R.Builtin('url编码', (v, keepSlash = true) => {
     const safe = keepSlash ? '/' : '';
@@ -2959,12 +2994,14 @@ const ENCODE_FUNCS = {
     try {
       return decodeURIComponent(v);
     } catch (e) {
-      throw R.valueErr(`这不是合法的 URL 编码内容：${e.message}`);
+      // 与 Rust / Python 一致：只报原文，不带宿主（JS）的错误细节
+      throw R.valueErr(`这不是合法的 URL 编码内容：${v}`);
     }
   }),
   '文本字节': new R.Builtin('文本字节', (v) => {
     if (typeof v !== 'string') throw R.valueErr('「文本字节」要传文本');
-    return [...Buffer.from(v, 'utf8')];
+    // M113：返回**字节**（以前给 0-255 的整数列表）
+    return new R.JishiBytes(Buffer.from(v, 'utf8'));
   }),
   '字节文本': new R.Builtin('字节文本', (v) => {
     const raw = _toBytesFor('字节文本', v);
@@ -3684,6 +3721,7 @@ function _dbStore(v, field) {
   if (R.isDecimal(v)) {
     return Number(R.display(v));                           // SQLite 只有浮点
   }
+  if (R.isBytes(v)) return v.buf;                          // M113：字节 → BLOB
   if (Array.isArray(v)) {
     throw R.typeErr(`「${field}」这个值是「列表」，存不进数据库`, undefined, undefined,
       '用 json.文本化(值) 先转成文本再存；多个值就拆成多条记录');
@@ -3692,12 +3730,8 @@ function _dbStore(v, field) {
     throw R.typeErr(`「${field}」这个值是「字典」，存不进数据库`, undefined, undefined,
       '用 json.文本化(值) 先转成文本再存；或者拆成几张表');
   }
-  if (v instanceof Uint8Array) {
-    throw R.typeErr(`「${field}」这个值是二进制，基石没有字节类型，存不进数据库`,
-      undefined, undefined, '先用 编码.base64编码(值) 转成文本再存');
-  }
   throw R.typeErr(`「${field}」这个值是「${R.typeName(v)}」，存不进数据库`,
-    undefined, undefined, '数据库里只放 整数 / 浮点 / 文本 / 真假 / 空 / 日期');
+    undefined, undefined, '数据库里只放 整数 / 浮点 / 文本 / 真假 / 空 / 日期 / 字节');
 }
 
 /** SQLite 的值 → 基石的值（`bigint` 说明是 INTEGER、`number` 说明是 REAL）。 */
@@ -3712,11 +3746,7 @@ function _dbRead(v, col) {
   }
   if (typeof v === 'number') return new R.FloatBox(v);     // REAL：包一层才显示 100.0
   if (typeof v === 'string') return v;
-  if (v instanceof Uint8Array) {
-    throw R.typeErr(`「${col}」这一列存的是二进制，基石没有字节类型，读不出来`,
-      undefined, undefined,
-      '存的时候先用 编码.base64编码 转成文本；只要看长度就用 数据库.执行查询');
-  }
+  if (v instanceof Uint8Array) return new R.JishiBytes(v);   // M113：BLOB → 字节
   return v;
 }
 

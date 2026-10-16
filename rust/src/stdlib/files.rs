@@ -46,6 +46,32 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let p = as_text(&args[0]);
             Ok(Val::Str(read_utf8(&p, || format!("找不到文件「{p}」，没法读取"))?))
         },
+        // M113：读整个文件成**字节**（不做任何编码转换）
+        "读字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("读字节", args, 1)?;
+            let p = as_text(&args[0]);
+            if !Path::new(&p).is_file() {
+                return Err(err("文件错误", format!("找不到文件「{p}」，没法读取")));
+            }
+            let bytes = fs::read(&p)
+                .map_err(|e| err("文件错误", format!("读文件「{p}」失败：{e}")))?;
+            Ok(Val::Bytes(std::rc::Rc::new(bytes)))
+        },
+        "写字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("写字节", args, 2)?;
+            let p = as_text(&args[0]);
+            let data = match &args[1] {
+                Val::Bytes(b) => b.as_ref().clone(),
+                other => {
+                    return Err(err(
+                        "文件错误",
+                        format!("「写字节」要传字节，得到了「{}」", crate::display(other)),
+                    ))
+                }
+            };
+            write_bytes(&p, &data)?;
+            Ok(Val::None_)
+        },
         "追加文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("追加文本", args, 2)?;
             let p = as_text(&args[0]);

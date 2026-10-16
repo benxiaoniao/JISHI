@@ -7,15 +7,18 @@ use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{need_range, table, to_vec, R};
-use crate::{err, list_new, Val};
+// M113：解码方向改返回 `Val::Bytes` 之后，这里不再需要 `list_new`
+use crate::{err, Val};
 
-/// 文本或字节列表 → `Vec<u8>`（与 Python 侧 `_to_bytes` 同规则）。
+/// 文本 / 字节 / 0-255 的整数列表 → `Vec<u8>`（与 Python 侧 `_to_bytes` 同规则）。
 fn to_bytes(name: &str, v: &Val) -> Result<Vec<u8>, crate::JishiError> {
     match v {
         Val::Str(s) => Ok(s.as_bytes().to_vec()),
+        // M113 起有真正的字节类型了，原样拿
+        Val::Bytes(b) => Ok(b.as_ref().clone()),
         _ => {
             let items = to_vec(v).map_err(|_| {
-                err("值错误", format!("「{name}」要传文本、字节列表或 bytes"))
+                err("值错误", format!("「{name}」要传文本、字节或 0-255 的整数列表"))
             })?;
             let mut out = Vec::with_capacity(items.len());
             for (i, x) in items.iter().enumerate() {
@@ -46,10 +49,11 @@ fn to_bytes(name: &str, v: &Val) -> Result<Vec<u8>, crate::JishiError> {
 fn want_ascii(name: &str, v: &Val) -> Result<String, crate::JishiError> {
     let raw = match v {
         Val::Str(s) => s.clone(),
+        // 字节 / 0-255 的整数列表：先摊成字节再当 ASCII 文本看
         _ => {
             let bs = to_bytes(name, v)?;
             String::from_utf8(bs).map_err(|_| {
-                err("值错误", format!("「{name}」要传文本或字节列表"))
+                err("值错误", format!("「{name}」要传文本或字节"))
             })?
         }
     };
@@ -169,7 +173,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "base64解码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("base64解码", args, 1, 1)?;
             let s = want_ascii("base64解码", &args[0])?;
-            Ok(list_new(b64_decode(&s)?.into_iter().map(|b| Val::Int(b as i128)).collect()))
+            // M113：返回**字节**（以前给 0-255 的整数列表 —— 那是没有字节类型时的凑合）
+            Ok(Val::Bytes(std::rc::Rc::new(b64_decode(&s)?)))
         },
         "十六进制编码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("十六进制编码", args, 1, 2)?;
@@ -190,18 +195,18 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .collect();
             s = s.replace("0x", "").replace("0X", "");
             if s.is_empty() {
-                return Ok(list_new(vec![]));
+                return Ok(Val::Bytes(std::rc::Rc::new(Vec::new())));
             }
             if s.len() % 2 == 1 {
                 s.insert(0, '0');
             }
-            let mut out = Vec::new();
+            let mut out: Vec<u8> = Vec::new();
             let b = s.as_bytes();
             let mut i = 0;
             while i < b.len() {
                 let hex = std::str::from_utf8(&b[i..i + 2]).unwrap_or("");
                 match u8::from_str_radix(hex, 16) {
-                    Ok(x) => out.push(Val::Int(x as i128)),
+                    Ok(x) => out.push(x),
                     Err(_) => {
                         return Err(err(
                             "值错误",
@@ -211,7 +216,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
                 i += 2;
             }
-            Ok(list_new(out))
+            // M113：返回**字节**
+            Ok(Val::Bytes(std::rc::Rc::new(out)))
         },
         "url编码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("url编码", args, 1, 2)?;
@@ -224,16 +230,15 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Val::Str(s) => Ok(Val::Str(url_unquote(s)?)),
                 v => Err(err(
                     "值错误",
-                    format!("「url解码」要传文本，得到了 {}", crate::display(v)),
+                    "「url解码」要传文本",
                 )),
             }
         },
         "文本字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("文本字节", args, 1, 1)?;
             match &args[0] {
-                Val::Str(s) => Ok(list_new(
-                    s.as_bytes().iter().map(|b| Val::Int(*b as i128)).collect(),
-                )),
+                // M113：返回**字节**（以前给 0-255 的整数列表）
+                Val::Str(s) => Ok(Val::Bytes(std::rc::Rc::new(s.as_bytes().to_vec()))),
                 v => Err(err(
                     "值错误",
                     format!("「文本字节」要传文本，得到了 {}", crate::display(v)),

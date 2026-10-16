@@ -83,12 +83,15 @@ def HMAC(键, 内容):
 
 
 def 安全随机字节(长度):
-    return secrets.token_hex(int(长度))
+    # M113：与基石侧同口径 —— 返回**原始字节**（以前这里给十六进制文本）
+    return secrets.token_bytes(int(长度))
 
 
 def 口令摘要(口令, 盐, 迭代=1000):
+    # 盐是**字节**；文本盐按 UTF-8（与基石侧 `加密._字节` 同口径）
+    盐b = 盐 if isinstance(盐, (bytes, bytearray)) else str(盐).encode("utf-8")
     return hashlib.pbkdf2_hmac("sha256", str(口令).encode("utf-8"),
-                               str(盐).encode("utf-8"), int(迭代)).hex()
+                               盐b, int(迭代)).hex()
 
 
 def 打包今天():
@@ -141,7 +144,8 @@ def 清单文本(箱子):
 
 def 存口令(口令):
     盐 = 安全随机字节(16)
-    return f"盐 {盐}\n口令摘要 {口令摘要(口令, 盐, 1000)}\n"
+    # `.txt` 是文本文件 ⇒ 盐存成十六进制（基石侧 `编码.十六进制编码(盐)` 同一件事）
+    return f"盐 {盐.hex()}\n口令摘要 {口令摘要(口令, 盐, 1000)}\n"
 
 
 def 清理旧归档():

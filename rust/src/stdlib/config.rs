@@ -140,7 +140,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Some(Val::Int(n)) if *n >= 0 => *n as usize,
                 Some(_) => return Err(err("类型错误", "「缩进」要传 0 或正整数")),
             };
-            let text = super::jsonmod::to_text(&args[1], Some(indent));
+            let text = super::jsonmod::to_text(&args[1], Some(indent))?;
             write_file(&p, &format!("{text}\n"))?;
             Ok(Val::Str(p))
         },

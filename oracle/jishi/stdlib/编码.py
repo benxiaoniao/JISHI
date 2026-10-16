@@ -6,6 +6,10 @@
 
 名字里的「编码」两字容易和「字符编码（UTF-8/GBK）」混，所以字符编码相关的
 函数单独一组，名字带「文本」前缀，一看就知道是干什么的。
+
+M113 起有了 **`字节`** 类型（见 `docs/设计决策.md` D79），本模块的
+**解码方向一律返回字节**（以前返回「0-255 的整数列表」—— 那是没有字节类型时的
+凑合）；编码方向的入参同时接受文本、字节与 0-255 的整数列表（老写法不报废）。
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ import binascii as _py_binascii
 import urllib.parse as _py_url
 
 from ..errors import RunValueError
+from ..runtime import JishiBytes
 
 __all__ = [
     "base64编码", "base64解码", "十六进制编码", "十六进制解码",
@@ -23,22 +28,25 @@ __all__ = [
 
 
 def _to_bytes(值, 名字: str) -> bytes:
-    """文本按 UTF-8 转字节；已经是字节列表的就直接用。"""
+    """文本按 UTF-8 转字节；字节原样；0-255 的整数列表逐个收。"""
     if isinstance(值, str):
         return 值.encode("utf-8")
+    if isinstance(值, JishiBytes):
+        return 值.value
     if isinstance(值, bytes):
         return 值
     if isinstance(值, list):
         out = bytearray()
         for i, v in enumerate(值):
             if isinstance(v, bool) or not isinstance(v, int):
-                raise RunValueError(f"「{名字}」里第 {i + 1} 个不是 0-255 的整数")
+                raise RunValueError(
+                    f"「{名字}」里第 {i + 1} 个不是 0-255 的整数：{v}")
             if not 0 <= v <= 255:
                 raise RunValueError(
                     f"「{名字}」里第 {i + 1} 个超出范围（要 0-255）：{v}")
             out.append(v)
         return bytes(out)
-    raise RunValueError(f"「{名字}」要传文本、字节列表或 bytes")
+    raise RunValueError(f"「{名字}」要传文本、字节或 0-255 的整数列表")
 
 
 def _want_bytes(值, 名字: str) -> bytes:
@@ -52,11 +60,11 @@ def _want_bytes(值, 名字: str) -> bytes:
             raise RunValueError(
                 f"「{名字}」的内容应当是 base64 / 十六进制字符，"
                 f"但里面出现了非 ASCII 字符")
-    if isinstance(值, bytes):
-        return 值
+    if isinstance(值, (JishiBytes, bytes)):
+        return _to_bytes(值, 名字)
     if isinstance(值, list):
         return _to_bytes(值, 名字)
-    raise RunValueError(f"「{名字}」要传文本或字节列表")
+    raise RunValueError(f"「{名字}」要传文本或字节")
 
 
 def base64编码(值) -> str:
@@ -68,42 +76,50 @@ def base64编码(值) -> str:
     return _py_b64.b64encode(_to_bytes(值, "base64编码")).decode("ascii")
 
 
-def base64解码(值):
-    """把 base64 文本还原成**字节列表**（0-255 的整数）。
+def base64解码(值) -> JishiBytes:
+    """把 base64 文本还原成**字节**。
 
-    返回列表而不是文本：base64 里装的可能是任意二进制（图片、压缩包…），
+    返回字节而不是文本：base64 里装的可能是任意二进制（图片、压缩包…），
     不一定能当文本读。要当文本用就再套一层 `编码.字节文本()`。
     """
     raw = _want_bytes(值, "base64解码")
+    原文 = raw.decode("ascii", "replace")
     try:
-        return list(_py_b64.b64decode(raw, validate=True))
-    except (_py_binascii.Error, ValueError) as e:
-        raise RunValueError(f"这不是合法的 base64 内容：{e}")
+        return JishiBytes(_py_b64.b64decode(raw, validate=True))
+    except (_py_binascii.Error, ValueError):
+        # ⚠️ 报错文案**要与 Rust / Node 逐字相同**（五引擎对拍比 stderr）——
+        # 所以只报原文，不把底层的异常细节（英文）带出来。
+        raise RunValueError(f"这不是合法的 base64 内容：{原文}")
 
 
 def 十六进制编码(值, 大写: bool = False) -> str:
-    """把文本或字节编码成十六进制文本。默认小写。"""
+    """把文本或字节编码成十六进制文本。默认小写。
+
+    要看「字节里到底是些什么」就用它——显示里的 `字节(…)` 是**截断**过的。
+    """
     hexed = _to_bytes(值, "十六进制编码").hex()
     return hexed.upper() if 大写 else hexed
 
 
-def 十六进制解码(值):
-    """把十六进制文本还原成**字节列表**。
+def 十六进制解码(值) -> JishiBytes:
+    """把十六进制文本还原成**字节**（源码里「写死一串字节」就靠它）。
 
     允许中间有空格和 `0x` 前缀（从别处抄来的十六进制常常带着这些），
     也允许奇数长度（前面补一个 0，`"abc"` 当成 `0abc`）。
     """
     raw = _want_bytes(值, "十六进制解码")
+    原文 = raw.decode("ascii", "replace")
     text = raw.decode("ascii", "strict").replace(" ", "").replace("\t", "")
     text = text.replace("0x", "").replace("0X", "").replace(",", "")
     if not text:
-        return []
+        return JishiBytes()
     if len(text) % 2:
         text = "0" + text
     try:
-        return list(bytes.fromhex(text))
-    except ValueError as e:
-        raise RunValueError(f"这不是合法的十六进制内容：{e}")
+        return JishiBytes(bytes.fromhex(text))
+    except ValueError:
+        # 同 `base64解码`：文案要与 Rust / Node 逐字相同，只报原文
+        raise RunValueError(f"这不是合法的十六进制内容：{原文}")
 
 
 def url编码(值, 保留斜杠: bool = True) -> str:
@@ -121,28 +137,32 @@ def url解码(值) -> str:
         raise RunValueError("「url解码」要传文本")
     try:
         return _py_url.unquote(值, errors="strict")
-    except (UnicodeDecodeError, ValueError) as e:
-        raise RunValueError(f"这不是合法的 URL 编码内容：{e}")
+    except (UnicodeDecodeError, ValueError):
+        # 同 base64 / 十六进制：只报原文，不带底层异常细节（三边文案要一致）
+        raise RunValueError(f"这不是合法的 URL 编码内容：{值}")
 
 
-def 文本字节(值) -> list:
-    """把文本按 UTF-8 转成字节列表（0-255 的整数）。
+def 文本字节(值) -> JishiBytes:
+    """把文本按 UTF-8 转成**字节**。
 
-    想「看一个中文字占几个字节」或手动处理二进制时用。
+    想「看一个中文字占几个字节」就 `长度(编码.文本字节("中"))`（给 3）。
     """
     if not isinstance(值, str):
         raise RunValueError("「文本字节」要传文本")
-    return list(值.encode("utf-8"))
+    return JishiBytes(值.encode("utf-8"))
 
 
 def 字节文本(值) -> str:
-    """把字节列表按 UTF-8 还原成文本。
+    """把字节按 UTF-8 还原成文本。
 
     解不出合法 UTF-8（比如截断了一半的中文）时**明确报错**，不返回乱码。
     """
     raw = _to_bytes(值, "字节文本")
     try:
         return raw.decode("utf-8")
-    except UnicodeDecodeError as e:
+    except UnicodeDecodeError:
+        # ⚠️ **不要把 Python 的 codec 细节（英文）带出来** —— 报错文案要与
+        # Rust / Node 逐字相同（五引擎对拍比 stderr）。2026-10-15（M113）修：
+        # 以前这条会漏出 `'utf-8' codec can't decode byte 0xff …`。
         raise RunValueError(
-            f"这些字节不是合法的 UTF-8 文本（可能被截断或本来就是二进制）：{e}")
+            "这些字节不是合法的 UTF-8 文本（可能被截断或本来就是二进制）")

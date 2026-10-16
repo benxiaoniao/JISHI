@@ -370,6 +370,15 @@ fn 系统熵(buf: &mut [u8]) -> Result<(), String> {
 // 模块
 // ---------------------------------------------------------------------------
 
+/// 值 → 字节（HMAC / 口令摘要 的键、消息、盐用）。
+/// 字节原样；其余按 `as_text`（显示）再 UTF-8 —— 与 Python 侧 `_字节` 同口径。
+fn 字节(v: &Val) -> Vec<u8> {
+    match v {
+        Val::Bytes(b) => b.as_ref().clone(),
+        other => as_text(other).into_bytes(),
+    }
+}
+
 /// 算法名归一化（转小写、去掉 `-` 与 `_`），再查表。
 fn normalize(algo: &Val) -> Result<String, JishiError> {
     let raw = as_text(algo);
@@ -507,8 +516,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "HMAC" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("HMAC", args, 2, 3)?;
             let algo = if args.len() > 2 { normalize(&args[2])? } else { "sha256".to_string() };
-            let key = as_text(&args[0]).into_bytes();
-            let msg = as_text(&args[1]).into_bytes();
+            let key = 字节(&args[0]);
+            let msg = 字节(&args[1]);
             Ok(Val::Str(hex(&hmac(&algo, &key, &msg))))
         },
         "口令摘要" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -525,8 +534,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 None => 100_000, // 与 Python 侧 PBKDF2_默认迭代 一致
             };
             let algo = if args.len() > 3 { normalize(&args[3])? } else { "sha256".to_string() };
-            let pwd = as_text(&args[0]).into_bytes();
-            let salt = as_text(&args[1]).into_bytes();
+            let pwd = 字节(&args[0]);
+            let salt = 字节(&args[1]);
             Ok(Val::Str(hex(&pbkdf2(&algo, &pwd, &salt, iters))))
         },
         "安全随机字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -537,7 +546,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             let mut buf = vec![0u8; n as usize];
             系统熵(&mut buf).map_err(|e| err("运行错误", format!("取不到系统随机源：{e}")))?;
-            Ok(Val::Str(hex(&buf)))
+            // M113：返回**字节**（以前给十六进制文本）
+            Ok(Val::Bytes(std::rc::Rc::new(buf)))
         },
     }
 }

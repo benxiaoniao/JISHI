@@ -19,6 +19,24 @@ use std::collections::HashMap;
 use super::{as_text, need, need_range, table, R};
 use crate::{err, JishiError, Val};
 
+/// 找结构里有没有字节：JSON 没有二进制，字节必须显式转文本（D79 §三）。
+fn reject_bytes(v: &Val) -> Result<(), JishiError> {
+    match v {
+        Val::Bytes(_) => Err(crate::err_with_hint(
+            "值错误",
+            "JSON 里放不了字节",
+            "JSON 只有文本，先把字节转成文本再放，比如 编码.base64编码(字节)".to_string(),
+        )),
+        Val::List(l) => { for x in l.borrow().iter() { reject_bytes(x)?; } Ok(()) }
+        Val::Dict(d) => {
+            for (k, x) in d.borrow().iter() { reject_bytes(k)?; reject_bytes(x)?; }
+            Ok(())
+        }
+        Val::Set(s) => { for x in s.borrow().to_items() { reject_bytes(&x)?; } Ok(()) }
+        _ => Ok(()),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // 序列化
 // ---------------------------------------------------------------------------
@@ -436,10 +454,11 @@ pub(crate) fn parse_pub(text: &str) -> Result<Val, JishiError> {
 // 模块
 // ---------------------------------------------------------------------------
 
-pub(crate) fn to_text(v: &Val, indent: Option<usize>) -> String {
+pub(crate) fn to_text(v: &Val, indent: Option<usize>) -> Result<String, JishiError> {
+    reject_bytes(v)?;
     let mut out = String::new();
     encode(v, indent, 0, &mut out);
-    out
+    Ok(out)
 }
 
 fn indent_of(args: &[Val], idx: usize) -> Option<usize> {
@@ -454,7 +473,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "转文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("转文本", args, 1, 2)?;
             let ind = indent_of(args, 1);
-            Ok(Val::Str(to_text(&args[0], ind)))
+            Ok(Val::Str(to_text(&args[0], ind)?))
         },
         "解析" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("解析", args, 1)?;
@@ -471,7 +490,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("写文件", args, 2, 3)?;
             let p = as_text(&args[0]);
             let ind = indent_of(args, 2);
-            let text = to_text(&args[1], ind);
+            let text = to_text(&args[1], ind)?;
             std::fs::write(&p, text.as_bytes())
                 .map_err(|e| err("值错误", format!("写文件「{p}」失败：{e}")))?;
             Ok(Val::None_)

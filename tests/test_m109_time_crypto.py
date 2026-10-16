@@ -168,6 +168,7 @@ def test_口令摘要_盐不同结果就不同():
 
 
 def test_安全随机字节_长度与不可预测():
+    # M113 起 `安全随机字节` 返回**字节**（以前返回十六进制文本，长度是 2×）
     assert _跑(
         '导入 加密\n'
         '令 a = 加密.安全随机字节(16)\n'
@@ -175,7 +176,8 @@ def test_安全随机字节_长度与不可预测():
         '打印(长度(a))\n'
         '打印(长度(加密.安全随机字节(1)))\n'
         '打印(a == b)\n'
-    ) == "32\n2\n假\n"
+        '打印(类型(a))\n'
+    ) == "16\n1\n假\n字节\n"
 
 
 def test_安全随机字节_长度必须是正整数():
@@ -277,7 +279,8 @@ def _期望() -> str:
         "0a38253555ce37f5c72a6b703f996814ebf241f203af146e93dcdeb031c5567e\n"
         "b095208e7496b1a485a5dbe9532b318591fa266c\n"
         "真\n"
-        "32\n"
+        # M113 起 `安全随机字节(16)` 返回 16 个**字节**（以前是 32 个十六进制字符）
+        "16\n"
         "假\n"
     )
 
@@ -365,11 +368,14 @@ def test_探针_备份归档(monkeypatch, tmp_path):
     口令文 = (归档 / "口令.txt").read_text(encoding="utf-8")
     assert 口令文.startswith("盐 ") and "口令摘要 " in 口令文
     assert "示例口令" not in 口令文
-    盐 = 口令文.splitlines()[0][2:]
-    assert len(盐) == 32
+    盐文本 = 口令文.splitlines()[0][2:]
+    assert len(盐文本) == 32
+    # ⚠️ M113 起盐是**字节**：口令摘要拿的是**原始字节**，不是那串十六进制文本
+    # （`.txt` 里存成十六进制只是为了能放进文本文件）
+    盐 = bytes.fromhex(盐文本)
     assert 口令文.splitlines()[1].endswith(
         hashlib.pbkdf2_hmac("sha256", "示例口令".encode("utf-8"),
-                            盐.encode("utf-8"), 1000).hex())
+                            盐, 1000).hex())
     # 清单每条带 sha256，签名是自己算得出来的
     清单 = (归档 / "清单.txt").read_text(encoding="utf-8")
     assert "sha256 " in 清单

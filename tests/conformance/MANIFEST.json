@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 31,
     "frontend": 1,
-    "lang": 82,
+    "lang": 87,
     "stdlib": 4
   },
   "语料": [
@@ -233,8 +233,8 @@
     },
     {
       "id": "examples__绕道探针__备份归档__备份",
-      "产物哈希": "sha256:a95e3fc251f85cb2",
-      "内容哈希": "sha256:b0269d1a76f4f615",
+      "产物哈希": "sha256:8a84204452d03dd5",
+      "内容哈希": "sha256:bf3927d083af3baa",
       "类别": "examples",
       "路径": "examples/绕道探针/备份归档/备份.jsh"
     },
@@ -531,6 +531,13 @@
       "内容哈希": "sha256:36f3d38ee3ef70ba",
       "类别": "lang",
       "路径": "tests/cases/31_标准库_M112.jsh"
+    },
+    {
+      "id": "tests__cases__32_标准库_M113",
+      "产物哈希": "sha256:53305e43cf24c385",
+      "内容哈希": "sha256:89dedf32cee56818",
+      "类别": "lang",
+      "路径": "tests/cases/32_标准库_M113.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -883,6 +890,34 @@
       "路径": "tests/error_cases/49_数据库_存不进的值.jsh"
     },
     {
+      "id": "tests__error_cases__50_字节_比大小跨类型",
+      "产物哈希": "sha256:df72bb2e05b540d4",
+      "内容哈希": "sha256:ba1aa2fe37419615",
+      "类别": "lang",
+      "路径": "tests/error_cases/50_字节_比大小跨类型.jsh"
+    },
+    {
+      "id": "tests__error_cases__51_字节_不能求和",
+      "产物哈希": "sha256:93672210aea98b02",
+      "内容哈希": "sha256:20234f71bf360b4f",
+      "类别": "lang",
+      "路径": "tests/error_cases/51_字节_不能求和.jsh"
+    },
+    {
+      "id": "tests__error_cases__52_字节_json放不了",
+      "产物哈希": "sha256:75bdb1113cd23eb7",
+      "内容哈希": "sha256:7224bb98b6bb8164",
+      "类别": "lang",
+      "路径": "tests/error_cases/52_字节_json放不了.jsh"
+    },
+    {
+      "id": "tests__error_cases__53_字节_下标越界",
+      "产物哈希": "sha256:8bd0047f01898358",
+      "内容哈希": "sha256:847d16375a361671",
+      "类别": "lang",
+      "路径": "tests/error_cases/53_字节_下标越界.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:293975765ad4c964",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -890,5 +925,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 118
+  "语料数": 123
 }

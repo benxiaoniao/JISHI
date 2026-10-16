@@ -9,10 +9,11 @@ import tempfile as _py_tempfile
 from pathlib import Path as _py_Path, PurePosixPath as _py_PurePosixPath
 
 from ..errors import RunFileError
-from ..runtime import jishi_repr
+from ..runtime import jishi_repr, JishiBytes
 
 __all__ = [
     "写文本", "读文本", "追加文本", "写行", "按行读",
+    "读字节", "写字节",
     "文件存在", "是文件", "是目录", "列出目录",
     "创建目录", "删除文件", "复制", "文件大小", "原子写",
     "路径拼接", "文件名", "扩展名",
@@ -47,6 +48,33 @@ def 读文本(路径) -> str:
             return f.read()
     except UnicodeDecodeError:
         raise RunFileError(f"文件「{路径}」不是 UTF-8 编码，没法按文本读取")
+
+
+def 读字节(路径) -> JishiBytes:
+    """把整个文件读成**字节**（不做任何编码转换）。
+
+    图片、压缩包、可执行文件这些二进制就得用它；文本才用 `读文本`。
+    """
+    p = _path(路径)
+    if not p.is_file():
+        raise RunFileError(f"找不到文件「{路径}」，没法读取")
+    try:
+        with open(p, "rb") as f:
+            return JishiBytes(f.read())
+    except OSError as e:
+        raise RunFileError(f"读文件「{路径}」失败：{e}")
+
+
+def 写字节(路径, 字节) -> None:
+    """把字节写进文件（覆盖原有内容）。"""
+    if not isinstance(字节, JishiBytes):
+        raise RunFileError(
+            f"「写字节」要传字节，得到了「{jishi_repr(字节, top=True)}」")
+    try:
+        with open(_path(路径), "wb") as f:
+            f.write(字节.value)
+    except OSError as e:
+        raise RunFileError(f"写文件「{路径}」失败：{e}")
 
 
 def 追加文本(路径, 内容: str) -> None:

@@ -267,6 +267,7 @@ function typeName(v) {
   }
   if (isFloatBox(v)) return '小数';
   if (typeof v === 'string') return '文本';
+  if (isBytes(v)) return '字节';
   if (Array.isArray(v)) return '列表';
   if (v instanceof Map) return '字典';
   if (v instanceof JishiSet) return '集合';
@@ -424,6 +425,7 @@ function truthy(v) {
   if (Array.isArray(v)) return v.length > 0;
   if (v instanceof Map) return v.size > 0;
   if (v instanceof JishiSet) return v.size > 0;
+  if (isBytes(v)) return v.length > 0;    // 空字节是假（D79 §三）
   return Boolean(v);
 }
 
@@ -440,6 +442,46 @@ class FloatBox {
 
 function isFloatBox(v) { return v instanceof FloatBox; }
 function unwrap(v) { return v instanceof FloatBox ? v.value : v; }
+
+// ---------------------------------------------------------------------------
+// 字节（M113）：不可变的字节串。显示 `字节(0C FF 00)`、`类型()` 给「字节」。
+// 内部用 Buffer（不可变），语义与 Python 侧 `JishiBytes` / Rust 侧 `Val::Bytes`
+// 一致 —— 完整取舍见 docs/设计决策.md D79。
+// ---------------------------------------------------------------------------
+class JishiBytes {
+  constructor(v) {
+    if (v instanceof JishiBytes) { this.buf = Buffer.from(v.buf); return; }
+    if (Buffer.isBuffer(v) || v instanceof Uint8Array) { this.buf = Buffer.from(v); return; }
+    if (Array.isArray(v)) {
+      const b = Buffer.alloc(v.length);
+      v.forEach((x, i) => {
+        if (typeof x === 'boolean' || !Number.isInteger(x) || x < 0 || x > 255) {
+          throw valueErr('字节要从 0-255 的整数构造');
+        }
+        b[i] = x;
+      });
+      this.buf = b;
+      return;
+    }
+    throw valueErr('不能把这个值当成字节');
+  }
+  get length() { return this.buf.length; }
+  equals(other) { return other instanceof JishiBytes && Buffer.compare(this.buf, other.buf) === 0; }
+}
+
+function isBytes(v) { return v instanceof JishiBytes; }
+
+/** 字节值的显示（D79 §二）：`字节(0C FF 00)` / `字节()` / 超 16 个截断。 */
+function bytesDisplay(buf) {
+  if (buf.length === 0) return '字节()';
+  const 头 = [];
+  const n = Math.min(buf.length, 16);
+  for (let i = 0; i < n; i++) {
+    头.push(buf[i].toString(16).toUpperCase().padStart(2, '0'));
+  }
+  if (buf.length <= 16) return `字节(${头.join(' ')})`;
+  return `字节(${头.join(' ')} … 共 ${buf.length} 个字节)`;
+}
 
 // ---------------------------------------------------------------------------
 // 精确小数（M26，JS 侧实现）
@@ -902,6 +944,7 @@ function setKey(v) {
   if (typeof v === 'bigint') return 'd:' + v.toString();
   if (isFloatBox(v)) return 'd:' + numKey(v.value);
   if (typeof v === 'string') return 's:' + v;
+  if (isBytes(v)) return 'b:' + v.buf.toString('hex');    // 字节可作键（D79 §三）
   return 'o:' + objId(v);
 }
 
@@ -1046,6 +1089,7 @@ function seqOf(v, text, line, col) {
   if (Array.isArray(v)) return [...v];
   if (v instanceof JishiSet) return v.values();
   if (v instanceof Map) return [...v.keys()];
+  if (isBytes(v)) return [...v.buf];    // 字节：逐个给整数 0-255（D79 §三）
   if (text && typeof v === 'string') return [...v];
   if (v instanceof JishiInstance) {
     // 自定义对象定义了「迭代」就能按序列处理（M24/M30）
@@ -1107,6 +1151,13 @@ function cpIndexOf(s, needle) {
  * 文本刻意当**标量**（`最大("abc")` 是那一个文本，不是三个字符）。
  */
 function extremum(args, wantMax) {
+  const 动作名 = wantMax ? '最大' : '最小';
+  // 字节（M113）：`最大(字节)` 会把它当序列摊成整数 → 静默返回「最大的那个字节值」，
+  // 那是错答案。单独拦「一个字节参数」这一种（D79 §三）。
+  if (args.length === 1 && isBytes(args[0])) {
+    throw typeErr(`「${动作名}」不能直接用在字节上`, undefined, undefined,
+      '要在一串字节里比大小，把字节放进一个列表再求；要看内容用 编码.十六进制编码(字节)');
+  }
   const seq = args.length === 1 ? seqOf(args[0], false, undefined, undefined) : null;
   const items = seq !== null ? seq : args;
   // 文案照 Python 的 `_b_max` / `_b_min`（R6.4）：单参用**那个值本身**、
@@ -1158,6 +1209,7 @@ function extremum(args, wantMax) {
     return true;
   }
   if (a instanceof JishiSet && b instanceof JishiSet) return setEq(a, b);
+  if (isBytes(a) && isBytes(b)) return a.equals(b);   // 字节按内容比（D79 §三）
   const av = unwrap(a), bv = unwrap(b);
   // 数字与布尔在 Python 里可互相比较（True == 1）
   const an = typeof av === 'boolean' ? (av ? 1 : 0) : av;
@@ -1183,6 +1235,17 @@ function contains(container, item, line, col) {
   if (Array.isArray(container)) return container.some((x) => valueEq(x, item));
   if (container instanceof Map) return [...container.keys()].some((k) => valueEq(k, item));
   if (container instanceof JishiSet) return container.has(item);
+  if (isBytes(container)) {
+    // 字节（D79 §三）：找字节 = 子串；找整数 = 有没有这个字节值（越界给假）
+    if (isBytes(item)) {
+      return item.buf.length === 0 || container.buf.includes(item.buf);
+    }
+    if (typeof item === 'number' && Number.isInteger(item)) {
+      return item >= 0 && item <= 255 && container.buf.includes(item);
+    }
+    if (typeof item === 'boolean') return container.buf.includes(item ? 1 : 0);
+    throw typeErr(`不能在字节里找「${typeName(item)}」，只能找某个字节值（整数 0-255）或另一串字节`, line, col);
+  }
   if (typeof container === 'string') {
     // Python 的 `1 in "abc"` 是 TypeError（不是把 1 转成文本），这里保持一致
     if (typeof item !== 'string') {
@@ -1203,6 +1266,7 @@ function identityKey(v) {
   if (typeof v === 'bigint') return 'v:整数:' + v.toString();   // 大整数按值（M32）
   if (isFloatBox(v)) return 'v:小数:' + numKey(v.value);
   if (typeof v === 'string') return 'v:文本:' + v;
+  if (isBytes(v)) return 'v:字节:' + v.buf.toString('hex');   // 字节按值（D79 §三）
   // 其余（列表/字典/集合/实例/函数/精确小数…）按对象身份
   return 'i:' + objId(v);
 }
@@ -1248,6 +1312,7 @@ function comparable(a, b) {
 
 function cmpVals(a, b) {
   if (isDecimal(a) || isDecimal(b)) return compareDecimals(toDecimal(a), toDecimal(b));
+  if (isBytes(a) && isBytes(b)) return Math.sign(Buffer.compare(a.buf, b.buf));
   const x = unwrap(a), y = unwrap(b);
   const xn = typeof x === 'boolean' ? (x ? 1 : 0) : x;
   const yn = typeof y === 'boolean' ? (y ? 1 : 0) : y;
@@ -1259,6 +1324,7 @@ function display(v) {
   if (v === true) return '真';
   if (v === false) return '假';
   if (typeof v === 'string') return v;
+  if (isBytes(v)) return bytesDisplay(v.buf);
   if (v instanceof Map) return dictRepr(v);
   if (v instanceof JishiSet) return setRepr(v, false);
   if (isSlice(v)) return sliceRepr(v);
@@ -1275,6 +1341,8 @@ function pyStr(v) {
   if (v === true) return '真';
   if (v === false) return '假';
   if (typeof v === 'string') return v;
+  // 字节与顶层同形（D79 §二）
+  if (isBytes(v)) return bytesDisplay(v.buf);
   // 列表/字典内部元素用 repr（字符串带引号，与 Python 一致）
   if (Array.isArray(v)) return '[' + v.map(pyRepr).join(', ') + ']';
   if (v instanceof Map) return dictPyRepr(v);
@@ -1317,6 +1385,7 @@ function pyRepr(v) {
   if (v === true) return '真';
   if (v === false) return '假';
   if (v === null || v === undefined) return '空';
+  if (isBytes(v)) return bytesDisplay(v.buf);
   if (Array.isArray(v)) return '[' + v.map(pyRepr).join(', ') + ']';
   if (v instanceof Map) return dictPyRepr(v);
   if (v instanceof JishiSet) return setRepr(v, true);
@@ -1685,6 +1754,11 @@ function newBuiltins() {
     '总和': new Builtin('总和', (...args) => {
       needBuiltinArgs('总和', args, 1, 1);
       const v = args[0];
+      // 字节（M113）：不拦会**静默**把「所有字节值」加起来（D79 §三）
+      if (isBytes(v)) {
+        throw typeErr('「总和」不能用在字节上（字节不是数字）', undefined, undefined,
+          '要字节个数用 长度(字节)；要看内容用 编码.十六进制编码(字节)');
+      }
       const seq = seqOf(v, false, undefined, undefined);
       if (seq === null) throw typeErr(`「${display(v)}」不能求和，需要一个全是数字的列表`);
       // 精确小数要走十进制起点（与 Python 侧一致：sum 从整数 0 起算会出错）
@@ -2000,6 +2074,12 @@ function repeatSeq(seq, n) {
   return out;
 }
 
+/** 字节重复 n 遍（n <= 0 给空字节，与 `文本 * n` 同口径，D79 §三）。 */
+function repeatBytes(buf, n) {
+  if (n <= 0) return Buffer.alloc(0);
+  return Buffer.concat(Array(n).fill(buf));
+}
+
 /** 序列的乘数必须是整数（FloatBox 说明它是运算得到的小数，Python 会报错）。 */
 function intMulOf(v, line, col) {
   if (isFloatBox(v) || !isIntLike(v)) {
@@ -2083,6 +2163,16 @@ function applyBinop(op, l, r, line, col) {
   }
   // -- 集合：Python 侧没定义算术运算，直接报错（不要静默给出别扭结果）--
   if (lSet || rSet) {
+    throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
+  }
+  // -- 字节：+ 拼接、* 重复（D79 §三；字节只能和字节拼）--
+  const lBytes = isBytes(l), rBytes = isBytes(r);
+  if (lBytes || rBytes) {
+    if (op === '+' && lBytes && rBytes) {
+      return new JishiBytes(Buffer.concat([l.buf, r.buf]));
+    }
+    if (op === '*' && lBytes) return new JishiBytes(repeatBytes(l.buf, intMulOf(rv, line, col)));
+    if (op === '*' && rBytes) return new JishiBytes(repeatBytes(r.buf, intMulOf(lv, line, col)));
     throw typeErr(`「${typeName(l)}」和「${typeName(r)}」不能做「${op}」运算`, line, col);
   }
   // -- 数字（布尔在 Python 里也算数字：`真 + 1` 是 2）--
@@ -2187,6 +2277,8 @@ function orderCompare(a, b) {
     }
     return ca.length === cb.length ? 0 : (ca.length < cb.length ? -1 : 1);
   }
+  // 字节之间按字典序（D79 §三）；跨类型落到最后的 `return null` → 报「不能比较」
+  if (isBytes(a) && isBytes(b)) return Math.sign(Buffer.compare(a.buf, b.buf));
   if (Array.isArray(a) && Array.isArray(b)) {
     const n = Math.min(a.length, b.length);
     for (let i = 0; i < n; i++) {
@@ -2357,7 +2449,11 @@ function getItem(obj, index, line, col) {
       const [s, e, st] = sliceIndices(index, chars.length);
       return slicePositions(s, e, st).map((i) => chars[i]).join('');
     }
-    throw typeErr(`「${typeName(obj)}」不能切片，切片需要列表或文本`, line, col);
+    if (isBytes(obj)) {
+      const [s, e, st] = sliceIndices(index, obj.length);
+      return new JishiBytes(slicePositions(s, e, st).map((i) => obj.buf[i]));
+    }
+    throw typeErr(`「${typeName(obj)}」不能切片，切片需要列表、文本或字节`, line, col);
   }
   if (Array.isArray(obj)) {
     const i = normIndex(index, obj.length);
@@ -2379,6 +2475,14 @@ function getItem(obj, index, line, col) {
       throw indexErr('文本下标越界', line, col);
     }
     return chars[i];
+  }
+  if (isBytes(obj)) {
+    // 字节下标给**整数** 0-255（D79 §三）
+    const i = normIndex(index, obj.length);
+    if (!Number.isInteger(i) || i < 0 || i >= obj.length) {
+      throw indexErr('字节下标越界', line, col);
+    }
+    return obj.buf[i];
   }
   throw typeErr(`「${typeName(obj)}」不能取下标`, line, col);
 }
@@ -2750,7 +2854,7 @@ const LIST_METHODS = {
     }
     return obj.splice(i, 1)[0];
   },
-  '排序': (obj, args, line, col) => { needArgs('排序', args, 0, 0, line, col); obj.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)); return null; },
+  '排序': (obj, args, line, col) => { needArgs('排序', args, 0, 0, line, col); obj.sort((a, b) => cmpVals(a, b)); return null; },
   '反转': (obj, args, line, col) => { needArgs('反转', args, 0, 0, line, col); obj.reverse(); return null; },
   '清空': (obj, args, line, col) => { needArgs('清空', args, 0, 0, line, col); obj.length = 0; return null; },
   '索引': (obj, args, line, col) => {
@@ -3132,6 +3236,8 @@ module.exports = {
   JishiSet, setRepr, asIterable, seqOf,
   makeSlice, isSlice,
   JishiFile, isFile, enterContext, exitContext,
+  // M113：字节（不可变字节串）
+  JishiBytes, isBytes,
   Builtin, ExcType, EXCEPTION_TYPES, newBuiltins,
   Module, JishiClass, JishiInstance, VmFunction, Cell,
   applyBinop, applyUnary, applyCompare,

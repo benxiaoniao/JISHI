@@ -11,7 +11,7 @@ import hmac as _py_hmac
 import secrets as _py_secrets
 
 from ..errors import RunValueError, RunError
-from ..runtime import jishi_repr
+from ..runtime import jishi_repr, JishiBytes
 
 __all__ = [
     "摘要", "md5", "sha1", "sha256", "sha512",
@@ -99,6 +99,8 @@ def _归一算法(算法, 动作: str) -> str:
 
 def _字节(值) -> bytes:
     """值 → 字节：字节原样，其余按 `jishi_repr(top=True)` 再 UTF-8（与 `摘要` 同）。"""
+    if isinstance(值, JishiBytes):
+        return 值.value
     if isinstance(值, bytes):
         return 值
     return jishi_repr(值, top=True).encode("utf-8")
@@ -130,17 +132,18 @@ def 口令摘要(口令, 盐, 迭代: int = PBKDF2_默认迭代, 算法: str = "
     return _py_hashlib.pbkdf2_hmac(algo, _字节(口令), _字节(盐), 次数).hex()
 
 
-def 安全随机字节(长度: int) -> str:
-    """生成一串**不可预测**的随机字节，返回十六进制文本（`2 × 长度` 个字符）。
+def 安全随机字节(长度: int) -> JishiBytes:
+    """生成一串**不可预测**的随机字节，返回**字节**。
 
     与 `随机` 模块的区别：那个是伪随机、**明说了不能做密码学用途**；
     这个取的是操作系统的熵源，适合做盐、令牌、回调随机串。
-    基石里二进制统一走十六进制文本，与 `编码.十六进制编码` 一个口径。
+    M113 起返回真正的字节（以前返回十六进制文本——那是没有字节类型时的凑合）。
+    要十六进制文本就再套一层 `编码.十六进制编码(...)`。
     """
     n = int(长度)
     if n < 1:
         raise RunValueError(f"长度要是正整数，现在是 {长度}")
     try:
-        return _py_secrets.token_hex(n)
+        return JishiBytes(_py_secrets.token_bytes(n))
     except (OSError, NotImplementedError) as e:      # 没有熵源
         raise RunError(f"取不到系统随机源：{e}")

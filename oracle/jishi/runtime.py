@@ -185,6 +185,8 @@ def type_name(v) -> str:
         return "小数"
     if isinstance(v, str):
         return "文本"
+    if isinstance(v, JishiBytes):
+        return "字节"
     if isinstance(v, list):
         return "列表"
     if isinstance(v, dict):
@@ -378,6 +380,173 @@ def _to_decimal(v, *, line=None, col=None, filename="<输入>"):
                      "要和文本拼一起就写 文本(精确值) + \"元\"")
     raise RunTypeError(f"不能把「{type_name(v)}」转成精确小数",
                        line=line, col=col, filename=filename)
+
+
+#: 字节显示时最多列几个（D79 §二）。超过就只列前这么多个、再标总数。
+字节显示上限 = 16
+
+
+class JishiBytes:
+    """字节（M113）：**不可变的字节串**（0-255 的一串整数）。
+
+    **为什么要有它**：以前二进制一律拿「0-255 的整数列表」凑合 ——
+    `编码.base64解码` 返列表、`加密.安全随机字节` 干脆返十六进制文本。
+    拿列表当字节有三个毛病：`类型()` 说是「列表」；几十万字节时慢几十倍；
+    而且 `[13, 10]` 与「两个整数的列表」长得一模一样，读代码的人分不清。
+
+    **故意不加字节字面量**（源码里不写 `b"…"`）：那要同时改四种序列化实现
+    与常量池，还会碰 M36 的语法冻结。要造字节就写 `编码.文本字节("甲")`、
+    `编码.十六进制解码("0CFF00")`、`文件.读字节(路径)`。
+    完整取舍见 `docs/设计决策.md` D79。
+
+    ⚠️ **不加 `.方法`**：编解码仍走 `编码` 模块（一个模块一处实现，
+    五个执行器只有一份语义可对）。
+    """
+
+    __slots__ = ("value",)
+
+    def __init__(self, value=b""):
+        if isinstance(value, bool):
+            raise RunTypeError("字节不能从布尔值构造")
+        if isinstance(value, int):
+            raise RunTypeError(
+                f"「{value}」是一个整数，不是一串字节",
+                hint="要一个字节的字节串，写 编码.十六进制解码(两位十六进制)")
+        try:
+            raw = bytes(value)
+        except (TypeError, ValueError):
+            raise RunTypeError(f"不能把「{type_name(value)}」当成字节串")
+        self.value: bytes = raw
+
+    # ------------------------------------------------------------------
+    # 显示：一个值只有一种写法（§7.15）—— 顶层、容器内、REPL 回显全一样。
+    # `字节(0C FF 00)` / `字节()` / 超过 16 个 → `字节(0C FF 01 … 共 1024 个字节)`
+    # ------------------------------------------------------------------
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        n = len(self.value)
+        if n == 0:
+            return "字节()"
+        if n <= 字节显示上限:
+            内容 = " ".join(f"{b:02X}" for b in self.value)
+        else:
+            内容 = (" ".join(f"{b:02X}" for b in self.value[:字节显示上限])
+                    + f" … 共 {n} 个字节")
+        return f"字节({内容})"
+
+    # ------------------------------------------------------------------
+    # 长度 / 下标 / 切片 / 遍历
+    # ------------------------------------------------------------------
+    def __len__(self):
+        return len(self.value)
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return JishiBytes(self.value[i])
+        if isinstance(i, bool) or not isinstance(i, int):
+            raise RunTypeError(
+                f"字节的下标要是整数，不能是「{type_name(i)}」")
+        try:
+            return self.value[i]              # 整数 0-255
+        except IndexError:
+            raise IndexError("字节下标越界") from None
+
+    def __iter__(self):
+        # 与 Python 的 `bytes` 一致：逐个给**整数**（不是再切出一堆单字节串）
+        return iter(self.value)
+
+    # ------------------------------------------------------------------
+    # 拼接 / 重复
+    # ------------------------------------------------------------------
+    def __add__(self, other):
+        if isinstance(other, JishiBytes):
+            return JishiBytes(self.value + other.value)
+        if isinstance(other, (bytes, bytearray, memoryview)):
+            return JishiBytes(self.value + bytes(other))
+        raise RunTypeError(
+            f"字节不能和「{type_name(other)}」拼接",
+            hint="字节只能和字节拼；要接文本先 编码.字节文本(字节) 转过来")
+
+    def __radd__(self, other):
+        if isinstance(other, (bytes, bytearray, memoryview)):
+            return JishiBytes(bytes(other) + self.value)
+        raise RunTypeError(
+            f"「{type_name(other)}」不能和字节拼接",
+            hint="字节只能和字节拼；要接文本先 编码.文本字节(文本) 转过去")
+
+    def _n倍(self, n):
+        if isinstance(n, bool) or not isinstance(n, int):
+            raise RunTypeError(
+                f"字节只能乘整数（表示重复几遍），不能乘「{type_name(n)}」")
+        return JishiBytes(self.value * max(n, 0))       # 与 `文本 * n` 同口径
+
+    def __mul__(self, n):
+        return self._n倍(n)
+
+    def __rmul__(self, n):
+        return self._n倍(n)
+
+    # ------------------------------------------------------------------
+    # 比较：相等逐字节、跨类型给假；比大小只在字节之间（字典序）
+    # ------------------------------------------------------------------
+    def __eq__(self, other):
+        if isinstance(other, JishiBytes):
+            return self.value == other.value
+        if isinstance(other, (bytes, bytearray, memoryview)):
+            return self.value == bytes(other)
+        return NotImplemented                  # 跨类型 → 假，不报错（D79）
+
+    def __ne__(self, other):
+        r = self.__eq__(other)
+        return r if r is NotImplemented else not r
+
+    # 比大小：跨类型返回 NotImplemented → Python 抛 TypeError → apply_compare 翻成
+    # 「不能比较「…」和「…」」（与 Rust / Node 的 cmp_type_msg 同一条，D79 §三）。
+    def __lt__(self, other):
+        if isinstance(other, JishiBytes):
+            return self.value < other.value
+        return NotImplemented
+
+    def __le__(self, other):
+        if isinstance(other, JishiBytes):
+            return self.value <= other.value
+        return NotImplemented
+
+    def __gt__(self, other):
+        if isinstance(other, JishiBytes):
+            return self.value > other.value
+        return NotImplemented
+
+    def __ge__(self, other):
+        if isinstance(other, JishiBytes):
+            return self.value >= other.value
+        return NotImplemented
+
+    def __hash__(self):
+        # 不可变 ⇒ 可以当字典键 / 集合成员（D79）
+        return hash(self.value)
+
+    # ------------------------------------------------------------------
+    # 成员测试：`整数 在 字节` 判「有没有这个字节值」，`字节 在 字节` 判子串
+    # ------------------------------------------------------------------
+    def __contains__(self, item):
+        if isinstance(item, JishiBytes):
+            return item.value in self.value
+        if isinstance(item, bool) or not isinstance(item, int):
+            raise RunTypeError(
+                f"不能在字节里找「{type_name(item)}」",
+                hint="只能找「某个字节值」（整数 0-255）或另一串字节")
+        return item in self.value
+
+    # ------------------------------------------------------------------
+    # 真值：空为假（与 Python 的 `bool(b"")` 一致）
+    # ------------------------------------------------------------------
+    def __bool__(self):
+        return len(self.value) > 0
+
+    # `数值 → 字节` 的转换**不提供**：要显式走 `编码` 模块（D79 §三）
 
 
 class JishiSet:
@@ -779,6 +948,8 @@ def _b_max(*args):
     # 否则这里会走到 `max(())` 再被兜底成「()不能求最大值」，文案对不上。
     if not args:
         raise RunTypeError("「最大」至少要 1 个参数，但传了 0 个")
+    if len(args) == 1:
+        _拒绝单字节当序列(args[0], "最大")
     try:
         if len(args) == 1:
             seq = _single_iterable_arg(args[0])
@@ -798,6 +969,8 @@ def _b_max(*args):
 def _b_min(*args):
     if not args:
         raise RunTypeError("「最小」至少要 1 个参数，但传了 0 个")
+    if len(args) == 1:
+        _拒绝单字节当序列(args[0], "最小")
     try:
         if len(args) == 1:
             seq = _single_iterable_arg(args[0])
@@ -808,12 +981,43 @@ def _b_min(*args):
         raise RunTypeError(f"「{args}」不能求最小值，需要一个非空列表或若干数字")
 
 
+def _拒绝字节当数字(v, 名字: str):
+    """`总和` / `最大` / `最小` / 统计这一族**不许**吃字节（D79 §三）。
+
+    ⚠️ 为什么非要显式拦：字节**是可迭代的**，而它逐个给的是整数 ——
+    不拦的话 `总和(字节)` 会**静默**给出「所有字节值之和」（Python 的
+    `sum(b"abc")` 就是 294），`最大(字节)` 会给出那个字节值最大的数。
+    那不是用户在问的东西，而且**一点报错都没有**。宁可明确说不。
+    """
+    if isinstance(v, JishiBytes):
+        raise RunTypeError(
+            f"「{名字}」不能用在字节上（字节不是数字）",
+            hint="要字节个数用 长度(字节)；要看内容用 编码.十六进制编码(字节)")
+
+
+def _拒绝单字节当序列(v, 名字: str):
+    """`最大` / `最小` 单独收到**一个字节参数**时也要拦（D79 §三）。
+
+    与 `_拒绝字节当数字` 分开，是因为这里的道理不同：`最大(字节)` 会把它当成
+    「一个序列」来……其实不会（字节不在 `_single_iterable_arg` 的白名单里），
+    于是退化成「返回它自己」—— **输入什么就吐什么**，最难发现的那种错。
+    ⚠️ 只拦「单个字节参数」这一种：`最大(字节甲, 字节乙)` 或
+    `最大([字节甲, 字节乙])` 是**按字典序比大小**（`<` 本来就允许），照常放行。
+    """
+    if isinstance(v, JishiBytes):
+        raise RunTypeError(
+            f"「{名字}」不能直接用在字节上",
+            hint="要在一串字节里比大小，把字节放进一个列表再求；"
+                 "要看内容用 编码.十六进制编码(字节)")
+
+
 def _b_sum(v):
     """求列表所有元素的和。
 
     精确小数列表要显式给十进制起点：Python 的 `sum` 默认从整数 0 开始，
     而 `0 + Decimal` 会 TypeError——`总和([精确("0.1"), …])` 不该因此失败。
     """
+    _拒绝字节当数字(v, "总和")
     try:
         items = list(v)
     except TypeError:
@@ -1364,6 +1568,10 @@ def _identity_snapshot(value):
         return ("单例", value)
     if isinstance(value, (int, float, str)):
         return ("值", type(value).__name__, value)
+    if isinstance(value, (JishiBytes, JishiDecimal)):
+        # 不可变的标量按值比：两串内容相同的字节就是「同一个」（M113）。
+        # 与上面 数字/文本 同一条规矩；列表/字典/实例仍按对象身份。
+        return ("值", type(value).__name__, value)
     return ("身份", id(value))
 
 
@@ -1654,11 +1862,12 @@ def set_attr(obj, attr, value, *, line=None, col=None,
 
 
 def get_item(obj, index, *, line=None, col=None, filename="<输入>"):
-    if isinstance(index, slice) and not isinstance(obj, (list, tuple, str)):
+    if isinstance(index, slice) and not isinstance(obj, (list, tuple, str,
+                                                        JishiBytes)):
         # 字典等类型不支持切片：报清楚「什么才能切片」，别漏出
         # `unhashable type: 'slice'` 这种英文（M30，与两个宿主一致）
         raise RunTypeError(
-            f"「{type_name(obj)}」不能切片，切片需要列表或文本",
+            f"「{type_name(obj)}」不能切片，切片需要列表、文本或字节",
             line=line, col=col, filename=filename)
     try:
         return obj[index]

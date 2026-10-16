@@ -195,13 +195,7 @@ fn 读值(v: rusqlite::types::ValueRef<'_>, 列: &str) -> Result<Val, crate::Jis
                 ))
             }
         },
-        VR::Blob(_) => {
-            return Err(err_with_hint(
-                "类型错误",
-                format!("「{列}」这一列存的是二进制，基石没有字节类型，读不出来"),
-                "存的时候先用 编码.base64编码 转成文本；只要看长度就用 数据库.执行查询".into(),
-            ))
-        }
+        VR::Blob(b) => Val::Bytes(std::rc::Rc::new(b.to_vec())), // M113：字节 ↔ BLOB
     })
 }
 
@@ -224,6 +218,8 @@ fn 存值(v: &Val, 字段: &str) -> Result<rusqlite::types::Value, crate::JishiE
         Val::Float(f) => RV::Real(*f),
         Val::Str(s) => RV::Text(s.clone()),
         Val::Date(_) => RV::Text(display(v)), // 与 Python 的 str(datetime) 同口径
+        // M113：字节 ↔ BLOB 原样往返
+        Val::Bytes(b) => RV::Blob(b.as_ref().clone()),
         Val::Dec(_) => match display(v).parse::<f64>() {
             Ok(f) => RV::Real(f), // SQLite 只有浮点，见模块文档
             Err(_) => {

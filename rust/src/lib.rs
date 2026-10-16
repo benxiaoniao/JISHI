@@ -93,6 +93,8 @@ enum DictKey {
     /// 都是真 → 它们的哈希键必须相同（哈希与相等必须一致）。
     Int(i128),
     Str(String),
+    /// 字节（M113）：与 `Val::Bytes` 一一对应，**可以当字典键 / 集合成员**。
+    Bytes(Vec<u8>),
     /// **非整数浮点**（`1.5` / `±inf`）。存 `to_bits()`，`-0.0` 已归一成正零。
     ///
     /// ⚠️ **只有集合用它**（`set_key`）—— 字典**不能**：精确小数可以做字典键，
@@ -322,6 +324,15 @@ pub(crate) enum Val {
     Int(i128),
     Float(f64),
     Str(String),
+    /// 字节（M113）：**不可变的字节串**。见 `docs/设计决策.md` D79。
+    ///
+    /// 显示成 `字节(0C FF 00)`，`类型()` 给「字节」。**故意没有字面量**——
+    /// 那样要动四种序列化实现与常量池，还会碰 M36 的语法冻结；字节只由
+    /// 标准库产生（`编码.文本字节` / `编码.十六进制解码` / `文件.读字节`…）。
+    ///
+    /// ⚠️ 加这个变体时 **`cargo check` 只报得出 1 处**（`display` 没有兜底臂）
+    /// —— 其余语义助手全走 `_ =>`，编译器一声不响。那份语义表见 D79 §三。
+    Bytes(Rc<Vec<u8>>),
     /// 精确小数（M29）。`Rc` 只是为了让 `Val::clone` 便宜；内容不可变。
     Dec(Rc<Dec>),
     /// 日期时间（M33）：`日期.解析` 的返回值。
@@ -463,6 +474,8 @@ fn dict_key(v: &Val) -> Option<DictKey> {
             }
         }
         Val::Str(s) => Some(DictKey::Str(s.clone())),
+        // 字节（M113）：不可变 ⇒ 可以当字典键（D79 §三）
+        Val::Bytes(b) => Some(DictKey::Bytes(b.as_ref().clone())),
         _ => None,
     }
 }
@@ -494,6 +507,8 @@ fn set_key(v: &Val) -> Option<DictKey> {
             }
         }
         Val::Str(s) => Some(DictKey::Str(s.clone())),
+        // 字节（M113）：与 `dict_key` 同一条
+        Val::Bytes(b) => Some(DictKey::Bytes(b.as_ref().clone())),
         _ => None,
     }
 }
@@ -1130,6 +1145,7 @@ pub(crate) fn type_label(v: &Val) -> String {
         Val::Int(_) => "整数".to_string(),
         Val::Float(_) => "小数".to_string(),
         Val::Str(_) => "文本".to_string(),
+        Val::Bytes(_) => "字节".to_string(),
         Val::Dec(_) => "精确小数".to_string(),
         // Python 侧 `类型(日期.解析(…))` 给的就是这个
         Val::Date(_) => "datetime".to_string(),
@@ -3046,11 +3062,33 @@ pub(crate) fn truthy(v: Val) -> bool {
         Val::Int(i) => i != 0,
         Val::Float(f) => f != 0.0,
         Val::Str(s) => !s.is_empty(),
+        // 字节（M113）：空字节是假（与 Python 的 `bool(b"")` 一致）。
+        // ⚠️ 这一条**编译器不会提醒**（下面有 `_ => true` 兜底）—— 漏了的话
+        // `如果 空字节:` 会被当成真。D79 §四就是拿这条当例子的。
+        Val::Bytes(b) => !b.is_empty(),
         Val::Dec(d) => !d.is_zero(),
         Val::List(l) => !l.borrow().is_empty(),
         Val::Dict(d) => !d.borrow().is_empty(),
         Val::Set(s) => !s.borrow().is_empty(),
         _ => true,
+    }
+}
+
+/// 字节值的显示（M113 / D79 §二）：`字节(0C FF 00)` / `字节()` / 超长的截断。
+///
+/// 顶层、容器内、REPL 回显**同一种写法**（§7.15 的规矩）。
+/// 超过 16 个的只列前 16 个 —— 读一个 1 MB 文件不至于刷屏；⚠️ **显示是有损的**，
+/// 要全量内容用 `编码.十六进制编码(…)`（那是**小写、不带空格**，两者用途不同）。
+pub(crate) fn bytes_display(b: &[u8]) -> String {
+    const 显示上限: usize = 16;
+    if b.is_empty() {
+        return "字节()".to_string();
+    }
+    let 头: Vec<String> = b.iter().take(显示上限).map(|x| format!("{x:02X}")).collect();
+    if b.len() <= 显示上限 {
+        format!("字节({})", 头.join(" "))
+    } else {
+        format!("字节({} … 共 {} 个字节)", 头.join(" "), b.len())
     }
 }
 
@@ -3062,6 +3100,8 @@ pub(crate) fn display(v: &Val) -> String {
         Val::Int(i) => i.to_string(),
         Val::Float(f) => format_float(*f),
         Val::Str(s) => s.clone(),
+        // 字节（M113）：`字节(0C FF 00)` —— 见下面的 `bytes_display`
+        Val::Bytes(b) => bytes_display(b),
         // 原样片段显示成它本身（与 Python 侧 `_Raw.__str__` 同行为）
         Val::HtmlRaw(s) => s.clone(),
         Val::Dec(d) => d.to_string(),
@@ -3240,6 +3280,12 @@ fn numeric_add(a: Val, b: Val) -> Result<Val, JishiError> {
         (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x as f64 + y)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x + y)),
         (Val::Str(x), Val::Str(y)) => Ok(Val::Str(x + &y)),
+        // 字节（M113）：只能字节拼字节 —— 与文本拼会掉到 `_` 那条报错（D79 §三）
+        (Val::Bytes(x), Val::Bytes(y)) => {
+            let mut out = x.as_ref().clone();
+            out.extend_from_slice(&y);
+            Ok(Val::Bytes(Rc::new(out)))
+        }
         // `[1] + [2]` 造一个**新**列表，不改动任何一边（Python 语义）
         (Val::List(x), Val::List(y)) => {
             let mut out = x.borrow().clone();
@@ -3264,6 +3310,12 @@ fn numeric_mul(a: Val, b: Val) -> Result<Val, JishiError> {
         (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x as f64 * y)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x * y)),
         (Val::Str(s), Val::Int(n)) | (Val::Int(n), Val::Str(s)) => Ok(Val::Str(s.repeat(n as usize))),
+        // 字节（M113）：重复 n 遍，n <= 0 给空字节（与 `文本 * n` 同口径）
+        (Val::Bytes(b), Val::Int(n)) | (Val::Int(n), Val::Bytes(b)) => {
+            let mut out: Vec<u8> = Vec::new();
+            for _ in 0..n.max(0) { out.extend_from_slice(&b); }
+            Ok(Val::Bytes(Rc::new(out)))
+        }
         // `[1, 2] * 2` 同样造新列表
         (Val::List(l), Val::Int(n)) | (Val::Int(n), Val::List(l)) => {
             let src = l.borrow();
@@ -3439,6 +3491,19 @@ pub(crate) fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
                     _ => return Err(err("运行期错误", "不支持的比较")),
                 }));
             }
+            // 字节对字节按**字典序**（M113，与 Python 的 bytes 一致）。
+            // ⚠️ 与文本同理，不能走下面的 `to_num_pair`（那是转数字的）；
+            // 跨类型则落到 cmp_type_msg 报「不能比较」。
+            if let (Val::Bytes(a), Val::Bytes(b)) = (&l, &r) {
+                let (a, b) = (a.as_slice(), b.as_slice());
+                return Ok(Val::Bool(match op {
+                    2 => a < b,
+                    3 => a > b,
+                    4 => a <= b,
+                    5 => a >= b,
+                    _ => return Err(err("运行期错误", "不支持的比较")),
+                }));
+            }
             // 混了浮点 / 精确小数（精确小数上面已分流）→ 仍走 f64。
             let (la, lb) = (l.clone(), r.clone());
             let (a, b) = to_num_pair(l, r)
@@ -3466,6 +3531,19 @@ fn contains(container: &Val, item: &Val) -> Result<bool, JishiError> {
             Ok(s.contains(&needle))
         }
         Val::Set(s) => Ok(s.borrow().contains(item)),
+        // 字节（M113）：找另一串字节 = 子串；找整数 = 有没有这个字节值
+        // （与 Python 的 `b"a" in b"abc"` / `97 in b"abc"` 两个用法一致）。
+        // 越界的整数给「假」而不是报错 —— 也是 Python 的口径。
+        Val::Bytes(b) => match item {
+            // `空字节 在 任意字节` 为真（与 Python 的 `b"" in b"abc"` 一致）
+            Val::Bytes(t) => Ok(t.is_empty()
+                || b.windows(t.len()).any(|w| w == t.as_slice())),
+            Val::Int(n) => Ok((0..=255).contains(n) && b.contains(&(*n as u8))),
+            Val::Bool(t) => Ok(b.contains(&(if *t { 1u8 } else { 0u8 }))),
+            other => Err(err("类型错误", format!(
+                "不能在字节里找「{}」，只能找某个字节值（整数 0-255）或另一串字节",
+                type_label(other)))),
+        },
         _ => Err(err("类型错误",
             format!("「{}」不能在「{}」里找", display(item), display(container)))),
     }
@@ -3512,6 +3590,9 @@ fn identity_key(v: &Val) -> Result<IdKey, JishiError> {
         Val::Int(i) => Ok(IdKey::Value("整数".into(), i.to_string())),
         Val::Float(f) => Ok(IdKey::Value("小数".into(), f.to_string())),
         Val::Str(s) => Ok(IdKey::Value("文本".into(), s.clone())),
+        // 字节按**值**比（M113）：不可变标量，与「文本」「数字」同一条规矩
+        // （对齐 Python 侧 `_identity_snapshot`）
+        Val::Bytes(b) => Ok(IdKey::Value("字节".into(), format!("{:?}", b))),
         Val::Dec(d) => Ok(IdKey::Value("精确小数".into(), d.to_string())),
         Val::List(l) => Ok(IdKey::Identity(Rc::as_ptr(l) as usize)),
         Val::Dict(d) => Ok(IdKey::Identity(Rc::as_ptr(d) as usize)),
@@ -3560,6 +3641,9 @@ impl PartialEq for Val {
             (Val::Int(a), Val::Float(b)) | (Val::Float(b), Val::Int(a)) => *a as f64 == *b,
             (Val::Float(a), Val::Float(b)) => a == b,
             (Val::Str(a), Val::Str(b)) => a == b,
+            // 字节按内容比（M113）；跨类型走到最后的 `_ => false` —— 也就是
+            // `字节 == 文本` 给「假」而不报错，与 Python 的 bytes 一致（D79 §三）
+            (Val::Bytes(a), Val::Bytes(b)) => a == b,
             // 精确小数按**数值**比（`精确("1.0") == 1` 为真，对齐 Python）
             (Val::Dec(a), Val::Dec(b)) => a.cmp(b) == std::cmp::Ordering::Equal,
             (Val::Date(a), Val::Date(b)) => a == b,
@@ -3737,6 +3821,8 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             Val::List(l) => Ok(Val::Int(l.borrow().len() as i128)),
             Val::Dict(d) => Ok(Val::Int(d.borrow().len() as i128)),
             Val::Set(s) => Ok(Val::Int(s.borrow().len() as i128)),
+            // 字节（M113）：字节个数
+            Val::Bytes(b) => Ok(Val::Int(b.len() as i128)),
             // 定义了「迭代」的自定义对象也能求长度（M24.1）：既然能遍历，
             // 数一数有几个元素是自然的事，不必再要求作者额外写一个方法。
             Val::Instance(i) => {
@@ -4196,7 +4282,43 @@ fn seq_of(args: &[Val], vm: &mut dyn BuiltinHost) -> Result<Option<Vec<Val>>, Ji
     }
 }
 
+/// `总和` / `最大` / `最小` **不许**吃字节（M113 / D79 §三）。
+///
+/// ⚠️ 为什么非要显式拦：字节**是可迭代的**（`as_iterable` 会把它摊成整数），
+/// 不拦的话 `总和(字节)` 会**静默**给出「所有字节值之和」——那不是用户在问的
+/// 东西，而且一点报错都没有。宁可明确说不。
+fn 拒绝字节当数字(v: &Val, 名字: &str) -> Result<(), JishiError> {
+    if matches!(v, Val::Bytes(_)) {
+        return Err(err_with_hint(
+            "类型错误",
+            format!("「{名字}」不能用在字节上（字节不是数字）"),
+            "要字节个数用 长度(字节)；要看内容用 编码.十六进制编码(字节)".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// `最大` / `最小` 单独收到**一个字节参数**时也要拦（M113 / D79 §三）。
+///
+/// 与 `拒绝字节当数字` 分开，是因为道理不同：`最大(字节)` 不会把它当序列
+/// （字节不在 `seq_of` 的白名单里），于是退化成「**返回它自己**」—— 输入什么
+/// 就吐什么，最难发现的那种错。
+/// ⚠️ 只拦「单个字节参数」这一种：`最大(字节甲, 字节乙)` 或
+/// `最大([字节甲, 字节乙])` 是**按字典序比大小**（`<` 本来就允许），放行。
+fn 拒绝单字节当序列(v: &Val, 名字: &str) -> Result<(), JishiError> {
+    if matches!(v, Val::Bytes(_)) {
+        return Err(err_with_hint(
+            "类型错误",
+            format!("「{名字}」不能直接用在字节上"),
+            "要在一串字节里比大小，把字节放进一个列表再求；要看内容用 编码.十六进制编码(字节)"
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+
 fn b_max(args: &[Val], vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
+    if args.len() == 1 { 拒绝单字节当序列(&args[0], "最大")?; }
     if let Some(seq) = seq_of(args, vm)? {
         // 照 Python 的 `_b_max`：**类型与文案都对齐**（Python 侧是
         // `RunTypeError` + 「「[]」不能求最大值，需要一个非空列表或若干数字」）。
@@ -4213,6 +4335,7 @@ fn b_max(args: &[Val], vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
 }
 
 fn b_min(args: &[Val], vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
+    if args.len() == 1 { 拒绝单字节当序列(&args[0], "最小")?; }
     if let Some(seq) = seq_of(args, vm)? {
         return seq.into_iter().min_by(cmp_vals)
             .ok_or_else(|| err("值错误", "空序列求不了最小值"));
@@ -4227,6 +4350,7 @@ fn b_min(args: &[Val], vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
 /// 而 `总和([精确("0.1"), …])` 不该因此失败（对齐 Python 侧 `_b_sum`）。
 fn b_sum(args: &[Val], _vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
     let v = args.first().ok_or_else(|| err("类型错误", "「总和」需要一个列表"))?;
+    拒绝字节当数字(v, "总和")?;
     let items = as_iterable(v, "总和的参数")?;
     let has_dec = items.iter().any(|x| matches!(x, Val::Dec(_)));
     if has_dec {
@@ -4544,9 +4668,18 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
                         .collect(),
                 ))
             }
+            Val::Bytes(b) => {
+                let (a, bb, st) = slice_indices(sl, b.len())?;
+                Ok(Val::Bytes(Rc::new(
+                    slice_positions(a, bb, st)
+                        .into_iter()
+                        .filter_map(|i| b.get(i as usize).copied())
+                        .collect::<Vec<u8>>(),
+                )))
+            }
             other => Err(err(
                 "类型错误",
-                format!("「{}」不能切片，切片需要列表或文本", type_label(other)),
+                format!("「{}」不能切片，切片需要列表、文本或字节", type_label(other)),
             )),
         };
     }
@@ -4558,6 +4691,11 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
                 None => Err(err("索引错误", INDEX_MSG)),
             }
         }
+        // 字节（M113）：下标给**整数** 0-255（与 Python 的 `b"abc"[0]` 一致）
+        (Val::Bytes(b), Val::Int(i)) => match norm_index(i, b.len()) {
+            Some(j) => Ok(Val::Int(b[j] as i128)),
+            None => Err(err("索引错误", BYTES_INDEX_MSG)),
+        },
         (Val::Dict(d), k) => dict_get(&d.borrow(), &k).ok_or_else(|| err("键错误", missing_key_msg(&k))),
         (Val::Str(s), Val::Int(i)) => {
             let n = s.chars().count();
@@ -4890,6 +5028,10 @@ fn as_iterable(v: &Val, what: &str) -> Result<Vec<Val>, JishiError> {
         Val::List(l) => Ok(l.borrow().clone()),
         Val::Set(s) => Ok(s.borrow().to_items()),
         Val::Str(s) => Ok(s.chars().map(|c| Val::Str(c.to_string())).collect()),
+        // 字节（M113）：逐个给**整数** 0-255（与 Python 的 `list(b"abc")` 一致）。
+        // ⚠️ 这一点务必记牢：`总和(字节)` 会因此**静默**变成「字节值之和」——
+        // 所以 `b_sum` / `b_max` / `b_min` 里各有一条显式拦截（D79 §三）。
+        Val::Bytes(b) => Ok(b.iter().map(|x| Val::Int(*x as i128)).collect()),
         Val::Dict(d) => Ok(d.borrow().iter().map(|(k, _)| k.clone()).collect()),
         other => Err(err("类型错误", format!(
             "「{}」不能当{what}用，需要列表、文本、集合或字典", display(other)))),
@@ -5001,6 +5143,7 @@ pub(crate) fn exception_matches(exc: &Val, cond: &Val) -> Result<bool, JishiErro
 /// 下标越界的文案（Python 侧 `_INDEX_ZH` 那张表：列表 / 文本分开说）。
 pub(crate) const INDEX_MSG: &str = "列表下标越界";
 pub(crate) const STR_INDEX_MSG: &str = "文本下标越界";
+pub(crate) const BYTES_INDEX_MSG: &str = "字节下标越界";
 
 /// `字典里没有键「x」` —— 与 Python 侧 `_key_error_zh` 逐字对齐。
 ///
@@ -5125,6 +5268,10 @@ pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
         }
         Val::Str(s) => Ok(reversed_iter(
             s.chars().map(|c| Val::Str(c.to_string())).collect())),
+        // 字节（M113）：**快照**就行 —— 字节本来就不可变，不存在
+        // 「遍历中改大小」那种问题。逐个给整数 0-255。
+        Val::Bytes(b) => Ok(reversed_iter(
+            b.iter().map(|x| Val::Int(*x as i128)).collect())),
         Val::Dict(d) => {
             let items: Vec<Val> = d.borrow().iter().map(|(k, _)| k.clone()).collect();
             let expect = items.len();
@@ -5145,6 +5292,9 @@ pub(crate) fn container_len(v: &Val) -> Option<usize> {
     match v {
         Val::Set(s) => Some(s.borrow().len()),
         Val::Dict(d) => Some(d.borrow().len()),
+        // 字节是不可变的，没有「遍历中改大小」的问题，但大小还是要给
+        // （`长度(字节)` 走的就是它）
+        Val::Bytes(b) => Some(b.len()),
         _ => None,
     }
 }
@@ -5610,6 +5760,9 @@ fn try_cmp_vals(a: &Val, b: &Val) -> Option<std::cmp::Ordering> {
         (Val::Float(x), Val::Int(y)) => x.partial_cmp(&(*y as f64)),
         (Val::Float(x), Val::Float(y)) => x.partial_cmp(y),
         (Val::Str(x), Val::Str(y)) => Some(x.cmp(y)),
+        // 字节之间按**字典序**比（M113，与 Python 的 bytes 一致）；
+        // 与其它类型混着比会落到 `_` 分支 → None → 调用方报「不能比较」
+        (Val::Bytes(x), Val::Bytes(y)) => Some(x.cmp(y)),
         // 精确小数参加排序/最值：先转十进制再比（对齐 Python 侧
         // `JishiDecimal.__lt__` 等，让 `最大`/`列表.排序` 能用）
         (Val::Dec(x), Val::Dec(y)) => Some(x.cmp(y)),

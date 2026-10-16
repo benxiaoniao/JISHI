@@ -519,7 +519,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("提交JSON", args, 2, 4)?;
             let raw = as_text(&args[0]);
             let t = timeout_of(args, 2)?;
-            let body = crate::stdlib::jsonmod::to_text(&args[1], None).into_bytes();
+            let body = crate::stdlib::jsonmod::to_text(&args[1], None)?.into_bytes();
             let mut h = 请求头(args.get(3))?;
             if !h.iter().any(|(k, _)| k.eq_ignore_ascii_case("content-type")) {
                 h.push(("Content-Type".to_string(),

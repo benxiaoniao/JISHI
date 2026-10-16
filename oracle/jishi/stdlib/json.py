@@ -6,12 +6,29 @@ from __future__ import annotations
 import json as _py_json
 
 from ..errors import RunValueError
+from ..runtime import JishiBytes
 
 __all__ = ["转文本", "解析", "读文件", "写文件"]
 
 
+def _找字节(对象) -> None:
+    """找结构里有没有字节：JSON 没有二进制，字节必须显式转文本（D79 §三）。"""
+    if isinstance(对象, JishiBytes):
+        raise RunValueError(
+            "JSON 里放不了字节",
+            hint="JSON 只有文本，先把字节转成文本再放，比如 编码.base64编码(字节)")
+    if isinstance(对象, dict):
+        for k, v in 对象.items():
+            _找字节(k)
+            _找字节(v)
+    elif isinstance(对象, (list, tuple, set, frozenset)):
+        for x in 对象:
+            _找字节(x)
+
+
 def 转文本(对象, 缩进: int = None) -> str:
     """把列表/字典等转成 JSON 文本（中文不转义成 \\uXXXX）。"""
+    _找字节(对象)
     try:
         return _py_json.dumps(对象, ensure_ascii=False, indent=缩进,
                               default=str)

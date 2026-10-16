@@ -30,12 +30,11 @@
 | 空 | NULL | 空 |
 | 日期时间 | 文本（`2026-09-01 00:00:00`） | 文本 |
 | 精确小数 | 浮点 | 浮点（**会丢精度**） |
+| **字节** | BLOB | **字节**（原样往返） |
 | 列表 / 字典 / 别的 | **报错** | — |
 
 * ⚠️ **整数上限 ±9.2e18**（SQLite 的 `INTEGER` 是 8 字节）：再大就**明确报错**，
   不会静默截断。
-* ⚠️ **基石没有「字节」类型**，所以库里若存了二进制，读出来会**明确报错**
-  （存之前用 `编码.base64编码` 转成文本）。
 
 ⚠️ **钱要一分不差就别用浮点**：把金额存成**整数分**（`2550` 而不是 `25.50`），
 显示时再除 100。浮点存一两笔看着没事，几千笔累加就会差几分。
@@ -44,7 +43,7 @@
 from __future__ import annotations
 
 from ..errors import RunError, RunFileError, RunTypeError, RunValueError
-from ..runtime import JishiDecimal, type_name
+from ..runtime import JishiDecimal, JishiBytes, type_name
 
 __all__ = [
     "打开", "关闭", "表们", "有表", "建表", "建索引",
@@ -116,10 +115,10 @@ def __基石新建__() -> dict:
             return float(值)                     # SQLite 只有浮点，见模块文档
         if isinstance(值, JishiDecimal):
             return float(值.value)               # 基石侧是包装类，见 runtime.py
+        if isinstance(值, JishiBytes):
+            return 值.value                      # M113：字节 ↔ BLOB 原样往返
         if isinstance(值, (bytes, bytearray, memoryview)):
-            raise RunTypeError(
-                f"「{字段}」这个值是二进制，基石没有字节类型，存不进数据库",
-                hint="先用 编码.base64编码(值) 转成文本再存")
+            return bytes(值)
         if isinstance(值, dict):
             raise RunTypeError(
                 f"「{字段}」这个值是「字典」，存不进数据库",
@@ -133,12 +132,9 @@ def __基石新建__() -> dict:
             hint="数据库里只放 整数 / 浮点 / 文本 / 真假 / 空 / 日期")
 
     def _取(值, 列="值"):
-        """SQLite 的值 → 基石的值。二进制读不出来，**明确报错**、不静默。"""
+        """SQLite 的值 → 基石的值。BLOB 读成**字节**（M113）。"""
         if isinstance(值, (bytes, bytearray, memoryview)):
-            raise RunTypeError(
-                f"「{列}」这一列存的是二进制，基石没有字节类型，读不出来",
-                hint="存的时候先用 编码.base64编码 转成文本；"
-                     "只要看长度就用 数据库.执行查询")
+            return JishiBytes(值)
         return 值
 
     def _连接(库):
