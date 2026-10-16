@@ -380,17 +380,24 @@ fn 字节(v: &Val) -> Vec<u8> {
 }
 
 /// 算法名归一化（转小写、去掉 `-` 与 `_`），再查表。
-fn normalize(algo: &Val) -> Result<String, JishiError> {
-    let raw = as_text(algo);
-    let key = raw.to_lowercase().replace(['-', '_'], "");
+/// 摘要算法名（**文本**）→ 归一化，不认就报错。
+///
+/// `文件摘要` 与 `并发.批量摘要` 共用这一条，保证两处**报的是同一句话**
+/// （M114；与 Python 侧 `加密._归一摘要算法` 同口径）。
+pub(crate) fn 归一算法(名: &str) -> Result<String, JishiError> {
+    let key = 名.to_lowercase().replace(['-', '_'], "");
     if matches!(key.as_str(), "md5" | "sha1" | "sha256" | "sha512") {
         Ok(key)
     } else {
         Err(err(
             "值错误",
-            format!("不支持的摘要算法「{raw}」，可选：md5/sha1/sha256/sha512"),
+            format!("不支持的摘要算法「{名}」，可选：md5/sha1/sha256/sha512"),
         ))
     }
+}
+
+fn normalize(algo: &Val) -> Result<String, JishiError> {
+    归一算法(&as_text(algo))
 }
 
 /// 原始摘要字节（HMAC / PBKDF2 要用字节，不能拿十六进制串去拼）。
@@ -467,7 +474,7 @@ fn pbkdf2(algo: &str, pwd: &[u8], salt: &[u8], iters: u32) -> Vec<u8> {
     t
 }
 
-fn digest(algo: &str, data: &[u8]) -> String {
+pub(crate) fn digest(algo: &str, data: &[u8]) -> String {
     hex_digest(algo, data)
 }
 

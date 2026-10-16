@@ -6,26 +6,8 @@
         "col": 1,
         "from_local": false,
         "from_python": false,
-        "line": 9,
-        "name": "加密",
-        "类型": "Import"
-      },
-      {
-        "alias": null,
-        "col": 1,
-        "from_local": false,
-        "from_python": false,
-        "line": 10,
-        "name": "路径",
-        "类型": "Import"
-      },
-      {
-        "alias": null,
-        "col": 1,
-        "from_local": false,
-        "from_python": false,
         "line": 11,
-        "name": "文本",
+        "name": "并发",
         "类型": "Import"
       },
       {
@@ -34,7 +16,7 @@
         "from_local": false,
         "from_python": false,
         "line": 12,
-        "name": "时间",
+        "name": "加密",
         "类型": "Import"
       },
       {
@@ -43,6 +25,33 @@
         "from_local": false,
         "from_python": false,
         "line": 13,
+        "name": "路径",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 14,
+        "name": "文本",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 15,
+        "name": "时间",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 16,
         "name": "系统",
         "类型": "Import"
       },
@@ -53,20 +62,19 @@
         "body": [
           {
             "col": 5,
-            "line": 17,
+            "line": 20,
             "op": "=",
             "target": {
               "col": 7,
               "id": "结果",
-              "line": 17,
+              "line": 20,
               "类型": "Name"
             },
             "value": {
               "col": 12,
-              "keys": [],
-              "line": 17,
-              "values": [],
-              "类型": "Dict"
+              "elements": [],
+              "line": 20,
+              "类型": "List"
             },
             "类型": "Assign"
           },
@@ -74,77 +82,79 @@
             "body": [
               {
                 "col": 9,
-                "line": 19,
-                "op": "=",
-                "target": {
-                  "col": 11,
-                  "index": {
-                    "col": 12,
-                    "id": "f",
-                    "line": 19,
-                    "类型": "Name"
-                  },
-                  "line": 19,
-                  "obj": {
-                    "col": 9,
-                    "id": "结果",
-                    "line": 19,
-                    "类型": "Name"
-                  },
-                  "类型": "Subscript"
-                },
-                "value": {
+                "expr": {
                   "args": [
                     {
-                      "col": 25,
-                      "id": "f",
-                      "line": 19,
-                      "类型": "Name"
+                      "args": [
+                        {
+                          "col": 23,
+                          "id": "f",
+                          "line": 22,
+                          "类型": "Name"
+                        }
+                      ],
+                      "col": 22,
+                      "func": {
+                        "attr": "文件摘要",
+                        "col": 17,
+                        "line": 22,
+                        "obj": {
+                          "col": 15,
+                          "id": "加密",
+                          "line": 22,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 22,
+                      "类型": "Call"
                     }
                   ],
-                  "col": 24,
+                  "col": 14,
                   "func": {
-                    "attr": "文件摘要",
-                    "col": 19,
-                    "line": 19,
+                    "attr": "追加",
+                    "col": 11,
+                    "line": 22,
                     "obj": {
-                      "col": 17,
-                      "id": "加密",
-                      "line": 19,
+                      "col": 9,
+                      "id": "结果",
+                      "line": 22,
                       "类型": "Name"
                     },
                     "类型": "Attr"
                   },
                   "keywords": [],
-                  "line": 19,
+                  "line": 22,
                   "类型": "Call"
                 },
-                "类型": "Assign"
+                "line": 22,
+                "类型": "ExprStmt"
               }
             ],
             "col": 5,
             "iter": {
               "col": 12,
               "id": "文件们",
-              "line": 18,
+              "line": 21,
               "类型": "Name"
             },
-            "line": 18,
+            "line": 21,
             "target": {
               "col": 8,
               "id": "f",
-              "line": 18,
+              "line": 21,
               "类型": "Name"
             },
             "类型": "For"
           },
           {
             "col": 5,
-            "line": 20,
+            "line": 23,
             "value": {
               "col": 8,
               "id": "结果",
-              "line": 20,
+              "line": 23,
               "类型": "Name"
             },
             "类型": "Return"
@@ -154,8 +164,60 @@
         "defaults": [
           null
         ],
-        "line": 16,
+        "line": 19,
         "name": "逐个摘要",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "文件们"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 28,
+            "value": {
+              "args": [
+                {
+                  "col": 16,
+                  "id": "文件们",
+                  "line": 28,
+                  "类型": "Name"
+                }
+              ],
+              "col": 15,
+              "func": {
+                "attr": "批量摘要",
+                "col": 10,
+                "line": 28,
+                "obj": {
+                  "col": 8,
+                  "id": "并发",
+                  "line": 28,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 28,
+              "类型": "Call"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 26,
+        "name": "并发摘要",
         "param_kind": [
           0
         ],
@@ -170,12 +232,12 @@
         "body": [
           {
             "col": 5,
-            "line": 24,
+            "line": 32,
             "op": "=",
             "target": {
               "col": 7,
               "id": "参数们",
-              "line": 24,
+              "line": 32,
               "类型": "Name"
             },
             "value": {
@@ -184,17 +246,17 @@
               "func": {
                 "attr": "参数",
                 "col": 15,
-                "line": 24,
+                "line": 32,
                 "obj": {
                   "col": 13,
                   "id": "系统",
-                  "line": 24,
+                  "line": 32,
                   "类型": "Name"
                 },
                 "类型": "Attr"
               },
               "keywords": [],
-              "line": 24,
+              "line": 32,
               "类型": "Call"
             },
             "类型": "Assign"
@@ -207,7 +269,7 @@
                   "comparators": [
                     {
                       "col": 19,
-                      "line": 25,
+                      "line": 33,
                       "value": 0,
                       "类型": "Num"
                     }
@@ -217,7 +279,7 @@
                       {
                         "col": 11,
                         "id": "参数们",
-                        "line": 25,
+                        "line": 33,
                         "类型": "Name"
                       }
                     ],
@@ -225,14 +287,14 @@
                     "func": {
                       "col": 8,
                       "id": "长度",
-                      "line": 25,
+                      "line": 33,
                       "类型": "Name"
                     },
                     "keywords": [],
-                    "line": 25,
+                    "line": 33,
                     "类型": "Call"
                   },
-                  "line": 25,
+                  "line": 33,
                   "ops": [
                     "=="
                   ],
@@ -245,7 +307,7 @@
                       "args": [
                         {
                           "col": 12,
-                          "line": 26,
+                          "line": 34,
                           "value": "用法：jishi 批量.jsh <目录> [后缀]",
                           "类型": "Str"
                         }
@@ -254,14 +316,14 @@
                       "func": {
                         "col": 9,
                         "id": "打印",
-                        "line": 26,
+                        "line": 34,
                         "类型": "Name"
                       },
                       "keywords": [],
-                      "line": 26,
+                      "line": 34,
                       "类型": "Call"
                     },
-                    "line": 26,
+                    "line": 34,
                     "类型": "ExprStmt"
                   }
                 ]
@@ -269,7 +331,7 @@
               [
                 {
                   "col": 10,
-                  "line": 27,
+                  "line": 35,
                   "op": "非",
                   "operand": {
                     "args": [
@@ -277,15 +339,15 @@
                         "col": 22,
                         "index": {
                           "col": 23,
-                          "line": 27,
+                          "line": 35,
                           "value": 0,
                           "类型": "Num"
                         },
-                        "line": 27,
+                        "line": 35,
                         "obj": {
                           "col": 19,
                           "id": "参数们",
-                          "line": 27,
+                          "line": 35,
                           "类型": "Name"
                         },
                         "类型": "Subscript"
@@ -295,17 +357,17 @@
                     "func": {
                       "attr": "是目录",
                       "col": 14,
-                      "line": 27,
+                      "line": 35,
                       "obj": {
                         "col": 12,
                         "id": "路径",
-                        "line": 27,
+                        "line": 35,
                         "类型": "Name"
                       },
                       "类型": "Attr"
                     },
                     "keywords": [],
-                    "line": 27,
+                    "line": 35,
                     "类型": "Call"
                   },
                   "类型": "UnaryOp"
@@ -319,7 +381,7 @@
                           "args": [
                             {
                               "col": 19,
-                              "line": 28,
+                              "line": 36,
                               "value": "「{}」不是目录",
                               "类型": "Str"
                             },
@@ -327,15 +389,15 @@
                               "col": 34,
                               "index": {
                                 "col": 35,
-                                "line": 28,
+                                "line": 36,
                                 "value": 0,
                                 "类型": "Num"
                               },
-                              "line": 28,
+                              "line": 36,
                               "obj": {
                                 "col": 31,
                                 "id": "参数们",
-                                "line": 28,
+                                "line": 36,
                                 "类型": "Name"
                               },
                               "类型": "Subscript"
@@ -345,17 +407,17 @@
                           "func": {
                             "attr": "格式化",
                             "col": 14,
-                            "line": 28,
+                            "line": 36,
                             "obj": {
                               "col": 12,
                               "id": "文本",
-                              "line": 28,
+                              "line": 36,
                               "类型": "Name"
                             },
                             "类型": "Attr"
                           },
                           "keywords": [],
-                          "line": 28,
+                          "line": 36,
                           "类型": "Call"
                         }
                       ],
@@ -363,45 +425,45 @@
                       "func": {
                         "col": 9,
                         "id": "打印",
-                        "line": 28,
+                        "line": 36,
                         "类型": "Name"
                       },
                       "keywords": [],
-                      "line": 28,
+                      "line": 36,
                       "类型": "Call"
                     },
-                    "line": 28,
+                    "line": 36,
                     "类型": "ExprStmt"
                   }
                 ]
               ]
             ],
             "col": 5,
-            "line": 25,
+            "line": 33,
             "orelse": [
               {
                 "col": 9,
-                "line": 30,
+                "line": 38,
                 "op": "=",
                 "target": {
                   "col": 11,
                   "id": "目录",
-                  "line": 30,
+                  "line": 38,
                   "类型": "Name"
                 },
                 "value": {
                   "col": 19,
                   "index": {
                     "col": 20,
-                    "line": 30,
+                    "line": 38,
                     "value": 0,
                     "类型": "Num"
                   },
-                  "line": 30,
+                  "line": 38,
                   "obj": {
                     "col": 16,
                     "id": "参数们",
-                    "line": 30,
+                    "line": 38,
                     "类型": "Name"
                   },
                   "类型": "Subscript"
@@ -410,12 +472,12 @@
               },
               {
                 "col": 9,
-                "line": 31,
+                "line": 39,
                 "op": "=",
                 "target": {
                   "col": 11,
                   "id": "后缀",
-                  "line": 31,
+                  "line": 39,
                   "类型": "Name"
                 },
                 "value": {
@@ -432,7 +494,7 @@
                               "comparators": [
                                 {
                                   "col": 36,
-                                  "line": 31,
+                                  "line": 39,
                                   "value": 1,
                                   "类型": "Num"
                                 }
@@ -442,7 +504,7 @@
                                   {
                                     "col": 29,
                                     "id": "参数们",
-                                    "line": 31,
+                                    "line": 39,
                                     "类型": "Name"
                                   }
                                 ],
@@ -450,14 +512,14 @@
                                 "func": {
                                   "col": 26,
                                   "id": "长度",
-                                  "line": 31,
+                                  "line": 39,
                                   "类型": "Name"
                                 },
                                 "keywords": [],
-                                "line": 31,
+                                "line": 39,
                                 "类型": "Call"
                               },
-                              "line": 31,
+                              "line": 39,
                               "ops": [
                                 ">"
                               ],
@@ -466,20 +528,20 @@
                             [
                               {
                                 "col": 19,
-                                "line": 31,
+                                "line": 39,
                                 "value": {
                                   "col": 19,
                                   "index": {
                                     "col": 20,
-                                    "line": 31,
+                                    "line": 39,
                                     "value": 1,
                                     "类型": "Num"
                                   },
-                                  "line": 31,
+                                  "line": 39,
                                   "obj": {
                                     "col": 16,
                                     "id": "参数们",
-                                    "line": 31,
+                                    "line": 39,
                                     "类型": "Name"
                                   },
                                   "类型": "Subscript"
@@ -490,14 +552,14 @@
                           ]
                         ],
                         "col": 23,
-                        "line": 31,
+                        "line": 39,
                         "orelse": [
                           {
                             "col": 41,
-                            "line": 31,
+                            "line": 39,
                             "value": {
                               "col": 41,
-                              "line": 31,
+                              "line": 39,
                               "value": "",
                               "类型": "Str"
                             },
@@ -509,26 +571,26 @@
                     ],
                     "col": 23,
                     "defaults": [],
-                    "line": 31,
+                    "line": 39,
                     "name": "匿名函数",
                     "param_kind": [],
                     "params": [],
                     "类型": "Lambda"
                   },
                   "keywords": [],
-                  "line": 31,
+                  "line": 39,
                   "类型": "Call"
                 },
                 "类型": "Assign"
               },
               {
                 "col": 9,
-                "line": 32,
+                "line": 40,
                 "op": "=",
                 "target": {
                   "col": 11,
                   "id": "相对们",
-                  "line": 32,
+                  "line": 40,
                   "类型": "Name"
                 },
                 "value": {
@@ -536,13 +598,13 @@
                     {
                       "col": 25,
                       "id": "目录",
-                      "line": 32,
+                      "line": 40,
                       "类型": "Name"
                     },
                     {
                       "col": 29,
                       "id": "后缀",
-                      "line": 32,
+                      "line": 40,
                       "类型": "Name"
                     }
                   ],
@@ -550,29 +612,29 @@
                   "func": {
                     "attr": "递归列出",
                     "col": 19,
-                    "line": 32,
+                    "line": 40,
                     "obj": {
                       "col": 17,
                       "id": "路径",
-                      "line": 32,
+                      "line": 40,
                       "类型": "Name"
                     },
                     "类型": "Attr"
                   },
                   "keywords": [],
-                  "line": 32,
+                  "line": 40,
                   "类型": "Call"
                 },
                 "类型": "Assign"
               },
               {
                 "col": 9,
-                "line": 33,
+                "line": 41,
                 "op": "=",
                 "target": {
                   "col": 11,
                   "id": "文件们",
-                  "line": 33,
+                  "line": 41,
                   "类型": "Name"
                 },
                 "value": {
@@ -583,13 +645,13 @@
                       {
                         "col": 24,
                         "id": "目录",
-                        "line": 33,
+                        "line": 41,
                         "类型": "Name"
                       },
                       {
                         "col": 28,
                         "id": "f",
-                        "line": 33,
+                        "line": 41,
                         "类型": "Name"
                       }
                     ],
@@ -597,32 +659,32 @@
                     "func": {
                       "attr": "连接",
                       "col": 20,
-                      "line": 33,
+                      "line": 41,
                       "obj": {
                         "col": 18,
                         "id": "路径",
-                        "line": 33,
+                        "line": 41,
                         "类型": "Name"
                       },
                       "类型": "Attr"
                     },
                     "keywords": [],
-                    "line": 33,
+                    "line": 41,
                     "类型": "Call"
                   },
                   "iter": {
                     "col": 38,
                     "id": "相对们",
-                    "line": 33,
+                    "line": 41,
                     "类型": "Name"
                   },
                   "key": null,
                   "kind": "list",
-                  "line": 33,
+                  "line": 41,
                   "target": {
                     "col": 34,
                     "id": "f",
-                    "line": 33,
+                    "line": 41,
                     "类型": "Name"
                   },
                   "value": null,
@@ -638,28 +700,28 @@
                       "args": [
                         {
                           "col": 19,
-                          "line": 34,
-                          "value": "共 {} 个文件，逐个算摘要…",
+                          "line": 42,
+                          "value": "共 {} 个文件。",
                           "类型": "Str"
                         },
                         {
                           "args": [
                             {
-                              "col": 41,
+                              "col": 35,
                               "id": "文件们",
-                              "line": 34,
+                              "line": 42,
                               "类型": "Name"
                             }
                           ],
-                          "col": 40,
+                          "col": 34,
                           "func": {
-                            "col": 38,
+                            "col": 32,
                             "id": "长度",
-                            "line": 34,
+                            "line": 42,
                             "类型": "Name"
                           },
                           "keywords": [],
-                          "line": 34,
+                          "line": 42,
                           "类型": "Call"
                         }
                       ],
@@ -667,347 +729,18 @@
                       "func": {
                         "attr": "格式化",
                         "col": 14,
-                        "line": 34,
+                        "line": 42,
                         "obj": {
                           "col": 12,
                           "id": "文本",
-                          "line": 34,
+                          "line": 42,
                           "类型": "Name"
                         },
                         "类型": "Attr"
                       },
                       "keywords": [],
-                      "line": 34,
-                      "类型": "Call"
-                    }
-                  ],
-                  "col": 11,
-                  "func": {
-                    "col": 9,
-                    "id": "打印",
-                    "line": 34,
-                    "类型": "Name"
-                  },
-                  "keywords": [],
-                  "line": 34,
-                  "类型": "Call"
-                },
-                "line": 34,
-                "类型": "ExprStmt"
-              },
-              {
-                "col": 9,
-                "line": 35,
-                "op": "=",
-                "target": {
-                  "col": 11,
-                  "id": "开始",
-                  "line": 35,
-                  "类型": "Name"
-                },
-                "value": {
-                  "args": [],
-                  "col": 24,
-                  "func": {
-                    "attr": "高精度时间",
-                    "col": 18,
-                    "line": 35,
-                    "obj": {
-                      "col": 16,
-                      "id": "时间",
-                      "line": 35,
-                      "类型": "Name"
-                    },
-                    "类型": "Attr"
-                  },
-                  "keywords": [],
-                  "line": 35,
-                  "类型": "Call"
-                },
-                "类型": "Assign"
-              },
-              {
-                "col": 9,
-                "line": 36,
-                "op": "=",
-                "target": {
-                  "col": 11,
-                  "id": "结果",
-                  "line": 36,
-                  "类型": "Name"
-                },
-                "value": {
-                  "args": [
-                    {
-                      "col": 21,
-                      "id": "文件们",
-                      "line": 36,
-                      "类型": "Name"
-                    }
-                  ],
-                  "col": 20,
-                  "func": {
-                    "col": 16,
-                    "id": "逐个摘要",
-                    "line": 36,
-                    "类型": "Name"
-                  },
-                  "keywords": [],
-                  "line": 36,
-                  "类型": "Call"
-                },
-                "类型": "Assign"
-              },
-              {
-                "col": 9,
-                "line": 37,
-                "op": "=",
-                "target": {
-                  "col": 11,
-                  "id": "用时",
-                  "line": 37,
-                  "类型": "Name"
-                },
-                "value": {
-                  "col": 27,
-                  "left": {
-                    "args": [],
-                    "col": 24,
-                    "func": {
-                      "attr": "高精度时间",
-                      "col": 18,
-                      "line": 37,
-                      "obj": {
-                        "col": 16,
-                        "id": "时间",
-                        "line": 37,
-                        "类型": "Name"
-                      },
-                      "类型": "Attr"
-                    },
-                    "keywords": [],
-                    "line": 37,
-                    "类型": "Call"
-                  },
-                  "line": 37,
-                  "op": "-",
-                  "right": {
-                    "col": 29,
-                    "id": "开始",
-                    "line": 37,
-                    "类型": "Name"
-                  },
-                  "类型": "BinOp"
-                },
-                "类型": "Assign"
-              },
-              {
-                "col": 9,
-                "expr": {
-                  "args": [
-                    {
-                      "args": [
-                        {
-                          "col": 19,
-                          "line": 38,
-                          "value": "逐个处理用了 {:.3f} 秒",
-                          "类型": "Str"
-                        },
-                        {
-                          "col": 38,
-                          "id": "用时",
-                          "line": 38,
-                          "类型": "Name"
-                        }
-                      ],
-                      "col": 18,
-                      "func": {
-                        "attr": "格式化",
-                        "col": 14,
-                        "line": 38,
-                        "obj": {
-                          "col": 12,
-                          "id": "文本",
-                          "line": 38,
-                          "类型": "Name"
-                        },
-                        "类型": "Attr"
-                      },
-                      "keywords": [],
-                      "line": 38,
-                      "类型": "Call"
-                    }
-                  ],
-                  "col": 11,
-                  "func": {
-                    "col": 9,
-                    "id": "打印",
-                    "line": 38,
-                    "类型": "Name"
-                  },
-                  "keywords": [],
-                  "line": 38,
-                  "类型": "Call"
-                },
-                "line": 38,
-                "类型": "ExprStmt"
-              },
-              {
-                "body": [
-                  {
-                    "col": 13,
-                    "expr": {
-                      "args": [
-                        {
-                          "col": 40,
-                          "left": {
-                            "col": 33,
-                            "left": {
-                              "col": 21,
-                              "left": {
-                                "col": 16,
-                                "line": 40,
-                                "value": "  ",
-                                "类型": "Str"
-                              },
-                              "line": 40,
-                              "op": "+",
-                              "right": {
-                                "args": [
-                                  {
-                                    "col": 30,
-                                    "id": "f",
-                                    "line": 40,
-                                    "类型": "Name"
-                                  }
-                                ],
-                                "col": 29,
-                                "func": {
-                                  "attr": "文件名",
-                                  "col": 25,
-                                  "line": 40,
-                                  "obj": {
-                                    "col": 23,
-                                    "id": "路径",
-                                    "line": 40,
-                                    "类型": "Name"
-                                  },
-                                  "类型": "Attr"
-                                },
-                                "keywords": [],
-                                "line": 40,
-                                "类型": "Call"
-                              },
-                              "类型": "BinOp"
-                            },
-                            "line": 40,
-                            "op": "+",
-                            "right": {
-                              "col": 35,
-                              "line": 40,
-                              "value": "  ",
-                              "类型": "Str"
-                            },
-                            "类型": "BinOp"
-                          },
-                          "line": 40,
-                          "op": "+",
-                          "right": {
-                            "col": 47,
-                            "index": {
-                              "col": 47,
-                              "line": 40,
-                              "start": null,
-                              "step": null,
-                              "stop": {
-                                "col": 49,
-                                "line": 40,
-                                "value": 16,
-                                "类型": "Num"
-                              },
-                              "类型": "Slice"
-                            },
-                            "line": 40,
-                            "obj": {
-                              "col": 44,
-                              "index": {
-                                "col": 45,
-                                "id": "f",
-                                "line": 40,
-                                "类型": "Name"
-                              },
-                              "line": 40,
-                              "obj": {
-                                "col": 42,
-                                "id": "结果",
-                                "line": 40,
-                                "类型": "Name"
-                              },
-                              "类型": "Subscript"
-                            },
-                            "类型": "Subscript"
-                          },
-                          "类型": "BinOp"
-                        }
-                      ],
-                      "col": 15,
-                      "func": {
-                        "col": 13,
-                        "id": "打印",
-                        "line": 40,
-                        "类型": "Name"
-                      },
-                      "keywords": [],
-                      "line": 40,
-                      "类型": "Call"
-                    },
-                    "line": 40,
-                    "类型": "ExprStmt"
-                  }
-                ],
-                "col": 9,
-                "iter": {
-                  "col": 16,
-                  "id": "文件们",
-                  "line": 39,
-                  "类型": "Name"
-                },
-                "line": 39,
-                "target": {
-                  "col": 12,
-                  "id": "f",
-                  "line": 39,
-                  "类型": "Name"
-                },
-                "类型": "For"
-              },
-              {
-                "col": 9,
-                "expr": {
-                  "args": [],
-                  "col": 11,
-                  "func": {
-                    "col": 9,
-                    "id": "打印",
-                    "line": 41,
-                    "类型": "Name"
-                  },
-                  "keywords": [],
-                  "line": 41,
-                  "类型": "Call"
-                },
-                "line": 41,
-                "类型": "ExprStmt"
-              },
-              {
-                "col": 9,
-                "expr": {
-                  "args": [
-                    {
-                      "col": 12,
                       "line": 42,
-                      "value": "（想同时算？没有线程 / 进程 / 异步 —— 见绕道 R005）",
-                      "类型": "Str"
+                      "类型": "Call"
                     }
                   ],
                   "col": 11,
@@ -1023,6 +756,694 @@
                 },
                 "line": 42,
                 "类型": "ExprStmt"
+              },
+              {
+                "col": 9,
+                "line": 44,
+                "op": "=",
+                "target": {
+                  "col": 11,
+                  "id": "起",
+                  "line": 44,
+                  "类型": "Name"
+                },
+                "value": {
+                  "args": [],
+                  "col": 23,
+                  "func": {
+                    "attr": "高精度时间",
+                    "col": 17,
+                    "line": 44,
+                    "obj": {
+                      "col": 15,
+                      "id": "时间",
+                      "line": 44,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 44,
+                  "类型": "Call"
+                },
+                "类型": "Assign"
+              },
+              {
+                "col": 9,
+                "line": 45,
+                "op": "=",
+                "target": {
+                  "col": 11,
+                  "id": "甲",
+                  "line": 45,
+                  "类型": "Name"
+                },
+                "value": {
+                  "args": [
+                    {
+                      "col": 20,
+                      "id": "文件们",
+                      "line": 45,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 19,
+                  "func": {
+                    "col": 15,
+                    "id": "逐个摘要",
+                    "line": 45,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 45,
+                  "类型": "Call"
+                },
+                "类型": "Assign"
+              },
+              {
+                "col": 9,
+                "line": 46,
+                "op": "=",
+                "target": {
+                  "col": 11,
+                  "id": "顺序用时",
+                  "line": 46,
+                  "类型": "Name"
+                },
+                "value": {
+                  "col": 29,
+                  "left": {
+                    "args": [],
+                    "col": 26,
+                    "func": {
+                      "attr": "高精度时间",
+                      "col": 20,
+                      "line": 46,
+                      "obj": {
+                        "col": 18,
+                        "id": "时间",
+                        "line": 46,
+                        "类型": "Name"
+                      },
+                      "类型": "Attr"
+                    },
+                    "keywords": [],
+                    "line": 46,
+                    "类型": "Call"
+                  },
+                  "line": 46,
+                  "op": "-",
+                  "right": {
+                    "col": 31,
+                    "id": "起",
+                    "line": 46,
+                    "类型": "Name"
+                  },
+                  "类型": "BinOp"
+                },
+                "类型": "Assign"
+              },
+              {
+                "col": 9,
+                "line": 48,
+                "op": "=",
+                "target": {
+                  "col": 11,
+                  "id": "起",
+                  "line": 48,
+                  "类型": "Name"
+                },
+                "value": {
+                  "args": [],
+                  "col": 23,
+                  "func": {
+                    "attr": "高精度时间",
+                    "col": 17,
+                    "line": 48,
+                    "obj": {
+                      "col": 15,
+                      "id": "时间",
+                      "line": 48,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 48,
+                  "类型": "Call"
+                },
+                "类型": "Assign"
+              },
+              {
+                "col": 9,
+                "line": 49,
+                "op": "=",
+                "target": {
+                  "col": 11,
+                  "id": "乙",
+                  "line": 49,
+                  "类型": "Name"
+                },
+                "value": {
+                  "args": [
+                    {
+                      "col": 20,
+                      "id": "文件们",
+                      "line": 49,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 19,
+                  "func": {
+                    "col": 15,
+                    "id": "并发摘要",
+                    "line": 49,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 49,
+                  "类型": "Call"
+                },
+                "类型": "Assign"
+              },
+              {
+                "col": 9,
+                "line": 50,
+                "op": "=",
+                "target": {
+                  "col": 11,
+                  "id": "并发用时",
+                  "line": 50,
+                  "类型": "Name"
+                },
+                "value": {
+                  "col": 29,
+                  "left": {
+                    "args": [],
+                    "col": 26,
+                    "func": {
+                      "attr": "高精度时间",
+                      "col": 20,
+                      "line": 50,
+                      "obj": {
+                        "col": 18,
+                        "id": "时间",
+                        "line": 50,
+                        "类型": "Name"
+                      },
+                      "类型": "Attr"
+                    },
+                    "keywords": [],
+                    "line": 50,
+                    "类型": "Call"
+                  },
+                  "line": 50,
+                  "op": "-",
+                  "right": {
+                    "col": 31,
+                    "id": "起",
+                    "line": 50,
+                    "类型": "Name"
+                  },
+                  "类型": "BinOp"
+                },
+                "类型": "Assign"
+              },
+              {
+                "col": 9,
+                "expr": {
+                  "args": [
+                    {
+                      "args": [
+                        {
+                          "col": 19,
+                          "line": 52,
+                          "value": "顺序 {:.3f} 秒 / 并发 {:.3f} 秒",
+                          "类型": "Str"
+                        },
+                        {
+                          "col": 48,
+                          "id": "顺序用时",
+                          "line": 52,
+                          "类型": "Name"
+                        },
+                        {
+                          "col": 54,
+                          "id": "并发用时",
+                          "line": 52,
+                          "类型": "Name"
+                        }
+                      ],
+                      "col": 18,
+                      "func": {
+                        "attr": "格式化",
+                        "col": 14,
+                        "line": 52,
+                        "obj": {
+                          "col": 12,
+                          "id": "文本",
+                          "line": 52,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 52,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 11,
+                  "func": {
+                    "col": 9,
+                    "id": "打印",
+                    "line": 52,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 52,
+                  "类型": "Call"
+                },
+                "line": 52,
+                "类型": "ExprStmt"
+              },
+              {
+                "branches": [
+                  [
+                    {
+                      "col": 24,
+                      "line": 53,
+                      "op": "与",
+                      "values": [
+                        {
+                          "col": 20,
+                          "comparators": [
+                            {
+                              "col": 22,
+                              "line": 53,
+                              "value": 0,
+                              "类型": "Num"
+                            }
+                          ],
+                          "left": {
+                            "args": [
+                              {
+                                "col": 15,
+                                "id": "文件们",
+                                "line": 53,
+                                "类型": "Name"
+                              }
+                            ],
+                            "col": 14,
+                            "func": {
+                              "col": 12,
+                              "id": "长度",
+                              "line": 53,
+                              "类型": "Name"
+                            },
+                            "keywords": [],
+                            "line": 53,
+                            "类型": "Call"
+                          },
+                          "line": 53,
+                          "ops": [
+                            ">"
+                          ],
+                          "类型": "Compare"
+                        },
+                        {
+                          "col": 31,
+                          "comparators": [
+                            {
+                              "col": 33,
+                              "line": 53,
+                              "value": 0,
+                              "类型": "Num"
+                            }
+                          ],
+                          "left": {
+                            "col": 26,
+                            "id": "并发用时",
+                            "line": 53,
+                            "类型": "Name"
+                          },
+                          "line": 53,
+                          "ops": [
+                            ">"
+                          ],
+                          "类型": "Compare"
+                        }
+                      ],
+                      "类型": "BoolOp"
+                    },
+                    [
+                      {
+                        "col": 13,
+                        "expr": {
+                          "args": [
+                            {
+                              "args": [
+                                {
+                                  "col": 23,
+                                  "line": 54,
+                                  "value": "加速 {:.2f} 倍",
+                                  "类型": "Str"
+                                },
+                                {
+                                  "col": 43,
+                                  "left": {
+                                    "col": 38,
+                                    "id": "顺序用时",
+                                    "line": 54,
+                                    "类型": "Name"
+                                  },
+                                  "line": 54,
+                                  "op": "/",
+                                  "right": {
+                                    "col": 45,
+                                    "id": "并发用时",
+                                    "line": 54,
+                                    "类型": "Name"
+                                  },
+                                  "类型": "BinOp"
+                                }
+                              ],
+                              "col": 22,
+                              "func": {
+                                "attr": "格式化",
+                                "col": 18,
+                                "line": 54,
+                                "obj": {
+                                  "col": 16,
+                                  "id": "文本",
+                                  "line": 54,
+                                  "类型": "Name"
+                                },
+                                "类型": "Attr"
+                              },
+                              "keywords": [],
+                              "line": 54,
+                              "类型": "Call"
+                            }
+                          ],
+                          "col": 15,
+                          "func": {
+                            "col": 13,
+                            "id": "打印",
+                            "line": 54,
+                            "类型": "Name"
+                          },
+                          "keywords": [],
+                          "line": 54,
+                          "类型": "Call"
+                        },
+                        "line": 54,
+                        "类型": "ExprStmt"
+                      }
+                    ]
+                  ]
+                ],
+                "col": 9,
+                "line": 53,
+                "orelse": null,
+                "类型": "If"
+              },
+              {
+                "col": 9,
+                "expr": {
+                  "args": [
+                    {
+                      "args": [
+                        {
+                          "col": 19,
+                          "line": 56,
+                          "value": "两档结果一致：{}",
+                          "类型": "Str"
+                        },
+                        {
+                          "col": 34,
+                          "comparators": [
+                            {
+                              "col": 37,
+                              "id": "乙",
+                              "line": 56,
+                              "类型": "Name"
+                            }
+                          ],
+                          "left": {
+                            "col": 32,
+                            "id": "甲",
+                            "line": 56,
+                            "类型": "Name"
+                          },
+                          "line": 56,
+                          "ops": [
+                            "=="
+                          ],
+                          "类型": "Compare"
+                        }
+                      ],
+                      "col": 18,
+                      "func": {
+                        "attr": "格式化",
+                        "col": 14,
+                        "line": 56,
+                        "obj": {
+                          "col": 12,
+                          "id": "文本",
+                          "line": 56,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 56,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 11,
+                  "func": {
+                    "col": 9,
+                    "id": "打印",
+                    "line": 56,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 56,
+                  "类型": "Call"
+                },
+                "line": 56,
+                "类型": "ExprStmt"
+              },
+              {
+                "body": [
+                  {
+                    "col": 13,
+                    "expr": {
+                      "args": [
+                        {
+                          "col": 45,
+                          "left": {
+                            "col": 38,
+                            "left": {
+                              "col": 21,
+                              "left": {
+                                "col": 16,
+                                "line": 59,
+                                "value": "  ",
+                                "类型": "Str"
+                              },
+                              "line": 59,
+                              "op": "+",
+                              "right": {
+                                "args": [
+                                  {
+                                    "col": 33,
+                                    "index": {
+                                      "col": 34,
+                                      "id": "i",
+                                      "line": 59,
+                                      "类型": "Name"
+                                    },
+                                    "line": 59,
+                                    "obj": {
+                                      "col": 30,
+                                      "id": "文件们",
+                                      "line": 59,
+                                      "类型": "Name"
+                                    },
+                                    "类型": "Subscript"
+                                  }
+                                ],
+                                "col": 29,
+                                "func": {
+                                  "attr": "文件名",
+                                  "col": 25,
+                                  "line": 59,
+                                  "obj": {
+                                    "col": 23,
+                                    "id": "路径",
+                                    "line": 59,
+                                    "类型": "Name"
+                                  },
+                                  "类型": "Attr"
+                                },
+                                "keywords": [],
+                                "line": 59,
+                                "类型": "Call"
+                              },
+                              "类型": "BinOp"
+                            },
+                            "line": 59,
+                            "op": "+",
+                            "right": {
+                              "col": 40,
+                              "line": 59,
+                              "value": "  ",
+                              "类型": "Str"
+                            },
+                            "类型": "BinOp"
+                          },
+                          "line": 59,
+                          "op": "+",
+                          "right": {
+                            "col": 51,
+                            "index": {
+                              "col": 51,
+                              "line": 59,
+                              "start": null,
+                              "step": null,
+                              "stop": {
+                                "col": 53,
+                                "line": 59,
+                                "value": 16,
+                                "类型": "Num"
+                              },
+                              "类型": "Slice"
+                            },
+                            "line": 59,
+                            "obj": {
+                              "col": 48,
+                              "index": {
+                                "col": 49,
+                                "id": "i",
+                                "line": 59,
+                                "类型": "Name"
+                              },
+                              "line": 59,
+                              "obj": {
+                                "col": 47,
+                                "id": "甲",
+                                "line": 59,
+                                "类型": "Name"
+                              },
+                              "类型": "Subscript"
+                            },
+                            "类型": "Subscript"
+                          },
+                          "类型": "BinOp"
+                        }
+                      ],
+                      "col": 15,
+                      "func": {
+                        "col": 13,
+                        "id": "打印",
+                        "line": 59,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 59,
+                      "类型": "Call"
+                    },
+                    "line": 59,
+                    "类型": "ExprStmt"
+                  }
+                ],
+                "col": 9,
+                "iter": {
+                  "args": [
+                    {
+                      "args": [
+                        {
+                          "col": 22,
+                          "id": "文件们",
+                          "line": 58,
+                          "类型": "Name"
+                        }
+                      ],
+                      "col": 21,
+                      "func": {
+                        "col": 19,
+                        "id": "长度",
+                        "line": 58,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 58,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 18,
+                  "func": {
+                    "col": 16,
+                    "id": "范围",
+                    "line": 58,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 58,
+                  "类型": "Call"
+                },
+                "line": 58,
+                "target": {
+                  "col": 12,
+                  "id": "i",
+                  "line": 58,
+                  "类型": "Name"
+                },
+                "类型": "For"
+              },
+              {
+                "col": 9,
+                "expr": {
+                  "args": [],
+                  "col": 11,
+                  "func": {
+                    "col": 9,
+                    "id": "打印",
+                    "line": 60,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 60,
+                  "类型": "Call"
+                },
+                "line": 60,
+                "类型": "ExprStmt"
+              },
+              {
+                "col": 9,
+                "expr": {
+                  "args": [
+                    {
+                      "col": 12,
+                      "line": 61,
+                      "value": "（小文件批量划算；大文件、纯计算反而更慢 —— 见 README）",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 11,
+                  "func": {
+                    "col": 9,
+                    "id": "打印",
+                    "line": 61,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 61,
+                  "类型": "Call"
+                },
+                "line": 61,
+                "类型": "ExprStmt"
               }
             ],
             "类型": "If"
@@ -1030,7 +1451,7 @@
         ],
         "col": 1,
         "defaults": [],
-        "line": 23,
+        "line": 31,
         "name": "主程序",
         "param_kind": [],
         "params": [],
@@ -1045,14 +1466,14 @@
           "func": {
             "col": 1,
             "id": "主程序",
-            "line": 45,
+            "line": 64,
             "类型": "Name"
           },
           "keywords": [],
-          "line": 45,
+          "line": 64,
           "类型": "Call"
         },
-        "line": 45,
+        "line": 64,
         "类型": "ExprStmt"
       }
     ],
@@ -1061,7 +1482,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "c562480a58f70fed8a45f52967ecddd58aee07ffac51ea7424b6244309453640",
+    "checksum": "0127d1d68a5d26ef2a53caf476f2fdd527e62de5bdc1c3558663a44976ef969b",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -1074,103 +1495,127 @@
             0,
             0,
             -1,
-            9,
-            1,
-            3,
-            0,
-            0,
-            0,
-            9,
-            1,
-            31,
-            1,
-            0,
-            -1,
-            10,
-            1,
-            3,
-            1,
-            0,
-            0,
-            10,
-            1,
-            31,
-            2,
-            0,
-            -1,
             11,
             1,
             3,
-            2,
+            0,
             0,
             0,
             11,
             1,
             31,
-            3,
+            1,
             0,
             -1,
             12,
             1,
             3,
-            3,
+            1,
             0,
             0,
             12,
             1,
             31,
-            4,
+            2,
             0,
             -1,
             13,
             1,
             3,
-            4,
+            2,
             0,
             0,
             13,
             1,
+            31,
+            3,
+            0,
+            -1,
+            14,
+            1,
+            3,
+            3,
+            0,
+            0,
+            14,
+            1,
+            31,
+            4,
+            0,
+            -1,
+            15,
+            1,
+            3,
+            4,
+            0,
+            0,
+            15,
+            1,
+            31,
+            5,
+            0,
+            -1,
+            16,
+            1,
+            3,
+            5,
+            0,
+            0,
+            16,
+            1,
             22,
             1,
             0,
             0,
-            16,
+            19,
             1,
             3,
-            7,
+            8,
             0,
             0,
-            16,
+            19,
             1,
             22,
             2,
             0,
             0,
-            23,
+            26,
             1,
             3,
-            18,
+            10,
             0,
             0,
-            23,
+            26,
+            1,
+            22,
+            3,
+            0,
+            0,
+            31,
+            1,
+            3,
+            22,
+            0,
+            0,
+            31,
             1,
             2,
-            18,
+            22,
             0,
             0,
-            45,
+            64,
             1,
             20,
             0,
             -1,
             0,
-            45,
+            64,
             4,
             38,
             0,
             0,
             0,
-            45,
+            64,
             1,
             0,
             0,
@@ -1191,146 +1636,146 @@
         },
         {
           "cellvars": [],
-          "firstlineno": 16,
+          "firstlineno": 19,
           "freevars": [],
           "instrs": [
-            24,
+            23,
             0,
             0,
             0,
-            17,
+            20,
             12,
             5,
             2,
             0,
             0,
-            17,
+            20,
             5,
             4,
             0,
             0,
             0,
-            18,
+            21,
             12,
             29,
             0,
             0,
             0,
-            18,
+            21,
             5,
             34,
             5,
             17,
             0,
-            18,
+            21,
             5,
             30,
             15,
             0,
             0,
-            18,
+            21,
             5,
             5,
             1,
             0,
             0,
-            18,
+            21,
             5,
             4,
             2,
             0,
             0,
-            19,
+            22,
             9,
-            4,
-            1,
-            0,
-            0,
-            19,
-            12,
             2,
+            1,
             0,
             0,
-            0,
-            19,
-            17,
+            22,
+            15,
             25,
-            6,
+            7,
             0,
             0,
-            19,
-            19,
+            22,
+            17,
             4,
             1,
             0,
             0,
-            19,
-            25,
+            22,
+            23,
             20,
             1,
             -1,
             0,
-            19,
-            24,
-            28,
+            22,
+            22,
+            47,
             0,
             0,
             0,
-            19,
+            22,
+            14,
+            9,
+            0,
+            0,
+            0,
+            22,
             9,
             16,
             5,
             0,
             0,
-            18,
+            21,
             5,
             35,
             0,
             0,
             0,
-            18,
+            21,
             5,
             16,
             19,
             0,
             0,
-            18,
+            21,
             5,
             9,
             0,
             0,
             0,
-            18,
+            21,
             5,
             35,
             0,
             0,
             0,
-            18,
+            21,
             5,
             4,
             2,
             0,
             0,
-            20,
+            23,
             8,
             21,
             0,
             0,
             0,
-            20,
+            23,
             5,
             1,
             0,
             0,
             0,
-            16,
+            19,
             1,
             21,
             0,
             0,
             0,
-            16,
+            19,
             1
           ],
           "local_hints": {},
@@ -1345,7 +1790,77 @@
             -1
           ],
           "param_idx": [
-            5
+            6
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "文件们"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 26,
+          "freevars": [],
+          "instrs": [
+            2,
+            0,
+            0,
+            0,
+            28,
+            8,
+            25,
+            9,
+            0,
+            0,
+            28,
+            10,
+            4,
+            0,
+            0,
+            0,
+            28,
+            16,
+            20,
+            1,
+            -1,
+            0,
+            28,
+            15,
+            21,
+            0,
+            0,
+            0,
+            28,
+            5,
+            1,
+            0,
+            0,
+            0,
+            26,
+            1,
+            21,
+            0,
+            0,
+            0,
+            26,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "文件们"
+          ],
+          "name": "并发摘要",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            6
           ],
           "param_kind": [
             0
@@ -1361,834 +1876,1173 @@
           "cellvars": [
             "参数们"
           ],
-          "firstlineno": 23,
+          "firstlineno": 31,
           "freevars": [],
           "instrs": [
             2,
-            4,
+            5,
             0,
             0,
-            24,
+            32,
             13,
             25,
-            8,
+            11,
             0,
             0,
-            24,
+            32,
             15,
             20,
             0,
             -1,
             0,
-            24,
+            32,
             18,
             7,
             0,
             0,
             0,
-            24,
+            32,
             5,
             2,
-            9,
+            12,
             0,
             0,
-            25,
+            33,
             8,
             6,
             0,
             0,
             0,
-            25,
+            33,
             11,
             20,
             1,
             -1,
             0,
-            25,
+            33,
             10,
             1,
             1,
             0,
             0,
-            25,
+            33,
             19,
             15,
             0,
             0,
             0,
-            25,
+            33,
             16,
             17,
             15,
             0,
             0,
-            25,
+            33,
             16,
             2,
-            10,
+            13,
             0,
             0,
-            26,
+            34,
             9,
             1,
             2,
             0,
             0,
-            26,
+            34,
             12,
             20,
             1,
             -1,
             0,
-            26,
+            34,
             11,
             9,
             0,
             0,
             0,
-            26,
+            34,
             9,
             16,
-            133,
+            189,
             0,
             0,
-            25,
+            33,
             5,
             2,
-            1,
+            2,
             0,
             0,
-            27,
+            35,
             12,
             25,
-            11,
+            14,
             0,
             0,
-            27,
+            35,
             14,
             6,
             0,
             0,
             0,
-            27,
+            35,
             19,
             1,
             1,
             0,
             0,
-            27,
+            35,
             23,
             27,
             0,
             0,
             0,
-            27,
+            35,
             22,
             20,
             1,
             -1,
             0,
-            27,
+            35,
             18,
             14,
             1,
             0,
             0,
-            27,
+            35,
             10,
             17,
             34,
             0,
             0,
-            27,
+            35,
             10,
             2,
-            10,
+            13,
             0,
             0,
-            28,
+            36,
             9,
             2,
-            2,
+            3,
             0,
             0,
-            28,
+            36,
             12,
             25,
-            12,
+            15,
             0,
             0,
-            28,
+            36,
             14,
             1,
             3,
             0,
             0,
-            28,
+            36,
             19,
             6,
             0,
             0,
             0,
-            28,
+            36,
             31,
             1,
             1,
             0,
             0,
-            28,
+            36,
             35,
             27,
             0,
             0,
             0,
-            28,
+            36,
             34,
             20,
             2,
             -1,
             0,
-            28,
+            36,
             18,
             20,
             1,
             -1,
             0,
-            28,
+            36,
             11,
             9,
             0,
             0,
             0,
-            28,
+            36,
             9,
             16,
-            133,
+            189,
             0,
             0,
-            25,
+            33,
             5,
             6,
             0,
             0,
             0,
-            30,
+            38,
             16,
             1,
             1,
             0,
             0,
-            30,
+            38,
             20,
             27,
             0,
             0,
             0,
-            30,
+            38,
             19,
             5,
-            5,
+            7,
             0,
             0,
-            30,
+            38,
             9,
             8,
             0,
             0,
             0,
-            31,
+            39,
             23,
             22,
-            3,
+            4,
             1,
             0,
-            31,
+            39,
             23,
             20,
             0,
             -1,
             0,
-            31,
+            39,
             23,
             5,
-            1,
+            3,
             0,
             0,
-            31,
+            39,
             9,
             2,
-            1,
+            2,
             0,
             0,
-            32,
+            40,
             17,
             25,
-            13,
+            16,
             0,
             0,
-            32,
+            40,
             19,
             4,
-            5,
+            7,
             0,
             0,
-            32,
+            40,
             25,
             4,
-            1,
+            3,
             0,
             0,
-            32,
+            40,
             29,
             20,
             2,
             -1,
             0,
-            32,
+            40,
             24,
             5,
-            6,
+            8,
             0,
             0,
-            32,
+            40,
             9,
             23,
             0,
             0,
             0,
-            33,
+            41,
             17,
             5,
+            11,
+            0,
+            0,
+            41,
+            17,
+            4,
             8,
             0,
             0,
-            33,
-            17,
-            4,
-            6,
-            0,
-            0,
-            33,
+            41,
             38,
             29,
             0,
             0,
             0,
-            33,
+            41,
             17,
             30,
             64,
             0,
             0,
-            33,
+            41,
             17,
             5,
             0,
             0,
             0,
-            33,
+            41,
             34,
             4,
-            8,
+            11,
             0,
             0,
-            33,
+            41,
             17,
             25,
-            14,
+            17,
             0,
             0,
-            33,
+            41,
             17,
             2,
-            1,
+            2,
             0,
             0,
-            33,
+            41,
             18,
             25,
-            15,
+            18,
             0,
             0,
-            33,
+            41,
             20,
             4,
-            5,
+            7,
             0,
             0,
-            33,
+            41,
             24,
             4,
             0,
             0,
             0,
-            33,
+            41,
             28,
             20,
             2,
             -1,
             0,
-            33,
+            41,
             23,
             20,
             1,
             -1,
             0,
-            33,
+            41,
             17,
             9,
             0,
             0,
             0,
-            33,
+            41,
             17,
             16,
             52,
             0,
             0,
-            33,
+            41,
             17,
             4,
-            8,
+            11,
             0,
             0,
-            33,
+            41,
             17,
             5,
+            5,
+            0,
+            0,
+            41,
+            9,
+            2,
+            13,
+            0,
+            0,
+            42,
+            9,
+            2,
             3,
             0,
             0,
-            33,
-            9,
-            2,
-            10,
-            0,
-            0,
-            34,
-            9,
-            2,
-            2,
-            0,
-            0,
-            34,
+            42,
             12,
             25,
-            12,
+            15,
             0,
             0,
-            34,
+            42,
             14,
             1,
             6,
             0,
             0,
-            34,
+            42,
             19,
             2,
-            9,
+            12,
             0,
             0,
-            34,
-            38,
+            42,
+            32,
             4,
-            3,
+            5,
             0,
             0,
-            34,
-            41,
+            42,
+            35,
             20,
             1,
             -1,
             0,
+            42,
             34,
-            40,
             20,
             2,
             -1,
             0,
-            34,
+            42,
             18,
             20,
             1,
             -1,
             0,
-            34,
+            42,
             11,
             9,
             0,
             0,
             0,
-            34,
+            42,
             9,
             2,
-            3,
+            4,
             0,
             0,
-            35,
-            16,
+            44,
+            15,
             25,
-            16,
+            19,
             0,
             0,
-            35,
-            18,
+            44,
+            17,
             20,
             0,
             -1,
             0,
-            35,
-            24,
+            44,
+            23,
             5,
-            2,
+            9,
             0,
             0,
-            35,
+            44,
             9,
             2,
-            7,
+            8,
             0,
             0,
-            36,
-            16,
+            45,
+            15,
             4,
-            3,
+            5,
             0,
             0,
-            36,
-            21,
+            45,
+            20,
             20,
             1,
             -1,
             0,
-            36,
-            20,
+            45,
+            19,
             5,
-            7,
+            6,
             0,
             0,
-            36,
+            45,
             9,
             2,
-            3,
+            4,
             0,
             0,
-            37,
-            16,
-            25,
-            16,
-            0,
-            0,
-            37,
+            46,
             18,
+            25,
+            19,
+            0,
+            0,
+            46,
+            20,
             20,
             0,
             -1,
             0,
-            37,
-            24,
+            46,
+            26,
             4,
-            2,
+            9,
             0,
             0,
-            37,
-            29,
+            46,
+            31,
             13,
             1,
             0,
             0,
-            37,
-            27,
+            46,
+            29,
             5,
+            10,
+            0,
+            0,
+            46,
+            9,
+            2,
             4,
             0,
             0,
-            37,
+            48,
+            15,
+            25,
+            19,
+            0,
+            0,
+            48,
+            17,
+            20,
+            0,
+            -1,
+            0,
+            48,
+            23,
+            5,
+            9,
+            0,
+            0,
+            48,
             9,
             2,
             10,
             0,
             0,
-            38,
+            49,
+            15,
+            4,
+            5,
+            0,
+            0,
+            49,
+            20,
+            20,
+            1,
+            -1,
+            0,
+            49,
+            19,
+            5,
+            2,
+            0,
+            0,
+            49,
             9,
             2,
+            4,
+            0,
+            0,
+            50,
+            18,
+            25,
+            19,
+            0,
+            0,
+            50,
+            20,
+            20,
+            0,
+            -1,
+            0,
+            50,
+            26,
+            4,
+            9,
+            0,
+            0,
+            50,
+            31,
+            13,
+            1,
+            0,
+            0,
+            50,
+            29,
+            5,
+            4,
+            0,
+            0,
+            50,
+            9,
             2,
+            13,
             0,
             0,
-            38,
+            52,
+            9,
+            2,
+            3,
+            0,
+            0,
+            52,
             12,
             25,
-            12,
+            15,
             0,
             0,
-            38,
+            52,
             14,
             1,
             7,
             0,
             0,
-            38,
+            52,
             19,
             4,
+            10,
+            0,
+            0,
+            52,
+            48,
+            4,
             4,
             0,
             0,
-            38,
-            38,
+            52,
+            54,
             20,
-            2,
+            3,
             -1,
             0,
-            38,
+            52,
             18,
             20,
             1,
             -1,
             0,
-            38,
+            52,
             11,
             9,
             0,
             0,
             0,
-            38,
+            52,
             9,
+            2,
+            12,
+            0,
+            0,
+            53,
+            12,
             4,
-            3,
-            0,
-            0,
-            39,
-            16,
-            29,
-            0,
-            0,
-            0,
-            39,
-            9,
-            34,
-            101,
-            124,
-            0,
-            39,
-            9,
-            30,
-            122,
-            0,
-            0,
-            39,
-            9,
             5,
             0,
             0,
+            53,
+            15,
+            20,
+            1,
+            -1,
             0,
-            39,
+            53,
+            14,
+            1,
+            1,
+            0,
+            0,
+            53,
+            22,
+            15,
+            3,
+            0,
+            0,
+            53,
+            20,
+            17,
+            125,
+            0,
+            0,
+            53,
+            20,
+            4,
+            4,
+            0,
+            0,
+            53,
+            26,
+            1,
+            1,
+            0,
+            0,
+            53,
+            33,
+            15,
+            3,
+            0,
+            0,
+            53,
+            31,
+            17,
+            125,
+            0,
+            0,
+            53,
+            24,
+            1,
+            8,
+            0,
+            0,
+            53,
+            24,
+            16,
+            126,
+            0,
+            0,
+            53,
+            24,
+            1,
             9,
+            0,
+            0,
+            53,
+            24,
+            17,
+            138,
+            0,
+            0,
+            53,
+            24,
             2,
+            13,
+            0,
+            0,
+            54,
+            13,
+            2,
+            3,
+            0,
+            0,
+            54,
+            16,
+            25,
+            15,
+            0,
+            0,
+            54,
+            18,
+            1,
             10,
             0,
             0,
-            40,
-            13,
-            1,
-            8,
-            0,
-            0,
-            40,
-            16,
-            2,
-            1,
-            0,
-            0,
-            40,
+            54,
             23,
-            25,
-            17,
+            4,
+            10,
             0,
             0,
-            40,
-            25,
+            54,
+            38,
+            4,
             4,
             0,
             0,
-            0,
-            40,
-            30,
-            20,
-            1,
-            -1,
-            0,
-            40,
-            29,
-            13,
-            0,
-            0,
-            0,
-            40,
-            21,
-            1,
-            8,
-            0,
-            0,
-            40,
-            35,
-            13,
-            0,
-            0,
-            0,
-            40,
-            33,
-            4,
-            7,
-            0,
-            0,
-            40,
-            42,
-            4,
-            0,
-            0,
-            0,
-            40,
+            54,
             45,
-            27,
-            0,
-            0,
-            0,
-            40,
-            44,
-            1,
-            9,
-            0,
-            0,
-            40,
-            49,
-            48,
-            2,
-            0,
-            0,
-            40,
-            47,
-            27,
-            0,
-            0,
-            0,
-            40,
-            47,
             13,
+            3,
             0,
             0,
+            54,
+            43,
+            20,
+            2,
+            -1,
             0,
-            40,
-            40,
+            54,
+            22,
             20,
             1,
             -1,
             0,
-            40,
+            54,
             15,
             9,
             0,
             0,
             0,
-            40,
+            54,
             13,
             16,
-            101,
+            138,
             0,
             0,
-            39,
-            9,
-            35,
-            0,
-            0,
-            0,
-            39,
-            9,
-            16,
-            126,
-            0,
-            0,
-            39,
-            9,
-            9,
-            0,
-            0,
-            0,
-            39,
-            9,
-            35,
-            0,
-            0,
-            0,
-            39,
+            53,
             9,
             2,
-            10,
+            13,
             0,
             0,
-            41,
+            56,
             9,
-            20,
+            2,
+            3,
             0,
+            0,
+            56,
+            12,
+            25,
+            15,
+            0,
+            0,
+            56,
+            14,
+            1,
+            11,
+            0,
+            0,
+            56,
+            19,
+            4,
+            6,
+            0,
+            0,
+            56,
+            32,
+            4,
+            2,
+            0,
+            0,
+            56,
+            37,
+            15,
+            0,
+            0,
+            0,
+            56,
+            34,
+            20,
+            2,
             -1,
             0,
-            41,
+            56,
+            18,
+            20,
+            1,
+            -1,
+            0,
+            56,
             11,
             9,
             0,
             0,
             0,
-            41,
+            56,
             9,
             2,
-            10,
+            20,
             0,
             0,
-            42,
+            58,
+            16,
+            2,
+            12,
+            0,
+            0,
+            58,
+            19,
+            4,
+            5,
+            0,
+            0,
+            58,
+            22,
+            20,
+            1,
+            -1,
+            0,
+            58,
+            21,
+            20,
+            1,
+            -1,
+            0,
+            58,
+            18,
+            29,
+            0,
+            0,
+            0,
+            58,
+            9,
+            34,
+            155,
+            180,
+            0,
+            58,
+            9,
+            30,
+            178,
+            0,
+            0,
+            58,
+            9,
+            5,
+            1,
+            0,
+            0,
+            58,
+            9,
+            2,
+            13,
+            0,
+            0,
+            59,
+            13,
+            1,
+            12,
+            0,
+            0,
+            59,
+            16,
+            2,
+            2,
+            0,
+            0,
+            59,
+            23,
+            25,
+            21,
+            0,
+            0,
+            59,
+            25,
+            4,
+            5,
+            0,
+            0,
+            59,
+            30,
+            4,
+            1,
+            0,
+            0,
+            59,
+            34,
+            27,
+            0,
+            0,
+            0,
+            59,
+            33,
+            20,
+            1,
+            -1,
+            0,
+            59,
+            29,
+            13,
+            0,
+            0,
+            0,
+            59,
+            21,
+            1,
+            12,
+            0,
+            0,
+            59,
+            40,
+            13,
+            0,
+            0,
+            0,
+            59,
+            38,
+            4,
+            6,
+            0,
+            0,
+            59,
+            47,
+            4,
+            1,
+            0,
+            0,
+            59,
+            49,
+            27,
+            0,
+            0,
+            0,
+            59,
+            48,
+            1,
+            13,
+            0,
+            0,
+            59,
+            53,
+            48,
+            2,
+            0,
+            0,
+            59,
+            51,
+            27,
+            0,
+            0,
+            0,
+            59,
+            51,
+            13,
+            0,
+            0,
+            0,
+            59,
+            45,
+            20,
+            1,
+            -1,
+            0,
+            59,
+            15,
+            9,
+            0,
+            0,
+            0,
+            59,
+            13,
+            16,
+            155,
+            0,
+            0,
+            58,
+            9,
+            35,
+            0,
+            0,
+            0,
+            58,
+            9,
+            16,
+            182,
+            0,
+            0,
+            58,
+            9,
+            9,
+            0,
+            0,
+            0,
+            58,
+            9,
+            35,
+            0,
+            0,
+            0,
+            58,
+            9,
+            2,
+            13,
+            0,
+            0,
+            60,
+            9,
+            20,
+            0,
+            -1,
+            0,
+            60,
+            11,
+            9,
+            0,
+            0,
+            0,
+            60,
+            9,
+            2,
+            13,
+            0,
+            0,
+            61,
             9,
             1,
-            10,
+            14,
             0,
             0,
-            42,
+            61,
             12,
             20,
             1,
             -1,
             0,
-            42,
+            61,
             11,
             9,
             0,
             0,
             0,
-            42,
+            61,
             9,
             1,
             0,
             0,
             0,
-            23,
+            31,
             1,
             21,
             0,
             0,
             0,
-            23,
+            31,
             1
           ],
           "local_hints": {},
           "local_names": [
             "f",
+            "i",
+            "乙",
             "后缀",
-            "开始",
+            "并发用时",
             "文件们",
-            "用时",
+            "甲",
             "目录",
             "相对们",
-            "结果",
+            "起",
+            "顺序用时",
             "$tmp1"
           ],
           "name": "主程序",
-          "nlocals": 9,
+          "nlocals": 12,
           "param_cell": [],
           "param_idx": [],
           "param_kind": [],
@@ -2197,100 +3051,100 @@
         },
         {
           "cellvars": [],
-          "firstlineno": 31,
+          "firstlineno": 39,
           "freevars": [
             "参数们"
           ],
           "instrs": [
             2,
-            9,
+            12,
             0,
             0,
-            31,
+            39,
             26,
             6,
             0,
             0,
             0,
-            31,
+            39,
             29,
             20,
             1,
             -1,
             0,
-            31,
+            39,
             28,
             1,
             4,
             0,
             0,
-            31,
+            39,
             36,
             15,
             3,
             0,
             0,
-            31,
+            39,
             34,
             17,
             11,
             0,
             0,
-            31,
+            39,
             34,
             6,
             0,
             0,
             0,
-            31,
+            39,
             16,
             1,
             4,
             0,
             0,
-            31,
+            39,
             20,
             27,
             0,
             0,
             0,
-            31,
+            39,
             19,
             21,
             0,
             0,
             0,
-            31,
+            39,
             19,
             16,
             13,
             0,
             0,
-            31,
+            39,
             23,
             1,
             5,
             0,
             0,
-            31,
+            39,
             41,
             21,
             0,
             0,
             0,
-            31,
+            39,
             41,
             1,
             0,
             0,
             0,
-            31,
+            39,
             23,
             21,
             0,
             0,
             0,
-            31,
+            39,
             23
           ],
           "local_hints": {},
@@ -2330,11 +3184,25 @@
         },
         {
           "t": "str",
-          "v": "共 {} 个文件，逐个算摘要…"
+          "v": "共 {} 个文件。"
         },
         {
           "t": "str",
-          "v": "逐个处理用了 {:.3f} 秒"
+          "v": "顺序 {:.3f} 秒 / 并发 {:.3f} 秒"
+        },
+        {
+          "t": "true"
+        },
+        {
+          "t": "false"
+        },
+        {
+          "t": "str",
+          "v": "加速 {:.2f} 倍"
+        },
+        {
+          "t": "str",
+          "v": "两档结果一致：{}"
         },
         {
           "t": "str",
@@ -2346,13 +3214,14 @@
         },
         {
           "t": "str",
-          "v": "（想同时算？没有线程 / 进程 / 异步 —— 见绕道 R005）"
+          "v": "（小文件批量划算；大文件、纯计算反而更慢 —— 见 README）"
         }
       ],
       "filename": "examples/绕道探针/并发批量/批量.jsh",
       "kw_names": [],
       "main": 0,
       "names": [
+        "并发",
         "加密",
         "路径",
         "文本",
@@ -2361,6 +3230,8 @@
         "文件们",
         "文件摘要",
         "逐个摘要",
+        "批量摘要",
+        "并发摘要",
         "参数",
         "长度",
         "打印",
@@ -2370,6 +3241,7 @@
         "追加",
         "连接",
         "高精度时间",
+        "范围",
         "文件名",
         "主程序"
       ]
@@ -2381,7 +3253,34 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 9,
+      "line": 11,
+      "source_line": "导入 并发",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 11,
+      "source_line": "导入 并发",
+      "type": "NAME",
+      "value": "并发",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "导入 并发",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 12,
       "source_line": "导入 加密",
       "type": "KEYWORD",
       "value": "导入",
@@ -2390,7 +3289,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 9,
+      "line": 12,
       "source_line": "导入 加密",
       "type": "NAME",
       "value": "加密",
@@ -2399,7 +3298,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 9,
+      "line": 12,
       "source_line": "导入 加密",
       "type": "NEWLINE",
       "value": "\n",
@@ -2408,7 +3307,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 10,
+      "line": 13,
       "source_line": "导入 路径",
       "type": "KEYWORD",
       "value": "导入",
@@ -2417,7 +3316,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 10,
+      "line": 13,
       "source_line": "导入 路径",
       "type": "NAME",
       "value": "路径",
@@ -2426,7 +3325,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 10,
+      "line": 13,
       "source_line": "导入 路径",
       "type": "NEWLINE",
       "value": "\n",
@@ -2435,7 +3334,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 11,
+      "line": 14,
       "source_line": "导入 文本",
       "type": "KEYWORD",
       "value": "导入",
@@ -2444,7 +3343,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 11,
+      "line": 14,
       "source_line": "导入 文本",
       "type": "NAME",
       "value": "文本",
@@ -2453,7 +3352,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 11,
+      "line": 14,
       "source_line": "导入 文本",
       "type": "NEWLINE",
       "value": "\n",
@@ -2462,7 +3361,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 12,
+      "line": 15,
       "source_line": "导入 时间",
       "type": "KEYWORD",
       "value": "导入",
@@ -2471,7 +3370,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 12,
+      "line": 15,
       "source_line": "导入 时间",
       "type": "NAME",
       "value": "时间",
@@ -2480,7 +3379,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 12,
+      "line": 15,
       "source_line": "导入 时间",
       "type": "NEWLINE",
       "value": "\n",
@@ -2489,7 +3388,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 13,
+      "line": 16,
       "source_line": "导入 系统",
       "type": "KEYWORD",
       "value": "导入",
@@ -2498,7 +3397,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 13,
+      "line": 16,
       "source_line": "导入 系统",
       "type": "NAME",
       "value": "系统",
@@ -2507,7 +3406,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 13,
+      "line": 16,
       "source_line": "导入 系统",
       "type": "NEWLINE",
       "value": "\n",
@@ -2516,7 +3415,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 16,
+      "line": 19,
       "source_line": "函数 逐个摘要(文件们):",
       "type": "KEYWORD",
       "value": "函数",
@@ -2525,7 +3424,7 @@
     {
       "col": 4,
       "end_col": 7,
-      "line": 16,
+      "line": 19,
       "source_line": "函数 逐个摘要(文件们):",
       "type": "NAME",
       "value": "逐个摘要",
@@ -2534,7 +3433,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 16,
+      "line": 19,
       "source_line": "函数 逐个摘要(文件们):",
       "type": "OP",
       "value": "(",
@@ -2543,7 +3442,7 @@
     {
       "col": 9,
       "end_col": 11,
-      "line": 16,
+      "line": 19,
       "source_line": "函数 逐个摘要(文件们):",
       "type": "NAME",
       "value": "文件们",
@@ -2552,7 +3451,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 16,
+      "line": 19,
       "source_line": "函数 逐个摘要(文件们):",
       "type": "OP",
       "value": ")",
@@ -2561,7 +3460,7 @@
     {
       "col": 13,
       "end_col": 14,
-      "line": 16,
+      "line": 19,
       "source_line": "函数 逐个摘要(文件们):",
       "type": "OP",
       "value": ":",
@@ -2570,7 +3469,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 16,
+      "line": 19,
       "source_line": "函数 逐个摘要(文件们):",
       "type": "NEWLINE",
       "value": "\n",
@@ -2579,8 +3478,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 17,
-      "source_line": "    令 结果 = {}",
+      "line": 20,
+      "source_line": "    令 结果 = []",
       "type": "INDENT",
       "value": 4,
       "类型": "Token"
@@ -2588,8 +3487,8 @@
     {
       "col": 5,
       "end_col": 5,
-      "line": 17,
-      "source_line": "    令 结果 = {}",
+      "line": 20,
+      "source_line": "    令 结果 = []",
       "type": "KEYWORD",
       "value": "令",
       "类型": "Token"
@@ -2597,8 +3496,8 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 17,
-      "source_line": "    令 结果 = {}",
+      "line": 20,
+      "source_line": "    令 结果 = []",
       "type": "NAME",
       "value": "结果",
       "类型": "Token"
@@ -2606,8 +3505,8 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 17,
-      "source_line": "    令 结果 = {}",
+      "line": 20,
+      "source_line": "    令 结果 = []",
       "type": "OP",
       "value": "=",
       "类型": "Token"
@@ -2615,26 +3514,26 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 17,
-      "source_line": "    令 结果 = {}",
+      "line": 20,
+      "source_line": "    令 结果 = []",
       "type": "OP",
-      "value": "{",
+      "value": "[",
       "类型": "Token"
     },
     {
       "col": 13,
       "end_col": 14,
-      "line": 17,
-      "source_line": "    令 结果 = {}",
+      "line": 20,
+      "source_line": "    令 结果 = []",
       "type": "OP",
-      "value": "}",
+      "value": "]",
       "类型": "Token"
     },
     {
       "col": 5,
       "end_col": 1,
-      "line": 17,
-      "source_line": "    令 结果 = {}",
+      "line": 20,
+      "source_line": "    令 结果 = []",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -2642,7 +3541,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 18,
+      "line": 21,
       "source_line": "    遍历 f 在 文件们:",
       "type": "KEYWORD",
       "value": "遍历",
@@ -2651,7 +3550,7 @@
     {
       "col": 8,
       "end_col": 8,
-      "line": 18,
+      "line": 21,
       "source_line": "    遍历 f 在 文件们:",
       "type": "NAME",
       "value": "f",
@@ -2660,7 +3559,7 @@
     {
       "col": 10,
       "end_col": 10,
-      "line": 18,
+      "line": 21,
       "source_line": "    遍历 f 在 文件们:",
       "type": "KEYWORD",
       "value": "在",
@@ -2669,7 +3568,7 @@
     {
       "col": 12,
       "end_col": 14,
-      "line": 18,
+      "line": 21,
       "source_line": "    遍历 f 在 文件们:",
       "type": "NAME",
       "value": "文件们",
@@ -2678,7 +3577,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 18,
+      "line": 21,
       "source_line": "    遍历 f 在 文件们:",
       "type": "OP",
       "value": ":",
@@ -2687,7 +3586,7 @@
     {
       "col": 5,
       "end_col": 1,
-      "line": 18,
+      "line": 21,
       "source_line": "    遍历 f 在 文件们:",
       "type": "NEWLINE",
       "value": "\n",
@@ -2696,8 +3595,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
       "type": "INDENT",
       "value": 8,
       "类型": "Token"
@@ -2705,8 +3604,8 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
       "type": "NAME",
       "value": "结果",
       "类型": "Token"
@@ -2714,89 +3613,89 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
-      "type": "OP",
-      "value": "[",
-      "类型": "Token"
-    },
-    {
-      "col": 12,
-      "end_col": 12,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
-      "type": "NAME",
-      "value": "f",
-      "类型": "Token"
-    },
-    {
-      "col": 13,
-      "end_col": 14,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
-      "type": "OP",
-      "value": "]",
-      "类型": "Token"
-    },
-    {
-      "col": 15,
-      "end_col": 16,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
-      "type": "OP",
-      "value": "=",
-      "类型": "Token"
-    },
-    {
-      "col": 17,
-      "end_col": 18,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
-      "type": "NAME",
-      "value": "加密",
-      "类型": "Token"
-    },
-    {
-      "col": 19,
-      "end_col": 20,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
       "type": "OP",
       "value": ".",
       "类型": "Token"
     },
     {
-      "col": 20,
-      "end_col": 23,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
+      "col": 12,
+      "end_col": 13,
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
       "type": "NAME",
-      "value": "文件摘要",
+      "value": "追加",
       "类型": "Token"
     },
     {
-      "col": 24,
-      "end_col": 25,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
+      "col": 14,
+      "end_col": 15,
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
-      "col": 25,
-      "end_col": 25,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
+      "col": 15,
+      "end_col": 16,
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
+      "type": "NAME",
+      "value": "加密",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
+      "type": "NAME",
+      "value": "文件摘要",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 23,
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
       "type": "NAME",
       "value": "f",
       "类型": "Token"
     },
     {
-      "col": 26,
-      "end_col": 27,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
+      "col": 24,
+      "end_col": 25,
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -2804,8 +3703,8 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 19,
-      "source_line": "        结果[f] = 加密.文件摘要(f)",
+      "line": 22,
+      "source_line": "        结果.追加(加密.文件摘要(f))",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -2813,7 +3712,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 20,
+      "line": 23,
       "source_line": "    返回 结果",
       "type": "DEDENT",
       "value": 4,
@@ -2822,7 +3721,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 20,
+      "line": 23,
       "source_line": "    返回 结果",
       "type": "KEYWORD",
       "value": "返回",
@@ -2831,7 +3730,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 20,
+      "line": 23,
       "source_line": "    返回 结果",
       "type": "NAME",
       "value": "结果",
@@ -2840,7 +3739,7 @@
     {
       "col": 5,
       "end_col": 1,
-      "line": 20,
+      "line": 23,
       "source_line": "    返回 结果",
       "type": "NEWLINE",
       "value": "\n",
@@ -2849,7 +3748,160 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 23,
+      "line": 26,
+      "source_line": "函数 并发摘要(文件们):",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 26,
+      "source_line": "函数 并发摘要(文件们):",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 26,
+      "source_line": "函数 并发摘要(文件们):",
+      "type": "NAME",
+      "value": "并发摘要",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 26,
+      "source_line": "函数 并发摘要(文件们):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 26,
+      "source_line": "函数 并发摘要(文件们):",
+      "type": "NAME",
+      "value": "文件们",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 26,
+      "source_line": "函数 并发摘要(文件们):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 26,
+      "source_line": "函数 并发摘要(文件们):",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "函数 并发摘要(文件们):",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "    返回 并发.批量摘要(文件们)",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 28,
+      "source_line": "    返回 并发.批量摘要(文件们)",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 28,
+      "source_line": "    返回 并发.批量摘要(文件们)",
+      "type": "NAME",
+      "value": "并发",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 28,
+      "source_line": "    返回 并发.批量摘要(文件们)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 28,
+      "source_line": "    返回 并发.批量摘要(文件们)",
+      "type": "NAME",
+      "value": "批量摘要",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 28,
+      "source_line": "    返回 并发.批量摘要(文件们)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 18,
+      "line": 28,
+      "source_line": "    返回 并发.批量摘要(文件们)",
+      "type": "NAME",
+      "value": "文件们",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 28,
+      "source_line": "    返回 并发.批量摘要(文件们)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "    返回 并发.批量摘要(文件们)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 31,
       "source_line": "函数 主程序():",
       "type": "DEDENT",
       "value": 0,
@@ -2858,7 +3910,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 23,
+      "line": 31,
       "source_line": "函数 主程序():",
       "type": "KEYWORD",
       "value": "函数",
@@ -2867,7 +3919,7 @@
     {
       "col": 4,
       "end_col": 6,
-      "line": 23,
+      "line": 31,
       "source_line": "函数 主程序():",
       "type": "NAME",
       "value": "主程序",
@@ -2876,7 +3928,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 23,
+      "line": 31,
       "source_line": "函数 主程序():",
       "type": "OP",
       "value": "(",
@@ -2885,7 +3937,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 23,
+      "line": 31,
       "source_line": "函数 主程序():",
       "type": "OP",
       "value": ")",
@@ -2894,7 +3946,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 23,
+      "line": 31,
       "source_line": "函数 主程序():",
       "type": "OP",
       "value": ":",
@@ -2903,7 +3955,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 23,
+      "line": 31,
       "source_line": "函数 主程序():",
       "type": "NEWLINE",
       "value": "\n",
@@ -2912,7 +3964,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "INDENT",
       "value": 4,
@@ -2921,7 +3973,7 @@
     {
       "col": 5,
       "end_col": 5,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "KEYWORD",
       "value": "令",
@@ -2930,7 +3982,7 @@
     {
       "col": 7,
       "end_col": 9,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "NAME",
       "value": "参数们",
@@ -2939,7 +3991,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "OP",
       "value": "=",
@@ -2948,7 +4000,7 @@
     {
       "col": 13,
       "end_col": 14,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "NAME",
       "value": "系统",
@@ -2957,7 +4009,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "OP",
       "value": ".",
@@ -2966,7 +4018,7 @@
     {
       "col": 16,
       "end_col": 17,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "NAME",
       "value": "参数",
@@ -2975,7 +4027,7 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "OP",
       "value": "(",
@@ -2984,7 +4036,7 @@
     {
       "col": 19,
       "end_col": 20,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "OP",
       "value": ")",
@@ -2993,7 +4045,7 @@
     {
       "col": 5,
       "end_col": 1,
-      "line": 24,
+      "line": 32,
       "source_line": "    令 参数们 = 系统.参数()",
       "type": "NEWLINE",
       "value": "\n",
@@ -3002,7 +4054,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 25,
+      "line": 33,
       "source_line": "    如果 长度(参数们) == 0:",
       "type": "KEYWORD",
       "value": "如果",
@@ -3011,7 +4063,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 25,
+      "line": 33,
       "source_line": "    如果 长度(参数们) == 0:",
       "type": "NAME",
       "value": "长度",
@@ -3020,7 +4072,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 25,
+      "line": 33,
       "source_line": "    如果 长度(参数们) == 0:",
       "type": "OP",
       "value": "(",
@@ -3029,7 +4081,7 @@
     {
       "col": 11,
       "end_col": 13,
-      "line": 25,
+      "line": 33,
       "source_line": "    如果 长度(参数们) == 0:",
       "type": "NAME",
       "value": "参数们",
@@ -3038,7 +4090,7 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 25,
+      "line": 33,
       "source_line": "    如果 长度(参数们) == 0:",
       "type": "OP",
       "value": ")",
@@ -3047,7 +4099,7 @@
     {
       "col": 16,
       "end_col": 18,
-      "line": 25,
+      "line": 33,
       "source_line": "    如果 长度(参数们) == 0:",
       "type": "OP",
       "value": "==",
@@ -3056,7 +4108,7 @@
     {
       "col": 19,
       "end_col": 19,
-      "line": 25,
+      "line": 33,
       "source_line": "    如果 长度(参数们) == 0:",
       "type": "NUMBER",
       "value": 0,
@@ -3065,7 +4117,7 @@
     {
       "col": 20,
       "end_col": 21,
-      "line": 25,
+      "line": 33,
       "source_line": "    如果 长度(参数们) == 0:",
       "type": "OP",
       "value": ":",
@@ -3074,7 +4126,7 @@
     {
       "col": 5,
       "end_col": 1,
-      "line": 25,
+      "line": 33,
       "source_line": "    如果 长度(参数们) == 0:",
       "type": "NEWLINE",
       "value": "\n",
@@ -3083,7 +4135,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 26,
+      "line": 34,
       "source_line": "        打印(\"用法：jishi 批量.jsh <目录> [后缀]\")",
       "type": "INDENT",
       "value": 8,
@@ -3092,7 +4144,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 26,
+      "line": 34,
       "source_line": "        打印(\"用法：jishi 批量.jsh <目录> [后缀]\")",
       "type": "NAME",
       "value": "打印",
@@ -3101,7 +4153,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 26,
+      "line": 34,
       "source_line": "        打印(\"用法：jishi 批量.jsh <目录> [后缀]\")",
       "type": "OP",
       "value": "(",
@@ -3110,7 +4162,7 @@
     {
       "col": 12,
       "end_col": 38,
-      "line": 26,
+      "line": 34,
       "source_line": "        打印(\"用法：jishi 批量.jsh <目录> [后缀]\")",
       "type": "STRING",
       "value": "用法：jishi 批量.jsh <目录> [后缀]",
@@ -3119,7 +4171,7 @@
     {
       "col": 39,
       "end_col": 40,
-      "line": 26,
+      "line": 34,
       "source_line": "        打印(\"用法：jishi 批量.jsh <目录> [后缀]\")",
       "type": "OP",
       "value": ")",
@@ -3128,7 +4180,7 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 26,
+      "line": 34,
       "source_line": "        打印(\"用法：jishi 批量.jsh <目录> [后缀]\")",
       "type": "NEWLINE",
       "value": "\n",
@@ -3137,7 +4189,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "DEDENT",
       "value": 4,
@@ -3146,7 +4198,7 @@
     {
       "col": 5,
       "end_col": 8,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "KEYWORD",
       "value": "否则如果",
@@ -3155,7 +4207,7 @@
     {
       "col": 10,
       "end_col": 10,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "KEYWORD",
       "value": "非",
@@ -3164,7 +4216,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "NAME",
       "value": "路径",
@@ -3173,7 +4225,7 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "OP",
       "value": ".",
@@ -3182,7 +4234,7 @@
     {
       "col": 15,
       "end_col": 17,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "NAME",
       "value": "是目录",
@@ -3191,7 +4243,7 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "OP",
       "value": "(",
@@ -3200,7 +4252,7 @@
     {
       "col": 19,
       "end_col": 21,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "NAME",
       "value": "参数们",
@@ -3209,7 +4261,7 @@
     {
       "col": 22,
       "end_col": 23,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "OP",
       "value": "[",
@@ -3218,7 +4270,7 @@
     {
       "col": 23,
       "end_col": 23,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "NUMBER",
       "value": 0,
@@ -3227,7 +4279,7 @@
     {
       "col": 24,
       "end_col": 25,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "OP",
       "value": "]",
@@ -3236,7 +4288,7 @@
     {
       "col": 25,
       "end_col": 26,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "OP",
       "value": ")",
@@ -3245,7 +4297,7 @@
     {
       "col": 26,
       "end_col": 27,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "OP",
       "value": ":",
@@ -3254,7 +4306,7 @@
     {
       "col": 5,
       "end_col": 1,
-      "line": 27,
+      "line": 35,
       "source_line": "    否则如果 非 路径.是目录(参数们[0]):",
       "type": "NEWLINE",
       "value": "\n",
@@ -3263,7 +4315,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "INDENT",
       "value": 8,
@@ -3272,7 +4324,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "NAME",
       "value": "打印",
@@ -3281,7 +4333,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "OP",
       "value": "(",
@@ -3290,7 +4342,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "NAME",
       "value": "文本",
@@ -3299,7 +4351,7 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "OP",
       "value": ".",
@@ -3308,7 +4360,7 @@
     {
       "col": 15,
       "end_col": 17,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "NAME",
       "value": "格式化",
@@ -3317,7 +4369,7 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "OP",
       "value": "(",
@@ -3326,7 +4378,7 @@
     {
       "col": 19,
       "end_col": 28,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "STRING",
       "value": "「{}」不是目录",
@@ -3335,7 +4387,7 @@
     {
       "col": 29,
       "end_col": 30,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "OP",
       "value": ",",
@@ -3344,7 +4396,7 @@
     {
       "col": 31,
       "end_col": 33,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "NAME",
       "value": "参数们",
@@ -3353,7 +4405,7 @@
     {
       "col": 34,
       "end_col": 35,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "OP",
       "value": "[",
@@ -3362,7 +4414,7 @@
     {
       "col": 35,
       "end_col": 35,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "NUMBER",
       "value": 0,
@@ -3371,7 +4423,7 @@
     {
       "col": 36,
       "end_col": 37,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "OP",
       "value": "]",
@@ -3380,7 +4432,7 @@
     {
       "col": 37,
       "end_col": 38,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "OP",
       "value": ")",
@@ -3389,7 +4441,7 @@
     {
       "col": 38,
       "end_col": 39,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "OP",
       "value": ")",
@@ -3398,7 +4450,7 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 28,
+      "line": 36,
       "source_line": "        打印(文本.格式化(\"「{}」不是目录\", 参数们[0]))",
       "type": "NEWLINE",
       "value": "\n",
@@ -3407,7 +4459,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 29,
+      "line": 37,
       "source_line": "    否则:",
       "type": "DEDENT",
       "value": 4,
@@ -3416,7 +4468,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 29,
+      "line": 37,
       "source_line": "    否则:",
       "type": "KEYWORD",
       "value": "否则",
@@ -3425,7 +4477,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 29,
+      "line": 37,
       "source_line": "    否则:",
       "type": "OP",
       "value": ":",
@@ -3434,7 +4486,7 @@
     {
       "col": 5,
       "end_col": 1,
-      "line": 29,
+      "line": 37,
       "source_line": "    否则:",
       "type": "NEWLINE",
       "value": "\n",
@@ -3443,7 +4495,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 30,
+      "line": 38,
       "source_line": "        令 目录 = 参数们[0]",
       "type": "INDENT",
       "value": 8,
@@ -3452,7 +4504,7 @@
     {
       "col": 9,
       "end_col": 9,
-      "line": 30,
+      "line": 38,
       "source_line": "        令 目录 = 参数们[0]",
       "type": "KEYWORD",
       "value": "令",
@@ -3461,7 +4513,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 30,
+      "line": 38,
       "source_line": "        令 目录 = 参数们[0]",
       "type": "NAME",
       "value": "目录",
@@ -3470,7 +4522,7 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 30,
+      "line": 38,
       "source_line": "        令 目录 = 参数们[0]",
       "type": "OP",
       "value": "=",
@@ -3479,7 +4531,7 @@
     {
       "col": 16,
       "end_col": 18,
-      "line": 30,
+      "line": 38,
       "source_line": "        令 目录 = 参数们[0]",
       "type": "NAME",
       "value": "参数们",
@@ -3488,7 +4540,7 @@
     {
       "col": 19,
       "end_col": 20,
-      "line": 30,
+      "line": 38,
       "source_line": "        令 目录 = 参数们[0]",
       "type": "OP",
       "value": "[",
@@ -3497,7 +4549,7 @@
     {
       "col": 20,
       "end_col": 20,
-      "line": 30,
+      "line": 38,
       "source_line": "        令 目录 = 参数们[0]",
       "type": "NUMBER",
       "value": 0,
@@ -3506,7 +4558,7 @@
     {
       "col": 21,
       "end_col": 22,
-      "line": 30,
+      "line": 38,
       "source_line": "        令 目录 = 参数们[0]",
       "type": "OP",
       "value": "]",
@@ -3515,7 +4567,7 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 30,
+      "line": 38,
       "source_line": "        令 目录 = 参数们[0]",
       "type": "NEWLINE",
       "value": "\n",
@@ -3524,7 +4576,7 @@
     {
       "col": 9,
       "end_col": 9,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "KEYWORD",
       "value": "令",
@@ -3533,7 +4585,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "NAME",
       "value": "后缀",
@@ -3542,7 +4594,7 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "OP",
       "value": "=",
@@ -3551,7 +4603,7 @@
     {
       "col": 16,
       "end_col": 18,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "NAME",
       "value": "参数们",
@@ -3560,7 +4612,7 @@
     {
       "col": 19,
       "end_col": 20,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "OP",
       "value": "[",
@@ -3569,7 +4621,7 @@
     {
       "col": 20,
       "end_col": 20,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "NUMBER",
       "value": 1,
@@ -3578,7 +4630,7 @@
     {
       "col": 21,
       "end_col": 22,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "OP",
       "value": "]",
@@ -3587,7 +4639,7 @@
     {
       "col": 23,
       "end_col": 24,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "KEYWORD",
       "value": "如果",
@@ -3596,7 +4648,7 @@
     {
       "col": 26,
       "end_col": 27,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "NAME",
       "value": "长度",
@@ -3605,7 +4657,7 @@
     {
       "col": 28,
       "end_col": 29,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "OP",
       "value": "(",
@@ -3614,7 +4666,7 @@
     {
       "col": 29,
       "end_col": 31,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "NAME",
       "value": "参数们",
@@ -3623,7 +4675,7 @@
     {
       "col": 32,
       "end_col": 33,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "OP",
       "value": ")",
@@ -3632,7 +4684,7 @@
     {
       "col": 34,
       "end_col": 35,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "OP",
       "value": ">",
@@ -3641,7 +4693,7 @@
     {
       "col": 36,
       "end_col": 36,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "NUMBER",
       "value": 1,
@@ -3650,7 +4702,7 @@
     {
       "col": 38,
       "end_col": 39,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "KEYWORD",
       "value": "否则",
@@ -3659,7 +4711,7 @@
     {
       "col": 41,
       "end_col": 42,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "STRING",
       "value": "",
@@ -3668,7 +4720,7 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 31,
+      "line": 39,
       "source_line": "        令 后缀 = 参数们[1] 如果 长度(参数们) > 1 否则 \"\"",
       "type": "NEWLINE",
       "value": "\n",
@@ -3677,7 +4729,7 @@
     {
       "col": 9,
       "end_col": 9,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "KEYWORD",
       "value": "令",
@@ -3686,7 +4738,7 @@
     {
       "col": 11,
       "end_col": 13,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "NAME",
       "value": "相对们",
@@ -3695,7 +4747,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "OP",
       "value": "=",
@@ -3704,7 +4756,7 @@
     {
       "col": 17,
       "end_col": 18,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "NAME",
       "value": "路径",
@@ -3713,7 +4765,7 @@
     {
       "col": 19,
       "end_col": 20,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "OP",
       "value": ".",
@@ -3722,7 +4774,7 @@
     {
       "col": 20,
       "end_col": 23,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "NAME",
       "value": "递归列出",
@@ -3731,7 +4783,7 @@
     {
       "col": 24,
       "end_col": 25,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "OP",
       "value": "(",
@@ -3740,7 +4792,7 @@
     {
       "col": 25,
       "end_col": 26,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "NAME",
       "value": "目录",
@@ -3749,7 +4801,7 @@
     {
       "col": 27,
       "end_col": 28,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "OP",
       "value": ",",
@@ -3758,7 +4810,7 @@
     {
       "col": 29,
       "end_col": 30,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "NAME",
       "value": "后缀",
@@ -3767,7 +4819,7 @@
     {
       "col": 31,
       "end_col": 32,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "OP",
       "value": ")",
@@ -3776,7 +4828,7 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 32,
+      "line": 40,
       "source_line": "        令 相对们 = 路径.递归列出(目录, 后缀)",
       "type": "NEWLINE",
       "value": "\n",
@@ -3785,7 +4837,7 @@
     {
       "col": 9,
       "end_col": 9,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "KEYWORD",
       "value": "令",
@@ -3794,7 +4846,7 @@
     {
       "col": 11,
       "end_col": 13,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "NAME",
       "value": "文件们",
@@ -3803,7 +4855,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "OP",
       "value": "=",
@@ -3812,7 +4864,7 @@
     {
       "col": 17,
       "end_col": 18,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "OP",
       "value": "[",
@@ -3821,7 +4873,7 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "NAME",
       "value": "路径",
@@ -3830,7 +4882,7 @@
     {
       "col": 20,
       "end_col": 21,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "OP",
       "value": ".",
@@ -3839,7 +4891,7 @@
     {
       "col": 21,
       "end_col": 22,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "NAME",
       "value": "连接",
@@ -3848,7 +4900,7 @@
     {
       "col": 23,
       "end_col": 24,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "OP",
       "value": "(",
@@ -3857,7 +4909,7 @@
     {
       "col": 24,
       "end_col": 25,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "NAME",
       "value": "目录",
@@ -3866,7 +4918,7 @@
     {
       "col": 26,
       "end_col": 27,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "OP",
       "value": ",",
@@ -3875,7 +4927,7 @@
     {
       "col": 28,
       "end_col": 28,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "NAME",
       "value": "f",
@@ -3884,7 +4936,7 @@
     {
       "col": 29,
       "end_col": 30,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "OP",
       "value": ")",
@@ -3893,7 +4945,7 @@
     {
       "col": 31,
       "end_col": 32,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "KEYWORD",
       "value": "遍历",
@@ -3902,7 +4954,7 @@
     {
       "col": 34,
       "end_col": 34,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "NAME",
       "value": "f",
@@ -3911,7 +4963,7 @@
     {
       "col": 36,
       "end_col": 36,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "KEYWORD",
       "value": "在",
@@ -3920,7 +4972,7 @@
     {
       "col": 38,
       "end_col": 40,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "NAME",
       "value": "相对们",
@@ -3929,7 +4981,7 @@
     {
       "col": 41,
       "end_col": 42,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "OP",
       "value": "]",
@@ -3938,7 +4990,7 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 33,
+      "line": 41,
       "source_line": "        令 文件们 = [路径.连接(目录, f) 遍历 f 在 相对们]",
       "type": "NEWLINE",
       "value": "\n",
@@ -3947,8 +4999,8 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "NAME",
       "value": "打印",
       "类型": "Token"
@@ -3956,8 +5008,8 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "OP",
       "value": "(",
       "类型": "Token"
@@ -3965,8 +5017,8 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "NAME",
       "value": "文本",
       "类型": "Token"
@@ -3974,8 +5026,8 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "OP",
       "value": ".",
       "类型": "Token"
@@ -3983,8 +5035,8 @@
     {
       "col": 15,
       "end_col": 17,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "NAME",
       "value": "格式化",
       "类型": "Token"
@@ -3992,80 +5044,80 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
       "col": 19,
-      "end_col": 35,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "end_col": 29,
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "STRING",
-      "value": "共 {} 个文件，逐个算摘要…",
+      "value": "共 {} 个文件。",
       "类型": "Token"
     },
     {
-      "col": 36,
-      "end_col": 37,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "col": 30,
+      "end_col": 31,
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "OP",
       "value": ",",
       "类型": "Token"
     },
     {
-      "col": 38,
-      "end_col": 39,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "col": 32,
+      "end_col": 33,
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "NAME",
       "value": "长度",
       "类型": "Token"
     },
     {
-      "col": 40,
-      "end_col": 41,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "col": 34,
+      "end_col": 35,
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
-      "col": 41,
-      "end_col": 43,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "col": 35,
+      "end_col": 37,
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "NAME",
       "value": "文件们",
       "类型": "Token"
     },
     {
-      "col": 44,
-      "end_col": 45,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "col": 38,
+      "end_col": 39,
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "OP",
       "value": ")",
       "类型": "Token"
     },
     {
-      "col": 45,
-      "end_col": 46,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "col": 39,
+      "end_col": 40,
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "OP",
       "value": ")",
       "类型": "Token"
     },
     {
-      "col": 46,
-      "end_col": 47,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "col": 40,
+      "end_col": 41,
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -4073,8 +5125,8 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 34,
-      "source_line": "        打印(文本.格式化(\"共 {} 个文件，逐个算摘要…\", 长度(文件们)))",
+      "line": 42,
+      "source_line": "        打印(文本.格式化(\"共 {} 个文件。\", 长度(文件们)))",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -4082,71 +5134,71 @@
     {
       "col": 9,
       "end_col": 9,
-      "line": 35,
-      "source_line": "        令 开始 = 时间.高精度时间()",
+      "line": 44,
+      "source_line": "        令 起 = 时间.高精度时间()",
       "type": "KEYWORD",
       "value": "令",
       "类型": "Token"
     },
     {
       "col": 11,
-      "end_col": 12,
-      "line": 35,
-      "source_line": "        令 开始 = 时间.高精度时间()",
+      "end_col": 11,
+      "line": 44,
+      "source_line": "        令 起 = 时间.高精度时间()",
       "type": "NAME",
-      "value": "开始",
+      "value": "起",
       "类型": "Token"
     },
     {
-      "col": 14,
-      "end_col": 15,
-      "line": 35,
-      "source_line": "        令 开始 = 时间.高精度时间()",
+      "col": 13,
+      "end_col": 14,
+      "line": 44,
+      "source_line": "        令 起 = 时间.高精度时间()",
       "type": "OP",
       "value": "=",
       "类型": "Token"
     },
     {
-      "col": 16,
-      "end_col": 17,
-      "line": 35,
-      "source_line": "        令 开始 = 时间.高精度时间()",
+      "col": 15,
+      "end_col": 16,
+      "line": 44,
+      "source_line": "        令 起 = 时间.高精度时间()",
       "type": "NAME",
       "value": "时间",
       "类型": "Token"
     },
     {
-      "col": 18,
-      "end_col": 19,
-      "line": 35,
-      "source_line": "        令 开始 = 时间.高精度时间()",
+      "col": 17,
+      "end_col": 18,
+      "line": 44,
+      "source_line": "        令 起 = 时间.高精度时间()",
       "type": "OP",
       "value": ".",
       "类型": "Token"
     },
     {
-      "col": 19,
-      "end_col": 23,
-      "line": 35,
-      "source_line": "        令 开始 = 时间.高精度时间()",
+      "col": 18,
+      "end_col": 22,
+      "line": 44,
+      "source_line": "        令 起 = 时间.高精度时间()",
       "type": "NAME",
       "value": "高精度时间",
       "类型": "Token"
     },
     {
-      "col": 24,
-      "end_col": 25,
-      "line": 35,
-      "source_line": "        令 开始 = 时间.高精度时间()",
+      "col": 23,
+      "end_col": 24,
+      "line": 44,
+      "source_line": "        令 起 = 时间.高精度时间()",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
-      "col": 25,
-      "end_col": 26,
-      "line": 35,
-      "source_line": "        令 开始 = 时间.高精度时间()",
+      "col": 24,
+      "end_col": 25,
+      "line": 44,
+      "source_line": "        令 起 = 时间.高精度时间()",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -4154,8 +5206,8 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 35,
-      "source_line": "        令 开始 = 时间.高精度时间()",
+      "line": 44,
+      "source_line": "        令 起 = 时间.高精度时间()",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -4163,62 +5215,62 @@
     {
       "col": 9,
       "end_col": 9,
-      "line": 36,
-      "source_line": "        令 结果 = 逐个摘要(文件们)",
+      "line": 45,
+      "source_line": "        令 甲 = 逐个摘要(文件们)",
       "type": "KEYWORD",
       "value": "令",
       "类型": "Token"
     },
     {
       "col": 11,
-      "end_col": 12,
-      "line": 36,
-      "source_line": "        令 结果 = 逐个摘要(文件们)",
+      "end_col": 11,
+      "line": 45,
+      "source_line": "        令 甲 = 逐个摘要(文件们)",
       "type": "NAME",
-      "value": "结果",
+      "value": "甲",
       "类型": "Token"
     },
     {
-      "col": 14,
-      "end_col": 15,
-      "line": 36,
-      "source_line": "        令 结果 = 逐个摘要(文件们)",
+      "col": 13,
+      "end_col": 14,
+      "line": 45,
+      "source_line": "        令 甲 = 逐个摘要(文件们)",
       "type": "OP",
       "value": "=",
       "类型": "Token"
     },
     {
-      "col": 16,
-      "end_col": 19,
-      "line": 36,
-      "source_line": "        令 结果 = 逐个摘要(文件们)",
+      "col": 15,
+      "end_col": 18,
+      "line": 45,
+      "source_line": "        令 甲 = 逐个摘要(文件们)",
       "type": "NAME",
       "value": "逐个摘要",
       "类型": "Token"
     },
     {
-      "col": 20,
-      "end_col": 21,
-      "line": 36,
-      "source_line": "        令 结果 = 逐个摘要(文件们)",
+      "col": 19,
+      "end_col": 20,
+      "line": 45,
+      "source_line": "        令 甲 = 逐个摘要(文件们)",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
-      "col": 21,
-      "end_col": 23,
-      "line": 36,
-      "source_line": "        令 结果 = 逐个摘要(文件们)",
+      "col": 20,
+      "end_col": 22,
+      "line": 45,
+      "source_line": "        令 甲 = 逐个摘要(文件们)",
       "type": "NAME",
       "value": "文件们",
       "类型": "Token"
     },
     {
-      "col": 24,
-      "end_col": 25,
-      "line": 36,
-      "source_line": "        令 结果 = 逐个摘要(文件们)",
+      "col": 23,
+      "end_col": 24,
+      "line": 45,
+      "source_line": "        令 甲 = 逐个摘要(文件们)",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -4226,8 +5278,8 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 36,
-      "source_line": "        令 结果 = 逐个摘要(文件们)",
+      "line": 45,
+      "source_line": "        令 甲 = 逐个摘要(文件们)",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -4235,98 +5287,350 @@
     {
       "col": 9,
       "end_col": 9,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
       "type": "KEYWORD",
       "value": "令",
       "类型": "Token"
     },
     {
       "col": 11,
-      "end_col": 12,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
+      "end_col": 14,
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
       "type": "NAME",
-      "value": "用时",
-      "类型": "Token"
-    },
-    {
-      "col": 14,
-      "end_col": 15,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
-      "type": "OP",
-      "value": "=",
+      "value": "顺序用时",
       "类型": "Token"
     },
     {
       "col": 16,
       "end_col": 17,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
-      "type": "NAME",
-      "value": "时间",
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
+      "type": "OP",
+      "value": "=",
       "类型": "Token"
     },
     {
       "col": 18,
       "end_col": 19,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
+      "type": "NAME",
+      "value": "时间",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
       "type": "OP",
       "value": ".",
       "类型": "Token"
     },
     {
-      "col": 19,
-      "end_col": 23,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
+      "col": 21,
+      "end_col": 25,
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
       "type": "NAME",
       "value": "高精度时间",
       "类型": "Token"
     },
     {
-      "col": 24,
-      "end_col": 25,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
+      "col": 26,
+      "end_col": 27,
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
-      "col": 25,
-      "end_col": 26,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
+      "col": 27,
+      "end_col": 28,
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
       "type": "OP",
       "value": ")",
       "类型": "Token"
     },
     {
-      "col": 27,
-      "end_col": 28,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
+      "col": 29,
+      "end_col": 30,
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
       "type": "OP",
       "value": "-",
       "类型": "Token"
     },
     {
-      "col": 29,
-      "end_col": 30,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
+      "col": 31,
+      "end_col": 31,
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
       "type": "NAME",
-      "value": "开始",
+      "value": "起",
       "类型": "Token"
     },
     {
       "col": 9,
       "end_col": 1,
-      "line": 37,
-      "source_line": "        令 用时 = 时间.高精度时间() - 开始",
+      "line": 46,
+      "source_line": "        令 顺序用时 = 时间.高精度时间() - 起",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 48,
+      "source_line": "        令 起 = 时间.高精度时间()",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 48,
+      "source_line": "        令 起 = 时间.高精度时间()",
+      "type": "NAME",
+      "value": "起",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 48,
+      "source_line": "        令 起 = 时间.高精度时间()",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 48,
+      "source_line": "        令 起 = 时间.高精度时间()",
+      "type": "NAME",
+      "value": "时间",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 48,
+      "source_line": "        令 起 = 时间.高精度时间()",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 48,
+      "source_line": "        令 起 = 时间.高精度时间()",
+      "type": "NAME",
+      "value": "高精度时间",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 48,
+      "source_line": "        令 起 = 时间.高精度时间()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 48,
+      "source_line": "        令 起 = 时间.高精度时间()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 48,
+      "source_line": "        令 起 = 时间.高精度时间()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 49,
+      "source_line": "        令 乙 = 并发摘要(文件们)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 49,
+      "source_line": "        令 乙 = 并发摘要(文件们)",
+      "type": "NAME",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 49,
+      "source_line": "        令 乙 = 并发摘要(文件们)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 18,
+      "line": 49,
+      "source_line": "        令 乙 = 并发摘要(文件们)",
+      "type": "NAME",
+      "value": "并发摘要",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 49,
+      "source_line": "        令 乙 = 并发摘要(文件们)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 22,
+      "line": 49,
+      "source_line": "        令 乙 = 并发摘要(文件们)",
+      "type": "NAME",
+      "value": "文件们",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 49,
+      "source_line": "        令 乙 = 并发摘要(文件们)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 49,
+      "source_line": "        令 乙 = 并发摘要(文件们)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "NAME",
+      "value": "并发用时",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "NAME",
+      "value": "时间",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 25,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "NAME",
+      "value": "高精度时间",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "OP",
+      "value": "-",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 31,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
+      "type": "NAME",
+      "value": "起",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 50,
+      "source_line": "        令 并发用时 = 时间.高精度时间() - 起",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -4334,8 +5638,8 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "NAME",
       "value": "打印",
       "类型": "Token"
@@ -4343,8 +5647,8 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "OP",
       "value": "(",
       "类型": "Token"
@@ -4352,8 +5656,8 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "NAME",
       "value": "文本",
       "类型": "Token"
@@ -4361,8 +5665,8 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "OP",
       "value": ".",
       "类型": "Token"
@@ -4370,8 +5674,8 @@
     {
       "col": 15,
       "end_col": 17,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "NAME",
       "value": "格式化",
       "类型": "Token"
@@ -4379,53 +5683,71 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
       "col": 19,
-      "end_col": 35,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "end_col": 45,
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "STRING",
-      "value": "逐个处理用了 {:.3f} 秒",
+      "value": "顺序 {:.3f} 秒 / 并发 {:.3f} 秒",
       "类型": "Token"
     },
     {
-      "col": 36,
-      "end_col": 37,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "col": 46,
+      "end_col": 47,
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "OP",
       "value": ",",
       "类型": "Token"
     },
     {
-      "col": 38,
-      "end_col": 39,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "col": 48,
+      "end_col": 51,
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "NAME",
-      "value": "用时",
+      "value": "顺序用时",
       "类型": "Token"
     },
     {
-      "col": 40,
-      "end_col": 41,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "col": 52,
+      "end_col": 53,
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 54,
+      "end_col": 57,
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
+      "type": "NAME",
+      "value": "并发用时",
+      "类型": "Token"
+    },
+    {
+      "col": 58,
+      "end_col": 59,
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "OP",
       "value": ")",
       "类型": "Token"
     },
     {
-      "col": 41,
-      "end_col": 42,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "col": 59,
+      "end_col": 60,
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -4433,8 +5755,8 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 38,
-      "source_line": "        打印(文本.格式化(\"逐个处理用了 {:.3f} 秒\", 用时))",
+      "line": 52,
+      "source_line": "        打印(文本.格式化(\"顺序 {:.3f} 秒 / 并发 {:.3f} 秒\", 顺序用时, 并发用时))",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -4442,44 +5764,107 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 39,
-      "source_line": "        遍历 f 在 文件们:",
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
       "type": "KEYWORD",
-      "value": "遍历",
+      "value": "如果",
       "类型": "Token"
     },
     {
       "col": 12,
-      "end_col": 12,
-      "line": 39,
-      "source_line": "        遍历 f 在 文件们:",
+      "end_col": 13,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
       "type": "NAME",
-      "value": "f",
+      "value": "长度",
       "类型": "Token"
     },
     {
       "col": 14,
-      "end_col": 14,
-      "line": 39,
-      "source_line": "        遍历 f 在 文件们:",
-      "type": "KEYWORD",
-      "value": "在",
+      "end_col": 15,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
+      "type": "OP",
+      "value": "(",
       "类型": "Token"
     },
     {
-      "col": 16,
-      "end_col": 18,
-      "line": 39,
-      "source_line": "        遍历 f 在 文件们:",
+      "col": 15,
+      "end_col": 17,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
       "type": "NAME",
       "value": "文件们",
       "类型": "Token"
     },
     {
-      "col": 19,
-      "end_col": 20,
-      "line": 39,
-      "source_line": "        遍历 f 在 文件们:",
+      "col": 18,
+      "end_col": 19,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
+      "type": "OP",
+      "value": ">",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 22,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 24,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
+      "type": "KEYWORD",
+      "value": "与",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 29,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
+      "type": "NAME",
+      "value": "并发用时",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
+      "type": "OP",
+      "value": ">",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 33,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
       "type": "OP",
       "value": ":",
       "类型": "Token"
@@ -4487,8 +5872,8 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 39,
-      "source_line": "        遍历 f 在 文件们:",
+      "line": 53,
+      "source_line": "        如果 长度(文件们) > 0 与 并发用时 > 0:",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -4496,8 +5881,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "INDENT",
       "value": 12,
       "类型": "Token"
@@ -4505,8 +5890,8 @@
     {
       "col": 13,
       "end_col": 14,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "NAME",
       "value": "打印",
       "类型": "Token"
@@ -4514,188 +5899,107 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
       "col": 16,
-      "end_col": 19,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "STRING",
-      "value": "  ",
-      "类型": "Token"
-    },
-    {
-      "col": 21,
-      "end_col": 22,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "OP",
-      "value": "+",
-      "类型": "Token"
-    },
-    {
-      "col": 23,
-      "end_col": 24,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "end_col": 17,
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "NAME",
-      "value": "路径",
+      "value": "文本",
       "类型": "Token"
     },
     {
-      "col": 25,
-      "end_col": 26,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "col": 18,
+      "end_col": 19,
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "OP",
       "value": ".",
       "类型": "Token"
     },
     {
-      "col": 26,
-      "end_col": 28,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "col": 19,
+      "end_col": 21,
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "NAME",
-      "value": "文件名",
+      "value": "格式化",
       "类型": "Token"
     },
     {
-      "col": 29,
-      "end_col": 30,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "col": 22,
+      "end_col": 23,
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
-      "col": 30,
-      "end_col": 30,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "NAME",
-      "value": "f",
-      "类型": "Token"
-    },
-    {
-      "col": 31,
-      "end_col": 32,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "OP",
-      "value": ")",
-      "类型": "Token"
-    },
-    {
-      "col": 33,
-      "end_col": 34,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "OP",
-      "value": "+",
-      "类型": "Token"
-    },
-    {
-      "col": 35,
-      "end_col": 38,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "col": 23,
+      "end_col": 35,
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "STRING",
-      "value": "  ",
+      "value": "加速 {:.2f} 倍",
       "类型": "Token"
     },
     {
-      "col": 40,
+      "col": 36,
+      "end_col": 37,
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
       "end_col": 41,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "OP",
-      "value": "+",
-      "类型": "Token"
-    },
-    {
-      "col": 42,
-      "end_col": 43,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "NAME",
-      "value": "结果",
+      "value": "顺序用时",
       "类型": "Token"
     },
     {
-      "col": 44,
-      "end_col": 45,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "col": 43,
+      "end_col": 44,
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "OP",
-      "value": "[",
+      "value": "/",
       "类型": "Token"
     },
     {
       "col": 45,
-      "end_col": 45,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "NAME",
-      "value": "f",
-      "类型": "Token"
-    },
-    {
-      "col": 46,
-      "end_col": 47,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "OP",
-      "value": "]",
-      "类型": "Token"
-    },
-    {
-      "col": 47,
       "end_col": 48,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "OP",
-      "value": "[",
-      "类型": "Token"
-    },
-    {
-      "col": 48,
-      "end_col": 49,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "OP",
-      "value": ":",
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
+      "type": "NAME",
+      "value": "并发用时",
       "类型": "Token"
     },
     {
       "col": 49,
       "end_col": 50,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
-      "type": "NUMBER",
-      "value": 16,
-      "类型": "Token"
-    },
-    {
-      "col": 51,
-      "end_col": 52,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "OP",
-      "value": "]",
+      "value": ")",
       "类型": "Token"
     },
     {
-      "col": 52,
-      "end_col": 53,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "col": 50,
+      "end_col": 51,
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -4703,8 +6007,8 @@
     {
       "col": 13,
       "end_col": 1,
-      "line": 40,
-      "source_line": "            打印(\"  \" + 路径.文件名(f) + \"  \" + 结果[f][:16])",
+      "line": 54,
+      "source_line": "            打印(文本.格式化(\"加速 {:.2f} 倍\", 顺序用时 / 并发用时))",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -4712,7 +6016,493 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 41,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "DEDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "NAME",
+      "value": "文本",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 17,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "NAME",
+      "value": "格式化",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 29,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "STRING",
+      "value": "两档结果一致：{}",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 32,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 36,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "OP",
+      "value": "==",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 37,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "NAME",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 56,
+      "source_line": "        打印(文本.格式化(\"两档结果一致：{}\", 甲 == 乙))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "NAME",
+      "value": "i",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "NAME",
+      "value": "范围",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 24,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "NAME",
+      "value": "文件们",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 58,
+      "source_line": "        遍历 i 在 范围(长度(文件们)):",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "INDENT",
+      "value": 12,
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 19,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "STRING",
+      "value": "  ",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 28,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "NAME",
+      "value": "文件名",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 32,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "NAME",
+      "value": "文件们",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 34,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "NAME",
+      "value": "i",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 43,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "STRING",
+      "value": "  ",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 46,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 47,
+      "end_col": 47,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 49,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 49,
+      "end_col": 49,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "NAME",
+      "value": "i",
+      "类型": "Token"
+    },
+    {
+      "col": 50,
+      "end_col": 51,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 51,
+      "end_col": 52,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 53,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 54,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "NUMBER",
+      "value": 16,
+      "类型": "Token"
+    },
+    {
+      "col": 55,
+      "end_col": 56,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 56,
+      "end_col": 57,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "            打印(\"  \" + 路径.文件名(文件们[i]) + \"  \" + 甲[i][:16])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 60,
       "source_line": "        打印()",
       "type": "DEDENT",
       "value": 8,
@@ -4721,7 +6511,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 41,
+      "line": 60,
       "source_line": "        打印()",
       "type": "NAME",
       "value": "打印",
@@ -4730,7 +6520,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 41,
+      "line": 60,
       "source_line": "        打印()",
       "type": "OP",
       "value": "(",
@@ -4739,7 +6529,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 41,
+      "line": 60,
       "source_line": "        打印()",
       "type": "OP",
       "value": ")",
@@ -4748,7 +6538,7 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 41,
+      "line": 60,
       "source_line": "        打印()",
       "type": "NEWLINE",
       "value": "\n",
@@ -4757,8 +6547,8 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 42,
-      "source_line": "        打印(\"（想同时算？没有线程 / 进程 / 异步 —— 见绕道 R005）\")",
+      "line": 61,
+      "source_line": "        打印(\"（小文件批量划算；大文件、纯计算反而更慢 —— 见 README）\")",
       "type": "NAME",
       "value": "打印",
       "类型": "Token"
@@ -4766,8 +6556,8 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 42,
-      "source_line": "        打印(\"（想同时算？没有线程 / 进程 / 异步 —— 见绕道 R005）\")",
+      "line": 61,
+      "source_line": "        打印(\"（小文件批量划算；大文件、纯计算反而更慢 —— 见 README）\")",
       "type": "OP",
       "value": "(",
       "类型": "Token"
@@ -4775,17 +6565,17 @@
     {
       "col": 12,
       "end_col": 46,
-      "line": 42,
-      "source_line": "        打印(\"（想同时算？没有线程 / 进程 / 异步 —— 见绕道 R005）\")",
+      "line": 61,
+      "source_line": "        打印(\"（小文件批量划算；大文件、纯计算反而更慢 —— 见 README）\")",
       "type": "STRING",
-      "value": "（想同时算？没有线程 / 进程 / 异步 —— 见绕道 R005）",
+      "value": "（小文件批量划算；大文件、纯计算反而更慢 —— 见 README）",
       "类型": "Token"
     },
     {
       "col": 47,
       "end_col": 48,
-      "line": 42,
-      "source_line": "        打印(\"（想同时算？没有线程 / 进程 / 异步 —— 见绕道 R005）\")",
+      "line": 61,
+      "source_line": "        打印(\"（小文件批量划算；大文件、纯计算反而更慢 —— 见 README）\")",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -4793,8 +6583,8 @@
     {
       "col": 9,
       "end_col": 1,
-      "line": 42,
-      "source_line": "        打印(\"（想同时算？没有线程 / 进程 / 异步 —— 见绕道 R005）\")",
+      "line": 61,
+      "source_line": "        打印(\"（小文件批量划算；大文件、纯计算反而更慢 —— 见 README）\")",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -4802,7 +6592,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 45,
+      "line": 64,
       "source_line": "主程序()",
       "type": "DEDENT",
       "value": 0,
@@ -4811,7 +6601,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 45,
+      "line": 64,
       "source_line": "主程序()",
       "type": "DEDENT",
       "value": 0,
@@ -4820,7 +6610,7 @@
     {
       "col": 1,
       "end_col": 3,
-      "line": 45,
+      "line": 64,
       "source_line": "主程序()",
       "type": "NAME",
       "value": "主程序",
@@ -4829,7 +6619,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 45,
+      "line": 64,
       "source_line": "主程序()",
       "type": "OP",
       "value": "(",
@@ -4838,7 +6628,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 45,
+      "line": 64,
       "source_line": "主程序()",
       "type": "OP",
       "value": ")",
@@ -4847,7 +6637,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 45,
+      "line": 64,
       "source_line": "主程序()",
       "type": "NEWLINE",
       "value": "\n",
@@ -4856,13 +6646,13 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 45,
+      "line": 64,
       "source_line": "",
       "type": "EOF",
       "value": null,
       "类型": "Token"
     }
   ],
-  "内容哈希": "sha256:1789624f9416e984",
+  "内容哈希": "sha256:d8b3309ebb816b30",
   "语料": "examples/绕道探针/并发批量/批量.jsh"
 }

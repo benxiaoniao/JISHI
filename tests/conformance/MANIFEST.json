@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 31,
     "frontend": 1,
-    "lang": 87,
+    "lang": 91,
     "stdlib": 4
   },
   "语料": [
@@ -240,8 +240,8 @@
     },
     {
       "id": "examples__绕道探针__并发批量__批量",
-      "产物哈希": "sha256:208c8de3bad913ef",
-      "内容哈希": "sha256:1789624f9416e984",
+      "产物哈希": "sha256:e75453b7cc170385",
+      "内容哈希": "sha256:d8b3309ebb816b30",
       "类别": "examples",
       "路径": "examples/绕道探针/并发批量/批量.jsh"
     },
@@ -538,6 +538,13 @@
       "内容哈希": "sha256:89dedf32cee56818",
       "类别": "lang",
       "路径": "tests/cases/32_标准库_M113.jsh"
+    },
+    {
+      "id": "tests__cases__33_标准库_M114",
+      "产物哈希": "sha256:c63180b382c0ee47",
+      "内容哈希": "sha256:679be82fb3670982",
+      "类别": "lang",
+      "路径": "tests/cases/33_标准库_M114.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -918,6 +925,27 @@
       "路径": "tests/error_cases/53_字节_下标越界.jsh"
     },
     {
+      "id": "tests__error_cases__54_并发_要给列表",
+      "产物哈希": "sha256:236fa0e33fad033d",
+      "内容哈希": "sha256:6545d09495eb2ed5",
+      "类别": "lang",
+      "路径": "tests/error_cases/54_并发_要给列表.jsh"
+    },
+    {
+      "id": "tests__error_cases__55_并发_线程数",
+      "产物哈希": "sha256:3047d1a78a9f78f3",
+      "内容哈希": "sha256:82eedf1268ca1354",
+      "类别": "lang",
+      "路径": "tests/error_cases/55_并发_线程数.jsh"
+    },
+    {
+      "id": "tests__error_cases__56_并发_不支持的算法",
+      "产物哈希": "sha256:0d1a4dfa0acee2b0",
+      "内容哈希": "sha256:b1da12df1bb9d88f",
+      "类别": "lang",
+      "路径": "tests/error_cases/56_并发_不支持的算法.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:293975765ad4c964",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -925,5 +953,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 123
+  "语料数": 127
 }

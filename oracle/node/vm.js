@@ -4169,8 +4169,63 @@ function _dbLikeSelect(sql) {
          s.slice(0, 7).toLowerCase() === 'select\r';
 }
 
-const STDLIB = {
-  '数学': new R.Module('数学', {
+// -- 并发（M114）--
+// 把**一批互相独立的 IO** 同时做，结果顺序与输入一致。
+//
+// ⚠️ **本宿主顺序执行**：Node 的 `fs` / `crypto` 在这一层都是**同步 API**，
+//    没有「等待重叠」可言；要真并行得上 `worker_threads`（重，而且判据基准
+//    不需要它）。**输出与其它引擎逐字节一致**（顺序、首个错胜出都一样），
+//    只是不快 —— 如实标注，不假装。
+//
+// 三条规矩同 Python 侧 `并发._并行做`：
+//   ① 顺序 = 输入顺序；② 首个错胜出；③ 线程数 <= 1 顺序执行（这里恒顺序）。
+//
+// 参数校验的**顺序也要一致**（算法 → 线程数 → 列表），否则「两处都不合法」
+// 时三个引擎报的不是同一句。
+function _并发线程数(v) {
+  if (typeof v === 'boolean' || typeof v !== 'number' || !Number.isFinite(v)) {
+    throw R.typeErr(`线程数要是正整数，得到了「${R.typeName(v)}」`);
+  }
+  const n = Math.trunc(v);
+  if (n < 1) throw R.valueErr(`线程数要是正整数，现在是 ${n}`);
+  return Math.min(n, 32);
+}
+
+function _并发列出(v, 谁) {
+  if (typeof v === 'string') throw R.typeErr(`${谁}要给一个列表，不能直接给文本`);
+  if (Array.isArray(v)) return v;
+  throw R.typeErr(`${谁}要给一个列表，得到了「${R.typeName(v)}」`);
+}
+
+/** 顺序做一遍 —— 抛错自然就是「输入顺序里最靠前」的那个。 */
+function _并发顺序做(项们, 做一项) {
+  const 出 = [];
+  for (const x of 项们) 出.push(做一项(x));
+  return 出;
+}
+
+const CONCURRENT_FUNCS = {
+  '批量摘要': new R.Builtin('批量摘要', (paths, algo = 'sha256', threads = 4) => {
+    const 算法 = normAlgo(algo);      // 先验算法：**空列表也要报同样的错**
+    _并发线程数(threads);              // 只为校验（本宿主顺序执行，用不到这个数）
+    const 项们 = _并发列出(paths, '「批量摘要」的第一个参数（路径们）');
+    return _并发顺序做(项们,
+      (p) => CRYPTO_FUNCS['文件摘要'].fn(String(pText(p)), 算法));
+  }),
+  '批量读': new R.Builtin('批量读', (paths, threads = 4) => {
+    _并发线程数(threads);
+    const 项们 = _并发列出(paths, '「批量读」的第一个参数（路径们）');
+    // 走 `文件.读字节` 同一个实现（连报错都一样）
+    return _并发顺序做(项们, (p) => FILE_FUNCS['读字节'].fn(p));
+  }),
+  '并行取': new R.Builtin('并行取', (urls, threads = 4) => {
+    _并发线程数(threads);
+    const 项们 = _并发列出(urls, '「并行取」的第一个参数（网址们）');
+    return _并发顺序做(项们, (u) => NET_FUNCS['获取'].fn(u));
+  }),
+};
+
+const STDLIB = {  '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
     '平方': new R.Builtin('平方', (x) => x * x),
     '幂': new R.Builtin('幂', (a, b) => a ** b),
@@ -4376,6 +4431,8 @@ const STDLIB = {
   '标识': new R.Module('标识', ID_FUNCS),
   // M112：数据持久化（走 Node 内置的 `node:sqlite`）
   '数据库': new R.Module('数据库', DB_FUNCS),
+  // M114：把**一批互相独立的 IO** 同时做（M114）。⚠️ 本宿主**顺序执行**，见上面。
+  '并发': new R.Module('并发', CONCURRENT_FUNCS),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }

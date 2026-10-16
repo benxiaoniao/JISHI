@@ -55,7 +55,7 @@ def main(argv):
     for path, dig in zip(files, results):
         print(f"  {path.name}  {dig[:16]}")
     print()
-    print("（对比：基石版只能一个个算 —— 见绕道 R005）")
+    print("（M114 起基石也有这个能力了：并发.批量摘要(路径们) —— 对照 批量.jsh）")
 
 
 if __name__ == "__main__":

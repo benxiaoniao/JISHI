@@ -65,12 +65,22 @@ def sha512(文本) -> str:
     return 摘要(文本, "sha512")
 
 
-def 文件摘要(文件路径, 算法: str = "sha256") -> str:
-    """返回文件的摘要（分块读取，不一次性载入内存）。"""
+def _归一摘要算法(算法) -> str:
+    """摘要算法名 → 归一化（md5/sha1/sha256/sha512），不认就报错。
+
+    `文件摘要` 与 `并发.批量摘要` 共用这一条，**保证「空列表」与
+    「列表里每一项」报的是同一句话**（M114）。
+    """
     algo = str(算法).lower().replace("-", "").replace("_", "")
     if algo not in _算法表:
         raise RunValueError(
             f"不支持的摘要算法「{算法}」，可选：md5/sha1/sha256/sha512")
+    return algo
+
+
+def 文件摘要(文件路径, 算法: str = "sha256") -> str:
+    """返回文件的摘要（分块读取，不一次性载入内存）。"""
+    algo = _归一摘要算法(算法)
     h = _算法表[algo]()
     try:
         with open(str(文件路径), "rb") as f:

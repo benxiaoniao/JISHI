@@ -412,6 +412,25 @@ mod client {
 // 模块
 // ---------------------------------------------------------------------------
 
+/// `网络.获取(网址)` 的实现体（可带超时 / 请求头）——`并发.并行取` 也走这里，
+/// **口径必须一致**（正文取法、报错文案都同一句，M114）。
+pub(crate) fn 取正文参数(
+    raw: &str,
+    t: f64,
+    h: &[(String, String)],
+) -> Result<String, JishiError> {
+    let url = parse_url(raw)?;
+    let r = client::request(&url, "GET", None, t, h)
+        .map_err(|e| err("运行期错误", format!("访问「{raw}」失败：{}", e.message)))?;
+    let r = 要成功(r, "访问", raw)?;
+    Ok(String::from_utf8_lossy(&r.body).to_string())
+}
+
+/// `网络.获取(网址)` 的默认口径（10 秒超时、无额外请求头）。
+pub(crate) fn 取正文(raw: &str) -> Result<String, JishiError> {
+    取正文参数(raw, DEFAULT_TIMEOUT, &[])
+}
+
 fn timeout_of(args: &[Val], idx: usize) -> Result<f64, JishiError> {
     match args.get(idx) {
         Some(v) => Ok(as_num(v)?.max(0.1)),
@@ -489,11 +508,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let raw = as_text(&args[0]);
             let t = timeout_of(args, 1)?;
             let h = 请求头(args.get(2))?;
-            let url = parse_url(&raw)?;
-            let r = client::request(&url, "GET", None, t, &h)
-                .map_err(|e| err("运行期错误", format!("访问「{raw}」失败：{}", e.message)))?;
-            let r = 要成功(r, "访问", &raw)?;
-            Ok(Val::Str(String::from_utf8_lossy(&r.body).to_string()))
+            Ok(Val::Str(取正文参数(&raw, t, &h)?))
         },
         "提交" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("提交", args, 1, 4)?;

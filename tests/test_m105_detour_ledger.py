@@ -175,7 +175,9 @@ def test_探针_并发批量_能算摘要(monkeypatch, tmp_path):
 
     out = _跑("并发批量", "批量.jsh", ["样本"], monkeypatch, tmp_path)
     assert "共 3 个文件" in out, out
-    assert "逐个处理用了" in out, out
+    # M114 起它顺序、并发两档都跑，并核对「并发没改语义」
+    assert "两档结果一致：真" in out, out
+    assert "顺序" in out and "并发" in out, out
 
 
 def test_探针_本地小服务_生成静态页(monkeypatch, tmp_path):
