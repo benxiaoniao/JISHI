@@ -175,7 +175,7 @@
 - ⚠️ **新模块要重跑两个生成器**（不然命名参数在宿主上报「暂不支持命名参数」）：
   `python tools/gen_stdlib_sigs.py`（→ `rust/src/stdlib_sigs.rs` +
   `oracle/node/stdlib_sigs.js`）与 `python tools/gen_langdata_rs.py`（→ `rust/src/langdata.rs`）。
-  M114 之后是 **27 模块 / 277 函数**。
+  M115 之后是 **28 模块 / 281 函数**。
 - 📌 **`并发`（M114）不是「语言级线程」**：§四「不做清单」里
   「多线程 / 异步 —— 严重破坏简单性」那条**仍然有效**。它只是**标准库的实现细节** ——
   线程里**一个 `Val` 都不跨**（只跑 `String` / `Vec<u8>`），所以 `Rc` 不是 `Send`

@@ -65,6 +65,10 @@ mod testmod;
 // ⚠️ 它**不是语言级线程**：线程里只跑纯数据，`Val` 一个都不跨线程（见 D80）。
 //    wasm 上自动退回顺序执行（`concurrent.rs` 里 `#[cfg]` 分了两个定义）。
 mod concurrent;
+// M115：`HTTP服务端` —— 起一个只监听本机的小服务。
+// ⚠️ 纯协议核心（`解析请求`/`构造响应`）在 wasm 上照样能用；
+//    `启动`/`空闲端口` 那两把要 socket 的在 wasm 上**明确报错**（见 D81）。
+mod server;
 // M112 新增（数据持久化）：唯一一个**引了第三方依赖**的模块，见 `db.rs` 头注与 D78。
 // ⚠️ 它挂在 `sqlite` 特性后面 —— wasm（浏览器试玩页）关掉那个特性（链不了 sqlite3.c）。
 #[cfg(feature = "sqlite")]
@@ -116,6 +120,9 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         // M114：批量 IO 并发。⚠️ 与 `数据库` 不同，它**每个平台都在表里** ——
         // 只是 wasm 上顺序执行（同一份结果，见 `concurrent.rs`）。
         ("并发", concurrent::module),
+        // M115：本地 HTTP 小服务。表里**每个平台都在**（wasm 上只是
+        // `启动`/`空闲端口` 明确报「这个平台起不了」）。
+        ("HTTP服务端", server::module),
     ]
 }
 

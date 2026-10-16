@@ -4225,6 +4225,151 @@ const CONCURRENT_FUNCS = {
   }),
 };
 
+// -- HTTP服务端（M115）--
+// ⚠️ **本宿主只做「纯协议核心」那一半**（`解析请求` / `构造响应`）——
+//    它们只是文本处理，五个引擎都能跑。
+//    `启动` / `空闲端口` 要 socket，而 **Node 起不了阻塞式服务端**：
+//    `node:http` 是**异步 + 事件循环**，基石的 VM 却是**同步**的 ——
+//    没有「同步泵事件循环」的 API，真阻塞住了事件循环就跑不动，
+//    处理函数永远等不到（除非把服务端塞进子进程，那又调不到你的基石函数了）。
+//    ⇒ **明确报错**，不假装。取舍见 `docs/设计决策.md` D81。
+
+const _HTTP默认内容类型 = 'text/plain; charset=utf-8';
+const _HTTP原因 = {
+  200: 'OK', 201: 'Created', 202: 'Accepted', 204: 'No Content',
+  301: 'Moved Permanently', 302: 'Found', 303: 'See Other',
+  304: 'Not Modified', 307: 'Temporary Redirect', 308: 'Permanent Redirect',
+  400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden',
+  404: 'Not Found', 405: 'Method Not Allowed', 408: 'Request Timeout',
+  409: 'Conflict', 413: 'Content Too Large', 415: 'Unsupported Media Type',
+  429: 'Too Many Requests',
+  500: 'Internal Server Error', 501: 'Not Implemented',
+  502: 'Bad Gateway', 503: 'Service Unavailable', 504: 'Gateway Timeout',
+};
+const _HTTP自填 = ['content-length', 'content-type', 'connection'];
+
+/** 去两端空白 —— **只去空格与制表符**（`String.trim` 按全 Unicode 空白去，跨语言对不齐）。 */
+function _http去空白(s) { return String(s).replace(/^[ \t]+/, '').replace(/[ \t]+$/, ''); }
+
+/** 按空格 / 制表符切（丢掉空段）。 */
+function _http切段(s) { return _http去空白(s).split(/[ \t]+/).filter((p) => p !== ''); }
+
+/** **只收整数**（布尔、浮点、文本都不收）—— 三宿主同一句文案。 */
+function _http要整数(v, 谁) {
+  if (typeof v === 'boolean' || typeof v !== 'number' || !Number.isInteger(v)) {
+    throw R.typeErr(`${谁}要是整数`);
+  }
+  return v;
+}
+
+/** `%XX` 解码（UTF-8，不合法字节替换）。⚠️ `+` **不当作空格**。 */
+function _http百分号解码(s) {
+  const b = Buffer.from(String(s), 'utf8');
+  const out = [];
+  for (let i = 0; i < b.length; i++) {
+    if (b[i] === 0x25 && i + 2 < b.length) {
+      const h = parseInt(String.fromCharCode(b[i + 1]), 16);
+      const l = parseInt(String.fromCharCode(b[i + 2]), 16);
+      if (!Number.isNaN(h) && !Number.isNaN(l)) { out.push(h * 16 + l); i += 2; continue; }
+    }
+    out.push(b[i]);
+  }
+  return Buffer.from(out).toString('utf8');
+}
+
+const HTTP_FUNCS = {
+  '解析请求': new R.Builtin('解析请求', (raw) => {
+    const 原始 = pText(raw);
+    const at = 原始.indexOf('\r\n\r\n');
+    const 头部 = at >= 0 ? 原始.slice(0, at) : 原始;
+    const 正文 = at >= 0 ? 原始.slice(at + 4) : '';
+    const 行们 = 头部.split('\r\n');
+    const 第一行 = 行们.length ? 行们[0] : '';
+    if (_http去空白(第一行) === '') {
+      throw R.valueErr('这不是一个 HTTP 请求：第一行是空的');
+    }
+    const 片段 = _http切段(第一行);
+    if (片段.length < 2) {
+      throw R.valueErr(
+        `这不是一个 HTTP 请求：第一行该是「方法 路径 版本」，现在是「${第一行}」`);
+    }
+    const 目标 = 片段[1];
+    const q = 目标.indexOf('?');
+    const 路径 = q >= 0 ? 目标.slice(0, q) : 目标;
+    const 查询串 = q >= 0 ? 目标.slice(q + 1) : '';
+    // ⚠️ 基石的「字典」在 Node 宿主**就是 `Map`**（不是普通对象）——
+    //    返回 `{}` 的话，外面 `请求["方法"]` 会报「「Object」不能取下标」
+    const 查询 = new Map();
+    for (const 段 of 查询串.split('&')) {
+      if (段 === '') continue;
+      const e = 段.indexOf('=');
+      const k = e >= 0 ? 段.slice(0, e) : 段;
+      const v = e >= 0 ? 段.slice(e + 1) : '';
+      查询.set(_http百分号解码(k), _http百分号解码(v));
+    }
+    const 请求头 = new Map();
+    for (let i = 1; i < 行们.length; i++) {
+      const 行 = _http去空白(行们[i]);
+      if (行 === '') continue;
+      const c = 行.indexOf(':');
+      if (c < 0) throw R.valueErr(`请求头这一行没有冒号：「${行}」`);
+      请求头.set(_http去空白(行.slice(0, c)).toLowerCase(), _http去空白(行.slice(c + 1)));
+    }
+    return new Map([
+      ['方法', 片段[0]],
+      ['路径', _http百分号解码(路径)],
+      ['查询', 查询],
+      ['版本', 片段.length > 2 ? 片段[2] : 'HTTP/1.1'],
+      ['请求头', 请求头],
+      ['正文', 正文],
+    ]);
+  }),
+  '构造响应': new R.Builtin('构造响应', (code = 200, body = '', ctype = _HTTP默认内容类型, extra = null) => {
+    const 码 = _http要整数(code, '状态码');
+    if (!(码 >= 100 && 码 <= 599)) throw R.valueErr(`状态码要在 100–599 之间，现在是 ${码}`);
+    const 正文 = pText(body);
+    const 类型 = pText(ctype);
+    const 行们 = [`HTTP/1.1 ${码}` + (_HTTP原因[码] ? ` ${_HTTP原因[码]}` : '')];
+    行们.push(`Content-Type: ${类型}`);
+    if (extra !== null && extra !== undefined) {
+      const 对 = extra instanceof Map
+        ? [...extra.entries()]
+        : (typeof extra === 'object' && !Array.isArray(extra)
+            ? Object.entries(extra)
+            : null);
+      if (对 === null) {
+        throw R.typeErr(`「头」要是一个字典，得到了「${R.typeName(extra)}」`);
+      }
+      for (const [k0, v0] of 对) {
+        const k = pText(k0);
+        if (_HTTP自填.includes(k.toLowerCase())) {
+          throw R.valueErr(`「${k}」由框架自己填，不要在「头」里再写一遍`);
+        }
+        const v = pText(v0);
+        // eslint-disable-next-line no-control-regex
+        if (/[^\x00-\x7f]/.test(k) || /[^\x00-\x7f]/.test(v)) {
+          throw R.typeErr(`请求头「${k}」的名字与值只能是 ASCII（英文数字）`);
+        }
+        行们.push(`${k}: ${v}`);
+      }
+    }
+    const len = Buffer.byteLength(正文, 'utf8');
+    行们.push(`Content-Length: ${len}`);
+    行们.push('Connection: close');
+    return 行们.join('\r\n') + '\r\n\r\n' + 正文;
+  }),
+  '空闲端口': new R.Builtin('空闲端口', () => {
+    throw R.valueErr(
+      '这个平台起不了 HTTP 服务端：Node 宿主是**同步**的，而 `node:http` 要事件循环'
+      + '（没有「同步泵事件循环」的 API，阻塞住了处理函数永远等不到）');
+  }),
+  '启动': new R.Builtin('启动', () => {
+    throw R.valueErr(
+      '这个平台起不了 HTTP 服务端：Node 宿主是**同步**的，而 `node:http` 要事件循环'
+      + '（没有「同步泵事件循环」的 API，阻塞住了处理函数永远等不到）');
+  }),
+};
+
 const STDLIB = {  '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
     '平方': new R.Builtin('平方', (x) => x * x),
@@ -4366,9 +4511,33 @@ const STDLIB = {  '数学': new R.Module('数学', {
       if (at < 0) return [t, '', ''];
       return [t.slice(0, at), d, t.slice(at + d.length)];
     }),
-    '按行拆分': new R.Builtin('按行拆分', (s) =>
-      String(s).split(/\r\n|\r|\n/).filter((x, _i, arr) =>
-        !(x === '' && arr.length > 1 && arr[arr.length - 1] === ''))),
+    // ⚠️ 必须与 Python 的 `str.splitlines()` / Rust 的 `split_lines()` **同一套规则**：
+    //    分隔符 = `\n` `\r`（含 `\r\n` 算一个）`\v` `\f` `\x1c`–`\x1e` `\x85` `\u2028` `\u2029`，
+    //    且**末尾那一段为空就不保留**（`"甲\n\n"` → `['甲', '']`）。
+    //
+    // 🔴 **这是 M115 写语料时撞出来的既有分叉**（不是 M115 引入的）：旧实现用
+    //    `/\r\n|\r|\n/` 切、再拿一个 filter 删空段 —— 两条都错：
+    //    ① 少认了 `\v` `\f` `\x1c`–`\x1e` `\x85` `\u2028` `\u2029`；
+    //    ② 那个 filter 会把**中间的**空段也删掉（它按「数组最后一个是不是空」
+    //       判断，对每个元素都成立）⇒ `"甲\n\n"` 给 `['甲']`，而 Python / Rust 给 `['甲', '']`。
+    '按行拆分': new R.Builtin('按行拆分', (s) => {
+      const text = String(s);
+      const out = [];
+      let cur = '';
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        let boundary = false;
+        if (c === '\r') {
+          if (text[i + 1] === '\n') i++;
+          boundary = true;
+        } else if ('\n\v\f\x1c\x1d\x1e\x85\u2028\u2029'.indexOf(c) >= 0) {
+          boundary = true;
+        }
+        if (boundary) { out.push(cur); cur = ''; } else { cur += c; }
+      }
+      if (cur !== '') out.push(cur);
+      return out;
+    }),
     // M51 补：`填充` / `截断` 是 M50 第一批加的（「既有模块补缺」），
     // 只做了 Python 侧，宿主静默缺失 —— 正是这个缺口促成 M51 的漂移检测。
     '填充': new R.Builtin('填充', (s, width, fill = ' ') => {
@@ -4433,6 +4602,8 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '数据库': new R.Module('数据库', DB_FUNCS),
   // M114：把**一批互相独立的 IO** 同时做（M114）。⚠️ 本宿主**顺序执行**，见上面。
   '并发': new R.Module('并发', CONCURRENT_FUNCS),
+  // M115：本地 HTTP 小服务。纯协议核心能用；`启动`/`空闲端口` 明确报边界，见上面。
+  'HTTP服务端': new R.Module('HTTP服务端', HTTP_FUNCS),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }

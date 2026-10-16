@@ -180,12 +180,78 @@ def test_探针_并发批量_能算摘要(monkeypatch, tmp_path):
     assert "顺序" in out and "并发" in out, out
 
 
-def test_探针_本地小服务_生成静态页(monkeypatch, tmp_path):
+def test_探针_本地小服务_无参只打用法(monkeypatch, tmp_path):
+    """⚠️ **M115 起这条特别重要**：探针现在会起一个**阻塞**的服务端，
+    所以「无参数」必须是「打用法就退出」—— 否则 check_engines / conformance
+    自动跑它的时候会**一直挂住**（判据跑不完）。"""
     out = _跑("本地小服务", "服务.jsh", [], monkeypatch, tmp_path)
-    assert "已生成" in out, out
-    page = (tmp_path / "待办.html").read_text(encoding="utf-8")
-    assert "<li>买菜</li>" in page, page
-    assert 'charset="utf-8"' in page, page
+    assert "用法：jishi 服务.jsh <端口>" in out, out
+    # 不能留下任何文件（以前那版会写 待办.html）
+    assert not list(tmp_path.iterdir()), "无参跑不该产出文件"
+
+
+def test_探针_本地小服务_真能起服务(tmp_path):
+    """M115 的验收在探针上的样子：**起得来 / 能访问 / 能干净关闭**。
+
+    ⚠️ 必须走**子进程**：服务端是阻塞的，在测试进程里跑会把自己挂住。
+    ⚠️ 请求路径里的中文要**百分号编码**（HTTP 客户端只发 ASCII）；
+    并且**绕开环境代理**（沙箱里配了 http_proxy，会把 127.0.0.1 也劫走）。
+    """
+    import os as _os
+    import socket as _socket
+    import subprocess as _sp
+    import sys as _sys
+    import time as _time
+    import urllib.request as _ur
+
+    s = _socket.socket()
+    s.bind(("127.0.0.1", 0))
+    端口 = s.getsockname()[1]
+    s.close()
+    脚本 = PROBES / "本地小服务" / "服务.jsh"
+    env = {**_os.environ, "PYTHONPATH": str(ROOT)}
+    p = _sp.Popen([_sys.executable, "-m", "oracle.jishi.cli", str(脚本), str(端口), "3"],
+                  cwd=str(tmp_path), env=env, stdout=_sp.PIPE, stderr=_sp.PIPE,
+                  text=True, encoding="utf-8")
+    # ⚠️ **不跟跳转**：`/加` 回 303 + Location，urllib 默认会自己再发一次
+    #    （那一下也要计进「最多请求数」）—— 让测试**自己**数请求个数，
+    #    不然 3 个请求会变成 4 个，服务提前退出、最后一个请求被拒。
+    class _不跳(_ur.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+
+    开 = _ur.build_opener(_ur.ProxyHandler({}), _不跳())
+    try:
+        通 = False
+        for _ in range(150):
+            try:
+                with _socket.create_connection(("127.0.0.1", 端口), timeout=0.5):
+                    通 = True
+                    break
+            except OSError:
+                _time.sleep(0.1)
+        assert 通, "服务没起来"
+        with 开.open(f"http://127.0.0.1:{端口}/", timeout=10) as r:
+            体 = r.read().decode("utf-8")
+        assert r.status == 200 and "待办清单" in 体 and "买菜" in 体, 体[:300]
+        # 点一下「加上」（表单走 GET，浏览器地址栏里就是这条）
+        try:
+            with 开.open(f"http://127.0.0.1:{端口}/%E5%8A%A0?%E5%90%8D%E5%AD%97=%E4%B9%B0%E7%89%9B%E5%A5%B6",
+                         timeout=10) as r:
+                码, 位置 = r.status, r.headers.get("Location")
+        except _ur.HTTPError as e:               # 3xx 在没有跳转处理器时走这里
+            码, 位置 = e.code, e.headers.get("Location")
+        assert (码, 位置) == (303, "/"), (码, 位置)
+        with 开.open(f"http://127.0.0.1:{端口}/", timeout=10) as r:
+            assert "买牛奶" in r.read().decode("utf-8")
+        # 干净关闭：正好 3 个请求，退码 0，并且**落盘了**
+        出, _错 = p.communicate(timeout=30)
+        assert p.returncode == 0, _错[:300]
+        assert "处理了 3 个请求" in 出, 出
+        assert "买牛奶" in (tmp_path / "待办.json").read_text(encoding="utf-8")
+    finally:
+        if p.poll() is None:
+            p.kill()
 
 
 # ---------------------------------------------------------------------------

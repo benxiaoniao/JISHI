@@ -534,11 +534,19 @@ fn dict_set(d: &mut Dict, k: Val, v: Val) {
 }
 
 /// 字典取值：可哈希键走 O(1)，其余线性扫描。没找到返回 None。
-fn dict_get(d: &Dict, k: &Val) -> Option<Val> {
+pub(crate) fn dict_get(d: &Dict, k: &Val) -> Option<Val> {
     if let Some(key) = dict_key(k) {
         return d.index.get(&key).map(|&pos| d.items[pos].1.clone());
     }
     d.items.iter().find(|(ek, _)| ek == k).map(|(_, v)| v.clone())
+}
+
+/// 字典的键值对（**按插入顺序**）—— M115 `HTTP服务端` 拼响应头要用。
+///
+/// ⚠️ `Dict.items` 是私有的，别的模块看不到；与其把字段开成 `pub(crate)`，
+/// 不如给一个**只读拷贝**的口子 —— 免得外面绕过 `dict_set` 直接改内部结构。
+pub(crate) fn dict_items(d: &Dict) -> Vec<(Val, Val)> {
+    d.items.clone()
 }
 
 fn dict_contains(d: &Dict, k: &Val) -> bool {

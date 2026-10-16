@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 31,
     "frontend": 1,
-    "lang": 91,
+    "lang": 99,
     "stdlib": 4
   },
   "语料": [
@@ -261,8 +261,8 @@
     },
     {
       "id": "examples__绕道探针__本地小服务__服务",
-      "产物哈希": "sha256:a814e98c1570c0f0",
-      "内容哈希": "sha256:ed90997a7ee96f49",
+      "产物哈希": "sha256:f2bb4032cfe2ad25",
+      "内容哈希": "sha256:6ffb734d7e75d9d6",
       "类别": "examples",
       "路径": "examples/绕道探针/本地小服务/服务.jsh"
     },
@@ -545,6 +545,20 @@
       "内容哈希": "sha256:679be82fb3670982",
       "类别": "lang",
       "路径": "tests/cases/33_标准库_M114.jsh"
+    },
+    {
+      "id": "tests__cases__34_标准库_M115",
+      "产物哈希": "sha256:4ee4807254350dcb",
+      "内容哈希": "sha256:95ac0d77a56db10c",
+      "类别": "lang",
+      "路径": "tests/cases/34_标准库_M115.jsh"
+    },
+    {
+      "id": "tests__cases__35_文本_按行拆分",
+      "产物哈希": "sha256:0b1664e7a15dfc27",
+      "内容哈希": "sha256:402a9a963eb86608",
+      "类别": "lang",
+      "路径": "tests/cases/35_文本_按行拆分.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -946,6 +960,48 @@
       "路径": "tests/error_cases/56_并发_不支持的算法.jsh"
     },
     {
+      "id": "tests__error_cases__57_服务端_请求第一行空的",
+      "产物哈希": "sha256:2a85750c090ffce7",
+      "内容哈希": "sha256:6ef572d0a54dd4d6",
+      "类别": "lang",
+      "路径": "tests/error_cases/57_服务端_请求第一行空的.jsh"
+    },
+    {
+      "id": "tests__error_cases__58_服务端_请求头没冒号",
+      "产物哈希": "sha256:312c6e572928320c",
+      "内容哈希": "sha256:340e4f30d1db1c96",
+      "类别": "lang",
+      "路径": "tests/error_cases/58_服务端_请求头没冒号.jsh"
+    },
+    {
+      "id": "tests__error_cases__59_服务端_状态码越界",
+      "产物哈希": "sha256:1a4e83b4ee13f47b",
+      "内容哈希": "sha256:c95512f53b135355",
+      "类别": "lang",
+      "路径": "tests/error_cases/59_服务端_状态码越界.jsh"
+    },
+    {
+      "id": "tests__error_cases__60_服务端_状态码要整数",
+      "产物哈希": "sha256:928a08fd50cc1209",
+      "内容哈希": "sha256:8de5fe3d084496b4",
+      "类别": "lang",
+      "路径": "tests/error_cases/60_服务端_状态码要整数.jsh"
+    },
+    {
+      "id": "tests__error_cases__61_服务端_自填的头",
+      "产物哈希": "sha256:0a9de7992bf968d4",
+      "内容哈希": "sha256:dd6c9469572f8fb1",
+      "类别": "lang",
+      "路径": "tests/error_cases/61_服务端_自填的头.jsh"
+    },
+    {
+      "id": "tests__error_cases__62_服务端_头要ASCII",
+      "产物哈希": "sha256:202a566166af4245",
+      "内容哈希": "sha256:91bf90bbb78d5b8e",
+      "类别": "lang",
+      "路径": "tests/error_cases/62_服务端_头要ASCII.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:293975765ad4c964",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -953,5 +1009,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 127
+  "语料数": 135
 }
