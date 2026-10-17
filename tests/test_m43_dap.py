@@ -584,9 +584,19 @@ def test_three_executors_agree(engine, tmp_path):
                                           "breakpoints": []})
         client.request("continue", {"threadId": 1})
         client.wait("event", "terminated", timeout=15)
-        assert client.event_names() == [
+        # 🔴 **`continued` 的位置天然是竞态，不能钉死**（2026-10-17 CI 抓到）：
+        #    一边是 VM 把 stdout 泵成 `output` 事件，一边是适配器收到 `continue`
+        #    就立刻发 `continued` —— 谁先到取决于调度。串行跑时它稳定在中间，
+        #    而 CI 改成 4 路并行（`-n 4`）之后**偶尔会反过来**，于是这条在 ubuntu 上红
+        #    而 windows / macos 绿。**这不是产品 bug**（事件一条不缺、条数也对），
+        #    是断言写死了不该钉的先后。
+        #    ⇒ 只钉「恰好一次、在 stopped 之后、在 exited 之前」，其余顺序照旧严格比。
+        名们 = client.event_names()
+        assert 名们.count("continued") == 1, 名们
+        assert 名们.index("stopped") < 名们.index("continued") < 名们.index("exited"), 名们
+        assert [e for e in 名们 if e != "continued"] == [
             "initialized", "stopped", "output", "output", "output",
-            "continued", "output", "output", "output", "exited", "terminated"]
+            "output", "output", "output", "exited", "terminated"]
         assert client.console() == (
             "\n暂停（命中第 3 行的断点） 第 3 行 · 函数「倍」\n"
             "→ 3 │     返回 果\n"

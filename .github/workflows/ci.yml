@@ -183,10 +183,15 @@ jobs:
             echo "::error file=.github/workflows/ci.yml,line=1::pytest.log 不存在（测试步骤可能没执行到 tee）"
             exit 0
           fi
-          # 连 pytest 的 `E ` 行一起抓：多行的断言消息（含双方实际输出）
-          # 就藏在这些行里，只看 FAILED 行只能看到被截断的那一小段
-          SUMMARY=$(grep -aE '^(FAILED|ERROR|E )' pytest.log | head -40 | tr -d '\r' | tr '\n' ' ')
-          if [ -z "$SUMMARY" ]; then
+          # 🔴 **FAILED 清单放最前**（2026-10-17 补，与 release.yml 对齐）：
+          #    GitHub 注解的 message 只留 **1024 字符**，而 pytest 输出里 `E ` 行
+          #    （多行断言）在前、`FAILED` 行在后 —— 原来一股脑拼起来，
+          #    1024 字符**刚好把「挂了哪几条」截掉**，只剩几条断言。
+          #    2026-10-17 就是靠 `m43` 那条 FAILED 行才定位到用例的。
+          FAILED_LIST=$(grep -aE '^(FAILED|ERROR)' pytest.log | head -30 | tr -d '\r' | tr '\n' ' ')
+          DETAIL=$(grep -aE '^E  ' pytest.log | head -8 | tr -d '\r' | tr '\n' ' ')
+          SUMMARY="【清单】${FAILED_LIST} 【细节】${DETAIL}"
+          if [ -z "$FAILED_LIST" ]; then
             # 没有 FAILED 行 —— 多半是进程被中断/崩溃，退回日志末尾
             SUMMARY="【无 FAILED 行，退回日志末尾】(exit=$(tail -c 200 pytest.log | tr -d '\r\n' | tail -c 60)) $(tail -c 700 pytest.log | tr -d '\r' | tr '\n' ' ')"
           fi
