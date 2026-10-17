@@ -474,6 +474,21 @@ def test_镜像同步会强制拉版本清单():
     assert "force=True" in t[i:i + 200], "拉版本清单没带 force"
 
 
+def test_升级器取清单要绕开CDN缓存():
+    """🔴 2026-10-17 实测踩到：发了 0.2.4，线上 `jishi-release.json` 仍是 0.2.3
+    （`/download/` 给了 30 天缓存，而这份**文件名固定、内容每版都变**），
+    于是 `jishi 升级` **永远认为「已是最新」**。
+
+    判据：取清单时给 **http(s)** 地址带一个时间戳（绕开 CDN，不依赖运维记得刷新）。
+    `file://` 离线镜像**不许**带 —— 带了就找不到本地文件。两条都在源码里钉住。
+    """
+    t = (ROOT / "rust" / "src" / "selfupdate.rs").read_text(encoding="utf-8")
+    i = t.index("fn 清单来源")
+    块 = t[i:i + 2000]
+    assert "t={戳}" in 块, "取清单没带时间戳 —— CDN 会把上一版缓存很久，升级永远看不到新版"
+    assert 'starts_with("http' in 块, "时间戳只该加给 http(s)：file:// 镜像带了会找不到文件"
+
+
 def test_升级与卸载都在CLI用法里():
     r = _跑(["--help"])
     出 = r.stdout + r.stderr

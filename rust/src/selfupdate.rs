@@ -282,7 +282,28 @@ fn 清单来源() -> Vec<String> {
             return vec![t.to_string()];
         }
     }
-    DEFAULT_RELEASE_INDEX_URLS.iter().map(|s| s.to_string()).collect()
+    // 🔴 **给 http(s) 清单地址带一个时间戳**（2026-10-17 实测踩到）：
+    //    `/download/jishi-release.json` 文件名固定、内容每版都变，而站点给的是
+    //    30 天缓存 ⇒ 发了 0.2.4，`jishi 升级` 读到的还是 CDN 里 0.2.3 的那份，
+    //    于是**永远认为「已是最新」**。
+    //    客户端带个 query 就必然打到源站 —— 不依赖 CDN 有没有被刷新，
+    //    也不依赖运维记不记得刷。清单只有 1 KB，缓存收益本来就可忽略。
+    //    ⚠️ **只给 http(s) 加**：`file://` 离线镜像带 query 会找不到本地文件。
+    let 戳 = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    DEFAULT_RELEASE_INDEX_URLS
+        .iter()
+        .map(|s| {
+            if s.starts_with("http://") || s.starts_with("https://") {
+                let 分隔 = if s.contains('?') { '&' } else { '?' };
+                format!("{s}{分隔}t={戳}")
+            } else {
+                s.to_string()
+            }
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
