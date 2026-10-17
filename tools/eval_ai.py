@@ -650,9 +650,12 @@ def main(argv: Optional[list[str]] = None) -> int:
               f" / completion {sum(o.completion_tokens for o in outs)}")
     elapsed = time.time() - t0
 
-    parts = ["# 基石 AI 跑分表（M45）", "",
-             f"- 题集：{len(tasks)} 题"
-             f"（语法 12 / 标准库 15 / 调试 10 / 重构 8）",
+    分类计数: dict[str, int] = {}
+    for t in tasks:
+        分类计数[t.类型] = 分类计数.get(t.类型, 0) + 1
+    分类串 = " / ".join(f"{k} {v}" for k, v in 分类计数.items())
+    parts = ["# 基石 AI 跑分表", "",
+             f"- 题集：{len(tasks)} 题（{分类串}）",
              f"- 最大修复轮数：{args.最大轮数}",
              f"- 语言规格指纹：`{spec_hash}`", ""]
     parts.append(summarize_table(all_results, args.最大轮数))
