@@ -49,7 +49,8 @@ def _py_run(src: str) -> str:
 
 
 def _node_run(src: str) -> tuple[int, str, str]:
-    bc = tmp_bc_path(ROOT / "_tmp_m50_node.json")
+    # ⚠️ 同上：写系统临时目录，别写仓库根（AGENTS §1 ②）。
+    bc = tmp_bc_path(Path(tempfile.gettempdir()) / "jishi_m50_node.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
     r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
                        capture_output=True, text=True, encoding="utf-8")

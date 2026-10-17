@@ -31,8 +31,46 @@ fn count_pairs(items: &[Val]) -> Vec<(Val, i128)> {
     out
 }
 
+/// 递归复制列表 / 字典（M117）。数字/文本/字节不可变，原样返回即可。
+fn 深拷贝值(v: &Val) -> Val {
+    match v {
+        Val::List(l) => {
+            let 内: Vec<Val> = l.borrow().iter().map(深拷贝值).collect();
+            list_new(内)
+        }
+        Val::Dict(d) => {
+            let 对们: Vec<(Val, Val)> = d
+                .borrow()
+                .items
+                .iter()
+                .map(|(k, x)| (k.clone(), 深拷贝值(x)))
+                .collect();
+            dict_new(对们)
+        }
+        _ => v.clone(),
+    }
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "容器";
+        // M117：`索引表`（值 → 首次下标）/ `深拷贝`。与基石库层 `容器.jsh` 同行为。
+        // 键化沿用 `count_pairs` 那套（`display` 后进 HashMap），与 `计数` 口径一致。
+        "索引表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("索引表", args, 1, 1)?;
+            let items = to_vec(&args[0])?;
+            let mut 见过: HashMap<String, ()> = HashMap::new();
+            let mut 出: Vec<(Val, Val)> = Vec::new();
+            for (i, v) in items.iter().enumerate() {
+                if 见过.insert(display(v), ()).is_none() {
+                    出.push((v.clone(), Val::Int(i as i128)));
+                }
+            }
+            Ok(dict_new(出))
+        },
+        "深拷贝" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("深拷贝", args, 1, 1)?;
+            Ok(深拷贝值(&args[0]))
+        },
         "计数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("计数", args, 1, 1)?;
             let items = to_vec(&args[0])?;

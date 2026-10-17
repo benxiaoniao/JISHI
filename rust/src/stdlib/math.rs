@@ -102,6 +102,45 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // 精确小数走十进制，两边行为与 `2 ** 10` 这种写法完全一致
             crate::binop(6, args[0].clone(), args[1].clone())
         },
+        // M117：`限制`（clamp）与 `符号`（sign）。口径要点：
+        // ① `限制` **返回三个入参之一**（整数还是整数，不偷偷变成小数）；
+        // ② 底 > 顶 直接报错 —— 那种区间没意义，静默给值只会更难查；
+        // ③ `符号` 永远给整数（-1/0/1），方便当方向系数用。
+        "限制" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("限制", args, 3)?;
+            let mut 数们 = [0f64; 3];
+            for (i, 名) in ["值", "底", "顶"].iter().enumerate() {
+                数们[i] = as_num(&args[i]).map_err(|_| {
+                    err("类型错误", format!("「限制」的「{名}」要是数字（现在是「{}」）", display(&args[i])))
+                })?;
+            }
+            if 数们[1] > 数们[2] {
+                return Err(err(
+                    "值错误",
+                    format!("「限制」的底（{}）不能大于顶（{}）", display(&args[1]), display(&args[2])),
+                ));
+            }
+            if 数们[0] < 数们[1] {
+                return Ok(args[1].clone());
+            }
+            if 数们[0] > 数们[2] {
+                return Ok(args[2].clone());
+            }
+            Ok(args[0].clone())
+        },
+        "符号" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("符号", args, 1)?;
+            let x = as_num(&args[0]).map_err(|_| {
+                err("类型错误", format!("「{}」不能取符号（需要数字）", display(&args[0])))
+            })?;
+            Ok(Val::Int(if x > 0.0 {
+                1
+            } else if x < 0.0 {
+                -1
+            } else {
+                0
+            }))
+        },
         "绝对值" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("绝对值", args, 1)?;
             match &args[0] {

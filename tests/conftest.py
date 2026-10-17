@@ -7,6 +7,7 @@
 
 import io
 import os
+import tempfile
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -57,7 +58,13 @@ def tmp_bc_path(filename: str) -> Path:
     带进程号后跨进程不再撞；同进程内串行执行，所以这一个后缀就够了。
     """
     p = Path(filename)
-    return p.with_name(f"{p.stem}_{os.getpid()}{p.suffix}")
+    # 🔴 **一律落到系统临时目录**（2026-10-18）。以前是「在传进来的目录里改名」
+    #    —— 而 20 多处调用点传的都是 `ROOT / "_tmp_xxx.json"`，于是临时文件落在
+    #    **仓库根**：① 违反 AGENTS §1 ②「别在 cwd / 项目根读写真实文件」；
+    #    ② 沙箱的写保护会直接拒写 ⇒ `PermissionError` 假红（实测 m41 / m50 / m52
+    #    三处就是这么红的，而且**每次只冒一处**、串行跑又全过，很难查）。
+    #    改在这一个入口，所有调用点一起修好。
+    return Path(tempfile.gettempdir()) / f"{p.stem}_{os.getpid()}{p.suffix}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -74,12 +81,13 @@ def _cleanup_tmp_bytecode():
     但 `.gitignore` 已挡 `_tmp_*.json`。
     """
     yield
-    for pattern in ("_tmp_*.json",):
-        for f in ROOT.glob(pattern):
-            try:
-                f.unlink()
-            except OSError:
-                pass
+    for 目录 in (Path(tempfile.gettempdir()), ROOT):
+        for pattern in ("_tmp_*.json", "jishi_m*.json"):
+            for f in 目录.glob(pattern):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
     # test_m33 等写进 build/（`.gitignore` 已挡，但也清一下）
     for f in (ROOT / "build").glob("_m33_bc_*.json"):
         try:

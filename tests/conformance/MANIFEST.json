@@ -53,13 +53,13 @@
   ],
   "格式版本": 3,
   "生成环境": {
-    "jishi": "0.2.3",
+    "jishi": "0.2.4",
     "python": "3.13.14"
   },
   "类别计数": {
     "examples": 31,
     "frontend": 1,
-    "lang": 99,
+    "lang": 104,
     "stdlib": 4
   },
   "语料": [
@@ -149,7 +149,7 @@
     },
     {
       "id": "examples__projects__日志统计__统计",
-      "产物哈希": "sha256:92064cf07ee971fe",
+      "产物哈希": "sha256:1ad4707fc26bf399",
       "内容哈希": "sha256:b9c4f9ddb77647ed",
       "类别": "examples",
       "路径": "examples/projects/日志统计/统计.jsh"
@@ -289,8 +289,8 @@
     },
     {
       "id": "oracle__jishi__stdlib-jishi__容器",
-      "产物哈希": "sha256:8666547741445d78",
-      "内容哈希": "sha256:0a7fe7c6a43a1cb1",
+      "产物哈希": "sha256:2e95f3764ef902a2",
+      "内容哈希": "sha256:16ec44a849e424ad",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/容器.jsh"
     },
@@ -559,6 +559,13 @@
       "内容哈希": "sha256:402a9a963eb86608",
       "类别": "lang",
       "路径": "tests/cases/35_文本_按行拆分.jsh"
+    },
+    {
+      "id": "tests__cases__36_标准库_M117",
+      "产物哈希": "sha256:0f46f9d051de4efa",
+      "内容哈希": "sha256:334470702671b1f1",
+      "类别": "lang",
+      "路径": "tests/cases/36_标准库_M117.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -1002,6 +1009,34 @@
       "路径": "tests/error_cases/62_服务端_头要ASCII.jsh"
     },
     {
+      "id": "tests__error_cases__63_数学_限制的底大于顶",
+      "产物哈希": "sha256:99901d898f8e4f59",
+      "内容哈希": "sha256:c0821bcea1f6ab0b",
+      "类别": "lang",
+      "路径": "tests/error_cases/63_数学_限制的底大于顶.jsh"
+    },
+    {
+      "id": "tests__error_cases__64_随机_不认识的字符集",
+      "产物哈希": "sha256:7e7d205526550faf",
+      "内容哈希": "sha256:0c331c40b5c6e67f",
+      "类别": "lang",
+      "路径": "tests/error_cases/64_随机_不认识的字符集.jsh"
+    },
+    {
+      "id": "tests__error_cases__65_随机_按权重个数不匹配",
+      "产物哈希": "sha256:6a243d27fed9005a",
+      "内容哈希": "sha256:80bbf389f7d9be43",
+      "类别": "lang",
+      "路径": "tests/error_cases/65_随机_按权重个数不匹配.jsh"
+    },
+    {
+      "id": "tests__error_cases__66_随机_权重全为零",
+      "产物哈希": "sha256:6363d0e87ea9d001",
+      "内容哈希": "sha256:9a1341785104273e",
+      "类别": "lang",
+      "路径": "tests/error_cases/66_随机_权重全为零.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:293975765ad4c964",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -1009,5 +1044,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 135
+  "语料数": 140
 }

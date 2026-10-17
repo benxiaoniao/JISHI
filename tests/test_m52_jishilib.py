@@ -31,6 +31,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -87,7 +88,10 @@ def _cvm(src: str) -> str:
 
 
 def _host_run(exe: list, src: str, tag: str) -> tuple:
-    bc = tmp_bc_path(ROOT / f"_tmp_m52_{tag}.json")
+    # ⚠️ 写到**系统临时目录**，不要写仓库根（AGENTS §1 ②）：仓库根的文件会被并行
+    #    的另一路抢、也会被沙箱的写保护拦下（2026-10-18 实测就是这么红的）。
+    #    文件名已带 pid（`tmp_bc_path` 负责），放到临时目录更彻底。
+    bc = tmp_bc_path(Path(tempfile.gettempdir()) / f"jishi_m52_{tag}.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
     # ⚠️ **R7.4 之后 Rust 与 Node 的调用方式不一样了**：Rust 宿主的位置参数是
     # **源码**（字节码要走 `--load-bytecode`），而 Node 宿主的位置参数**仍然是

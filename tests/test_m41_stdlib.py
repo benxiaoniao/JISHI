@@ -26,6 +26,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -77,7 +78,9 @@ def _cvm(src: str) -> str:
 
 
 def _node(src: str) -> str:
-    bc = tmp_bc_path(ROOT / "_tmp_m41_bc.json")
+    # ⚠️ 写**系统临时目录**，不写仓库根（AGENTS §1 ②）：仓库根会被并行另一路抢、
+    #    也会被沙箱的写保护拦（2026-10-18 实测红的）。文件名仍由 `tmp_bc_path` 带 pid。
+    bc = tmp_bc_path(Path(tempfile.gettempdir()) / "jishi_m41_bc.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")),
                   encoding="utf-8", newline="\n")
     r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],

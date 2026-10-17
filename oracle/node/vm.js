@@ -2449,6 +2449,20 @@ function stableBy(entries, keyFn) {
 }
 
 const CONTAINER_FUNCS = {
+  // M117：与基石库层 `容器.jsh` 同行为（`索引表` 保**首次**下标；`深拷贝` 递归复制）
+  '索引表': new R.Builtin('索引表', (it) => {
+    const 见 = new Map();
+    let i = 0;
+    for (const x of seqFor('索引表', it)) {
+      const hk = R.setKey(x);
+      if (!见.has(hk)) 见.set(hk, { v: x, i });
+      i += 1;
+    }
+    const d = new Map();
+    for (const { v, i: idx } of 见.values()) d.set(v, idx);
+    return d;
+  }),
+  '深拷贝': new R.Builtin('深拷贝', (v) => deepCopyVal(v)),
   '计数': new R.Builtin('计数', (it) => {
     const out = new Map();
     for (const x of seqFor('计数', it)) {
@@ -4370,11 +4384,37 @@ const HTTP_FUNCS = {
   }),
 };
 
+/// M117：递归复制列表 / 字典（数字、文本不可变，原样返回）。
+function deepCopyVal(v) {
+  if (Array.isArray(v)) return v.map(deepCopyVal);
+  if (v instanceof Map) {
+    const m = new Map();
+    for (const [k, x] of v) m.set(k, deepCopyVal(x));
+    return m;
+  }
+  return v;
+}
+
 const STDLIB = {  '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
     '平方': new R.Builtin('平方', (x) => x * x),
     '幂': new R.Builtin('幂', (a, b) => a ** b),
     '绝对值': new R.Builtin('绝对值', (x) => Math.abs(x)),
+    // M117：口径与 Python / Rust 一致 —— `限制` **返回入参之一**（保类型），
+    // 底 > 顶 报值错误；`符号` 永远给整数。
+    '限制': new R.Builtin('限制', (v, lo, hi) => {
+      if (Number(R.unwrap(lo)) > Number(R.unwrap(hi))) {
+        throw new R.JishiError('值错误',
+          `「限制」的底（${R.display(lo)}）不能大于顶（${R.display(hi)}）`);
+      }
+      if (Number(R.unwrap(v)) < Number(R.unwrap(lo))) return lo;
+      if (Number(R.unwrap(v)) > Number(R.unwrap(hi))) return hi;
+      return v;
+    }),
+    '符号': new R.Builtin('符号', (v) => {
+      const x = Number(R.unwrap(v));
+      return x > 0 ? 1 : (x < 0 ? -1 : 0);
+    }),
     '向上取整': new R.Builtin('向上取整', (x) => Math.ceil(x)),
     '向下取整': new R.Builtin('向下取整', (x) => Math.floor(x)),
     '四舍五入': new R.Builtin('四舍五入', (x, d = 0) => {
@@ -4564,6 +4604,42 @@ const STDLIB = {  '数学': new R.Module('数学', {
     '随机整数': new R.Builtin('随机整数', (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1))),
     '随机小数': new R.Builtin('随机小数', () => Math.random()),
     '随机选择': new R.Builtin('随机选择', (seq) => seq[Math.floor(Math.random() * seq.length)]),
+    // M117：与 Python / Rust 同一套口径（字符集用中文短名，错误里列出可用的）。
+    '随机文本': new R.Builtin('随机文本', (n, kind) => {
+      const 池表 = {
+        '字母数字': 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+        '字母': 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        '小写字母': 'abcdefghijklmnopqrstuvwxyz',
+        '大写字母': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        '数字': '0123456789',
+      };
+      const 名 = kind === undefined || kind === null ? '字母数字' : String(R.unwrap(kind));
+      const 池 = 池表[名];
+      if (池 === undefined) {
+        throw new R.JishiError('值错误',
+          `不认识的字符集「${名}」（可用：字母数字 / 字母 / 小写字母 / 大写字母 / 数字）`);
+      }
+      const m = Number(R.unwrap(n));
+      if (m < 0) throw new R.JishiError('值错误', `长度不能是负数（现在是 ${m}）`);
+      let 出 = '';
+      for (let i = 0; i < m; i++) 出 += 池[Math.floor(Math.random() * 池.length)];
+      return 出;
+    }),
+    '按权重': new R.Builtin('按权重', (items, weights) => {
+      if (!items.length) throw new R.JishiError('值错误', '不能从空序列里按权重挑元素');
+      const 权 = [...weights].map((w) => Number(R.unwrap(w)));
+      if (items.length !== 权.length) {
+        throw new R.JishiError('值错误',
+          `选项有 ${items.length} 个，权重有 ${权.length} 个 —— 两者要一样多`);
+      }
+      if (权.some((x) => x < 0)) throw new R.JishiError('值错误', '权重不能是负数');
+      const 总 = 权.reduce((a, b) => a + b, 0);
+      if (!(总 > 0)) throw new R.JishiError('值错误', '权重加起来要大于 0（全 0 等于没有可选项）');
+      const 落 = Math.random() * 总;
+      let 累计 = 0;
+      for (let i = 0; i < 权.length; i++) { 累计 += 权[i]; if (落 < 累计) return items[i]; }
+      return items[items.length - 1];
+    }),
     '洗牌': new R.Builtin('洗牌', (seq) => {
       const a = [...seq];
       for (let i = a.length - 1; i > 0; i--) {

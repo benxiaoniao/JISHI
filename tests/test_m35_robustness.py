@@ -170,10 +170,17 @@ def test_empty_class_in_all_three_engines_consistent():
 # ---------------------------------------------------------------------------
 
 def test_tmp_bc_path_is_process_unique():
-    """`tmp_bc_path` 要真的带上进程号——这是 M32 那三次假失败的根因。"""
+    """`tmp_bc_path` 要真的带上进程号——这是 M32 那三次假失败的根因。
+
+    ⚠️ 而且**一律落到系统临时目录**（2026-10-18 改）：以前是在传入的目录里改名，
+    而 20 多处调用点传的都是 `ROOT / ...` ⇒ 临时文件落在**仓库根**，
+    既违反 AGENTS §1 ②（别在项目根读写真实文件），也会被沙箱的写保护拒写
+    （实测 m41 / m50 / m52 各红过一次，而且每次只冒一处、串行跑又全过，很难查）。
+    """
+    import tempfile as _tf
     p = tmp_bc_path(ROOT / "_tmp_probe.json")
     assert p.name == f"_tmp_probe_{__import__('os').getpid()}.json"
-    assert p.parent == ROOT
+    assert p.parent == Path(_tf.gettempdir()), p.parent
 
 
 def test_tmp_bc_path_keeps_extension():

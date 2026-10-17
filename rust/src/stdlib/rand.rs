@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{as_intish, need, table, to_vec, R};
+use super::{as_intish, as_num, as_text, need, need_range, table, to_vec, R};
 use crate::{display, err, Val};
 
 static STATE: OnceLock<Mutex<u64>> = OnceLock::new();
@@ -87,6 +87,80 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 return Err(err("值错误", "不能从空序列里随机选择"));
             }
             Ok(items[below(items.len() as u64) as usize].clone())
+        },
+        // M117：`随机文本` / `按权重`。字符集**故意用中文短名**（核心一），
+        // 不认识就把可用的列出来（核心二：报错可操作）。
+        "随机文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("随机文本", args, 1, 2)?;
+            let 池 = if args.len() > 1 {
+                let 名 = as_text(&args[1]);
+                match 名.as_str() {
+                    "字母数字" => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                    "字母" => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                    "小写字母" => "abcdefghijklmnopqrstuvwxyz",
+                    "大写字母" => "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                    "数字" => "0123456789",
+                    _ => {
+                        return Err(err(
+                            "值错误",
+                            format!(
+                                "不认识的字符集「{名}」（可用：字母数字 / 字母 / 小写字母 / 大写字母 / 数字）"
+                            ),
+                        ))
+                    }
+                }
+            } else {
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+            };
+            let n = as_intish(&args[0])?;
+            if n < 0 {
+                return Err(err("值错误", format!("长度不能是负数（现在是 {n}）")));
+            }
+            if n > 100_000 {
+                return Err(err("值错误", format!("一次最多生成 10 万个字符（现在要 {n} 个）")));
+            }
+            let 字符们: Vec<char> = 池.chars().collect();
+            let mut 出 = String::with_capacity(n as usize * 2);
+            for _ in 0..n {
+                出.push(字符们[below(字符们.len() as u64) as usize]);
+            }
+            Ok(Val::Str(出))
+        },
+        "按权重" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("按权重", args, 2)?;
+            let 项 = to_vec(&args[0])?;
+            let 权们 = to_vec(&args[1])?;
+            if 项.is_empty() {
+                return Err(err("值错误", "不能从空序列里按权重挑元素"));
+            }
+            if 项.len() != 权们.len() {
+                return Err(err(
+                    "值错误",
+                    format!("选项有 {} 个，权重有 {} 个 —— 两者要一样多", 项.len(), 权们.len()),
+                ));
+            }
+            let mut 权值 = Vec::with_capacity(权们.len());
+            let mut 总 = 0f64;
+            for w in &权们 {
+                let x = as_num(w)?;
+                if x < 0.0 {
+                    return Err(err("值错误", "权重不能是负数"));
+                }
+                总 += x;
+                权值.push(x);
+            }
+            if 总 <= 0.0 {
+                return Err(err("值错误", "权重加起来要大于 0（全 0 等于没有可选项）"));
+            }
+            let 落 = (next_u64() >> 11) as f64 / (1u64 << 53) as f64 * 总;
+            let mut 累计 = 0f64;
+            for (i, w) in 权值.iter().enumerate() {
+                累计 += *w;
+                if 落 < 累计 {
+                    return Ok(项[i].clone());
+                }
+            }
+            Ok(项[项.len() - 1].clone())      // 浮点误差兜底
         },
         "洗牌" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("洗牌", args, 1)?;
