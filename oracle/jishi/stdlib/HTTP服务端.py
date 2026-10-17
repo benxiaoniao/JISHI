@@ -317,7 +317,18 @@ def 启动(端口: int = 8000, 处理函数=None, 最多请求数: int = 0) -> d
 
         do_GET = do_POST = do_PUT = do_DELETE = do_HEAD = do_PATCH = _服务
 
-    服务 = http.server.HTTPServer(("127.0.0.1", 端口号), 处理器)
+    # 🔴 **不用 `http.server.HTTPServer` 的 `server_bind`**（M116 发版在 macOS 上炸出来的）：
+    #    它在 bind 之后会调 `socket.getfqdn(host)` 做**反向 DNS**，而我们**根本不用**
+    #    `server_name`。macOS 的 CI runner 上这一步能卡 30 秒往上（mDNSResponder 超时），
+    #    于是「服务起不来」—— 而 ubuntu / windows 上它快得看不出来，**只在 mac 上红**。
+    #    `--sandbox` 之外没有人依赖 `server_name`，跳过它不改变任何可观测行为。
+    class _本地服务(http.server.HTTPServer):
+        def server_bind(self):
+            import socketserver
+            socketserver.TCPServer.server_bind(self)     # 只 bind，不做 getfqdn
+            self.server_port = self.server_address[1]
+
+    服务 = _本地服务(("127.0.0.1", 端口号), 处理器)
     实际 = int(服务.server_address[1])
     try:
         # ⚠️ **按「处理过的请求数」判停，不是按「接受过的连接数」**：

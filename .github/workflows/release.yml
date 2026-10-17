@@ -145,10 +145,17 @@ jobs:
             echo "::error file=.github/workflows/ci.yml,line=1::pytest.log 不存在（测试步骤可能没执行到 tee）"
             exit 0
           fi
-          # 连 pytest 的 `E ` 行一起抓：多行的断言消息（含双方实际输出）
-          # 就藏在这些行里，只看 FAILED 行只能看到被截断的那一小段
-          SUMMARY=$(grep -aE '^(FAILED|ERROR|E )' pytest.log | head -40 | tr -d '\r' | tr '\n' ' ')
-          if [ -z "$SUMMARY" ]; then
+          # 🔴 **FAILED 列表放最前**（M116 发版踩到）：GitHub 注解的 message
+          # 只留 **1024 字符**，而 pytest 输出里 `E ` 行（多行断言）在前、
+          # `FAILED` 行在后 —— 原来一股脑拼起来，1024 字符**刚好把失败清单截掉**，
+          # 只剩几条断言，根本不知道挂了几条、挂的是哪些。
+          # ⇒ 先给清单（短、信息量最大），再给前几条断言细节。
+          FAILED_LIST=$(grep -aE '^(FAILED|ERROR)' pytest.log | head -30 | tr -d '\r' | tr '\n' ' ')
+          DETAIL=$(grep -aE '^E  ' pytest.log | head -8 | tr -d '\r' | tr '\n' ' ')
+          SUMMARY="【清单】${FAILED_LIST} 【细节】${DETAIL}"
+          if [ -z "$FAILED_LIST" ]; then
+            # ⚠️ 判空要判 **FAILED_LIST**，不能判 SUMMARY —— 后者现在至少含
+            #    「【清单】【细节】」两个标签，永远非空，兜底分支就永远走不到。
             # 没有 FAILED 行 —— 多半是进程被中断/崩溃，退回日志末尾
             SUMMARY="【无 FAILED 行，退回日志末尾】(exit=$(tail -c 200 pytest.log | tr -d '\r\n' | tail -c 60)) $(tail -c 700 pytest.log | tr -d '\r' | tr '\n' ' ')"
           fi

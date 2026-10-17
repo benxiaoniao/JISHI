@@ -47,16 +47,53 @@ def _空闲端口() -> int:
         s.close()
 
 
-def _等端口(端口: int, 秒: float = 15.0) -> bool:
-    """轮询到端口能连上为止（**不睡固定时间** —— 那是最容易假红/假绿的写法）。"""
+def _等端口(端口: int, p=None, 秒: float = 30.0) -> bool:
+    """轮询到端口能连上为止（**不睡固定时间** —— 那是最容易假红/假绿的写法）。
+
+    ⚠️ 15 → **30 秒**（M116 发版）：macOS runner 冷启动 Python 就比本机慢一截，
+    给紧一点的秒数会变成「在慢机器上假红」。
+
+    给了 `p`（子进程）就**进程一退立刻返回 False** —— 崩了还在那儿傻等 30 秒，
+    是最浪费排查时间的一种写法。
+    """
     截 = time.time() + 秒
     while time.time() < 截:
+        if p is not None and p.poll() is not None:
+            return False
         try:
             with socket.create_connection(("127.0.0.1", 端口), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.05)
     return False
+
+
+def _起服务(源码: str, 其余参数: list, tmp: Path, 加解释器=None):
+    """起一个服务并等到端口通，返回 `(进程, 端口)`。
+
+    🔴 **失败时必须把「死因」报出来**（M116 发版踩到）：CI 的 job 日志要管理员
+    权限才拿得到，而 GitHub 注解的 message 只留 1024 字符 —— 光报一句
+    「端口一直连不上」，根本分不清是**崩了**、**卡在 bind**、还是**根本没启动**。
+    所以这里分三种情况说话：进程退了（带 stderr + 退码）/ 进程活着端口不通 / 超时。
+
+    端口竞态（问到的空闲端口在子进程 bind 之前被别人抢了）**很便宜地重试一次**。
+    """
+    死因 = ""
+    for 试 in (1, 2):
+        端口 = _空闲端口()
+        p = _跑脚本(源码, [端口] + list(其余参数), tmp, 加解释器=加解释器)
+        if _等端口(端口, p, 秒=30.0):
+            return p, 端口
+        if p.poll() is not None:
+            _, 错 = p.communicate()
+            死因 = (f"进程已退出（退码 {p.returncode}）；stderr = "
+                    f"{(错 or '')[:600]!r}")
+        else:
+            p.kill()
+            死因 = "进程还活着，但 30 秒内端口一直不通（像是卡在 bind / 反向 DNS）"
+        if 试 == 1:
+            continue
+    raise AssertionError(f"服务没起来：{死因}")
 
 
 def _跑脚本(源码: str, 参数: list, tmp: Path, 加解释器=None):
@@ -114,10 +151,8 @@ def _带系统(源码: str) -> str:
 # ---------------------------------------------------------------------------
 
 def test_起得来能访问能干净关闭(tmp_path):
-    端口 = _空闲端口()
-    p = _跑脚本(_带系统(处理函数), [端口, 2], tmp_path)
+    p, 端口 = _起服务(_带系统(处理函数), [2], tmp_path)
     try:
-        assert _等端口(端口), "服务没起来（端口一直连不上）"
         # 能访问：页面那条路
         码, 头, 体 = _取(端口, "/")
         assert (码, 头["content-type"], 体) == (200, "text/html; charset=utf-8", "<h1>你好</h1>")
@@ -134,10 +169,8 @@ def test_起得来能访问能干净关闭(tmp_path):
 
 
 def test_POST的正文真的到了处理函数(tmp_path):
-    端口 = _空闲端口()
-    p = _跑脚本(_带系统(处理函数), [端口, 1], tmp_path)
+    p, 端口 = _起服务(_带系统(处理函数), [1], tmp_path)
     try:
-        assert _等端口(端口)
         码, 头, 体 = _取(端口, "/%E5%8A%A0", "POST", "买牛奶")
         assert (码, 体) == (200, "收到：买牛奶")
         # Content-Length 要按**字节**算（中文 3 字节 × 3）
@@ -163,10 +196,8 @@ def test_处理函数出错回500且服务继续(tmp_path):
 令 结果 = HTTP服务端.启动(端口, 处理, 2)
 打印(结果["请求数"])
 '''
-    端口 = _空闲端口()
-    p = _跑脚本(_带系统(源码), [端口, 2], tmp_path)
+    p, 端口 = _起服务(_带系统(源码), [2], tmp_path)
     try:
-        assert _等端口(端口)
         码, _, 体 = _取(端口, "/%E7%82%B8")
         assert 码 == 500, f"该回 500，回的是 {码}"
         assert "这里故意炸一下" in 体, 体
@@ -195,8 +226,7 @@ def test_端口0由系统分配():
 @pytest.mark.skipif(not RS.exists(), reason="发行版没编（rust/target/release/jishi-rs.exe）")
 def test_发行版也能起服务(tmp_path):
     """**判据基准能起，不等于发行版能起** —— 两边实现完全不同（http.server vs TcpListener）。"""
-    端口 = _空闲端口()
-    p = _跑脚本(_带系统(处理函数), [端口, 1], tmp_path, 加解释器=[str(RS)])
+    p, 端口 = _起服务(_带系统(处理函数), [1], tmp_path, 加解释器=[str(RS)])
     try:
         assert _等端口(端口), "发行版没起来"
         码, _, 体 = _取(端口, "/")
