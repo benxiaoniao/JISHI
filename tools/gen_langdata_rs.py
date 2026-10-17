@@ -165,6 +165,31 @@ def main() -> None:
     add("];")
     add("")
 
+    # ---- 语言卡的静态文本 + 任务包（M116）----
+    # ⚠️ **为什么要把这些中文文本搬过来**：`--ai-card` 两边都要出，而且
+    #    `test_m90` 盯着「逐字节一致」。手抄两遍必漂 —— 走生成器是**单源投影**
+    #    （与 §0.5 核心二「语言事实是投影出来的」同一条）。
+    from oracle.jishi.ai import _语法段, _错误对照段, 卡_任务表, 卡_任务惯用
+
+    add("/// 语言卡：运算符 + 语法速览 + 块缩进（尾部无空行）。")
+    add(f"pub const CARD_语法段: &str = {rs_str(_语法段.rstrip())};")
+    add("")
+    add("/// 语言卡：常见错误对照 + 报错怎么读、怎么查。")
+    add(f"pub const CARD_错误段: &str = {rs_str(_错误对照段.rstrip())};")
+    add("")
+    add("/// 语言卡：按任务打包的模块清单（`--ai-card --任务 X`）—— **有序**。")
+    add("pub const CARD_任务表: &[(&str, &[&str])] = &[")
+    for 名, 模块们 in 卡_任务表.items():
+        add(f"    ({rs_str(名)}, &[{', '.join(rs_str(m) for m in 模块们)}]),")
+    add("];")
+    add("")
+    add("/// 语言卡：每个任务附的惯用法（**与 CARD_任务表 同名同序**）。")
+    add("pub const CARD_任务惯用: &[(&str, &[&str])] = &[")
+    for 名, 行们 in 卡_任务惯用.items():
+        add(f"    ({rs_str(名)}, &[{', '.join(rs_str(x) for x in 行们)}]),")
+    add("];")
+    add("")
+
     out = ROOT / "rust" / "src" / "langdata.rs"
     out.write_text("\n".join(L), encoding="utf-8")
     print(f"已写出 {out}（{len(L)} 行）")

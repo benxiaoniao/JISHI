@@ -60,7 +60,9 @@ def test_题集四类题量与设计一致():
     by_type: dict[str, int] = {}
     for t in tasks:
         by_type[t["类型"]] = by_type.get(t["类型"], 0) + 1
-    assert by_type == {"语法": 12, "标准库": 15, "调试": 10, "重构": 8}, by_type
+    # M116：题库从 45 题扩到 66 题 —— 新增的 20 题专门覆盖 M106–M115
+    # （字节 / 数据库 / 并发 / HTTP服务端 / 编码方向变更），参考解**真跑过**取标准输出。
+    assert by_type == {"语法": 12, "标准库": 28, "调试": 14, "重构": 12}, by_type
 
 
 def test_题号唯一():
@@ -140,7 +142,7 @@ def test_限流会被识破并重试():
 
 def test_题集装载_按类型过滤():
     tasks = eval_ai.load_tasks(only_type="调试")
-    assert len(tasks) == 10
+    assert len(tasks) == 14
     assert all(t.类型 == "调试" for t in tasks)
 
 

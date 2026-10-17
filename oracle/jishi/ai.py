@@ -156,8 +156,58 @@ def _stdlib_dir() -> str:
     return os.path.dirname(_stdlib_pkg.__file__)
 
 
+#: 默认值里**能从 AST 直接读出来**的字面量写法 → 基石说法。
+#: ⚠️ Python 的 `True` / `False` / `None` 在基石里是 `真` / `假` / `空` ——
+#:    签名是从 AST 反解的，不翻译就会**教模型写 `True`**（M116 抓到过 12 处）。
+_默认翻译 = {"True": "真", "False": "假", "None": "空"}
+
+
+def _默认文本(节点: ast.AST) -> str:
+    """一个默认值参数怎么写进签名。
+
+    | 情况 | 写成 | 为什么 |
+    |---|---|---|
+    | 字面量（数 / 字符串 / `1e-09`） | 原样 | 模型能直接用 |
+    | `True` / `False` / `None` | `真` / `假` / `空` | 基石的说法，别教 Python 写法 |
+    | 负数、其它一元运算 | 原样 | 还是字面量 |
+    | **认不出来**（模块常量、属性，如 `_DEFAULT_TIMEOUT`、`_py_math.e`） | `…` | **不猜**：既表明「有默认值、可以省」，又不把内部名字漏给模型 |
+    """
+    if isinstance(节点, ast.Constant):
+        if 节点.value is True:
+            return "真"
+        if 节点.value is False:
+            return "假"
+        if 节点.value is None:
+            return "空"
+        try:
+            return ast.unparse(节点)
+        except Exception:            # noqa: BLE001
+            return "…"
+    if isinstance(节点, ast.Name) and 节点.id in _默认翻译:
+        return _默认翻译[节点.id]
+    if (isinstance(节点, ast.UnaryOp) and isinstance(节点.operand, ast.Constant)
+            and isinstance(节点.op, (ast.USub, ast.UAdd))):
+        try:
+            return ast.unparse(节点)
+        except Exception:            # noqa: BLE001
+            return "…"
+    return "…"
+
+
 def _函数签名(node: ast.FunctionDef) -> dict:
+    """一个公开函数的 `sig` 与 doc 首行。
+
+    🔴 **`sig` 必须带默认值**（M116 补）。以前只拼参数名 —— 模型拿到
+    `居中(文本, 宽度, 填充)` 时**不知道哪个可以省**，只能猜；而标准库一补大，
+    这个洞就同比放大（路线图 §12.2.1 说的「补得越多、猜错的越多」）。
+    默认值本来就在 AST 里（`args.defaults` 对齐到参数表**尾部**），拿得到。
+    """
     params = [a.arg for a in node.args.args]
+    默认们 = list(node.args.defaults)
+    if 默认们:
+        起 = len(params) - len(默认们)
+        for i, d in enumerate(默认们):
+            params[起 + i] = f"{params[起 + i]}={_默认文本(d)}"
     sig = f"{node.name}({', '.join(params)})"
     doc = (ast.get_docstring(node) or "").strip().split("\n")[0]
     return {"name": node.name, "sig": sig, "doc": doc}
@@ -300,48 +350,64 @@ def error_to_json(err: JishiError) -> dict:
     return out
 
 
-def render_ai_card() -> str:
-    """生成 ~3K token 的 Markdown 语言卡（M8.1）。
+#: 按任务打包的模块清单（`--ai-card --任务 X`）。
+#: ⚠️ 这里只列「这类活常用到的」——模块本身还是**语言事实的投影**，
+#:    模块名走 `build_lang_spec()` 校验，写错了当场报错（不静默给空卡）。
+卡_任务表: dict = {
+    "表格": ["表格", "文件", "文本", "统计"],
+    "文本": ["文本", "正则", "编码"],
+    "文件": ["文件", "路径", "压缩"],
+    "网络": ["网络", "json", "html", "编码"],
+    "数据": ["数据库", "json", "表格", "统计"],
+    "并发": ["并发", "文件", "网络"],
+    "测试": ["测试", "容器", "日志"],
+}
 
-    结构：版本头 → 语法全表 → 内建/标准库 API → 对象方法 → 5 个惯用法
-    → 常见错误对照。可直接贴进 LLM 系统提示词。
-    """
-    spec = build_lang_spec()
-    h = content_hash(spec)
-    kw = " ".join(spec["keywords"].keys())
+#: 每个任务附一段惯用法（M116 起；按**跑分里的失败模式**持续补 —— 见 §12.2.2）。
+#: 写的都是「模型容易写错的形状」的**唯一正确写法**。
+卡_任务惯用: dict = {
+    "表格": [
+        "读表：`令 表 = 表格.读表格(路径)` —— 返回的是**表格对象**（不是行列表）",
+        "要「字典列表」用 `表格.读字典表格(路径)`；反过来 `表格.从记录(记录们)`",
+        "汇总一列：`表格.汇总(表, \"分数\")` 直接给「个数/总和/平均/最大/最小」",
+        "按组汇总：`表格.分组汇总(表, \"班级\", \"分数\")`",
+        "别手写累加循环 —— 有 `表格.汇总` / `统计.求和`",
+    ],
+    "文本": [
+        "切分：`文本.切成三段(s, 分隔符)` 给 `[前, 分隔符, 后]`；要全部用 `文本.拆分`",
+        "去掉两端空白**没有** `去空白` —— 用 `文本.去前缀`/`去后缀` 或自己 `如果 文本.是空白(字)`",
+        "按行拆：`文本.按行拆分(s)`（与 Python 的 `splitlines()` 同一套）",
+        "一个汉字算 **2** 列宽：对齐用 `文本.左对齐(s, 宽度)`，不要自己数 `长度`",
+    ],
+    "文件": [
+        "读文本：`文件.读文本(路径)`；读二进制：`文件.读字节(路径)`（给 `字节`）",
+        "路径要拼就 `路径.连接(目录, 名字)` —— 别手写 `/`（Windows 上是 `\\`）",
+        "临时文件：`路径.临时目录()`；要写就 `文件.写文本(p, 内容)`",
+    ],
+    "网络": [
+        "取网页：`网络.获取(网址)`；带请求头：`网络.获取详情(网址, 请求头={...})`",
+        "网址里有中文**要自己编码**：`编码.url编码(片段)`",
+        "JSON 接口：`网络.获取JSON(网址)` 直接给字典/列表",
+    ],
+    "数据": [
+        "建库：`令 库 = 数据库.打开(\"账.db\")`，用完 `数据库.关闭(库)`",
+        "建表给**字段名列表**（不写类型）：`数据库.建表(库, \"账\", [\"类别\", \"金额\"])`",
+        "插入给字典：`数据库.插入(库, \"账\", {\"类别\": \"餐饮\", \"金额\": 25.5})`",
+        "汇总：`数据库.汇总(库, 表名, 按, 求和)` —— 别把整表读出来自己累加",
+        "存二进制用 `字节`（列类型 `BLOB`），读回来还是 `字节`",
+    ],
+    "并发": [
+        "一批**小** IO 才用它：`并发.批量摘要(路径们)` / `并发.批量读(路径们)` / `并发.并行取(网址们)`",
+        "**结果顺序与输入一致** —— 第 3 个结果就是第 3 个输入的",
+        "大文件、纯计算**别用**（线程只是白加调度）",
+    ],
+    "测试": [
+        "断言：`测试.断言相等(甲, 乙)` / `测试.断言为真(条件)`",
+        "成组跑：`令 结果 = 测试.运行(函数们)`，末尾 `测试.汇总(结果)`",
+    ],
+}
 
-    # 内建函数
-    builtins_lines = [
-        f"- `{b['name']}`：{b['doc']}" for b in spec["builtins"]
-    ]
-    # 标准库
-    stdlib_lines = []
-    for m in spec["stdlib"]:
-        names = "、".join(f["name"] for f in m["functions"])
-        stdlib_lines.append(f"- `导入 {m['module']}`：{names}")
-
-    methods_lines = [
-        f"- {k}：{'、'.join(v)}" for k, v in spec["methods"].items()
-    ]
-
-    return f"""# 基石（jishi）语言卡 v{VERSION}（{h}）
-
-基石是一门**中文编程语言**，语法对标 Python 的易用性。以下是完整速查，
-请严格遵守——**只写中文关键字，不要用英文关键字（def/if/print/True…）**。
-
-## 关键字（全部）
-{kw}
-
-## 内建函数
-{chr(10).join(builtins_lines)}
-
-## 标准库（`导入 模块名`）
-{chr(10).join(stdlib_lines)}
-
-## 对象方法
-{chr(10).join(methods_lines)}
-
-## 运算符
+_语法段 = """## 运算符
 - 算术：`+ - * / // % **`
 - 比较：`== != < > <= >=`（可链式：`1 < x < 10`）
 - 逻辑：`与 或 非`
@@ -356,18 +422,12 @@ def render_ai_card() -> str:
 - 导入：`导入 随机`；Python 桥接 `导入 math 从 python`
 - 类：`类 面积：` + `函数 算(自身)：`；实例化 `新建 面积()`
 - 异常：`尝试：` / `捕获 值错误 为 e：` / `最终：` / `抛出 值错误("…")`
-- 推导式：`[x*2 遍历 x 在 列表 如果 x>2]`、`{{k: v 遍历 ...}}`
-- 插值：`` `你好 {{名字}}，今年 {{年龄}} 岁` ``
+- 推导式：`[x*2 遍历 x 在 列表 如果 x>2]`、`{k: v 遍历 ...}`
+- 插值：`` `你好 {名字}，今年 {年龄} 岁` ``
 - 块缩进：**用空格（4 格），禁止 Tab**
+"""
 
-## 惯用法示例
-1. 遍历统计：`令 总和 = 0` / `遍历 x 在 数据：` / `总和 += x`
-2. 条件过滤：`[x 遍历 x 在 数据 如果 x > 0]`
-3. 函数+默认参数：`函数 打招呼(名字, 语气 = "你好")：` / `打印(语气, 名字)`
-4. 字典构建：`{{x: x*x 遍历 x 在 [1, 2, 3]}}`
-5. 异常兜底：`尝试：` … `捕获 文件错误 为 e：` `打印(e.消息)`
-
-## 常见错误对照（写中文，别写英文）
+_错误对照段 = """## 常见错误对照（写中文，别写英文）
 - `def` → `函数`；`if` → `如果`；`for` → `遍历`；`while` → `当`
 - `return` → `返回`；`import` → `导入`；`class` → `类`；`try` → `尝试`
 - `print` → `打印`；`len` → `长度`；`range` → `范围`；`int` → `整数`
@@ -383,6 +443,121 @@ def render_ai_card() -> str:
   `除零错误`、`文件错误`、`断言错误`
 - 程序化读错误：加 `--json-errors`，错误会以 JSON 输出（含码、行列、修法建议）。
 """
+
+
+def _标准库段(规格: dict, 模块们: list | None) -> str:
+    """标准库段 —— **每个函数带完整签名**（M116 起）。
+
+    以前只列函数名，模型得**猜参数顺序**；顺带连「哪个参数能省」也看不出来。
+    """
+    块们 = []
+    for m in 规格["stdlib"]:
+        if 模块们 is not None and m["module"] not in 模块们:
+            continue
+        行 = [f"### `{m['module']}`"]
+        for f in m["functions"]:
+            说明 = f["doc"].strip() or ""
+            行.append(f"- `{f['sig']}`" + (f" —— {说明}" if 说明 else ""))
+        块们.append("\n".join(行))
+    if not 块们:
+        return ""
+    头 = ("## 标准库（先 `导入 模块名`，再用 `模块.函数(参数)`；"
+          "**签名里带 `=` 的参数可以省略**）\n"
+          "⚠️ 可选参数请**按顺序**传：跳过中间那个只在部分平台支持 —— "
+          "**别跳**，省哪个就从哪个开始省起。\n")
+    return 头 + "\n".join(块们)
+
+
+def _惯用段(规格: dict, 任务: str | None) -> str:
+    if 任务 is not None and 任务 in 卡_任务惯用:
+        行 = [f"## 「{任务}」这类活的惯用法"]
+        行 += [f"{i}. {x}" for i, x in enumerate(卡_任务惯用[任务], 1)]
+        行.append("")
+        行.append("## 通用惯用法")
+        起 = 1
+    else:
+        行 = ["## 惯用法示例"]
+        起 = 1
+    行 += [
+        f"{起 + 0}. 遍历统计：`令 总和 = 0` / `遍历 x 在 数据：` / `总和 += x`",
+        f"{起 + 1}. 条件过滤：`[x 遍历 x 在 数据 如果 x > 0]`",
+        f'{起 + 2}. 函数+默认参数：`函数 打招呼(名字, 语气 = "你好")：` / `打印(语气, 名字)`',
+        f"{起 + 3}. 字典构建：`{{x: x*x 遍历 x 在 [1, 2, 3]}}`",
+        f"{起 + 4}. 异常兜底：`尝试：` … `捕获 文件错误 为 e：` `打印(e.消息)`",
+    ]
+    return "\n".join(行)
+
+
+def render_ai_card(模块: str | None = None, 任务: str | None = None) -> str:
+    """生成 Markdown 语言卡（M8.1；M116 起**带签名 + 可分片**）。
+
+    | 形态 | 用途 | 大致 token |
+    |---|---|---|
+    | `render_ai_card()` | 全量（「一贴就能用」） | 见 `--ai-card --统计` |
+    | `render_ai_card(模块="文本")` | 单模块（写表格类活时只带它） | 小得多 |
+    | `render_ai_card(任务="表格")` | 按任务（若干模块 + 该任务惯用法） | 中 |
+
+    ⚠️ 它**永远是 `build_lang_spec()` 的投影** —— 不另写一套说辞
+    （`AGENTS.md` §0.5 核心二）。加模块 / 加函数**不用改这里**。
+    """
+    if 模块 is not None and 任务 is not None:
+        raise ValueError("「模块」与「任务」只能给一个")
+    规格 = build_lang_spec()
+    指纹 = content_hash(规格)
+    已知模块 = {m["module"] for m in 规格["stdlib"]}
+    模块们: list | None = None
+    if 任务 is not None:
+        if 任务 not in 卡_任务表:
+            raise ValueError(
+                f"没有「{任务}」这个任务包。可选：{'、'.join(卡_任务表)}")
+        模块们 = 卡_任务表[任务]
+    elif 模块 is not None:
+        if 模块 not in 已知模块:
+            raise ValueError(f"没有「{模块}」这个标准库模块")
+        模块们 = [模块]
+
+    内建行 = [f"- `{b['name']}`：{b['doc']}" for b in 规格["builtins"]]
+    方法行 = [f"- {k}：{'、'.join(v)}" for k, v in 规格["methods"].items()]
+
+    段 = [f"# 基石（jishi）语言卡 v{VERSION}（{指纹}）"]
+    说明 = "基石是一门**中文编程语言**，语法对标 Python 的易用性。"
+    if 任务 is not None:
+        段.append(f"{说明}这是「**{任务}**」这类活的分片卡（只带常用模块）。")
+    elif 模块 is not None:
+        段.append(f"{说明}这是「**{模块}**」模块的分片卡。")
+    else:
+        段.append(f"{说明}以下是完整速查，")
+    段.append("请严格遵守——**只写中文关键字，不要用英文关键字（def/if/print/True…）**。")
+    段.append("")
+    段.append("## 关键字（全部）")
+    段.append(" ".join(规格["keywords"].keys()))
+    段.append("")
+    段.append("## 内建函数")
+    段.extend(内建行)
+    段.append("")
+    段.append(_标准库段(规格, 模块们))
+    段.append("")
+    段.append("## 对象方法")
+    段.extend(方法行)
+    段.append("")
+    段.append(_语法段.rstrip())
+    段.append("")
+    段.append(_惯用段(规格, 任务))
+    段.append("")
+    段.append(_错误对照段.rstrip())
+    return "\n".join(段) + "\n"
+
+
+def 卡统计() -> dict:
+    """给「分片到底省了多少」用（`--ai-card --统计`）。**字符数**，不是精确 token。"""
+    全 = render_ai_card()
+    出 = {"全量": len(全)}
+    for m in build_lang_spec()["stdlib"]:
+        if m["module"] in ("文本", "表格", "数据库"):
+            出[f"模块:{m['module']}"] = len(render_ai_card(模块=m["module"]))
+    for t in 卡_任务表:
+        出[f"任务:{t}"] = len(render_ai_card(任务=t))
+    return 出
 
 
 if __name__ == "__main__":  # pragma: no cover

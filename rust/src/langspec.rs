@@ -123,92 +123,149 @@ pub fn lang_spec_json() -> String {
     out
 }
 
-/// `ai.render_ai_card()` 的等价物 —— Markdown 语言卡（贴进 LLM 系统提示词用）。
+/// `ai.render_ai_card(模块, 任务)` 的等价物 —— Markdown 语言卡（贴进 LLM 系统提示词用）。
 ///
-/// 结构与 Python 侧逐字对应：版本头 → 关键字 → 内建 → 标准库 → 对象方法 →
-/// 运算符 → 语法速览 → 惯用法 → 常见错误对照 → 报错怎么读。
-pub fn render_ai_card() -> String {
+/// M116 起与 Python 侧**同样支持分片**：
+/// * `(None, None)` → 全量卡（「一贴就能用」）；
+/// * `(Some("文本"), None)` → 单模块分片卡；
+/// * `(None, Some("表格"))` → 按任务的分片卡（若干模块 + 该任务惯用法）。
+///
+/// ⚠️ 卡片里的**中文文本**（语法段 / 错误对照段 / 任务表 / 任务惯用法）不是写在这里的
+/// —— 它们在 `langdata.rs` 里（由 `tools/gen_langdata_rs.py` 从 Python 侧**投影**过来）。
+/// 手抄两遍必漂，而 `tests/test_m90_langspec_rust.py` 盯着「逐字节一致」。
+pub fn render_ai_card(模块: Option<&str>, 任务: Option<&str>) -> Result<String, String> {
+    if 模块.is_some() && 任务.is_some() {
+        return Err("「模块」与「任务」只能给一个".to_string());
+    }
     let hash = content_hash();
     let kw = D::KEYWORDS.iter().map(|(k, _)| *k).collect::<Vec<_>>().join(" ");
 
     let builtins = D::BUILTINS.iter()
         .map(|(n, doc)| format!("- `{n}`：{doc}"))
         .collect::<Vec<_>>().join("\n");
-    let stdlib = D::STDLIB.iter()
-        .map(|(m, fns)| {
-            let names = fns.iter().map(|(n, _, _)| *n).collect::<Vec<_>>().join("、");
-            format!("- `导入 {m}`：{names}")
-        })
-        .collect::<Vec<_>>().join("\n");
     let methods = D::METHODS.iter()
         .map(|(k, v)| format!("- {k}：{}", v.join("、")))
         .collect::<Vec<_>>().join("\n");
 
-    format!(
-        r#"# 基石（jishi）语言卡 v{ver}（{hash}）
+    // 要带哪些模块：None = 全部
+    let mut 模块们: Option<Vec<&str>> = None;
+    if let Some(t) = 任务 {
+        模块们 = Some(D::CARD_任务表.iter()
+            .find(|(名, _)| *名 == t)
+            .map(|(_, 列)| 列.to_vec())
+            .ok_or_else(|| format!(
+                "没有「{t}」这个任务包。可选：{}",
+                D::CARD_任务表.iter().map(|(名, _)| *名).collect::<Vec<_>>().join("、")))?);
+    } else if let Some(m) = 模块 {
+        if !D::STDLIB.iter().any(|(名, _)| *名 == m) {
+            return Err(format!("没有「{m}」这个标准库模块"));
+        }
+        模块们 = Some(vec![m]);
+    }
 
-基石是一门**中文编程语言**，语法对标 Python 的易用性。以下是完整速查，
-请严格遵守——**只写中文关键字，不要用英文关键字（def/if/print/True…）**。
+    // ---- 标准库段（**每个函数带完整签名**）----
+    let mut 块们: Vec<String> = Vec::new();
+    for (名, fns) in D::STDLIB.iter() {
+        if let Some(列) = 模块们.as_ref() {
+            if !列.iter().any(|x| x == 名) {
+                continue;
+            }
+        }
+        let mut 行 = vec![format!("### `{名}`")];
+        for (_, sig, doc) in fns.iter() {
+            行.push(if doc.is_empty() {
+                format!("- `{sig}`")
+            } else {
+                format!("- `{sig}` —— {doc}")
+            });
+        }
+        块们.push(行.join("\n"));
+    }
+    let 标准库 = if 块们.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "## 标准库（先 `导入 模块名`，再用 `模块.函数(参数)`；\
+             **签名里带 `=` 的参数可以省略**）\n\
+             ⚠️ 可选参数请**按顺序**传：跳过中间那个只在部分平台支持 —— \
+             **别跳**，省哪个就从哪个开始省起。\n{}",
+            块们.join("\n"))
+    };
 
-## 关键字（全部）
-{kw}
+    // ---- 惯用段 ----
+    let mut 惯用: Vec<String> = Vec::new();
+    let 起点;
+    if let Some(t) = 任务 {
+        if let Some((_, 行们)) = D::CARD_任务惯用.iter().find(|(名, _)| *名 == t) {
+            惯用.push(format!("## 「{t}」这类活的惯用法"));
+            for (i, x) in 行们.iter().enumerate() {
+                惯用.push(format!("{}. {x}", i + 1));
+            }
+            惯用.push(String::new());
+            惯用.push("## 通用惯用法".to_string());
+        }
+        起点 = 1;
+    } else {
+        惯用.push("## 惯用法示例".to_string());
+        起点 = 1;
+    }
+    惯用.push(format!("{}. 遍历统计：`令 总和 = 0` / `遍历 x 在 数据：` / `总和 += x`", 起点));
+    惯用.push(format!("{}. 条件过滤：`[x 遍历 x 在 数据 如果 x > 0]`", 起点 + 1));
+    惯用.push(format!("{}. 函数+默认参数：`函数 打招呼(名字, 语气 = \"你好\")：` / `打印(语气, 名字)`", 起点 + 2));
+    惯用.push(format!("{}. 字典构建：`{{x: x*x 遍历 x 在 [1, 2, 3]}}`", 起点 + 3));
+    惯用.push(format!("{}. 异常兜底：`尝试：` … `捕获 文件错误 为 e：` `打印(e.消息)`", 起点 + 4));
 
-## 内建函数
-{builtins}
+    // ---- 说明那两行（分片形态不同）----
+    let 头 = "基石是一门**中文编程语言**，语法对标 Python 的易用性。";
+    let 说明 = if let Some(t) = 任务 {
+        format!("{头}这是「**{t}**」这类活的分片卡（只带常用模块）。")
+    } else if let Some(m) = 模块 {
+        format!("{头}这是「**{m}**」模块的分片卡。")
+    } else {
+        format!("{头}以下是完整速查，")
+    };
 
-## 标准库（`导入 模块名`）
-{stdlib}
+    Ok(format!(
+        "# 基石（jishi）语言卡 v{ver}（{hash}）\n\
+         {说明}\n\
+         请严格遵守——**只写中文关键字，不要用英文关键字（def/if/print/True…）**。\n\
+         \n\
+         ## 关键字（全部）\n\
+         {kw}\n\
+         \n\
+         ## 内建函数\n\
+         {builtins}\n\
+         \n\
+         {标准库}\n\
+         \n\
+         ## 对象方法\n\
+         {methods}\n\
+         \n\
+         {语法}\n\
+         \n\
+         {惯用}\n\
+         \n\
+         {错误}\n",
+        ver = D::LANG_VERSION, hash = hash, 说明 = 说明, kw = kw,
+        builtins = builtins, 标准库 = 标准库, methods = methods,
+        语法 = D::CARD_语法段, 惯用 = 惯用.join("\n"), 错误 = D::CARD_错误段,
+    ))
+}
 
-## 对象方法
-{methods}
-
-## 运算符
-- 算术：`+ - * / // % **`
-- 比较：`== != < > <= >=`（可链式：`1 < x < 10`）
-- 逻辑：`与 或 非`
-- 赋值：`= += -= *= /=`
-
-## 语法速览
-- 变量：`令 分数 = 60`；多赋值：`令 a, b = [1, 2]`
-- 条件：`如果 分数 >= 90：` / `否则如果 分数 >= 60：` / `否则：`
-- 循环：`遍历 x 在 [1, 2, 3]：` / `循环 3 次：` / `当 条件：`
-- 函数：`函数 求和(a, b)：`（默认参数 `函数 f(a, b = 10)：`）
-- 返回：`返回 a + b`；多值返回 `返回 a, b`（即返回列表）
-- 导入：`导入 随机`；Python 桥接 `导入 math 从 python`
-- 类：`类 面积：` + `函数 算(自身)：`；实例化 `新建 面积()`
-- 异常：`尝试：` / `捕获 值错误 为 e：` / `最终：` / `抛出 值错误("…")`
-- 推导式：`[x*2 遍历 x 在 列表 如果 x>2]`、`{{k: v 遍历 ...}}`
-- 插值：`` `你好 {{名字}}，今年 {{年龄}} 岁` ``
-- 块缩进：**用空格（4 格），禁止 Tab**
-
-## 惯用法示例
-1. 遍历统计：`令 总和 = 0` / `遍历 x 在 数据：` / `总和 += x`
-2. 条件过滤：`[x 遍历 x 在 数据 如果 x > 0]`
-3. 函数+默认参数：`函数 打招呼(名字, 语气 = "你好")：` / `打印(语气, 名字)`
-4. 字典构建：`{{x: x*x 遍历 x 在 [1, 2, 3]}}`
-5. 异常兜底：`尝试：` … `捕获 文件错误 为 e：` `打印(e.消息)`
-
-## 常见错误对照（写中文，别写英文）
-- `def` → `函数`；`if` → `如果`；`for` → `遍历`；`while` → `当`
-- `return` → `返回`；`import` → `导入`；`class` → `类`；`try` → `尝试`
-- `print` → `打印`；`len` → `长度`；`range` → `范围`；`int` → `整数`
-- `True` → `真`；`False` → `假`；`None` → `空`
-- `and` → `与`；`or` → `或`；`not` → `非`
-
-## 报错怎么读、怎么查（M56）
-- 报错形态：`错误 E0301：找不到这个名字（找不到名字「长渡」）` + 行列 + `提示：你是不是想写「长度」？`
-- **报错里的 E 码可以直接查详情**：跑 `jishi 错误 E0301`
-  —— 给「什么意思 / 常见成因 / 怎么改」三段。不写码则列出全部错误码。
-- 常用异常类型（`捕获 X 为 e` 用，`e.消息` / `e.类型` 可读）：
-  `异常`（基类）、`运行期错误`、`类型错误`、`值错误`、`索引错误`、`键错误`、
-  `除零错误`、`文件错误`、`断言错误`
-- 程序化读错误：加 `--json-errors`，错误会以 JSON 输出（含码、行列、修法建议）。
-"#,
-        ver = D::LANG_VERSION,
-        hash = hash,
-        kw = kw,
-        builtins = builtins,
-        stdlib = stdlib,
-        methods = methods,
-    )
+/// `ai.卡统计()` 的等价物 —— 各种卡片的大小对比（`--ai-card --统计`）。
+///
+/// ⚠️ 报的是**字符数**，不是精确 token —— 两边都按这个口径比，不假装知道 tokenizer。
+pub fn 卡统计() -> Vec<(String, usize)> {
+    let mut 出 = vec![("全量".to_string(), render_ai_card(None, None).unwrap_or_default().chars().count())];
+    for (名, _) in D::STDLIB.iter() {
+        if ["文本", "表格", "数据库"].contains(名) {
+            出.push((format!("模块:{名}"),
+                     render_ai_card(Some(名), None).unwrap_or_default().chars().count()));
+        }
+    }
+    for (名, _) in D::CARD_任务表.iter() {
+        出.push((format!("任务:{名}"),
+                 render_ai_card(None, Some(名)).unwrap_or_default().chars().count()));
+    }
+    出
 }

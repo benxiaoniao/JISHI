@@ -487,7 +487,32 @@ fn main() -> ExitCode {
     }
     // R7.2：AI 语言卡（由同一份元数据渲染的 Markdown）。
     if args[1] == "--ai-card" || args[1] == "--ai_card" {
-        println!("{}", jishi_ffi::langspec::render_ai_card());
+        // M116：支持 `--ai-card=模块` / `--ai-card 模块` / `--任务 X`（与 Python 侧同一套）
+        let 参数们: Vec<&str> = args.iter().map(|x| x.as_str()).collect();
+        let mut 模块: Option<&str> = None;
+        let mut 任务: Option<&str> = None;
+        for (k, a) in 参数们.iter().enumerate() {
+            if let Some(rest) = a.strip_prefix("--ai-card=") {
+                模块 = if rest.is_empty() { None } else { Some(rest) };
+            } else if *a == "--任务" || *a == "--task" {
+                任务 = 参数们.get(k + 1).copied();
+            } else if *a == "--ai-card" && k + 1 < 参数们.len()
+                && !参数们[k + 1].starts_with('-') && 模块.is_none() {
+                模块 = Some(参数们[k + 1]);
+            }
+        }
+        if 模块.map(|m| m.ends_with(".jsh")).unwrap_or(false) {
+            let m = 模块.unwrap_or("");
+            eprintln!("--ai-card 后面跟的是**模块名**；要跑脚本请写 `jishi {m}`（或者把 --ai-card 放到脚本名后面）");
+            return ExitCode::from(2);
+        }
+        match jishi_ffi::langspec::render_ai_card(模块, 任务) {
+            Ok(文) => println!("{文}"),
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::from(2);
+            }
+        }
         return ExitCode::SUCCESS;
     }
     // 静态检查用到的四个符号集合（关键字/内建/标准库模块/异常类型）自报家底。

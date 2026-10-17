@@ -335,7 +335,7 @@ fn eval_expr(args: &Json) -> String {
 fn describe_language() -> String {
     dump_compact(&obj(vec![
         ("ok", Jv::Bool(true)),
-        ("card", s(&crate::langspec::render_ai_card())),
+        ("card", s(&crate::langspec::render_ai_card(None, None).unwrap_or_default())),
     ]))
 }
 

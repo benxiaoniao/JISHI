@@ -587,7 +587,7 @@ tools/           run_tests.py 测试 / benchmark.py 基准 / build_site.py 文�
 - **在线试玩跑的就是这套引擎**（R8.1/R8.2）：Rust 前端 + 字节码 VM + 原生标准库编到
   `wasm32-unknown-unknown`（`wasm/` crate，**裸 C ABI**、不上 wasm-bindgen，
   模块 1.56 MB）；浏览器里**不再另跑一份 Python 实现**。
-- **AI 原生能力**（M8/M9）架在 AST 与报错之上：语言卡（`--ai-card`）与语言规格
+- **AI 原生能力**（M8/M9/M116）架在 AST 与报错之上：语言卡（`--ai-card`，**带完整签名、可单模块/按任务分片**）与语言规格
   （`--lang-spec`）从**同一份**语言事实产出，结构化报错带错误码与「你是不是想写…」
   建议；`jishi mcp` 把执行能力暴露给任意 MCP 宿主。
 

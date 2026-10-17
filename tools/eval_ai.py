@@ -277,7 +277,7 @@ def _retryable(err: str) -> bool:
 
 
 def call_llm(base: str, key: str, model: str, messages: list[dict],
-             max_tokens: int = 4096, timeout: float = 180.0,
+             max_tokens: int = 4096, timeout: float = 75.0,
              retries: int = 4, quiet: bool = False) -> LlmReply:
     """调一次 chat/completions，遇限流/临时故障按指数退避重试。
 
@@ -385,7 +385,8 @@ def eval_one(t: Task, base: str, key: str, model: str,
              spec_text: str, max_rounds: int,
              max_tokens: int, verbose: bool,
              interval: float = 0.0,
-             retries: int = 4) -> TaskOutcome:
+             retries: int = 4,
+             eval_timeout: float = 75.0) -> TaskOutcome:
     """跑一道题：写 → 跑 → 错就回灌报错 → 再跑，最多 max_rounds 轮。"""
     messages = [
         {"role": "system", "content": build_system_prompt(spec_text)},
@@ -398,7 +399,7 @@ def eval_one(t: Task, base: str, key: str, model: str,
 
     for rnd in range(1, max_rounds + 1):
         reply = call_llm(base, key, model, messages, max_tokens=max_tokens,
-                         retries=retries)
+                         retries=retries, timeout=eval_timeout)
         p_tok += reply.prompt_tokens
         c_tok += reply.completion_tokens
         if not reply.ok:
@@ -555,6 +556,14 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="每题之间的等待秒数，用于避开接口限流（默认 1.5）")
     ap.add_argument("--重试", type=int, default=4,
                     help="撞限流/临时故障时的退避重试次数（默认 4，退避 3/6/12/24 秒）")
+    ap.add_argument("--超时", type=float, default=75.0,
+                    help="单次调用的秒数上限（沙箱里偶发挂起，等满 180 秒太亏；默认 75）")
+    ap.add_argument("--规格", choices=("json", "card"), default="json",
+                    help="喂给模型的「语言事实」形态：json = 完整语言规格（默认，与 "
+                         "M45 那组可比）；card = 语言卡（M116 起带签名，可配 --卡分片）")
+    ap.add_argument("--卡分片", default=None,
+                    help="配 --规格 card：只带某一个模块（如 文本）或一个任务包"
+                         "（如 表格）—— 用来量「分片卡够不够用」")
     ap.add_argument("--key", default=None, help="API key（默认读 JISHI_EVAL_KEY）")
     ap.add_argument("--base", default=DEFAULT_BASE, help="接口地址")
     ap.add_argument("--输出", default=None, help="报告写到哪个文件")
@@ -595,11 +604,24 @@ def main(argv: Optional[list[str]] = None) -> int:
         print("没有指定模型：用 --模型 传至少一个。", file=sys.stderr)
         return 2
 
-    from oracle.jishi.ai import build_lang_spec, content_hash
+    from oracle.jishi.ai import build_lang_spec, content_hash, render_ai_card
     spec = build_lang_spec()
-    spec_text = json.dumps(spec, ensure_ascii=False)
     spec_hash = content_hash(spec)
-    print(f"语言规格指纹：{spec_hash}（{len(spec_text)} 字符）")
+    if args.规格 == "card":
+        # M116：语言卡这一路 —— 它是「贴进系统提示词」的紧凑形态，
+        # 与规格 JSON 是**两条通道**；用同一个指纹标注，便于对照。
+        模块 = 任务 = None
+        if args.卡分片:
+            if args.卡分片 in __import__("oracle.jishi.ai", fromlist=["x"]).卡_任务表:
+                任务 = args.卡分片
+            else:
+                模块 = args.卡分片
+        spec_text = render_ai_card(模块=模块, 任务=任务)
+        print(f"语言规格指纹：{spec_hash}（语言卡 {len(spec_text)} 字符"
+              f"{'，分片=' + args.卡分片 if args.卡分片 else ''}）")
+    else:
+        spec_text = json.dumps(spec, ensure_ascii=False)
+        print(f"语言规格指纹：{spec_hash}（{len(spec_text)} 字符）")
 
     all_results: dict[str, list[TaskOutcome]] = {}
     all_elapsed: dict[str, float] = {}
@@ -614,7 +636,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                 print(f"  [{i}/{len(tasks)}] {t.id}")
             o = eval_one(t, args.base, key, model, spec_text,
                          args.最大轮数, args.最大令牌, args.verbose,
-                         interval=args.题间间隔, retries=args.重试)
+                         interval=args.题间间隔, retries=args.重试,
+                         eval_timeout=args.超时)
             outs.append(o)
             if o.跳过:
                 print(f"    ⚠ 跳过（{o.跳过原因[:60]}）")

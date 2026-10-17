@@ -1209,8 +1209,15 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="只显示语法树，不运行")
     parser.add_argument("--json-errors", action="store_true",
                         help="错误以 JSON 输出（供 agent 程序化读取，M8.3）")
-    parser.add_argument("--ai-card", action="store_true",
-                        help="输出 AI 语言卡（贴进 LLM 系统提示词，M8.1）")
+    parser.add_argument("--ai-card", nargs="?", const="", default=None,
+                        metavar="模块",
+                        help="输出 AI 语言卡（贴进 LLM 系统提示词，M8.1）。"
+                             "给模块名则只出这个模块的分片卡（如 --ai-card 文本）；"
+                             "配 --任务 出「按任务打包」的分片卡；配 --统计 只看大小（M116）")
+    parser.add_argument("--任务", default=None, metavar="名字",
+                        help="配 --ai-card 用：按任务打包（表格/文本/文件/网络/数据/并发/测试）")
+    parser.add_argument("--统计", action="store_true",
+                        help="配 --ai-card 用：只打印各种卡片的大小对比，不打印卡片")
     parser.add_argument("--lang-spec", action="store_true",
                         help="输出机器可读语言规格（配合 --format json）")
     parser.add_argument("--format", choices=("json",), default="json",
@@ -1239,9 +1246,30 @@ def main(argv: Optional[list[str]] = None) -> int:
         # 免得 run_file / 沙箱 / 字节码几条调用链各传一份（M47③）
         os.environ["JISHI_NO_CACHE"] = "1"
 
-    if args.ai_card:
-        from .ai import render_ai_card
-        print(render_ai_card())
+    if args.ai_card is not None:
+        from .ai import 卡统计, render_ai_card
+        if args.统计:
+            for 名, 大小 in 卡统计().items():
+                print(f"{名}\t{大小}")
+            return 0
+        模块 = args.ai_card.strip() or None
+        if 模块 is not None and 模块.endswith(".jsh"):
+            # ⚠️ 防手滑：`--ai-card 脚本.jsh` 会被 argparse 吃成「模块名」，
+            #    必须**当场说清楚**，不能静默报「没有这个模块」让人以为卡坏了
+            print(f"--ai-card 后面跟的是**模块名**；要跑脚本请写 "
+                  f"`jishi {模块}`（或者把 --ai-card 放到脚本名后面）", file=sys.stderr)
+            return 2
+        if 模块 is None and args.任务 is None and args.file is not None:
+            # 同理：`jishi --ai-card 脚本.jsh` 里那个位置被吃掉了，脚本没得跑
+            print(f"--ai-card 后面跟的是**模块名**（你给的是「{args.file}」）。"
+                  f"只想打印整张卡就写 `jishi --ai-card`；要跑脚本写 `jishi {args.file}`",
+                  file=sys.stderr)
+            return 2
+        try:
+            print(render_ai_card(模块=模块, 任务=args.任务))
+        except ValueError as e:
+            print(str(e), file=sys.stderr)
+            return 2
         return 0
     if args.lang_spec:
         from .ai import lang_spec_json

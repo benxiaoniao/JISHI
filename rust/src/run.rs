@@ -42,7 +42,13 @@ struct Opts {
     repl: bool,
     ast: bool,
     json_errors: bool,
-    ai_card: bool,
+    /// `--ai-card` 的形态（M116）：
+    /// `None` = 没给；`Some("")` = 整张卡；`Some("文本")` = 那个模块的分片卡。
+    ai_card: Option<String>,
+    /// `--任务 X`（配 `--ai-card`）：按任务打包的分片卡。
+    任务: Option<String>,
+    /// `--统计`（配 `--ai-card`）：只打印各种卡片的大小对比。
+    统计: bool,
     lang_spec: bool,
     sandbox: bool,
     json_result: bool,
@@ -64,7 +70,24 @@ pub fn main_cli(args: &[String]) -> ExitCode {
             "-i" | "--repl" => o.repl = true,
             "--ast" => o.ast = true,
             "--json-errors" => o.json_errors = true,
-            "--ai-card" => o.ai_card = true,
+            "--ai-card" => {
+                o.ai_card = Some(String::new());
+                // 与 Python 侧 `nargs="?"` 对齐：后面跟一个**不像选项**的词就当成模块名
+                // （`--ai-card 文本`）。`--ai-card --任务 X` 里那个 `--任务` 不会被吃掉。
+                if let Some(n) = args.get(i + 1) {
+                    if !n.starts_with('-') {
+                        o.ai_card = Some(n.clone());
+                        i += 1;
+                    }
+                }
+            }
+            "--任务" => {
+                if let Some(v) = args.get(i + 1) {
+                    o.任务 = Some(v.clone());
+                    i += 1;
+                }
+            }
+            "--统计" => o.统计 = true,
             "--lang-spec" => o.lang_spec = true,
             "--sandbox" => o.sandbox = true,
             "--json-result" => o.json_result = true,
@@ -117,9 +140,31 @@ pub fn main_cli(args: &[String]) -> ExitCode {
         return ExitCode::SUCCESS;
     }
     // ⚠️ 与 Python 侧同序：语言卡 / 规格**先于**字节码与运行判断。
-    if o.ai_card {
-        println!("{}", crate::langspec::render_ai_card());
-        return ExitCode::SUCCESS;
+    if let Some(模块) = o.ai_card.as_deref() {
+        let 模块 = if 模块.is_empty() { None } else { Some(模块) };
+        if 模块.map(|m| m.ends_with(".jsh")).unwrap_or(false) {
+            // 防手滑：`--ai-card 脚本.jsh` 会被当成模块名 —— 与 Python 侧同一句话
+            let m = 模块.unwrap_or("");
+            eprintln!("--ai-card 后面跟的是**模块名**；要跑脚本请写 `jishi {m}`（或者把 --ai-card 放到脚本名后面）");
+            return ExitCode::from(2);
+        }
+        if o.统计 {
+            // 大小对比（**字符数**，不是精确 token）—— 与 Python 侧同一份算法
+            for (名, 大小) in crate::langspec::卡统计() {
+                println!("{名}\t{大小}");
+            }
+            return ExitCode::SUCCESS;
+        }
+        match crate::langspec::render_ai_card(模块, o.任务.as_deref()) {
+            Ok(文) => {
+                println!("{文}");
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::from(2);
+            }
+        }
     }
     if o.lang_spec {
         println!("{}", crate::langspec::lang_spec_json());
