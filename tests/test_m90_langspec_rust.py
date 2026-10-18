@@ -180,7 +180,7 @@ def test_独立判据_lang_spec结构与关键事实():
     assert d["builtins"][0]["doc"] == "输出内容到屏幕"
     assert list(d["methods"]) == _METHOD_CATS
     assert [m["module"] for m in d["stdlib"]] == _STDLIB_MODULES
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 290
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 292
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     assert len(d["error_codes"]) == 35

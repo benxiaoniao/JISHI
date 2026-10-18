@@ -179,6 +179,10 @@ class _网(BaseHTTPRequestHandler):
             self._回(404, b'{"err": "not found"}', "application/json")
         elif self.path == "/dl":
             self._回(200, b"hello-bytes", "application/octet-stream")
+        elif self.path.startswith("/echo"):
+            # R101：把**服务端实际收到的原始请求行**回显出来 ——
+            # 这样「中文有没有被自动编码」是可观测的（而不是只验证「没报错」）
+            self._回(200, self.path.encode("utf-8"), "text/plain")
         else:
             self._回(200, b"ok", "text/plain")
 
@@ -251,6 +255,49 @@ def test_网络_请求头与状态码与JSON提交(网端口):
     out = _跑引擎(src)
     assert len(set(out.values())) == 1, out
     assert next(iter(out.values())) == 期望, out
+
+
+def test_网址里的中文自动编码(网端口):
+    """🔴 台账 **R101**：网址里**直接写中文**就行 —— `网络` 会自动百分号编码。
+
+    以前必须自己 `编码.url编码(关键字)` 再拼，否则报
+    `'ascii' codec can't encode characters…`（那句跟「网址」两个字毫无关系，
+    第一次撞上很难查）。
+
+    判据不能只验「没报错」—— 让服务端**回显它收到的原始请求路径**，
+    四种执行器必须回同一串，且那串里中文确实变成了 `%E4%B8%AD` 这种。
+    """
+    头 = '{"X-Token": "sample-token-1234"}'
+    src = (
+        '导入 网络\n'
+        f'令 B = "http://127.0.0.1:{网端口}"\n'
+        # 中文 + 空格；结构字符（`?` `=` `&`）必须原样保留
+        f'打印(网络.获取(B + "/echo?q=中文 空格&n=1", 10, {头}))\n'
+    )
+    出 = _跑引擎(src)
+    基准 = 出["树遍历"].strip()
+    assert 基准 == "/echo?q=%E4%B8%AD%E6%96%87%20%E7%A9%BA%E6%A0%BC&n=1", 基准
+    for 名, v in 出.items():
+        assert v.strip() == 基准, f"{名} 与树遍历不一致：{v!r} vs {基准!r}"
+
+
+def test_已编码的网址不会被二次编码(网端口):
+    """R101 的另一半：**已经编码过的**网址必须原样通过（`%` 不能被转成 `%25`）。
+
+    这条最容易做错 —— JS 的 `encodeURI` 就会把 `%` 编成 `%25`，于是
+    `%E4%B8%AD` 变成 `%25E4%25B8%25AD`，请求直接发错地方。
+    """
+    头 = '{"X-Token": "sample-token-1234"}'
+    src = (
+        '导入 网络\n'
+        f'令 B = "http://127.0.0.1:{网端口}"\n'
+        f'打印(网络.获取(B + "/echo?q=%E4%B8%AD%E6%96%87", 10, {头}))\n'
+    )
+    出 = _跑引擎(src)
+    基准 = 出["树遍历"].strip()
+    assert 基准 == "/echo?q=%E4%B8%AD%E6%96%87", 基准
+    for 名, v in 出.items():
+        assert v.strip() == 基准, f"{名} 不一致：{v!r}"
 
 
 def test_网络_下载(网端口):

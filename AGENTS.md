@@ -180,8 +180,12 @@
 - ⚠️ **新模块要重跑两个生成器**（不然命名参数在宿主上报「暂不支持命名参数」）：
   `python tools/gen_stdlib_sigs.py`（→ `rust/src/stdlib_sigs.rs` +
   `oracle/node/stdlib_sigs.js`）与 `python tools/gen_langdata_rs.py`（→ `rust/src/langdata.rs`）。
-  M118 之后是 **28 模块 / 290 函数**（M117 补了 `数学.限制`/`符号`、`容器.索引表`/`深拷贝`、
-  `随机.随机文本`/`按权重`；M118 补了 `文件.追加字节`/`复制目录`、`压缩.解压成员`）。
+  M119 之后是 **28 模块 / 292 函数**（M117：`数学.限制`/`符号`、`容器.索引表`/`深拷贝`、
+  `随机.随机文本`/`按权重`；M118：`文件.追加字节`/`复制目录`、`压缩.解压成员`；
+  M119：`编码.GBK文本`/`文本GBK`）。
+  ⚠️ **`文本GBK`（编码方向）在 Node 上要靠一张生成的码表**
+  （`oracle/node/gbk_table.js`，`python tools/gen_gbk_table.py` 生成，**签入仓库**）。
+  Node 的 `TextEncoder('gbk')` **不报错但永远按 UTF-8 编** —— 静默错，别信它。
   ⚠️ **`容器`/`迭代`/`统计`/`参数` 在基石库层**（`stdlib-jishi/*.jsh`）：改的是 `.jsh`，
   但 `--lang-spec` 读的是**宿主层镜像** `stdlib/容器.py` —— **两处都要加**，否则
   函数能跑、**语言卡上看不到**（M117 踩到）。

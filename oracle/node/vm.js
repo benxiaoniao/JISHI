@@ -8,6 +8,21 @@
 
 const R = require('./runtime');
 const fs = require('fs');
+// M119：GBK **编码**表（生成的，见 tools/gen_gbk_table.py）。
+// Node 只有 TextDecoder('gbk') 能解；编码方向没有——`new TextEncoder('gbk')`
+// 不报错但永远按 UTF-8 编，那是**静默错**，比报错还坏。
+const _gbk表 = require('./gbk_table');
+let _gbk反查 = null;
+function gbk反查() {
+  if (_gbk反查) return _gbk反查;
+  const m = new Map();
+  for (let i = 0; i < _gbk表.串.length; i++) {
+    const c = _gbk表.串[i];
+    if (c !== '\u0000') m.set(c, _gbk表.槽位码号(i));
+  }
+  _gbk反查 = m;
+  return m;
+}
 
 const MAX_FRAMES = 1000;
 
@@ -2386,8 +2401,18 @@ function netHeaders(请求头) {
   return out;
 }
 
+/// R101：把网址里**非 ASCII 的字符**自动百分号编码。
+///
+/// `encodeURI` 已经做了大部分（它保留 `/ ? : @ & = + $ , #` 这些结构字符），
+/// 但有一处与 Python / Rust 不一致：**它会把 `%` 编成 `%25`**
+/// ⇒ 「已经是编码过的网址」会被**二次编码**（`%E4%B8%AD` → `%25E4%25B8%25AD`）。
+/// 所以再把 `%25XX` 还原回 `%XX`，三边就逐字节一致了。
+function 规范网址(u) {
+  return encodeURI(u).replace(/%25([0-9A-Fa-f]{2})/g, '%$1');
+}
+
 function netRequest(method, url, body, timeout, headers) {
-  const site = pText(url);
+  const site = 规范网址(pText(url));
   const secs = Number(timeout);
   const headersJSON = JSON.stringify(headers || {});
   const args = ['-e', NET_CHILD, method, site,
@@ -3062,6 +3087,31 @@ const ENCODE_FUNCS = {
     if (typeof v !== 'string') throw R.valueErr('「文本字节」要传文本');
     // M113：返回**字节**（以前给 0-255 的整数列表）
     return new R.JishiBytes(Buffer.from(v, 'utf8'));
+  }),
+  // 🔴 M119：GBK。解码走内置 `TextDecoder('gbk')`（fatal 让它对坏字节抛错），
+  // 编码走生成的码表（见文件头的说明）。
+  'GBK文本': new R.Builtin('GBK文本', (v) => {
+    const raw = _toBytesFor('GBK文本', v);
+    try {
+      return new TextDecoder('gbk', { fatal: true }).decode(raw);
+    } catch (e) {
+      throw R.valueErr('这些字节不是合法的 GBK 文本（可能有截断，或其实是别的编码）');
+    }
+  }),
+  '文本GBK': new R.Builtin('文本GBK', (v) => {
+    const s = pText(v);
+    const 反 = gbk反查();
+    const 出 = [];
+    for (const c of s) {
+      const 码 = 反.get(c);
+      if (码 === undefined) {
+        const cp = c.codePointAt(0);
+        if (cp < 0x80) { 出.push(cp); continue; }   // ASCII 与 GBK 兼容
+        throw R.valueErr('这段文本里有 GBK 表示不了的字符（比如表情符号）');
+      }
+      出.push(码 >> 8, 码 & 0xff);
+    }
+    return new R.JishiBytes(Buffer.from(出));
   }),
   '字节文本': new R.Builtin('字节文本', (v) => {
     const raw = _toBytesFor('字节文本', v);

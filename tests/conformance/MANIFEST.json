@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 31,
     "frontend": 1,
-    "lang": 108,
+    "lang": 111,
     "stdlib": 4
   },
   "语料": [
@@ -247,8 +247,8 @@
     },
     {
       "id": "examples__绕道探针__接口汇总__汇总",
-      "产物哈希": "sha256:aac1a2e627e348c9",
-      "内容哈希": "sha256:b842b359ba42c6d6",
+      "产物哈希": "sha256:f5680b2ccc467fef",
+      "内容哈希": "sha256:3263c54da284dcad",
       "类别": "examples",
       "路径": "examples/绕道探针/接口汇总/汇总.jsh"
     },
@@ -573,6 +573,13 @@
       "内容哈希": "sha256:99433199280a1538",
       "类别": "lang",
       "路径": "tests/cases/37_标准库_M118.jsh"
+    },
+    {
+      "id": "tests__cases__38_标准库_M119",
+      "产物哈希": "sha256:87520c18266d7309",
+      "内容哈希": "sha256:d47747541007efe8",
+      "类别": "lang",
+      "路径": "tests/cases/38_标准库_M119.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -1065,6 +1072,20 @@
       "路径": "tests/error_cases/69_压缩_包里的成员不存在.jsh"
     },
     {
+      "id": "tests__error_cases__70_编码_GBK解不出来",
+      "产物哈希": "sha256:dd0b784ae8ccf8eb",
+      "内容哈希": "sha256:b34bd3d706486ca0",
+      "类别": "lang",
+      "路径": "tests/error_cases/70_编码_GBK解不出来.jsh"
+    },
+    {
+      "id": "tests__error_cases__71_编码_GBK装不下的字符",
+      "产物哈希": "sha256:8ae48c19cdce7ae6",
+      "内容哈希": "sha256:581562488be5247a",
+      "类别": "lang",
+      "路径": "tests/error_cases/71_编码_GBK装不下的字符.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:293975765ad4c964",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -1072,5 +1093,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 144
+  "语料数": 147
 }

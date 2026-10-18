@@ -43,7 +43,18 @@ def _条目(**kw) -> dict:
 
 def test_台账与探针里的条目一致():
     entries = dl.collect()
-    assert entries, "一条绕道都没扫到 —— examples/绕道探针/*/README.md 还在吗？"
+    if not entries:
+        # 🔴 **0 条是目标状态**（M119 起三条都销完），不是异常 —— 前提是
+        # **探针都还在、且每一个都标了「状态：已毕业」**。
+        # 这条以前写成「必须至少一条」，那是「总有缺口」时期的假设；
+        # 沿用下去会让「全部毕业」这个好结果报错。
+        全毕业 = all(
+            any(dl.GRADUATED_RE.match(x) for x in
+                r.read_text(encoding="utf-8").splitlines())
+            for r in dl.PROBES.glob("*/README.md"))
+        assert 全毕业, (
+            "一条绕道都没扫到 —— 要么 examples/绕道探针/*/README.md 没了，"
+            "要么漏标「状态：已毕业」")
     assert dl.render(entries) == dl.LEDGER.read_text(encoding="utf-8"), (
         "docs/绕道台账.md 与探针里的条目对不上。"
         "跑 `python tools/detour_ledger.py` 重新生成 —— **不要手改台账**")

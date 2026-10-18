@@ -24,6 +24,7 @@ from ..runtime import JishiBytes
 __all__ = [
     "base64编码", "base64解码", "十六进制编码", "十六进制解码",
     "url编码", "url解码", "文本字节", "字节文本",
+    "GBK文本", "文本GBK",
 ]
 
 
@@ -166,3 +167,29 @@ def 字节文本(值) -> str:
         # 以前这条会漏出 `'utf-8' codec can't decode byte 0xff …`。
         raise RunValueError(
             "这些字节不是合法的 UTF-8 文本（可能被截断或本来就是二进制）")
+
+
+def GBK文本(值) -> str:
+    """把 **GBK 编码的字节**还原成文本（国内大量老的 CSV / TXT 就是 GBK）。
+
+    解不出来时**明确报错**，不返回乱码 —— 与 `字节文本` 同一个规矩。
+    """
+    raw = _to_bytes(值, "GBK文本")
+    try:
+        return raw.decode("gbk")
+    except UnicodeDecodeError:
+        raise RunValueError(
+            "这些字节不是合法的 GBK 文本（可能有截断，或其实是别的编码）")
+
+
+def 文本GBK(值) -> JishiBytes:
+    """把文本按 **GBK** 转成字节（写给只认 GBK 的旧软件用）。
+
+    ⚠️ GBK 装不下的字符（表情符号、生僻字）会**明确报错**，不静默换成 `?`。
+    """
+    if not isinstance(值, str):
+        raise RunValueError("「文本GBK」要传文本")
+    try:
+        return JishiBytes(值.encode("gbk"))
+    except UnicodeEncodeError:
+        raise RunValueError("这段文本里有 GBK 表示不了的字符（比如表情符号）")

@@ -278,9 +278,24 @@ def render(entries: list[dict]) -> str:
 def main(argv: list[str]) -> int:
     entries = collect()
     if not entries:
-        print("⚠️ 没扫到任何绕道条目 —— 看看 examples/绕道探针/*/README.md 还在不在",
-              file=sys.stderr)
-        return 1
+        # 🔴 **0 条是目标状态，不是异常**（2026-10-18，M119：三条都销完）。
+        #    以前这里直接当错误退 1 —— 那是「至少总得有一条」时期的假设，
+        #    现在它会让「全部毕业」这个**好结果**报错。
+        #    判据改成：**探针都还在，且每一个都标了「已毕业」** ⇒ 正常写台账。
+        有探针 = PROBES.is_dir() and any(PROBES.glob("*/README.md"))
+        全毕业 = 有探针 and all(
+            any(GRADUATED_RE.match(x) for x in
+                r.read_text(encoding="utf-8").splitlines())
+            for r in PROBES.glob("*/README.md"))
+        if not 全毕业:
+            print("⚠️ 没扫到任何绕道条目 —— 看看 examples/绕道探针/*/README.md 还在不在，"
+                  "或者探针是不是漏标了「状态：已毕业」", file=sys.stderr)
+            return 1
+        print("✓ 绕道 0 条（探针全部已毕业）—— 目标状态")
+        if "--check" not in argv:
+            LEDGER.write_text(render(entries), encoding="utf-8", newline="\n")
+            print(f"  已写入 {LEDGER.relative_to(ROOT)}")
+        return 0
 
     problems = check(entries)
     if problems:

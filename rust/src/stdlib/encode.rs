@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use super::{need_range, table, to_vec, R};
 // M113：解码方向改返回 `Val::Bytes` 之后，这里不再需要 `list_new`
-use crate::{err, Val};
+use crate::{display, err, Val};
 
 /// 文本 / 字节 / 0-255 的整数列表 → `Vec<u8>`（与 Python 侧 `_to_bytes` 同规则）。
 fn to_bytes(name: &str, v: &Val) -> Result<Vec<u8>, crate::JishiError> {
@@ -244,6 +244,37 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     format!("「文本字节」要传文本，得到了 {}", crate::display(v)),
                 )),
             }
+        },
+        // 🔴 M119：GBK。**这是本项目第二个第三方依赖**（`encoding_rs`）——
+        //    GBK 是两万多个码位的映射表，手写不现实。用户 2026-10-18 拍板。
+        // ⚠️ `encoding_rs` 拿不准的字符会**换成 `&#NNNNN;` 而不报错**（`had_errors`），
+        //    所以必须查那个标志位再决定报不报错 —— 沿用「不静默给错值」的规矩。
+        "GBK文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("GBK文本", args, 1, 1)?;
+            let bs = to_bytes("GBK文本", &args[0])?;
+            let (text, _, 有错) = encoding_rs::GBK.decode(&bs);
+            if 有错 {
+                return Err(err(
+                    "值错误",
+                    "这些字节不是合法的 GBK 文本（可能有截断，或其实是别的编码）",
+                ));
+            }
+            Ok(Val::Str(text.into_owned()))
+        },
+        "文本GBK" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("文本GBK", args, 1, 1)?;
+            let s = match &args[0] {
+                Val::Str(t) => t.clone(),
+                v => return Err(err("值错误", format!("「文本GBK」要传文本（现在是「{}」）", display(v)))),
+            };
+            let (bytes, _, 有错) = encoding_rs::GBK.encode(&s);
+            if 有错 {
+                return Err(err(
+                    "值错误",
+                    "这段文本里有 GBK 表示不了的字符（比如表情符号）",
+                ));
+            }
+            Ok(Val::Bytes(std::rc::Rc::new(bytes.into_owned())))
         },
         "字节文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("字节文本", args, 1, 1)?;

@@ -29,6 +29,7 @@ from __future__ import annotations
 import json as _py_json
 import os as _py_os
 import urllib.error as _py_urlerr
+import urllib.parse as _py_urlparse
 import urllib.request as _py_urllib
 
 from ..errors import RunError, RunTypeError, RunValueError
@@ -101,6 +102,27 @@ def _读响应(resp, 网址: str, 动作: str, 解码: bool = True):
     }
 
 
+#: 网址里**不许**被编码的字符（结构字符 + `%` 本身）。
+#: ⚠️ `%` 必须在里面 —— 否则「已经编码过的网址」会被**二次编码**
+#:    （`%E4%B8%AD` → `%25E4%25B8%25AD`），那是台账 R101 的一半。
+_网址保留 = ":/?#[]@!$&'()*+,;=%"
+
+
+def _规范网址(网址) -> str:
+    """把网址里**非 ASCII 的字符**自动做百分号编码（台账 R101）。
+
+    以前网址里带中文必须自己 `编码.url编码(关键字)` 再拼 —— 直接拼上去会报
+    `'ascii' codec can't encode characters…`，而那句报错跟「网址」两个字毫无关系。
+
+    - 已编码的部分**原样保留**（`%` 在保留集里，不二次编码）；
+    - 结构字符 `:/?#[]@!$&'()*+,;=` 原样保留，只转真正的字符（含空格 → `%20`）；
+    - ⚠️ **中文域名**不在这里处理（要先做 punycode，是另一件事）。
+
+    与 Rust / Node 逐字节一致（Node 那边是 `encodeURI` 再把 `%25XX` 还原成 `%XX`）。
+    """
+    return _py_urlparse.quote(str(网址), safe=_网址保留)
+
+
 def _发(网址, 方法: str, 体, 超时, 请求头, 动作: str, 解码: bool = True):
     """统一的「发一个请求并读回结果」——四种动作共用一套报错措辞。
 
@@ -109,7 +131,8 @@ def _发(网址, 方法: str, 体, 超时, 请求头, 动作: str, 解码: bool 
     表 = _头(请求头)
     表["User-Agent"] = 表.get("User-Agent", "oracle/jishi/0.1")
     try:
-        req = _py_urllib.Request(str(网址), data=体, headers=表,
+        # R101：中文等非 ASCII 字符**自动编码**，用户不用再自己拼 `url编码`。
+        req = _py_urllib.Request(_规范网址(网址), data=体, headers=表,
                                  method=方法)
     except Exception as e:                # noqa: BLE001
         raise RunError(f"{动作}「{网址}」失败：{e}")

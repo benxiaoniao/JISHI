@@ -43,8 +43,32 @@ struct Url {
     path: String,
 }
 
+/// 把网址里**非 ASCII 的字节**做百分号编码（台账 R101）。
+///
+/// 以前网址带中文必须自己 `编码.url编码` 再拼；现在**直接写中文**就行。
+/// 保留集与 Python / Node 完全一致（含 `%` 本身 —— 否则已编码的网址会被二次编码）：
+/// `:/?#[]@!$&'()*+,;=%` 之外的字节一律 `%XX`。
+///
+/// ⚠️ **中文域名**不在这里处理（那要先做 punycode，是另一件事）。
+fn 规范网址(raw: &str) -> String {
+    const 保留: &str = "-_.!~*'();/?:@&=+$,#[]%";
+    let mut 出 = String::with_capacity(raw.len() + 16);
+    for b in raw.bytes() {
+        let c = b as char;
+        if b.is_ascii_alphanumeric() || 保留.contains(c) {
+            出.push(c);
+        } else {
+            出.push_str(&format!("%{b:02X}"));
+        }
+    }
+    出
+}
+
 fn parse_url(raw: &str) -> Result<Url, JishiError> {
     let bad = || err("运行期错误", format!("「{raw}」不是能识别的网址（要写 http:// 或 https://）"));
+    // R101：先规整（中文自动编码）。**报错里仍用用户原本写的那个**，好认。
+    let 规整 = 规范网址(raw);
+    let raw = 规整.as_str();
     let (secure, rest) = if let Some(r) = raw.strip_prefix("https://") {
         (true, r)
     } else if let Some(r) = raw.strip_prefix("http://") {
