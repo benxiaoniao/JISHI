@@ -180,12 +180,16 @@ jobs:
             # 没有 FAILED 行 —— 多半是进程被中断/崩溃，退回日志末尾
             SUMMARY="【无 FAILED 行，退回日志末尾】(exit=$(tail -c 200 pytest.log | tr -d '\r\n' | tail -c 60)) $(tail -c 700 pytest.log | tr -d '\r' | tr '\n' ' ')"
           fi
+          # 🔴 **顺序：失败清单必须在最前**（与 ci.yml 同一处修正，2026-10-18）：
+          #    注解只留 1024 字符，环境诊断放前面会把清单挤掉。
           DIAG=""
           if [ -f env-diag.txt ]; then
-            DIAG="【环境】$(tr -d '\r' < env-diag.txt | tr '\n' ' ') "
+            DIAG=" 【环境】$(tr -d '\r' < env-diag.txt | tr '\n' ' ')"
+            DIAG=${DIAG:0:320}
+            DIAG=$(printf '%s' "$DIAG" | sed 's/%/%25/g')
           fi
           SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/%/%25/g')
-          echo "::error file=.github/workflows/ci.yml,line=1::${DIAG}【失败】${SUMMARY}"
+          echo "::error file=.github/workflows/release.yml,line=1::【失败】${SUMMARY}${DIAG}"
           exit 0
 
       # R8.3：发行物 = **cargo 单二进制**（`rust/`），不再走 PyInstaller。

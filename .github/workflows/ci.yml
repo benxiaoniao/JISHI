@@ -195,12 +195,22 @@ jobs:
             # 没有 FAILED 行 —— 多半是进程被中断/崩溃，退回日志末尾
             SUMMARY="【无 FAILED 行，退回日志末尾】(exit=$(tail -c 200 pytest.log | tr -d '\r\n' | tail -c 60)) $(tail -c 700 pytest.log | tr -d '\r' | tr '\n' ' ')"
           fi
+          # 🔴 **顺序：失败清单必须在最前**（2026-10-18 补）：
+          #    GitHub 注解只留 **1024 字符**。原来 `${DIAG}` 放在前面，而环境诊断
+          #    （TZ / python 时区 / node / /etc/localtime 那一长串）自己就吃掉一大半
+          #    ⇒ 「挂了哪几条」照样被挤掉。M117 只把 FAILED 清单提到了 SUMMARY 里，
+          #    没注意到 DIAG 还在它前面 —— v0.2.4 那次三平台全红，注解里只剩下
+          #    `【环境】…【失败】【清单`，根本没法定位。
+          #    ⇒ 清单在前；环境诊断**截断到 320 字符**放最后 —— 它是参考信息，
+          #      而「挂了哪几条」是必须看到的信息。
           DIAG=""
           if [ -f env-diag.txt ]; then
-            DIAG="【环境】$(tr -d '\r' < env-diag.txt | tr '\n' ' ') "
+            DIAG=" 【环境】$(tr -d '\r' < env-diag.txt | tr '\n' ' ')"
+            DIAG=${DIAG:0:320}
+            DIAG=$(printf '%s' "$DIAG" | sed 's/%/%25/g')
           fi
           SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/%/%25/g')
-          echo "::error file=.github/workflows/ci.yml,line=1::${DIAG}【失败】${SUMMARY}"
+          echo "::error file=.github/workflows/ci.yml,line=1::【失败】${SUMMARY}${DIAG}"
           exit 0
 
       # 一键全检（含 C VM 构建 + 基准冒烟 + 一致性夹具 + 内建体检）
