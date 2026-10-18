@@ -1,0 +1,186 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 1,
+        "op": "=",
+        "target": {
+          "col": 1,
+          "line": 1,
+          "names": [
+            {
+              "col": 3,
+              "id": "a",
+              "line": 1,
+              "类型": "Name"
+            },
+            {
+              "col": 6,
+              "id": "b",
+              "line": 1,
+              "类型": "Name"
+            }
+          ],
+          "star_index": null,
+          "类型": "TargetList"
+        },
+        "value": {
+          "col": 10,
+          "line": 1,
+          "value": 5,
+          "类型": "Num"
+        },
+        "类型": "Assign"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "a478d512265be5ceaaa9e7ae77c0a0b3d277e5134022d61ae8d208f5b706787b",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            10,
+            46,
+            2,
+            -1,
+            0,
+            1,
+            1,
+            3,
+            0,
+            0,
+            0,
+            1,
+            1,
+            3,
+            1,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 5
+        }
+      ],
+      "filename": "tests/error_cases/28_解包非列表.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "a",
+        "b"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 a, b = 5",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "令 a, b = 5",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 1,
+      "source_line": "令 a, b = 5",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "令 a, b = 5",
+      "type": "NAME",
+      "value": "b",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 1,
+      "source_line": "令 a, b = 5",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "令 a, b = 5",
+      "type": "NUMBER",
+      "value": 5,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 a, b = 5",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:ddf2f8de273688c0",
+  "语料": "tests/error_cases/28_解包非列表.jsh"
+}
