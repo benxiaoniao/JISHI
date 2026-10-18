@@ -541,11 +541,16 @@ def _等发布(tag: str, 超时: float = 1800.0) -> bool:
     return False
 
 
-def _试部署() -> None:
+def _试部署(tag: str) -> None:
     """Release 成功后**接着更新官网 / 分发源**（用户 2026-10-18 定）。
 
     以前这一步是手工的，结果常常忘（v0.2.5 发布完，站点的清单还停在 0.2.4，
     `jishi 升级` 看不到新版）。现在有凭据就**自动做**；没凭据就**明确告诉你缺什么**。
+
+    ⚠️ **两件事是分开的**（2026-10-18 实测踩到）：
+    1. `deploy_push.sh` 管「站点页面 + 语言包（`packages`）」，**不碰 `download/`**；
+    2. 发行包与 `jishi-release.json` 要 `sync_release.py` 才上去
+       —— 少了第 2 步，页面是新版、但 `jishi 升级` 还是旧版。
     """
     钥匙, 主机 = os.environ.get("JISHI_SSH_KEY"), os.environ.get("JISHI_SSH_HOST")
     if not (钥匙 and 主机):
@@ -556,10 +561,18 @@ def _试部署() -> None:
         print("   补上后单独跑：JISHI_SSH_KEY=… JISHI_SSH_HOST=… "
               "bash tools/deploy_push.sh")
         return
-    print("\n[部署] 更新官网与分发源 …")
+    print("\n[部署 1/2] 站点页面 + 语言包 …")
     r = subprocess.run(["bash", str(ROOT / "tools" / "deploy_push.sh")],
                        cwd=ROOT, env=os.environ.copy())
-    print("   ✓ 部署完成" if r.returncode == 0 else f"   ✗ 部署失败（rc={r.returncode}）")
+    # ⚠️ 退出码不可信：沙箱会拦 `.ssh/known_hosts` 的写入，脚本自己会 `set -e` 失败，
+    #    但实际部署是成功的（末尾一定有「✓ 部署完成」）。两个都认。
+    print("   ✓ 完成" if r.returncode == 0 else f"   ⚠ rc={r.returncode}（看上面有没有「✓ 部署完成」）")
+
+    print(f"\n[部署 2/2] 发行包 + 版本清单（{tag}）…")
+    r2 = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "sync_release.py"), "--版本", tag.lstrip("v")],
+        cwd=ROOT, env=os.environ.copy())
+    print("   ✓ 完成" if r2.returncode == 0 else f"   ✗ 失败（rc={r2.returncode}）")
 
 
 # ---------------------------------------------------------------------------
@@ -637,7 +650,7 @@ def main() -> int:
     # 打完 tag 才等（清理临时快照是本地动作，不该被网络阻塞）
     if tag and "--等发布" in sys.argv:
         if _等发布(tag):
-            _试部署()
+            _试部署(tag)
         else:
             print("\n⚠ Release 没成功 —— **先别部署站点**（会指向一个不存在的版本）")
     elif tag:
