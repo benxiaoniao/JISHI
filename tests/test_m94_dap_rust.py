@@ -158,6 +158,26 @@ def _split(data: bytes):
     return out
 
 
+
+
+def _去seq(报文们: list) -> list:
+    """把每条报文最外层的 `seq` 去掉再比（其余字段一个不动）。
+
+    ⚠️ 只用于「逐字节不等之后的**第二道**」：正文用 `sort_keys` 重新序列化，
+    所以它比原字节宽松 —— 因此**永远先逐字节比**，这里只是兜住「同内容交换」。
+    """
+    out = []
+    for raw in 报文们:
+        try:
+            d = json.loads(raw)
+            if isinstance(d, dict):
+                d.pop("seq", None)
+                out.append(json.dumps(d, sort_keys=True, ensure_ascii=False))
+                continue
+        except Exception:  # noqa: BLE001
+            pass
+        out.append(raw)
+    return out
 # ---------------------------------------------------------------------------
 # 两段被调试的程序
 # ---------------------------------------------------------------------------
@@ -311,6 +331,20 @@ def test_对拍_报文逐字节(mode, tmp_path):
     if a == b:
         return
     pa, pb = _split(a), _split(b)
+    # 第二道：**只差 `seq`** 就放行（2026-10-18 加，M121 发布时被 CI 抓到）。
+    #
+    # 🔴 为什么：`seq` 是**发送序号**，而 `output` 报文是「VM 把 stdout 泵出来」产生的 ——
+    #    两个进程读同一个程序的 stdout，**分块边界**本来就可能不同（一次读两行 vs 分两次）。
+    #    实测（CI ubuntu、`-n 4`）：78 条报文一条不缺、内容也全对，只是**两条内容相同的
+    #    `output` 交换了位置**，于是 seq 35/36 跟着换 —— 逐字节比就红了。
+    #    这跟 M117 修的 `test_m43_dap`（`continued` 与 `output` 的先后）是同一类：
+    #    **顺序里有一维天然是竞态**。
+    #
+    # ⚠️ 只放过「去掉 seq 后完全相等」这一种情形；除 seq 以外的任何差异
+    #    （事件类型 / 事件数量 / 正文 / 相对顺序）照样红 —— 那不是调度问题，是真分叉。
+    if _去seq(pa) == _去seq(pb):
+        print(f"  ℹ 只差 `seq`（报文条数一致）—— 视为等价", flush=True)
+        return
     for i in range(max(len(pa), len(pb))):
         x = pa[i] if i < len(pa) else b"<none>"
         y = pb[i] if i < len(pb) else b"<none>"
