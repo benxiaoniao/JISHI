@@ -39,6 +39,8 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -461,6 +463,106 @@ def _notify_push() -> None:
 
 
 # ---------------------------------------------------------------------------
+# 等 Release 结果（M122 加，用户 2026-10-18 定）
+# ---------------------------------------------------------------------------
+
+#: 仓库的 API 路径（公开仓库，匿名可读；**不需要 token**）
+_API = "/repos/benxiaoniao/JISHI"
+
+
+def _api(path: str):
+    req = urllib.request.Request(
+        "https://api.github.com" + _API + path,
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "jishi-publish"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return __import__("json").loads(r.read().decode())
+
+
+def _等发布(tag: str, 超时: float = 1800.0) -> bool:
+    """轮询 GitHub Actions 的 Release 工作流，直到**成功 / 失败 / 超时**。
+
+    🔴 为什么现在才做（用户 2026-10-18 定）：以前发版一次要 **105 分钟**
+    （Windows runner 上一条 pytest 就 65 分钟，还跑了两遍），等着不现实，
+    于是「打完 tag 就撒手」。现在三平台构建 + 测试 **≈ 5 分钟**，
+    **等得起** —— 而且**必须等**：只有 Release 真出了，升级器和官网才有东西可指。
+    以前就是因为没等，站点上一直是旧版本（v0.2.5 发布后清单还停在 0.2.4）。
+
+    返回 True = 工作流成功；False = 失败或超时（不抛异常：发布本身已经完成了，
+    等不下来是「后续步骤没做」，不该让脚本以「推送失败」收场）。
+    """
+    print(f"\n[5/5] 等 Release 构建（tag {tag}，最多 {超时/60:.0f} 分钟）")
+    开始 = time.time()
+    见过 = False
+    while time.time() - 开始 < 超时:
+        try:
+            跑们 = _api("/actions/runs?per_page=10").get("workflow_runs", [])
+        except Exception as e:                      # noqa: BLE001
+            print(f"  查状态失败（{type(e).__name__}），15 秒后重试")
+            time.sleep(15)
+            continue
+        目标 = next((r for r in 跑们
+                     if r.get("name") == "Release" and r.get("head_branch") == tag), None)
+        if 目标 is None:
+            # 工作流还没起来（tag 刚推上去，GitHub 有几十秒延迟）
+            print("  等工作流启动 …", end="\r", flush=True)
+            time.sleep(15)
+            continue
+        见过 = True
+        状态, 结论 = 目标["status"], 目标.get("conclusion")
+        if 状态 != "completed":
+            用了 = (time.time() - 开始) / 60
+            print(f"  构建中 …（{用了:.1f} 分钟）", end="\r", flush=True)
+            time.sleep(20)
+            continue
+        print()
+        if 结论 == "success":
+            print("   ✓ Release 构建成功，产物：")
+            try:
+                for a in _api(f"/releases/tags/{tag}").get("assets", []):
+                    print(f"      {a['name']:36s} {a['size']/1024/1024:6.1f} MB")
+            except Exception:                       # noqa: BLE001
+                print("      （资产清单取不到，但工作流是成功的）")
+            return True
+        print(f"   ✗ Release 失败（{结论}）")
+        try:
+            for j in _api(f"/actions/runs/{目标['id']}/jobs").get("jobs", []):
+                if j.get("conclusion") != "failure":
+                    continue
+                print(f"   失败 job：{j['name']}")
+                cr = j["check_run_url"].replace(
+                    "https://api.github.com" + _API, "")
+                for a in _api(cr + "/annotations"):
+                    if a.get("annotation_level") == "failure":
+                        print("     ↳", (a.get("message") or "")[:400].replace("\n", " "))
+        except Exception:                           # noqa: BLE001
+            pass
+        return False
+    print(f"   ⚠ 等超时（{超时/60:.0f} 分钟），Release 可能还在跑 —— 稍后用浏览器看一眼")
+    return False
+
+
+def _试部署() -> None:
+    """Release 成功后**接着更新官网 / 分发源**（用户 2026-10-18 定）。
+
+    以前这一步是手工的，结果常常忘（v0.2.5 发布完，站点的清单还停在 0.2.4，
+    `jishi 升级` 看不到新版）。现在有凭据就**自动做**；没凭据就**明确告诉你缺什么**。
+    """
+    钥匙, 主机 = os.environ.get("JISHI_SSH_KEY"), os.environ.get("JISHI_SSH_HOST")
+    if not (钥匙 and 主机):
+        缺 = " 和 ".join([x for x, v in (("JISHI_SSH_KEY", 钥匙),
+                                        ("JISHI_SSH_HOST", 主机)) if not v])
+        print(f"\n[部署] 跳过 —— 没设 {缺}。")
+        print("   站点/分发源还是旧的，`jishi 升级` 看不到这个版本。")
+        print("   补上后单独跑：JISHI_SSH_KEY=… JISHI_SSH_HOST=… "
+              "bash tools/deploy_push.sh")
+        return
+    print("\n[部署] 更新官网与分发源 …")
+    r = subprocess.run(["bash", str(ROOT / "tools" / "deploy_push.sh")],
+                       cwd=ROOT, env=os.environ.copy())
+    print("   ✓ 部署完成" if r.returncode == 0 else f"   ✗ 部署失败（rc={r.returncode}）")
+
+
+# ---------------------------------------------------------------------------
 
 def main() -> int:
     dry_run = "--dry-run" in sys.argv
@@ -531,6 +633,15 @@ def main() -> int:
     shutil.rmtree(snapshot, ignore_errors=True)
     _stop_relay()
     print("✓ 已同步（含屏蔽）并清理临时快照")
+
+    # 打完 tag 才等（清理临时快照是本地动作，不该被网络阻塞）
+    if tag and "--等发布" in sys.argv:
+        if _等发布(tag):
+            _试部署()
+        else:
+            print("\n⚠ Release 没成功 —— **先别部署站点**（会指向一个不存在的版本）")
+    elif tag:
+        print("\n（想等构建完并接着更新官网，加 `--等发布`）")
     return 0
 
 
