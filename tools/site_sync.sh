@@ -56,6 +56,15 @@ if [ -d "$SRC/mirror" ]; then
   mkdir -p "$WEB/download"
   for f in "$SRC/mirror"/*; do
     [ -f "$f" ] || continue
+    # 🔴 **跳过清单类文件**（2026-10-18 定，职责分开）：
+    #    这里的 `mirror/` 来自本机 `dist/release` 的缓存，里面的
+    #    `jishi-release.json` 是**上一次**发版时留下的 —— 传一遍就把
+    #    `sync_release.py` 刚合并好的新清单**盖回旧版本**（实测：v0.2.5
+    #    部署完，清单又被盖成 0.2.4）。
+    #    ⇒ 包归 `deploy_push.sh`，**清单与校验和归 `sync_release.py`**，各管各的。
+    case "$(basename "$f")" in
+      jishi-release.json|SHA256SUMS) continue ;;
+    esac
     cp "$f" "$WEB/download/"
     n_rel=$((n_rel + 1))
   done

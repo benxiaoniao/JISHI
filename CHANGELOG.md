@@ -229,6 +229,12 @@ attrs = {k: v for k, v in vars(mod).items() if not k.startswith("_")}
 - **不能直接 scp 到目标目录**（`/var/www/…` 是 root 的）⇒ 先传 `/tmp` 再 `sudo mv`；
 - 最后**真去 CDN 上读一次**验证，不假设成功。
 
+**还有一个反向的坑**（部署时当场踩到）：`deploy_push.sh` 会把本机 `dist/release/`
+里的**旧清单**一起同步过去，把 `sync_release.py` 刚合并好的新清单**盖回旧版本**
+（实测：0.2.5 部署完，清单又变成 0.2.4）。
+⇒ 职责分开：**包归 `deploy_push.sh`，清单与校验和归 `sync_release.py`**，
+`site_sync.sh` 复制 `mirror/` 时跳过 `jishi-release.json` / `SHA256SUMS`。
+
 顺便把发版流程串成一条：`--等发布` 打完 tag 轮询 Release，成功后自动做这两步部署。
 （以前放弃等待是因为发版要 105 分钟；现在 ≈ 5 分钟，等得起，而且必须等。）
 
