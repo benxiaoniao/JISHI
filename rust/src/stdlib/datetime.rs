@@ -232,6 +232,52 @@ pub(crate) fn local_from_unix(secs: f64) -> Dt {
     }
 }
 
+/// 公历闰年（**1900 不是、2000 是** —— 百年例外 + 四百年例外）。
+fn 闰年(y: i32) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+}
+
+/// 某年某月有几天。
+fn 月天数(y: i32, m: u32) -> u32 {
+    match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        _ => {
+            if 闰年(y) {
+                29
+            } else {
+                28
+            }
+        }
+    }
+}
+
+/// 本机相对 UTC 的偏移（整分钟）。M120。
+///
+/// 🔴 **不读 `tm_gmtoff`**：Windows 的 `struct tm` 压根没有这个字段 ——
+/// 走那条路就得写两份平台特判。改成「本地时间 vs epoch 的**纯算术差**」：
+/// 两边都从**同一个** `secs` 推出来，所以没有「取两次时钟、跨了整秒」的竞态，
+/// 也不需要任何 `cfg`。`not(any(windows, unix))` 平台会退回 UTC ⇒ 偏移 0。
+pub(crate) fn local_offset_minutes() -> i64 {
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let d = local_from_unix(secs as f64);
+    let 本地 = days_from_civil(d.year, d.month, d.day) * 86_400
+        + (d.hour as i64) * 3_600
+        + (d.minute as i64) * 60
+        + d.second as i64;
+    (本地 - secs) / 60
+}
+
+/// 整分钟数 → `+08:00`。**三个宿主共用这一个算法**（半小时间区也能对）。
+fn 格式化偏移(分钟: i64) -> String {
+    let 号 = if 分钟 < 0 { '-' } else { '+' };
+    let 绝对 = 分钟.abs();
+    format!("{}{:02}:{:02}", 号, 绝对 / 60, 绝对 % 60)
+}
+
 /// Unix 时间戳 → UTC 公历（纯整数运算，不用 FFI）。
 fn utc_from_unix(secs: f64) -> Dt {
     let days = (secs / 86400.0).floor() as i64;
@@ -570,6 +616,16 @@ static SLEEP_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub(crate) fn date_module() -> HashMap<String, Val> {
     table! { "日期";
+        // M120：某年某月有几天。闰年规则按公历（**1900 不是闰年、2000 是**）。
+        "月天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("月天数", args, 2)?;
+            let y = as_intish(&args[0])? as i32;
+            let m = as_intish(&args[1])?;
+            if !(1..=12).contains(&m) {
+                return Err(err("值错误", format!("月份要在 1~12 之间（现在是 {m}）")));
+            }
+            Ok(Val::Int(月天数(y, m as u32) as i128))
+        },
         "今天" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("今天", args, 0)?;
             let now = local_now();
@@ -683,6 +739,11 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
                 (Val::Str("星期".into()), Val::Str(WD_CN[n.weekday as usize].to_string())),
             ];
             Ok(crate::dict_new(pairs))
+        },
+        // M120：**偏移**而不是时区名 —— 时区名三家拿到的口径完全不同，永远对不齐。
+        "时区偏移" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("时区偏移", args, 0)?;
+            Ok(Val::Str(格式化偏移(local_offset_minutes())))
         },
         "时间戳" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("时间戳", args, 0)?;

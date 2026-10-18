@@ -278,6 +278,15 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need("机器架构", args, 0)?;
             Ok(Val::Str(machine()))
         },
+        // M120：逻辑核数。用 `available_parallelism`（**不是**自己数 `/proc`）——
+        // 它会尊重 cgroup / 亲和性掩码，也就是「真能并行的路数」。
+        "CPU核数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("CPU核数", args, 0)?;
+            let n = std::thread::available_parallelism()
+                .map(|x| x.get())
+                .unwrap_or(1);
+            Ok(Val::Int(n as i128))
+        },
         "处理器" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("处理器", args, 0)?;
             let p = processor();

@@ -38,6 +38,15 @@
         "类型": "Import"
       },
       {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 8,
+        "name": "路径",
+        "类型": "Import"
+      },
+      {
         "col": 1,
         "expr": {
           "args": [
@@ -45,7 +54,7 @@
               "args": [
                 {
                   "col": 12,
-                  "line": 9,
+                  "line": 10,
                   "value": "中文",
                   "类型": "Str"
                 }
@@ -54,24 +63,24 @@
               "func": {
                 "attr": "显示宽度",
                 "col": 6,
-                "line": 9,
+                "line": 10,
                 "obj": {
                   "col": 4,
                   "id": "文本",
-                  "line": 9,
+                  "line": 10,
                   "类型": "Name"
                 },
                 "类型": "Attr"
               },
               "keywords": [],
-              "line": 9,
+              "line": 10,
               "类型": "Call"
             },
             {
               "args": [
                 {
                   "col": 27,
-                  "line": 9,
+                  "line": 10,
                   "value": "abc",
                   "类型": "Str"
                 }
@@ -80,24 +89,24 @@
               "func": {
                 "attr": "显示宽度",
                 "col": 21,
-                "line": 9,
+                "line": 10,
                 "obj": {
                   "col": 19,
                   "id": "文本",
-                  "line": 9,
+                  "line": 10,
                   "类型": "Name"
                 },
                 "类型": "Attr"
               },
               "keywords": [],
-              "line": 9,
+              "line": 10,
               "类型": "Call"
             },
             {
               "args": [
                 {
                   "col": 43,
-                  "line": 9,
+                  "line": 10,
                   "value": "😀",
                   "类型": "Str"
                 }
@@ -106,149 +115,18 @@
               "func": {
                 "attr": "显示宽度",
                 "col": 37,
-                "line": 9,
+                "line": 10,
                 "obj": {
                   "col": 35,
                   "id": "文本",
-                  "line": 9,
+                  "line": 10,
                   "类型": "Name"
                 },
                 "类型": "Attr"
               },
               "keywords": [],
-              "line": 9,
+              "line": 10,
               "类型": "Call"
-            }
-          ],
-          "col": 3,
-          "func": {
-            "col": 1,
-            "id": "打印",
-            "line": 9,
-            "类型": "Name"
-          },
-          "keywords": [],
-          "line": 9,
-          "类型": "Call"
-        },
-        "line": 9,
-        "类型": "ExprStmt"
-      },
-      {
-        "col": 1,
-        "expr": {
-          "args": [
-            {
-              "col": 26,
-              "left": {
-                "col": 8,
-                "left": {
-                  "col": 4,
-                  "line": 10,
-                  "value": "[",
-                  "类型": "Str"
-                },
-                "line": 10,
-                "op": "+",
-                "right": {
-                  "args": [
-                    {
-                      "col": 17,
-                      "line": 10,
-                      "value": "中文",
-                      "类型": "Str"
-                    },
-                    {
-                      "col": 23,
-                      "line": 10,
-                      "value": 8,
-                      "类型": "Num"
-                    }
-                  ],
-                  "col": 16,
-                  "func": {
-                    "attr": "左对齐",
-                    "col": 12,
-                    "line": 10,
-                    "obj": {
-                      "col": 10,
-                      "id": "文本",
-                      "line": 10,
-                      "类型": "Name"
-                    },
-                    "类型": "Attr"
-                  },
-                  "keywords": [],
-                  "line": 10,
-                  "类型": "Call"
-                },
-                "类型": "BinOp"
-              },
-              "line": 10,
-              "op": "+",
-              "right": {
-                "col": 28,
-                "line": 10,
-                "value": "]",
-                "类型": "Str"
-              },
-              "类型": "BinOp"
-            },
-            {
-              "col": 55,
-              "left": {
-                "col": 37,
-                "left": {
-                  "col": 33,
-                  "line": 10,
-                  "value": "[",
-                  "类型": "Str"
-                },
-                "line": 10,
-                "op": "+",
-                "right": {
-                  "args": [
-                    {
-                      "col": 46,
-                      "line": 10,
-                      "value": "中文",
-                      "类型": "Str"
-                    },
-                    {
-                      "col": 52,
-                      "line": 10,
-                      "value": 8,
-                      "类型": "Num"
-                    }
-                  ],
-                  "col": 45,
-                  "func": {
-                    "attr": "右对齐",
-                    "col": 41,
-                    "line": 10,
-                    "obj": {
-                      "col": 39,
-                      "id": "文本",
-                      "line": 10,
-                      "类型": "Name"
-                    },
-                    "类型": "Attr"
-                  },
-                  "keywords": [],
-                  "line": 10,
-                  "类型": "Call"
-                },
-                "类型": "BinOp"
-              },
-              "line": 10,
-              "op": "+",
-              "right": {
-                "col": 57,
-                "line": 10,
-                "value": "]",
-                "类型": "Str"
-              },
-              "类型": "BinOp"
             }
           ],
           "col": 3,
@@ -270,7 +148,7 @@
         "expr": {
           "args": [
             {
-              "col": 25,
+              "col": 26,
               "left": {
                 "col": 8,
                 "left": {
@@ -284,21 +162,21 @@
                 "right": {
                   "args": [
                     {
-                      "col": 16,
+                      "col": 17,
                       "line": 11,
                       "value": "中文",
                       "类型": "Str"
                     },
                     {
-                      "col": 22,
+                      "col": 23,
                       "line": 11,
-                      "value": 9,
+                      "value": 8,
                       "类型": "Num"
                     }
                   ],
-                  "col": 15,
+                  "col": 16,
                   "func": {
-                    "attr": "居中",
+                    "attr": "左对齐",
                     "col": 12,
                     "line": 11,
                     "obj": {
@@ -318,7 +196,7 @@
               "line": 11,
               "op": "+",
               "right": {
-                "col": 27,
+                "col": 28,
                 "line": 11,
                 "value": "]",
                 "类型": "Str"
@@ -326,11 +204,11 @@
               "类型": "BinOp"
             },
             {
-              "col": 58,
+              "col": 55,
               "left": {
-                "col": 36,
+                "col": 37,
                 "left": {
-                  "col": 32,
+                  "col": 33,
                   "line": 11,
                   "value": "[",
                   "类型": "Str"
@@ -340,31 +218,25 @@
                 "right": {
                   "args": [
                     {
-                      "col": 44,
+                      "col": 46,
                       "line": 11,
-                      "value": "ab",
+                      "value": "中文",
                       "类型": "Str"
                     },
                     {
-                      "col": 50,
+                      "col": 52,
                       "line": 11,
-                      "value": 5,
+                      "value": 8,
                       "类型": "Num"
-                    },
-                    {
-                      "col": 53,
-                      "line": 11,
-                      "value": "-",
-                      "类型": "Str"
                     }
                   ],
-                  "col": 43,
+                  "col": 45,
                   "func": {
-                    "attr": "填充",
-                    "col": 40,
+                    "attr": "右对齐",
+                    "col": 41,
                     "line": 11,
                     "obj": {
-                      "col": 38,
+                      "col": 39,
                       "id": "文本",
                       "line": 11,
                       "类型": "Name"
@@ -380,7 +252,7 @@
               "line": 11,
               "op": "+",
               "right": {
-                "col": 60,
+                "col": 57,
                 "line": 11,
                 "value": "]",
                 "类型": "Str"
@@ -407,116 +279,136 @@
         "expr": {
           "args": [
             {
-              "args": [
-                {
-                  "col": 10,
-                  "elements": [
-                    {
-                      "col": 11,
-                      "line": 13,
-                      "value": 1,
-                      "类型": "Num"
-                    },
-                    {
-                      "col": 14,
-                      "line": 13,
-                      "value": 2,
-                      "类型": "Num"
-                    },
-                    {
-                      "col": 17,
-                      "line": 13,
-                      "value": 3,
-                      "类型": "Num"
-                    },
-                    {
-                      "col": 20,
-                      "line": 13,
-                      "value": 4,
-                      "类型": "Num"
-                    }
-                  ],
-                  "line": 13,
-                  "类型": "List"
-                },
-                {
-                  "annotations": [
-                    null,
-                    null
-                  ],
-                  "body": [
-                    {
-                      "col": 35,
-                      "line": 13,
-                      "value": {
-                        "col": 35,
-                        "left": {
-                          "col": 33,
-                          "id": "甲",
-                          "line": 13,
-                          "类型": "Name"
-                        },
-                        "line": 13,
-                        "op": "+",
-                        "right": {
-                          "col": 37,
-                          "id": "乙",
-                          "line": 13,
-                          "类型": "Name"
-                        },
-                        "类型": "BinOp"
-                      },
-                      "类型": "Return"
-                    }
-                  ],
-                  "col": 24,
-                  "defaults": [
-                    null,
-                    null
-                  ],
-                  "line": 13,
-                  "name": "匿名函数",
-                  "param_kind": [
-                    0,
-                    0
-                  ],
-                  "params": [
-                    "甲",
-                    "乙"
-                  ],
-                  "类型": "Lambda"
-                }
-              ],
-              "col": 9,
-              "func": {
-                "attr": "归约",
-                "col": 6,
-                "line": 13,
-                "obj": {
+              "col": 25,
+              "left": {
+                "col": 8,
+                "left": {
                   "col": 4,
-                  "id": "迭代",
-                  "line": 13,
-                  "类型": "Name"
+                  "line": 12,
+                  "value": "[",
+                  "类型": "Str"
                 },
-                "类型": "Attr"
+                "line": 12,
+                "op": "+",
+                "right": {
+                  "args": [
+                    {
+                      "col": 16,
+                      "line": 12,
+                      "value": "中文",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 22,
+                      "line": 12,
+                      "value": 9,
+                      "类型": "Num"
+                    }
+                  ],
+                  "col": 15,
+                  "func": {
+                    "attr": "居中",
+                    "col": 12,
+                    "line": 12,
+                    "obj": {
+                      "col": 10,
+                      "id": "文本",
+                      "line": 12,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 12,
+                  "类型": "Call"
+                },
+                "类型": "BinOp"
               },
-              "keywords": [],
-              "line": 13,
-              "类型": "Call"
+              "line": 12,
+              "op": "+",
+              "right": {
+                "col": 27,
+                "line": 12,
+                "value": "]",
+                "类型": "Str"
+              },
+              "类型": "BinOp"
+            },
+            {
+              "col": 58,
+              "left": {
+                "col": 36,
+                "left": {
+                  "col": 32,
+                  "line": 12,
+                  "value": "[",
+                  "类型": "Str"
+                },
+                "line": 12,
+                "op": "+",
+                "right": {
+                  "args": [
+                    {
+                      "col": 44,
+                      "line": 12,
+                      "value": "ab",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 50,
+                      "line": 12,
+                      "value": 5,
+                      "类型": "Num"
+                    },
+                    {
+                      "col": 53,
+                      "line": 12,
+                      "value": "-",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 43,
+                  "func": {
+                    "attr": "填充",
+                    "col": 40,
+                    "line": 12,
+                    "obj": {
+                      "col": 38,
+                      "id": "文本",
+                      "line": 12,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 12,
+                  "类型": "Call"
+                },
+                "类型": "BinOp"
+              },
+              "line": 12,
+              "op": "+",
+              "right": {
+                "col": 60,
+                "line": 12,
+                "value": "]",
+                "类型": "Str"
+              },
+              "类型": "BinOp"
             }
           ],
           "col": 3,
           "func": {
             "col": 1,
             "id": "打印",
-            "line": 13,
+            "line": 12,
             "类型": "Name"
           },
           "keywords": [],
-          "line": 13,
+          "line": 12,
           "类型": "Call"
         },
-        "line": 13,
+        "line": 12,
         "类型": "ExprStmt"
       },
       {
@@ -539,6 +431,18 @@
                       "line": 14,
                       "value": 2,
                       "类型": "Num"
+                    },
+                    {
+                      "col": 17,
+                      "line": 14,
+                      "value": 3,
+                      "类型": "Num"
+                    },
+                    {
+                      "col": 20,
+                      "line": 14,
+                      "value": 4,
+                      "类型": "Num"
                     }
                   ],
                   "line": 14,
@@ -551,12 +455,12 @@
                   ],
                   "body": [
                     {
-                      "col": 29,
+                      "col": 35,
                       "line": 14,
                       "value": {
-                        "col": 29,
+                        "col": 35,
                         "left": {
-                          "col": 27,
+                          "col": 33,
                           "id": "甲",
                           "line": 14,
                           "类型": "Name"
@@ -564,7 +468,7 @@
                         "line": 14,
                         "op": "+",
                         "right": {
-                          "col": 31,
+                          "col": 37,
                           "id": "乙",
                           "line": 14,
                           "类型": "Name"
@@ -574,7 +478,7 @@
                       "类型": "Return"
                     }
                   ],
-                  "col": 18,
+                  "col": 24,
                   "defaults": [
                     null,
                     null
@@ -590,12 +494,6 @@
                     "乙"
                   ],
                   "类型": "Lambda"
-                },
-                {
-                  "col": 34,
-                  "line": 14,
-                  "value": 10,
-                  "类型": "Num"
                 }
               ],
               "col": 9,
@@ -632,22 +530,133 @@
       },
       {
         "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 10,
+                  "elements": [
+                    {
+                      "col": 11,
+                      "line": 15,
+                      "value": 1,
+                      "类型": "Num"
+                    },
+                    {
+                      "col": 14,
+                      "line": 15,
+                      "value": 2,
+                      "类型": "Num"
+                    }
+                  ],
+                  "line": 15,
+                  "类型": "List"
+                },
+                {
+                  "annotations": [
+                    null,
+                    null
+                  ],
+                  "body": [
+                    {
+                      "col": 29,
+                      "line": 15,
+                      "value": {
+                        "col": 29,
+                        "left": {
+                          "col": 27,
+                          "id": "甲",
+                          "line": 15,
+                          "类型": "Name"
+                        },
+                        "line": 15,
+                        "op": "+",
+                        "right": {
+                          "col": 31,
+                          "id": "乙",
+                          "line": 15,
+                          "类型": "Name"
+                        },
+                        "类型": "BinOp"
+                      },
+                      "类型": "Return"
+                    }
+                  ],
+                  "col": 18,
+                  "defaults": [
+                    null,
+                    null
+                  ],
+                  "line": 15,
+                  "name": "匿名函数",
+                  "param_kind": [
+                    0,
+                    0
+                  ],
+                  "params": [
+                    "甲",
+                    "乙"
+                  ],
+                  "类型": "Lambda"
+                },
+                {
+                  "col": 34,
+                  "line": 15,
+                  "value": 10,
+                  "类型": "Num"
+                }
+              ],
+              "col": 9,
+              "func": {
+                "attr": "归约",
+                "col": 6,
+                "line": 15,
+                "obj": {
+                  "col": 4,
+                  "id": "迭代",
+                  "line": 15,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 15,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 15,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 15,
+          "类型": "Call"
+        },
         "line": 15,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 16,
         "op": "=",
         "target": {
           "col": 1,
-          "line": 15,
+          "line": 16,
           "names": [
             {
               "col": 3,
               "id": "通过",
-              "line": 15,
+              "line": 16,
               "类型": "Name"
             },
             {
               "col": 7,
               "id": "没过",
-              "line": 15,
+              "line": 16,
               "类型": "Name"
             }
           ],
@@ -661,30 +670,30 @@
               "elements": [
                 {
                   "col": 19,
-                  "line": 15,
+                  "line": 16,
                   "value": 55,
                   "类型": "Num"
                 },
                 {
                   "col": 23,
-                  "line": 15,
+                  "line": 16,
                   "value": 80,
                   "类型": "Num"
                 },
                 {
                   "col": 27,
-                  "line": 15,
+                  "line": 16,
                   "value": 42,
                   "类型": "Num"
                 },
                 {
                   "col": 31,
-                  "line": 15,
+                  "line": 16,
                   "value": 91,
                   "类型": "Num"
                 }
               ],
-              "line": 15,
+              "line": 16,
               "类型": "List"
             },
             {
@@ -694,13 +703,13 @@
               "body": [
                 {
                   "col": 44,
-                  "line": 15,
+                  "line": 16,
                   "value": {
                     "col": 44,
                     "comparators": [
                       {
                         "col": 47,
-                        "line": 15,
+                        "line": 16,
                         "value": 60,
                         "类型": "Num"
                       }
@@ -708,10 +717,10 @@
                     "left": {
                       "col": 42,
                       "id": "x",
-                      "line": 15,
+                      "line": 16,
                       "类型": "Name"
                     },
-                    "line": 15,
+                    "line": 16,
                     "ops": [
                       ">="
                     ],
@@ -724,7 +733,7 @@
               "defaults": [
                 null
               ],
-              "line": 15,
+              "line": 16,
               "name": "匿名函数",
               "param_kind": [
                 0
@@ -739,17 +748,17 @@
           "func": {
             "attr": "分区",
             "col": 14,
-            "line": 15,
+            "line": 16,
             "obj": {
               "col": 12,
               "id": "迭代",
-              "line": 15,
+              "line": 16,
               "类型": "Name"
             },
             "类型": "Attr"
           },
           "keywords": [],
-          "line": 15,
+          "line": 16,
           "类型": "Call"
         },
         "类型": "Assign"
@@ -761,13 +770,13 @@
             {
               "col": 4,
               "id": "通过",
-              "line": 16,
+              "line": 17,
               "类型": "Name"
             },
             {
               "col": 8,
               "id": "没过",
-              "line": 16,
+              "line": 17,
               "类型": "Name"
             }
           ],
@@ -775,15 +784,90 @@
           "func": {
             "col": 1,
             "id": "打印",
-            "line": 16,
+            "line": 17,
             "类型": "Name"
           },
           "keywords": [],
-          "line": 16,
+          "line": 17,
           "类型": "Call"
         },
-        "line": 16,
+        "line": 17,
         "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 22,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "临时",
+          "line": 22,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [],
+          "col": 15,
+          "func": {
+            "attr": "临时目录",
+            "col": 10,
+            "line": 22,
+            "obj": {
+              "col": 8,
+              "id": "路径",
+              "line": 22,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 22,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 23,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "成绩文件",
+          "line": 23,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 16,
+              "id": "临时",
+              "line": 23,
+              "类型": "Name"
+            },
+            {
+              "col": 20,
+              "line": 23,
+              "value": "成绩.csv",
+              "类型": "Str"
+            }
+          ],
+          "col": 15,
+          "func": {
+            "attr": "连接",
+            "col": 12,
+            "line": 23,
+            "obj": {
+              "col": 10,
+              "id": "路径",
+              "line": 23,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 23,
+          "类型": "Call"
+        },
+        "类型": "Assign"
       },
       {
         "col": 1,
@@ -791,13 +875,13 @@
           "args": [
             {
               "col": 8,
-              "line": 18,
-              "value": "_语料成绩.csv",
-              "类型": "Str"
+              "id": "成绩文件",
+              "line": 24,
+              "类型": "Name"
             },
             {
-              "col": 21,
-              "line": 18,
+              "col": 14,
+              "line": 24,
               "value": "姓名,班级,数学\n小明,一班,90\n小红,一班,80\n小刚,二班,70\n",
               "类型": "Str"
             }
@@ -806,68 +890,68 @@
           "func": {
             "attr": "写文本",
             "col": 3,
-            "line": 18,
+            "line": 24,
             "obj": {
               "col": 1,
               "id": "文件",
-              "line": 18,
+              "line": 24,
               "类型": "Name"
             },
             "类型": "Attr"
           },
           "keywords": [],
-          "line": 18,
+          "line": 24,
           "类型": "Call"
         },
-        "line": 18,
+        "line": 24,
         "类型": "ExprStmt"
       },
       {
         "col": 1,
-        "line": 19,
+        "line": 25,
         "op": "=",
         "target": {
           "col": 3,
           "id": "成绩",
-          "line": 19,
+          "line": 25,
           "类型": "Name"
         },
         "value": {
           "args": [
             {
               "col": 15,
-              "line": 19,
-              "value": "_语料成绩.csv",
-              "类型": "Str"
+              "id": "成绩文件",
+              "line": 25,
+              "类型": "Name"
             }
           ],
           "col": 14,
           "func": {
             "attr": "读表格",
             "col": 10,
-            "line": 19,
+            "line": 25,
             "obj": {
               "col": 8,
               "id": "表格",
-              "line": 19,
+              "line": 25,
               "类型": "Name"
             },
             "类型": "Attr"
           },
           "keywords": [],
-          "line": 19,
+          "line": 25,
           "类型": "Call"
         },
         "类型": "Assign"
       },
       {
         "col": 1,
-        "line": 20,
+        "line": 26,
         "op": "=",
         "target": {
           "col": 3,
           "id": "各班",
-          "line": 20,
+          "line": 26,
           "类型": "Name"
         },
         "value": {
@@ -875,18 +959,18 @@
             {
               "col": 16,
               "id": "成绩",
-              "line": 20,
+              "line": 26,
               "类型": "Name"
             },
             {
               "col": 20,
-              "line": 20,
+              "line": 26,
               "value": "班级",
               "类型": "Str"
             },
             {
               "col": 26,
-              "line": 20,
+              "line": 26,
               "value": "数学",
               "类型": "Str"
             }
@@ -895,17 +979,17 @@
           "func": {
             "attr": "分组汇总",
             "col": 10,
-            "line": 20,
+            "line": 26,
             "obj": {
               "col": 8,
               "id": "表格",
-              "line": 20,
+              "line": 26,
               "类型": "Name"
             },
             "类型": "Attr"
           },
           "keywords": [],
-          "line": 20,
+          "line": 26,
           "类型": "Call"
         },
         "类型": "Assign"
@@ -918,24 +1002,24 @@
               "col": 12,
               "index": {
                 "col": 13,
-                "line": 21,
+                "line": 27,
                 "value": "个数",
                 "类型": "Str"
               },
-              "line": 21,
+              "line": 27,
               "obj": {
                 "col": 6,
                 "index": {
                   "col": 7,
-                  "line": 21,
+                  "line": 27,
                   "value": "一班",
                   "类型": "Str"
                 },
-                "line": 21,
+                "line": 27,
                 "obj": {
                   "col": 4,
                   "id": "各班",
-                  "line": 21,
+                  "line": 27,
                   "类型": "Name"
                 },
                 "类型": "Subscript"
@@ -946,24 +1030,24 @@
               "col": 28,
               "index": {
                 "col": 29,
-                "line": 21,
+                "line": 27,
                 "value": "平均",
                 "类型": "Str"
               },
-              "line": 21,
+              "line": 27,
               "obj": {
                 "col": 22,
                 "index": {
                   "col": 23,
-                  "line": 21,
+                  "line": 27,
                   "value": "一班",
                   "类型": "Str"
                 },
-                "line": 21,
+                "line": 27,
                 "obj": {
                   "col": 20,
                   "id": "各班",
-                  "line": 21,
+                  "line": 27,
                   "类型": "Name"
                 },
                 "类型": "Subscript"
@@ -974,24 +1058,24 @@
               "col": 44,
               "index": {
                 "col": 45,
-                "line": 21,
+                "line": 27,
                 "value": "总和",
                 "类型": "Str"
               },
-              "line": 21,
+              "line": 27,
               "obj": {
                 "col": 38,
                 "index": {
                   "col": 39,
-                  "line": 21,
+                  "line": 27,
                   "value": "二班",
                   "类型": "Str"
                 },
-                "line": 21,
+                "line": 27,
                 "obj": {
                   "col": 36,
                   "id": "各班",
-                  "line": 21,
+                  "line": 27,
                   "类型": "Name"
                 },
                 "类型": "Subscript"
@@ -1003,119 +1087,56 @@
           "func": {
             "col": 1,
             "id": "打印",
-            "line": 21,
+            "line": 27,
             "类型": "Name"
           },
           "keywords": [],
-          "line": 21,
+          "line": 27,
           "类型": "Call"
         },
-        "line": 21,
+        "line": 27,
         "类型": "ExprStmt"
       },
       {
         "col": 1,
-        "expr": {
-          "args": [
-            {
-              "col": 8,
-              "line": 23,
-              "value": "_语料加分.csv",
-              "类型": "Str"
-            },
-            {
-              "col": 21,
-              "line": 23,
-              "value": "姓名,加分\n小明,5\n小刚,3\n",
-              "类型": "Str"
-            }
-          ],
-          "col": 7,
-          "func": {
-            "attr": "写文本",
-            "col": 3,
-            "line": 23,
-            "obj": {
-              "col": 1,
-              "id": "文件",
-              "line": 23,
-              "类型": "Name"
-            },
-            "类型": "Attr"
-          },
-          "keywords": [],
-          "line": 23,
-          "类型": "Call"
-        },
-        "line": 23,
-        "类型": "ExprStmt"
-      },
-      {
-        "col": 1,
-        "line": 24,
+        "line": 29,
         "op": "=",
         "target": {
           "col": 3,
-          "id": "合",
-          "line": 24,
+          "id": "加分文件",
+          "line": 29,
           "类型": "Name"
         },
         "value": {
           "args": [
             {
-              "col": 13,
-              "id": "成绩",
-              "line": 24,
+              "col": 16,
+              "id": "临时",
+              "line": 29,
               "类型": "Name"
             },
             {
-              "args": [
-                {
-                  "col": 24,
-                  "line": 24,
-                  "value": "_语料加分.csv",
-                  "类型": "Str"
-                }
-              ],
-              "col": 23,
-              "func": {
-                "attr": "读表格",
-                "col": 19,
-                "line": 24,
-                "obj": {
-                  "col": 17,
-                  "id": "表格",
-                  "line": 24,
-                  "类型": "Name"
-                },
-                "类型": "Attr"
-              },
-              "keywords": [],
-              "line": 24,
-              "类型": "Call"
-            },
-            {
-              "col": 38,
-              "line": 24,
-              "value": "姓名",
+              "col": 20,
+              "line": 29,
+              "value": "加分.csv",
               "类型": "Str"
             }
           ],
-          "col": 12,
+          "col": 15,
           "func": {
             "attr": "连接",
-            "col": 9,
-            "line": 24,
+            "col": 12,
+            "line": 29,
             "obj": {
-              "col": 7,
-              "id": "表格",
-              "line": 24,
+              "col": 10,
+              "id": "路径",
+              "line": 29,
               "类型": "Name"
             },
             "类型": "Attr"
           },
           "keywords": [],
-          "line": 24,
+          "line": 29,
           "类型": "Call"
         },
         "类型": "Assign"
@@ -1125,149 +1146,21 @@
         "expr": {
           "args": [
             {
-              "col": 4,
-              "id": "合",
-              "line": 25,
-              "类型": "Name"
-            }
-          ],
-          "col": 3,
-          "func": {
-            "col": 1,
-            "id": "打印",
-            "line": 25,
-            "类型": "Name"
-          },
-          "keywords": [],
-          "line": 25,
-          "类型": "Call"
-        },
-        "line": 25,
-        "类型": "ExprStmt"
-      },
-      {
-        "col": 1,
-        "expr": {
-          "args": [
-            {
-              "args": [
-                {
-                  "col": 10,
-                  "id": "合",
-                  "line": 26,
-                  "类型": "Name"
-                }
-              ],
-              "col": 9,
-              "func": {
-                "attr": "表头",
-                "col": 6,
-                "line": 26,
-                "obj": {
-                  "col": 4,
-                  "id": "表格",
-                  "line": 26,
-                  "类型": "Name"
-                },
-                "类型": "Attr"
-              },
-              "keywords": [],
-              "line": 26,
-              "类型": "Call"
-            }
-          ],
-          "col": 3,
-          "func": {
-            "col": 1,
-            "id": "打印",
-            "line": 26,
-            "类型": "Name"
-          },
-          "keywords": [],
-          "line": 26,
-          "类型": "Call"
-        },
-        "line": 26,
-        "类型": "ExprStmt"
-      },
-      {
-        "body": [
-          {
-            "col": 5,
-            "expr": {
-              "args": [
-                {
-                  "col": 8,
-                  "id": "行",
-                  "line": 28,
-                  "类型": "Name"
-                }
-              ],
-              "col": 7,
-              "func": {
-                "col": 5,
-                "id": "打印",
-                "line": 28,
-                "类型": "Name"
-              },
-              "keywords": [],
-              "line": 28,
-              "类型": "Call"
-            },
-            "line": 28,
-            "类型": "ExprStmt"
-          }
-        ],
-        "col": 1,
-        "iter": {
-          "args": [
-            {
-              "col": 15,
-              "id": "合",
-              "line": 27,
-              "类型": "Name"
-            }
-          ],
-          "col": 14,
-          "func": {
-            "attr": "数据行",
-            "col": 10,
-            "line": 27,
-            "obj": {
               "col": 8,
-              "id": "表格",
-              "line": 27,
+              "id": "加分文件",
+              "line": 30,
               "类型": "Name"
             },
-            "类型": "Attr"
-          },
-          "keywords": [],
-          "line": 27,
-          "类型": "Call"
-        },
-        "line": 27,
-        "target": {
-          "col": 4,
-          "id": "行",
-          "line": 27,
-          "类型": "Name"
-        },
-        "类型": "For"
-      },
-      {
-        "col": 1,
-        "expr": {
-          "args": [
             {
-              "col": 9,
+              "col": 14,
               "line": 30,
-              "value": "_语料成绩.csv",
+              "value": "姓名,加分\n小明,5\n小刚,3\n",
               "类型": "Str"
             }
           ],
-          "col": 8,
+          "col": 7,
           "func": {
-            "attr": "删除文件",
+            "attr": "写文本",
             "col": 3,
             "line": 30,
             "obj": {
@@ -1287,23 +1180,63 @@
       },
       {
         "col": 1,
-        "expr": {
+        "line": 31,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "合",
+          "line": 31,
+          "类型": "Name"
+        },
+        "value": {
           "args": [
             {
-              "col": 9,
+              "col": 13,
+              "id": "成绩",
               "line": 31,
-              "value": "_语料加分.csv",
+              "类型": "Name"
+            },
+            {
+              "args": [
+                {
+                  "col": 24,
+                  "id": "加分文件",
+                  "line": 31,
+                  "类型": "Name"
+                }
+              ],
+              "col": 23,
+              "func": {
+                "attr": "读表格",
+                "col": 19,
+                "line": 31,
+                "obj": {
+                  "col": 17,
+                  "id": "表格",
+                  "line": 31,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 31,
+              "类型": "Call"
+            },
+            {
+              "col": 31,
+              "line": 31,
+              "value": "姓名",
               "类型": "Str"
             }
           ],
-          "col": 8,
+          "col": 12,
           "func": {
-            "attr": "删除文件",
-            "col": 3,
+            "attr": "连接",
+            "col": 9,
             "line": 31,
             "obj": {
-              "col": 1,
-              "id": "文件",
+              "col": 7,
+              "id": "表格",
               "line": 31,
               "类型": "Name"
             },
@@ -1313,7 +1246,171 @@
           "line": 31,
           "类型": "Call"
         },
-        "line": 31,
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "id": "合",
+              "line": 32,
+              "类型": "Name"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 32,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 32,
+          "类型": "Call"
+        },
+        "line": 32,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 10,
+                  "id": "合",
+                  "line": 33,
+                  "类型": "Name"
+                }
+              ],
+              "col": 9,
+              "func": {
+                "attr": "表头",
+                "col": 6,
+                "line": 33,
+                "obj": {
+                  "col": 4,
+                  "id": "表格",
+                  "line": 33,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 33,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 33,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 33,
+          "类型": "Call"
+        },
+        "line": 33,
+        "类型": "ExprStmt"
+      },
+      {
+        "body": [
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 8,
+                  "id": "行",
+                  "line": 35,
+                  "类型": "Name"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 5,
+                "id": "打印",
+                "line": 35,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 35,
+              "类型": "Call"
+            },
+            "line": 35,
+            "类型": "ExprStmt"
+          }
+        ],
+        "col": 1,
+        "iter": {
+          "args": [
+            {
+              "col": 15,
+              "id": "合",
+              "line": 34,
+              "类型": "Name"
+            }
+          ],
+          "col": 14,
+          "func": {
+            "attr": "数据行",
+            "col": 10,
+            "line": 34,
+            "obj": {
+              "col": 8,
+              "id": "表格",
+              "line": 34,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 34,
+          "类型": "Call"
+        },
+        "line": 34,
+        "target": {
+          "col": 4,
+          "id": "行",
+          "line": 34,
+          "类型": "Name"
+        },
+        "类型": "For"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 9,
+              "id": "临时",
+              "line": 37,
+              "类型": "Name"
+            }
+          ],
+          "col": 8,
+          "func": {
+            "attr": "递归删除",
+            "col": 3,
+            "line": 37,
+            "obj": {
+              "col": 1,
+              "id": "路径",
+              "line": 37,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 37,
+          "类型": "Call"
+        },
+        "line": 37,
         "类型": "ExprStmt"
       }
     ],
@@ -1322,7 +1419,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "6f79ed8c21c5f590317c5eac692d8fc580eb29f3ba99808155ca476a0120e9d3",
+    "checksum": "e13ba1bad1e0d1a9ea03b6c322f577b87ee7818cfea87df6c22f2b09ae214965",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -1415,1133 +1512,1211 @@
             0,
             7,
             1,
-            2,
+            31,
+            35,
+            0,
+            -1,
+            8,
+            1,
+            3,
             35,
             0,
             0,
-            9,
+            8,
+            1,
+            2,
+            36,
+            0,
+            0,
+            10,
             1,
             2,
             5,
             0,
             0,
-            9,
+            10,
             4,
             25,
-            36,
+            37,
             0,
             0,
-            9,
+            10,
             6,
             1,
             49,
             0,
             0,
-            9,
+            10,
             12,
             20,
             1,
             -1,
             0,
-            9,
+            10,
             11,
             2,
             5,
             0,
             0,
-            9,
+            10,
             19,
             25,
-            36,
+            37,
             0,
             0,
-            9,
+            10,
             21,
             1,
             50,
             0,
             0,
-            9,
+            10,
             27,
             20,
             1,
             -1,
             0,
-            9,
+            10,
             26,
             2,
             5,
             0,
             0,
-            9,
+            10,
             35,
             25,
-            36,
+            37,
             0,
             0,
-            9,
+            10,
             37,
             1,
             51,
             0,
             0,
-            9,
+            10,
             43,
             20,
             1,
             -1,
             0,
-            9,
+            10,
             42,
             20,
             3,
             -1,
             0,
-            9,
+            10,
             3,
             38,
             0,
             0,
             0,
-            9,
+            10,
             1,
             2,
-            35,
+            36,
             0,
             0,
-            10,
+            11,
             1,
             1,
             52,
             0,
             0,
-            10,
+            11,
             4,
             2,
             5,
             0,
             0,
-            10,
+            11,
             10,
             25,
-            37,
+            38,
             0,
             0,
-            10,
+            11,
             12,
             1,
             49,
             0,
             0,
-            10,
+            11,
             17,
             1,
             53,
             0,
             0,
-            10,
+            11,
             23,
             20,
             2,
             -1,
             0,
-            10,
+            11,
             16,
             13,
             0,
             0,
             0,
-            10,
+            11,
             8,
             1,
             54,
             0,
             0,
-            10,
+            11,
             28,
             13,
             0,
             0,
             0,
-            10,
+            11,
             26,
             1,
             52,
             0,
             0,
-            10,
+            11,
             33,
             2,
             5,
             0,
             0,
-            10,
+            11,
             39,
             25,
-            38,
+            39,
             0,
             0,
-            10,
+            11,
             41,
             1,
             49,
             0,
             0,
-            10,
+            11,
             46,
             1,
             53,
             0,
             0,
-            10,
+            11,
             52,
             20,
             2,
             -1,
             0,
-            10,
+            11,
             45,
             13,
             0,
             0,
             0,
-            10,
+            11,
             37,
             1,
             54,
             0,
             0,
-            10,
+            11,
             57,
             13,
             0,
             0,
             0,
-            10,
+            11,
             55,
             20,
             2,
             -1,
             0,
-            10,
+            11,
             3,
             38,
             0,
             0,
             0,
-            10,
+            11,
             1,
             2,
-            35,
+            36,
             0,
             0,
-            11,
+            12,
             1,
             1,
             52,
             0,
             0,
-            11,
+            12,
             4,
             2,
             5,
             0,
             0,
-            11,
+            12,
             10,
             25,
-            39,
+            40,
             0,
             0,
-            11,
+            12,
             12,
             1,
             49,
             0,
             0,
-            11,
+            12,
             16,
             1,
             55,
             0,
             0,
-            11,
+            12,
             22,
             20,
             2,
             -1,
             0,
-            11,
+            12,
             15,
             13,
             0,
             0,
             0,
-            11,
+            12,
             8,
             1,
             54,
             0,
             0,
-            11,
+            12,
             27,
             13,
             0,
             0,
             0,
-            11,
+            12,
             25,
             1,
             52,
             0,
             0,
-            11,
+            12,
             32,
             2,
             5,
             0,
             0,
-            11,
+            12,
             38,
             25,
-            40,
+            41,
             0,
             0,
-            11,
+            12,
             40,
             1,
             56,
             0,
             0,
-            11,
+            12,
             44,
             1,
             57,
             0,
             0,
-            11,
+            12,
             50,
             1,
             58,
             0,
             0,
-            11,
+            12,
             53,
             20,
             3,
             -1,
             0,
-            11,
+            12,
             43,
             13,
             0,
             0,
             0,
-            11,
+            12,
             36,
             1,
             54,
             0,
             0,
-            11,
+            12,
             60,
             13,
             0,
             0,
             0,
-            11,
+            12,
             58,
             20,
             2,
             -1,
             0,
-            11,
+            12,
             3,
             38,
             0,
             0,
             0,
-            11,
+            12,
             1,
             2,
-            35,
+            36,
             0,
             0,
-            13,
+            14,
             1,
             2,
             32,
             0,
             0,
-            13,
+            14,
             4,
             25,
-            41,
+            42,
             0,
             0,
-            13,
+            14,
             6,
             1,
             9,
             0,
             0,
-            13,
+            14,
             11,
             1,
             59,
             0,
             0,
-            13,
+            14,
             14,
             1,
             60,
             0,
             0,
-            13,
+            14,
             17,
             1,
             61,
             0,
             0,
-            13,
+            14,
             20,
             23,
             4,
             0,
             0,
-            13,
+            14,
             10,
             22,
             21,
             0,
             0,
-            13,
+            14,
             24,
             20,
             2,
             -1,
             0,
-            13,
+            14,
             9,
             20,
             1,
             -1,
             0,
-            13,
+            14,
             3,
             38,
             0,
             0,
             0,
-            13,
+            14,
             1,
             2,
-            35,
+            36,
             0,
             0,
-            14,
+            15,
             1,
             2,
             32,
             0,
             0,
-            14,
+            15,
             4,
             25,
-            41,
+            42,
             0,
             0,
-            14,
+            15,
             6,
             1,
             9,
             0,
             0,
-            14,
+            15,
             11,
             1,
             59,
             0,
             0,
-            14,
+            15,
             14,
             23,
             2,
             0,
             0,
-            14,
+            15,
             10,
             22,
             22,
             0,
             0,
-            14,
+            15,
             18,
             1,
             62,
             0,
             0,
-            14,
+            15,
             34,
             20,
             3,
             -1,
             0,
-            14,
+            15,
             9,
             20,
             1,
             -1,
             0,
-            14,
+            15,
             3,
             38,
             0,
             0,
             0,
-            14,
+            15,
             1,
             2,
             32,
             0,
             0,
-            15,
+            16,
             12,
             25,
-            44,
+            45,
             0,
             0,
-            15,
+            16,
             14,
             1,
             63,
             0,
             0,
-            15,
+            16,
             19,
             1,
             64,
             0,
             0,
-            15,
+            16,
             23,
             1,
             65,
             0,
             0,
-            15,
+            16,
             27,
             1,
             66,
             0,
             0,
-            15,
+            16,
             31,
             23,
             4,
             0,
             0,
-            15,
+            16,
             18,
             22,
             23,
             0,
             0,
-            15,
+            16,
             36,
             20,
             2,
             -1,
             0,
-            15,
+            16,
             17,
             46,
             2,
             -1,
             0,
-            15,
-            1,
-            3,
-            46,
-            0,
-            0,
-            15,
+            16,
             1,
             3,
             47,
             0,
             0,
-            15,
+            16,
+            1,
+            3,
+            48,
+            0,
+            0,
+            16,
+            1,
+            2,
+            36,
+            0,
+            0,
+            17,
+            1,
+            2,
+            47,
+            0,
+            0,
+            17,
+            4,
+            2,
+            48,
+            0,
+            0,
+            17,
+            8,
+            20,
+            2,
+            -1,
+            0,
+            17,
+            3,
+            38,
+            0,
+            0,
+            0,
+            17,
             1,
             2,
             35,
             0,
             0,
-            16,
-            1,
-            2,
-            46,
-            0,
-            0,
-            16,
-            4,
-            2,
-            47,
-            0,
-            0,
-            16,
-            8,
-            20,
-            2,
-            -1,
-            0,
-            16,
-            3,
-            38,
-            0,
-            0,
-            0,
-            16,
-            1,
-            2,
-            34,
-            0,
-            0,
-            18,
-            1,
-            25,
-            48,
-            0,
-            0,
-            18,
-            3,
-            1,
-            68,
-            0,
-            0,
-            18,
-            8,
-            1,
-            69,
-            0,
-            0,
-            18,
-            21,
-            20,
-            2,
-            -1,
-            0,
-            18,
-            7,
-            38,
-            0,
-            0,
-            0,
-            18,
-            1,
-            2,
-            33,
-            0,
-            0,
-            19,
+            22,
             8,
             25,
             49,
             0,
             0,
-            19,
+            22,
             10,
-            1,
-            68,
-            0,
-            0,
-            19,
-            15,
             20,
-            1,
+            0,
             -1,
             0,
-            19,
-            14,
+            22,
+            15,
             3,
             50,
             0,
             0,
-            19,
-            1,
-            2,
-            33,
-            0,
-            0,
-            20,
-            8,
-            25,
-            51,
-            0,
-            0,
-            20,
-            10,
-            2,
-            50,
-            0,
-            0,
-            20,
-            16,
-            1,
-            70,
-            0,
-            0,
-            20,
-            20,
-            1,
-            71,
-            0,
-            0,
-            20,
-            26,
-            20,
-            3,
-            -1,
-            0,
-            20,
-            15,
-            3,
-            52,
-            0,
-            0,
-            20,
+            22,
             1,
             2,
             35,
             0,
             0,
-            21,
-            1,
-            2,
-            52,
+            23,
+            10,
+            25,
+            51,
             0,
             0,
-            21,
-            4,
-            1,
-            72,
-            0,
-            0,
-            21,
-            7,
-            27,
-            0,
-            0,
-            0,
-            21,
-            6,
-            1,
-            73,
-            0,
-            0,
-            21,
-            13,
-            27,
-            0,
-            0,
-            0,
-            21,
+            23,
             12,
             2,
-            52,
+            50,
             0,
             0,
-            21,
-            20,
-            1,
-            72,
-            0,
-            0,
-            21,
             23,
-            27,
-            0,
-            0,
-            0,
-            21,
-            22,
+            16,
             1,
-            74,
+            68,
             0,
             0,
-            21,
-            29,
-            27,
-            0,
-            0,
-            0,
-            21,
-            28,
-            2,
-            52,
-            0,
-            0,
-            21,
-            36,
-            1,
-            75,
-            0,
-            0,
-            21,
-            39,
-            27,
-            0,
-            0,
-            0,
-            21,
-            38,
-            1,
-            76,
-            0,
-            0,
-            21,
-            45,
-            27,
-            0,
-            0,
-            0,
-            21,
-            44,
+            23,
             20,
-            3,
+            20,
+            2,
             -1,
             0,
-            21,
+            23,
+            15,
             3,
-            38,
+            52,
             0,
             0,
-            0,
-            21,
+            23,
             1,
             2,
             34,
             0,
             0,
-            23,
-            1,
-            25,
-            48,
-            0,
-            0,
-            23,
-            3,
-            1,
-            77,
-            0,
-            0,
-            23,
-            8,
-            1,
-            78,
-            0,
-            0,
-            23,
-            21,
-            20,
-            2,
-            -1,
-            0,
-            23,
-            7,
-            38,
-            0,
-            0,
-            0,
-            23,
-            1,
-            2,
-            33,
-            0,
-            0,
             24,
-            7,
+            1,
             25,
             53,
             0,
             0,
             24,
-            9,
-            2,
-            50,
-            0,
-            0,
-            24,
-            13,
-            2,
-            33,
-            0,
-            0,
-            24,
-            17,
-            25,
-            49,
-            0,
-            0,
-            24,
-            19,
-            1,
-            77,
-            0,
-            0,
-            24,
-            24,
-            20,
-            1,
-            -1,
-            0,
-            24,
-            23,
-            1,
-            79,
-            0,
-            0,
-            24,
-            38,
-            20,
             3,
-            -1,
-            0,
-            24,
-            12,
-            3,
-            54,
+            2,
+            52,
             0,
             0,
             24,
-            1,
-            2,
-            35,
-            0,
-            0,
-            25,
-            1,
-            2,
-            54,
-            0,
-            0,
-            25,
-            4,
-            20,
-            1,
-            -1,
-            0,
-            25,
-            3,
-            38,
-            0,
-            0,
-            0,
-            25,
-            1,
-            2,
-            35,
-            0,
-            0,
-            26,
-            1,
-            2,
-            33,
-            0,
-            0,
-            26,
-            4,
-            25,
-            55,
-            0,
-            0,
-            26,
-            6,
-            2,
-            54,
-            0,
-            0,
-            26,
-            10,
-            20,
-            1,
-            -1,
-            0,
-            26,
-            9,
-            20,
-            1,
-            -1,
-            0,
-            26,
-            3,
-            38,
-            0,
-            0,
-            0,
-            26,
-            1,
-            2,
-            33,
-            0,
-            0,
-            27,
             8,
-            25,
-            56,
-            0,
-            0,
-            27,
-            10,
-            2,
-            54,
-            0,
-            0,
-            27,
-            15,
-            20,
             1,
-            -1,
+            69,
             0,
-            27,
+            0,
+            24,
             14,
-            29,
-            0,
-            0,
-            0,
-            27,
-            1,
-            34,
-            181,
-            190,
-            0,
-            27,
-            1,
-            30,
-            188,
-            0,
-            0,
-            27,
-            1,
-            3,
-            57,
-            0,
-            0,
-            27,
-            1,
-            2,
-            35,
-            0,
-            0,
-            28,
-            5,
-            2,
-            57,
-            0,
-            0,
-            28,
-            8,
             20,
-            1,
+            2,
             -1,
             0,
-            28,
+            24,
             7,
             38,
             0,
             0,
             0,
-            28,
-            5,
-            16,
-            181,
-            0,
-            0,
-            27,
-            1,
-            35,
-            0,
-            0,
-            0,
-            27,
-            1,
-            16,
-            192,
-            0,
-            0,
-            27,
-            1,
-            9,
-            0,
-            0,
-            0,
-            27,
-            1,
-            35,
-            0,
-            0,
-            0,
-            27,
+            24,
             1,
             2,
-            34,
+            33,
             0,
             0,
-            30,
-            1,
             25,
-            58,
+            8,
+            25,
+            54,
             0,
             0,
-            30,
-            3,
-            1,
-            68,
+            25,
+            10,
+            2,
+            52,
             0,
             0,
-            30,
-            9,
+            25,
+            15,
             20,
             1,
             -1,
             0,
-            30,
+            25,
+            14,
+            3,
+            55,
+            0,
+            0,
+            25,
+            1,
+            2,
+            33,
+            0,
+            0,
+            26,
             8,
+            25,
+            56,
+            0,
+            0,
+            26,
+            10,
+            2,
+            55,
+            0,
+            0,
+            26,
+            16,
+            1,
+            70,
+            0,
+            0,
+            26,
+            20,
+            1,
+            71,
+            0,
+            0,
+            26,
+            26,
+            20,
+            3,
+            -1,
+            0,
+            26,
+            15,
+            3,
+            57,
+            0,
+            0,
+            26,
+            1,
+            2,
+            36,
+            0,
+            0,
+            27,
+            1,
+            2,
+            57,
+            0,
+            0,
+            27,
+            4,
+            1,
+            72,
+            0,
+            0,
+            27,
+            7,
+            27,
+            0,
+            0,
+            0,
+            27,
+            6,
+            1,
+            73,
+            0,
+            0,
+            27,
+            13,
+            27,
+            0,
+            0,
+            0,
+            27,
+            12,
+            2,
+            57,
+            0,
+            0,
+            27,
+            20,
+            1,
+            72,
+            0,
+            0,
+            27,
+            23,
+            27,
+            0,
+            0,
+            0,
+            27,
+            22,
+            1,
+            74,
+            0,
+            0,
+            27,
+            29,
+            27,
+            0,
+            0,
+            0,
+            27,
+            28,
+            2,
+            57,
+            0,
+            0,
+            27,
+            36,
+            1,
+            75,
+            0,
+            0,
+            27,
+            39,
+            27,
+            0,
+            0,
+            0,
+            27,
+            38,
+            1,
+            76,
+            0,
+            0,
+            27,
+            45,
+            27,
+            0,
+            0,
+            0,
+            27,
+            44,
+            20,
+            3,
+            -1,
+            0,
+            27,
+            3,
             38,
             0,
             0,
             0,
-            30,
+            27,
             1,
             2,
-            34,
+            35,
             0,
             0,
-            31,
-            1,
+            29,
+            10,
             25,
-            58,
+            51,
             0,
             0,
-            31,
-            3,
+            29,
+            12,
+            2,
+            50,
+            0,
+            0,
+            29,
+            16,
             1,
             77,
             0,
             0,
+            29,
+            20,
+            20,
+            2,
+            -1,
+            0,
+            29,
+            15,
+            3,
+            58,
+            0,
+            0,
+            29,
+            1,
+            2,
+            34,
+            0,
+            0,
+            30,
+            1,
+            25,
+            53,
+            0,
+            0,
+            30,
+            3,
+            2,
+            58,
+            0,
+            0,
+            30,
+            8,
+            1,
+            78,
+            0,
+            0,
+            30,
+            14,
+            20,
+            2,
+            -1,
+            0,
+            30,
+            7,
+            38,
+            0,
+            0,
+            0,
+            30,
+            1,
+            2,
+            33,
+            0,
+            0,
+            31,
+            7,
+            25,
+            51,
+            0,
+            0,
             31,
             9,
+            2,
+            55,
+            0,
+            0,
+            31,
+            13,
+            2,
+            33,
+            0,
+            0,
+            31,
+            17,
+            25,
+            54,
+            0,
+            0,
+            31,
+            19,
+            2,
+            58,
+            0,
+            0,
+            31,
+            24,
             20,
             1,
             -1,
             0,
             31,
+            23,
+            1,
+            79,
+            0,
+            0,
+            31,
+            31,
+            20,
+            3,
+            -1,
+            0,
+            31,
+            12,
+            3,
+            59,
+            0,
+            0,
+            31,
+            1,
+            2,
+            36,
+            0,
+            0,
+            32,
+            1,
+            2,
+            59,
+            0,
+            0,
+            32,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            32,
+            3,
+            38,
+            0,
+            0,
+            0,
+            32,
+            1,
+            2,
+            36,
+            0,
+            0,
+            33,
+            1,
+            2,
+            33,
+            0,
+            0,
+            33,
+            4,
+            25,
+            60,
+            0,
+            0,
+            33,
+            6,
+            2,
+            59,
+            0,
+            0,
+            33,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            33,
+            9,
+            20,
+            1,
+            -1,
+            0,
+            33,
+            3,
+            38,
+            0,
+            0,
+            0,
+            33,
+            1,
+            2,
+            33,
+            0,
+            0,
+            34,
+            8,
+            25,
+            61,
+            0,
+            0,
+            34,
+            10,
+            2,
+            59,
+            0,
+            0,
+            34,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            34,
+            14,
+            29,
+            0,
+            0,
+            0,
+            34,
+            1,
+            34,
+            199,
+            208,
+            0,
+            34,
+            1,
+            30,
+            206,
+            0,
+            0,
+            34,
+            1,
+            3,
+            62,
+            0,
+            0,
+            34,
+            1,
+            2,
+            36,
+            0,
+            0,
+            35,
+            5,
+            2,
+            62,
+            0,
+            0,
+            35,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            35,
+            7,
+            38,
+            0,
+            0,
+            0,
+            35,
+            5,
+            16,
+            199,
+            0,
+            0,
+            34,
+            1,
+            35,
+            0,
+            0,
+            0,
+            34,
+            1,
+            16,
+            210,
+            0,
+            0,
+            34,
+            1,
+            9,
+            0,
+            0,
+            0,
+            34,
+            1,
+            35,
+            0,
+            0,
+            0,
+            34,
+            1,
+            2,
+            35,
+            0,
+            0,
+            37,
+            1,
+            25,
+            63,
+            0,
+            0,
+            37,
+            3,
+            2,
+            50,
+            0,
+            0,
+            37,
+            9,
+            20,
+            1,
+            -1,
+            0,
+            37,
             8,
             38,
             0,
             0,
             0,
-            31,
+            37,
             1,
             0,
             0,
@@ -10111,44 +10286,44 @@
         },
         {
           "cellvars": [],
-          "firstlineno": 13,
+          "firstlineno": 14,
           "freevars": [],
           "instrs": [
             4,
             0,
             0,
             0,
-            13,
+            14,
             33,
             4,
             1,
             0,
             0,
-            13,
+            14,
             37,
             13,
             0,
             0,
             0,
-            13,
+            14,
             35,
             21,
             0,
             0,
             0,
-            13,
+            14,
             35,
             1,
             4,
             0,
             0,
-            13,
+            14,
             24,
             21,
             0,
             0,
             0,
-            13,
+            14,
             24
           ],
           "local_hints": {},
@@ -10163,78 +10338,8 @@
             -1
           ],
           "param_idx": [
-            42,
-            43
-          ],
-          "param_kind": [
-            0,
-            0
-          ],
-          "param_local": [
-            0,
-            1
-          ],
-          "params": [
-            "甲",
-            "乙"
-          ]
-        },
-        {
-          "cellvars": [],
-          "firstlineno": 14,
-          "freevars": [],
-          "instrs": [
-            4,
-            0,
-            0,
-            0,
-            14,
-            27,
-            4,
-            1,
-            0,
-            0,
-            14,
-            31,
-            13,
-            0,
-            0,
-            0,
-            14,
-            29,
-            21,
-            0,
-            0,
-            0,
-            14,
-            29,
-            1,
-            4,
-            0,
-            0,
-            14,
-            18,
-            21,
-            0,
-            0,
-            0,
-            14,
-            18
-          ],
-          "local_hints": {},
-          "local_names": [
-            "甲",
-            "乙"
-          ],
-          "name": "匿名函数",
-          "nlocals": 2,
-          "param_cell": [
-            -1,
-            -1
-          ],
-          "param_idx": [
-            42,
-            43
+            43,
+            44
           ],
           "param_kind": [
             0,
@@ -10259,36 +10364,106 @@
             0,
             0,
             15,
-            42,
+            27,
+            4,
             1,
-            67,
             0,
             0,
             15,
-            47,
-            15,
-            5,
+            31,
+            13,
             0,
             0,
+            0,
             15,
-            44,
+            29,
             21,
             0,
             0,
             0,
             15,
-            44,
+            29,
             1,
             4,
             0,
             0,
             15,
-            36,
+            18,
             21,
             0,
             0,
             0,
             15,
+            18
+          ],
+          "local_hints": {},
+          "local_names": [
+            "甲",
+            "乙"
+          ],
+          "name": "匿名函数",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            43,
+            44
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "甲",
+            "乙"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 16,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            16,
+            42,
+            1,
+            67,
+            0,
+            0,
+            16,
+            47,
+            15,
+            5,
+            0,
+            0,
+            16,
+            44,
+            21,
+            0,
+            0,
+            0,
+            16,
+            44,
+            1,
+            4,
+            0,
+            0,
+            16,
+            36,
+            21,
+            0,
+            0,
+            0,
+            16,
             36
           ],
           "local_hints": {},
@@ -10301,7 +10476,7 @@
             -1
           ],
           "param_idx": [
-            45
+            46
           ],
           "param_kind": [
             0
@@ -10586,7 +10761,7 @@
         },
         {
           "t": "str",
-          "v": "_语料成绩.csv"
+          "v": "成绩.csv"
         },
         {
           "t": "str",
@@ -10622,7 +10797,7 @@
         },
         {
           "t": "str",
-          "v": "_语料加分.csv"
+          "v": "加分.csv"
         },
         {
           "t": "str",
@@ -10672,6 +10847,7 @@
         "迭代",
         "表格",
         "文件",
+        "路径",
         "打印",
         "显示宽度",
         "左对齐",
@@ -10685,17 +10861,21 @@
         "x",
         "通过",
         "没过",
+        "临时目录",
+        "临时",
+        "连接",
+        "成绩文件",
         "写文本",
         "读表格",
         "成绩",
         "分组汇总",
         "各班",
-        "连接",
+        "加分文件",
         "合",
         "表头",
         "数据行",
         "行",
-        "删除文件"
+        "递归删除"
       ]
     },
     "version": 3
@@ -10813,7 +10993,34 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 9,
+      "line": 8,
+      "source_line": "导入 路径",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 8,
+      "source_line": "导入 路径",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "导入 路径",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "NAME",
       "value": "打印",
@@ -10822,7 +11029,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": "(",
@@ -10831,7 +11038,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "NAME",
       "value": "文本",
@@ -10840,7 +11047,7 @@
     {
       "col": 6,
       "end_col": 7,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": ".",
@@ -10849,7 +11056,7 @@
     {
       "col": 7,
       "end_col": 10,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "NAME",
       "value": "显示宽度",
@@ -10858,7 +11065,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": "(",
@@ -10867,7 +11074,7 @@
     {
       "col": 12,
       "end_col": 15,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "STRING",
       "value": "中文",
@@ -10876,7 +11083,7 @@
     {
       "col": 16,
       "end_col": 17,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": ")",
@@ -10885,7 +11092,7 @@
     {
       "col": 17,
       "end_col": 18,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": ",",
@@ -10894,7 +11101,7 @@
     {
       "col": 19,
       "end_col": 20,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "NAME",
       "value": "文本",
@@ -10903,7 +11110,7 @@
     {
       "col": 21,
       "end_col": 22,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": ".",
@@ -10912,7 +11119,7 @@
     {
       "col": 22,
       "end_col": 25,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "NAME",
       "value": "显示宽度",
@@ -10921,7 +11128,7 @@
     {
       "col": 26,
       "end_col": 27,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": "(",
@@ -10930,7 +11137,7 @@
     {
       "col": 27,
       "end_col": 31,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "STRING",
       "value": "abc",
@@ -10939,7 +11146,7 @@
     {
       "col": 32,
       "end_col": 33,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": ")",
@@ -10948,7 +11155,7 @@
     {
       "col": 33,
       "end_col": 34,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": ",",
@@ -10957,7 +11164,7 @@
     {
       "col": 35,
       "end_col": 36,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "NAME",
       "value": "文本",
@@ -10966,7 +11173,7 @@
     {
       "col": 37,
       "end_col": 38,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": ".",
@@ -10975,7 +11182,7 @@
     {
       "col": 38,
       "end_col": 41,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "NAME",
       "value": "显示宽度",
@@ -10984,7 +11191,7 @@
     {
       "col": 42,
       "end_col": 43,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": "(",
@@ -10993,7 +11200,7 @@
     {
       "col": 43,
       "end_col": 45,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "STRING",
       "value": "😀",
@@ -11002,7 +11209,7 @@
     {
       "col": 46,
       "end_col": 47,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": ")",
@@ -11011,7 +11218,7 @@
     {
       "col": 47,
       "end_col": 48,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "OP",
       "value": ")",
@@ -11020,7 +11227,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 9,
+      "line": 10,
       "source_line": "打印(文本.显示宽度(\"中文\"), 文本.显示宽度(\"abc\"), 文本.显示宽度(\"😀\"))",
       "type": "NEWLINE",
       "value": "\n",
@@ -11029,7 +11236,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "NAME",
       "value": "打印",
@@ -11038,7 +11245,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": "(",
@@ -11047,7 +11254,7 @@
     {
       "col": 4,
       "end_col": 6,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "STRING",
       "value": "[",
@@ -11056,7 +11263,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": "+",
@@ -11065,7 +11272,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "NAME",
       "value": "文本",
@@ -11074,7 +11281,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": ".",
@@ -11083,7 +11290,7 @@
     {
       "col": 13,
       "end_col": 15,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "NAME",
       "value": "左对齐",
@@ -11092,7 +11299,7 @@
     {
       "col": 16,
       "end_col": 17,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": "(",
@@ -11101,7 +11308,7 @@
     {
       "col": 17,
       "end_col": 20,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "STRING",
       "value": "中文",
@@ -11110,7 +11317,7 @@
     {
       "col": 21,
       "end_col": 22,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": ",",
@@ -11119,7 +11326,7 @@
     {
       "col": 23,
       "end_col": 23,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "NUMBER",
       "value": 8,
@@ -11128,7 +11335,7 @@
     {
       "col": 24,
       "end_col": 25,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": ")",
@@ -11137,7 +11344,7 @@
     {
       "col": 26,
       "end_col": 27,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": "+",
@@ -11146,7 +11353,7 @@
     {
       "col": 28,
       "end_col": 30,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "STRING",
       "value": "]",
@@ -11155,7 +11362,7 @@
     {
       "col": 31,
       "end_col": 32,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": ",",
@@ -11164,7 +11371,7 @@
     {
       "col": 33,
       "end_col": 35,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "STRING",
       "value": "[",
@@ -11173,7 +11380,7 @@
     {
       "col": 37,
       "end_col": 38,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": "+",
@@ -11182,7 +11389,7 @@
     {
       "col": 39,
       "end_col": 40,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "NAME",
       "value": "文本",
@@ -11191,7 +11398,7 @@
     {
       "col": 41,
       "end_col": 42,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": ".",
@@ -11200,7 +11407,7 @@
     {
       "col": 42,
       "end_col": 44,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "NAME",
       "value": "右对齐",
@@ -11209,7 +11416,7 @@
     {
       "col": 45,
       "end_col": 46,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": "(",
@@ -11218,7 +11425,7 @@
     {
       "col": 46,
       "end_col": 49,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "STRING",
       "value": "中文",
@@ -11227,7 +11434,7 @@
     {
       "col": 50,
       "end_col": 51,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": ",",
@@ -11236,7 +11443,7 @@
     {
       "col": 52,
       "end_col": 52,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "NUMBER",
       "value": 8,
@@ -11245,7 +11452,7 @@
     {
       "col": 53,
       "end_col": 54,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": ")",
@@ -11254,7 +11461,7 @@
     {
       "col": 55,
       "end_col": 56,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": "+",
@@ -11263,7 +11470,7 @@
     {
       "col": 57,
       "end_col": 59,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "STRING",
       "value": "]",
@@ -11272,7 +11479,7 @@
     {
       "col": 60,
       "end_col": 61,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "OP",
       "value": ")",
@@ -11281,7 +11488,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 10,
+      "line": 11,
       "source_line": "打印(\"[\" + 文本.左对齐(\"中文\", 8) + \"]\", \"[\" + 文本.右对齐(\"中文\", 8) + \"]\")",
       "type": "NEWLINE",
       "value": "\n",
@@ -11290,7 +11497,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "NAME",
       "value": "打印",
@@ -11299,7 +11506,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": "(",
@@ -11308,7 +11515,7 @@
     {
       "col": 4,
       "end_col": 6,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "STRING",
       "value": "[",
@@ -11317,7 +11524,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": "+",
@@ -11326,7 +11533,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "NAME",
       "value": "文本",
@@ -11335,7 +11542,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": ".",
@@ -11344,7 +11551,7 @@
     {
       "col": 13,
       "end_col": 14,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "NAME",
       "value": "居中",
@@ -11353,7 +11560,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": "(",
@@ -11362,7 +11569,7 @@
     {
       "col": 16,
       "end_col": 19,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "STRING",
       "value": "中文",
@@ -11371,7 +11578,7 @@
     {
       "col": 20,
       "end_col": 21,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": ",",
@@ -11380,7 +11587,7 @@
     {
       "col": 22,
       "end_col": 22,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "NUMBER",
       "value": 9,
@@ -11389,7 +11596,7 @@
     {
       "col": 23,
       "end_col": 24,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": ")",
@@ -11398,7 +11605,7 @@
     {
       "col": 25,
       "end_col": 26,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": "+",
@@ -11407,7 +11614,7 @@
     {
       "col": 27,
       "end_col": 29,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "STRING",
       "value": "]",
@@ -11416,7 +11623,7 @@
     {
       "col": 30,
       "end_col": 31,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": ",",
@@ -11425,7 +11632,7 @@
     {
       "col": 32,
       "end_col": 34,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "STRING",
       "value": "[",
@@ -11434,7 +11641,7 @@
     {
       "col": 36,
       "end_col": 37,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": "+",
@@ -11443,7 +11650,7 @@
     {
       "col": 38,
       "end_col": 39,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "NAME",
       "value": "文本",
@@ -11452,7 +11659,7 @@
     {
       "col": 40,
       "end_col": 41,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": ".",
@@ -11461,7 +11668,7 @@
     {
       "col": 41,
       "end_col": 42,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "NAME",
       "value": "填充",
@@ -11470,7 +11677,7 @@
     {
       "col": 43,
       "end_col": 44,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": "(",
@@ -11479,7 +11686,7 @@
     {
       "col": 44,
       "end_col": 47,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "STRING",
       "value": "ab",
@@ -11488,7 +11695,7 @@
     {
       "col": 48,
       "end_col": 49,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": ",",
@@ -11497,7 +11704,7 @@
     {
       "col": 50,
       "end_col": 50,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "NUMBER",
       "value": 5,
@@ -11506,7 +11713,7 @@
     {
       "col": 51,
       "end_col": 52,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": ",",
@@ -11515,7 +11722,7 @@
     {
       "col": 53,
       "end_col": 55,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "STRING",
       "value": "-",
@@ -11524,7 +11731,7 @@
     {
       "col": 56,
       "end_col": 57,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": ")",
@@ -11533,7 +11740,7 @@
     {
       "col": 58,
       "end_col": 59,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": "+",
@@ -11542,7 +11749,7 @@
     {
       "col": 60,
       "end_col": 62,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "STRING",
       "value": "]",
@@ -11551,7 +11758,7 @@
     {
       "col": 63,
       "end_col": 64,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "OP",
       "value": ")",
@@ -11560,7 +11767,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 11,
+      "line": 12,
       "source_line": "打印(\"[\" + 文本.居中(\"中文\", 9) + \"]\", \"[\" + 文本.填充(\"ab\", 5, \"-\") + \"]\")",
       "type": "NEWLINE",
       "value": "\n",
@@ -11569,7 +11776,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NAME",
       "value": "打印",
@@ -11578,7 +11785,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": "(",
@@ -11587,7 +11794,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NAME",
       "value": "迭代",
@@ -11596,7 +11803,7 @@
     {
       "col": 6,
       "end_col": 7,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ".",
@@ -11605,7 +11812,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NAME",
       "value": "归约",
@@ -11614,7 +11821,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": "(",
@@ -11623,7 +11830,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": "[",
@@ -11632,7 +11839,7 @@
     {
       "col": 11,
       "end_col": 11,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NUMBER",
       "value": 1,
@@ -11641,7 +11848,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ",",
@@ -11650,7 +11857,7 @@
     {
       "col": 14,
       "end_col": 14,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NUMBER",
       "value": 2,
@@ -11659,7 +11866,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ",",
@@ -11668,7 +11875,7 @@
     {
       "col": 17,
       "end_col": 17,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NUMBER",
       "value": 3,
@@ -11677,7 +11884,7 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ",",
@@ -11686,7 +11893,7 @@
     {
       "col": 20,
       "end_col": 20,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NUMBER",
       "value": 4,
@@ -11695,7 +11902,7 @@
     {
       "col": 21,
       "end_col": 22,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": "]",
@@ -11704,7 +11911,7 @@
     {
       "col": 22,
       "end_col": 23,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ",",
@@ -11713,7 +11920,7 @@
     {
       "col": 24,
       "end_col": 25,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "KEYWORD",
       "value": "函数",
@@ -11722,7 +11929,7 @@
     {
       "col": 26,
       "end_col": 27,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": "(",
@@ -11731,7 +11938,7 @@
     {
       "col": 27,
       "end_col": 27,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NAME",
       "value": "甲",
@@ -11740,7 +11947,7 @@
     {
       "col": 28,
       "end_col": 29,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ",",
@@ -11749,7 +11956,7 @@
     {
       "col": 30,
       "end_col": 30,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NAME",
       "value": "乙",
@@ -11758,7 +11965,7 @@
     {
       "col": 31,
       "end_col": 32,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ")",
@@ -11767,7 +11974,7 @@
     {
       "col": 32,
       "end_col": 33,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ":",
@@ -11776,7 +11983,7 @@
     {
       "col": 33,
       "end_col": 33,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NAME",
       "value": "甲",
@@ -11785,7 +11992,7 @@
     {
       "col": 35,
       "end_col": 36,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": "+",
@@ -11794,7 +12001,7 @@
     {
       "col": 37,
       "end_col": 37,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NAME",
       "value": "乙",
@@ -11803,7 +12010,7 @@
     {
       "col": 38,
       "end_col": 39,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ")",
@@ -11812,7 +12019,7 @@
     {
       "col": 39,
       "end_col": 40,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "OP",
       "value": ")",
@@ -11821,7 +12028,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 13,
+      "line": 14,
       "source_line": "打印(迭代.归约([1, 2, 3, 4], 函数(甲, 乙)：甲 + 乙))",
       "type": "NEWLINE",
       "value": "\n",
@@ -11830,7 +12037,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NAME",
       "value": "打印",
@@ -11839,7 +12046,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": "(",
@@ -11848,7 +12055,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NAME",
       "value": "迭代",
@@ -11857,7 +12064,7 @@
     {
       "col": 6,
       "end_col": 7,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": ".",
@@ -11866,7 +12073,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NAME",
       "value": "归约",
@@ -11875,7 +12082,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": "(",
@@ -11884,7 +12091,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": "[",
@@ -11893,7 +12100,7 @@
     {
       "col": 11,
       "end_col": 11,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NUMBER",
       "value": 1,
@@ -11902,7 +12109,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": ",",
@@ -11911,7 +12118,7 @@
     {
       "col": 14,
       "end_col": 14,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NUMBER",
       "value": 2,
@@ -11920,7 +12127,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": "]",
@@ -11929,7 +12136,7 @@
     {
       "col": 16,
       "end_col": 17,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": ",",
@@ -11938,7 +12145,7 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "KEYWORD",
       "value": "函数",
@@ -11947,7 +12154,7 @@
     {
       "col": 20,
       "end_col": 21,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": "(",
@@ -11956,7 +12163,7 @@
     {
       "col": 21,
       "end_col": 21,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NAME",
       "value": "甲",
@@ -11965,7 +12172,7 @@
     {
       "col": 22,
       "end_col": 23,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": ",",
@@ -11974,7 +12181,7 @@
     {
       "col": 24,
       "end_col": 24,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NAME",
       "value": "乙",
@@ -11983,7 +12190,7 @@
     {
       "col": 25,
       "end_col": 26,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": ")",
@@ -11992,7 +12199,7 @@
     {
       "col": 26,
       "end_col": 27,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": ":",
@@ -12001,7 +12208,7 @@
     {
       "col": 27,
       "end_col": 27,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NAME",
       "value": "甲",
@@ -12010,7 +12217,7 @@
     {
       "col": 29,
       "end_col": 30,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": "+",
@@ -12019,7 +12226,7 @@
     {
       "col": 31,
       "end_col": 31,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NAME",
       "value": "乙",
@@ -12028,7 +12235,7 @@
     {
       "col": 32,
       "end_col": 33,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": ",",
@@ -12037,7 +12244,7 @@
     {
       "col": 34,
       "end_col": 35,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NUMBER",
       "value": 10,
@@ -12046,7 +12253,7 @@
     {
       "col": 36,
       "end_col": 37,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": ")",
@@ -12055,7 +12262,7 @@
     {
       "col": 37,
       "end_col": 38,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "OP",
       "value": ")",
@@ -12064,7 +12271,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 14,
+      "line": 15,
       "source_line": "打印(迭代.归约([1, 2], 函数(甲, 乙)：甲 + 乙, 10))",
       "type": "NEWLINE",
       "value": "\n",
@@ -12073,7 +12280,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "KEYWORD",
       "value": "令",
@@ -12082,7 +12289,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NAME",
       "value": "通过",
@@ -12091,7 +12298,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ",",
@@ -12100,7 +12307,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NAME",
       "value": "没过",
@@ -12109,7 +12316,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": "=",
@@ -12118,7 +12325,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NAME",
       "value": "迭代",
@@ -12127,7 +12334,7 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ".",
@@ -12136,7 +12343,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NAME",
       "value": "分区",
@@ -12145,7 +12352,7 @@
     {
       "col": 17,
       "end_col": 18,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": "(",
@@ -12154,7 +12361,7 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": "[",
@@ -12163,7 +12370,7 @@
     {
       "col": 19,
       "end_col": 20,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NUMBER",
       "value": 55,
@@ -12172,7 +12379,7 @@
     {
       "col": 21,
       "end_col": 22,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ",",
@@ -12181,7 +12388,7 @@
     {
       "col": 23,
       "end_col": 24,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NUMBER",
       "value": 80,
@@ -12190,7 +12397,7 @@
     {
       "col": 25,
       "end_col": 26,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ",",
@@ -12199,7 +12406,7 @@
     {
       "col": 27,
       "end_col": 28,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NUMBER",
       "value": 42,
@@ -12208,7 +12415,7 @@
     {
       "col": 29,
       "end_col": 30,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ",",
@@ -12217,7 +12424,7 @@
     {
       "col": 31,
       "end_col": 32,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NUMBER",
       "value": 91,
@@ -12226,7 +12433,7 @@
     {
       "col": 33,
       "end_col": 34,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": "]",
@@ -12235,7 +12442,7 @@
     {
       "col": 34,
       "end_col": 35,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ",",
@@ -12244,7 +12451,7 @@
     {
       "col": 36,
       "end_col": 37,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "KEYWORD",
       "value": "函数",
@@ -12253,7 +12460,7 @@
     {
       "col": 38,
       "end_col": 39,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": "(",
@@ -12262,7 +12469,7 @@
     {
       "col": 39,
       "end_col": 39,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NAME",
       "value": "x",
@@ -12271,7 +12478,7 @@
     {
       "col": 40,
       "end_col": 41,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ")",
@@ -12280,7 +12487,7 @@
     {
       "col": 41,
       "end_col": 42,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ":",
@@ -12289,7 +12496,7 @@
     {
       "col": 42,
       "end_col": 42,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NAME",
       "value": "x",
@@ -12298,7 +12505,7 @@
     {
       "col": 44,
       "end_col": 46,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ">=",
@@ -12307,7 +12514,7 @@
     {
       "col": 47,
       "end_col": 48,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NUMBER",
       "value": 60,
@@ -12316,7 +12523,7 @@
     {
       "col": 49,
       "end_col": 50,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "OP",
       "value": ")",
@@ -12325,7 +12532,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 15,
+      "line": 16,
       "source_line": "令 通过, 没过 = 迭代.分区([55, 80, 42, 91], 函数(x)：x >= 60)",
       "type": "NEWLINE",
       "value": "\n",
@@ -12334,7 +12541,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 16,
+      "line": 17,
       "source_line": "打印(通过, 没过)",
       "type": "NAME",
       "value": "打印",
@@ -12343,7 +12550,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 16,
+      "line": 17,
       "source_line": "打印(通过, 没过)",
       "type": "OP",
       "value": "(",
@@ -12352,7 +12559,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 16,
+      "line": 17,
       "source_line": "打印(通过, 没过)",
       "type": "NAME",
       "value": "通过",
@@ -12361,7 +12568,7 @@
     {
       "col": 6,
       "end_col": 7,
-      "line": 16,
+      "line": 17,
       "source_line": "打印(通过, 没过)",
       "type": "OP",
       "value": ",",
@@ -12370,7 +12577,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 16,
+      "line": 17,
       "source_line": "打印(通过, 没过)",
       "type": "NAME",
       "value": "没过",
@@ -12379,7 +12586,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 16,
+      "line": 17,
       "source_line": "打印(通过, 没过)",
       "type": "OP",
       "value": ")",
@@ -12388,7 +12595,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 16,
+      "line": 17,
       "source_line": "打印(通过, 没过)",
       "type": "NEWLINE",
       "value": "\n",
@@ -12396,90 +12603,9 @@
     },
     {
       "col": 1,
-      "end_col": 2,
-      "line": 18,
-      "source_line": "文件.写文本(\"_语料成绩.csv\", \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
-      "type": "NAME",
-      "value": "文件",
-      "类型": "Token"
-    },
-    {
-      "col": 3,
-      "end_col": 4,
-      "line": 18,
-      "source_line": "文件.写文本(\"_语料成绩.csv\", \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
-      "type": "OP",
-      "value": ".",
-      "类型": "Token"
-    },
-    {
-      "col": 4,
-      "end_col": 6,
-      "line": 18,
-      "source_line": "文件.写文本(\"_语料成绩.csv\", \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
-      "type": "NAME",
-      "value": "写文本",
-      "类型": "Token"
-    },
-    {
-      "col": 7,
-      "end_col": 8,
-      "line": 18,
-      "source_line": "文件.写文本(\"_语料成绩.csv\", \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
-      "type": "OP",
-      "value": "(",
-      "类型": "Token"
-    },
-    {
-      "col": 8,
-      "end_col": 18,
-      "line": 18,
-      "source_line": "文件.写文本(\"_语料成绩.csv\", \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
-      "type": "STRING",
-      "value": "_语料成绩.csv",
-      "类型": "Token"
-    },
-    {
-      "col": 19,
-      "end_col": 20,
-      "line": 18,
-      "source_line": "文件.写文本(\"_语料成绩.csv\", \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
-      "type": "OP",
-      "value": ",",
-      "类型": "Token"
-    },
-    {
-      "col": 21,
-      "end_col": 62,
-      "line": 18,
-      "source_line": "文件.写文本(\"_语料成绩.csv\", \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
-      "type": "STRING",
-      "value": "姓名,班级,数学\n小明,一班,90\n小红,一班,80\n小刚,二班,70\n",
-      "类型": "Token"
-    },
-    {
-      "col": 63,
-      "end_col": 64,
-      "line": 18,
-      "source_line": "文件.写文本(\"_语料成绩.csv\", \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
-      "type": "OP",
-      "value": ")",
-      "类型": "Token"
-    },
-    {
-      "col": 1,
       "end_col": 1,
-      "line": 18,
-      "source_line": "文件.写文本(\"_语料成绩.csv\", \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
-      "type": "NEWLINE",
-      "value": "\n",
-      "类型": "Token"
-    },
-    {
-      "col": 1,
-      "end_col": 1,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
+      "line": 22,
+      "source_line": "令 临时 = 路径.临时目录()",
       "type": "KEYWORD",
       "value": "令",
       "类型": "Token"
@@ -12487,17 +12613,17 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
+      "line": 22,
+      "source_line": "令 临时 = 路径.临时目录()",
       "type": "NAME",
-      "value": "成绩",
+      "value": "临时",
       "类型": "Token"
     },
     {
       "col": 6,
       "end_col": 7,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
+      "line": 22,
+      "source_line": "令 临时 = 路径.临时目录()",
       "type": "OP",
       "value": "=",
       "类型": "Token"
@@ -12505,53 +12631,44 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
+      "line": 22,
+      "source_line": "令 临时 = 路径.临时目录()",
       "type": "NAME",
-      "value": "表格",
+      "value": "路径",
       "类型": "Token"
     },
     {
       "col": 10,
       "end_col": 11,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
+      "line": 22,
+      "source_line": "令 临时 = 路径.临时目录()",
       "type": "OP",
       "value": ".",
       "类型": "Token"
     },
     {
       "col": 11,
-      "end_col": 13,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
+      "end_col": 14,
+      "line": 22,
+      "source_line": "令 临时 = 路径.临时目录()",
       "type": "NAME",
-      "value": "读表格",
+      "value": "临时目录",
       "类型": "Token"
     },
     {
-      "col": 14,
-      "end_col": 15,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
+      "col": 15,
+      "end_col": 16,
+      "line": 22,
+      "source_line": "令 临时 = 路径.临时目录()",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
-      "col": 15,
-      "end_col": 25,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
-      "type": "STRING",
-      "value": "_语料成绩.csv",
-      "类型": "Token"
-    },
-    {
-      "col": 26,
-      "end_col": 27,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
+      "col": 16,
+      "end_col": 17,
+      "line": 22,
+      "source_line": "令 临时 = 路径.临时目录()",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -12559,8 +12676,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 19,
-      "source_line": "令 成绩 = 表格.读表格(\"_语料成绩.csv\")",
+      "line": 22,
+      "source_line": "令 临时 = 路径.临时目录()",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -12568,7 +12685,286 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 20,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 6,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "NAME",
+      "value": "成绩文件",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "NAME",
+      "value": "临时",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 27,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "STRING",
+      "value": "成绩.csv",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "令 成绩文件 = 路径.连接(临时, \"成绩.csv\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 24,
+      "source_line": "文件.写文本(成绩文件, \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 24,
+      "source_line": "文件.写文本(成绩文件, \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 24,
+      "source_line": "文件.写文本(成绩文件, \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
+      "type": "NAME",
+      "value": "写文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 24,
+      "source_line": "文件.写文本(成绩文件, \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 11,
+      "line": 24,
+      "source_line": "文件.写文本(成绩文件, \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
+      "type": "NAME",
+      "value": "成绩文件",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 24,
+      "source_line": "文件.写文本(成绩文件, \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 55,
+      "line": 24,
+      "source_line": "文件.写文本(成绩文件, \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
+      "type": "STRING",
+      "value": "姓名,班级,数学\n小明,一班,90\n小红,一班,80\n小刚,二班,70\n",
+      "类型": "Token"
+    },
+    {
+      "col": 56,
+      "end_col": 57,
+      "line": 24,
+      "source_line": "文件.写文本(成绩文件, \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "文件.写文本(成绩文件, \"姓名,班级,数学\\n小明,一班,90\\n小红,一班,80\\n小刚,二班,70\\n\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "NAME",
+      "value": "成绩",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "NAME",
+      "value": "表格",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 13,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "NAME",
+      "value": "读表格",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 18,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "NAME",
+      "value": "成绩文件",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "令 成绩 = 表格.读表格(成绩文件)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "KEYWORD",
       "value": "令",
@@ -12577,7 +12973,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "NAME",
       "value": "各班",
@@ -12586,7 +12982,7 @@
     {
       "col": 6,
       "end_col": 7,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "OP",
       "value": "=",
@@ -12595,7 +12991,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "NAME",
       "value": "表格",
@@ -12604,7 +13000,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "OP",
       "value": ".",
@@ -12613,7 +13009,7 @@
     {
       "col": 11,
       "end_col": 14,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "NAME",
       "value": "分组汇总",
@@ -12622,7 +13018,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "OP",
       "value": "(",
@@ -12631,7 +13027,7 @@
     {
       "col": 16,
       "end_col": 17,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "NAME",
       "value": "成绩",
@@ -12640,7 +13036,7 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "OP",
       "value": ",",
@@ -12649,7 +13045,7 @@
     {
       "col": 20,
       "end_col": 23,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "STRING",
       "value": "班级",
@@ -12658,7 +13054,7 @@
     {
       "col": 24,
       "end_col": 25,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "OP",
       "value": ",",
@@ -12667,7 +13063,7 @@
     {
       "col": 26,
       "end_col": 29,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "STRING",
       "value": "数学",
@@ -12676,7 +13072,7 @@
     {
       "col": 30,
       "end_col": 31,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "OP",
       "value": ")",
@@ -12685,7 +13081,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 20,
+      "line": 26,
       "source_line": "令 各班 = 表格.分组汇总(成绩, \"班级\", \"数学\")",
       "type": "NEWLINE",
       "value": "\n",
@@ -12694,7 +13090,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "NAME",
       "value": "打印",
@@ -12703,7 +13099,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "(",
@@ -12712,7 +13108,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "NAME",
       "value": "各班",
@@ -12721,7 +13117,7 @@
     {
       "col": 6,
       "end_col": 7,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "[",
@@ -12730,7 +13126,7 @@
     {
       "col": 7,
       "end_col": 10,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "STRING",
       "value": "一班",
@@ -12739,7 +13135,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "]",
@@ -12748,7 +13144,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "[",
@@ -12757,7 +13153,7 @@
     {
       "col": 13,
       "end_col": 16,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "STRING",
       "value": "个数",
@@ -12766,7 +13162,7 @@
     {
       "col": 17,
       "end_col": 18,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "]",
@@ -12775,7 +13171,7 @@
     {
       "col": 18,
       "end_col": 19,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": ",",
@@ -12784,7 +13180,7 @@
     {
       "col": 20,
       "end_col": 21,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "NAME",
       "value": "各班",
@@ -12793,7 +13189,7 @@
     {
       "col": 22,
       "end_col": 23,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "[",
@@ -12802,7 +13198,7 @@
     {
       "col": 23,
       "end_col": 26,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "STRING",
       "value": "一班",
@@ -12811,7 +13207,7 @@
     {
       "col": 27,
       "end_col": 28,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "]",
@@ -12820,7 +13216,7 @@
     {
       "col": 28,
       "end_col": 29,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "[",
@@ -12829,7 +13225,7 @@
     {
       "col": 29,
       "end_col": 32,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "STRING",
       "value": "平均",
@@ -12838,7 +13234,7 @@
     {
       "col": 33,
       "end_col": 34,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "]",
@@ -12847,7 +13243,7 @@
     {
       "col": 34,
       "end_col": 35,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": ",",
@@ -12856,7 +13252,7 @@
     {
       "col": 36,
       "end_col": 37,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "NAME",
       "value": "各班",
@@ -12865,7 +13261,7 @@
     {
       "col": 38,
       "end_col": 39,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "[",
@@ -12874,7 +13270,7 @@
     {
       "col": 39,
       "end_col": 42,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "STRING",
       "value": "二班",
@@ -12883,7 +13279,7 @@
     {
       "col": 43,
       "end_col": 44,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "]",
@@ -12892,7 +13288,7 @@
     {
       "col": 44,
       "end_col": 45,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "[",
@@ -12901,7 +13297,7 @@
     {
       "col": 45,
       "end_col": 48,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "STRING",
       "value": "总和",
@@ -12910,7 +13306,7 @@
     {
       "col": 49,
       "end_col": 50,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": "]",
@@ -12919,7 +13315,7 @@
     {
       "col": 50,
       "end_col": 51,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "OP",
       "value": ")",
@@ -12928,7 +13324,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 21,
+      "line": 27,
       "source_line": "打印(各班[\"一班\"][\"个数\"], 各班[\"一班\"][\"平均\"], 各班[\"二班\"][\"总和\"])",
       "type": "NEWLINE",
       "value": "\n",
@@ -12936,9 +13332,117 @@
     },
     {
       "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 6,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "NAME",
+      "value": "加分文件",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "NAME",
+      "value": "临时",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 27,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "STRING",
+      "value": "加分.csv",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "令 加分文件 = 路径.连接(临时, \"加分.csv\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
       "end_col": 2,
-      "line": 23,
-      "source_line": "文件.写文本(\"_语料加分.csv\", \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
+      "line": 30,
+      "source_line": "文件.写文本(加分文件, \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
       "type": "NAME",
       "value": "文件",
       "类型": "Token"
@@ -12946,8 +13450,8 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 23,
-      "source_line": "文件.写文本(\"_语料加分.csv\", \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
+      "line": 30,
+      "source_line": "文件.写文本(加分文件, \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
       "type": "OP",
       "value": ".",
       "类型": "Token"
@@ -12955,8 +13459,8 @@
     {
       "col": 4,
       "end_col": 6,
-      "line": 23,
-      "source_line": "文件.写文本(\"_语料加分.csv\", \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
+      "line": 30,
+      "source_line": "文件.写文本(加分文件, \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
       "type": "NAME",
       "value": "写文本",
       "类型": "Token"
@@ -12964,44 +13468,44 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 23,
-      "source_line": "文件.写文本(\"_语料加分.csv\", \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
+      "line": 30,
+      "source_line": "文件.写文本(加分文件, \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
       "col": 8,
-      "end_col": 18,
-      "line": 23,
-      "source_line": "文件.写文本(\"_语料加分.csv\", \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
-      "type": "STRING",
-      "value": "_语料加分.csv",
+      "end_col": 11,
+      "line": 30,
+      "source_line": "文件.写文本(加分文件, \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
+      "type": "NAME",
+      "value": "加分文件",
       "类型": "Token"
     },
     {
-      "col": 19,
-      "end_col": 20,
-      "line": 23,
-      "source_line": "文件.写文本(\"_语料加分.csv\", \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
+      "col": 12,
+      "end_col": 13,
+      "line": 30,
+      "source_line": "文件.写文本(加分文件, \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
       "type": "OP",
       "value": ",",
       "类型": "Token"
     },
     {
-      "col": 21,
-      "end_col": 41,
-      "line": 23,
-      "source_line": "文件.写文本(\"_语料加分.csv\", \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
+      "col": 14,
+      "end_col": 34,
+      "line": 30,
+      "source_line": "文件.写文本(加分文件, \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
       "type": "STRING",
       "value": "姓名,加分\n小明,5\n小刚,3\n",
       "类型": "Token"
     },
     {
-      "col": 42,
-      "end_col": 43,
-      "line": 23,
-      "source_line": "文件.写文本(\"_语料加分.csv\", \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
+      "col": 35,
+      "end_col": 36,
+      "line": 30,
+      "source_line": "文件.写文本(加分文件, \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -13009,8 +13513,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 23,
-      "source_line": "文件.写文本(\"_语料加分.csv\", \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
+      "line": 30,
+      "source_line": "文件.写文本(加分文件, \"姓名,加分\\n小明,5\\n小刚,3\\n\")",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -13018,8 +13522,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "KEYWORD",
       "value": "令",
       "类型": "Token"
@@ -13027,8 +13531,8 @@
     {
       "col": 3,
       "end_col": 3,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "NAME",
       "value": "合",
       "类型": "Token"
@@ -13036,8 +13540,8 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "OP",
       "value": "=",
       "类型": "Token"
@@ -13045,8 +13549,8 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "NAME",
       "value": "表格",
       "类型": "Token"
@@ -13054,8 +13558,8 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "OP",
       "value": ".",
       "类型": "Token"
@@ -13063,8 +13567,8 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "NAME",
       "value": "连接",
       "类型": "Token"
@@ -13072,8 +13576,8 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "OP",
       "value": "(",
       "类型": "Token"
@@ -13081,8 +13585,8 @@
     {
       "col": 13,
       "end_col": 14,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "NAME",
       "value": "成绩",
       "类型": "Token"
@@ -13090,8 +13594,8 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "OP",
       "value": ",",
       "类型": "Token"
@@ -13099,8 +13603,8 @@
     {
       "col": 17,
       "end_col": 18,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "NAME",
       "value": "表格",
       "类型": "Token"
@@ -13108,8 +13612,8 @@
     {
       "col": 19,
       "end_col": 20,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "OP",
       "value": ".",
       "类型": "Token"
@@ -13117,8 +13621,8 @@
     {
       "col": 20,
       "end_col": 22,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "NAME",
       "value": "读表格",
       "类型": "Token"
@@ -13126,53 +13630,53 @@
     {
       "col": 23,
       "end_col": 24,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
       "col": 24,
-      "end_col": 34,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
-      "type": "STRING",
-      "value": "_语料加分.csv",
+      "end_col": 27,
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
+      "type": "NAME",
+      "value": "加分文件",
       "类型": "Token"
     },
     {
-      "col": 35,
-      "end_col": 36,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "col": 28,
+      "end_col": 29,
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "OP",
       "value": ")",
       "类型": "Token"
     },
     {
-      "col": 36,
-      "end_col": 37,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "col": 29,
+      "end_col": 30,
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "OP",
       "value": ",",
       "类型": "Token"
     },
     {
-      "col": 38,
-      "end_col": 41,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "col": 31,
+      "end_col": 34,
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "STRING",
       "value": "姓名",
       "类型": "Token"
     },
     {
-      "col": 42,
-      "end_col": 43,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "col": 35,
+      "end_col": 36,
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -13180,8 +13684,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 24,
-      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(\"_语料加分.csv\"), \"姓名\")",
+      "line": 31,
+      "source_line": "令 合 = 表格.连接(成绩, 表格.读表格(加分文件), \"姓名\")",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -13189,7 +13693,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 25,
+      "line": 32,
       "source_line": "打印(合)",
       "type": "NAME",
       "value": "打印",
@@ -13198,7 +13702,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 25,
+      "line": 32,
       "source_line": "打印(合)",
       "type": "OP",
       "value": "(",
@@ -13207,7 +13711,7 @@
     {
       "col": 4,
       "end_col": 4,
-      "line": 25,
+      "line": 32,
       "source_line": "打印(合)",
       "type": "NAME",
       "value": "合",
@@ -13216,7 +13720,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 25,
+      "line": 32,
       "source_line": "打印(合)",
       "type": "OP",
       "value": ")",
@@ -13225,7 +13729,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 25,
+      "line": 32,
       "source_line": "打印(合)",
       "type": "NEWLINE",
       "value": "\n",
@@ -13234,7 +13738,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "NAME",
       "value": "打印",
@@ -13243,7 +13747,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "OP",
       "value": "(",
@@ -13252,7 +13756,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "NAME",
       "value": "表格",
@@ -13261,7 +13765,7 @@
     {
       "col": 6,
       "end_col": 7,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "OP",
       "value": ".",
@@ -13270,7 +13774,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "NAME",
       "value": "表头",
@@ -13279,7 +13783,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "OP",
       "value": "(",
@@ -13288,7 +13792,7 @@
     {
       "col": 10,
       "end_col": 10,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "NAME",
       "value": "合",
@@ -13297,7 +13801,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "OP",
       "value": ")",
@@ -13306,7 +13810,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "OP",
       "value": ")",
@@ -13315,7 +13819,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 26,
+      "line": 33,
       "source_line": "打印(表格.表头(合))",
       "type": "NEWLINE",
       "value": "\n",
@@ -13324,7 +13828,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "KEYWORD",
       "value": "遍历",
@@ -13333,7 +13837,7 @@
     {
       "col": 4,
       "end_col": 4,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "NAME",
       "value": "行",
@@ -13342,7 +13846,7 @@
     {
       "col": 6,
       "end_col": 6,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "KEYWORD",
       "value": "在",
@@ -13351,7 +13855,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "NAME",
       "value": "表格",
@@ -13360,7 +13864,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "OP",
       "value": ".",
@@ -13369,7 +13873,7 @@
     {
       "col": 11,
       "end_col": 13,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "NAME",
       "value": "数据行",
@@ -13378,7 +13882,7 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "OP",
       "value": "(",
@@ -13387,7 +13891,7 @@
     {
       "col": 15,
       "end_col": 15,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "NAME",
       "value": "合",
@@ -13396,7 +13900,7 @@
     {
       "col": 16,
       "end_col": 17,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "OP",
       "value": ")",
@@ -13405,7 +13909,7 @@
     {
       "col": 17,
       "end_col": 18,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "OP",
       "value": ":",
@@ -13414,7 +13918,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 27,
+      "line": 34,
       "source_line": "遍历 行 在 表格.数据行(合)：",
       "type": "NEWLINE",
       "value": "\n",
@@ -13423,7 +13927,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 28,
+      "line": 35,
       "source_line": "    打印(行)",
       "type": "INDENT",
       "value": 4,
@@ -13432,7 +13936,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 28,
+      "line": 35,
       "source_line": "    打印(行)",
       "type": "NAME",
       "value": "打印",
@@ -13441,7 +13945,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 28,
+      "line": 35,
       "source_line": "    打印(行)",
       "type": "OP",
       "value": "(",
@@ -13450,7 +13954,7 @@
     {
       "col": 8,
       "end_col": 8,
-      "line": 28,
+      "line": 35,
       "source_line": "    打印(行)",
       "type": "NAME",
       "value": "行",
@@ -13459,7 +13963,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 28,
+      "line": 35,
       "source_line": "    打印(行)",
       "type": "OP",
       "value": ")",
@@ -13468,7 +13972,7 @@
     {
       "col": 5,
       "end_col": 1,
-      "line": 28,
+      "line": 35,
       "source_line": "    打印(行)",
       "type": "NEWLINE",
       "value": "\n",
@@ -13477,8 +13981,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 30,
-      "source_line": "文件.删除文件(\"_语料成绩.csv\")",
+      "line": 37,
+      "source_line": "路径.递归删除(临时)",
       "type": "DEDENT",
       "value": 0,
       "类型": "Token"
@@ -13486,17 +13990,17 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 30,
-      "source_line": "文件.删除文件(\"_语料成绩.csv\")",
+      "line": 37,
+      "source_line": "路径.递归删除(临时)",
       "type": "NAME",
-      "value": "文件",
+      "value": "路径",
       "类型": "Token"
     },
     {
       "col": 3,
       "end_col": 4,
-      "line": 30,
-      "source_line": "文件.删除文件(\"_语料成绩.csv\")",
+      "line": 37,
+      "source_line": "路径.递归删除(临时)",
       "type": "OP",
       "value": ".",
       "类型": "Token"
@@ -13504,35 +14008,35 @@
     {
       "col": 4,
       "end_col": 7,
-      "line": 30,
-      "source_line": "文件.删除文件(\"_语料成绩.csv\")",
+      "line": 37,
+      "source_line": "路径.递归删除(临时)",
       "type": "NAME",
-      "value": "删除文件",
+      "value": "递归删除",
       "类型": "Token"
     },
     {
       "col": 8,
       "end_col": 9,
-      "line": 30,
-      "source_line": "文件.删除文件(\"_语料成绩.csv\")",
+      "line": 37,
+      "source_line": "路径.递归删除(临时)",
       "type": "OP",
       "value": "(",
       "类型": "Token"
     },
     {
       "col": 9,
-      "end_col": 19,
-      "line": 30,
-      "source_line": "文件.删除文件(\"_语料成绩.csv\")",
-      "type": "STRING",
-      "value": "_语料成绩.csv",
+      "end_col": 10,
+      "line": 37,
+      "source_line": "路径.递归删除(临时)",
+      "type": "NAME",
+      "value": "临时",
       "类型": "Token"
     },
     {
-      "col": 20,
-      "end_col": 21,
-      "line": 30,
-      "source_line": "文件.删除文件(\"_语料成绩.csv\")",
+      "col": 11,
+      "end_col": 12,
+      "line": 37,
+      "source_line": "路径.递归删除(临时)",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -13540,71 +14044,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 30,
-      "source_line": "文件.删除文件(\"_语料成绩.csv\")",
-      "type": "NEWLINE",
-      "value": "\n",
-      "类型": "Token"
-    },
-    {
-      "col": 1,
-      "end_col": 2,
-      "line": 31,
-      "source_line": "文件.删除文件(\"_语料加分.csv\")",
-      "type": "NAME",
-      "value": "文件",
-      "类型": "Token"
-    },
-    {
-      "col": 3,
-      "end_col": 4,
-      "line": 31,
-      "source_line": "文件.删除文件(\"_语料加分.csv\")",
-      "type": "OP",
-      "value": ".",
-      "类型": "Token"
-    },
-    {
-      "col": 4,
-      "end_col": 7,
-      "line": 31,
-      "source_line": "文件.删除文件(\"_语料加分.csv\")",
-      "type": "NAME",
-      "value": "删除文件",
-      "类型": "Token"
-    },
-    {
-      "col": 8,
-      "end_col": 9,
-      "line": 31,
-      "source_line": "文件.删除文件(\"_语料加分.csv\")",
-      "type": "OP",
-      "value": "(",
-      "类型": "Token"
-    },
-    {
-      "col": 9,
-      "end_col": 19,
-      "line": 31,
-      "source_line": "文件.删除文件(\"_语料加分.csv\")",
-      "type": "STRING",
-      "value": "_语料加分.csv",
-      "类型": "Token"
-    },
-    {
-      "col": 20,
-      "end_col": 21,
-      "line": 31,
-      "source_line": "文件.删除文件(\"_语料加分.csv\")",
-      "type": "OP",
-      "value": ")",
-      "类型": "Token"
-    },
-    {
-      "col": 1,
-      "end_col": 1,
-      "line": 31,
-      "source_line": "文件.删除文件(\"_语料加分.csv\")",
+      "line": 37,
+      "source_line": "路径.递归删除(临时)",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -13612,13 +14053,13 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 31,
+      "line": 37,
       "source_line": "",
       "type": "EOF",
       "value": null,
       "类型": "Token"
     }
   ],
-  "内容哈希": "sha256:d4b90880878600cf",
+  "内容哈希": "sha256:58cc3dd947ffbe70",
   "语料": "tests/cases/27_标准库新增.jsh"
 }

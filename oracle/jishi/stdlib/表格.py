@@ -10,11 +10,14 @@ from __future__ import annotations
 import csv as _py_csv
 
 from ..errors import RunFileError, RunTypeError
+from ..runtime import jishi_repr
+from .文本 import 显示宽度
 
 __all__ = [
     "读表格", "写表格", "写字典表格", "读字典表格", "追加",
     "从记录", "转记录",
     "表头", "数据行", "挑选", "筛选", "排序按", "汇总", "分组汇总", "连接", "转置",
+    "转文本", "转TSV",
 ]
 
 
@@ -292,3 +295,93 @@ def 转置(行列表: list) -> list:
     if not 行列表:
         return []
     return [list(col) for col in zip(*行列表)]
+
+
+def _要表格(t, 谁: str) -> None:
+    if not isinstance(t, _Table):
+        # ⚠️ 文案要与 Rust / Node **逐字一致**（报错语料会跨引擎比）。
+        raise RunTypeError(
+            f"「{谁}」要传一个表格（现在是「{jishi_repr(t, top=True)}」）"
+            "—— 用 表格.读表格 或 表格.从记录 得到")
+
+
+def _是数字(v) -> bool:
+    """这一格是不是数（布尔不算 —— Python 里 `True` 也是 `int`）。"""
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _补(文本: str, 宽: int, 靠右: bool) -> str:
+    """按**显示宽度**补空格到指定列宽（汉字算 2 列，与 `文本.显示宽度` 同一口径）。"""
+    差 = 宽 - 显示宽度(文本)
+    if 差 <= 0:
+        return 文本
+    return (" " * 差 + 文本) if 靠右 else (文本 + " " * 差)
+
+
+def 转文本(t) -> str:
+    """把表格渲染成**给人看**的等宽文本：表头 + 分隔线 + 对齐的数据行。
+
+    对齐全按**显示宽度**来（**一个汉字算 2 列**，与 `文本.显示宽度` 同口径），
+    所以中文表格在终端里也是齐的；**数字列自动右对齐**（好比较大小）。
+
+    返回值**末尾不带换行** —— 直接 `打印` 就行，要多行自己加。
+    要「给程序读」请用 `表格.转TSV`（或 `表格.写表格` 存 CSV）。
+    """
+    _要表格(t, "转文本")
+    头 = [jishi_repr(h, top=True) for h in t.headers]
+    列数 = len(头)
+    if 列数 == 0:
+        return ""
+    行们 = [[jishi_repr(c, top=True) for c in r] for r in t.rows]
+    宽 = [显示宽度(x) for x in 头]
+    靠右 = []
+    for i in range(列数):
+        有值 = 全数字 = False
+        for j, r in enumerate(t.rows):
+            if i >= len(r):
+                continue
+            v = r[i]
+            if v is None or (isinstance(v, str) and v == ""):
+                continue
+            if not 有值:
+                有值 = 全数字 = True
+            elif not _是数字(v):
+                全数字 = False
+        靠右.append(有值 and 全数字)
+    for r in 行们:
+        for i in range(min(列数, len(r))):
+            宽[i] = max(宽[i], 显示宽度(r[i]))
+    出 = ["  ".join(_补(头[i], 宽[i], 靠右[i]) for i in range(列数)).rstrip()]
+    出.append("  ".join("-" * 宽[i] for i in range(列数)))
+    for r in 行们:
+        元 = []
+        for i in range(列数):
+            x = r[i] if i < len(r) else ""
+            元.append(_补(x, 宽[i], 靠右[i]))
+        出.append("  ".join(元).rstrip())
+    return "\n".join(出)
+
+
+def 转TSV(t) -> str:
+    """把表格变成 **TSV 文本**（制表符分隔）—— 好粘进 Excel / 喂给别的程序。
+
+    第一行是表头；行之间用 `\n` 分隔（**不是** `\r\n`，免得平台相关）；
+    **末尾不带换行**。
+
+    ⚠️ 单元格里含制表符或换行时**直接报错** —— TSV 装不下它们，
+    静默把内容改掉更糟。那种内容请用 `表格.写表格` 存成 CSV。
+    """
+    _要表格(t, "转TSV")
+    出 = []
+    for 号, r in enumerate([t.headers] + t.rows):
+        元 = []
+        for 列, c in enumerate(r):
+            s = jishi_repr(c, top=True)
+            if "\t" in s or "\n" in s or "\r" in s:
+                # ⚠️ 不用 `hint=`：Rust 侧没有 hint 机制，三边文案会对不齐。
+                raise RunTypeError(
+                    f"第 {号 + 1} 行第 {列 + 1} 格里含制表符或换行，TSV 装不下"
+                    " —— 要写这种内容请用 表格.写表格 存成 CSV")
+            元.append(s)
+        出.append("\t".join(元))
+    return "\n".join(出)

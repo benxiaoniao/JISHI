@@ -17,7 +17,7 @@ use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{as_text, need, need_range, table, R};
-use crate::{err, JishiError, Val};
+use crate::{display, err, JishiError, Val};
 
 /// 找结构里有没有字节：JSON 没有二进制，字节必须显式转文本（D79 §三）。
 fn reject_bytes(v: &Val) -> Result<(), JishiError> {
@@ -217,12 +217,11 @@ impl<'a> P<'a> {
             b't' => self.literal("true", Val::Bool(true)),
             b'f' => self.literal("false", Val::Bool(false)),
             b'n' => self.literal("null", Val::None_),
-            b'N' => self.literal("NaN", Val::Float(f64::NAN)),
-            b'I' => self.literal("Infinity", Val::Float(f64::INFINITY)),
-            b'-' if self.b[self.i..].starts_with(b"-Infinity") => {
-                self.i += 9;
-                Ok(Val::Float(f64::NEG_INFINITY))
-            }
+            // 🔴 M120：**不再接受** `NaN` / `Infinity` / `-Infinity`。
+            //    JSON 标准（RFC 8259）里没有这三个；JS 的 `JSON.parse` 也拒绝。
+            //    以前 Python 的 `json.loads` 和这个解析器都「顺手放过」，
+            //    于是同一段文本在 Tree-walk 说有效、在 Node 说无效 —— 判据必红。
+            //    现在三边统一：不是数字就不是 JSON。
             _ => self.number(),
         }
     }
@@ -478,6 +477,21 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "解析" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("解析", args, 1)?;
             parse(&as_text(&args[0]))
+        },
+        // M120：只问「是不是合法 JSON」，不抛错。口径与 `解析` **同一个解析器**
+        // ⇒ 不存在「有效说假、解析却成功」这种自相矛盾。
+        "有效" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("有效", args, 1)?;
+            let s = match &args[0] {
+                Val::Str(s) => s.clone(),
+                v => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「有效」要传文本（现在是「{}」）", display(v)),
+                    ))
+                }
+            };
+            Ok(Val::Bool(parse(&s).is_ok()))
         },
         "读文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("读文件", args, 1)?;

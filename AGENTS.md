@@ -180,9 +180,14 @@
 - ⚠️ **新模块要重跑两个生成器**（不然命名参数在宿主上报「暂不支持命名参数」）：
   `python tools/gen_stdlib_sigs.py`（→ `rust/src/stdlib_sigs.rs` +
   `oracle/node/stdlib_sigs.js`）与 `python tools/gen_langdata_rs.py`（→ `rust/src/langdata.rs`）。
-  M119 之后是 **28 模块 / 292 函数**（M117：`数学.限制`/`符号`、`容器.索引表`/`深拷贝`、
+  M120 之后是 **28 模块 / 299 函数**（M117：`数学.限制`/`符号`、`容器.索引表`/`深拷贝`、
   `随机.随机文本`/`按权重`；M118：`文件.追加字节`/`复制目录`、`压缩.解压成员`；
-  M119：`编码.GBK文本`/`文本GBK`）。
+  M119：`编码.GBK文本`/`文本GBK`；M120：`路径.分隔符`、`系统.CPU核数`、`日期.月天数`、
+  `时间.时区偏移`、`json.有效`、`表格.转文本`/`转TSV`）。
+  ⚠️ **`json` 是严格口径**：`NaN`/`Infinity` 不算合法 JSON（RFC 8259 本来就不允许），
+  Python 的 `json.loads` 与 Rust 手写 parser 都**曾经**放过它们 —— M120 全改成拒绝。
+  📌 **`时间.时区偏移` 给的是偏移不是时区名**：时区名在三家宿主上口径完全不同
+  （Python 本地化长名 / Node IANA 名 / Rust 拿不到），只有偏移能对拍。
   ⚠️ **`文本GBK`（编码方向）在 Node 上要靠一张生成的码表**
   （`oracle/node/gbk_table.js`，`python tools/gen_gbk_table.py` 生成，**签入仓库**）。
   Node 的 `TextEncoder('gbk')` **不报错但永远按 UTF-8 编** —— 静默错，别信它。

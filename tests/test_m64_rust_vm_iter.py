@@ -18,6 +18,7 @@ Val::List(l) => { ... Ok(Some(l.remove(0))) }     // Vec::remove(0) 要整体左
 
 import io
 import os
+import tempfile
 import subprocess
 import sys
 import time
@@ -45,8 +46,21 @@ need_rust_vm = pytest.mark.skipif(
     reason="Rust 宿主未构建（cd rust && cargo build --release）"
            "—— 与其假装通过，不如明确跳过")
 
-#: 临时字节码路径（带进程号，避免并发互相覆盖）
-_BC = ROOT / "build" / f"_m64_iter_{os.getpid()}.json"
+#: 临时字节码的**序号**（每次调用换一个新文件名，见 `_bytecode_path`）。
+_SEQ = 0
+
+
+def _bytecode_path() -> Path:
+    """给这一次调用一个**全新的**字节码路径。
+
+    🔴 **不只是「每进程一个」**（2026-10-18 在 `-n 8` 全量里撞到 `PermissionError`）：
+    Windows 上子进程退出后文件句柄**可能还没完全释放**，紧接着重写同一个路径就
+    `Errno 13 拒绝访问`。载荷紧的时候才撞得到，串行跑永远绿 —— 典型的时序假红。
+    ⇒ 每次换新名字；而且放**系统临时目录**，不往 `build/` 里丢东西（那是构建产物目录）。
+    """
+    global _SEQ
+    _SEQ += 1
+    return Path(tempfile.gettempdir()) / f"jishi_m64_iter_{os.getpid()}_{_SEQ}.json"
 
 
 def _tree(src: str) -> str:
@@ -79,10 +93,10 @@ def _vm(src: str) -> str:
 
 def _rust(src: str, timeout: float = 120.0):
     """用 Rust 前端编字节码 → 交给 Rust VM 跑。返回 `(stdout, 秒)`。"""
-    _BC.parent.mkdir(parents=True, exist_ok=True)
-    _BC.write_text(compile_to_json(src, "遍历.jsh"), encoding="utf-8")
+    bc = _bytecode_path()
+    bc.write_text(compile_to_json(src, "遍历.jsh"), encoding="utf-8")
     t0 = time.perf_counter()
-    r = subprocess.run([str(EXE), "--load-bytecode", str(_BC)], capture_output=True,
+    r = subprocess.run([str(EXE), "--load-bytecode", str(bc)], capture_output=True,
                        input=b"", timeout=timeout)
     dt = time.perf_counter() - t0
     return r.stdout.decode("utf-8", errors="replace"), dt

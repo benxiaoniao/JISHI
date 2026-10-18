@@ -9,7 +9,7 @@ from datetime import datetime as _py_datetime, timedelta as _py_timedelta
 from ..errors import RunTypeError, RunValueError
 
 __all__ = [
-    "现在",     "今天",     "此刻",     "时间戳",     "格式化时间戳",     "睡眠",     "高精度时间",     "星期名",     "加天数",     "计时",
+    "现在",     "今天",     "此刻",     "时间戳",     "格式化时间戳",     "睡眠",     "高精度时间",     "星期名",     "加天数",     "计时",     "时区偏移",
 ]
 
 _星期名 = ["一", "二", "三", "四", "五", "六", "日"]  # 对应 weekday() 0-6
@@ -136,3 +136,25 @@ def 计时(名字: str = ""):
     if not isinstance(名字, str):
         raise RunTypeError("「计时」的名字要传文本")
     return _计时器(名字)
+
+
+def 时区偏移() -> str:
+    """返回本机相对 UTC 的**时区偏移**，形如 `+08:00` / `-05:00`。
+
+    ⚠️ 给的是**偏移**，不是时区名（`Asia/Shanghai` 这种）—— 见下：
+    时区名在三个宿主上拿到的口径完全不同（Python 给「中国标准时间」这种本地化
+    长名、Node 给 IANA 名、Rust 标准库根本拿不到），**永远对不齐**；
+    而偏移是纯算术，三家必然相同。
+
+    要「把 UTC 换算成本地」就加这个偏移；要「显示我在哪个时区」请自己写死名字。
+    """
+    偏移 = _py_datetime.now().astimezone().utcoffset()
+    秒 = 0 if 偏移 is None else int(偏移.total_seconds())
+    return _格式化偏移(秒 // 60)
+
+
+def _格式化偏移(分钟: int) -> str:
+    """整分钟数 → `+08:00`。**三个宿主共用一个算法**（半小时间区也能对）。"""
+    号 = "-" if 分钟 < 0 else "+"
+    绝对 = -分钟 if 分钟 < 0 else 分钟
+    return f"{号}{绝对 // 60:02d}:{绝对 % 60:02d}"

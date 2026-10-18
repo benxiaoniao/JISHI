@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 31,
     "frontend": 1,
-    "lang": 111,
+    "lang": 116,
     "stdlib": 4
   },
   "语料": [
@@ -492,8 +492,8 @@
     },
     {
       "id": "tests__cases__27_标准库新增",
-      "产物哈希": "sha256:5a5e55cfa4bef29b",
-      "内容哈希": "sha256:d4b90880878600cf",
+      "产物哈希": "sha256:a49de9aeb6f7cde8",
+      "内容哈希": "sha256:58cc3dd947ffbe70",
       "类别": "lang",
       "路径": "tests/cases/27_标准库新增.jsh"
     },
@@ -580,6 +580,13 @@
       "内容哈希": "sha256:d47747541007efe8",
       "类别": "lang",
       "路径": "tests/cases/38_标准库_M119.jsh"
+    },
+    {
+      "id": "tests__cases__39_标准库_M120",
+      "产物哈希": "sha256:afb46542e05ef518",
+      "内容哈希": "sha256:89cf453bddb85016",
+      "类别": "lang",
+      "路径": "tests/cases/39_标准库_M120.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -1059,15 +1066,15 @@
     },
     {
       "id": "tests__error_cases__68_文件_复制目录目标已存在",
-      "产物哈希": "sha256:127a5b4e100f2e66",
-      "内容哈希": "sha256:24d39947613646dd",
+      "产物哈希": "sha256:e30522afd33c9f50",
+      "内容哈希": "sha256:ac724947d66a3417",
       "类别": "lang",
       "路径": "tests/error_cases/68_文件_复制目录目标已存在.jsh"
     },
     {
       "id": "tests__error_cases__69_压缩_包里的成员不存在",
-      "产物哈希": "sha256:526cb917e8b27205",
-      "内容哈希": "sha256:3ecbc5772dc642e0",
+      "产物哈希": "sha256:17c94c1e573c5e9d",
+      "内容哈希": "sha256:22672af76ca9dfad",
       "类别": "lang",
       "路径": "tests/error_cases/69_压缩_包里的成员不存在.jsh"
     },
@@ -1086,6 +1093,34 @@
       "路径": "tests/error_cases/71_编码_GBK装不下的字符.jsh"
     },
     {
+      "id": "tests__error_cases__72_日期_月份越界",
+      "产物哈希": "sha256:a15cb6cf3110dffa",
+      "内容哈希": "sha256:f04c61747281cbae",
+      "类别": "lang",
+      "路径": "tests/error_cases/72_日期_月份越界.jsh"
+    },
+    {
+      "id": "tests__error_cases__73_json_有效要传文本",
+      "产物哈希": "sha256:a4dcccb299307cde",
+      "内容哈希": "sha256:f647b95f4d01b0a4",
+      "类别": "lang",
+      "路径": "tests/error_cases/73_json_有效要传文本.jsh"
+    },
+    {
+      "id": "tests__error_cases__74_表格_转文本要传表格",
+      "产物哈希": "sha256:6aea3d40ac3d17f7",
+      "内容哈希": "sha256:4af6fd7f92313e08",
+      "类别": "lang",
+      "路径": "tests/error_cases/74_表格_转文本要传表格.jsh"
+    },
+    {
+      "id": "tests__error_cases__75_表格_TSV装不下制表符",
+      "产物哈希": "sha256:0c3461a1a2600be0",
+      "内容哈希": "sha256:808e072abe0f2242",
+      "类别": "lang",
+      "路径": "tests/error_cases/75_表格_TSV装不下制表符.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:293975765ad4c964",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -1093,5 +1128,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 147
+  "语料数": 152
 }

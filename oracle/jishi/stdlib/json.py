@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import json as _py_json
 
-from ..errors import RunValueError
-from ..runtime import JishiBytes
+from ..errors import RunTypeError, RunValueError
+from ..runtime import JishiBytes, jishi_repr
 
-__all__ = ["转文本", "解析", "读文件", "写文件"]
+__all__ = ["转文本", "解析", "读文件", "写文件", "有效"]
 
 
 def _找字节(对象) -> None:
@@ -36,12 +36,45 @@ def 转文本(对象, 缩进: int = None) -> str:
         raise RunValueError(f"无法转成 JSON：{e}")
 
 
+def _拒非常量(名):
+    """拒绝 `NaN` / `Infinity` / `-Infinity`。
+
+    ⚠️ Python 的 `json.loads` **默认接受**这三个（那是它的非标准扩展），
+    而 JSON 标准（RFC 8259）不允许、JS 的 `JSON.parse` 也拒绝。
+    ⇒ 不加这个钩子，「有效」与「解析」在 Python 上就会跟另外两个宿主分岔。
+    """
+    raise ValueError(f"`{名}` 不是合法的 JSON（JSON 标准只允许数字，不允许 NaN / Infinity）")
+
+
 def 解析(文本) -> object:
-    """把 JSON 文本解析成列表/字典等。"""
+    """把 JSON 文本解析成列表/字典等。
+
+    ⚠️ **比 Python 的 `json.loads` 严**：`NaN` / `Infinity` 一律不收
+    （它们本来就不是合法 JSON，只是 Python 顺手放过）。
+    """
     try:
-        return _py_json.loads(文本)
+        return _py_json.loads(文本, parse_constant=_拒非常量)
     except (TypeError, ValueError) as e:
         raise RunValueError(f"不是有效的 JSON 文本：{e}")
+
+
+def 有效(文本) -> bool:
+    """这段文本是不是**合法的 JSON**（返回真/假，不抛错）。
+
+    要「先问问再决定怎么处理」就用它 —— 直接 `json.解析` 会抛异常，
+    比如「上游偶尔给一段坏数据，坏的就跳过」这种场合。
+
+    口径与 `json.解析` **完全一致**（就是同一个解析器，只是把失败吞成假）：
+    `NaN` / `Infinity` **不算**合法 JSON，末尾多逗号也不算。
+    """
+    if not isinstance(文本, str):
+        # ⚠️ 文案要与 Rust / Node **逐字一致**（报错语料跨引擎比）。
+        raise RunTypeError(f"「有效」要传文本（现在是「{jishi_repr(文本, top=True)}」）")
+    try:
+        _py_json.loads(文本, parse_constant=_拒非常量)
+    except ValueError:
+        return False
+    return True
 
 
 def 读文件(路径) -> object:

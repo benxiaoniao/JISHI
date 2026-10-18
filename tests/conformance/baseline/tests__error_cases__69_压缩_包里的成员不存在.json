@@ -94,11 +94,17 @@
               "id": "根",
               "line": 9,
               "类型": "Name"
+            },
+            {
+              "col": 12,
+              "line": 9,
+              "value": true,
+              "类型": "Num"
             }
           ],
           "col": 8,
           "func": {
-            "attr": "递归删除",
+            "attr": "创建目录",
             "col": 3,
             "line": 9,
             "obj": {
@@ -118,43 +124,12 @@
       },
       {
         "col": 1,
-        "expr": {
-          "args": [
-            {
-              "col": 9,
-              "id": "根",
-              "line": 10,
-              "类型": "Name"
-            }
-          ],
-          "col": 8,
-          "func": {
-            "attr": "创建目录",
-            "col": 3,
-            "line": 10,
-            "obj": {
-              "col": 1,
-              "id": "路径",
-              "line": 10,
-              "类型": "Name"
-            },
-            "类型": "Attr"
-          },
-          "keywords": [],
-          "line": 10,
-          "类型": "Call"
-        },
         "line": 10,
-        "类型": "ExprStmt"
-      },
-      {
-        "col": 1,
-        "line": 11,
         "op": "=",
         "target": {
           "col": 3,
           "id": "单",
-          "line": 11,
+          "line": 10,
           "类型": "Name"
         },
         "value": {
@@ -162,12 +137,12 @@
             {
               "col": 13,
               "id": "根",
-              "line": 11,
+              "line": 10,
               "类型": "Name"
             },
             {
               "col": 16,
-              "line": 11,
+              "line": 10,
               "value": "单.txt",
               "类型": "Str"
             }
@@ -176,17 +151,17 @@
           "func": {
             "attr": "连接",
             "col": 9,
-            "line": 11,
+            "line": 10,
             "obj": {
               "col": 7,
               "id": "路径",
-              "line": 11,
+              "line": 10,
               "类型": "Name"
             },
             "类型": "Attr"
           },
           "keywords": [],
-          "line": 11,
+          "line": 10,
           "类型": "Call"
         },
         "类型": "Assign"
@@ -198,12 +173,12 @@
             {
               "col": 8,
               "id": "单",
-              "line": 12,
+              "line": 11,
               "类型": "Name"
             },
             {
               "col": 11,
-              "line": 12,
+              "line": 11,
               "value": "内容",
               "类型": "Str"
             }
@@ -212,30 +187,30 @@
           "func": {
             "attr": "写文本",
             "col": 3,
-            "line": 12,
+            "line": 11,
             "obj": {
               "col": 1,
               "id": "文件",
-              "line": 12,
+              "line": 11,
               "类型": "Name"
             },
             "类型": "Attr"
           },
           "keywords": [],
-          "line": 12,
+          "line": 11,
           "类型": "Call"
         },
-        "line": 12,
+        "line": 11,
         "类型": "ExprStmt"
       },
       {
         "col": 1,
-        "line": 13,
+        "line": 12,
         "op": "=",
         "target": {
           "col": 3,
           "id": "包",
-          "line": 13,
+          "line": 12,
           "类型": "Name"
         },
         "value": {
@@ -243,12 +218,12 @@
             {
               "col": 13,
               "id": "根",
-              "line": 13,
+              "line": 12,
               "类型": "Name"
             },
             {
               "col": 16,
-              "line": 13,
+              "line": 12,
               "value": "单.zip",
               "类型": "Str"
             }
@@ -257,17 +232,17 @@
           "func": {
             "attr": "连接",
             "col": 9,
-            "line": 13,
+            "line": 12,
             "obj": {
               "col": 7,
               "id": "路径",
-              "line": 13,
+              "line": 12,
               "类型": "Name"
             },
             "类型": "Attr"
           },
           "keywords": [],
-          "line": 13,
+          "line": 12,
           "类型": "Call"
         },
         "类型": "Assign"
@@ -279,13 +254,13 @@
             {
               "col": 7,
               "id": "包",
-              "line": 14,
+              "line": 13,
               "类型": "Name"
             },
             {
               "col": 10,
               "id": "单",
-              "line": 14,
+              "line": 13,
               "类型": "Name"
             }
           ],
@@ -293,20 +268,20 @@
           "func": {
             "attr": "打包",
             "col": 3,
-            "line": 14,
+            "line": 13,
             "obj": {
               "col": 1,
               "id": "压缩",
-              "line": 14,
+              "line": 13,
               "类型": "Name"
             },
             "类型": "Attr"
           },
           "keywords": [],
-          "line": 14,
+          "line": 13,
           "类型": "Call"
         },
-        "line": 14,
+        "line": 13,
         "类型": "ExprStmt"
       },
       {
@@ -318,12 +293,12 @@
                 {
                   "col": 12,
                   "id": "包",
-                  "line": 15,
+                  "line": 14,
                   "类型": "Name"
                 },
                 {
                   "col": 15,
-                  "line": 15,
+                  "line": 14,
                   "value": "没有这个.txt",
                   "类型": "Str"
                 }
@@ -332,17 +307,17 @@
               "func": {
                 "attr": "解压成员",
                 "col": 6,
-                "line": 15,
+                "line": 14,
                 "obj": {
                   "col": 4,
                   "id": "压缩",
-                  "line": 15,
+                  "line": 14,
                   "类型": "Name"
                 },
                 "类型": "Attr"
               },
               "keywords": [],
-              "line": 15,
+              "line": 14,
               "类型": "Call"
             }
           ],
@@ -350,14 +325,14 @@
           "func": {
             "col": 1,
             "id": "打印",
-            "line": 15,
+            "line": 14,
             "类型": "Name"
           },
           "keywords": [],
-          "line": 15,
+          "line": 14,
           "类型": "Call"
         },
-        "line": 15,
+        "line": 14,
         "类型": "ExprStmt"
       }
     ],
@@ -366,7 +341,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "81c2f4bebb096ea3bd60166c28d7d5fd0253b086cc561ffd9ca671d4e544e2ee",
+    "checksum": "8f35defd26d3d51301bdab0bb3b6558329e14311f3474c57ac72393d605c045c",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -477,8 +452,14 @@
             0,
             9,
             9,
-            20,
             1,
+            1,
+            0,
+            0,
+            9,
+            12,
+            20,
+            2,
             -1,
             0,
             9,
@@ -494,222 +475,192 @@
             0,
             0,
             10,
-            1,
-            25,
-            7,
-            0,
-            0,
-            10,
-            3,
-            2,
-            5,
-            0,
-            0,
-            10,
-            9,
-            20,
-            1,
-            -1,
-            0,
-            10,
-            8,
-            38,
-            0,
-            0,
-            0,
-            10,
-            1,
-            2,
-            2,
-            0,
-            0,
-            11,
             7,
             25,
             3,
             0,
             0,
-            11,
+            10,
             9,
             2,
             5,
             0,
             0,
-            11,
+            10,
             13,
             1,
-            1,
+            2,
             0,
             0,
-            11,
+            10,
             16,
             20,
             2,
             -1,
             0,
-            11,
+            10,
             12,
             3,
-            8,
+            7,
             0,
             0,
-            11,
+            10,
             1,
             2,
             1,
             0,
             0,
-            12,
+            11,
             1,
             25,
-            9,
+            8,
             0,
             0,
-            12,
+            11,
             3,
             2,
-            8,
+            7,
             0,
             0,
-            12,
+            11,
             8,
             1,
-            2,
+            3,
             0,
             0,
-            12,
+            11,
             11,
             20,
             2,
             -1,
             0,
-            12,
+            11,
             7,
             38,
             0,
             0,
             0,
-            12,
+            11,
             1,
             2,
             2,
             0,
             0,
-            13,
+            12,
             7,
             25,
             3,
             0,
             0,
-            13,
+            12,
             9,
             2,
             5,
             0,
             0,
-            13,
+            12,
             13,
             1,
-            3,
+            4,
             0,
             0,
-            13,
+            12,
             16,
             20,
             2,
             -1,
             0,
-            13,
+            12,
             12,
             3,
-            10,
+            9,
+            0,
+            0,
+            12,
+            1,
+            2,
+            0,
             0,
             0,
             13,
             1,
-            2,
-            0,
-            0,
-            0,
-            14,
-            1,
             25,
-            11,
-            0,
-            0,
-            14,
-            3,
-            2,
             10,
             0,
             0,
-            14,
+            13,
+            3,
+            2,
+            9,
+            0,
+            0,
+            13,
             7,
             2,
-            8,
+            7,
             0,
             0,
-            14,
+            13,
             10,
             20,
             2,
             -1,
             0,
-            14,
+            13,
             6,
             38,
             0,
             0,
             0,
+            13,
+            1,
+            2,
+            11,
+            0,
+            0,
             14,
             1,
             2,
-            12,
-            0,
-            0,
-            15,
-            1,
-            2,
             0,
             0,
             0,
-            15,
+            14,
             4,
             25,
-            13,
+            12,
             0,
             0,
-            15,
+            14,
             6,
             2,
-            10,
+            9,
             0,
             0,
-            15,
+            14,
             12,
             1,
-            4,
+            5,
             0,
             0,
-            15,
+            14,
             15,
             20,
             2,
             -1,
             0,
-            15,
+            14,
             11,
             20,
             1,
             -1,
             0,
-            15,
+            14,
             3,
             38,
             0,
             0,
             0,
-            15,
+            14,
             1,
             0,
             0,
@@ -733,6 +684,9 @@
         {
           "t": "str",
           "v": "_jishi_m118_69"
+        },
+        {
+          "t": "true"
         },
         {
           "t": "str",
@@ -761,7 +715,6 @@
         "连接",
         "系统临时目录",
         "根",
-        "递归删除",
         "创建目录",
         "单",
         "写文本",
@@ -1004,7 +957,7 @@
       "col": 1,
       "end_col": 2,
       "line": 9,
-      "source_line": "路径.递归删除(根)",
+      "source_line": "路径.创建目录(根, 真)",
       "type": "NAME",
       "value": "路径",
       "类型": "Token"
@@ -1013,7 +966,7 @@
       "col": 3,
       "end_col": 4,
       "line": 9,
-      "source_line": "路径.递归删除(根)",
+      "source_line": "路径.创建目录(根, 真)",
       "type": "OP",
       "value": ".",
       "类型": "Token"
@@ -1022,70 +975,7 @@
       "col": 4,
       "end_col": 7,
       "line": 9,
-      "source_line": "路径.递归删除(根)",
-      "type": "NAME",
-      "value": "递归删除",
-      "类型": "Token"
-    },
-    {
-      "col": 8,
-      "end_col": 9,
-      "line": 9,
-      "source_line": "路径.递归删除(根)",
-      "type": "OP",
-      "value": "(",
-      "类型": "Token"
-    },
-    {
-      "col": 9,
-      "end_col": 9,
-      "line": 9,
-      "source_line": "路径.递归删除(根)",
-      "type": "NAME",
-      "value": "根",
-      "类型": "Token"
-    },
-    {
-      "col": 10,
-      "end_col": 11,
-      "line": 9,
-      "source_line": "路径.递归删除(根)",
-      "type": "OP",
-      "value": ")",
-      "类型": "Token"
-    },
-    {
-      "col": 1,
-      "end_col": 1,
-      "line": 9,
-      "source_line": "路径.递归删除(根)",
-      "type": "NEWLINE",
-      "value": "\n",
-      "类型": "Token"
-    },
-    {
-      "col": 1,
-      "end_col": 2,
-      "line": 10,
-      "source_line": "路径.创建目录(根)",
-      "type": "NAME",
-      "value": "路径",
-      "类型": "Token"
-    },
-    {
-      "col": 3,
-      "end_col": 4,
-      "line": 10,
-      "source_line": "路径.创建目录(根)",
-      "type": "OP",
-      "value": ".",
-      "类型": "Token"
-    },
-    {
-      "col": 4,
-      "end_col": 7,
-      "line": 10,
-      "source_line": "路径.创建目录(根)",
+      "source_line": "路径.创建目录(根, 真)",
       "type": "NAME",
       "value": "创建目录",
       "类型": "Token"
@@ -1093,8 +983,8 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 10,
-      "source_line": "路径.创建目录(根)",
+      "line": 9,
+      "source_line": "路径.创建目录(根, 真)",
       "type": "OP",
       "value": "(",
       "类型": "Token"
@@ -1102,8 +992,8 @@
     {
       "col": 9,
       "end_col": 9,
-      "line": 10,
-      "source_line": "路径.创建目录(根)",
+      "line": 9,
+      "source_line": "路径.创建目录(根, 真)",
       "type": "NAME",
       "value": "根",
       "类型": "Token"
@@ -1111,8 +1001,26 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 10,
-      "source_line": "路径.创建目录(根)",
+      "line": 9,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 9,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 9,
+      "source_line": "路径.创建目录(根, 真)",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -1120,8 +1028,8 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 10,
-      "source_line": "路径.创建目录(根)",
+      "line": 9,
+      "source_line": "路径.创建目录(根, 真)",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -1129,7 +1037,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "KEYWORD",
       "value": "令",
@@ -1138,7 +1046,7 @@
     {
       "col": 3,
       "end_col": 3,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "NAME",
       "value": "单",
@@ -1147,7 +1055,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "OP",
       "value": "=",
@@ -1156,7 +1064,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "NAME",
       "value": "路径",
@@ -1165,7 +1073,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "OP",
       "value": ".",
@@ -1174,7 +1082,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "NAME",
       "value": "连接",
@@ -1183,7 +1091,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "OP",
       "value": "(",
@@ -1192,7 +1100,7 @@
     {
       "col": 13,
       "end_col": 13,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "NAME",
       "value": "根",
@@ -1201,7 +1109,7 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "OP",
       "value": ",",
@@ -1210,7 +1118,7 @@
     {
       "col": 16,
       "end_col": 22,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "STRING",
       "value": "单.txt",
@@ -1219,7 +1127,7 @@
     {
       "col": 23,
       "end_col": 24,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "OP",
       "value": ")",
@@ -1228,7 +1136,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 11,
+      "line": 10,
       "source_line": "令 单 = 路径.连接(根, \"单.txt\")",
       "type": "NEWLINE",
       "value": "\n",
@@ -1237,7 +1145,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 12,
+      "line": 11,
       "source_line": "文件.写文本(单, \"内容\")",
       "type": "NAME",
       "value": "文件",
@@ -1246,7 +1154,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 12,
+      "line": 11,
       "source_line": "文件.写文本(单, \"内容\")",
       "type": "OP",
       "value": ".",
@@ -1255,7 +1163,7 @@
     {
       "col": 4,
       "end_col": 6,
-      "line": 12,
+      "line": 11,
       "source_line": "文件.写文本(单, \"内容\")",
       "type": "NAME",
       "value": "写文本",
@@ -1264,7 +1172,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 12,
+      "line": 11,
       "source_line": "文件.写文本(单, \"内容\")",
       "type": "OP",
       "value": "(",
@@ -1273,7 +1181,7 @@
     {
       "col": 8,
       "end_col": 8,
-      "line": 12,
+      "line": 11,
       "source_line": "文件.写文本(单, \"内容\")",
       "type": "NAME",
       "value": "单",
@@ -1282,7 +1190,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 12,
+      "line": 11,
       "source_line": "文件.写文本(单, \"内容\")",
       "type": "OP",
       "value": ",",
@@ -1291,7 +1199,7 @@
     {
       "col": 11,
       "end_col": 14,
-      "line": 12,
+      "line": 11,
       "source_line": "文件.写文本(单, \"内容\")",
       "type": "STRING",
       "value": "内容",
@@ -1300,7 +1208,7 @@
     {
       "col": 15,
       "end_col": 16,
-      "line": 12,
+      "line": 11,
       "source_line": "文件.写文本(单, \"内容\")",
       "type": "OP",
       "value": ")",
@@ -1309,7 +1217,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 12,
+      "line": 11,
       "source_line": "文件.写文本(单, \"内容\")",
       "type": "NEWLINE",
       "value": "\n",
@@ -1318,7 +1226,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "KEYWORD",
       "value": "令",
@@ -1327,7 +1235,7 @@
     {
       "col": 3,
       "end_col": 3,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "NAME",
       "value": "包",
@@ -1336,7 +1244,7 @@
     {
       "col": 5,
       "end_col": 6,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "OP",
       "value": "=",
@@ -1345,7 +1253,7 @@
     {
       "col": 7,
       "end_col": 8,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "NAME",
       "value": "路径",
@@ -1354,7 +1262,7 @@
     {
       "col": 9,
       "end_col": 10,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "OP",
       "value": ".",
@@ -1363,7 +1271,7 @@
     {
       "col": 10,
       "end_col": 11,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "NAME",
       "value": "连接",
@@ -1372,7 +1280,7 @@
     {
       "col": 12,
       "end_col": 13,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "OP",
       "value": "(",
@@ -1381,7 +1289,7 @@
     {
       "col": 13,
       "end_col": 13,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "NAME",
       "value": "根",
@@ -1390,7 +1298,7 @@
     {
       "col": 14,
       "end_col": 15,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "OP",
       "value": ",",
@@ -1399,7 +1307,7 @@
     {
       "col": 16,
       "end_col": 22,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "STRING",
       "value": "单.zip",
@@ -1408,7 +1316,7 @@
     {
       "col": 23,
       "end_col": 24,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "OP",
       "value": ")",
@@ -1417,7 +1325,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 13,
+      "line": 12,
       "source_line": "令 包 = 路径.连接(根, \"单.zip\")",
       "type": "NEWLINE",
       "value": "\n",
@@ -1426,7 +1334,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 14,
+      "line": 13,
       "source_line": "压缩.打包(包, 单)",
       "type": "NAME",
       "value": "压缩",
@@ -1435,7 +1343,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 14,
+      "line": 13,
       "source_line": "压缩.打包(包, 单)",
       "type": "OP",
       "value": ".",
@@ -1444,7 +1352,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 14,
+      "line": 13,
       "source_line": "压缩.打包(包, 单)",
       "type": "NAME",
       "value": "打包",
@@ -1453,7 +1361,7 @@
     {
       "col": 6,
       "end_col": 7,
-      "line": 14,
+      "line": 13,
       "source_line": "压缩.打包(包, 单)",
       "type": "OP",
       "value": "(",
@@ -1462,7 +1370,7 @@
     {
       "col": 7,
       "end_col": 7,
-      "line": 14,
+      "line": 13,
       "source_line": "压缩.打包(包, 单)",
       "type": "NAME",
       "value": "包",
@@ -1471,7 +1379,7 @@
     {
       "col": 8,
       "end_col": 9,
-      "line": 14,
+      "line": 13,
       "source_line": "压缩.打包(包, 单)",
       "type": "OP",
       "value": ",",
@@ -1480,7 +1388,7 @@
     {
       "col": 10,
       "end_col": 10,
-      "line": 14,
+      "line": 13,
       "source_line": "压缩.打包(包, 单)",
       "type": "NAME",
       "value": "单",
@@ -1489,7 +1397,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 14,
+      "line": 13,
       "source_line": "压缩.打包(包, 单)",
       "type": "OP",
       "value": ")",
@@ -1498,7 +1406,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 14,
+      "line": 13,
       "source_line": "压缩.打包(包, 单)",
       "type": "NEWLINE",
       "value": "\n",
@@ -1507,7 +1415,7 @@
     {
       "col": 1,
       "end_col": 2,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "NAME",
       "value": "打印",
@@ -1516,7 +1424,7 @@
     {
       "col": 3,
       "end_col": 4,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "OP",
       "value": "(",
@@ -1525,7 +1433,7 @@
     {
       "col": 4,
       "end_col": 5,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "NAME",
       "value": "压缩",
@@ -1534,7 +1442,7 @@
     {
       "col": 6,
       "end_col": 7,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "OP",
       "value": ".",
@@ -1543,7 +1451,7 @@
     {
       "col": 7,
       "end_col": 10,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "NAME",
       "value": "解压成员",
@@ -1552,7 +1460,7 @@
     {
       "col": 11,
       "end_col": 12,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "OP",
       "value": "(",
@@ -1561,7 +1469,7 @@
     {
       "col": 12,
       "end_col": 12,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "NAME",
       "value": "包",
@@ -1570,7 +1478,7 @@
     {
       "col": 13,
       "end_col": 14,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "OP",
       "value": ",",
@@ -1579,7 +1487,7 @@
     {
       "col": 15,
       "end_col": 24,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "STRING",
       "value": "没有这个.txt",
@@ -1588,7 +1496,7 @@
     {
       "col": 25,
       "end_col": 26,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "OP",
       "value": ")",
@@ -1597,7 +1505,7 @@
     {
       "col": 26,
       "end_col": 27,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "OP",
       "value": ")",
@@ -1606,7 +1514,7 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 15,
+      "line": 14,
       "source_line": "打印(压缩.解压成员(包, \"没有这个.txt\"))",
       "type": "NEWLINE",
       "value": "\n",
@@ -1615,13 +1523,13 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 15,
+      "line": 14,
       "source_line": "",
       "type": "EOF",
       "value": null,
       "类型": "Token"
     }
   ],
-  "内容哈希": "sha256:3ecbc5772dc642e0",
+  "内容哈希": "sha256:22672af76ca9dfad",
   "语料": "tests/error_cases/69_压缩_包里的成员不存在.jsh"
 }

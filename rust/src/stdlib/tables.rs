@@ -17,7 +17,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::{as_text, need, need_range, table, to_vec, R};
-use crate::{err, JishiError, Val};
+use crate::{display, err, JishiError, Val};
+use super::text::display_width;
 
 /// 表格对象：表头 + 数据行。
 ///
@@ -170,6 +171,113 @@ fn sort_key(v: &Val) -> (u8, f64, String) {
         Ok(f) => (0, f, String::new()),
         Err(_) => (1, 0.0, s),
     }
+}
+
+/// 取出表格参数（M120 的两个渲染函数共用）。
+fn 取表格(v: &Val, 谁: &str) -> Result<Rc<Table>, JishiError> {
+    match v {
+        Val::Table(t) => Ok(Rc::clone(t)),
+        other => Err(err(
+            "类型错误",
+            format!(
+                "「{谁}」要传一个表格（现在是「{}」）—— 用 表格.读表格 或 表格.从记录 得到",
+                display(other)
+            ),
+        )),
+    }
+}
+
+/// 按**显示宽度**补空格（汉字算 2 列，与 `文本.显示宽度` 同口径）。
+fn 补齐(s: &str, 宽: usize, 靠右: bool) -> String {
+    let 差 = 宽.saturating_sub(display_width(s));
+    if 差 == 0 {
+        s.to_string()
+    } else if 靠右 {
+        format!("{}{}", " ".repeat(差), s)
+    } else {
+        format!("{}{}", s, " ".repeat(差))
+    }
+}
+
+/// 表格 → 对齐文本：表头 + 分隔线 + 数据行。数字列右对齐。
+fn 转对齐文本(t: &Table) -> String {
+    let 列数 = t.headers.len();
+    if 列数 == 0 {
+        return String::new();
+    }
+    let 头: Vec<String> = t.headers.iter().map(display).collect();
+    let 行们: Vec<Vec<String>> = t
+        .rows
+        .iter()
+        .map(|r| r.iter().map(display).collect())
+        .collect();
+    let mut 宽: Vec<usize> = 头.iter().map(|x| display_width(x)).collect();
+    let mut 靠右 = vec![false; 列数];
+    for i in 0..列数 {
+        let mut 有值 = false;
+        let mut 全数字 = true;
+        for r in &t.rows {
+            let Some(v) = r.get(i) else { continue };
+            match v {
+                Val::None_ => continue,
+                Val::Str(s) if s.is_empty() => continue,
+                v => {
+                    有值 = true;
+                    if !matches!(v, Val::Int(_) | Val::Float(_)) {
+                        全数字 = false;
+                    }
+                }
+            }
+        }
+        靠右[i] = 有值 && 全数字;
+    }
+    for r in &行们 {
+        for i in 0..列数.min(r.len()) {
+            宽[i] = 宽[i].max(display_width(&r[i]));
+        }
+    }
+    let 拼 = |格们: Vec<String>| 格们.join("  ").trim_end().to_string();
+    let mut 出: Vec<String> = Vec::with_capacity(t.rows.len() + 2);
+    出.push(拼((0..列数).map(|i| 补齐(&头[i], 宽[i], 靠右[i])).collect()));
+    出.push(拼((0..列数).map(|i| "-".repeat(宽[i])).collect()));
+    for r in &行们 {
+        出.push(拼(
+            (0..列数)
+                .map(|i| {
+                    补齐(
+                        r.get(i).map(|x| x.as_str()).unwrap_or(""),
+                        宽[i],
+                        靠右[i],
+                    )
+                })
+                .collect(),
+        ));
+    }
+    出.join("\n")
+}
+
+/// 表格 → TSV 文本。单元格里含制表符/换行时**报错**，不静默改内容。
+fn 转TSV文本(t: &Table) -> Result<String, JishiError> {
+    let mut 出: Vec<String> = Vec::with_capacity(t.rows.len() + 1);
+    for (号, r) in std::iter::once(&t.headers).chain(t.rows.iter()).enumerate() {
+        let mut 元: Vec<String> = Vec::with_capacity(r.len());
+        for (列, c) in r.iter().enumerate() {
+            let s = display(c);
+            if s.contains('\t') || s.contains('\n') || s.contains('\r') {
+                return Err(err(
+                    "类型错误",
+                    format!(
+                        "第 {} 行第 {} 格里含制表符或换行，TSV 装不下 —— 要写这种内容请用 表格.写表格 存成 CSV",
+                        号 + 1,
+                        列 + 1
+                    ),
+                ));
+            }
+            元.push(s);
+        }
+        出.push(元.join("\t"));
+    }
+    Ok(出.join("\n"))
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
@@ -494,6 +602,18 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             }
             Ok(table_new(headers, rows))
+        },
+        // 🔴 M120：`转文本` 给人看（对齐表），`转TSV` 给程序读。
+        //    **两者末尾都不带换行**（与 `文本.拼接` 同一习惯，`打印` 会补一个）。
+        "转文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("转文本", args, 1, 1)?;
+            let t = 取表格(&args[0], "转文本")?;
+            Ok(Val::Str(转对齐文本(&t)))
+        },
+        "转TSV" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("转TSV", args, 1, 1)?;
+            let t = 取表格(&args[0], "转TSV")?;
+            Ok(Val::Str(转TSV文本(&t)?))
         },
         "转置" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("转置", args, 1)?;

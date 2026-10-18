@@ -64,7 +64,8 @@ fn char_width(c: char) -> usize {
 }
 
 /// 这段文本在等宽终端里占几列 —— 一个汉字算 2，组合符算 0。
-fn display_width(s: &str) -> usize {
+// M120：`表格.转文本` 要在 tables.rs 里算列宽，所以开放到 crate 内。
+pub(crate) fn display_width(s: &str) -> usize {
     s.chars().map(char_width).sum()
 }
 

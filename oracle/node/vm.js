@@ -836,6 +836,11 @@ const _os = require('os');
 const _cp = require('child_process');
 
 const SYS_FUNCS = {
+  // M120：逻辑核数（含超线程）。容器里可能比宿主机少 —— 数到多少报多少。
+  'CPU核数': new R.Builtin('CPU核数', () => {
+    const n = _os.cpus().length;
+    return n > 0 ? n : 1;
+  }),
   '系统名': new R.Builtin('系统名', () => {
     const p = _os.platform();
     if (p === 'win32') return 'Windows';
@@ -988,6 +993,20 @@ const JSON_FUNCS = {
   '转文本': new R.Builtin('转文本', (obj, indent = null) =>
     jsonEncode(obj, indent === null || indent === undefined ? null : Number(indent))),
   '解析': new R.Builtin('解析', (text) => jsonDecode(text)),
+  // M120：只问「是不是合法 JSON」。口径与 `解析` **同一个解码器**
+  // ⇒ 不会出现「有效说假、解析却成功」。Node 的 JSON.parse 本来就不收
+  // `NaN`/`Infinity`，但 Python 的 `json.loads` 收 —— M120 已把两边都改成拒绝。
+  '有效': new R.Builtin('有效', (text) => {
+    if (typeof text !== 'string') {
+      throw R.typeErr(`「有效」要传文本（现在是「${R.pyStr(text)}」）`);
+    }
+    try {
+      jsonDecode(text);
+    } catch (e) {
+      return false;
+    }
+    return true;
+  }),
   '读文件': new R.Builtin('读文件', (path) => {
     let text;
     try { text = fs.readFileSync(String(path), 'utf8'); } catch (e) {
@@ -1183,6 +1202,21 @@ function tableCmp(a, b, i) {
 }
 
 const TABLE_FUNCS = {
+  // 🔴 M120：`转文本` 给人看（对齐表），`转TSV` 给程序读。两者末尾都**不带换行**。
+  '转文本': new R.Builtin('转文本', (t) => {
+    if (!(t !== null && typeof t === 'object' && t[TABLE] === true)) {
+      throw R.typeErr(`「转文本」要传一个表格（现在是「${R.pyStr(t)}」）`
+        + '—— 用 表格.读表格 或 表格.从记录 得到');
+    }
+    return 转对齐文本(t);
+  }),
+  '转TSV': new R.Builtin('转TSV', (t) => {
+    if (!(t !== null && typeof t === 'object' && t[TABLE] === true)) {
+      throw R.typeErr(`「转TSV」要传一个表格（现在是「${R.pyStr(t)}」）`
+        + '—— 用 表格.读表格 或 表格.从记录 得到');
+    }
+    return 转TSV文本(t);
+  }),
   '读表格': new R.Builtin('读表格', (path) => {
     if (path === null || path === undefined) throw R.typeErr('需要提供文件路径');
     const rows = parseCsv(readCsvFile(String(path)));
@@ -1518,6 +1552,8 @@ function uniqueName() {
 }
 
 const PATH_FUNCS = {
+  // M120：值本身平台相关（Windows `\`、其余 `/`），语料只能钉「长度 1 且是这两种之一」。
+  '分隔符': new R.Builtin('分隔符', () => _path.sep),
   '连接': new R.Builtin('连接', (...parts) => {
     if (parts.length === 0) return '.';
     let acc = pText(parts[0]);
@@ -1943,6 +1979,14 @@ function parseIsoDate(v) {
 
 // -- 日期（M31）--
 const DATE_FUNCS = {
+  // M120：闰年规则按公历（1900 不是、2000 是）。**自己算**而不是
+  // `new Date(y, m, 0)` —— 后者把 0..99 的年份当 19xx，是个静默坑。
+  '月天数': new R.Builtin('月天数', (y, m) => {
+    const 年 = Math.trunc(Number(R.unwrap(y)));
+    const 月 = Math.trunc(Number(R.unwrap(m)));
+    if (!(月 >= 1 && 月 <= 12)) throw R.valueErr(`月份要在 1~12 之间（现在是 ${月}）`);
+    return 月天数(年, 月);
+  }),
   '今天': new R.Builtin('今天', () => strftimeLocal(new Date(), '%Y-%m-%d')),
   '解析': new R.Builtin('解析', (text) => {
     const d = parseDate(text);
@@ -1991,6 +2035,9 @@ function sleepSync(seconds) {
 }
 
 const TIME_FUNCS = {
+  // M120：**偏移**而不是时区名（名字三家口径完全不同，永远对不齐）。
+  // ⚠️ JS 的 `getTimezoneOffset()` 是「UTC - 本地」，东八区给 -480 ⇒ 要**取负**。
+  '时区偏移': new R.Builtin('时区偏移', () => 格式化偏移(-new Date().getTimezoneOffset())),
   '现在': new R.Builtin('现在', () => strftimeLocal(new Date(), '%Y-%m-%d %H:%M:%S')),
   '今天': new R.Builtin('今天', () => strftimeLocal(new Date(), '%Y-%m-%d')),
   '此刻': new R.Builtin('此刻', () => {
@@ -4500,6 +4547,95 @@ function 递归复制(src, dst) {
     if (fs.statSync(从).isDirectory()) 递归复制(从, 到);
     else fs.copyFileSync(从, 到);
   }
+}
+
+// ---- M120：日期 / 时区 / 表格渲染的小助手 ---------------------------------
+// ⚠️ 这几条都**跨引擎共用同一个算法**（Python / Rust 里是同一套），
+//    否则「五引擎逐字节一致」这条核心判据就守不住了。
+
+/** 公历闰年：1900 不是、2000 是（百年例外 + 四百年例外）。 */
+function 闰年(y) {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+}
+
+/** 某年某月有几天。 */
+function 月天数(y, m) {
+  if (m === 2) return 闰年(y) ? 29 : 28;
+  return (m === 4 || m === 6 || m === 9 || m === 11) ? 30 : 31;
+}
+
+/** 整分钟数 → `+08:00`（半小时间区也能对）。 */
+function 格式化偏移(分钟) {
+  const 号 = 分钟 < 0 ? '-' : '+';
+  const 绝对 = Math.abs(分钟);
+  const 时 = String(Math.floor(绝对 / 60)).padStart(2, '0');
+  const 分 = String(绝对 % 60).padStart(2, '0');
+  return 号 + 时 + ':' + 分;
+}
+
+/** 按**显示宽度**补空格（汉字算 2 列，与 `文本.显示宽度` 同口径）。 */
+function 补齐(s, 宽, 靠右) {
+  const 差 = 宽 - displayWidth(s);
+  if (差 <= 0) return s;
+  return 靠右 ? ' '.repeat(差) + s : s + ' '.repeat(差);
+}
+
+/** 表格 → 对齐文本：表头 + 分隔线 + 数据行；数字列右对齐。 */
+function 转对齐文本(tab) {
+  // ⚠️ 用 `pyStr`（打印口径）而不是 `display`：两者对**嵌套文本**的处理不同
+  //    （`display` 给 `[甲, 乙]`、`pyStr` 给 `['甲', '乙']`），而 Python / Rust 那边
+  //    用的都是打印口径 —— 用错了三边对不上（74 号报错语料当场抓出来）。
+  const 头 = [...tab.headers].map((h) => R.pyStr(h));
+  const 列数 = 头.length;
+  if (列数 === 0) return '';
+  const 行们 = tab.rows.map((r) => [...r].map((c) => R.pyStr(c)));
+  const 宽 = 头.map((x) => displayWidth(x));
+  const 靠右 = [];
+  for (let i = 0; i < 列数; i++) {
+    let 有值 = false; let 全数字 = true;
+    for (const r of tab.rows) {
+      if (i >= r.length) continue;
+      const v = r[i];
+      if (v === null || v === undefined) continue;
+      if (typeof v === 'string' && v === '') continue;
+      有值 = true;
+      if (typeof v !== 'number') 全数字 = false;
+    }
+    靠右.push(有值 && 全数字);
+  }
+  for (const r of 行们) {
+    for (let i = 0; i < Math.min(列数, r.length); i++) {
+      宽[i] = Math.max(宽[i], displayWidth(r[i]));
+    }
+  }
+  const 出 = [];
+  出.push(头.map((x, i) => 补齐(x, 宽[i], 靠右[i])).join('  ').trimEnd());
+  出.push(宽.map((w) => '-'.repeat(w)).join('  '));
+  for (const r of 行们) {
+    const 格 = [];
+    for (let i = 0; i < 列数; i++) 格.push(补齐(r[i] === undefined ? '' : r[i], 宽[i], 靠右[i]));
+    出.push(格.join('  ').trimEnd());
+  }
+  return 出.join('\n');
+}
+
+/** 表格 → TSV；单元格含制表符/换行时**报错**（不静默改内容）。 */
+function 转TSV文本(tab) {
+  const 出 = [];
+  const 全行 = [[...tab.headers], ...tab.rows.map((r) => [...r])];
+  for (let 号 = 0; 号 < 全行.length; 号++) {
+    const 元 = [];
+    for (let 列 = 0; 列 < 全行[号].length; 列++) {
+      const s = R.pyStr(全行[号][列]);
+      if (s.includes('\t') || s.includes('\n') || s.includes('\r')) {
+        throw R.typeErr(`第 ${号 + 1} 行第 ${列 + 1} 格里含制表符或换行，TSV 装不下`
+          + ' —— 要写这种内容请用 表格.写表格 存成 CSV');
+      }
+      元.push(s);
+    }
+    出.push(元.join('\t'));
+  }
+  return 出.join('\n');
 }
 
 const STDLIB = {  '数学': new R.Module('数学', {

@@ -241,6 +241,12 @@ fn 按模式收(
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "路径";
+        // M120：系统的路径分隔符。**值本身是平台相关的**（Windows `\`、其余 `/`），
+        // 所以语料里只能钉「长度是 1 且是这两种之一」，不能钉具体字符。
+        "分隔符" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("分隔符", args, 0)?;
+            Ok(Val::Str(std::path::MAIN_SEPARATOR.to_string()))
+        },
         "连接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             // ⚠️ 不能直接 `PathBuf::push` —— 见 `pathlike_join`。
             let parts: Vec<String> = args.iter().map(as_text).collect();
