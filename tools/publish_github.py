@@ -561,14 +561,24 @@ def _试部署(tag: str) -> None:
         print("   补上后单独跑：JISHI_SSH_KEY=… JISHI_SSH_HOST=… "
               "bash tools/deploy_push.sh")
         return
-    print("\n[部署 1/2] 站点页面 + 语言包 …")
+    # ⚠️ **第 0 步：把包拉进本地镜像库**（2026-10-18 补，v0.2.5 栽过）：
+    #    `build_download()` 读的是 `dist/release/`，**不是服务器**。
+    #    本地没有这一版 ⇒ 下载页四个平台全显示「本站暂未镜像」，
+    #    而服务器上其实有包 —— 看起来像「没传上去」，其实是**页面不知道**。
+    print(f"\n[部署 0/3] 拉发行包到本地镜像库（{tag}）…")
+    r0 = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "fetch_release_mirror.py"),
+         tag.lstrip("v")], cwd=ROOT, env=os.environ.copy())
+    print("   ✓ 完成" if r0.returncode == 0 else f"   ✗ 失败（rc={r0.returncode}）")
+
+    print("\n[部署 1/3] 站点页面 + 语言包 …")
     r = subprocess.run(["bash", str(ROOT / "tools" / "deploy_push.sh")],
                        cwd=ROOT, env=os.environ.copy())
     # ⚠️ 退出码不可信：沙箱会拦 `.ssh/known_hosts` 的写入，脚本自己会 `set -e` 失败，
     #    但实际部署是成功的（末尾一定有「✓ 部署完成」）。两个都认。
     print("   ✓ 完成" if r.returncode == 0 else f"   ⚠ rc={r.returncode}（看上面有没有「✓ 部署完成」）")
 
-    print(f"\n[部署 2/2] 发行包 + 版本清单（{tag}）…")
+    print(f"\n[部署 3/3] 发行包 + 版本清单（{tag}）…")
     r2 = subprocess.run(
         [sys.executable, str(ROOT / "tools" / "sync_release.py"), "--版本", tag.lstrip("v")],
         cwd=ROOT, env=os.environ.copy())
