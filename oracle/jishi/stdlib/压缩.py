@@ -15,10 +15,10 @@ import os as _os
 import zipfile as _py_zip
 
 from ..errors import RunError, RunValueError
-from ..runtime import jishi_repr
+from ..runtime import jishi_repr, JishiBytes
 
 __all__ = [
-    "打包", "解压", "列出内容", "压缩文件", "解压文件",
+    "打包", "解压", "列出内容", "压缩文件", "解压文件", "解压成员",
 ]
 
 
@@ -124,3 +124,25 @@ def 解压文件(gz路径) -> str:
         return 原.decode("utf-8")
     except UnicodeDecodeError:
         raise RunError(f"「{gz路径}」解出来的不是 UTF-8 文本，没法按文本返回")
+
+
+def 解压成员(zip路径, 成员名) -> JishiBytes:
+    """只取出 zip 里的**一个成员**，返回它的字节（不用把整包解开）。
+
+    「备份包里我只想要里面那一份配置」就是这条 —— `解压` 会把整棵树铺到磁盘上，
+    而这个只在内存里取一件。成员名要写 zip 里的完整路径（`列出内容` 给的就是它）。
+    """
+    目标 = str(zip路径)
+    if not _os.path.isfile(目标):
+        raise RunValueError(f"「{zip路径}」不是文件")
+    名 = str(成员名)
+    try:
+        with _py_zip.ZipFile(目标) as zf:
+            try:
+                数据 = zf.read(名)
+            except KeyError:
+                raise RunValueError(
+                    f"「{目标}」里没有「{名}」这个成员（先用 `压缩.列出内容` 看看有哪些）")
+    except _py_zip.BadZipFile as e:
+        raise RunError(f"「{目标}」不是有效的 zip：{e}")
+    return JishiBytes(数据)

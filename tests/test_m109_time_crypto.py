@@ -357,7 +357,9 @@ def test_探针_备份归档(monkeypatch, tmp_path):
     assert "已写 口令.txt" in out, out
     assert "下次备份" in out and "年度复盘" in out, out
     assert f"日志解压回来 {原长} 字符" in out, out
-    assert "见绕道 R301" in out, out
+    # 🔴 M118 起**真的只取那一个成员**了（原绕道 R301 已消）—— 输出里应当看得到
+    # 说明文件的内容本身，而不是「见绕道 R301」这种占位文案。
+    assert "# 说明" in out, out
 
     import datetime
     归档 = tmp_path / "归档"

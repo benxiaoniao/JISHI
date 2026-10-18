@@ -1671,6 +1671,34 @@ const FILE_FUNCS = {
     fs.writeFileSync(pText(p), data.buf);
     return null;
   }),
+  // 🔴 M118：`追加字节`。只收**字节**（M113 的类型），文本走 `追加文本`。
+  '追加字节': new R.Builtin('追加字节', (p, data) => {
+    if (!R.isBytes(data)) {
+      throw R.fileErr(`「追加字节」要的是**字节**（现在是「${R.display(data)}」）；`
+        + '文本请用 `追加文本`');
+    }
+    fs.appendFileSync(pText(p), data.buf);
+    return data.buf.length;
+  }),
+  '复制目录': new R.Builtin('复制目录', (from, to) => {
+    const src = pText(from);
+    const dst = pText(to);
+    const st = statOf(src);
+    if (!st || !st.isDirectory()) throw R.fileErr(`「${src}」不是目录，没法复制`);
+    if (fs.existsSync(dst)) {
+      throw R.fileErr(`「${dst}」已经存在，没法复制目录过去（先 \`路径.递归删除\` 它）`);
+    }
+    // 🔴 **不用 `fs.cpSync`**（2026-10-18 实测）：它在受限/沙箱环境里会直接
+    //    **访问违例崩掉进程**（rc=0xC0000005，连 stderr 都没有）—— 而手动递归
+    //    （readdir + mkdir + copyFile）在同样的环境里正常。递归本身没几行，
+    //    自己走反而更可控（出错时能说清楚是哪一层）。
+    try {
+      递归复制(src, dst);
+    } catch (e) {
+      throw R.fileErr(`复制目录「${src}」到「${dst}」失败：${e && e.message ? e.message : e}`);
+    }
+    return dst;
+  }),
   '追加文本': new R.Builtin('追加文本', (p, content) => {
     fs.appendFileSync(pText(p), pText(content), 'utf8');
     return null;
@@ -2253,6 +2281,24 @@ const ZIP_FUNCS = {
       throw R.runErr(`「${pText(zipPath)}」不是有效的 zip：`
         + `${e && e.message ? e.message : e}`);
     }
+  }),
+  // 🔴 M118（台账 R301）：只取包里**一个成员**（不解整包）。
+  '解压成员': new R.Builtin('解压成员', (zipPath, name) => {
+    const buf = zipBytes(zipPath);
+    const 名 = pText(name);
+    let entries;
+    try {
+      entries = readZipEntries(buf);
+    } catch (e) {
+      throw R.runErr(`「${pText(zipPath)}」不是有效的 zip：`
+        + `${e && e.message ? e.message : e}`);
+    }
+    const hit = entries.find((x) => x.name === 名);
+    if (!hit) {
+      throw R.valueErr(`「${pText(zipPath)}」里没有「${名}」这个成员`
+        + '（先用 `压缩.列出内容` 看看有哪些）');
+    }
+    return new R.JishiBytes(hit.data);
   }),
   '压缩文件': new R.Builtin('压缩文件', (gzPath, content) => {
     const target = pText(gzPath);
@@ -4395,6 +4441,17 @@ function deepCopyVal(v) {
   return v;
 }
 
+/// M118：递归复制目录树（**不用 `fs.cpSync`**，见 复制目录 里的说明）。
+function 递归复制(src, dst) {
+  fs.mkdirSync(dst, { recursive: true });
+  for (const 名 of fs.readdirSync(src)) {
+    const 从 = _path.join(src, 名);
+    const 到 = _path.join(dst, 名);
+    if (fs.statSync(从).isDirectory()) 递归复制(从, 到);
+    else fs.copyFileSync(从, 到);
+  }
+}
+
 const STDLIB = {  '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
     '平方': new R.Builtin('平方', (x) => x * x),
@@ -4404,7 +4461,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
     // 底 > 顶 报值错误；`符号` 永远给整数。
     '限制': new R.Builtin('限制', (v, lo, hi) => {
       if (Number(R.unwrap(lo)) > Number(R.unwrap(hi))) {
-        throw new R.JishiError('值错误',
+        throw R.valueErr(
           `「限制」的底（${R.display(lo)}）不能大于顶（${R.display(hi)}）`);
       }
       if (Number(R.unwrap(v)) < Number(R.unwrap(lo))) return lo;
@@ -4616,25 +4673,25 @@ const STDLIB = {  '数学': new R.Module('数学', {
       const 名 = kind === undefined || kind === null ? '字母数字' : String(R.unwrap(kind));
       const 池 = 池表[名];
       if (池 === undefined) {
-        throw new R.JishiError('值错误',
+        throw R.valueErr(
           `不认识的字符集「${名}」（可用：字母数字 / 字母 / 小写字母 / 大写字母 / 数字）`);
       }
       const m = Number(R.unwrap(n));
-      if (m < 0) throw new R.JishiError('值错误', `长度不能是负数（现在是 ${m}）`);
+      if (m < 0) throw R.valueErr(`长度不能是负数（现在是 ${m}）`);
       let 出 = '';
       for (let i = 0; i < m; i++) 出 += 池[Math.floor(Math.random() * 池.length)];
       return 出;
     }),
     '按权重': new R.Builtin('按权重', (items, weights) => {
-      if (!items.length) throw new R.JishiError('值错误', '不能从空序列里按权重挑元素');
+      if (!items.length) throw R.valueErr('不能从空序列里按权重挑元素');
       const 权 = [...weights].map((w) => Number(R.unwrap(w)));
       if (items.length !== 权.length) {
-        throw new R.JishiError('值错误',
+        throw R.valueErr(
           `选项有 ${items.length} 个，权重有 ${权.length} 个 —— 两者要一样多`);
       }
-      if (权.some((x) => x < 0)) throw new R.JishiError('值错误', '权重不能是负数');
+      if (权.some((x) => x < 0)) throw R.valueErr('权重不能是负数');
       const 总 = 权.reduce((a, b) => a + b, 0);
-      if (!(总 > 0)) throw new R.JishiError('值错误', '权重加起来要大于 0（全 0 等于没有可选项）');
+      if (!(总 > 0)) throw R.valueErr('权重加起来要大于 0（全 0 等于没有可选项）');
       const 落 = Math.random() * 总;
       let 累计 = 0;
       for (let i = 0; i < 权.length; i++) { 累计 += 权[i]; if (落 < 累计) return items[i]; }

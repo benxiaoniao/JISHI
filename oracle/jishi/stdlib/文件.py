@@ -15,7 +15,8 @@ __all__ = [
     "写文本", "读文本", "追加文本", "写行", "按行读",
     "读字节", "写字节",
     "文件存在", "是文件", "是目录", "列出目录",
-    "创建目录", "删除文件", "复制", "文件大小", "原子写",
+    "创建目录", "删除文件", "复制", "复制目录", "文件大小", "原子写",
+    "追加字节",
     "路径拼接", "文件名", "扩展名",
 ]
 
@@ -194,3 +195,43 @@ def 文件名(路径) -> str:
 def 扩展名(路径) -> str:
     """取出文件的扩展名（带点），例如 a.jsh → .jsh。"""
     return _py_Path(str(路径).replace("\\", "/")).suffix
+
+
+def 追加字节(路径, 内容) -> int:
+    """把字节**追加到文件末尾**（文件不存在就新建），返回写进了多少字节。
+
+    与 `写字节` 的分工：`写字节` 是整份覆盖，这个是往后接 —— 分片下载、
+    边跑边写日志流都用它。
+    """
+    # ⚠️ 基石里的字节是 `JishiBytes`（不是 Python 的 `bytes`）—— 与 `写字节` 同一个判据。
+    if not isinstance(内容, JishiBytes):
+        raise RunFileError(
+            f"「追加字节」要的是**字节**（现在是「{jishi_repr(内容, top=True)}」）；"
+            "文本请用 `追加文本`")
+    p = _path(路径)
+    try:
+        with open(p, "ab") as f:
+            n = f.write(内容.value)
+    except OSError as e:
+        raise RunFileError(f"往「{路径}」追加失败：{e}")
+    return n
+
+
+def 复制目录(源目录, 目标目录) -> str:
+    """把**整棵目录树**复制到目标位置（源目录下的层级原样保留），返回目标路径。
+
+    ⚠️ **目标已存在就报错** —— 自动合并/覆盖太容易把东西搞乱（`shutil.copytree`
+    也是这个规矩）。要覆盖就先 `路径.递归删除(目标目录)`。
+    """
+    源 = _path(源目录)
+    目标 = _path(目标目录)
+    if not 源.is_dir():
+        raise RunFileError(f"「{源目录}」不是目录，没法复制")
+    if 目标.exists():
+        raise RunFileError(
+            f"「{目标目录}」已经存在，没法复制目录过去（先 `路径.递归删除` 它）")
+    try:
+        _py_shutil.copytree(str(源), str(目标))
+    except OSError as e:
+        raise RunFileError(f"复制目录「{源目录}」到「{目标目录}」失败：{e}")
+    return str(目标)

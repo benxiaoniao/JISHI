@@ -455,6 +455,24 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Str(target))
         },
+        // 🔴 M118（台账 R301）：只取包里**一个成员**。`解压` 会把整棵树铺到磁盘上，
+        // 而「备份包里我只想要那一份配置」只需要在内存里取一件。
+        "解压成员" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("解压成员", args, 2, 2)?;
+            let p = as_text(&args[0]);
+            let 名 = as_text(&args[1]);
+            let 字节 = fs::read(&p)
+                .map_err(|_| err("值错误", format!("「{p}」不是文件")))?;
+            let 条们 = read_all(&字节)
+                .map_err(|e| err("运行错误", format!("「{p}」不是有效的 zip：{}", e.message)))?;
+            match 条们.into_iter().find(|(n, _)| *n == 名) {
+                Some((_, 数据)) => Ok(Val::Bytes(std::rc::Rc::new(数据))),
+                None => Err(err(
+                    "值错误",
+                    format!("「{p}」里没有「{名}」这个成员（先用 `压缩.列出内容` 看看有哪些）"),
+                )),
+            }
+        },
         "压缩文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("压缩文件", args, 2)?;
             let gz_path = as_text(&args[0]);

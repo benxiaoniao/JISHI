@@ -33,6 +33,21 @@ fn write_bytes(path: &str, data: &[u8]) -> Result<(), JishiError> {
     fs::write(path, data).map_err(|e| err("文件错误", format!("写文件「{path}」失败：{e}")))
 }
 
+/// 递归复制目录树（M118 / 台账 R207）。
+fn 复制目录树(src: &Path, dst: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let e = entry?;
+        let to = dst.join(e.file_name());
+        if e.file_type()?.is_dir() {
+            复制目录树(&e.path(), &to)?;
+        } else {
+            fs::copy(e.path(), &to)?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "文件";
         "写文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -83,6 +98,32 @@ pub(crate) fn module() -> HashMap<String, Val> {
             f.write_all(as_text(&args[1]).as_bytes())
                 .map_err(|e| err("文件错误", format!("往「{p}」追加内容失败：{e}")))?;
             Ok(Val::None_)
+        },
+        // 🔴 M118：`追加字节`。⚠️ 只收**字节**（M113 的类型）—— 文本走 `追加文本`，
+        // 两者分开，免得「追加文本时字符编码由谁决定」这种模糊地带又冒出来。
+        "追加字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("追加字节", args, 2)?;
+            let p = as_text(&args[0]);
+            let 内容 = match &args[1] {
+                Val::Bytes(b) => b.clone(),
+                v => {
+                    return Err(err(
+                        "文件错误",
+                        format!(
+                            "「追加字节」要的是**字节**（现在是「{}」）；文本请用 `追加文本`",
+                            crate::display(v)
+                        ),
+                    ))
+                }
+            };
+            let mut f = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&p)
+                .map_err(|e| err("文件错误", format!("打开「{p}」准备追加失败：{e}")))?;
+            f.write_all(&内容)
+                .map_err(|e| err("文件错误", format!("往「{p}」追加字节失败：{e}")))?;
+            Ok(Val::Int(内容.len() as i128))
         },
         "写行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("写行", args, 2)?;
@@ -164,6 +205,25 @@ pub(crate) fn module() -> HashMap<String, Val> {
             fs::copy(&src, &dst)
                 .map_err(|_| err("文件错误", format!("无法把「{src}」复制到「{dst}」")))?;
             Ok(Val::None_)
+        },
+        // 🔴 M118（台账 R207）：复制**整棵目录树**。目标已存在就报错 ——
+        // 自动合并/覆盖太容易把东西搞乱（与 `shutil.copytree` 同规矩）。
+        "复制目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("复制目录", args, 2)?;
+            let src = as_text(&args[0]);
+            let dst = as_text(&args[1]);
+            if !Path::new(&src).is_dir() {
+                return Err(err("文件错误", format!("「{src}」不是目录，没法复制")));
+            }
+            if Path::new(&dst).exists() {
+                return Err(err(
+                    "文件错误",
+                    format!("「{dst}」已经存在，没法复制目录过去（先 `路径.递归删除` 它）"),
+                ));
+            }
+            复制目录树(Path::new(&src), Path::new(&dst))
+                .map_err(|e| err("文件错误", format!("复制目录「{src}」到「{dst}」失败：{e}")))?;
+            Ok(Val::Str(dst))
         },
         "文件大小" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("文件大小", args, 1)?;
