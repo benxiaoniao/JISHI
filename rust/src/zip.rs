@@ -467,9 +467,17 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("运行错误", format!("「{p}」不是有效的 zip：{}", e.message)))?;
             match 条们.into_iter().find(|(n, _)| *n == 名) {
                 Some((_, 数据)) => Ok(Val::Bytes(std::rc::Rc::new(数据))),
+                // ⚠️ 只报**文件名**（与 Python / Node 逐字一致）：完整路径对用户没价值，
+                //    而且临时目录带随机串、分隔符平台相关 —— 报错语料要跨引擎对拍。
                 None => Err(err(
                     "值错误",
-                    format!("「{p}」里没有「{名}」这个成员（先用 `压缩.列出内容` 看看有哪些）"),
+                    format!(
+                        "「{}」里没有「{名}」这个成员（先用 `压缩.列出内容` 看看有哪些）",
+                        std::path::Path::new(&p)
+                            .file_name()
+                            .map(|x| x.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| p.clone())
+                    ),
                 )),
             }
         },

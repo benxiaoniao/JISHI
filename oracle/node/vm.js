@@ -2357,7 +2357,9 @@ const ZIP_FUNCS = {
     }
     const hit = entries.find((x) => x.name === 名);
     if (!hit) {
-      throw R.valueErr(`「${pText(zipPath)}」里没有「${名}」这个成员`
+      // ⚠️ 只报**文件名**（与 Python / Rust 逐字一致）：完整路径对用户没价值，
+      //    而且临时目录带随机串 —— 报错语料要跨引擎对拍。
+      throw R.valueErr(`「${_path.basename(pText(zipPath))}」里没有「${名}」这个成员`
         + '（先用 `压缩.列出内容` 看看有哪些）');
     }
     return new R.JishiBytes(hit.data);

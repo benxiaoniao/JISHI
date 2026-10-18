@@ -141,8 +141,13 @@ def 解压成员(zip路径, 成员名) -> JishiBytes:
             try:
                 数据 = zf.read(名)
             except KeyError:
+                # ⚠️ 只报**文件名**，不回显完整路径（M121 定）：
+                #    ① 路径对用户没价值 —— 他是刚刚自己传进来的；
+                #    ② 完整路径会让三宿主的报错**天然不一致**（临时目录带随机串、
+                #       分隔符平台相关），而报错语料是要跨引擎逐字对拍的。
                 raise RunValueError(
-                    f"「{目标}」里没有「{名}」这个成员（先用 `压缩.列出内容` 看看有哪些）")
+                    f"「{_os.path.basename(目标)}」里没有「{名}」这个成员"
+                    "（先用 `压缩.列出内容` 看看有哪些）")
     except _py_zip.BadZipFile as e:
         raise RunError(f"「{目标}」不是有效的 zip：{e}")
     return JishiBytes(数据)
