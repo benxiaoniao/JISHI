@@ -1769,6 +1769,56 @@ class _BoundUserMethod:
 # 属性 / 下标
 # ---------------------------------------------------------------------------
 
+
+#: 方法名 → 它属于哪个类型（M121）。首次用到时建好，之后直接查。
+_方法归属表: dict | None = None
+
+#: ⚠️ 顺序**固定**：同一个名字可能在多处出现，三个宿主必须给出同一个答案。
+_方法归属顺序 = (
+    ("列表", "LIST_METHODS"),
+    ("字典", "DICT_METHODS"),
+    ("文本", "STR_METHODS"),
+    ("集合", "SET_METHODS"),
+    ("文件", "FILE_METHODS"),
+    ("小数", "DECIMAL_METHODS"),
+)
+
+
+def _找方法归属(名: str) -> str:
+    """这个名字是不是某个对象类型的方法？是就返回类型名，否则空串。"""
+    global _方法归属表
+    if _方法归属表 is None:
+        表: dict = {}
+        for 类型, 变量名 in _方法归属顺序:
+            for 方法 in globals()[变量名]:
+                表.setdefault(方法, 类型)
+        _方法归属表 = 表
+    return _方法归属表.get(名, "")
+
+
+def _模块没有这个的提示(模块名: str, 函数们, 名: str) -> str:
+    """`模块.名字` 找不到时，给一句**能照做**的话（M121）。
+
+    以前这里是「可以看看模块里有哪些函数，例如：打印(dir(模块名)) 在后续版本可用」——
+    `dir` 根本还没实现，等于**空头承诺**。现在分两种情况：
+
+    1. 这个名字其实是某个类型的方法（`文本.去空白` / `容器.追加`）⇒ **点出来**。
+       这是最坑的一类错：函数确实「存在」，只是不能这么调；
+    2. 真的没有 ⇒ 把模块里**有的**列出来（排好序，三个宿主才逐字一致）。
+    """
+    归属 = _找方法归属(名)
+    if 归属:
+        # ⚠️ 这里**不用 `**粗体**`**：报错是打到终端的，Markdown 语法会原样显示成星号。
+        return (f"「{名}」是{归属}的方法，不是模块函数 —— "
+                f"要写在值后面：`你的{归属}.{名}(...)`")
+    全部 = sorted(x for x in 函数们 if not str(x).startswith("_"))
+    if not 全部:
+        return ""
+    头 = "、".join(全部[:20])
+    尾 = f" 等 {len(全部)} 个" if len(全部) > 20 else ""
+    return f"模块「{模块名}」里有：{头}{尾}"
+
+
 def get_attr(obj, attr, *, line=None, col=None, filename="<输入>"):
     """属性/方法访问：模块 → 基石中文方法 → Python 公开属性。"""
     if isinstance(obj, JishiSuper):
@@ -1805,7 +1855,7 @@ def get_attr(obj, attr, *, line=None, col=None, filename="<输入>"):
         raise SemanticFuncError(
             f"模块「{obj.name}」里没有「{attr}」", line=line, col=col,
             filename=filename,
-            hint="可以看看模块里有哪些函数，例如：打印(dir(模块名)) 在后续版本可用")
+            hint=_模块没有这个的提示(obj.name, obj.attrs.keys(), attr))
     if isinstance(obj, JishiInstance):
         # 实例字段优先，其次类变量（含基类），最后类方法（绑定实例）
         if attr in obj.fields:
@@ -2195,7 +2245,19 @@ def do_import(name: str, from_python: bool = False, from_local: bool = False,
             f"没有找到标准库模块「{name}」", line=line, col=col,
             filename=filename,
             hint=hint)
-    attrs = {k: v for k, v in vars(mod).items() if not k.startswith("_")}
+    # 🔴 **优先用 `__all__`**（2026-10-18 修）：以前是「`vars(mod)` 去掉下划线开头」，
+    #    结果模块里 `import` 进来的实现细节**全都成了模块成员** —— 实测 28 个模块
+    #    **无一例外**都漏：`文本.RunTypeError`、`json.annotations`、`表格.显示宽度`、
+    #    `加密.PBKDF2_默认迭代`、`HTTP服务端.socket`… 用户真能访问到它们。
+    #    ⇒ 两处后果：① `--lang-spec` / `--ai-card`（读 `__all__`）说 21 个函数、
+    #    运行期能拿到 24 个 —— **投影与实现不一致**；② 报错时「模块里有哪些函数」
+    #    会列出 `annotations` 这种垃圾（M121 加提示时当场看到）。
+    #    有 `__all__` 就按它来；没有的（不该有，写了断言守）退回老行为。
+    导出 = getattr(mod, "__all__", None)
+    if 导出 is None:
+        attrs = {k: v for k, v in vars(mod).items() if not k.startswith("_")}
+    else:
+        attrs = {k: vars(mod)[k] for k in 导出 if k in vars(mod)}
     # 有状态模块（`日志` / `测试`）声明这个钩子：**每次导入造一份新状态**。
     # 否则状态挂在模块级全局上，同一进程里跑第二个执行器（对拍、测试、
     # REPL 里连跑两段）会串——M41 的五路对拍测试就是这么发现的。

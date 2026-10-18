@@ -4544,6 +4544,47 @@ pub fn set_args(args: Vec<String>) {
 // 属性 / 下标 / 调用
 // ---------------------------------------------------------------------------
 
+/// 方法名 → 它属于哪个类型（M121）。空串 = 不是任何类型的方法。
+///
+/// `langdata::METHODS` 是**生成物**（`tools/gen_langdata_rs.py`），来源是
+/// Python 侧 `runtime.py` 那六张方法表 —— 所以三边看到的是同一份数据。
+fn 找方法归属(名: &str) -> &'static str {
+    for (类型, 方法们) in crate::langdata::METHODS {
+        if 方法们.iter().any(|m| *m == 名) {
+            return 类型;
+        }
+    }
+    ""
+}
+
+/// `模块.名字` 找不到时，给一句**能照做**的话（M121）。三边**逐字一致**。
+fn 模块没有这个的提示(模块名: &str, 函数们: &HashMap<String, Val>, 名: &str) -> String {
+    let 归属 = 找方法归属(名);
+    if !归属.is_empty() {
+        return format!(
+            "「{名}」是{归属}的方法，不是模块函数 —— 要写在值后面：`你的{归属}.{名}(...)`"
+        );
+    }
+    // ⚠️ 必须**排序**：`HashMap` 的遍历序每个进程都不同，不排就三边对不上。
+    //    UTF-8 的字节序与 Unicode 码点序一致，所以 Rust 的 `sort` 与 Python 的
+    //    `sorted` / JS 的 `sort` 在这里给的是同一个顺序。
+    let mut 全部: Vec<&str> = 函数们
+        .keys()
+        .map(|s| s.as_str())
+        .filter(|s| !s.starts_with('_'))
+        .collect();
+    全部.sort_unstable();
+    if 全部.is_empty() {
+        return String::new();
+    }
+    let 头 = 全部.iter().take(20).cloned().collect::<Vec<_>>().join("、");
+    if 全部.len() > 20 {
+        format!("模块「{模块名}」里有：{头} 等 {} 个", 全部.len())
+    } else {
+        format!("模块「{模块名}」里有：{头}")
+    }
+}
+
 pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
     -> Result<Val, JishiError> {
     match obj {
@@ -4552,7 +4593,9 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
         Val::Module(n, attrs) => attrs.get(attr).cloned().ok_or_else(|| err_with_hint(
             T_FUNC,
             format!("模块「{n}」里没有「{attr}」"),
-            "可以看看模块里有哪些函数，例如：打印(dir(模块名)) 在后续版本可用".to_string())),
+            // M121：以前这里写「打印(dir(模块名)) 在后续版本可用」—— `dir` 根本没实现，
+            // 等于**空头承诺**。现在分两种：是对象方法就点出来；真没有就列出有什么。
+            模块没有这个的提示(&n, &attrs, attr))),
         Val::Instance(inst_rc) => {
             let inst = inst_rc.borrow();
             if let Some(v) = inst.fields.get(attr) { return Ok(v.clone()); }

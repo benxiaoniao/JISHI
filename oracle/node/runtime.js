@@ -2340,6 +2340,44 @@ function applyCompare(op, l, r, line, col) {
 // ---------------------------------------------------------------------------
 // 属性 / 下标
 // ---------------------------------------------------------------------------
+//: 方法名 → 它属于哪个类型（M121）。懒建：第一次用到时才建，那时方法表已初始化。
+let _方法归属 = null;
+
+/** 这个名字是不是某个对象类型的方法？是就返回类型名，否则空串。 */
+function 找方法归属(名) {
+  if (!_方法归属) {
+    _方法归属 = new Map();
+    // ⚠️ 顺序**固定**（与 Python 的 `_方法归属顺序` / Rust 的 `langdata::METHODS`
+    //    一致）：同一个名字可能在多处出现，三个宿主必须给出同一个答案。
+    for (const [类型, 表] of Object.entries({
+      列表: LIST_METHODS, 字典: DICT_METHODS, 文本: STR_METHODS,
+      集合: SET_METHODS, 文件: FILE_METHODS, 小数: DECIMAL_METHODS,
+    })) {
+      for (const 方法 of Object.keys(表)) {
+        if (!_方法归属.has(方法)) _方法归属.set(方法, 类型);
+      }
+    }
+  }
+  return _方法归属.get(名) || '';
+}
+
+/** `模块.名字` 找不到时，给一句**能照做**的话（M121）。三边**逐字一致**。 */
+function 模块没有这个的提示(模块名, 函数们, 名) {
+  const 归属 = 找方法归属(名);
+  if (归属) {
+    return `「${名}」是${归属}的方法，不是模块函数 —— 要写在值后面：\`你的${归属}.${名}(...)\``;
+  }
+  // ⚠️ `HashMap` / 对象 / dict 的遍历序都不是「有意义」的序，必须排序 ——
+  //    否则同一段代码在三个宿主上列出来的顺序不同。中文都在 BMP，
+  //    JS 默认的码元序与码点序一致。
+  const 全部 = Object.keys(函数们).filter((k) => !k.startsWith('_')).sort();
+  if (全部.length === 0) return '';
+  const 头 = 全部.slice(0, 20).join('、');
+  return 全部.length > 20
+    ? `模块「${模块名}」里有：${头} 等 ${全部.length} 个`
+    : `模块「${模块名}」里有：${头}`;
+}
+
 function methodTable(obj) {
   if (Array.isArray(obj)) return LIST_METHODS;
   if (obj instanceof Map) return DICT_METHODS;
@@ -2358,9 +2396,11 @@ function getAttr(obj, attr, line, col) {
   }
   if (obj instanceof Module) {
     if (attr in obj.attrs) return obj.attrs[attr];
-    // Python 侧是 `SemanticFuncError`（E0302），且带一句提示（R6.4 一起对齐）
+    // Python 侧是 `SemanticFuncError`（E0302）。M121 把提示从「打印(dir(模块名))
+    // 在后续版本可用」换掉了 —— `dir` 根本没实现，那是**空头承诺**。
+    // 现在是：是对象方法就点出来；真没有就列出这个模块里有什么。三边逐字一致。
     throw funcErr(`模块「${obj.name}」里没有「${attr}」`, line, col,
-                  '可以看看模块里有哪些函数，例如：打印(dir(模块名)) 在后续版本可用');
+                  模块没有这个的提示(obj.name, obj.attrs, attr));
   }
   if (obj instanceof JishiSuper) {
     // 超()（M56）：从**定义类的基类**起找，方法绑定**原实例**。

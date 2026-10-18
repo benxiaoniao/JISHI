@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 31,
     "frontend": 1,
-    "lang": 116,
+    "lang": 120,
     "stdlib": 4
   },
   "语料": [
@@ -1121,6 +1121,34 @@
       "路径": "tests/error_cases/75_表格_TSV装不下制表符.jsh"
     },
     {
+      "id": "tests__error_cases__76_文本_去空白是字符串方法",
+      "产物哈希": "sha256:7907fb90521e528c",
+      "内容哈希": "sha256:fff2587e781fb50b",
+      "类别": "lang",
+      "路径": "tests/error_cases/76_文本_去空白是字符串方法.jsh"
+    },
+    {
+      "id": "tests__error_cases__77_容器_追加是列表方法",
+      "产物哈希": "sha256:99efda8c7d1950fc",
+      "内容哈希": "sha256:ce13f354278ef73b",
+      "类别": "lang",
+      "路径": "tests/error_cases/77_容器_追加是列表方法.jsh"
+    },
+    {
+      "id": "tests__error_cases__78_模块_名字压根不存在",
+      "产物哈希": "sha256:e98afdd12c43aa67",
+      "内容哈希": "sha256:f75fd57405902416",
+      "类别": "lang",
+      "路径": "tests/error_cases/78_模块_名字压根不存在.jsh"
+    },
+    {
+      "id": "tests__error_cases__79_模块_内部东西不能访问",
+      "产物哈希": "sha256:0f46ebaffab10f1b",
+      "内容哈希": "sha256:0cfa7863f3f9dcce",
+      "类别": "lang",
+      "路径": "tests/error_cases/79_模块_内部东西不能访问.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:293975765ad4c964",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -1128,5 +1156,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 152
+  "语料数": 156
 }

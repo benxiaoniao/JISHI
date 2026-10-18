@@ -56,8 +56,10 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -267,6 +269,42 @@ class LlmReply:
     completion_tokens: int = 0
 
 
+class _限速器:
+    """按「每分钟最多多少次请求」把调用**铺开**（M121）。
+
+    🔴 为什么需要它（实测）：单次请求约 **7.8 秒**，74 题串行光模型生成就要
+    9.6 分钟起。而服务商的限额是 **RPM 50** —— 串行只跑得到 **7.7 次/分钟**，
+    额度全浪费在「等模型」上。
+
+    更糟的是以前只有「**题目之间** sleep(题间间隔)」：同一题的**第 2/3 轮是连发**的
+    （回灌报错让模型改），一撞 429 就退避 3/6/12/24 秒 —— **越重试越慢**，
+    而且等待还白占额度。
+
+    ⇒ 两件事一起做：
+    - **并发**（`--并发`）：把 RPM 额度用满；
+    - **全局令牌桶**（本类）：每次**真实请求前**掐一下间隔，重试也管住。
+
+    ⚠️ 锁里 sleep 是**故意**的：后面排队的线程拿到的「下次可发时刻」必须
+    在醒来之后重新算，否则所有线程会同时醒、同时发（限速器的经典写错法）。
+    """
+
+    def __init__(self, 每分钟: float):
+        # 0 或负数 = 不限速（本地脚本 / 限额很宽松时用）
+        self.间隔 = 60.0 / 每分钟 if 每分钟 and 每分钟 > 0 else 0.0
+        self._下次 = 0.0
+        self._锁 = threading.Lock()
+
+    def 等(self) -> None:
+        if self.间隔 <= 0:
+            return
+        with self._锁:
+            now = time.monotonic()
+            if now < self._下次:
+                time.sleep(self._下次 - now)
+                now = time.monotonic()
+            self._下次 = now + self.间隔
+
+
 #: 遇到这些信号就退避重试（额度/频率类问题，等一等通常能过）
 RETRYABLE = ("429", "RATE_LIMITED", "503", "SERVICE_BUSY", "502", "504",
              "timed out", "TimeoutError", "URLError", "ConnectionReset")
@@ -278,7 +316,8 @@ def _retryable(err: str) -> bool:
 
 def call_llm(base: str, key: str, model: str, messages: list[dict],
              max_tokens: int = 4096, timeout: float = 75.0,
-             retries: int = 4, quiet: bool = False) -> LlmReply:
+             retries: int = 4, quiet: bool = False,
+             限速: "_限速器 | None" = None) -> LlmReply:
     """调一次 chat/completions，遇限流/临时故障按指数退避重试。
 
     跑一次全量题集要几十次调用，中途撞上 429 是常态（实测第一轮全量跑丢了
@@ -303,6 +342,9 @@ def call_llm(base: str, key: str, model: str, messages: list[dict],
 
     last_err = ""
     for attempt in range(retries + 1):
+        # ⚠️ **每一次**真实请求（含重试）都过令牌桶 —— 这才是「不撞 429」的关键。
+        if 限速 is not None:
+            限速.等()
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
@@ -386,7 +428,9 @@ def eval_one(t: Task, base: str, key: str, model: str,
              max_tokens: int, verbose: bool,
              interval: float = 0.0,
              retries: int = 4,
-             eval_timeout: float = 75.0) -> TaskOutcome:
+             eval_timeout: float = 75.0,
+             限速: "_限速器 | None" = None,
+             quiet: bool = False) -> TaskOutcome:
     """跑一道题：写 → 跑 → 错就回灌报错 → 再跑，最多 max_rounds 轮。"""
     messages = [
         {"role": "system", "content": build_system_prompt(spec_text)},
@@ -399,7 +443,8 @@ def eval_one(t: Task, base: str, key: str, model: str,
 
     for rnd in range(1, max_rounds + 1):
         reply = call_llm(base, key, model, messages, max_tokens=max_tokens,
-                         retries=retries, timeout=eval_timeout)
+                         retries=retries, timeout=eval_timeout,
+                         限速=限速, quiet=quiet)
         p_tok += reply.prompt_tokens
         c_tok += reply.completion_tokens
         if not reply.ok:
@@ -552,8 +597,20 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="失败后回灌报错最多改几轮（默认 3）")
     ap.add_argument("--最大令牌", type=int, default=8192,
                     help="单次调用 max_tokens（推理模型要给够，默认 8192）")
-    ap.add_argument("--题间间隔", type=float, default=1.5,
-                    help="每题之间的等待秒数，用于避开接口限流（默认 1.5）")
+    # 🔴 M121 把「避限流」的方式换了（实测数据见 `_限速器` 的文档）：
+    #    单次请求 ~8 秒 ⇒ **串行根本用不到 RPM 额度**，而题内第 2/3 轮又是连发的
+    #    ⇒ 一撞 429 就退避 3/6/12/24 秒，越重试越慢。
+    #    现在由 `--每分钟`（全局令牌桶，连重试都管）+ `--并发`（把额度用满）负责，
+    #    `--题间间隔` 退化成「每题之间额外歇一下」，默认 0。
+    ap.add_argument("--并发", type=int, default=1,
+                    help="同时跑几道题（默认 1=串行）。配合 --每分钟 用：服务商按"
+                         "「每分钟请求数」限流，串行时单次就要 ~8 秒，额度用不上")
+    ap.add_argument("--每分钟", type=float, default=45.0,
+                    help="**全局**请求速率上限（请求/分钟，默认 45）。按服务商的 RPM "
+                         "填、留一成余量；0 = 不限（会撞 429 退避，反而更慢）")
+    ap.add_argument("--题间间隔", type=float, default=0.0,
+                    help="每题结束后额外再等几秒（默认 0）。限流由 --每分钟 管，"
+                         "这个只在对方要求「慢一点」时才用")
     ap.add_argument("--重试", type=int, default=4,
                     help="撞限流/临时故障时的退避重试次数（默认 4，退避 3/6/12/24 秒）")
     ap.add_argument("--超时", type=float, default=75.0,
@@ -631,16 +688,38 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"\n=== 跑分：{model} ===")
         t_model = time.time()
         outs: list[TaskOutcome] = []
-        for i, t in enumerate(tasks, 1):
-            if args.verbose:
-                print(f"  [{i}/{len(tasks)}] {t.id}")
+        限速 = _限速器(args.每分钟)
+        完成 = [0]
+        锁 = threading.Lock()
+        # 并发时 `eval_one` 内部的逐题打印会乱序 ⇒ 关掉它，统一在下面按**完成**打。
+        逐题打印 = args.verbose and args.并发 <= 1
+
+        def 跑一题(t: Task) -> TaskOutcome:
             o = eval_one(t, args.base, key, model, spec_text,
-                         args.最大轮数, args.最大令牌, args.verbose,
+                         args.最大轮数, args.最大令牌, 逐题打印,
                          interval=args.题间间隔, retries=args.重试,
-                         eval_timeout=args.超时)
-            outs.append(o)
-            if o.跳过:
-                print(f"    ⚠ 跳过（{o.跳过原因[:60]}）")
+                         eval_timeout=args.超时, 限速=限速,
+                         quiet=args.并发 > 1)
+            with 锁:
+                完成[0] += 1
+                if args.verbose and args.并发 > 1:
+                    标记 = "✓" if o.通过 else ("跳过" if o.跳过 else "✗")
+                    print(f"  [{完成[0]}/{len(tasks)}] {o.task_id} {标记}"
+                          f"（第 {o.轮数} 轮）", flush=True)
+                if o.跳过:
+                    print(f"    ⚠ 跳过（{o.跳过原因[:60]}）", flush=True)
+            return o
+
+        if args.并发 > 1:
+            # `ex.map` 按**提交顺序**返回 ⇒ 汇总表的顺序与串行完全一致，
+            # 报告可以直接跟上一版对比（别用 as_completed，那会打乱顺序）。
+            with ThreadPoolExecutor(max_workers=args.并发) as ex:
+                outs = list(ex.map(跑一题, tasks))
+        else:
+            for i, t in enumerate(tasks, 1):
+                if args.verbose:
+                    print(f"  [{i}/{len(tasks)}] {t.id}", flush=True)
+                outs.append(跑一题(t))
         all_results[model] = outs
         all_elapsed[model] = time.time() - t_model
         # 耗时与 token 总量也打进日志：报告若需从日志重建（如重跑只为修格式），
