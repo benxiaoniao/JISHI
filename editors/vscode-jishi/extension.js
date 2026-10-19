@@ -531,6 +531,60 @@ function registerDebugger(context) {
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// 运行（M122 加）：编辑器右上角的 ▷ + 命令面板两项
+// ---------------------------------------------------------------------------
+
+/**
+ * 运行当前基石文件 —— 结果直接落进下方终端，和 Python 插件是同一个观感。
+ *
+ * 两个命令（对齐 Python 插件）：
+ * - `jishi.run`    ⇒ 复用同一个「基石运行」终端（连跑几次看得到上下文）
+ * - `jishi.runNew` ⇒ 每次开新终端（想并排对比两次输出时用）
+ *
+ * ⚠️ 为什么不自己 `child_process.spawn` 再往 OutputChannel 里灌：
+ *    用户要的是**终端**（能 copy、能再输入、能改）。`createTerminal` + `sendText`
+ *    还顺带把「命令是什么」明明白白写在那儿，出了问题用户自己就能接着敲。
+ */
+function registerRun(context) {
+  const 跑 = (每次新终端) => async (uri) => {
+    const 编辑器 = vscode.window.activeTextEditor;
+    const 文档 = 编辑器 && 编辑器.document;
+    const 目标 = (uri && uri.fsPath) ? uri.fsPath
+      : (文档 && 文档.languageId === 'jishi' ? 文档.uri.fsPath : undefined);
+    if (!目标) {
+      vscode.window.showWarningMessage('没有打开的基石文件可运行。');
+      return;
+    }
+    // 有未保存的改动先存 —— 否则终端里跑的是磁盘上的旧内容，
+    // 用户会以为「我明明改了却没用」（这种「结果和屏幕上不一致」最伤人）
+    if (文档 && 文档.isDirty && 文档.uri.fsPath === 目标) {
+      await 文档.save();
+    }
+
+    const cfg = vscode.workspace.getConfiguration('jishi');
+    // 与语言服务共用同一个配置项：用户改一处，两边都跟着走
+    const 命令 = (cfg.get('server.command', 'jishi') || 'jishi').trim();
+    const 目录 = require('path').dirname(目标);
+
+    let 终端;
+    if (!每次新终端) {
+      终端 = vscode.window.terminals.find((t) => t.name === '基石运行');
+    }
+    if (!终端) {
+      终端 = vscode.window.createTerminal({ name: '基石运行', cwd: 目录 });
+    }
+    终端.show(true);  // true = 不抢焦点，光标留在编辑器里
+    // ⚠️ 路径**一律加引号**：中文目录、带空格的路径都很常见
+    终端.sendText(`${命令} "${目标}"`, true);
+  };
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('jishi.run', 跑(false)),
+    vscode.commands.registerCommand('jishi.runNew', 跑(true)),
+  );
+}
+
 async function activate(context) {
   output = vscode.window.createOutputChannel('基石语言服务');
   diagnostics = vscode.languages.createDiagnosticCollection('jishi');
@@ -546,6 +600,7 @@ async function activate(context) {
   );
 
   registerSync(context);
+  registerRun(context);
   registerDebugger(context);
   await restartServer(context);
 }

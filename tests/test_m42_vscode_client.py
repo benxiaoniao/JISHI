@@ -128,3 +128,47 @@ def test_self_check_detects_broken_server():
     r = _node("verify-lsp.js", "这个可执行文件不存在",
               env={"JISHI_ARGS": ""}, timeout=60)
     assert r.returncode != 0, "自检对不存在的服务器居然通过了"
+
+
+# ---------------------------------------------------------------------------
+# M122：编辑器右上角的「运行」按钮
+# ---------------------------------------------------------------------------
+
+def test_运行命令_配置与实现三处对得上():
+    """`jishi.run` 的**配置 / 菜单 / 实现**必须一致。
+
+    ⚠️ 为什么是静态判据：这个功能**没法在测试里点**（要在真的 VS Code 窗口里）。
+    但「三处对不上」是最常见的错法，而且 100% 能在源码上抓：
+
+    - `contributes.commands` 里没有 ⇒ 命令面板搜不到；
+    - `menus.editor/title` 没指到它 ⇒ **右上角没有那个三角**（用户报的就是这个）；
+    - `extension.js` 里没 `registerCommand` ⇒ 点了报 command not found。
+    """
+    d = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+    命令 = {c["command"]: c for c in d["contributes"]["commands"]}
+
+    assert "jishi.run" in 命令, f"没声明 jishi.run：{list(命令)}"
+    # 编辑器的标题栏按钮**默认只显示图标** —— 没有 icon 就是一块空白（看着像没加上）
+    assert 命令["jishi.run"].get("icon"), \
+        "jishi.run 没有 icon，编辑器右上角会是空白"
+
+    标题栏 = d["contributes"]["menus"]["editor/title"]
+    assert any(m["command"] == "jishi.run" for m in 标题栏), 标题栏
+    # 只在基石文件上出现（别在 .py / .md 的标题栏里也插一个）
+    assert all("jishi" in (m.get("when") or "") for m in 标题栏), 标题栏
+
+    源码 = (EXT / "extension.js").read_text(encoding="utf-8")
+    assert "registerCommand('jishi.run'" in 源码, "extension.js 没注册 jishi.run"
+    # 用户要的是「结果呈现在下方终端」⇒ 必须是终端，不是 OutputChannel
+    assert "createTerminal" in 源码 and "sendText" in 源码
+
+
+def test_运行命令复用语言服务的可执行文件配置():
+    """`jishi.run` 与语言服务用**同一个**配置项。
+
+    否则会出现「补全能用、运行说找不到命令」这种撕裂 —— 用户得猜两次。
+    """
+    源码 = (EXT / "extension.js").read_text(encoding="utf-8")
+    截 = 源码.split("function registerRun")[1].split("\nfunction ")[0]
+    assert "getConfiguration('jishi')" in 截
+    assert "server.command" in 截
