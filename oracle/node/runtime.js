@@ -3271,6 +3271,7 @@ module.exports = {
   iterSizeErr, ITER_SIZE_CHANGED, ITER_SIZE_CHANGED_HINT,
   JishiError, RunBreak, RunContinue,
   typeName, truthy, display, pyStr, pyRepr,
+  ensureCallable,   // M122：`HTTP路由.加路由` 要校验「处理」是函数
   FloatBox, isFloatBox, unwrap,
   JishiDecimal, isDecimal, toDecimal, compareDecimals,
   JishiSet, setRepr, asIterable, seqOf,

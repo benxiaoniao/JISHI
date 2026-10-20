@@ -2,7 +2,7 @@
   "name": "vscode-jishi",
   "displayName": "基石语言（jishi）",
   "description": "基石 —— 一门像 Python 一样简单易用的中文编程语言：语法高亮、代码片段、实时诊断、补全、格式化、重命名、快速修复、语义高亮",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "publisher": "jishi-lang",
   "engines": {
     "vscode": "^1.80.0"

@@ -57,9 +57,9 @@
     "python": "3.13.14"
   },
   "类别计数": {
-    "examples": 31,
+    "examples": 32,
     "frontend": 1,
-    "lang": 120,
+    "lang": 121,
     "stdlib": 4
   },
   "语料": [
@@ -125,6 +125,13 @@
       "内容哈希": "sha256:2a5dad2889e0b0fc",
       "类别": "examples",
       "路径": "examples/projects/基石自述站/生成.jsh"
+    },
+    {
+      "id": "examples__projects__小网站__网站",
+      "产物哈希": "sha256:e4bfa4b8a5e7fcc9",
+      "内容哈希": "sha256:d2b2021db27b82c7",
+      "类别": "examples",
+      "路径": "examples/projects/小网站/网站.jsh"
     },
     {
       "id": "examples__projects__待办清单__待办",
@@ -587,6 +594,13 @@
       "内容哈希": "sha256:89cf453bddb85016",
       "类别": "lang",
       "路径": "tests/cases/39_标准库_M120.jsh"
+    },
+    {
+      "id": "tests__cases__40_标准库_M122",
+      "产物哈希": "sha256:4c9fd5b780958a30",
+      "内容哈希": "sha256:a358849d206f12c7",
+      "类别": "lang",
+      "路径": "tests/cases/40_标准库_M122.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -1156,5 +1170,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 156
+  "语料数": 158
 }

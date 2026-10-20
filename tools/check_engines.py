@@ -88,6 +88,10 @@ EXEMPT: dict[str, str] = {
         "`frontend` 类别的说明（这类语料**只给前端看**，不参与运行期对拍）",
     "examples/projects/排序跑分/排序.jsh":
         "打印的是**墙上时间**（毫秒），三次跑天然不同 —— 噪声，不是语义差异",
+    "examples/projects/小网站/网站.jsh":
+        "**服务端示例**：最后一行是 `HTTP服务端.启动(…)`，跑起来会一直监听、不退出 —— "
+        "拿它当语料会把对拍挂死。它的行为由 `tests/cases/40_标准库_M122.jsh`（路由语义）"
+        "与 `tests/test_m122_router.py`（示例能编译）覆盖；端到端由人跑 `jishi 网站.jsh` 验",
 }
 
 

@@ -4436,6 +4436,87 @@ function _http百分号解码(s) {
   return Buffer.from(out).toString('utf8');
 }
 
+// -- HTTP路由（M122）--
+// 纯逻辑（列表 + 字典），五个引擎都能跑 ⇒ 进语料逐字节对拍。
+// 匹配规则见 `oracle/jishi/stdlib/HTTP路由.py` 的模块文档（三边共用那一份）。
+
+/** 切段：`/` → []；`/a/b` → ['a','b']；`/a/` → ['a','']（末尾斜杠严格区分）。 */
+const _RT切段 = (路径) => (路径 === '/' ? [] : 路径.replace(/^\/+/, '').split('/'));
+
+const ROUTE_FUNCS = {
+  '路由表': new R.Builtin('路由表', () => []),
+
+  '加路由': new R.Builtin('加路由', (表, 方法, 路径, 处理) => {
+    if (!Array.isArray(表)) {
+      throw R.typeErr(`「表」要是路由表（用 \`路由表()\` 造），现在是「${R.typeName(表)}」`);
+    }
+    const 方法上 = pText(方法).trim().toUpperCase();
+    if (方法上 === '') {
+      throw R.valueErr('「方法」不能是空文本（要「什么方法都收」请写 "*"）');
+    }
+    const 路径上 = pText(路径);
+    if (!路径上.startsWith('/')) throw R.valueErr(`路径要以 / 开头（现在是「${路径上}」）`);
+    R.ensureCallable(处理, '处理');
+    for (const 段 of _RT切段(路径上)) {
+      if (段 === '') throw R.valueErr(`路径「${路径上}」里有空段（是不是多写了一个 /）`);
+      if (段 === ':') {
+        throw R.valueErr(`路径「${路径上}」里有光秃秃的 \`:\`，参数要有名字（比如 \`:id\`）`);
+      }
+    }
+    表.push(new Map([
+      ['方法', 方法上],
+      ['路径', 路径上],
+      ['处理', 处理],
+    ]));
+    return 表;   // 返回表本身，方便连着写
+  }),
+
+  '匹配': new R.Builtin('匹配', (表, 方法, 路径) => {
+    if (!Array.isArray(表)) {
+      throw R.typeErr(`「表」要是路由表（用 \`路由表()\` 造），现在是「${R.typeName(表)}」`);
+    }
+    const 方法上 = pText(方法).trim().toUpperCase();
+    const 段们 = _RT切段(pText(路径));
+
+    let 最佳 = null;   // { 处理, 参数, 参数数 }
+    for (const 路由 of 表) {
+      const 路由方法 = 路由.get('方法');
+      if (路由方法 !== '*' && 路由方法 !== 方法上) continue;
+      const 模式们 = _RT切段(路由.get('路径'));
+      if (模式们.length !== 段们.length) continue;
+
+      const 参数 = new Map();
+      let 能匹配 = true;
+      for (let i = 0; i < 模式们.length; i++) {
+        const 模式 = 模式们[i];
+        const 实际 = 段们[i];
+        if (模式.startsWith(':')) {
+          // 空段不算参数值：`/a/` 不能匹配 `/a/:id`
+          if (实际 === '') { 能匹配 = false; break; }
+          参数.set(模式.slice(1), 实际);
+        } else if (模式 !== 实际) { 能匹配 = false; break; }
+      }
+      if (!能匹配) continue;
+
+      const 参数数 = 模式们.filter((s) => s.startsWith(':')).length;
+      // 静态优先：参数段更少更确切；一样则保留**先注册**的
+      if (最佳 === null || 参数数 < 最佳.参数数) {
+        最佳 = { 处理: 路由.get('处理'), 参数, 参数数 };
+      }
+    }
+    if (最佳 === null) return null;   // 没命中 ⇒ 空（404 是正常流程）
+
+    return new Map([['处理', 最佳.处理], ['参数', 最佳.参数]]);
+  }),
+
+  '路径们': new R.Builtin('路径们', (表) => {
+    if (!Array.isArray(表)) {
+      throw R.typeErr(`「表」要是路由表（用 \`路由表()\` 造），现在是「${R.typeName(表)}」`);
+    }
+    return 表.map((r) => `${r.get('方法')} ${r.get('路径')}`);
+  }),
+};
+
 const HTTP_FUNCS = {
   '解析请求': new R.Builtin('解析请求', (raw) => {
     const 原始 = pText(raw);
@@ -4925,6 +5006,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '并发': new R.Module('并发', CONCURRENT_FUNCS),
   // M115：本地 HTTP 小服务。纯协议核心能用；`启动`/`空闲端口` 明确报边界，见上面。
   'HTTP服务端': new R.Module('HTTP服务端', HTTP_FUNCS),
+  'HTTP路由': new R.Module('HTTP路由', ROUTE_FUNCS),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }

@@ -208,7 +208,12 @@ def test_python_reference_implementations_run(tmp_path):
     """Python 参考实现要真能跑——拿坏实现比出来的比值没有意义。
 
     `网页采集` 的参考实现要联网，**不在这里跑**（测试不该依赖网络）；
-    它的存在性由 `test_every_project_has_python_reference` 保证。
+    `小网站` 的参考实现是**服务端**（`serve_forever()` 一直监听、不退出）——
+    跑它就等于挂住测试。两者的**存在性**都由
+    `test_every_project_has_python_reference` 保证（那条只查文件在不在）。
+
+    ⚠️ 这两条豁免是**显式**的、写死的：以后真有项目要跑起来验证，别顺手把名字塞进来
+    —— 先问「它为什么不能跑完」。
     """
     import os
 
@@ -217,7 +222,7 @@ def test_python_reference_implementations_run(tmp_path):
     done = []
     for project in sorted(PROJECTS.iterdir()):
         ref = project / "参考实现.py"
-        if not ref.exists() or project.name == "网页采集":
+        if not ref.exists() or project.name in ("网页采集", "小网站"):
             continue
         args = [sys.executable, str(ref)]
         if project.name == "基石自述站":
