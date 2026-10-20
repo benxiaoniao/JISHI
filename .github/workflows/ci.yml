@@ -165,7 +165,10 @@ jobs:
           # 按核数等比降到 4 —— **别用 `auto`**：runner 的核数是变数，
           # 写死 4 至少每轮可比。同理也不是越大越好：这堆用例里不少是
           # 「起子进程跑 Rust / node / gcc」，满载会互相抢（见 AGENTS.md §1 那三条纪律）。
-          python -m pytest tests/ -q --tb=short -rf -m "not 计时" -n 4 2>&1 | tee pytest.log
+          # 🔴 `--dist loadfile` 不是可选项（2026-10-20）：xdist 默认的 `load`
+          #    （按测试分发）在本题量下会**死锁** —— 表现「跑到 98% 就不动」，
+          #    所有 worker 在 wait、主进程在 join，**没人失败**。按文件分发才稳。
+          python -m pytest tests/ -q --tb=short -rf -m "not 计时" -n 4 --dist loadfile 2>&1 | tee pytest.log
 
       # 失败时把「哪些用例挂了」写成 Actions 注解（M35 加）。
       # 来由：CI 一直红，而 job 日志只能登录网页看、公开 API 下载要管理员权限，
