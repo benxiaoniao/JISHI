@@ -134,13 +134,36 @@ def run_sandboxed(source: str, opts: Optional[SandboxOpts] = None,
     buf = _LimitedStringIO(opts.max_stdout)
     outcome: dict = {}
 
+    # 🔴 超时**必须真能停下来**（2026-10-20 修）：
+    #    以前的写法是 `t.join(timeout)` 到点就返回，**线程继续在后台跑**
+    #    （注释还写着「无法强制终止，靠进程回收」）。后果是很实在的：
+    #    一个死循环线程会一直烧 CPU、**抢 GIL**，把同进程里其他测试拖慢 2–3 倍 ——
+    #    实测 `-n 8` 跑全量从 7 分钟变成 22 分钟，查了半天以为是新代码慢。
+    #
+    #    ⇒ 用 `sys.settrace` 给**这个线程**装一个「到点就抛」的钩子：
+    #      主线程 `join` 超时后置位 `超时`，被监视线程在**下一条语句**就抛出来退出。
+    #      `settrace` 只影响当前线程 ⇒ 不影响别的测试；也只用在**沙箱**里，
+    #      而沙箱本来就是「跑不受信任代码」，慢一点完全可以接受。
+    超时 = threading.Event()
+
     def target():
+        def 看门(frame, event, arg):
+            if 超时.is_set():
+                raise RunError(
+                    f"执行超时（{opts.timeout} 秒）",
+                    hint="可能是有死循环，检查循环条件或递归结束条件")
+            return 看门
+
+        old_trace = sys.gettrace()
+        sys.settrace(看门)
         try:
             with redirect_stdout(buf):
                 run_source(source, filename)
             outcome["stdout"] = buf.getvalue()
         except BaseException as e:  # noqa: BLE001 —— 捕获一切，交给主线程判断
             outcome["error"] = e
+        finally:
+            sys.settrace(old_trace)
 
     prev_guard = runtime._IMPORT_GUARD
     runtime._IMPORT_GUARD = _make_guard(opts)
@@ -151,7 +174,10 @@ def run_sandboxed(source: str, opts: Optional[SandboxOpts] = None,
         duration = (time.perf_counter() - start) * 1000.0
 
         if t.is_alive():
-            # 超时：线程仍在跑（无法强制终止），放弃结果，靠进程回收线程
+            # 超时：置位让被监视的线程**自己**退出（见上面 `target` 里的说明），
+            # 再给它 1 秒收尾。收不了也不阻塞主流程 —— 这只是尽力而为。
+            超时.set()
+            t.join(1.0)
             return failure(
                 RunError(
                     f"执行超时（{opts.timeout} 秒）",
