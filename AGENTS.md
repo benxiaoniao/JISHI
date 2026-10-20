@@ -69,7 +69,7 @@
 3. **测试命令**：`python -m pytest tests/`（当前 **3609 项**）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
-   .venv/Scripts/python.exe -m pytest tests/ -q -n 12 -m "not 计时"   # 主体 ~3.5 分钟
+   .venv/Scripts/python.exe -m pytest tests/ -q -n 4 --dist loadfile -m "not 计时"   # 主体 ~7 分钟
    .venv/Scripts/python.exe -m pytest tests/ -q -m 计时                # 6 条墙上时间护栏，串行
    ```
    （串行历史基线 28 分钟，9-25 有记录；并行的收益主要在这里。）
@@ -100,6 +100,12 @@
    最小复现是 `node -e "require('child_process').spawnSync(process.execPath,['-e',''])"`
    直接 `EBUSY`（**系统 node 也一样**）。所以「串行重跑必须全过」这个判据在沙箱里
    对这 3 条不成立，**用最小复现证环境、别改代码**。
+   🔴 **`--dist loadfile` 不是可选项**（2026-10-20 踩）：xdist 默认的 `load`
+   （按**测试**分发）在本题量下会**死锁** —— 表现是「跑到 98% 就不动了」，
+   `py-spy` 一看：所有 worker 都在 `wait`、主进程在 `join`，**没有人失败**。
+   `-n 8` / `-n 4` 都会，换成 `--dist loadfile`（按**文件**分发）后稳定 7 分半跑完。
+   ⚠️ 排查时别被「一个 worker 吃满 CPU」带偏：那次是**另一个**原因
+   （`sandbox.run_sandboxed` 超时后线程没停，见 `tests/test_m17_diagnostics`）。
    ⚠️ 同理：**12 路满载时**偶有用例报 `SystemExit: 1` / `ERROR`（子进程 spawn 被拖超时），
    大多是载荷问题 —— 判据是**串行重跑那几条**：过 = 载荷，不过 = 真问题。
    ⚠️ **`tools/check_engines.py` 会在仓库根留下教程产物**（`账本.csv` / `成绩.csv` /
