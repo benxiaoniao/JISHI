@@ -2,6 +2,7 @@ node_modules/**
 .vscode/**
 .vscode-test/**
 **/*.vsix
+build/**
 **/*.log
 **/.DS_Store
 .gitignore

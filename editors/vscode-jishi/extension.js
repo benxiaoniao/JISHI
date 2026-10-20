@@ -567,6 +567,31 @@ function registerRun(context) {
     const 命令 = (cfg.get('server.command', 'jishi') || 'jishi').trim();
     const 目录 = require('path').dirname(目标);
 
+    // 🔴 先探一下这个命令**在不在**（2026-10-20 加）。
+    //    扩展**不带解释器** —— 它只是在终端里敲 `jishi 文件.jsh`。
+    //    机器上没装基石（或装了但 VSCode 启动时 PATH 还没生效）时，
+    //    终端里只会给一句 `command not found`，用户完全看不出该去装什么。
+    //    这一步多花 ~100ms，换来的是一句能照做的话。
+    try {
+      require('child_process').execFileSync(命令, ['--version'], {
+        timeout: 5000, stdio: 'ignore', shell: true,
+      });
+    } catch (e) {
+      const 选项 = ['设置 jishi 路径', '看安装说明'];
+      const 选 = await vscode.window.showErrorMessage(
+        `没找到「${命令}」。VSCode 扩展本身不带解释器 —— 需要先装**基石本体**`
+        + `（装完重启 VSCode，PATH 才生效）。已经装在别处的话，把路径填到设置项「jishi.server.command」。`,
+        ...选项);
+      if (选 === '设置 jishi 路径') {
+        await vscode.commands.executeCommand(
+          'workbench.action.openSettings', 'jishi.server.command');
+      } else if (选 === '看安装说明') {
+        await vscode.env.openExternal(
+          vscode.Uri.parse('https://xn--3jsy75e.cn/download.html'));
+      }
+      return;
+    }
+
     let 终端;
     if (!每次新终端) {
       终端 = vscode.window.terminals.find((t) => t.name === '基石运行');
