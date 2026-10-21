@@ -5007,6 +5007,10 @@ const STDLIB = {  '数学': new R.Module('数学', {
   // M115：本地 HTTP 小服务。纯协议核心能用；`启动`/`空闲端口` 明确报边界，见上面。
   'HTTP服务端': new R.Module('HTTP服务端', HTTP_FUNCS),
   'HTTP路由': new R.Module('HTTP路由', ROUTE_FUNCS),
+  // M123：Excel 读。内部工具从这里注入（zip 解析 / 表格构造 / 文本与类型）
+  'Excel': new R.Module('Excel', require('./excel_mod')({
+    zipBytes, readZipEntries, makeTable, pText, R,
+  })),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }
