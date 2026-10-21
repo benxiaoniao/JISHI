@@ -290,7 +290,7 @@ Pyodide（浏览器里的 Python）换成同一份引擎的 **wasm** 版。
 剩余绕道 **3 条**都已有结论（缺 2 · 增强 1 · 新增模块 0），见
 [`docs/绕道台账.md`](docs/绕道台账.md)。
 
-**测试现状：3817 项，3817 通过**（`python -m pytest tests/ -n 4 --dist loadfile`）—— 其中 240 余项是
+**测试现状：3828 项，3828 通过**（`python -m pytest tests/ -n 4 --dist loadfile`）—— 其中 240 余项是
 多执行器（树遍历 / Python VM / C VM / Rust VM / Node）**逐字节对拍**。
 **全量约 3 分钟**：`-n 12 -m "not 计时"` 跑主体，再串行跑 `-m 计时`
 （9 条墙上时间护栏 —— 12 路并行会把墙钟抬高，详见 `AGENTS.md` §1）。
