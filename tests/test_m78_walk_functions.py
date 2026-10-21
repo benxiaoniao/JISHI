@@ -250,8 +250,11 @@ def test_类型函数值五个执行器都给函数():
 
 @need_rust
 def test_进度仪表零不一致():
+    # ⚠️ **必须给 timeout**（2026-10-22 加）：`check_walk.py` 跑 133 语料 × Rust VM，
+    #    空闲 40~50 秒、并行满载时更久。没有 timeout 就会**无限期等下去** ——
+    #    这正是「全量卡在 98%、没人失败」的一部分（见 tools/test_all.py 的注释）。
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "check_walk.py")],
-                       capture_output=True, cwd=str(ROOT))
+                       capture_output=True, cwd=str(ROOT), timeout=600)
     out = r.stdout.decode("utf-8", "replace")
     assert r.returncode == 0, out + r.stderr.decode("utf-8", "replace")[-800:]
     assert "不一致 0" in out, out

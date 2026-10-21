@@ -192,7 +192,7 @@ def test_进度仪表全覆盖():
     这是这个里程碑的硬指标：`还没实现 N` 那一列就是「还没接上的节点类型」。
     """
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "check_walk.py")],
-                       capture_output=True, cwd=str(ROOT))
+                       capture_output=True, cwd=str(ROOT), timeout=600)
     out = r.stdout.decode("utf-8", "replace")
     assert r.returncode == 0, out + r.stderr.decode("utf-8", "replace")[-600:]
     assert "不一致 0" in out, out

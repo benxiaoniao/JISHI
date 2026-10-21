@@ -179,7 +179,7 @@ def test_迭代返回自身要报错():
 @need_rust
 def test_进度仪表零不一致():
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "check_walk.py")],
-                       capture_output=True, cwd=str(ROOT))
+                       capture_output=True, cwd=str(ROOT), timeout=600)
     out = r.stdout.decode("utf-8", "replace")
     assert r.returncode == 0, out + r.stderr.decode("utf-8", "replace")[-800:]
     assert "不一致 0" in out, out
