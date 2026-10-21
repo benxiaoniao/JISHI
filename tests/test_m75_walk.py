@@ -137,9 +137,13 @@ def test_进度仪表能跑():
     ⚠️ 「还没实现」是允许的（第一个切片）；**「不一致」不是** ——
     那说明两个实现有真分歧，要立刻查。
     """
+    # ⚠️ **必须给 timeout**（2026-10-22 加）：`check_walk.py` 要跑 133 个语料 × Rust VM，
+    #    是**CPU 密集**的 —— 实测空闲时 30 秒，4 路并行满载时 **190 秒以上**。
+    #    没有 timeout 的话，一旦它被拖到超久，这条测试就会**无限期等下去**，
+    #    而并行的 `--dist loadfile` 又拿它没辙（那是「测试慢」，不是「测试超时」）。
     r = subprocess.run(
         [sys.executable, str(ROOT / "tools" / "check_walk.py")],
-        capture_output=True, cwd=str(ROOT))
+        capture_output=True, cwd=str(ROOT), timeout=600)
     out = r.stdout.decode("utf-8", "replace")
     assert r.returncode == 0, out + r.stderr.decode("utf-8", "replace")[-500:]
     assert "不一致 0" in out, out
