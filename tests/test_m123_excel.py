@@ -101,3 +101,67 @@ def test_不是_xlsx_说清楚(tmp_path):
     with pytest.raises(Exception) as ei:
         Excel.读工作簿(str(p))
     assert ".xlsx" in str(ei.value) and ".xls" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# M124：写
+# ---------------------------------------------------------------------------
+
+def test_写出去能读回来(真文件, tmp_path):
+    """**往返一致**：写出去 → 读回来 → 值与类型完全相同。"""
+    原 = Excel.读工作表(Excel.读工作簿(str(真文件)), "销售")
+    p = tmp_path / "回.xlsx"
+    Excel.写工作簿(str(p), 原, "销售")
+    回 = Excel.读工作表(Excel.读工作簿(str(p)), "销售")
+    assert 表格.表头(回) == 表格.表头(原)
+    assert 表格.数据行(回) == 表格.数据行(原)
+
+
+def test_写两次字节完全相同(tmp_path):
+    """**字节可复现**：zip 时间戳写死 1980-01-01、成员顺序固定、stored 不压缩。"""
+    t = 表格.从记录([{"甲": 1, "乙": "x"}, {"甲": 2, "乙": None}])
+    甲, 乙 = tmp_path / "甲.xlsx", tmp_path / "乙.xlsx"
+    Excel.写工作簿(str(甲), t, "表一")
+    Excel.写工作簿(str(乙), t, "表一")
+    assert 甲.read_bytes() == 乙.read_bytes(), "同一份数据写两次得到了不同字节"
+
+
+def test_openpyxl_能打开我们写的(tmp_path):
+    """路线图验收第③条：**别人能打开**，才说明格式真的对（不只是自己读得懂）。"""
+    openpyxl = pytest.importorskip("openpyxl")
+    t = 表格.从记录([
+        {"姓名": "小红", "分数": 95},
+        {"姓名": "小明", "分数": 100},
+    ])
+    p = tmp_path / "给别人.xlsx"
+    Excel.写工作簿(str(p), t, "成绩")
+    wb = openpyxl.load_workbook(p)
+    assert wb.sheetnames == ["成绩"]
+    assert [[c for c in row] for row in wb["成绩"].iter_rows(values_only=True)] == [
+        ["姓名", "分数"], ["小红", 95], ["小明", 100],
+    ]
+
+
+def test_特殊字符要转义(tmp_path):
+    """`&` `<` `>` 在 XML 里必须转义，否则文件直接坏掉（或读回来变样）。"""
+    t = 表格.从记录([{"公司": "A&B <集团>", "备注": '他说"你好"'}])
+    p = tmp_path / "转义.xlsx"
+    Excel.写工作簿(str(p), t)
+    回 = Excel.读工作表(Excel.读工作簿(str(p)), "Sheet1")
+    assert 表格.数据行(回)[0][0] == "A&B <集团>"
+    assert 表格.数据行(回)[0][1] == '他说"你好"'
+
+
+def test_写多表(tmp_path):
+    t1 = 表格.从记录([{"a": 1}])
+    t2 = 表格.从记录([{"b": 2}])
+    p = tmp_path / "多.xlsx"
+    Excel.写多表(str(p), {"第一": t1, "第二": t2})
+    簿 = Excel.读工作簿(str(p))
+    assert 簿["工作表们"] == ["第一", "第二"], "标签页顺序要跟字典顺序一致"
+
+
+def test_写的不是表格要说清(tmp_path):
+    with pytest.raises(Exception) as ei:
+        Excel.写工作簿(str(tmp_path / "x.xlsx"), [1, 2, 3])
+    assert "表格" in str(ei.value)

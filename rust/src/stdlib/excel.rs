@@ -401,5 +401,267 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 rows: 体,
             })))
         },
+
+        "写工作簿" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("写工作簿", args, 2, 3)?;
+            let p = as_text(&args[0]);
+            let t = match &args[1] {
+                Val::Table(t) => t.clone(),
+                other => return Err(err("类型错误", format!(
+                    "「表」要是一个表格（`表格.读表格` 或 `Excel.读工作表` 的返回值），现在是 {}",
+                    crate::display(other)))),
+            };
+            let 名 = if args.len() > 2 { as_text(&args[2]) } else { "Sheet1".to_string() };
+            if 名.is_empty() {
+                return Err(err("值错误", "「表名」不能是空文本".to_string()));
+            }
+            写包(&p, &[(名, t)]).map_err(|m| err("运行错误", m))?;
+            Ok(Val::Str(p))
+        },
+
+        "写多表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("写多表", args, 2, 2)?;
+            let p = as_text(&args[0]);
+            let 对: Vec<(String, Val)> = match &args[1] {
+                Val::Dict(d) => d
+                    .borrow()
+                    .items
+                    .iter()
+                    .map(|(k, v)| (crate::display(k), v.clone()))
+                    .collect(),
+                other => return Err(err("类型错误", format!(
+                    "「表们」要是字典（表名 → 表格），现在是 {}", crate::display(other)))),
+            };
+            let mut 表们 = Vec::new();
+            for (名, v) in 对 {
+                match v {
+                    Val::Table(t) => 表们.push((名, t)),
+                    _ => return Err(err("类型错误", format!("「{名}」的值不是表格"))),
+                }
+            }
+            写包(&p, &表们).map_err(|m| err("运行错误", m))?;
+            Ok(Val::Str(p))
+        },
     }
+}
+
+// ---------------------------------------------------------------------------
+// 写
+// ---------------------------------------------------------------------------
+//
+// 三条硬规矩（与 Python 侧同一套）：
+// 1. **stored（method 0）**：不压缩 ⇒ 输出与 zlib 版本无关；
+// 2. **时间戳写死 1980-01-01 00:00:00**（DOS 日期 `0x21`、时间 `0`）⇒ 写两次字节相同；
+// 3. **成员顺序固定** ⇒ 中央目录顺序也固定。
+//
+// ⚠️ 不要求「三宿主写出的字节完全一样」（version needed / external_attr 这些字段
+//    各家的实现细节不同，硬凑没意义）。要求的是**同一个宿主写两次一样**——
+//    这才是用户能感知到的「可复现」。
+
+/// zip 里的一个成员。
+struct 待写 {
+    名: String,
+    数据: Vec<u8>,
+}
+
+/// 打成一个 **stored** zip。字段全部写死 ⇒ 同样输入必得同样字节。
+fn 打zip(成员: &[待写]) -> Vec<u8> {
+    let mut 出: Vec<u8> = Vec::new();
+    let mut 目录: Vec<u8> = Vec::new();
+    let codec = 0u16; // stored
+    let 时间: u16 = 0;          // 00:00:00
+    let 日期: u16 = 0x21;       // 1980-01-01
+
+    for m in 成员 {
+        let 名 = m.名.as_bytes();
+        let crc = crate::zip::crc32(&m.数据);
+        let 大小 = m.数据.len() as u32;
+        let 偏移 = 出.len() as u32;
+
+        // 本地文件头
+        出.extend_from_slice(b"PK\x03\x04");
+        出.extend_from_slice(&20u16.to_le_bytes());   // version needed
+        出.extend_from_slice(&0u16.to_le_bytes());    // flags
+        出.extend_from_slice(&codec.to_le_bytes());
+        出.extend_from_slice(&时间.to_le_bytes());
+        出.extend_from_slice(&日期.to_le_bytes());
+        出.extend_from_slice(&crc.to_le_bytes());
+        出.extend_from_slice(&大小.to_le_bytes());
+        出.extend_from_slice(&大小.to_le_bytes());
+        出.extend_from_slice(&(名.len() as u16).to_le_bytes());
+        出.extend_from_slice(&0u16.to_le_bytes());    // extra len
+        出.extend_from_slice(名);
+        出.extend_from_slice(&m.数据);
+
+        // 中央目录项
+        目录.extend_from_slice(b"PK\x01\x02");
+        目录.extend_from_slice(&20u16.to_le_bytes()); // version made by
+        目录.extend_from_slice(&20u16.to_le_bytes()); // version needed
+        目录.extend_from_slice(&0u16.to_le_bytes());  // flags
+        目录.extend_from_slice(&codec.to_le_bytes());
+        目录.extend_from_slice(&时间.to_le_bytes());
+        目录.extend_from_slice(&日期.to_le_bytes());
+        目录.extend_from_slice(&crc.to_le_bytes());
+        目录.extend_from_slice(&大小.to_le_bytes());
+        目录.extend_from_slice(&大小.to_le_bytes());
+        目录.extend_from_slice(&(名.len() as u16).to_le_bytes());
+        目录.extend_from_slice(&0u16.to_le_bytes());  // extra
+        目录.extend_from_slice(&0u16.to_le_bytes());  // comment
+        目录.extend_from_slice(&0u16.to_le_bytes());  // disk
+        目录.extend_from_slice(&0u16.to_le_bytes());  // internal attr
+        目录.extend_from_slice(&0u32.to_le_bytes());  // external attr（写死）
+        目录.extend_from_slice(&偏移.to_le_bytes());
+        目录.extend_from_slice(名);
+    }
+
+    let 目录偏移 = 出.len() as u32;
+    let 目录大小 = 目录.len() as u32;
+    出.extend_from_slice(&目录);
+
+    // 结尾记录
+    出.extend_from_slice(b"PK\x05\x06");
+    出.extend_from_slice(&0u16.to_le_bytes());
+    出.extend_from_slice(&0u16.to_le_bytes());
+    出.extend_from_slice(&(成员.len() as u16).to_le_bytes());
+    出.extend_from_slice(&(成员.len() as u16).to_le_bytes());
+    出.extend_from_slice(&目录大小.to_le_bytes());
+    出.extend_from_slice(&目录偏移.to_le_bytes());
+    出.extend_from_slice(&0u16.to_le_bytes());
+    出
+}
+
+/// XML 文本转义。**`&` 必须先换**，否则会把生成的 `&lt;` 二次转义。
+fn 逃(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+fn 逃属性(s: &str) -> String {
+    逃(s).replace('"', "&quot;")
+}
+
+/// 数值 → xlsx 里的文本形式。整数**不带小数点**，布尔给 `1/0`。
+fn 数字文本(v: &Val) -> Option<String> {
+    match v {
+        Val::Bool(b) => Some(if *b { "1".into() } else { "0".into() }),
+        Val::Int(i) => Some(i.to_string()),
+        // ⚠️ 浮点要「读回来一模一样」：Rust 的 `{}` 给的是最短往返表示，
+        //    与 Python 的 `repr(float)` 同口径（都保证 round-trip）。
+        Val::Float(f) => Some(format!("{f}")),
+        // `Dec` 没有 `Display`，走统一的 `display`（与打印时同口径）
+        Val::Dec(_) => Some(crate::display(v)),
+        _ => None,
+    }
+}
+
+fn 列字母(mut 列: usize) -> String {
+    let mut 出 = String::new();
+    列 += 1;
+    while 列 > 0 {
+        let 余 = (列 - 1) % 26;
+        出.insert(0, (b'A' + 余 as u8) as char);
+        列 = (列 - 1) / 26;
+    }
+    出
+}
+
+fn 单元格XML(列: usize, 行号: usize, 值: &Val) -> String {
+    let 引用 = format!("{}{}", 列字母(列), 行号);
+    match 值 {
+        Val::None_ => String::new(),   // 空值**不写**（xlsx 允许跳过）
+        Val::Bool(b) => format!(
+            "<c r=\"{引用}\" t=\"b\"><v>{}</v></c>",
+            if *b { 1 } else { 0 }
+        ),
+        Val::Int(_) | Val::Float(_) | Val::Dec(_) => match 数字文本(值) {
+            Some(t) => format!("<c r=\"{引用}\"><v>{t}</v></c>"),
+            None => String::new(),
+        },
+        other => format!(
+            "<c r=\"{引用}\" t=\"inlineStr\"><is><t>{}</t></is></c>",
+            // ⚠️ 文本一律 `display`（与 Python 侧 str() 同口径，别用 debug 格式）
+            逃(&crate::display(other))
+        ),
+    }
+}
+
+fn 表XML(表头: &[Val], 行们: &[Vec<Val>]) -> String {
+    let mut 片 = String::from(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n",
+    );
+    片.push_str("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>");
+    let mut 第 = 1usize;
+    let mut 写一行 = |值们: &[Val], 片: &mut String| {
+        片.push_str(&format!("<row r=\"{第}\">"));
+        for (列, 值) in 值们.iter().enumerate() {
+            片.push_str(&单元格XML(列, 第, 值));
+        }
+        片.push_str("</row>");
+        第 += 1;
+    };
+    if !表头.is_empty() {
+        写一行(表头, &mut 片);
+    }
+    for 行 in 行们 {
+        写一行(行, &mut 片);
+    }
+    片.push_str("</sheetData></worksheet>");
+    片
+}
+
+fn 写包(路径: &str, 表们: &[(String, std::rc::Rc<super::tables::Table>)]) -> Result<(), String> {
+    if 表们.is_empty() {
+        return Err("至少要有一个工作表".into());
+    }
+    let 头 = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n";
+    let mut 成员: Vec<待写> = Vec::new();
+
+    let mut 型 = String::from(头);
+    型.push_str("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">");
+    型.push_str("<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>");
+    型.push_str("<Default Extension=\"xml\" ContentType=\"application/xml\"/>");
+    型.push_str("<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>");
+    for i in 0..表们.len() {
+        型.push_str(&format!(
+            "<Override PartName=\"/xl/worksheets/sheet{}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>",
+            i + 1
+        ));
+    }
+    型.push_str("</Types>");
+    成员.push(待写 { 名: "[Content_Types].xml".into(), 数据: 型.into_bytes() });
+
+    let mut 根 = String::from(头);
+    根.push_str("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
+    根.push_str("<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>");
+    成员.push(待写 { 名: "_rels/.rels".into(), 数据: 根.into_bytes() });
+
+    let mut 簿 = String::from(头);
+    簿.push_str("<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets>");
+    for (i, (名, _)) in 表们.iter().enumerate() {
+        簿.push_str(&format!(
+            "<sheet name=\"{}\" sheetId=\"{}\" r:id=\"rId{}\"/>",
+            逃属性(名), i + 1, i + 1
+        ));
+    }
+    簿.push_str("</sheets></workbook>");
+    成员.push(待写 { 名: "xl/workbook.xml".into(), 数据: 簿.into_bytes() });
+
+    let mut 关 = String::from(头);
+    关.push_str("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
+    for i in 0..表们.len() {
+        关.push_str(&format!(
+            "<Relationship Id=\"rId{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet{}.xml\"/>",
+            i + 1, i + 1
+        ));
+    }
+    关.push_str("</Relationships>");
+    成员.push(待写 { 名: "xl/_rels/workbook.xml.rels".into(), 数据: 关.into_bytes() });
+
+    for (i, (_, t)) in 表们.iter().enumerate() {
+        成员.push(待写 {
+            名: format!("xl/worksheets/sheet{}.xml", i + 1),
+            数据: 表XML(&t.headers, &t.rows).into_bytes(),
+        });
+    }
+
+    std::fs::write(路径, 打zip(&成员)).map_err(|e| format!("写不进「{路径}」：{e}"))
 }

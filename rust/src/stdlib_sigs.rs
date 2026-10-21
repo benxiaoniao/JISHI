@@ -17,6 +17,8 @@ pub(crate) fn sigof(
     qualified: &str,
 ) -> Option<(usize, &'static [&'static str], Option<&'static str>)> {
     Some(match qualified {
+        "Excel.写多表" => (2, &["路径", "表们"], None),
+        "Excel.写工作簿" => (2, &["路径", "表", "表名"], None),
         "Excel.读工作簿" => (1, &["路径"], None),
         "Excel.读工作表" => (2, &["簿", "名"], None),
         "HTTP服务端.启动" => (0, &["端口", "处理函数", "最多请求数"], None),
