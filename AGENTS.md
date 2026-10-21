@@ -69,9 +69,17 @@
 3. **测试命令**：`python -m pytest tests/`（当前 **3609 项**）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
-   .venv/Scripts/python.exe -m pytest tests/ -q -n 4 --dist loadfile -m "not 计时"   # 主体 ~7 分钟
-   .venv/Scripts/python.exe -m pytest tests/ -q -m 计时                # 6 条墙上时间护栏，串行
+   .venv/Scripts/python.exe tools/test_all.py          # **两节一条命令**（见下）
+   .venv/Scripts/python.exe tools/test_all.py --只并行   # 日常自检只跑第 1 节（~10 分钟）
    ```
+
+   🔴 **`tools/test_all.py` 才是标准入口**（2026-10-21 起）：它按**两节**跑 ——
+   **第 1 节并行**（`not 计时`，`-n 4 --dist loadfile`，**每条带 `--timeout 180`**）
+   → 跑完 → **第 2 节串行**（`-m 计时`，断言墙上时间的那些，必须独占）→ 汇总。
+   ⚠️ **两个必须一起做的理由**：`计时` 那些断言的是绝对耗时，并行负载会把它抬成假红；
+   而分成两节**顺序**跑，就不用记两条命令、也不会漏跑第二节。
+   ⚠️ **新写的测试先放并行节**；只有它**真的断言墙上时间**（或依赖独占资源）时，
+   才打 `@pytest.mark.计时` 放进串行节 —— 串行节是最慢的部分，别图省事往里塞。
    （串行历史基线 28 分钟，9-25 有记录；并行的收益主要在这里。）
    ⚠️ 前提是**所有跨进程共享的东西都不撞**。并行踩过的三类坑都已修，**新加测试必须守**：
    ① 临时文件**一律带 pid 后缀**（用 `tests/conftest.py` 的 `tmp_bc_path()` 或
@@ -103,7 +111,13 @@
    🔴 **`--dist loadfile` 不是可选项**（2026-10-20 踩）：xdist 默认的 `load`
    （按**测试**分发）在本题量下会**死锁** —— 表现是「跑到 98% 就不动了」，
    `py-spy` 一看：所有 worker 都在 `wait`、主进程在 `join`，**没有人失败**。
-   `-n 8` / `-n 4` 都会，换成 `--dist loadfile`（按**文件**分发）后稳定 7 分半跑完。
+   `-n 8` / `-n 4` 都会，换成 `--dist loadfile`（按**文件**分发）后稳定得多。
+   🔴 **但 `--dist loadfile` 也会挂**（2026-10-21 查清）：worker 一旦**静默硬崩**
+   （上游 #784 / #1313 / #1401：CPU 饥荒下 worker 会无退出码地死掉），
+   `loadfile` 会**永久等那个死掉的 worker** —— 现象还是「98% 不动、没人失败」。
+   ⇒ **`tools/test_all.py` 里每条用例都带 `--timeout 180 --timeout-method thread`**：
+   卡住那条判失败、session 继续走，**不会让整轮永远停住**。这是**兜底**，不是根治
+   （根治要等上游）。
    ⚠️ 排查时别被「一个 worker 吃满 CPU」带偏：那次是**另一个**原因
    （`sandbox.run_sandboxed` 超时后线程没停，见 `tests/test_m17_diagnostics`）。
    ⚠️ 同理：**12 路满载时**偶有用例报 `SystemExit: 1` / `ERROR`（子进程 spawn 被拖超时），
