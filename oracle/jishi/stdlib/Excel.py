@@ -393,7 +393,7 @@ def 读工作簿(路径) -> dict:
         raise RunError(f"打不开文件「{p}」") from None
     except _zip.BadZipFile:
         raise RunValueError(
-            f"「{p}」不是一个 .xlsx（Excel 的 .xlsx 是 zip 包；老的 .xls 不支持）"
+            f"「{p}」不是一个 .xlsx。Excel 的 .xlsx 其实是 zip 包，老的 .xls 是二进制格式、读不了 —— 用 Excel 打开它「另存为」.xlsx 再试"
         ) from None
     with 包:
         表们 = _解工作簿(包)

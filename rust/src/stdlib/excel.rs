@@ -298,7 +298,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             })?;
             let 条们 = crate::zip::read_all(&字节)
                 .map_err(|_| err("值错误", format!(
-                    "「{p}」不是一个 .xlsx（Excel 的 .xlsx 是 zip 包；老的 .xls 不支持）")))?;
+                    "「{p}」不是一个 .xlsx。Excel 的 .xlsx 其实是 zip 包，老的 .xls 是二进制格式、读不了 —— 用 Excel 打开它「另存为」.xlsx 再试")))?;
             let 表们 = 工作表们(&条们).map_err(|m| err("值错误", m))?;
             Ok(crate::dict_new(vec![
                 (Val::Str("路径".into()), Val::Str(p)),

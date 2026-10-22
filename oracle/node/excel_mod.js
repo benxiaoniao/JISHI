@@ -349,7 +349,7 @@ module.exports = function (工具) {
         条们 = readZipEntries(字节);
       } catch (e) {
         throw R.valueErr(
-          `「${p}」不是一个 .xlsx（Excel 的 .xlsx 是 zip 包；老的 .xls 不支持）`);
+          `「${p}」不是一个 .xlsx。Excel 的 .xlsx 其实是 zip 包，老的 .xls 是二进制格式、读不了 —— 用 Excel 打开它「另存为」.xlsx 再试`);
       }
       const 表们 = _xl工作表们(条们);
       return new Map([

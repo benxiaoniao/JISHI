@@ -95,12 +95,18 @@ def test_名字写错要说清有哪些(真文件):
     assert "销售" in 话 and "汇总" in 话, "要把可用的名字列出来"
 
 
-def test_不是_xlsx_说清楚(tmp_path):
+def test_不是_xlsx_要说清怎么办(tmp_path):
+    """报错可操作（M125 续）：光说「不是 .xlsx」不够，得告诉用户**下一步做什么**。
+
+    最常见的情况就是拿到的是老的 `.xls`（二进制格式）—— 用户不知道该怎么转。
+    """
     p = tmp_path / "假.xlsx"
     p.write_bytes(b"this is not a zip")
     with pytest.raises(Exception) as ei:
         Excel.读工作簿(str(p))
-    assert ".xlsx" in str(ei.value) and ".xls" in str(ei.value)
+    话 = str(ei.value)
+    assert ".xlsx" in 话 and ".xls" in 话
+    assert "另存为" in 话, f"报错没给修法：{话}"
 
 
 # ---------------------------------------------------------------------------
