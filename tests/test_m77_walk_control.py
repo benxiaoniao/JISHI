@@ -256,6 +256,11 @@ def test_语义函数不许在_walk_rs_里重写():
 
 
 @need_rust
+@pytest.mark.计时  # ⚠️ 这里不是「断言墙上时间」，而是**进串行节**：
+#   它跑 check_walk.py（133 语料 × Rust VM），空闲 30~50 秒、并行满载 190 秒以上，
+#   6 个文件各来一遍 = 5 分钟纯 CPU 重活 —— 留在并行节会制造「CPU 饥荒」，
+#   而 worker 在饥荒下会**静默硬崩**，`--dist loadfile` 就永久等它（上游 #784/#1401）。
+@pytest.mark.计时
 def test_进度仪表零不一致():
     # ⚠️ 必须给 timeout（2026-10-22）：check_walk 空闲就要 40~50 秒，满载更久；
     #    没有 timeout 会无限期等，那正是「全量卡在 98%」的一部分。
