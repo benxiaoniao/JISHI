@@ -6,7 +6,7 @@
 //! `--dump` 自报家底来比）。改 Python 侧元数据后**必须重跑生成器**，否则会红。
 
 /// 语言版本（与 `oracle/jishi/version.py` 的 `VERSION` 同步）。
-pub const LANG_VERSION: &str = "0.2.5";
+pub const LANG_VERSION: &str = "0.2.6";
 
 /// 关键字 → 中文说明（**有序**，与 `tokenizer.KEYWORDS` 的键顺序一致）。
 pub const KEYWORDS: &[(&str, &str)] = &[
