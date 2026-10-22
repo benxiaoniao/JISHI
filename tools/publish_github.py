@@ -573,24 +573,26 @@ def _试部署(tag: str) -> None:
         缺 = " 和 ".join([x for x, v in (("JISHI_SSH_KEY", 钥匙),
                                         ("JISHI_SSH_HOST", 主机)) if not v])
         print(f"\n[部署] 跳过 —— 没设 {缺}。")
-        print("   ⚠️ 本地镜像库已经拉好了，**请再跑一次 `tools/build_site.py`**，")
-        print("      否则下载页还是上一版（这一步不需要 SSH）。")
+        print("   ⚠️ 注意：站点生成/部署已搬到独立仓库（`基石官网`），这里不再做。")
         print("   站点/分发源还是旧的，`jishi 升级` 看不到这个版本。")
-        print("   补上后单独跑：JISHI_SSH_KEY=… JISHI_SSH_HOST=… "
-              "bash tools/deploy_push.sh")
+        print("   补上后单独跑：cd 官网仓库 && JISHI_SSH_KEY=… JISHI_SSH_HOST=… "
+              f"bash release.sh {tag.lstrip(chr(118))}")
         return
-    print("\n[部署 1/3] 站点页面 + 语言包 …")
-    r = subprocess.run(["bash", str(ROOT / "tools" / "deploy_push.sh")],
-                       cwd=ROOT, env=os.environ.copy())
-    # ⚠️ 退出码不可信：沙箱会拦 `.ssh/known_hosts` 的写入，脚本自己会 `set -e` 失败，
-    #    但实际部署是成功的（末尾一定有「✓ 部署完成」）。两个都认。
-    print("   ✓ 完成" if r.returncode == 0 else f"   ⚠ rc={r.returncode}（看上面有没有「✓ 部署完成」）")
-
-    print(f"\n[部署 3/3] 发行包 + 版本清单（{tag}）…")
-    r2 = subprocess.run(
-        [sys.executable, str(ROOT / "tools" / "sync_release.py"), "--版本", tag.lstrip("v")],
-        cwd=ROOT, env=os.environ.copy())
-    print("   ✓ 完成" if r2.returncode == 0 else f"   ✗ 失败（rc={r2.returncode}）")
+    
+    # ⚠️ 2026-10-22：官网已拆到独立仓库（`D://code//基石官网`），
+    #    这一步和下面那一步都在**那边**跑，这里只是转发（单向：主仓库 → 官网）。
+    #    找不到那个仓库不报错 —— 那说明使用者打算手动去官网仓库发。
+    官网 = Path(os.environ.get("JISHI_SITE_REPO") or (ROOT.parent / "基石官网"))
+    if (官网 / "release.sh").is_file():
+        print(f"\n[部署 4/4] 官网（{官网.name}）：拉资产 → 生成 → 同步发行包 → 部署 …")
+        r2 = subprocess.run(["bash", str(官网 / "release.sh"), tag.lstrip("v")],
+                            cwd=str(官网), env=os.environ.copy())
+        print("   ✓ 完成" if r2.returncode == 0 else f"   ✗ 失败（rc={r2.returncode}）")
+    else:
+        print(f"\n[部署 4/4] 没找到官网仓库（{官网}）—— 跳过。")
+        print("   官网是独立仓库，补上它或手动跑：")
+        print(f"     cd <官网仓库> && JISHI_SSH_KEY=… JISHI_SSH_HOST=… bash release.sh {tag.lstrip('v')}")
+        print("   （可用 JISHI_SITE_REPO 指定官网仓库位置）")
 
 
 # ---------------------------------------------------------------------------
