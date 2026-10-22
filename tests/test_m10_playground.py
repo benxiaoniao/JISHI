@@ -74,10 +74,10 @@ def test_示例程序被原样嵌进页面(tmp_path, monkeypatch):
     assert "斐波那契第 10 项" in html
 
 
-def test_缺产物时明确报警(tmp_path, monkeypatch, capsys):
+def test_缺产物时明确报警(tmp_path, monkeypatch, capfd):
     """wasm 产物不在时，构建脚本要**说清楚**，而不是默默生成一个跑不起来的页面。"""
     monkeypatch.setattr(build_playground, "WASM", tmp_path / "没有这个文件.wasm")
     monkeypatch.setattr(build_playground, "OUT", tmp_path / "pg.html")
     build_playground.build()
-    out = capsys.readouterr().out
+    out = capfd.readouterr().out
     assert "jishi_wasm.wasm" in out and "build_wasm.py" in out, out

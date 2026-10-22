@@ -461,7 +461,7 @@ def test_test_module_all_pass():
     assert "全部通过" in out and "1 个用例" in out
 
 
-def test_test_module_reports_failure(capsys):
+def test_test_module_reports_failure(capfd):
     """失败要说清「期望什么、实际什么」，而不是只给一句「条件不成立」。
 
     逐条明细走 stderr（`汇总` 打印的），异常本身只带汇总数字——所以这里
@@ -474,7 +474,7 @@ def test_test_module_reports_failure(capsys):
               '测试.用例("故意失败", 甲)\n'
               '测试.汇总()')
     assert "测试没全过" in str(ei.value)
-    err = capsys.readouterr().err
+    err = capfd.readouterr().err
     assert "期望 5，实际 4" in err
     assert "故意失败" in err
 

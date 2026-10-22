@@ -108,7 +108,7 @@ def _baseline(proj: Path, name: str) -> Path:
     return proj / "conformance" / "baseline" / f"tests__cases__{name}.json"
 
 
-def test_检测能发现_产物被改动(mini, capsys):
+def test_检测能发现_产物被改动(mini, capfd):
     """改了产物（哪怕只是**一个 token 的列号 +1**）必须报红。"""
     _write(mini, "a.jsh", "令 a = 1\n打印(a)\n")
     assert C.main(["freeze"]) == 0
@@ -119,9 +119,9 @@ def test_检测能发现_产物被改动(mini, capsys):
     d["tokens"][0]["col"] += 1
     p.write_text(C.dumps(d), encoding="utf-8")
 
-    capsys.readouterr()
+    capfd.readouterr()
     assert C.main(["check"]) == 1, "改了一个 token 的列号却没报红"
-    assert "tokens[0].col" in capsys.readouterr().out, "报红时没指出具体位置"
+    assert "tokens[0].col" in capfd.readouterr().out, "报红时没指出具体位置"
 
 
 def test_检测能发现_语料被改动(mini):

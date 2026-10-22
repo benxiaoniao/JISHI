@@ -54,34 +54,34 @@ def test_说明不该夹带_markdown():
     assert not bad, f"这些说明里有 markdown 加粗（改成「」）：{'、'.join(bad)}"
 
 
-def test_总览列出所有码(capsys):
+def test_总览列出所有码(capfd):
     assert main(["错误"]) == 0
-    out = capsys.readouterr().out
+    out = capfd.readouterr().out
     for code, title in _all_error_codes():
         assert code in out, f"总览里没有 {code}"
         assert title in out, f"总览里没有 {code} 的标题"
 
 
-def test_查单个码给三段(capsys):
+def test_查单个码给三段(capfd):
     assert main(["错误", "E0301"]) == 0
-    out = capsys.readouterr().out
+    out = capfd.readouterr().out
     assert "E0301" in out and "找不到这个名字" in out
     for section in ("什么意思", "常见成因", "怎么改"):
         assert section in out, f"少了「{section}」那节"
 
 
-def test_码的写法容错(capsys):
+def test_码的写法容错(capfd):
     """用户从报错里抄的时候可能只抄数字、或漏了前导零 / 大小写不同。"""
     outs = []
     for arg in ("E0301", "e0301", "301", "E301", "  E0301  "):
         assert main(["错误", arg]) == 0, f"「{arg}」查不到"
-        outs.append(capsys.readouterr().out)
+        outs.append(capfd.readouterr().out)
     assert len(set(outs)) == 1, "几种写法给的内容应当完全一样"
 
 
-def test_不存在的码给非零退出(capsys):
+def test_不存在的码给非零退出(capfd):
     assert main(["错误", "E9999"]) == 2
-    err = capsys.readouterr().err
+    err = capfd.readouterr().err
     assert "E9999" in err and "jishi 错误" in err
 
 
