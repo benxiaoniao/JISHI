@@ -148,7 +148,7 @@ def test_进度仪表能跑():
     #    而并行的 `--dist loadfile` 又拿它没辙（那是「测试慢」，不是「测试超时」）。
     r = subprocess.run(
         [sys.executable, str(ROOT / "tools" / "check_walk.py")],
-        capture_output=True, cwd=str(ROOT), timeout=600)
+        capture_output=True, cwd=str(ROOT), timeout=240)
     out = r.stdout.decode("utf-8", "replace")
     assert r.returncode == 0, out + r.stderr.decode("utf-8", "replace")[-500:]
     assert "不一致 0" in out, out

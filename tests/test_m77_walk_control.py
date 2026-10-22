@@ -265,7 +265,7 @@ def test_进度仪表零不一致():
     # ⚠️ 必须给 timeout（2026-10-22）：check_walk 空闲就要 40~50 秒，满载更久；
     #    没有 timeout 会无限期等，那正是「全量卡在 98%」的一部分。
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "check_walk.py")],
-                       capture_output=True, cwd=str(ROOT), timeout=600)
+                       capture_output=True, cwd=str(ROOT), timeout=240)
     out = r.stdout.decode("utf-8", "replace")
     assert r.returncode == 0, out + r.stderr.decode("utf-8", "replace")[-800:]
     assert "不一致 0" in out, out
