@@ -144,6 +144,14 @@ jobs:
             node -e "console.log(new Date(0).toString(), '| offset', new Date(0).getTimezoneOffset(), '| TZ', process.env.TZ)"
             echo -n "/etc/localtime: "
             (ls -l /etc/localtime 2>/dev/null || echo "（无）")
+            # 🔴 2026-10-22 加：`test_m58` 有一条「产物读不动要如实报」在 CI 上
+            #    偶发 `assert '读不动' in ''` —— 说明 `compare` 走了**提前返回**
+            #    （「没有基线」或「找不到产物目录」，两条都打到 stderr，所以 stdout 空）。
+            #    本地复现不了，那就让 CI 把「基线在不在」直接说出来。
+            echo -n "MANIFEST.json: "
+            python -c "from pathlib import Path; p=Path('tests/conformance/MANIFEST.json'); print(('exists, %d 字节' % p.stat().st_size) if p.exists() else '**不存在**')"
+            echo -n "baseline/*.json 个数: "
+            python -c "from pathlib import Path; print(len(list(Path('tests/conformance/baseline').glob('*.json'))))"
           } 2>&1 | tee env-diag.txt
 
       - name: 全量测试

@@ -196,8 +196,11 @@ def test_产物读不动要如实报(ext, capfd):
 
     capfd.readouterr()
     assert C.main(["compare", "--from", str(ext)]) == 1
-    out = capfd.readouterr().out
-    assert "读不动" in out, out[-500:]
+    抓 = capfd.readouterr()
+    # ⚠️ 失败时**连 stderr 一起带出来**（2026-10-22）：CI 上只告诉我们 `out` 是空，
+    #    但空的原因可能在 stderr（比如「没有基线」「找不到产物目录」两条提前返回）——
+    #    不带 err 就没法判断是「工具没打印」还是「工具提前退了」。
+    assert "读不动" in 抓.out, f"stdout={抓.out[-400:]!r}\nstderr={抓.err[-400:]!r}"
 
 
 def test_目录不存在要报错(capfd):
