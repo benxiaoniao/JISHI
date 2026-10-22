@@ -553,14 +553,11 @@ def _试部署(tag: str) -> None:
        —— 少了第 2 步，页面是新版、但 `jishi 升级` 还是旧版。
     """
     钥匙, 主机 = os.environ.get("JISHI_SSH_KEY"), os.environ.get("JISHI_SSH_HOST")
-    if not (钥匙 and 主机):
-        缺 = " 和 ".join([x for x, v in (("JISHI_SSH_KEY", 钥匙),
-                                        ("JISHI_SSH_HOST", 主机)) if not v])
-        print(f"\n[部署] 跳过 —— 没设 {缺}。")
-        print("   站点/分发源还是旧的，`jishi 升级` 看不到这个版本。")
-        print("   补上后单独跑：JISHI_SSH_KEY=… JISHI_SSH_HOST=… "
-              "bash tools/deploy_push.sh")
-        return
+    # 🔴 **第 0 步必须在凭据检查「之前」**（2026-10-22 修，v0.2.6 栽过）：
+    #    它只是把 GitHub Release 的资产下到本地 `dist/release/`，**不用 SSH**。
+    #    原来它排在凭据检查后面 —— 于是「没设凭据」时直接 return，
+    #    资产没拉 ⇒ 下一轮 `build_site.py` 生成的下载页**只到上一版**
+    #    ⇒ 用户看到「最新版下载不了」（而服务器上其实有）。两件事被绑在一起了。
     # ⚠️ **第 0 步：把包拉进本地镜像库**（2026-10-18 补，v0.2.5 栽过）：
     #    `build_download()` 读的是 `dist/release/`，**不是服务器**。
     #    本地没有这一版 ⇒ 下载页四个平台全显示「本站暂未镜像」，
@@ -571,6 +568,17 @@ def _试部署(tag: str) -> None:
          tag.lstrip("v")], cwd=ROOT, env=os.environ.copy())
     print("   ✓ 完成" if r0.returncode == 0 else f"   ✗ 失败（rc={r0.returncode}）")
 
+
+    if not (钥匙 and 主机):
+        缺 = " 和 ".join([x for x, v in (("JISHI_SSH_KEY", 钥匙),
+                                        ("JISHI_SSH_HOST", 主机)) if not v])
+        print(f"\n[部署] 跳过 —— 没设 {缺}。")
+        print("   ⚠️ 本地镜像库已经拉好了，**请再跑一次 `tools/build_site.py`**，")
+        print("      否则下载页还是上一版（这一步不需要 SSH）。")
+        print("   站点/分发源还是旧的，`jishi 升级` 看不到这个版本。")
+        print("   补上后单独跑：JISHI_SSH_KEY=… JISHI_SSH_HOST=… "
+              "bash tools/deploy_push.sh")
+        return
     print("\n[部署 1/3] 站点页面 + 语言包 …")
     r = subprocess.run(["bash", str(ROOT / "tools" / "deploy_push.sh")],
                        cwd=ROOT, env=os.environ.copy())
