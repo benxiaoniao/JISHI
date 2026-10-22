@@ -259,6 +259,12 @@ def test_发布资产名必须是纯ASCII():
     ⇒ 判据：**发布资产名一律纯 ASCII**。这里钉住清单文件名 —— Rust 侧的两个默认地址、
     以及镜像同步脚本认的那个资产名。
     """
+    # 🔴 **2026-10-22：官网/分发已拆到独立仓库 `D://code//基石官网`**。
+    #    `fetch_release_mirror.py`（镜像脚本）和 `jishi-release.json` 的生成都跟着走了，
+    #    所以「资产名纯 ASCII」「镜像只拉清单里的资产」这两条判据**也搬到那边**。
+    #    这里用一个显式 skip（而不是删掉）—— 删掉等于这条判据从来没存在过。
+    pytest.skip("官网/分发已拆到 基石官网 仓库（2026-10-22）")
+
     import re
 
     rust = (ROOT / "rust" / "src" / "selfupdate.rs").read_text(encoding="utf-8")
@@ -287,6 +293,12 @@ def test_镜像只拉清单里列过的资产():
     （那说明「手上这份清单不是这一版的」—— 那时候「跳过校验」与「校验通过」
     看起来一模一样）；**别的清单外资产只报一声、不镜像**。
     """
+    # 🔴 **2026-10-22：官网/分发已拆到独立仓库 `D://code//基石官网`**。
+    #    `fetch_release_mirror.py`（镜像脚本）和 `jishi-release.json` 的生成都跟着走了，
+    #    所以「资产名纯 ASCII」「镜像只拉清单里的资产」这两条判据**也搬到那边**。
+    #    这里用一个显式 skip（而不是删掉）—— 删掉等于这条判据从来没存在过。
+    pytest.skip("官网/分发已拆到 基石官网 仓库（2026-10-22）")
+
     import sys
     sys.path.insert(0, str(ROOT / "tools"))
     import fetch_release_mirror as fm

@@ -88,3 +88,4 @@ ctx.txt
 # 这里是**崩溃/中断时的兜底** —— 别让临时文件混进提交（M53 观察到的残留）。
 .tmp-eval/
 tests/_loc_probe.jsh
+site/
