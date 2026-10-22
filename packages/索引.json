@@ -1,0 +1,21 @@
+{
+  "格式": "jishi-package-index",
+  "版本": 1,
+  "包": {
+    "基础库": {
+      "版本": "1.0.0",
+      "下载地址": "https://raw.githubusercontent.com/benxiaoniao/JISHI/master/packages/%E4%B8%8B%E8%BD%BD/%E5%9F%BA%E7%A1%80%E5%BA%93-1.0.0.zip",
+      "描述": "演示用基础库：提供翻倍/平方两个工具函数",
+      "校验和": "sha256:e4cd3e3c3a364e07f0836cc474786294943d72f72446fb44e25ae5016976ad15"
+    },
+    "数学工具": {
+      "版本": "2.0.0",
+      "下载地址": "https://raw.githubusercontent.com/benxiaoniao/JISHI/master/packages/%E4%B8%8B%E8%BD%BD/%E6%95%B0%E5%AD%A6%E5%B7%A5%E5%85%B7-2.0.0.zip",
+      "依赖": {
+        "基础库": ">=1.0.0"
+      },
+      "描述": "演示用：依赖基础库，提供 立方 与 平方和",
+      "校验和": "sha256:758c06f70856f50edb7f00b2829fb67f87fa703d50abae867c674a5bac562bc2"
+    }
+  }
+}
