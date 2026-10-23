@@ -452,3 +452,25 @@ def test_对拍_路径连接按pathlib(workdir):
         for parts, g, w in zip(_JOIN2_PARTS, got, want) if g != w)
     # 与 Python 侧 CLI 也逐字节对一遍（两条路都要绿）
     assert a == _py([str(f)], cwd=workdir)
+
+# ---------------------------------------------------------------------------
+# 工具子命令的覆盖（M126 起）
+# ---------------------------------------------------------------------------
+
+def test_测试子命令_Rust_还没有():
+    """🔴 **这是欠账，不是通过**（2026-10-23，M126）。
+
+    `jishi 测试`（扫 `*_test.jsh` 并跑）目前**只在 Python 参考实现里**
+    （`oracle/jishi/cli.py::_cmd_test`）。Rust 正式实现（`jishi-rs`）还没有这个子命令。
+
+    ⚠️ 为什么用「断言它没有」这种反着写的判据：
+    直接 `skip` 太容易被忘掉（跳过是灰的、没人看）；写成「断言它现在**确实**没有」，
+    等 M127 把 Rust 那边补上之后，**这条会自己红**，逼着人来改成正面判据。
+    ⇒ **会过期的判据 > 永久 skip。**
+    """
+    r = subprocess.run([str(_exe()), "--help"], capture_output=True, timeout=60)
+    帮 = (r.stdout + r.stderr).decode("utf-8", "replace")
+    assert "测试" not in 帮, (
+        "Rust CLI 已经有「测试」子命令了 —— 把这条判据改成正面验证"
+        "（跑一个真测试目录，看退出码和汇总行），别留着这条反着的。")
+

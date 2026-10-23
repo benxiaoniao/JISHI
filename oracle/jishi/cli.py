@@ -499,6 +499,81 @@ def _cmd_doctor(args) -> int:
     return 1
 
 
+def _cmd_test(args) -> int:
+    """跑目录下的 `*_test.jsh`（M126）。
+
+    ## 和 `测试` 模块的分工
+
+    断言和用例的**执行**早就有了 —— `测试` 模块（R7.1-c+，11 个函数：
+    `用例` / `相等` / `为真` / `近似` / `包含` / `抛出` / `统计` / `汇总` …）。
+    它解决「一个文件里跑多个用例、互不干扰、最后汇总」。
+
+    **这里补的是另一半：不用人记文件名。** 以前要一个个 `jishi xxx_test.jsh`
+    跑，跑十个文件敲十次；文件多了就没人跑了。现在扫一遍全跑，一次给总览。
+
+    ## 为什么让每个文件自己打结果
+
+    `测试.汇总()` 的输出（`✅ 全部通过（3 个用例）` / `✗ 用例名 · 说明：期望…`）
+    已经**比这里能拼的更详细**（它知道每个用例的名字）。再包一层拼一遍，
+    只会把同一件事说两次、还可能说得更差。
+    ⇒ 只负责**发现 + 调度 + 总览**，明细交给该报的人报。
+
+    ## 两个必须区分的失败
+
+    - **文件里的断言没通过** ⇒ `测试.汇总()` 抛 `断言错误`（E2008）⇒ 记「测试没过」；
+    - **文件自己崩了**（别的错）⇒ 那是**程序写错或语言的 bug**，不能算「测试失败」。
+      混在一起用户会以为自己的断言写错了。
+    """
+    from pathlib import Path
+
+    根 = Path(getattr(args, "path", ".") or ".")
+    if not 根.is_dir():
+        print(f"❌ 找不到目录：{根}", file=sys.stderr)
+        return 2
+
+    文件们 = [f for f in sorted(根.rglob("*_test.jsh"))
+              if ".jishi" not in f.parts]           # 别扫装好的第三方包
+    if not 文件们:
+        print(f"没找到 *_test.jsh（在 {根} 下）—— 测试文件名要以 `_test.jsh` 结尾。",
+              file=sys.stderr)
+        return 2
+
+    过, 断言败, 崩了 = 0, 0, 0
+
+    for f in 文件们:
+        相对 = f.relative_to(根) if 根 != Path(".") else f
+        print(f"\n{相对}")
+        行们: list[str] = []
+        try:
+            # ⚠️ 不能走 `run_file`：它把 `JishiError` 渲染完就 `return 1`，
+            #    异常冒不上来，这里就只能见到退出码、分不清「断言没过」和「崩了」。
+            _源码, _名 = _read_source(str(f))
+            行们 = _源码.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+            _程序 = parse_source(_源码, _名)
+            Interpreter(filename=_名).run(_程序)
+        except JishiError as e:
+            e.with_source(行们)
+            if e.code == "E2008":
+                断言败 += 1
+                print("  ↑ 上面是用例的失败明细；本文件有断言没通过")
+            else:
+                崩了 += 1
+                print(f"  ⚠️ 不是断言失败，是程序出错了（{e.code} {e.title}）")
+                print(f"     {e.message}" + (f"（第 {e.line} 行）" if e.line else ""))
+        except Exception as e:                      # noqa: BLE001
+            崩了 += 1
+            print(f"  ⚠️ 不是断言失败，是宿主异常：{type(e).__name__}: {e}")
+        else:
+            过 += 1
+
+    总 = len(文件们)
+    print("\n" + "=" * 48)
+    print(f"汇总：{过}/{总} 个测试文件通过"
+          + (f"，{断言败} 个有断言没通过" if 断言败 else "")
+          + (f"，{崩了} 个程序出错" if 崩了 else ""))
+    return 0 if (断言败 == 0 and 崩了 == 0) else 1
+
+
 def _cmd_new_project(args) -> int:
     """`jishi 新项目 名字`：生成脚手架（M16.5）。"""
     import os
@@ -1094,6 +1169,12 @@ def _run_tool_cmd(argv: list[str]) -> int:
                           help="跳过联网检查（包索引可达性）")
     p_doctor.set_defaults(func=_cmd_doctor)
 
+    p_test = sub.add_parser("测试", help="跑目录下的 *_test.jsh（M126）")
+    p_test.add_argument("path", nargs="?", default=".", help="从哪个目录找（默认当前目录）")
+    p_test.add_argument("--详细", action="store_true",
+                        help="每个文件的输出和完整错误位置都打出来")
+    p_test.set_defaults(func=_cmd_test)
+
     p_new = sub.add_parser("新项目", help="生成脚手架项目")
     p_new.add_argument("name", help="项目名")
     p_new.set_defaults(func=_cmd_new_project)
@@ -1197,7 +1278,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     # 工具子命令（医生/新项目/教程/格式化/lsp/调试/dap/源码静态检查，
     # M16 / M21 / M37 / M43 / M44）
     if argv and argv[0] in ("医生", "新项目", "教程", "错误", "格式化", "lsp", "调试",
-                            "dap", "源码静态检查", "静态检查"):
+                            "dap", "源码静态检查", "静态检查", "测试"):
         return _run_tool_cmd(argv)
 
     parser = argparse.ArgumentParser(
