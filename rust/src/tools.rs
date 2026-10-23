@@ -247,3 +247,139 @@ pub fn run_doctor(no_net: bool) -> ExitCode {
         ExitCode::from(1)
     }
 }
+
+// ---------------------------------------------------------------------------
+// `jishi 测试`（M127）—— 扫 `*_test.jsh` 并跑
+// ---------------------------------------------------------------------------
+//
+// ⚠️ **和 Python 侧同口径**（`oracle/jishi/cli.py::_cmd_test`）：只负责
+//    「找文件 + 调度 + 总览」，**明细交给 `测试.汇总()` 自己报**（它知道每个用例的名字）。
+//
+// ⚠️ 两类失败必须分开：断言没通过（E2008）是**你的测试**写错；
+//    别的错是**你的代码**崩了。混成一句，用户会去翻断言，可实际是代码更早就崩了。
+
+/// 递归收集 `*_test.jsh`（跳过 `.jishi/` 装好的包）。
+///
+/// ⚠️ 不引 `walkdir` 这种依赖 —— 就为了一次遍历不值得；手写 20 行更省事，
+///    也少一处得跟宿主的 `fs` 语义对齐的地方。
+fn collect_tests(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    let mut 条目们: Vec<_> = rd.flatten().map(|e| e.path()).collect();
+    条目们.sort();
+    for p in 条目们 {
+        let 名 = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+        if p.is_dir() {
+            if 名 == ".jishi" || 名 == "target" || 名 == "node_modules" {
+                continue;
+            }
+            collect_tests(&p, out);
+        } else if 名.ends_with("_test.jsh") {
+            out.push(p);
+        }
+    }
+}
+
+pub fn run_test(root: &str) -> ExitCode {
+    let 根 = Path::new(root);
+    if !根.is_dir() {
+        eprintln!("❌ 找不到目录：{root}");
+        return ExitCode::from(2);
+    }
+
+    let mut 文件们 = Vec::new();
+    collect_tests(根, &mut 文件们);
+    if 文件们.is_empty() {
+        eprintln!("没找到 *_test.jsh（在 {root} 下）—— 测试文件名要以 `_test.jsh` 结尾。");
+        return ExitCode::from(2);
+    }
+
+    let mut 过 = 0usize;
+    let mut 断言败 = 0usize;
+    let mut 崩了 = 0usize;
+
+    for f in &文件们 {
+        let 相对 = f.strip_prefix(根).unwrap_or(f);
+        println!("\n{}", 相对.display());
+        // flush：`测试.汇总()` 也往 stdout 打，不刷新会让「哪个文件」跑到明细后面
+        use std::io::Write as _;
+        let _ = std::io::stdout().flush();
+
+        let 名 = f.to_string_lossy().to_string();
+        let 结果 = run_one(&名);
+        match 结果 {
+            Ok(()) => 过 += 1,
+            Err(Some(码)) if 码 == "E2008" => {
+                断言败 += 1;
+                println!("  ↑ 上面是用例的失败明细；本文件有断言没通过");
+            }
+            Err(_) => 崩了 += 1,
+        }
+    }
+
+    println!("\n{}", "=".repeat(48));
+    let mut 尾 = String::new();
+    if 断言败 > 0 {
+        尾.push_str(&format!("，{断言败} 个有断言没通过"));
+    }
+    if 崩了 > 0 {
+        尾.push_str(&format!("，{崩了} 个程序出错"));
+    }
+    println!("汇总：{}/{} 个测试文件通过{尾}", 过, 文件们.len());
+
+    if 断言败 == 0 && 崩了 == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    }
+}
+
+/// 跑一个文件。`Ok(())` 表示通过；`Err(Some(码))` 里带错误码（用来分 E2008）。
+///
+/// ⚠️ **不走 `run::main_cli`**：那条路渲染完错误就转成 `ExitCode`，
+///    错误码丢了 —— 就没法分「断言没过」和「崩了」。
+fn run_one(名: &str) -> Result<(), Option<String>> {
+    let 文本 = std::fs::read_to_string(名).map_err(|e| {
+        eprintln!("  ⚠️ 读不了文件：{e}");
+        None::<String>
+    })?;
+
+    let prog = match jishi_frontend::parser::parse(&文本, 名) {
+        Ok(p) => p,
+        Err(e) => {
+            let je = crate::sandbox::parse_err_to_jishi(&e);
+            eprintln!("  ⚠️ 不是断言失败，是语法错误（{} {}）", je.code.as_deref().unwrap_or("?"), je.message);
+            return Err(je.code);
+        }
+    };
+    let module = jishi_frontend::compiler::compile_program(&prog, 名, None, false);
+    let bytecode = jishi_frontend::serialize::dump_json(&module);
+    crate::set_args(Vec::new());
+    let mut vm = match crate::load_module(&bytecode) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("  ⚠️ 字节码加载失败：{e}");
+            return Err(None);
+        }
+    };
+    match vm.run() {
+        Ok(()) => {
+            print!("{}", crate::get_output(&vm));
+            eprint!("{}", crate::get_output_err(&vm));
+            Ok(())
+        }
+        Err(e) => {
+            eprint!("{}", crate::get_output_err(&vm));
+            print!("{}", crate::get_output(&vm));
+            let 码 = e.code.clone();
+            let 是断言 = 码.as_deref() == Some("E2008");
+            if !是断言 {
+                eprintln!(
+                    "  ⚠️ 不是断言失败，是程序出错了（{} {}）",
+                    码.as_deref().unwrap_or("?"),
+                    e.message
+                );
+            }
+            Err(码)
+        }
+    }
+}

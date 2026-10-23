@@ -58,7 +58,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from contextlib import contextmanager, redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -115,6 +115,18 @@ HOST_KNOWN_GAPS: dict[str, str] = {
     "examples/11_Python桥接演示.jsh":
         "同 03：演示的是 Python 桥接，跨语言宿主有意不支持。",
     # -- R6.3/R6.4：宿主报错渲染对齐之后剩下的三类（都记着「为什么」）---------
+    # -- M126/M127：`测试` 模块的 Node 缺口（**真缺口**，不是有意边界）----------
+    #    `测试` 要「调一个用户函数、捕获它里面的断言失败」—— Node 宿主的内建函数
+    #    拿不到 VM 句柄（`Builtin.fn` 只有参数，没有 `callFunction`），所以
+    #    `测试.用例` 在 Node 上做不了。`test_m51` 早把它记成
+    #    「`HOST_EXEMPT_BY_HOST = {"Node": {"测试"}}`」——这里跟着记，同一个事实同一个口径。
+    #    ⚠️ **哪天 Node 补上了，这两条会报「登记过期」**，逼着人来删。
+    "examples/测试示例/求和_test.jsh":
+        "**Node 缺 `测试` 模块**（真缺口，见 `test_m51` 的 `HOST_EXEMPT_BY_HOST`）："
+        "`测试.用例` 要调用户函数，Node 的内建拿不到 VM 句柄。"
+        "其余四个引擎（树遍历 / py VM / C VM / Rust）都能跑。",
+    "examples/测试示例/故意失败_test.jsh":
+        "同上：Node 缺 `测试` 模块。这个示例还是**故意失败**的（示范红的样子）。",
     "tests/error_cases/13_从python导入.jsh":
         "**有意的边界**（同 03 / 11）：这个语料考的正是 `从 python 导入`，"
         "而跨语言宿主明确不支持 —— 单二进制里没有 Python。"
@@ -224,6 +236,13 @@ def _run(fn, lines: "list[str] | None" = None) -> tuple[str, str]:
     （没有源码行），于是**宿主的报错渲染根本没法比** —— 只能单独数个数。
     **要比，就拿用户真正看到的那一份来比。**
     """
+    # ⚠️ **只捕 stdout**，而且这是**已知的工具缺陷**（2026-10-23，M127）：
+    #    试过改成 `redirect_stderr` 一起捕（那才是对的：**「用户看到什么」是两条流加起来**），
+    #    但一改就冒出 **3 个既有的执行器分叉**（`CVM` 多打「模块名遮蔽内建」的提示、
+    #    另外两处 stderr 文案不一致）—— 那些是**语言/执行器**的问题，不是这个工具的问题，
+    #    不该跟 M127 一起收。
+    #    ⇒ 先回退，**但记在这儿**：哪天有人觉得「对拍怎么没发现 stderr 的差异」，
+    #      答案就在这段。**M128 该做**：把 stderr 也捕进去，然后一个个修那些分叉。
     buf = io.StringIO()
     try:
         with redirect_stdout(buf):

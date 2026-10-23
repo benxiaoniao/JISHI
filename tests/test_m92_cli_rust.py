@@ -457,20 +457,34 @@ def test_对拍_路径连接按pathlib(workdir):
 # 工具子命令的覆盖（M126 起）
 # ---------------------------------------------------------------------------
 
-def test_测试子命令_Rust_还没有():
-    """🔴 **这是欠账，不是通过**（2026-10-23，M126）。
+def test_测试子命令与_Python_一致():
+    """`jishi 测试`：Rust 与 Python **同口径**（M127 补上，这条原先是反着写的欠账）。
 
-    `jishi 测试`（扫 `*_test.jsh` 并跑）目前**只在 Python 参考实现里**
-    （`oracle/jishi/cli.py::_cmd_test`）。Rust 正式实现（`jishi-rs`）还没有这个子命令。
-
-    ⚠️ 为什么用「断言它没有」这种反着写的判据：
-    直接 `skip` 太容易被忘掉（跳过是灰的、没人看）；写成「断言它现在**确实**没有」，
-    等 M127 把 Rust 那边补上之后，**这条会自己红**，逼着人来改成正面判据。
-    ⇒ **会过期的判据 > 永久 skip。**
+    ⚠️ 这条判据**自己会过期**是个设计：M126 时 Rust 还没有这个子命令，
+    那时写的是 `assert "测试" not in 帮助` —— 等 M127 补上，它必红，
+    逼着人改成现在这样。**反向断言比永久 skip 有用**（skip 是灰的，没人看）。
     """
-    r = subprocess.run([str(_exe()), "--help"], capture_output=True, timeout=60)
-    帮 = (r.stdout + r.stderr).decode("utf-8", "replace")
-    assert "测试" not in 帮, (
-        "Rust CLI 已经有「测试」子命令了 —— 把这条判据改成正面验证"
-        "（跑一个真测试目录，看退出码和汇总行），别留着这条反着的。")
+    场 = ROOT / "examples" / "测试示例"
+    场s = str(场)
+    # ⚠️ 本文件里的 `_run` 返回的是 `(stdout, stderr, returncode)` **三元组**，
+    #    不是 `CompletedProcess` —— 我第一版按后者写的，白红一次。
+    rs出, rs错, rs码 = _rs(["测试", 场s])
+    py出, py错, py码 = _py(["测试", 场s])
 
+    assert rs码 == py码 == 1, f"两边退出码不一致：rs={rs码} py={py码}"
+    # 明细里含用例名与「期望/实际」，两边都该有（那是 `测试.汇总()` 给的）
+    for 边, 出 in (("rs", rs出), ("py", py出)):
+        文 = 出.decode("utf-8", "replace")
+        assert "求和_test.jsh" in 文, f"{边} 没列出通过的文件：{文}"
+        assert "故意失败_test.jsh" in 文, f"{边} 没列出失败的文件：{文}"
+        assert "1/2 个测试文件通过" in 文, f"{边} 的汇总行不对：{文}"
+
+
+def test_测试子命令_空目录两边都给2(tmp_path):
+    """空目录不能静默 0（看起来像全绿）—— 两边都要给 2。"""
+    空 = tmp_path / "空的"
+    空.mkdir()
+    _, _, rs码 = _rs(["测试", str(空)])
+    _, _, py码 = _py(["测试", str(空)])
+    assert rs码 == 2, f"rs={rs码}"
+    assert py码 == 2, f"py={py码}"

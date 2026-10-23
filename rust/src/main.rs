@@ -572,6 +572,15 @@ fn main() -> ExitCode {
     if args[1] == "教程" || args[1] == "--tutorial" {
         return jishi_ffi::tools::run_tutorial();
     }
+    // M127：`测试` —— 扫 `*_test.jsh` 并跑。与 Python 侧（`cli.py::_cmd_test`）同口径。
+    if args[1] == "测试" || args[1] == "--test" {
+        let 目录 = args.get(2).map(|s| s.as_str()).unwrap_or(".");
+        if 目录.starts_with('-') {
+            eprintln!("用法：jishi 测试 [目录]");
+            return ExitCode::from(2);
+        }
+        return jishi_ffi::tools::run_test(目录);
+    }
     // 其余一律交给 CLI 主入口（R7.4）。
     //
     // ⚠️ **位置参数的语义从 R7.4 起是「源码」**（与 Python 的 `jishi <文件>` 对齐），
