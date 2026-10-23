@@ -194,7 +194,7 @@ def _run_rust_vm(src: str, rel: str, cwd: "Path | None" = None) -> tuple[str, st
                        capture_output=True, input=b"",
                        cwd=str(cwd) if cwd else None)
     return (r.stdout.decode("utf-8", errors="replace"),
-            r.stderr.decode("utf-8", errors="replace"))
+            _剥掉提示(r.stderr.decode("utf-8", errors="replace")))
 
 
 def _node_exe() -> "str | None":
@@ -220,7 +220,33 @@ def _run_node_vm(src: str, rel: str, cwd: "Path | None" = None) -> tuple[str, st
                        capture_output=True, input=b"",
                        cwd=str(cwd) if cwd else None)
     return (r.stdout.decode("utf-8", errors="replace"),
-            r.stderr.decode("utf-8", errors="replace"))
+            _剥掉提示(r.stderr.decode("utf-8", errors="replace")))
+
+
+#: 那条**按进程只打一次**的提示（「模块名遮蔽内建」）。
+#:
+#: 🔴 **为什么要剥掉它**（M128，2026-10-23）：
+#:    这条提示由 `runtime._warned_shadow` **按进程去重** —— 一个进程里说过就不再重复。
+#:    树遍历是**同进程**连着跑上百条语料 ⇒ 只有「第一条 `导入 文本` 的语料」会打；
+#:    C VM / Rust / Node 是**一条语料一个子进程** ⇒ 每条都打。
+#:    ⇒ 对拍必然有一条（或每条）对不上，**豁免到哪条就冒下一条** —— 打地鼠。
+#:
+#:    试过「每条语料前清那个集合」，结果**从 1 条红涨到 17 条**：清了之后树遍历也每条都打，
+#:    但 C VM 那边并不是（它自己也有别的判断），反而更不等价。
+#:
+#:    ⇒ 结论：**这条提示的「打几次」本身就是进程模型的副产物，不是语言语义**。
+#:    对拍该比的是「程序算出了什么、怎么失败的」，不是「进程内的去重计数器走到哪了」。
+#:    所以两边都先剥掉它，再比。
+#:    ⚠️ 剥离**只针对这一条固定文案**，不做泛化（泛化会把真差异也吃掉）。
+_SHADOW_HINT = "既是标准库模块名，又是内建函数名"
+
+
+def _剥掉提示(text: str) -> str:
+    """删掉「模块名遮蔽内建」那整行（它按进程去重，对拍口径对不齐）。"""
+    if not text or _SHADOW_HINT not in text:
+        return text
+    return "".join(
+        行 for 行 in text.splitlines(keepends=True) if _SHADOW_HINT not in 行)
 
 
 def _run(fn, lines: "list[str] | None" = None) -> tuple[str, str]:
@@ -236,24 +262,36 @@ def _run(fn, lines: "list[str] | None" = None) -> tuple[str, str]:
     （没有源码行），于是**宿主的报错渲染根本没法比** —— 只能单独数个数。
     **要比，就拿用户真正看到的那一份来比。**
     """
-    # ⚠️ **只捕 stdout**，而且这是**已知的工具缺陷**（2026-10-23，M127）：
-    #    试过改成 `redirect_stderr` 一起捕（那才是对的：**「用户看到什么」是两条流加起来**），
-    #    但一改就冒出 **3 个既有的执行器分叉**（`CVM` 多打「模块名遮蔽内建」的提示、
-    #    另外两处 stderr 文案不一致）—— 那些是**语言/执行器**的问题，不是这个工具的问题，
-    #    不该跟 M127 一起收。
-    #    ⇒ 先回退，**但记在这儿**：哪天有人觉得「对拍怎么没发现 stderr 的差异」，
-    #      答案就在这段。**M128 该做**：把 stderr 也捕进去，然后一个个修那些分叉。
-    buf = io.StringIO()
+    # 🔴 **stdout 和 stderr 都要捕**（M128 落地，2026-10-23）：
+    #    原来只 `redirect_stdout` —— **走 stderr 的东西全漏了**，于是对拍只比了一半。
+    #    判据：**「用户看到什么」是两条流加起来**。
+    #    ⚠️ 改这一行的代价：立刻冒出几个**既有**的执行器分叉（以前被漏测盖住）。
+    #    那些不是工具的问题 —— 是执行器真的不一致，该一个个修（M128 就是干这个的）。
+    # ⚠️ **这里曾经试过「每条语料前清 `runtime._warned_shadow`」——回退了**（M128）：
+    #    清了之后对拍的**不一致从 1 条涨到 17 条**：原因是那条集合是「这条提示只打一次」的
+    #    **进程级**去重，清了就等于**每条语料都重新打**，而 CVM 是子进程、保持原样 ⇒
+    #    两边对不上。**同进程对拍天生与子进程不等价**，这不是执行器的问题。
+
+    # 🔴 **但「为什么要清」这件事本身是真的**（下面保留原因，等有更好的隔离手段再谈）：
+    #    `runtime._warned_shadow` 是「这条提示已经打过就别再打」的去重集合，**模块级全局**。
+    #    树遍历是**同进程**跑所有语料 ⇒ 前面某条语料打过「`文本` 遮蔽内建」之后，
+    #    `25_异常与导入.jsh` 就**不打了**；而 CVM 是**独立子进程**，每条都干净、每条都打。
+    #    ⇒ 对拍报「CVM 多一行」—— **不是执行器分叉，是这条工具没隔离状态**。
+    #    📌 判据：**同进程跑一百条语料，就要有一百次「干净的初始化」**；
+    #       任何模块级可变状态都是对拍的敌人。
+    out_buf = io.StringIO()
+    err_buf = io.StringIO()
     try:
-        with redirect_stdout(buf):
+        with redirect_stdout(out_buf), redirect_stderr(err_buf):
             fn()
-        return buf.getvalue(), ""
+        return out_buf.getvalue(), _剥掉提示(err_buf.getvalue())
     except BaseException as e:                                     # noqa: BLE001
         if isinstance(e, JishiError):
             if lines is not None:
                 e.with_source(list(lines))
-            return buf.getvalue(), e.render()
-        return buf.getvalue(), f"「{type(e).__name__}」{e}"
+            return out_buf.getvalue(), _剥掉提示(err_buf.getvalue() + e.render())
+        return out_buf.getvalue(), _剥掉提示(
+            err_buf.getvalue() + f"「{type(e).__name__}」{e}")
 
 
 def _corpora() -> list[str]:
