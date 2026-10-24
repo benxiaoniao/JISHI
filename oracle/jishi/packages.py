@@ -258,10 +258,36 @@ def build_package_zip(pkg_dir: str, out_dir: str) -> tuple[str, str]:
         raise ValueError(
             f"包「{name}」里没有可发布的模块（需要至少一个 .jsh 文件）")
 
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+    # 🔴 **打出来的字节必须「内容决定」**（M129，2026-10-24）：
+    #    以前是 `zf.write(full, …)` —— 它会把源文件的 **mtime** 写进 zip 条目。
+    #    同一份源码在另一台机器上 checkout 出来 mtime 不同 ⇒ **sha256 完全不同**
+    #    （实测：内容一个字没改，只 `utime` 一下，哈希从 `e4cd3e3c…` 变 `14f91d34…`）。
+    #    后果很严重：索引里登记的校验和是「某台机器那次打出来的」，别人用同源码
+    #    重新打包就**永远对不上** ⇒ **校验和失去判据意义**。
+    #
+    #    三条固定（与 M124 写 xlsx 的同一套做法）：
+    #    ① **`ZIP_STORED` 不压缩** —— Rust 宿主那边就是 stored（`压缩.打包`），
+    #       两边都用 stored 才能**字节一致**（用 deflate 的话两边压缩实现细节不同）；
+    #    ② **时间戳写死** 1980-01-01 —— zip 格式能表示的最早时间；
+    #    ③ **权限位写死** 0644（Windows 上本来就没有，但 Unix 上有，也得固定）；
+    #    成员顺序由上面对 `files` 的排序保证。
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
         for full, rel in files:
             # 统一用正斜杠，且顶层目录为包名（与 install_package_zip 约定一致）
-            zf.write(full, f"{name}/{rel.replace(os.sep, '/')}")
+            arc = f"{name}/{rel.replace(os.sep, '/')}"
+            zi = zipfile.ZipInfo(arc, date_time=(1980, 1, 1, 0, 0, 0))
+            zi.compress_type = zipfile.ZIP_STORED
+            # 「谁做的」固定成 MS-DOS：Python 默认按**当前系统**填（Unix 填 3、
+            # Windows 填 0），那会让同一份源码在 Linux 和 Windows 上打出不同字节。
+            # Rust 宿主写的是「制作版本 20」（高字节 0 = MS-DOS），这里跟它对齐。
+            zi.create_system = 0
+            # 权限位写 **0，让 `zipfile` 自己填默认的 `0o600 << 16`**（M129）：
+            # `writestr` 里有一句 `if not zinfo.external_attr: … = 0o600 << 16`，
+            # 填 0 是**填不进去的**。⇒ Rust 侧改成同样的 `0o600 << 16` 来对齐。
+            # ⚠️ 我第一版用 `0o644 << 16`、第二版用 `0`，两次都对不上，就是这个原因。
+            zi.external_attr = 0
+            with open(full, "rb") as f:
+                zf.writestr(zi, f.read())
     return zip_path, name
 
 

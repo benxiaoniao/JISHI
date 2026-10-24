@@ -203,7 +203,11 @@ impl Out {
         Self::push_u16(c, 0);
         Self::push_u16(c, 0);
         Self::push_u16(c, 0);
-        Self::push_u32(c, 0);
+        // 外部属性（M129）：以前写 0，但 **Python 的 `zipfile.writestr` 遇到 0
+        // 会自动填 `0o600 << 16`**（见 CPython `zipfile.py` 的 `writestr`），
+        // 绕不过去。⇒ 反过来对齐它：两边都写 `0o600 << 16`。
+        // 语义上也说得通：它表示「解压出来是个 rw—— 的普通文件」。
+        Self::push_u32(c, (0o600u32) << 16);
         Self::push_u32(c, off as u32);
         c.extend_from_slice(nb);
 
