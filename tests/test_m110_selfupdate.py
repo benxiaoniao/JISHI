@@ -465,15 +465,6 @@ def test_release工作流_清单排在统一校验和之前():
     assert i清单 < i校验和, "jishi-release.json 必须排在 SHA256SUMS 之前"
 
 
-def test_镜像同步会强制拉版本清单():
-    """清单的文件名不随版本变 ⇒ 必须 `force` 重下，否则「大小一样就跳过」会把
-    上一版的清单当成这一版的（`SHA256SUMS` 踩过一模一样的坑）。"""
-    t = (ROOT / "tools" / "fetch_release_mirror.py").read_text(encoding="utf-8")
-    assert 'OUT / "jishi-release.json"' in t, "镜像同步没拉版本清单"
-    i = t.index('OUT / "jishi-release.json"')
-    assert "force=True" in t[i:i + 200], "拉版本清单没带 force"
-
-
 def test_升级器取清单要绕开CDN缓存():
     """🔴 2026-10-17 实测踩到：发了 0.2.4，线上 `jishi-release.json` 仍是 0.2.3
     （`/download/` 给了 30 天缓存，而这份**文件名固定、内容每版都变**），

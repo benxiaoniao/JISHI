@@ -234,6 +234,8 @@ def _cmd_install(args) -> int:
     from . import packages as PKG
 
     try:
+        if getattr(args, "锁定", False):
+            return _install_locked(args)
         if args.local_dir:
             PKG.install_package_dir(args.local_dir, args.package, force=args.force)
             print(f"已安装包「{args.package}」（来自目录 {args.local_dir}）")
@@ -375,11 +377,12 @@ def _install_from_sources(name: str, urls: tuple, *, force: bool = False) -> Non
                 print("      读不到，换下一个源…")
             continue
         try:
-            meta = PKG.resolve_package(PKG.parse_index(text), name)
+            index = PKG.parse_index(text)
+            PKG.resolve_package(index, name)          # 只用来确认「这个源有它」
         except ValueError as e:
             reached.append(f"{url}（{e}）")
             continue
-        _install_one(name, meta, source=url, force=force)
+        _install_closure(name, index, source=url, force=force)
         return
 
     if reached:
@@ -388,6 +391,186 @@ def _install_from_sources(name: str, urls: tuple, *, force: bool = False) -> Non
             f"索引里没有包「{name}」（已查 {len(reached)} 个源）：\n  "
             + "\n  ".join(reached))
     raise ValueError(_unreachable_msg(name, unreachable))
+
+
+def _install_locked(args) -> int:
+    """`jishi 安装 --锁定`：**严格按 `.jishi/包.lock`**，索引变了也不许变。
+
+    ## 为什么这是可复现性的最后一环
+
+    有了闭包解析还不够：索引里 `数学工具` 从 2.0.0 升到 3.0.0，同一条安装命令
+    装出来的东西就变了。lock 是「把当时装的那一份钉住」。
+
+    ## 三种对不上，分开说（修法完全不同）
+
+    - **锁里有、索引里没有** ⇒ 换源了或包被撤了 ⇒ 让人「换源或删 lock 重装」；
+    - **索引版本变了** ⇒ 这正是 lock 存在的意义 ⇒ **提示但不装**（地址指向新版，装了就是错的）；
+    - **校验和变了** ⇒ 🔴 内容被改过 ⇒ **拒绝**，并说清这是安全问题。
+    """
+    import os
+
+    from . import packages as PKG
+
+    path = _lock_path()
+    if not os.path.isfile(path):
+        print(f"没有锁定文件：{path}", file=sys.stderr)
+        print("先不带 --锁定 装一次（会生成它），或者把已有的 lock 放进去。",
+              file=sys.stderr)
+        return 1
+    try:
+        with open(path, encoding="utf-8") as f:
+            lock = PKG.parse_lock(f.read())
+    except (ValueError, OSError) as e:
+        print(f"读不了锁定文件：{e}", file=sys.stderr)
+        return 1
+
+    urls = PKG.default_index_urls()
+    index = None
+    源 = ""
+    读不到 = []
+    for url in urls:
+        try:
+            index = PKG.parse_index(_read_index_text(url))
+            源 = url
+            break
+        except Exception as e:                              # noqa: BLE001
+            读不到.append(f"{url}（{type(e).__name__}: {e}）")
+    if index is None:
+        print("读不到任何索引源：", file=sys.stderr)
+        for 行 in 读不到:
+            print(f"  {行}", file=sys.stderr)
+        return 1
+
+    计划 = PKG.plan_from_lock(lock, index)
+
+    if 计划["改"]:
+        项 = 计划["改"][0]
+        print(f"🔴 拒绝安装：「{项['包']}」的内容和锁定文件里记的不一致。", file=sys.stderr)
+        print(f"  lock：{项['锁']}", file=sys.stderr)
+        print(f"  索引：{项['索引']}", file=sys.stderr)
+        print("  这可能是「包被换掉了」（安全问题），也可能是 lock 太旧。",
+              file=sys.stderr)
+        print("  确认无误后用 `jishi 安装 <包>` 重新解析并生成新 lock。", file=sys.stderr)
+        return 1
+    if 计划["缺"]:
+        项 = 计划["缺"][0]
+        print(f"锁定文件里的「{项['包']}」{项['锁版本']} 在索引里没有了（源：{源}）。",
+              file=sys.stderr)
+        print("  可能在别的源上，或者已被撤下。", file=sys.stderr)
+        return 1
+    if 计划["变"]:
+        项 = 计划["变"][0]
+        print(f"「{项['包']}」索引里已经是 {项['索引版本']}，锁定文件写的是 {项['锁版本']}。",
+              file=sys.stderr)
+        print("  ⚠️ 索引里的下载地址指向的是**新版本**，装下来就和你锁定的不一样了。",
+              file=sys.stderr)
+        print("  想要新的就删掉 lock 重新装；想要旧的得让索引能查到那个版本。",
+              file=sys.stderr)
+        return 1
+
+    装序 = 计划["装序"]
+    if not 装序:
+        print("锁定文件里没有可装的包", file=sys.stderr)
+        return 1
+    print(f"按锁定文件装 {len(装序)} 个包（源：{源}）：")
+    for i, (n, m) in enumerate(装序, 1):
+        print(f"  {i}. {n} {m.get('版本', '')}")
+    for i, (n, m) in enumerate(装序, 1):
+        try:
+            _install_one(n, m, source=源, force=getattr(args, "force", False))
+        except ValueError as e:
+            print(f"装「{n}」（第 {i}/{len(装序)} 个）失败：{e}", file=sys.stderr)
+            return 1
+    print(f"已按锁定文件装完：{path}")
+    return 0
+
+
+def _install_closure(name: str, index: dict, *, source: str,
+                     force: bool = False) -> None:
+    """装一个包**和它的全部依赖**（M130）。
+
+    以前 `安装` 只装索引里那一个 —— 于是装「数学工具」会得到一个
+    `导入 基础库` 就报错的包，而错误发生在**运行程序时**，离安装很远。
+
+    ## 顺序与失败
+
+    按 `resolve_closure` 给的**拓扑序**装（依赖在前）。任何一步失败就**停下**
+    并说清是哪一步 —— 不继续装「装了一半」的包：**半个闭包比没有更糟**，
+    它会让人以为装好了（`列表` 里看得见），实际跑起来缺东西。
+
+    ## lock 什么时候写
+
+    **全部装完才写**。中途失败写 lock，等于把「没装成」记成「装成了」。
+    """
+    from . import packages as PKG
+
+    闭包 = PKG.resolve_closure(index, [name])
+
+    if 闭包["环"]:
+        链 = " → ".join(闭包["环"][0])
+        raise ValueError(f"依赖成环，装不了：{链}")
+    if 闭包["缺"]:
+        项 = 闭包["缺"][0]
+        链条 = " → ".join(项["链条"] + [项["包"]]) if 项["链条"] else 项["包"]
+        raise ValueError(
+            f"依赖「{项['包']}」在索引里找不到（{链条}）\n"
+            f"  · 索引：{source}\n"
+            f"  · 要么这个包名写错了，要么它还没发布到这个源")
+    if 闭包["冲突"]:
+        项 = 闭包["冲突"][0]
+        甲, 乙 = 项["甲"], 项["乙"]
+        raise ValueError(
+            f"依赖冲突：「{项['包']}」现在只有 {项['版本']}，但被要求了两种不相容的版本 ——\n"
+            f"  · {甲['来自']} 要 {甲['约束']}（{' → '.join(甲['链条'])}）\n"
+            f"  · {乙['来自']} 要 {乙['约束']}（{' → '.join(乙['链条'])}）\n"
+            f"  ⚠️ 基石不会「随便挑一个版本」——那会让装出来的东西不可预测。\n"
+            f"  改法：让其中一个包放宽约束，或者先别同时装这两个。")
+
+    装序: list[tuple[str, dict]] = 闭包["装序"]
+    if not 装序:
+        raise ValueError(f"索引里没有包「{name}」（{source}）")
+
+    if len(装序) > 1:
+        print(f"「{name}」需要连依赖一起装，共 {len(装序)} 个（按依赖顺序）：")
+        for i, (n, m) in enumerate(装序, 1):
+            print(f"  {i}. {n} {m.get('版本', '')}")
+
+    for i, (n, m) in enumerate(装序, 1):
+        try:
+            _install_one(n, m, source=source, force=force)
+        except ValueError as e:
+            raise ValueError(
+                f"装「{n}」（第 {i}/{len(装序)} 个）时失败：{e}\n"
+                f"  ⚠️ 前面的 {i - 1} 个已经装上了；**没有写 jishi.lock**"
+                f"（因为闭包没装全）。重跑一次 `jishi 安装 {name}` 会自动跳过已装的。") from e
+
+    _write_lock(PKG.lock_from_closure({"装序": 装序}))
+    if len(装序) > 1:
+        print(f"已写锁定文件：{_lock_path()}")
+
+
+def _lock_path() -> str:
+    """`jishi.lock` 放哪：跟 `.jishi/packages/` 一起（安装是全局的，lock 也全局）。
+
+    ⚠️ 没放当前目录：现在 `安装` 装到的是**全局** `.jishi/packages/`，
+    在项目里放一个 lock 会让人以为「这个项目独立的依赖环境」—— 它并不是。
+    等将来有项目级依赖了再谈。
+    """
+    import os
+
+    from . import packages as PKG
+    # `ensure_root()` 就是 `install_package_zip` 用的那个安装根 ⇒ lock 跟它同级
+    return os.path.join(os.path.dirname(PKG.ensure_root()), "包.lock")
+
+
+def _write_lock(lock: dict) -> None:
+    import os
+
+    from . import packages as PKG
+    path = _lock_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(PKG.lock_to_text(lock))
 
 
 def _install_from_index(name: str, index_url: str, *, force: bool = False) -> None:
@@ -1116,6 +1299,8 @@ def _run_package_cmd(argv: list[str]) -> int:
     p_install.add_argument("--no-index", action="store_true",
                            help="不联网：本地找不到就直接报错")
     p_install.add_argument("--force", action="store_true", help="覆盖已安装的同名包")
+    p_install.add_argument("--锁定", "--locked", dest="锁定", action="store_true",
+                           help="严格按 .jishi/包.lock 装（索引变了也不变）")
     p_install.set_defaults(func=_cmd_install)
 
     p_uninstall = sub.add_parser("卸载", help="卸载本地包")

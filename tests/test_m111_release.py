@@ -259,12 +259,13 @@ def test_发布资产名必须是纯ASCII():
     ⇒ 判据：**发布资产名一律纯 ASCII**。这里钉住清单文件名 —— Rust 侧的两个默认地址、
     以及镜像同步脚本认的那个资产名。
     """
-    # 🔴 **2026-10-22：官网/分发已拆到独立仓库 `D://code//基石官网`**。
-    #    `fetch_release_mirror.py`（镜像脚本）和 `jishi-release.json` 的生成都跟着走了，
-    #    所以「资产名纯 ASCII」「镜像只拉清单里的资产」这两条判据**也搬到那边**。
-    #    这里用一个显式 skip（而不是删掉）—— 删掉等于这条判据从来没存在过。
-    pytest.skip("官网/分发已拆到 基石官网 仓库（2026-10-22）")
-
+    # 🔴 **2026-10-24（M130 测试体检）：这条用例原来整条 `skip` 掉了** ——
+    #    理由是「官网拆仓，`fetch_release_mirror.py` 跟着走了」。
+    #    但它其实钉了**两件事**，只有后半件跟着走：
+    #      ① **Rust 侧 `DEFAULT_RELEASE_INDEX_URLS` 的资产名要纯 ASCII** ← **主仓库的事，留着**
+    #      ② 镜像脚本认的资产名 ← 搬到官网仓库（`test_m111_mirror.py`）
+    #    整条 skip 的后果：①**整整一天没人看着** —— 而那正是 404 的来源。
+    #    ⇒ 现在只保留 ①，② 已在官网仓库。
     import re
 
     rust = (ROOT / "rust" / "src" / "selfupdate.rs").read_text(encoding="utf-8")
@@ -278,43 +279,7 @@ def test_发布资产名必须是纯ASCII():
             f"发布资产名「{名}」不是纯 ASCII —— GitHub 会把它改写成 `default.json`"
             "（原名只留在 label 里），走 GitHub 那条就永远 404")
 
-    mirror = (ROOT / "tools" / "fetch_release_mirror.py").read_text(encoding="utf-8")
-    for 名 in re.findall(r'a\["name"\]\s*==\s*"([^"]+)"', mirror):
-        assert 名.isascii(), f"镜像同步脚本在按非 ASCII 名找资产：「{名}」"
+    # （「镜像脚本认的资产名」那一半搬到了官网仓库的 `test_m111_mirror.py` ——
+    #   那个脚本不在本仓库了。）
 
 
-def test_镜像只拉清单里列过的资产():
-    """🔴 为什么有这一条（2026-10-15）：重跑一次 Release 会在 GitHub 上**留下旧资产**。
-
-    实测：`v0.2.3` 重发一次之后，Release 上多出一个上一轮的 `default.json`（被 GitHub
-    改名过的旧清单）。镜像脚本原来把「清单外资产」一律当硬错误 ⇒ **镜像永远同步不了**。
-
-    ⇒ 现在分两种：**长得像发行包的（`jishi-…`）不在清单里仍然硬错误**
-    （那说明「手上这份清单不是这一版的」—— 那时候「跳过校验」与「校验通过」
-    看起来一模一样）；**别的清单外资产只报一声、不镜像**。
-    """
-    # 🔴 **2026-10-22：官网/分发已拆到独立仓库 `D://code//基石官网`**。
-    #    `fetch_release_mirror.py`（镜像脚本）和 `jishi-release.json` 的生成都跟着走了，
-    #    所以「资产名纯 ASCII」「镜像只拉清单里的资产」这两条判据**也搬到那边**。
-    #    这里用一个显式 skip（而不是删掉）—— 删掉等于这条判据从来没存在过。
-    pytest.skip("官网/分发已拆到 基石官网 仓库（2026-10-22）")
-
-    import sys
-    sys.path.insert(0, str(ROOT / "tools"))
-    import fetch_release_mirror as fm
-
-    清单 = {"jishi-0.2.3-linux-x64.tar.gz": "aa", "jishi-release.json": "bb"}
-    资产 = [
-        {"name": "SHA256SUMS"},
-        {"name": "jishi-release.json"},
-        {"name": "jishi-0.2.3-linux-x64.tar.gz"},
-        {"name": "default.json"},                       # 重跑留下的垃圾
-    ]
-    要 = fm.挑要镜像的(资产, 清单, "v0.2.3")
-    assert [a["name"] for a in 要] == ["jishi-0.2.3-linux-x64.tar.gz"], 要
-
-    # 发行包不在清单里 ⇒ 硬错误（清单不是这一版的）
-    with pytest.raises(SystemExit) as ei:
-        fm.挑要镜像的([{"name": "jishi-0.2.3-macos-arm64.tar.gz"}],
-                      {"jishi-0.2.2-linux-x64.tar.gz": "aa"}, "v0.2.3")
-    assert "清单与发行包对不上" in str(ei.value)

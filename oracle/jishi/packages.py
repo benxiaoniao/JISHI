@@ -621,3 +621,174 @@ def list_packages(*, dest_root: str | None = None) -> list[dict]:
             "描述": meta.get("描述", ""),
         })
     return out
+
+
+# ---------------------------------------------------------------------------
+# 依赖闭包与锁定文件（M130，2026-10-24）
+# ---------------------------------------------------------------------------
+
+LOCK_FORMAT = "jishi-lock"
+LOCK_VERSION = 1
+
+
+def resolve_closure(index: dict, roots: list[str],
+                    *, 深度上限: int = 64) -> dict:
+    """把「要装的根包」展开成**完整依赖闭包 + 安装顺序**。
+
+    返回 `{"装序": [(名字, 条目)], "冲突": [...], "缺": [...], "环": [...]}`。
+
+    - **装序**是**拓扑序**：依赖一定排在依赖它的包前面（先装基础库再装数学工具）；
+    - **冲突**沿用 `detect_conflicts` 的思路，但这里在**解析阶段**就查，
+      不等到装完才发现；
+    - **缺**是「索引里没有」的依赖 —— 那是最常见的装不上原因，
+      要单独说，不能混进「冲突」。
+
+    ## 三条刻意的取舍
+
+    1. **不做版本求解**（不挑「满足约束的最高版本」）。
+       索引里每个包只有一个版本，本来就没得挑；将来有多版本再谈。
+       ⚠️ 更重要的理由：**自动挑版本会让「装出来的是什么」不可预测** ——
+       今天装和明天装可能不同，那就没有可复现性可言了。
+    2. **冲突就报错，不静默挑一个**。npm 早期那种「随便挑个高的」是反例。
+    3. **同一条依赖链上重复出现的包只装一次**（用包名判，不用链条判）。
+    """
+    包表 = index.get("包", {})
+    装序: list[tuple[str, dict]] = []
+    冲突: list[dict] = []
+    缺: list[dict] = []
+    环: list[list[str]] = []
+    已装: set[str] = set()            # 已排进装序的
+    访问中: set[str] = set()          # 当前 DFS 栈上（判环）
+    # 名字 → [(来自, 约束, 链条)]，最后统一判冲突
+    要求: dict[str, list[dict]] = {}
+
+    def walk(名字: str, 链条: list[str]) -> None:
+        if 名字 in 访问中:
+            环.append(链条 + [名字])
+            return
+        if 名字 in 已装:
+            return
+        if len(链条) > 深度上限:
+            return
+
+        条目 = 包表.get(名字)
+        if not isinstance(条目, dict):
+            if 名字 not in [d["包"] for d in 缺]:
+                缺.append({"包": 名字, "来自": 链条[-1] if 链条 else None,
+                           "链条": list(链条)})
+            return
+
+        访问中.add(名字)
+        for 依赖名, 约束 in (条目.get("依赖") or {}).items():
+            要求.setdefault(依赖名, []).append(
+                {"来自": 名字, "约束": str(约束), "链条": 链条 + [名字]})
+            walk(依赖名, 链条 + [名字])
+        访问中.discard(名字)
+
+        已装.add(名字)
+        装序.append((名字, 条目))         # 后序：依赖先入列 = 拓扑序
+
+    for 根 in roots:
+        walk(根, [])
+
+    # 判冲突：同一个包被要求了互不相容的约束
+    for 名, 要们 in 要求.items():
+        条 = 包表.get(名)
+        版本 = str((条 or {}).get("版本") or "")
+        if not 版本:
+            continue
+        # 「几种不同的约束」——只要有两种互不相容就算冲突。
+        # ⚠️ 不做 SAT：只两两比对，说明白「谁要什么」比求一个解更有用。
+        坏 = []
+        for i, 甲 in enumerate(要们):
+            for 乙 in 要们[i + 1:]:
+                if 甲["约束"] == 乙["约束"]:
+                    continue
+                都满足 = (version_satisfies(版本, 甲["约束"])
+                          and version_satisfies(版本, 乙["约束"]))
+                if not 都满足 and (甲["来自"] != 乙["来自"]):
+                    坏.append({"包": 名, "版本": 版本, "甲": 甲, "乙": 乙})
+        if 坏:
+            # 去重：同一对只报一次
+            见 = set()
+            for 项 in 坏:
+                k = tuple(sorted((项["甲"]["来自"], 项["乙"]["来自"])))
+                if k in 见:
+                    continue
+                见.add(k)
+                冲突.append(项)
+
+    return {"装序": 装序, "冲突": 冲突, "缺": 缺, "环": 环}
+
+
+def lock_from_closure(闭包: dict) -> dict:
+    """把解析结果转成 `jishi.lock` 的内容（**记录的必须是实际要装的**）。"""
+    包 = {}
+    for 名, 条 in 闭包["装序"]:
+        项: dict[str, Any] = {"版本": str(条.get("版本") or "")}
+        if 条.get("校验和"):
+            项["校验和"] = 条["校验和"]
+        if 条.get("下载地址"):
+            项["下载地址"] = 条["下载地址"]
+        包[名] = 项
+    return {"格式": LOCK_FORMAT, "版本": LOCK_VERSION,
+            "包": {k: 包[k] for k in sorted(包)}}
+
+
+def lock_to_text(lock: dict) -> str:
+    return json.dumps(lock, ensure_ascii=False, indent=2) + "\n"
+
+
+def parse_lock(text: str) -> dict:
+    """读 `jishi.lock`；格式不对就报清楚，不要让人猜。"""
+    try:
+        body = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"jishi.lock 不是合法 JSON：{e}") from e
+    if not isinstance(body, dict):
+        raise ValueError("jishi.lock 顶层必须是 JSON 对象")
+    if body.get("格式") != LOCK_FORMAT:
+        raise ValueError(
+            f"jishi.lock 的「格式」应该是「{LOCK_FORMAT}」，实际是「{body.get('格式')}」")
+    if not isinstance(body.get("包"), dict):
+        raise ValueError("jishi.lock 缺少「包」对象")
+    return body
+
+
+def plan_from_lock(lock: dict, index: dict) -> dict:
+    """按 lock 规划安装：**严格按 lock 里的版本**，索引变了也不许变。
+
+    ⚠️ 三种对不上的情况要分开说（它们该给的修法完全不同）：
+    - **锁里有、索引里没有** ⇒ 索引可能换源了或包被撤了 ⇒ 说「换个源或解锁重装」；
+    - **索引里版本变了** ⇒ 这是 `--锁定` 的意义所在 ⇒ **仍然按 lock 装**（并提示）；
+    - **校验和变了** ⇒ 🔴 最严重：**内容被改过** ⇒ **拒绝安装**。
+    """
+    包表 = index.get("包", {})
+    装序: list[tuple[str, dict]] = []
+    缺: list[dict] = []
+    变: list[dict] = []
+    改: list[dict] = []
+
+    for 名 in lock["包"]:                       # lock 里已按名字排序，顺序稳定
+        锁项 = lock["包"][名]
+        条目 = 包表.get(名)
+        if not isinstance(条目, dict):
+            缺.append({"包": 名, "锁版本": 锁项.get("版本")})
+            continue
+
+        索版本 = str(条目.get("版本") or "")
+        锁版本 = str(锁项.get("版本") or "")
+        if 索版本 != 锁版本:
+            变.append({"包": 名, "锁版本": 锁版本, "索引版本": 索版本})
+            # 仍按 lock 装 —— 但下载地址是「索引里那个」，
+            # 所以版本对不上时干脆不下（地址指向的是新版本，装了就是错的）
+
+        锁校验 = str(锁项.get("校验和") or "")
+        索校验 = str(条目.get("校验和") or "")
+        if 锁校验 and 索校验 and 锁校验 != 索校验:
+            改.append({"包": 名, "锁": 锁校验, "索引": 索校验})
+            continue
+
+        装序.append((名, 条目))
+
+    return {"装序": 装序, "缺": 缺, "变": 变, "改": 改}
