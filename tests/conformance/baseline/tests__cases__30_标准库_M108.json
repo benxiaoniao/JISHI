@@ -1,0 +1,7098 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 10,
+        "name": "文件",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 11,
+        "name": "路径",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 12,
+        "name": "系统",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "line": 14,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "工作",
+          "line": 14,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 16,
+              "line": 14,
+              "value": "基石语料-M108-",
+              "类型": "Str"
+            }
+          ],
+          "col": 15,
+          "func": {
+            "attr": "临时目录",
+            "col": 10,
+            "line": 14,
+            "obj": {
+              "col": 8,
+              "id": "路径",
+              "line": 14,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 14,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 17,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "本机分隔",
+          "line": 17,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 25,
+          "index": {
+            "col": 26,
+            "line": 17,
+            "value": 1,
+            "类型": "Num"
+          },
+          "line": 17,
+          "obj": {
+            "args": [
+              {
+                "col": 16,
+                "line": 17,
+                "value": "甲",
+                "类型": "Str"
+              },
+              {
+                "col": 21,
+                "line": 17,
+                "value": "乙",
+                "类型": "Str"
+              }
+            ],
+            "col": 15,
+            "func": {
+              "attr": "连接",
+              "col": 12,
+              "line": 17,
+              "obj": {
+                "col": 10,
+                "id": "路径",
+                "line": 17,
+                "类型": "Name"
+              },
+              "类型": "Attr"
+            },
+            "keywords": [],
+            "line": 17,
+            "类型": "Call"
+          },
+          "类型": "Subscript"
+        },
+        "类型": "Assign"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 23,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "出",
+              "line": 23,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 11,
+              "elements": [],
+              "line": 23,
+              "类型": "List"
+            },
+            "类型": "Assign"
+          },
+          {
+            "body": [
+              {
+                "col": 9,
+                "expr": {
+                  "args": [
+                    {
+                      "args": [
+                        {
+                          "col": 19,
+                          "id": "本机分隔",
+                          "line": 25,
+                          "类型": "Name"
+                        },
+                        {
+                          "col": 25,
+                          "line": 25,
+                          "value": "/",
+                          "类型": "Str"
+                        }
+                      ],
+                      "col": 18,
+                      "func": {
+                        "attr": "替换",
+                        "col": 15,
+                        "line": 25,
+                        "obj": {
+                          "col": 14,
+                          "id": "f",
+                          "line": 25,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 25,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 13,
+                  "func": {
+                    "attr": "追加",
+                    "col": 10,
+                    "line": 25,
+                    "obj": {
+                      "col": 9,
+                      "id": "出",
+                      "line": 25,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 25,
+                  "类型": "Call"
+                },
+                "line": 25,
+                "类型": "ExprStmt"
+              }
+            ],
+            "col": 5,
+            "iter": {
+              "col": 12,
+              "id": "路径们",
+              "line": 24,
+              "类型": "Name"
+            },
+            "line": 24,
+            "target": {
+              "col": 8,
+              "id": "f",
+              "line": 24,
+              "类型": "Name"
+            },
+            "类型": "For"
+          },
+          {
+            "col": 5,
+            "line": 26,
+            "value": {
+              "col": 8,
+              "id": "出",
+              "line": 26,
+              "类型": "Name"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 19,
+        "name": "归一",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "路径们"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 15,
+                  "id": "工作",
+                  "line": 28,
+                  "类型": "Name"
+                },
+                {
+                  "col": 19,
+                  "line": 28,
+                  "value": "子",
+                  "类型": "Str"
+                }
+              ],
+              "col": 14,
+              "func": {
+                "attr": "连接",
+                "col": 11,
+                "line": 28,
+                "obj": {
+                  "col": 9,
+                  "id": "路径",
+                  "line": 28,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 28,
+              "类型": "Call"
+            }
+          ],
+          "col": 8,
+          "func": {
+            "attr": "创建目录",
+            "col": 3,
+            "line": 28,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 28,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 28,
+          "类型": "Call"
+        },
+        "line": 28,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "id": "工作",
+                  "line": 29,
+                  "类型": "Name"
+                },
+                {
+                  "col": 18,
+                  "line": 29,
+                  "value": "报告A.md",
+                  "类型": "Str"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "连接",
+                "col": 10,
+                "line": 29,
+                "obj": {
+                  "col": 8,
+                  "id": "路径",
+                  "line": 29,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 29,
+              "类型": "Call"
+            },
+            {
+              "col": 29,
+              "line": 29,
+              "value": "甲",
+              "类型": "Str"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "写文本",
+            "col": 3,
+            "line": 29,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 29,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 29,
+          "类型": "Call"
+        },
+        "line": 29,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "id": "工作",
+                  "line": 30,
+                  "类型": "Name"
+                },
+                {
+                  "col": 18,
+                  "line": 30,
+                  "value": "报告B.md",
+                  "类型": "Str"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "连接",
+                "col": 10,
+                "line": 30,
+                "obj": {
+                  "col": 8,
+                  "id": "路径",
+                  "line": 30,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 30,
+              "类型": "Call"
+            },
+            {
+              "col": 29,
+              "line": 30,
+              "value": "乙",
+              "类型": "Str"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "写文本",
+            "col": 3,
+            "line": 30,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 30,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 30,
+          "类型": "Call"
+        },
+        "line": 30,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "id": "工作",
+                  "line": 31,
+                  "类型": "Name"
+                },
+                {
+                  "col": 18,
+                  "line": 31,
+                  "value": "旧报告.md",
+                  "类型": "Str"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "连接",
+                "col": 10,
+                "line": 31,
+                "obj": {
+                  "col": 8,
+                  "id": "路径",
+                  "line": 31,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 31,
+              "类型": "Call"
+            },
+            {
+              "col": 29,
+              "line": 31,
+              "value": "丙",
+              "类型": "Str"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "写文本",
+            "col": 3,
+            "line": 31,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 31,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 31,
+          "类型": "Call"
+        },
+        "line": 31,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "id": "工作",
+                  "line": 32,
+                  "类型": "Name"
+                },
+                {
+                  "col": 18,
+                  "line": 32,
+                  "value": "子",
+                  "类型": "Str"
+                },
+                {
+                  "col": 23,
+                  "line": 32,
+                  "value": "报告C.md",
+                  "类型": "Str"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "连接",
+                "col": 10,
+                "line": 32,
+                "obj": {
+                  "col": 8,
+                  "id": "路径",
+                  "line": 32,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 32,
+              "类型": "Call"
+            },
+            {
+              "col": 34,
+              "line": 32,
+              "value": "丁",
+              "类型": "Str"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "写文本",
+            "col": 3,
+            "line": 32,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 32,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 32,
+          "类型": "Call"
+        },
+        "line": 32,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "id": "工作",
+                  "line": 33,
+                  "类型": "Name"
+                },
+                {
+                  "col": 18,
+                  "line": 33,
+                  "value": "2026-01.log",
+                  "类型": "Str"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "连接",
+                "col": 10,
+                "line": 33,
+                "obj": {
+                  "col": 8,
+                  "id": "路径",
+                  "line": 33,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 33,
+              "类型": "Call"
+            },
+            {
+              "col": 34,
+              "line": 33,
+              "value": "一",
+              "类型": "Str"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "写文本",
+            "col": 3,
+            "line": 33,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 33,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 33,
+          "类型": "Call"
+        },
+        "line": 33,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "id": "工作",
+                  "line": 34,
+                  "类型": "Name"
+                },
+                {
+                  "col": 18,
+                  "line": 34,
+                  "value": "2026-02.log",
+                  "类型": "Str"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "连接",
+                "col": 10,
+                "line": 34,
+                "obj": {
+                  "col": 8,
+                  "id": "路径",
+                  "line": 34,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 34,
+              "类型": "Call"
+            },
+            {
+              "col": 34,
+              "line": 34,
+              "value": "二",
+              "类型": "Str"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "写文本",
+            "col": 3,
+            "line": 34,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 34,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 34,
+          "类型": "Call"
+        },
+        "line": 34,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "id": "工作",
+                  "line": 35,
+                  "类型": "Name"
+                },
+                {
+                  "col": 18,
+                  "line": 35,
+                  "value": "说明.txt",
+                  "类型": "Str"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "连接",
+                "col": 10,
+                "line": 35,
+                "obj": {
+                  "col": 8,
+                  "id": "路径",
+                  "line": 35,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 35,
+              "类型": "Call"
+            },
+            {
+              "col": 29,
+              "line": 35,
+              "value": "随手记",
+              "类型": "Str"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "写文本",
+            "col": 3,
+            "line": 35,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 35,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 35,
+          "类型": "Call"
+        },
+        "line": 35,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "工作",
+                      "line": 38,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 38,
+                      "value": "报告*.md",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "按模式找",
+                    "col": 9,
+                    "line": 38,
+                    "obj": {
+                      "col": 7,
+                      "id": "路径",
+                      "line": 38,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 38,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "归一",
+                "line": 38,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 38,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 38,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 38,
+          "类型": "Call"
+        },
+        "line": 38,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "工作",
+                      "line": 39,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 39,
+                      "value": "报告*.md",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 29,
+                      "line": 39,
+                      "value": false,
+                      "类型": "Num"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "按模式找",
+                    "col": 9,
+                    "line": 39,
+                    "obj": {
+                      "col": 7,
+                      "id": "路径",
+                      "line": 39,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 39,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "归一",
+                "line": 39,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 39,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 39,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 39,
+          "类型": "Call"
+        },
+        "line": 39,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "工作",
+                      "line": 42,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 42,
+                      "value": "2026-??.log",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "按模式找",
+                    "col": 9,
+                    "line": 42,
+                    "obj": {
+                      "col": 7,
+                      "id": "路径",
+                      "line": 42,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 42,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "归一",
+                "line": 42,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 42,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 42,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 42,
+          "类型": "Call"
+        },
+        "line": 42,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "工作",
+                      "line": 43,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 43,
+                      "value": "报告[AB].md",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "按模式找",
+                    "col": 9,
+                    "line": 43,
+                    "obj": {
+                      "col": 7,
+                      "id": "路径",
+                      "line": 43,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 43,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "归一",
+                "line": 43,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 43,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 43,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 43,
+          "类型": "Call"
+        },
+        "line": 43,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "工作",
+                      "line": 44,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 44,
+                      "value": "报告[!A].md",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "按模式找",
+                    "col": 9,
+                    "line": 44,
+                    "obj": {
+                      "col": 7,
+                      "id": "路径",
+                      "line": 44,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 44,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "归一",
+                "line": 44,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 44,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 44,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 44,
+          "类型": "Call"
+        },
+        "line": 44,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "工作",
+                      "line": 47,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 47,
+                      "value": "旧*.md",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "按模式找",
+                    "col": 9,
+                    "line": 47,
+                    "obj": {
+                      "col": 7,
+                      "id": "路径",
+                      "line": 47,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 47,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "归一",
+                "line": 47,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 47,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 47,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 47,
+          "类型": "Call"
+        },
+        "line": 47,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "工作",
+                      "line": 48,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 48,
+                      "value": "*.md",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "按模式找",
+                    "col": 9,
+                    "line": 48,
+                    "obj": {
+                      "col": 7,
+                      "id": "路径",
+                      "line": 48,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 48,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "长度",
+                "line": 48,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 48,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 48,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 48,
+          "类型": "Call"
+        },
+        "line": 48,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "id": "工作",
+                  "line": 51,
+                  "类型": "Name"
+                },
+                {
+                  "col": 18,
+                  "line": 51,
+                  "value": "索引.txt",
+                  "类型": "Str"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "连接",
+                "col": 10,
+                "line": 51,
+                "obj": {
+                  "col": 8,
+                  "id": "路径",
+                  "line": 51,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 51,
+              "类型": "Call"
+            },
+            {
+              "col": 29,
+              "line": 51,
+              "value": "原子写的内容",
+              "类型": "Str"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "原子写",
+            "col": 3,
+            "line": 51,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 51,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 51,
+          "类型": "Call"
+        },
+        "line": 51,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 17,
+                      "id": "工作",
+                      "line": 52,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 21,
+                      "line": 52,
+                      "value": "索引.txt",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 16,
+                  "func": {
+                    "attr": "连接",
+                    "col": 13,
+                    "line": 52,
+                    "obj": {
+                      "col": 11,
+                      "id": "路径",
+                      "line": 52,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 52,
+                  "类型": "Call"
+                }
+              ],
+              "col": 10,
+              "func": {
+                "attr": "读文本",
+                "col": 6,
+                "line": 52,
+                "obj": {
+                  "col": 4,
+                  "id": "文件",
+                  "line": 52,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 52,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 52,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 52,
+          "类型": "Call"
+        },
+        "line": 52,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "工作",
+                      "line": 53,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 53,
+                      "value": "*.tmp",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "按模式找",
+                    "col": 9,
+                    "line": 53,
+                    "obj": {
+                      "col": 7,
+                      "id": "路径",
+                      "line": 53,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 53,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "归一",
+                "line": 53,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 53,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 53,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 53,
+          "类型": "Call"
+        },
+        "line": 53,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 16,
+                      "id": "工作",
+                      "line": 56,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 20,
+                      "line": 56,
+                      "value": "没有这个文件.zzz",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 15,
+                  "func": {
+                    "attr": "连接",
+                    "col": 12,
+                    "line": 56,
+                    "obj": {
+                      "col": 10,
+                      "id": "路径",
+                      "line": 56,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 56,
+                  "类型": "Call"
+                }
+              ],
+              "col": 9,
+              "func": {
+                "attr": "打开",
+                "col": 6,
+                "line": 56,
+                "obj": {
+                  "col": 4,
+                  "id": "系统",
+                  "line": 56,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 56,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 56,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 56,
+          "类型": "Call"
+        },
+        "line": 56,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [],
+                  "col": 20,
+                  "func": {
+                    "attr": "系统临时目录",
+                    "col": 13,
+                    "line": 59,
+                    "obj": {
+                      "col": 11,
+                      "id": "路径",
+                      "line": 59,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 59,
+                  "类型": "Call"
+                }
+              ],
+              "col": 10,
+              "func": {
+                "attr": "是目录",
+                "col": 6,
+                "line": 59,
+                "obj": {
+                  "col": 4,
+                  "id": "路径",
+                  "line": 59,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 59,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 59,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 59,
+          "类型": "Call"
+        },
+        "line": 59,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "id": "工作",
+                  "line": 62,
+                  "类型": "Name"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "递归删除",
+                "col": 6,
+                "line": 62,
+                "obj": {
+                  "col": 4,
+                  "id": "路径",
+                  "line": 62,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 62,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 62,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 62,
+          "类型": "Call"
+        },
+        "line": 62,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 10,
+                  "id": "工作",
+                  "line": 63,
+                  "类型": "Name"
+                }
+              ],
+              "col": 9,
+              "func": {
+                "attr": "存在",
+                "col": 6,
+                "line": 63,
+                "obj": {
+                  "col": 4,
+                  "id": "路径",
+                  "line": 63,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 63,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 63,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 63,
+          "类型": "Call"
+        },
+        "line": 63,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "e1e3785ee201d576463e7280017864ab7f2a2ffc735b684670f9d4a1b9f3b93f",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            10,
+            1,
+            3,
+            0,
+            0,
+            0,
+            10,
+            1,
+            31,
+            1,
+            0,
+            -1,
+            11,
+            1,
+            3,
+            1,
+            0,
+            0,
+            11,
+            1,
+            31,
+            2,
+            0,
+            -1,
+            12,
+            1,
+            3,
+            2,
+            0,
+            0,
+            12,
+            1,
+            2,
+            1,
+            0,
+            0,
+            14,
+            8,
+            25,
+            3,
+            0,
+            0,
+            14,
+            10,
+            1,
+            0,
+            0,
+            0,
+            14,
+            16,
+            20,
+            1,
+            -1,
+            0,
+            14,
+            15,
+            3,
+            4,
+            0,
+            0,
+            14,
+            1,
+            2,
+            1,
+            0,
+            0,
+            17,
+            10,
+            25,
+            5,
+            0,
+            0,
+            17,
+            12,
+            1,
+            1,
+            0,
+            0,
+            17,
+            16,
+            1,
+            2,
+            0,
+            0,
+            17,
+            21,
+            20,
+            2,
+            -1,
+            0,
+            17,
+            15,
+            1,
+            3,
+            0,
+            0,
+            17,
+            26,
+            27,
+            0,
+            0,
+            0,
+            17,
+            25,
+            3,
+            6,
+            0,
+            0,
+            17,
+            1,
+            22,
+            1,
+            0,
+            0,
+            19,
+            1,
+            3,
+            9,
+            0,
+            0,
+            19,
+            1,
+            2,
+            0,
+            0,
+            0,
+            28,
+            1,
+            25,
+            10,
+            0,
+            0,
+            28,
+            3,
+            2,
+            1,
+            0,
+            0,
+            28,
+            9,
+            25,
+            5,
+            0,
+            0,
+            28,
+            11,
+            2,
+            4,
+            0,
+            0,
+            28,
+            15,
+            1,
+            6,
+            0,
+            0,
+            28,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            28,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            28,
+            8,
+            38,
+            0,
+            0,
+            0,
+            28,
+            1,
+            2,
+            0,
+            0,
+            0,
+            29,
+            1,
+            25,
+            11,
+            0,
+            0,
+            29,
+            3,
+            2,
+            1,
+            0,
+            0,
+            29,
+            8,
+            25,
+            5,
+            0,
+            0,
+            29,
+            10,
+            2,
+            4,
+            0,
+            0,
+            29,
+            14,
+            1,
+            7,
+            0,
+            0,
+            29,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            29,
+            13,
+            1,
+            1,
+            0,
+            0,
+            29,
+            29,
+            20,
+            2,
+            -1,
+            0,
+            29,
+            7,
+            38,
+            0,
+            0,
+            0,
+            29,
+            1,
+            2,
+            0,
+            0,
+            0,
+            30,
+            1,
+            25,
+            11,
+            0,
+            0,
+            30,
+            3,
+            2,
+            1,
+            0,
+            0,
+            30,
+            8,
+            25,
+            5,
+            0,
+            0,
+            30,
+            10,
+            2,
+            4,
+            0,
+            0,
+            30,
+            14,
+            1,
+            8,
+            0,
+            0,
+            30,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            30,
+            13,
+            1,
+            2,
+            0,
+            0,
+            30,
+            29,
+            20,
+            2,
+            -1,
+            0,
+            30,
+            7,
+            38,
+            0,
+            0,
+            0,
+            30,
+            1,
+            2,
+            0,
+            0,
+            0,
+            31,
+            1,
+            25,
+            11,
+            0,
+            0,
+            31,
+            3,
+            2,
+            1,
+            0,
+            0,
+            31,
+            8,
+            25,
+            5,
+            0,
+            0,
+            31,
+            10,
+            2,
+            4,
+            0,
+            0,
+            31,
+            14,
+            1,
+            9,
+            0,
+            0,
+            31,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            31,
+            13,
+            1,
+            10,
+            0,
+            0,
+            31,
+            29,
+            20,
+            2,
+            -1,
+            0,
+            31,
+            7,
+            38,
+            0,
+            0,
+            0,
+            31,
+            1,
+            2,
+            0,
+            0,
+            0,
+            32,
+            1,
+            25,
+            11,
+            0,
+            0,
+            32,
+            3,
+            2,
+            1,
+            0,
+            0,
+            32,
+            8,
+            25,
+            5,
+            0,
+            0,
+            32,
+            10,
+            2,
+            4,
+            0,
+            0,
+            32,
+            14,
+            1,
+            6,
+            0,
+            0,
+            32,
+            18,
+            1,
+            11,
+            0,
+            0,
+            32,
+            23,
+            20,
+            3,
+            -1,
+            0,
+            32,
+            13,
+            1,
+            12,
+            0,
+            0,
+            32,
+            34,
+            20,
+            2,
+            -1,
+            0,
+            32,
+            7,
+            38,
+            0,
+            0,
+            0,
+            32,
+            1,
+            2,
+            0,
+            0,
+            0,
+            33,
+            1,
+            25,
+            11,
+            0,
+            0,
+            33,
+            3,
+            2,
+            1,
+            0,
+            0,
+            33,
+            8,
+            25,
+            5,
+            0,
+            0,
+            33,
+            10,
+            2,
+            4,
+            0,
+            0,
+            33,
+            14,
+            1,
+            13,
+            0,
+            0,
+            33,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            33,
+            13,
+            1,
+            14,
+            0,
+            0,
+            33,
+            34,
+            20,
+            2,
+            -1,
+            0,
+            33,
+            7,
+            38,
+            0,
+            0,
+            0,
+            33,
+            1,
+            2,
+            0,
+            0,
+            0,
+            34,
+            1,
+            25,
+            11,
+            0,
+            0,
+            34,
+            3,
+            2,
+            1,
+            0,
+            0,
+            34,
+            8,
+            25,
+            5,
+            0,
+            0,
+            34,
+            10,
+            2,
+            4,
+            0,
+            0,
+            34,
+            14,
+            1,
+            15,
+            0,
+            0,
+            34,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            34,
+            13,
+            1,
+            16,
+            0,
+            0,
+            34,
+            34,
+            20,
+            2,
+            -1,
+            0,
+            34,
+            7,
+            38,
+            0,
+            0,
+            0,
+            34,
+            1,
+            2,
+            0,
+            0,
+            0,
+            35,
+            1,
+            25,
+            11,
+            0,
+            0,
+            35,
+            3,
+            2,
+            1,
+            0,
+            0,
+            35,
+            8,
+            25,
+            5,
+            0,
+            0,
+            35,
+            10,
+            2,
+            4,
+            0,
+            0,
+            35,
+            14,
+            1,
+            17,
+            0,
+            0,
+            35,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            35,
+            13,
+            1,
+            18,
+            0,
+            0,
+            35,
+            29,
+            20,
+            2,
+            -1,
+            0,
+            35,
+            7,
+            38,
+            0,
+            0,
+            0,
+            35,
+            1,
+            2,
+            12,
+            0,
+            0,
+            38,
+            1,
+            2,
+            9,
+            0,
+            0,
+            38,
+            4,
+            2,
+            1,
+            0,
+            0,
+            38,
+            7,
+            25,
+            13,
+            0,
+            0,
+            38,
+            9,
+            2,
+            4,
+            0,
+            0,
+            38,
+            15,
+            1,
+            19,
+            0,
+            0,
+            38,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            38,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            38,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            38,
+            3,
+            38,
+            0,
+            0,
+            0,
+            38,
+            1,
+            2,
+            12,
+            0,
+            0,
+            39,
+            1,
+            2,
+            9,
+            0,
+            0,
+            39,
+            4,
+            2,
+            1,
+            0,
+            0,
+            39,
+            7,
+            25,
+            13,
+            0,
+            0,
+            39,
+            9,
+            2,
+            4,
+            0,
+            0,
+            39,
+            15,
+            1,
+            19,
+            0,
+            0,
+            39,
+            19,
+            1,
+            20,
+            0,
+            0,
+            39,
+            29,
+            20,
+            3,
+            -1,
+            0,
+            39,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            39,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            39,
+            3,
+            38,
+            0,
+            0,
+            0,
+            39,
+            1,
+            2,
+            12,
+            0,
+            0,
+            42,
+            1,
+            2,
+            9,
+            0,
+            0,
+            42,
+            4,
+            2,
+            1,
+            0,
+            0,
+            42,
+            7,
+            25,
+            13,
+            0,
+            0,
+            42,
+            9,
+            2,
+            4,
+            0,
+            0,
+            42,
+            15,
+            1,
+            21,
+            0,
+            0,
+            42,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            42,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            42,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            42,
+            3,
+            38,
+            0,
+            0,
+            0,
+            42,
+            1,
+            2,
+            12,
+            0,
+            0,
+            43,
+            1,
+            2,
+            9,
+            0,
+            0,
+            43,
+            4,
+            2,
+            1,
+            0,
+            0,
+            43,
+            7,
+            25,
+            13,
+            0,
+            0,
+            43,
+            9,
+            2,
+            4,
+            0,
+            0,
+            43,
+            15,
+            1,
+            22,
+            0,
+            0,
+            43,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            43,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            43,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            43,
+            3,
+            38,
+            0,
+            0,
+            0,
+            43,
+            1,
+            2,
+            12,
+            0,
+            0,
+            44,
+            1,
+            2,
+            9,
+            0,
+            0,
+            44,
+            4,
+            2,
+            1,
+            0,
+            0,
+            44,
+            7,
+            25,
+            13,
+            0,
+            0,
+            44,
+            9,
+            2,
+            4,
+            0,
+            0,
+            44,
+            15,
+            1,
+            23,
+            0,
+            0,
+            44,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            44,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            44,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            44,
+            3,
+            38,
+            0,
+            0,
+            0,
+            44,
+            1,
+            2,
+            12,
+            0,
+            0,
+            47,
+            1,
+            2,
+            9,
+            0,
+            0,
+            47,
+            4,
+            2,
+            1,
+            0,
+            0,
+            47,
+            7,
+            25,
+            13,
+            0,
+            0,
+            47,
+            9,
+            2,
+            4,
+            0,
+            0,
+            47,
+            15,
+            1,
+            24,
+            0,
+            0,
+            47,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            47,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            47,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            47,
+            3,
+            38,
+            0,
+            0,
+            0,
+            47,
+            1,
+            2,
+            12,
+            0,
+            0,
+            48,
+            1,
+            2,
+            14,
+            0,
+            0,
+            48,
+            4,
+            2,
+            1,
+            0,
+            0,
+            48,
+            7,
+            25,
+            13,
+            0,
+            0,
+            48,
+            9,
+            2,
+            4,
+            0,
+            0,
+            48,
+            15,
+            1,
+            25,
+            0,
+            0,
+            48,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            48,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            48,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            48,
+            3,
+            38,
+            0,
+            0,
+            0,
+            48,
+            1,
+            2,
+            0,
+            0,
+            0,
+            51,
+            1,
+            25,
+            15,
+            0,
+            0,
+            51,
+            3,
+            2,
+            1,
+            0,
+            0,
+            51,
+            8,
+            25,
+            5,
+            0,
+            0,
+            51,
+            10,
+            2,
+            4,
+            0,
+            0,
+            51,
+            14,
+            1,
+            26,
+            0,
+            0,
+            51,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            51,
+            13,
+            1,
+            27,
+            0,
+            0,
+            51,
+            29,
+            20,
+            2,
+            -1,
+            0,
+            51,
+            7,
+            38,
+            0,
+            0,
+            0,
+            51,
+            1,
+            2,
+            12,
+            0,
+            0,
+            52,
+            1,
+            2,
+            0,
+            0,
+            0,
+            52,
+            4,
+            25,
+            16,
+            0,
+            0,
+            52,
+            6,
+            2,
+            1,
+            0,
+            0,
+            52,
+            11,
+            25,
+            5,
+            0,
+            0,
+            52,
+            13,
+            2,
+            4,
+            0,
+            0,
+            52,
+            17,
+            1,
+            26,
+            0,
+            0,
+            52,
+            21,
+            20,
+            2,
+            -1,
+            0,
+            52,
+            16,
+            20,
+            1,
+            -1,
+            0,
+            52,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            52,
+            3,
+            38,
+            0,
+            0,
+            0,
+            52,
+            1,
+            2,
+            12,
+            0,
+            0,
+            53,
+            1,
+            2,
+            9,
+            0,
+            0,
+            53,
+            4,
+            2,
+            1,
+            0,
+            0,
+            53,
+            7,
+            25,
+            13,
+            0,
+            0,
+            53,
+            9,
+            2,
+            4,
+            0,
+            0,
+            53,
+            15,
+            1,
+            28,
+            0,
+            0,
+            53,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            53,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            53,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            53,
+            3,
+            38,
+            0,
+            0,
+            0,
+            53,
+            1,
+            2,
+            12,
+            0,
+            0,
+            56,
+            1,
+            2,
+            2,
+            0,
+            0,
+            56,
+            4,
+            25,
+            17,
+            0,
+            0,
+            56,
+            6,
+            2,
+            1,
+            0,
+            0,
+            56,
+            10,
+            25,
+            5,
+            0,
+            0,
+            56,
+            12,
+            2,
+            4,
+            0,
+            0,
+            56,
+            16,
+            1,
+            29,
+            0,
+            0,
+            56,
+            20,
+            20,
+            2,
+            -1,
+            0,
+            56,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            56,
+            9,
+            20,
+            1,
+            -1,
+            0,
+            56,
+            3,
+            38,
+            0,
+            0,
+            0,
+            56,
+            1,
+            2,
+            12,
+            0,
+            0,
+            59,
+            1,
+            2,
+            1,
+            0,
+            0,
+            59,
+            4,
+            25,
+            18,
+            0,
+            0,
+            59,
+            6,
+            2,
+            1,
+            0,
+            0,
+            59,
+            11,
+            25,
+            19,
+            0,
+            0,
+            59,
+            13,
+            20,
+            0,
+            -1,
+            0,
+            59,
+            20,
+            20,
+            1,
+            -1,
+            0,
+            59,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            59,
+            3,
+            38,
+            0,
+            0,
+            0,
+            59,
+            1,
+            2,
+            12,
+            0,
+            0,
+            62,
+            1,
+            2,
+            1,
+            0,
+            0,
+            62,
+            4,
+            25,
+            20,
+            0,
+            0,
+            62,
+            6,
+            2,
+            4,
+            0,
+            0,
+            62,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            62,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            62,
+            3,
+            38,
+            0,
+            0,
+            0,
+            62,
+            1,
+            2,
+            12,
+            0,
+            0,
+            63,
+            1,
+            2,
+            1,
+            0,
+            0,
+            63,
+            4,
+            25,
+            21,
+            0,
+            0,
+            63,
+            6,
+            2,
+            4,
+            0,
+            0,
+            63,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            63,
+            9,
+            20,
+            1,
+            -1,
+            0,
+            63,
+            3,
+            38,
+            0,
+            0,
+            0,
+            63,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 19,
+          "freevars": [],
+          "instrs": [
+            23,
+            0,
+            0,
+            0,
+            23,
+            11,
+            5,
+            2,
+            0,
+            0,
+            23,
+            5,
+            4,
+            0,
+            0,
+            0,
+            24,
+            12,
+            29,
+            0,
+            0,
+            0,
+            24,
+            5,
+            34,
+            5,
+            18,
+            0,
+            24,
+            5,
+            30,
+            16,
+            0,
+            0,
+            24,
+            5,
+            5,
+            1,
+            0,
+            0,
+            24,
+            5,
+            4,
+            2,
+            0,
+            0,
+            25,
+            9,
+            4,
+            1,
+            0,
+            0,
+            25,
+            14,
+            25,
+            8,
+            0,
+            0,
+            25,
+            15,
+            2,
+            6,
+            0,
+            0,
+            25,
+            19,
+            1,
+            4,
+            0,
+            0,
+            25,
+            25,
+            20,
+            2,
+            -1,
+            0,
+            25,
+            18,
+            47,
+            0,
+            0,
+            0,
+            25,
+            13,
+            9,
+            0,
+            0,
+            0,
+            25,
+            9,
+            16,
+            5,
+            0,
+            0,
+            24,
+            5,
+            35,
+            0,
+            0,
+            0,
+            24,
+            5,
+            16,
+            20,
+            0,
+            0,
+            24,
+            5,
+            9,
+            0,
+            0,
+            0,
+            24,
+            5,
+            35,
+            0,
+            0,
+            0,
+            24,
+            5,
+            4,
+            2,
+            0,
+            0,
+            26,
+            8,
+            21,
+            0,
+            0,
+            0,
+            26,
+            5,
+            1,
+            5,
+            0,
+            0,
+            19,
+            1,
+            21,
+            0,
+            0,
+            0,
+            19,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "路径们",
+            "f",
+            "出"
+          ],
+          "name": "归一",
+          "nlocals": 3,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            7
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "路径们"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "基石语料-M108-"
+        },
+        {
+          "t": "str",
+          "v": "甲"
+        },
+        {
+          "t": "str",
+          "v": "乙"
+        },
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "str",
+          "v": "/"
+        },
+        {
+          "t": "none"
+        },
+        {
+          "t": "str",
+          "v": "子"
+        },
+        {
+          "t": "str",
+          "v": "报告A.md"
+        },
+        {
+          "t": "str",
+          "v": "报告B.md"
+        },
+        {
+          "t": "str",
+          "v": "旧报告.md"
+        },
+        {
+          "t": "str",
+          "v": "丙"
+        },
+        {
+          "t": "str",
+          "v": "报告C.md"
+        },
+        {
+          "t": "str",
+          "v": "丁"
+        },
+        {
+          "t": "str",
+          "v": "2026-01.log"
+        },
+        {
+          "t": "str",
+          "v": "一"
+        },
+        {
+          "t": "str",
+          "v": "2026-02.log"
+        },
+        {
+          "t": "str",
+          "v": "二"
+        },
+        {
+          "t": "str",
+          "v": "说明.txt"
+        },
+        {
+          "t": "str",
+          "v": "随手记"
+        },
+        {
+          "t": "str",
+          "v": "报告*.md"
+        },
+        {
+          "t": "false"
+        },
+        {
+          "t": "str",
+          "v": "2026-??.log"
+        },
+        {
+          "t": "str",
+          "v": "报告[AB].md"
+        },
+        {
+          "t": "str",
+          "v": "报告[!A].md"
+        },
+        {
+          "t": "str",
+          "v": "旧*.md"
+        },
+        {
+          "t": "str",
+          "v": "*.md"
+        },
+        {
+          "t": "str",
+          "v": "索引.txt"
+        },
+        {
+          "t": "str",
+          "v": "原子写的内容"
+        },
+        {
+          "t": "str",
+          "v": "*.tmp"
+        },
+        {
+          "t": "str",
+          "v": "没有这个文件.zzz"
+        }
+      ],
+      "filename": "tests/cases/30_标准库_M108.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "文件",
+        "路径",
+        "系统",
+        "临时目录",
+        "工作",
+        "连接",
+        "本机分隔",
+        "路径们",
+        "替换",
+        "归一",
+        "创建目录",
+        "写文本",
+        "打印",
+        "按模式找",
+        "长度",
+        "原子写",
+        "读文本",
+        "打开",
+        "是目录",
+        "系统临时目录",
+        "递归删除",
+        "存在"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 10,
+      "source_line": "导入 文件",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 10,
+      "source_line": "导入 文件",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "导入 文件",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "导入 路径",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 11,
+      "source_line": "导入 路径",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "导入 路径",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 12,
+      "source_line": "导入 系统",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 12,
+      "source_line": "导入 系统",
+      "type": "NAME",
+      "value": "系统",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "导入 系统",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "NAME",
+      "value": "临时目录",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 27,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "STRING",
+      "value": "基石语料-M108-",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "令 工作 = 路径.临时目录(\"基石语料-M108-\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 6,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "NAME",
+      "value": "本机分隔",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 18,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "STRING",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 23,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "STRING",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 26,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "令 本机分隔 = 路径.连接(\"甲\", \"乙\")[1]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 19,
+      "source_line": "函数 归一(路径们)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 19,
+      "source_line": "函数 归一(路径们)：",
+      "type": "NAME",
+      "value": "归一",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 19,
+      "source_line": "函数 归一(路径们)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 19,
+      "source_line": "函数 归一(路径们)：",
+      "type": "NAME",
+      "value": "路径们",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 19,
+      "source_line": "函数 归一(路径们)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 19,
+      "source_line": "函数 归一(路径们)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "函数 归一(路径们)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "    令 出 = []",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 23,
+      "source_line": "    令 出 = []",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 23,
+      "source_line": "    令 出 = []",
+      "type": "NAME",
+      "value": "出",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 23,
+      "source_line": "    令 出 = []",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 23,
+      "source_line": "    令 出 = []",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 23,
+      "source_line": "    令 出 = []",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "    令 出 = []",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 24,
+      "source_line": "    遍历 f 在 路径们：",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 24,
+      "source_line": "    遍历 f 在 路径们：",
+      "type": "NAME",
+      "value": "f",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 24,
+      "source_line": "    遍历 f 在 路径们：",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 24,
+      "source_line": "    遍历 f 在 路径们：",
+      "type": "NAME",
+      "value": "路径们",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 24,
+      "source_line": "    遍历 f 在 路径们：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "    遍历 f 在 路径们：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "NAME",
+      "value": "出",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "NAME",
+      "value": "追加",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "NAME",
+      "value": "f",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "NAME",
+      "value": "替换",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "NAME",
+      "value": "本机分隔",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 27,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "STRING",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        出.追加(f.替换(本机分隔, \"/\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    返回 出",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 26,
+      "source_line": "    返回 出",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 26,
+      "source_line": "    返回 出",
+      "type": "NAME",
+      "value": "出",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    返回 出",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "NAME",
+      "value": "创建目录",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 21,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "STRING",
+      "value": "子",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "文件.创建目录(路径.连接(工作, \"子\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "NAME",
+      "value": "写文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 25,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "STRING",
+      "value": "报告A.md",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 31,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "STRING",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告A.md\"), \"甲\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "NAME",
+      "value": "写文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 25,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "STRING",
+      "value": "报告B.md",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 31,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "STRING",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 30,
+      "source_line": "文件.写文本(路径.连接(工作, \"报告B.md\"), \"乙\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "NAME",
+      "value": "写文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 25,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "STRING",
+      "value": "旧报告.md",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 31,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "STRING",
+      "value": "丙",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 31,
+      "source_line": "文件.写文本(路径.连接(工作, \"旧报告.md\"), \"丙\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "NAME",
+      "value": "写文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 20,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "STRING",
+      "value": "子",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 30,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "STRING",
+      "value": "报告C.md",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 36,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "STRING",
+      "value": "丁",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "文件.写文本(路径.连接(工作, \"子\", \"报告C.md\"), \"丁\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "NAME",
+      "value": "写文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 30,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "STRING",
+      "value": "2026-01.log",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 36,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "STRING",
+      "value": "一",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 33,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-01.log\"), \"一\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "NAME",
+      "value": "写文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 30,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "STRING",
+      "value": "2026-02.log",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 36,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "STRING",
+      "value": "二",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 34,
+      "source_line": "文件.写文本(路径.连接(工作, \"2026-02.log\"), \"二\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "NAME",
+      "value": "写文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 25,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "STRING",
+      "value": "说明.txt",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 33,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "STRING",
+      "value": "随手记",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 35,
+      "source_line": "文件.写文本(路径.连接(工作, \"说明.txt\"), \"随手记\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "NAME",
+      "value": "归一",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "NAME",
+      "value": "按模式找",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 26,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "STRING",
+      "value": "报告*.md",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "NAME",
+      "value": "归一",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "NAME",
+      "value": "按模式找",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 26,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "STRING",
+      "value": "报告*.md",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 29,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "KEYWORD",
+      "value": "假",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 39,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告*.md\", 假)))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "NAME",
+      "value": "归一",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "NAME",
+      "value": "按模式找",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 31,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "STRING",
+      "value": "2026-??.log",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 42,
+      "source_line": "打印(归一(路径.按模式找(工作, \"2026-??.log\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "NAME",
+      "value": "归一",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "NAME",
+      "value": "按模式找",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 29,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "STRING",
+      "value": "报告[AB].md",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 43,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[AB].md\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "NAME",
+      "value": "归一",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "NAME",
+      "value": "按模式找",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 29,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "STRING",
+      "value": "报告[!A].md",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 44,
+      "source_line": "打印(归一(路径.按模式找(工作, \"报告[!A].md\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "NAME",
+      "value": "归一",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "NAME",
+      "value": "按模式找",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 25,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "STRING",
+      "value": "旧*.md",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 47,
+      "source_line": "打印(归一(路径.按模式找(工作, \"旧*.md\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "NAME",
+      "value": "按模式找",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 24,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "STRING",
+      "value": "*.md",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 48,
+      "source_line": "打印(长度(路径.按模式找(工作, \"*.md\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "NAME",
+      "value": "原子写",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 25,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "STRING",
+      "value": "索引.txt",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 36,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "STRING",
+      "value": "原子写的内容",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 51,
+      "source_line": "文件.原子写(路径.连接(工作, \"索引.txt\"), \"原子写的内容\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "NAME",
+      "value": "读文本",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 28,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "STRING",
+      "value": "索引.txt",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 52,
+      "source_line": "打印(文件.读文本(路径.连接(工作, \"索引.txt\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "NAME",
+      "value": "归一",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "NAME",
+      "value": "按模式找",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 25,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "STRING",
+      "value": "*.tmp",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 53,
+      "source_line": "打印(归一(路径.按模式找(工作, \"*.tmp\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "NAME",
+      "value": "系统",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "NAME",
+      "value": "打开",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 31,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "STRING",
+      "value": "没有这个文件.zzz",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 56,
+      "source_line": "打印(系统.打开(路径.连接(工作, \"没有这个文件.zzz\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "NAME",
+      "value": "是目录",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 19,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "NAME",
+      "value": "系统临时目录",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "打印(路径.是目录(路径.系统临时目录()))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 10,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "NAME",
+      "value": "递归删除",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 62,
+      "source_line": "打印(路径.递归删除(工作))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "NAME",
+      "value": "存在",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "NAME",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 63,
+      "source_line": "打印(路径.存在(工作))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 63,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:b24a7993a48787d3",
+  "语料": "tests/cases/30_标准库_M108.jsh"
+}
