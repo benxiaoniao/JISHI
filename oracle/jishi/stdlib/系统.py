@@ -16,7 +16,7 @@ from ..errors import RunError, RunValueError
 __all__ = [
     "系统名", "系统版本", "机器架构", "处理器",
     "当前目录", "改目录", "环境变量", "设环境变量",
-    "执行", "退出码", "打开", "主机名", "参数",
+    "执行", "执行详细", "并行执行", "退出码", "打开", "主机名", "参数",
     "CPU核数",
 ]
 
@@ -84,7 +84,7 @@ def 执行(命令, 超时: float = 10.0) -> str:
                 str(命令), capture_output=True, shell=True,
                 timeout=max(0.1, float(超时)))
     except _py_subprocess.TimeoutExpired:
-        raise RunError(f"命令执行超过 {超时} 秒，已终止")
+        raise RunError(f"命令执行超过 {超时:g} 秒，已终止")
     except OSError as e:
         raise RunError(f"执行命令失败：{e}")
     out = ((r.stdout or b"").decode("utf-8", "replace")
@@ -104,10 +104,91 @@ def 退出码(命令, 超时: float = 10.0) -> int:
                 str(命令), capture_output=True, shell=True,
                 timeout=max(0.1, float(超时)))
     except _py_subprocess.TimeoutExpired:
-        raise RunError(f"命令执行超过 {超时} 秒，已终止")
+        raise RunError(f"命令执行超过 {超时:g} 秒，已终止")
     except OSError as e:
         raise RunError(f"执行命令失败：{e}")
     return r.returncode
+
+
+def 执行详细(命令, 超时: float = 10.0) -> dict:
+    """执行一条外部命令，返回 `{"输出", "错误", "退出码"}` —— **两条流分开**。
+
+    ## 为什么不直接用 `执行`
+
+    `执行` 返回的是 **stdout 和 stderr 拼在一起**的一段文本（老接口，为了兼容）。
+    但对拍/测试场景那不够用：**「用户看到什么」是两条流加起来，而比较时往往要分开**
+    （比如「正常输出必须一字不差，但告警只要求包含某句」）。
+    合并之后就只能比一半 —— 那正是 M128 修过的病。
+
+    ## 三个字段
+
+    - `输出`：stdout（原样，**不做换行转换**，见下面 M33 那条注释）；
+    - `错误`：stderr（同上）；
+    - `退出码`：进程退出码（`0` 表示成功）。
+
+    ⚠️ **「命令跑不起来」（超时 / 找不到可执行文件）仍然抛错**，不塞进返回值：
+    那是**程序写错**，不是「命令失败」。命令**跑了但失败**才算正常返回（退出码非 0）。
+    """
+    出, 错, 码 = _跑一次(命令, 超时)
+    return {"输出": 出, "错误": 错, "退出码": 码}
+
+
+def 并行执行(命令们, 路数=4, 超时: float = 10.0) -> list:
+    """**同时**执行一批命令，返回 `[{输出, 错误, 退出码}, …]`，**顺序与输入一致**。
+
+    ## 顺序为什么必须与输入一致
+
+    与 `并发.批量读` / `批量摘要` 一条规矩（M114 定）：**结果顺序 = 输入顺序**。
+    不然「第 3 条命令的结果」到底是哪一条，用户得自己数 —— 那比串行还糟。
+
+    ## 路数
+
+    `路数` 是**同时跑几条**（不是「一次跑完」）。`<= 1` 或平台没线程时**顺序执行**，
+    结果一模一样，只是不重叠等待。上限 32（护栏：传 100000 会当场把机器打死）。
+
+    ## 超时
+
+    `超时` 是**每条命令各自**的上限，不是整批的总时长。
+    """
+    # 借用 `并发` 的两个校验：**文案三宿主已经对齐过**，自己再写一份必然分岔
+    from .并发 import _列出 as _校验列表, _线程数 as _校验路数
+
+    路数n = _校验路数(路数)
+    项们 = _校验列表(命令们, "「并行执行」的第一个参数（命令们）")
+
+    if 路数n <= 1 or len(项们) <= 1:
+        return [执行详细(命令, 超时) for 命令 in 项们]
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    # `executor.map` **按提交顺序返回**（不是按完成顺序）—— 正是要的语义
+    with ThreadPoolExecutor(max_workers=路数n) as 池:
+        return list(池.map(lambda c: 执行详细(c, 超时), 项们))
+
+
+def _跑一次(命令, 超时: float):
+    """跑一条命令，返回 `(输出, 错误, 退出码)` —— `执行` 和 `执行详细` 共用。
+
+    ⚠️ **按字节收再显式解码**（M33）：`text=True` 会做通用换行转换，
+    把命令输出里的 `\r\n` 悄悄改成 `\n` —— 而 Node / Rust 宿主不转，
+    于是同一份程序在三个宿主上输出不同。这里只做解码，不碰换行。
+    """
+    try:
+        if isinstance(命令, (list, tuple)):
+            r = _py_subprocess.run(
+                [str(x) for x in 命令], capture_output=True,
+                timeout=max(0.1, float(超时)))
+        else:
+            r = _py_subprocess.run(
+                str(命令), capture_output=True, shell=True,
+                timeout=max(0.1, float(超时)))
+    except _py_subprocess.TimeoutExpired:
+        raise RunError(f"命令执行超过 {超时:g} 秒，已终止")
+    except OSError as e:
+        raise RunError(f"执行命令失败：{e}")
+    出 = (r.stdout or b"").decode("utf-8", "replace")
+    错 = (r.stderr or b"").decode("utf-8", "replace")
+    return 出, 错, r.returncode
 
 
 def 打开(路径) -> bool:

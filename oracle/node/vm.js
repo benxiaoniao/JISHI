@@ -835,6 +835,35 @@ function makeIterator(obj, line, col) {
 const _os = require('os');
 const _cp = require('child_process');
 
+/// 跑一条命令并**分开**收两条流（`执行详细` / `并行执行` 共用）。
+///
+/// 数组形式走 `spawnSync(程序, 参数)`（**不经过 shell**，参数边界原样保留），
+/// 文本形式走 shell —— 与 Python 侧 `subprocess.run(list)` / `shell=True` 的分工一致。
+function _跑详细(cmd, timeout) {
+  const 毫秒 = Math.max(100, Number(timeout) * 1000);
+  const 选项 = {
+    timeout: 毫秒,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  };
+  const r = Array.isArray(cmd)
+    ? _cp.spawnSync(String(cmd[0]), cmd.slice(1).map((x) => String(x)), 选项)
+    : _cp.spawnSync(String(cmd), Object.assign({ shell: true }, 选项));
+  if (r.error) {
+    if (r.error.code === 'ETIMEDOUT') {
+      // 文案与 Python / Rust 逐字一致（`10.0` 要打成 `10`，所以两边都用最短形式）
+      throw R.runErr(`命令执行超过 ${Number(timeout)} 秒，已终止`);
+    }
+    throw R.runErr(`执行命令失败：${r.error.message}`);
+  }
+  return {
+    输出: r.stdout || '',
+    错误: r.stderr || '',
+    退出码: r.status === null ? -1 : r.status,
+  };
+}
+
+
 const SYS_FUNCS = {
   // M120：逻辑核数（含超线程）。容器里可能比宿主机少 —— 数到多少报多少。
   'CPU核数': new R.Builtin('CPU核数', () => {
@@ -899,6 +928,28 @@ const SYS_FUNCS = {
     } catch (e) {
       throw R.runErr(`执行命令失败：${e && e.message ? e.message : e}`);
     }
+  }),
+  // M133：**两条流分开**返回（`执行` 是老接口，只给 stdout）。
+  // ⚠️ 本宿主用 `spawnSync` 拿两个流，**不需要「保序合并」** —— 所以这里能
+  //    和 Python/Rust 完全一致（`执行` 那条做不到，见上面模块注释）。
+  '执行详细': new R.Builtin('执行详细', (cmd, timeout = 10.0) => {
+    const r = _跑详细(cmd, timeout);
+    const m = new Map();
+    m.set('输出', r.输出); m.set('错误', r.错误); m.set('退出码', r.退出码);
+    return m;
+  }),
+  // M134：**同时**跑一批命令，**结果顺序 = 输入顺序**。
+  // ⚠️ 本宿主**顺序执行**（同步 VM 没有事件循环可以泵）—— 与 `并发` 模块同一条
+  //    边界：结果一模一样，只是不重叠等待。语义照旧（保序、首个错误胜出）。
+  '并行执行': new R.Builtin('并行执行', (cmds, threads = 4, timeout = 10.0) => {
+    _并发线程数(threads);                     // 只为校验（本宿主顺序执行，用不到这个数）
+    const 项们 = _并发列出(cmds, '「并行执行」的第一个参数（命令们）');
+    return 项们.map((c) => {
+      const r = _跑详细(c, timeout);
+      const m = new Map();
+      m.set('输出', r.输出); m.set('错误', r.错误); m.set('退出码', r.退出码);
+      return m;
+    });
   }),
   '退出码': new R.Builtin('退出码', (cmd, timeout = 10.0) => {
     const line = Array.isArray(cmd) ? cmd.map((x) => String(x)).join(' ')

@@ -187,37 +187,75 @@ fn hostname() -> String {
 // 执行外部命令
 // ---------------------------------------------------------------------------
 
-/// 造一个命令：列表按「程序 + 参数」走（不经过 shell），文本按 shell 走
-/// ——与 Python 侧 `subprocess.run(list)` / `shell=True` 的分工一致。
-fn build_command(cmd: &Val) -> Result<Command, crate::JishiError> {
+/// 一条命令的**纯文本表示**（不含任何 `Val`）。
+///
+/// 🔴 为什么要多这一层（M134，2026-10-24）：`Val` 里含 `Rc`（字符串/精确小数/
+/// 日期/切片都是），而 **`Rc` 不是 `Send`** —— 拿 `Val` 去多线程直接编译不过。
+/// 这正是 M114 那条规矩：**线程里一个 `Val` 都不跨**。
+/// ⇒ 在主线程里把 `Val` 拆成纯 `String`，线程里只碰 `String`，回来再包成 `Val`。
+pub(crate) enum 命令形 {
+    /// 列表形式：程序 + 参数（**不经过 shell**，参数边界原样保留）。
+    数组(Vec<String>),
+    /// 文本形式：交给 shell 解析。
+    文本(String),
+}
+
+/// 主线程里做：把 `Val` 拆成 `命令形`（这是**唯一**碰 `Val` 的地方）。
+fn 拆命令(cmd: &Val) -> Result<命令形, crate::JishiError> {
     if matches!(cmd, Val::List(_)) {
         let parts = to_vec(cmd)?;
         if parts.is_empty() {
             return Err(err("值错误", "命令列表不能是空的"));
         }
-        let prog = as_text(&parts[0]);
-        let mut c = Command::new(&prog);
-        for a in &parts[1..] {
-            c.arg(as_text(a));
-        }
-        Ok(c)
+        Ok(命令形::数组(parts.iter().map(as_text).collect()))
     } else {
-        let line = as_text(cmd);
-        if cfg!(windows) {
-            let mut c = Command::new("cmd");
-            c.arg("/C").arg(&line);
-            Ok(c)
-        } else {
-            let mut c = Command::new("sh");
-            c.arg("-c").arg(&line);
-            Ok(c)
+        Ok(命令形::文本(as_text(cmd)))
+    }
+}
+
+/// 线程里做：只碰 `命令形`（纯 String）。
+fn 造命令(形: &命令形) -> Command {
+    match 形 {
+        命令形::数组(parts) => {
+            let mut c = Command::new(&parts[0]);
+            for a in &parts[1..] {
+                c.arg(a);
+            }
+            c
+        }
+        命令形::文本(line) => {
+            if cfg!(windows) {
+                let mut c = Command::new("cmd");
+                c.arg("/C").arg(line);
+                c
+            } else {
+                let mut c = Command::new("sh");
+                c.arg("-c").arg(line);
+                c
+            }
         }
     }
+}
+
+/// 造一个命令：列表按「程序 + 参数」走（不经过 shell），文本按 shell 走
+/// ——与 Python 侧 `subprocess.run(list)` / `shell=True` 的分工一致。
+fn build_command(cmd: &Val) -> Result<Command, crate::JishiError> {
+    Ok(造命令(&拆命令(cmd)?))
 }
 
 /// 跑命令并收集输出。超时（秒）到就杀进程并报错。
 fn run_capture(cmd: &Val, timeout: f64) -> Result<(i32, String, String), crate::JishiError> {
     let mut command = build_command(cmd)?;
+    run_command(&mut command, timeout)
+}
+
+/// 同上，但接受已经拆好的 `命令形`（**并行时线程里走这条**，不碰 `Val`）。
+fn run_capture_parts(形: &命令形, timeout: f64) -> Result<(i32, String, String), crate::JishiError> {
+    let mut command = 造命令(形);
+    run_command(&mut command, timeout)
+}
+
+fn run_command(command: &mut Command, timeout: f64) -> Result<(i32, String, String), crate::JishiError> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
     let mut child = command
         .spawn()
@@ -327,6 +365,45 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let (_code, out, errout) = run_capture(&args[0], t)?;
             // Python 侧是 `(r.stdout or "") + (r.stderr or "")`
             Ok(Val::Str(format!("{out}{errout}")))
+        },
+        // M133：**两条流分开**返回。`执行` 是老接口（stdout+stderr 拼一起），
+        // 对拍要分开比 —— 「用户看到什么」是两条流加起来，合并了就只比了一半。
+        "执行详细" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("执行详细", args, 1, 2)?;
+            let t = timeout_of(args.get(1))?;
+            let (code, out, errout) = run_capture(&args[0], t)?;
+            Ok(crate::dict_new(vec![
+                (Val::Str("输出".into()), Val::Str(out)),
+                (Val::Str("错误".into()), Val::Str(errout)),
+                (Val::Str("退出码".into()), Val::Int(code as i128)),
+            ]))
+        },
+        // M134：**同时**跑一批命令，**结果顺序 = 输入顺序**（沿用 M114 那条）。
+        // 复用 `concurrent::并行做` —— 它保序、首个错误胜出，wasm 上自动降级为顺序。
+        "并行执行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("并行执行", args, 1, 3)?;
+            let 路数 = match args.get(1) {
+                Some(v) => crate::stdlib::concurrent::线程数(v)?,
+                None => 4,
+            };
+            let t = timeout_of(args.get(2))?;
+            let 项们 = crate::stdlib::concurrent::列出(
+                &args[0], "「并行执行」的第一个参数（命令们）")?;
+            // 🔴 **进线程前先拆成 **： 含 、不是 ，
+            //    直接传进  编译都过不去（M114 的规矩：线程里不跨 Val）。
+            let 形们: Vec<命令形> = 项们.iter().map(拆命令).collect::<Result<_, _>>()?;
+            let 结果们 = crate::stdlib::concurrent::并行做(形们, 路数, |形: &命令形| {
+                run_capture_parts(形, t)
+            })?;
+            // 回来再包成 Val（主线程）
+            let 列表: Vec<Val> = 结果们.into_iter().map(|(code, out, errout)| {
+                crate::dict_new(vec![
+                    (Val::Str("输出".into()), Val::Str(out)),
+                    (Val::Str("错误".into()), Val::Str(errout)),
+                    (Val::Str("退出码".into()), Val::Int(code as i128)),
+                ])
+            }).collect();
+            Ok(crate::list_new(列表))
         },
         "退出码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("退出码", args, 1, 2)?;

@@ -30,7 +30,8 @@ use crate::{err, BuiltinHost, JishiError, Val};
 /// 线程数上限（护栏）。
 const 最大线程数: usize = 32;
 
-fn 线程数(v: &Val) -> Result<usize, JishiError> {
+// `pub(crate)`：`系统.并行执行` 借它做路数校验（文案只有这一处，别再抄一份）
+pub(crate) fn 线程数(v: &Val) -> Result<usize, JishiError> {
     let n = match v {
         Val::Int(i) => *i,
         Val::Float(f) => *f as i128,
@@ -48,7 +49,7 @@ fn 线程数(v: &Val) -> Result<usize, JishiError> {
 }
 
 /// 取「一串东西」成 `Vec<Val>`。文本/集合不收 —— 顺序这事必须说得清。
-fn 列出(v: &Val, 谁: &str) -> Result<Vec<Val>, JishiError> {
+pub(crate) fn 列出(v: &Val, 谁: &str) -> Result<Vec<Val>, JishiError> {
     match v {
         Val::List(items) => Ok(items.borrow().clone()),
         Val::Str(_) => Err(err("类型错误", format!("{谁}要给一个列表，不能直接给文本"))),
@@ -67,7 +68,7 @@ fn 列出(v: &Val, 谁: &str) -> Result<Vec<Val>, JishiError> {
 /// ⚠️ `thread::scope` 让线程借用外层的 `项们` / `做一项`（不用 `'static`、
 /// 不用 `Arc`）—— 这正是本项目要的：**零第三方依赖**、也不动值表示。
 #[cfg(not(target_arch = "wasm32"))]
-fn 并行做<T, R, F>(项们: Vec<T>, 线程数: usize, 做一项: F) -> Result<Vec<R>, JishiError>
+pub(crate) fn 并行做<T, R, F>(项们: Vec<T>, 线程数: usize, 做一项: F) -> Result<Vec<R>, JishiError>
 where
     T: Sync,
     R: Send,
@@ -121,7 +122,7 @@ where
 ///
 /// ⚠️ 与上面那份**结果完全一样**（同样保序、同样首个错胜出），只是不重叠等待。
 #[cfg(target_arch = "wasm32")]
-fn 并行做<T, R, F>(项们: Vec<T>, _线程数: usize, 做一项: F) -> Result<Vec<R>, JishiError>
+pub(crate) fn 并行做<T, R, F>(项们: Vec<T>, _线程数: usize, 做一项: F) -> Result<Vec<R>, JishiError>
 where
     F: Fn(&T) -> Result<R, JishiError>,
 {
