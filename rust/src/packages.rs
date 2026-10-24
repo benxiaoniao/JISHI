@@ -206,7 +206,9 @@ pub fn version_satisfies(version: &str, constraint: &str) -> bool {
 
 /// 解析远端索引 JSON，校验格式标记与版本号。
 pub fn parse_index(text: &str) -> Result<Json, String> {
-    let body = crate::json::parse(text).map_err(|e| format!("远端索引不是合法 JSON：{e}"))?;
+    // 同 Python：**不带底层解析器的措辞**（两边的 JSON 解析器说法不同，
+    // 带了就永远对不上 —— 见 packages.py::parse_index 的说明）。
+    let body = crate::json::parse(text).map_err(|_e| "远端索引不是合法 JSON".to_string())?;
     let obj = match body.as_obj() {
         Some(m) => m,
         None => return Err("远端索引顶层必须是 JSON 对象".to_string()),
@@ -267,8 +269,32 @@ fn join(a: &str, b: &str) -> String {
     p.to_string_lossy().to_string()
 }
 
+/// 包自述文件不合格（E4002）。
+///
+/// 🔴 **文案必须和 Python 侧逐字一致**（M131/M132 对拍抓到的）：
+/// Python 抛的是 `PackageMetaError`，`str(e)` 出来是
+/// `错误 E4002：包的自述文件不合格（<原消息>）`。
+/// 宿主这边原来直接 `Err(原消息)` ⇒ 两边只差这个前缀，`test_m96` 就红在那儿。
+///
+/// ⚠️ 用「包一层」而不是改 `read_package_meta` 里每一个 `Err(...)`：
+/// 里面十来个错误点一处处改容易漏，而**漏掉的那个会静默地不带码** ——
+/// 用户看到的报错没法 `jishi 错误 E4002` 查。
+fn meta_err(msg: String) -> String {
+    format!("错误 E4002：包的自述文件不合格（{msg}）")
+}
+
+/// 打包失败（E4009）—— 同上，要和 Python 的 `PackageBuildError` 逐字一致。
+fn build_err(msg: String) -> String {
+    format!("错误 E4009：打包失败（{msg}）")
+}
+
 /// 读并校验一个包目录的 `包.json`。
 pub fn read_package_meta(pkg_dir: &str) -> Result<Json, String> {
+    read_package_meta_raw(pkg_dir).map_err(meta_err)
+}
+
+/// `read_package_meta` 的本体（原样保留，错误消息不带码，由上面那层加）。
+fn read_package_meta_raw(pkg_dir: &str) -> Result<Json, String> {
     let meta_path = join(pkg_dir, "包.json");
     if !Path::new(&meta_path).is_file() {
         return Err(format!("「{pkg_dir}」里没有 包.json，不是一个基石包"));
@@ -276,7 +302,7 @@ pub fn read_package_meta(pkg_dir: &str) -> Result<Json, String> {
     let text = fs::read_to_string(&meta_path)
         .map_err(|e| format!("读不了「{meta_path}」：{e}"))?;
     let meta = crate::json::parse(&text)
-        .map_err(|e| format!("「{meta_path}」不是合法 JSON：{e}"))?;
+        .map_err(|_e| format!("「{meta_path}」不是合法 JSON"))?;
     let obj = match meta.as_obj() {
         Some(m) => m,
         None => return Err(format!("「{meta_path}」顶层必须是 JSON 对象")),
@@ -512,7 +538,9 @@ pub fn build_package_zip(pkg_dir: &str, out_dir: &str) -> Result<(String, String
 
     let (files, has_jsh) = collect_pkg_files(pkg_dir)?;
     if !has_jsh {
-        return Err(format!("包「{name}」里没有可发布的模块（需要至少一个 .jsh 文件）"));
+        // E4009：Python 那边是  ⇒ 两边文案要带同一个码
+        return Err(build_err(format!(
+            "包「{name}」里没有可发布的模块（需要至少一个 .jsh 文件）")));
     }
 
     let mut entries: Vec<(String, Vec<u8>)> = Vec::with_capacity(files.len());
@@ -964,8 +992,12 @@ fn install_one(name: &str, meta: &Json, source: &str, force: bool) -> Result<(),
             if got.to_lowercase() != want.to_lowercase() {
                 let w: String = want.chars().take(16).collect();
                 let g: String = got.chars().take(16).collect();
+                // ⚠️ 这段文案和 Python 侧 `_install_one` 的 **逐字一致**（M132）：
+                //    改一边就要改另一边，否则 `test_m96` 红。
+                //    外层再包一层「错误 E4006：包内容和校验和对不上（…）」，
+                //    与 Python 的 `PackageChecksumError` 渲染出来一样。
                 return Err(format!(
-                    "包「{name}」的校验和对不上（索引写 {w}…，实际 {g}…），文件可能被改动过，已放弃安装"));
+                    "错误 E4006：包内容和校验和对不上（包「{name}」的内容和索引里登记的对不上。\n  · 索引写：{w}…\n  · 实际是：{g}…\n  两种可能：下载不完整（先重下一次），或者包被换过（那就别装，去找发布者核对）。\n  ⚠️ 没有「跳过校验」这条路 —— 装进来的东西得有人担保。）"));
             }
         }
         install_package_zip(&tmp_zip.to_string_lossy(), name, None, force)
@@ -1028,8 +1060,10 @@ fn install_from_sources(name: &str, urls: &[String], force: bool) -> Result<(), 
                 install_one(name, m, url, force)?;
                 return Ok(());
             }
-            Some(Err(e)) => {
-                reached.push(format!("{url}（{e}）"));
+            Some(Err(_e)) => {
+                // 同 Python：这里只写「码 + 标题」，不把整句套进括号（会重复三遍）。
+                // `resolve_package` 走到这个分支只有一种原因 —— 索引里没有这个包。
+                reached.push(format!("{url}（E4001：索引里没有这个包）"));
                 continue;
             }
             None => {

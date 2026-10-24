@@ -328,11 +328,14 @@ def _install_one(name: str, meta: dict, *, source: str, force: bool) -> None:
             want = want.split(":", 1)[1] if want.startswith("sha256:") else want
             got = PKG._sha256_file(tmp)
             if got.lower() != want.lower():
+                # ⚠️ 这段文案**两个宿主逐字一致**（宿主侧 `install_one` 有一份同样的）：
+                #    改这里就要同步改 `rust/src/packages.rs`，否则 `test_m96` 红。
+                #    📌 也别加 `**加粗**` —— 控制台不渲染 markdown，会字面显示星号。
                 raise PackageChecksumError(
-                    f"包「{name}」下载到的内容和索引里登记的对不上。\n"
+                    f"包「{name}」的内容和索引里登记的对不上。\n"
                     f"  · 索引写：{want[:16]}…\n"
                     f"  · 实际是：{got[:16]}…\n"
-                    f"  两种可能：**下载不完整**（先重下一次），或者**包被换过**"
+                    f"  两种可能：下载不完整（先重下一次），或者包被换过"
                     f"（那就别装，去找发布者核对）。\n"
                     f"  ⚠️ 没有「跳过校验」这条路 —— 装进来的东西得有人担保。")
         PKG.install_package_zip(tmp, name, force=force)
@@ -393,7 +396,17 @@ def _install_from_sources(name: str, urls: tuple, *, force: bool = False) -> Non
             index = PKG.parse_index(text)
             PKG.resolve_package(index, name)          # 只用来确认「这个源有它」
         except ValueError as e:
-            reached.append(f"{url}（{e}）")
+            # ⚠️ 这里只写「码 + 标题」，**不要 `{e}`**（M132 对拍抓到的）：
+            #    加了码之后 `str(e)` 是「错误 E4001：索引里没有这个包（索引里没有包「X」）」，
+            #    套进括号就变成
+            #    `索引里没有包「X」（已查 1 个源）：…（错误 E4001：索引里没有这个包（索引里没有包「X」））`
+            #    —— 同一句话说了三遍，比不带码更难读。
+            #    外层已经说了「索引里没有包」，内层只需要说「哪个码、什么性质」。
+            # ⚠️ `parse_index` 抛的是**裸 ValueError**（索引格式坏），那种才原样打出来。
+            from .errors import PackageError as _PkgErr
+            reached.append(
+                f"{url}（{e.code}：{e.title}）" if isinstance(e, _PkgErr)
+                else f"{url}（{e}）")
             continue
         _install_closure(name, index, source=url, force=force)
         return
@@ -556,15 +569,23 @@ def _install_closure(name: str, index: dict, *, source: str,
     for i, (n, m) in enumerate(装序, 1):
         try:
             _install_one(n, m, source=source, force=force)
-        except ValueError as e:
-            # ⚠️ **保留异常类型**（M131）：直接 `raise ValueError(...)` 会把
-            # `PackageChecksumError`（E4006）**泡成裸 ValueError**，码就丢了 ——
-            # 用户看到「安装失败：装「X」时失败：…」，但没法 `jishi 错误 E4006` 查。
-            # 用 `type(e)(...)` 重新构造，等于「加一层上下文，不换身份」。
-            raise type(e)(
-                f"装「{n}」（第 {i}/{len(装序)} 个）时失败：{e}\n"
-                f"  ⚠️ 前面的 {i - 1} 个已经装上了；**没有写 jishi.lock**"
-                f"（因为闭包没装全）。重跑一次 `jishi 安装 {name}` 会自动跳过已装的。") from e
+        except ValueError:
+            # ⚠️ **不要重新包装成 `type(e)(...)`**（M132 对拍抓到的）：
+            #    异常自己的 `str()` 已经带「错误 E4006：…（<原因>）」，
+            #    再套一层就变成同一句话说了两遍：
+            #      `安装失败：错误 E4006：…（装「基础库」时失败：错误 E4006：…（包「基础库」…））`
+            #    ⇒ **异常只讲「发生了什么」，上下文（第几个/没写 lock）由这里直接打**。
+            #    这样宿主侧只要一条消息就能逐字对上（它没有闭包逻辑，天然是一层）。
+            # ⚠️ **只在真的装了多个包时才打这句**（M132 对拍）：单包安装时这行
+            #    毫无信息量（「第 1/1 个」），而宿主侧还没有闭包逻辑、天然不打印 ——
+            #    两边就为这一句对不上。**「只有一个包」是两边共同的能力范围**，
+            #    那就只在「超出共同范围」的地方加话。
+            if len(装序) > 1:
+                print(f"  ⚠️ 装「{n}」是第 {i}/{len(装序)} 个；前面的 {i - 1} 个已经装上了，"
+                      f"没有写 jishi.lock（闭包没装全）。"
+                      f"重跑一次 `jishi 安装 {name}` 会自动跳过已装的。",
+                      file=sys.stderr, flush=True)
+            raise
 
     _write_lock(PKG.lock_from_closure({"装序": 装序}))
     if len(装序) > 1:

@@ -314,6 +314,16 @@ def _retryable(err: str) -> bool:
     return any(sig in err for sig in RETRYABLE)
 
 
+#: 真实请求计数（**含重试**）。
+#:
+#: 🔴 为什么要记这个（2026-10-24）：跑分慢的时候，得先分清是哪一种慢 ——
+#:    **「请求次数多」**（题目要 2–3 轮修复，这是评测设计，不该砍）
+#:    还是**「每次请求慢」**（通道 / 长 prompt）。
+#:    没这个数就只能凭感觉调 `--并发` / `--每分钟`，调完也不知道有没有用。
+#:    📌 经验值：全量 80 题 × 3 模型 × 平均 1.5–2 轮 ≈ **350–480 次**请求。
+_计数 = {"请求": 0, "重试": 0}
+
+
 def call_llm(base: str, key: str, model: str, messages: list[dict],
              max_tokens: int = 4096, timeout: float = 75.0,
              retries: int = 4, quiet: bool = False,
@@ -345,6 +355,9 @@ def call_llm(base: str, key: str, model: str, messages: list[dict],
         # ⚠️ **每一次**真实请求（含重试）都过令牌桶 —— 这才是「不撞 429」的关键。
         if 限速 is not None:
             限速.等()
+        _计数["请求"] += 1
+        if attempt > 0:
+            _计数["重试"] += 1
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
@@ -623,6 +636,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                          "（如 表格）—— 用来量「分片卡够不够用」")
     ap.add_argument("--key", default=None, help="API key（默认读 JISHI_EVAL_KEY）")
     ap.add_argument("--base", default=DEFAULT_BASE, help="接口地址")
+    ap.add_argument("--写报告", action="store_true",
+                    help="局部跑（--限制/--类型）也写正式跑分表。默认不写 —— "
+                         "探路的 2 题通过率会覆盖掉历史记录，那是毁档案")
     ap.add_argument("--输出", default=None, help="报告写到哪个文件")
     ap.add_argument("--自检", action="store_true",
                     help="只校验题集自洽性，不调用模型（不花钱）")
@@ -688,6 +704,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"\n=== 跑分：{model} ===")
         t_model = time.time()
         outs: list[TaskOutcome] = []
+        基准次数 = dict(_计数)          # 本模型开始前的计数（用来算这个模型花了多少次请求）
         限速 = _限速器(args.每分钟)
         完成 = [0]
         锁 = threading.Lock()
@@ -724,9 +741,24 @@ def main(argv: Optional[list[str]] = None) -> int:
         all_elapsed[model] = time.time() - t_model
         # 耗时与 token 总量也打进日志：报告若需从日志重建（如重跑只为修格式），
         # 这两个数是重建不出来的——不记就等于丢。
+        # 🔴 **请求次数与「实际速率」**（2026-10-24）：这两个数是调 `--并发` / `--每分钟`
+        #    的唯一依据。只报耗时的话，慢的时候分不清是「题要改 3 轮」（次数多）
+        #    还是「通道慢」（每次久）—— 调参会变成瞎猜。
+        次数 = _计数["请求"] - 基准次数["请求"]
+        重试数 = _计数["重试"] - 基准次数["重试"]
+        每分钟实际 = 次数 / (all_elapsed[model] / 60.0) if all_elapsed[model] > 0 else 0.0
         print(f"  [汇总] {model}：耗时 {all_elapsed[model]:.1f} 秒，"
               f"token prompt {sum(o.prompt_tokens for o in outs)}"
-              f" / completion {sum(o.completion_tokens for o in outs)}")
+              f" / completion {sum(o.completion_tokens for o in outs)}"
+              f"；请求 {次数} 次（重试 {重试数}）"
+              f"，实际 {每分钟实际:.0f} 次/分钟"
+              f"／上限 {args.每分钟:g}")
+        if 重试数 > 次数 * 0.2:
+            print(f"    ⚠️ 重试占 {重试数 / max(次数, 1):.0%} —— 已经撞限流了，"
+                  f"把 `--每分钟` 调低，或 `--并发` 调低（撞 429 退避反而更慢）")
+        elif 每分钟实际 < args.每分钟 * 0.6 and args.并发 > 1:
+            print(f"    ⚠️ 实际速率只有上限的 {每分钟实际 / max(args.每分钟, 1):.0%} —— "
+                  f"瓶颈不在限流，在通道延迟；可以再抬 `--并发`")
     elapsed = time.time() - t0
 
     分类计数: dict[str, int] = {}
@@ -745,7 +777,20 @@ def main(argv: Optional[list[str]] = None) -> int:
                                    all_elapsed[model]))
     report = "\n".join(parts)
 
+    # 🔴 **局部跑不写正式跑分表**（2026-10-24，我自己踩到的）：
+    #    测延迟时跑了 `--限制 2`，它把 `evals/跑分表.md` **整份覆盖**成「2 题 50%」——
+    #    那是历史跑分的档案，被一次探路冲掉就等于把记录毁了。
+    #    ⇒ `--限制` / `--类型` 这种**局部跑**默认不写；要写就显式 `--写报告`。
+    #    ⚠️ 局部跑的结果**也不该进跑分表**：2 题的通过率没有统计意义，
+    #      留着会让人误以为「这一版掉到 50%」。
+    写报告 = bool(getattr(args, "写报告", False))
+    局部 = bool(args.限制 or args.类型)
     out_path = Path(args.输出) if args.输出 else (ROOT / "evals" / "跑分表.md")
+    if 局部 and not 写报告:
+        print(f"\n（这是局部跑：--限制/--类型 ⇒ 不写 {out_path.name}；"
+              f"要写请加 --写报告 或 --输出 <别的路径>）")
+        if not args.输出:
+            return 0
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(report, encoding="utf-8")
     print(f"\n报告已写入：{out_path}")

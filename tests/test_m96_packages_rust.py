@@ -497,3 +497,21 @@ def test_已知差异_多依赖的键序(tmp_path):
         assert f'"{d}": ">=1.0.0"' in text, text
     _ = pkg
 
+def test_安装依赖闭包_Rust_还没有():
+    """🔴 **这是欠账，不是通过**（2026-10-24，M130/M132）。
+
+    M130 给 Python 侧做了「装一个包会连它的依赖一起装」（`resolve_closure` +
+    `jishi.lock`），**宿主侧还没有** —— `rust/src/packages.rs::install_from_sources`
+    只装索引里点名那一个。
+
+    ⚠️ 为什么用「断言它现在确实没有」这种反着写的判据：
+    直接 `skip` 太容易被忘掉（跳过是灰的、没人看）。写成反的，等哪天补上，
+    **这条会自己红**，逼着人来改成正面验证。⇒ **会过期的判据 > 永久 skip。**
+    """
+    # `安装 --help` 里没有闭包相关字样；真正验证得跑一个「有依赖」的包，
+    # 但宿主目前连 `--index` 的依赖解析都没接，看源码更快也更稳。
+    src = (ROOT / "rust" / "src" / "packages.rs").read_text(encoding="utf-8")
+    assert "resolve_closure" not in src, (
+        "宿主已经实现依赖闭包了 —— 把这条改成正面验证"
+        "（造一个 A 依赖 B 的索引，两边都装，比输出），别留着这条反着的。")
+

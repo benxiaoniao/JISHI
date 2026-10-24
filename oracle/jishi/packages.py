@@ -144,7 +144,12 @@ def parse_index(text: str) -> dict:
     try:
         body = json.loads(text)
     except json.JSONDecodeError as e:
-        raise ValueError(f"远端索引不是合法 JSON：{e}") from e
+        # ⚠️ **不要带 `{e}`**（M132 对拍抓到的）：Python 的 `json` 说
+        #    「Expecting value: line 1 column 1 (char 0)」，宿主自己的解析器说
+        #    「第 0 字节处解析失败」—— 两边各自把**底层解析器**的措辞带出来，
+        #    同一份坏索引给出两句不同的话，对拍永远对不上。
+        #    📌 这是 M113 那条教训的同一件事：**只报原文，不把底层异常带出来**。
+        raise ValueError("远端索引不是合法 JSON") from e
     if not isinstance(body, dict):
         raise ValueError("远端索引顶层必须是 JSON 对象")
     if body.get("格式") != INDEX_FORMAT:
@@ -193,7 +198,8 @@ def read_package_meta(pkg_dir: str) -> dict:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
     except json.JSONDecodeError as e:
-        raise PackageMetaError(f"「{meta_path}」不是合法 JSON：{e}") from e
+        # 同上：不带底层解析器的措辞（见 `parse_index` 那段说明）。
+        raise PackageMetaError(f"「{meta_path}」不是合法 JSON") from e
     except OSError as e:
         raise PackageMetaError(f"读不了「{meta_path}」：{e}") from e
     if not isinstance(meta, dict):
@@ -750,7 +756,7 @@ def parse_lock(text: str) -> dict:
     try:
         body = json.loads(text)
     except json.JSONDecodeError as e:
-        raise ValueError(f"jishi.lock 不是合法 JSON：{e}") from e
+        raise ValueError("jishi.lock 不是合法 JSON") from e
     if not isinstance(body, dict):
         raise ValueError("jishi.lock 顶层必须是 JSON 对象")
     if body.get("格式") != LOCK_FORMAT:
