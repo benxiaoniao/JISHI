@@ -563,9 +563,18 @@ def _试部署(tag: str) -> None:
     #    本地没有这一版 ⇒ 下载页四个平台全显示「本站暂未镜像」，
     #    而服务器上其实有包 —— 看起来像「没传上去」，其实是**页面不知道**。
     print(f"\n[部署 0/3] 拉发行包到本地镜像库（{tag}）…")
+    # 🔴 **脚本在官网仓库，不在本仓库**（2026-10-24 修，v0.2.7 栽过）：
+    #    `fetch_release_mirror.py` 在官网拆仓时搬走了，这里还指着
+    #    `ROOT/tools/fetch_release_mirror.py` ⇒ `can't open file`（rc=2），
+    #    于是「Release 构建成功、但下载页还是上一版」。
+    #    ⇒ 先找官网仓库那份；找不到再退回归的位置（兼容没拆仓的环境）。
+    官网仓库 = Path(os.environ.get("JISHI_SITE_REPO") or (ROOT.parent / "基石官网"))
+    镜像脚本 = 官网仓库 / "fetch_release_mirror.py"
+    if not 镜像脚本.is_file():
+        镜像脚本 = ROOT / "tools" / "fetch_release_mirror.py"
     r0 = subprocess.run(
-        [sys.executable, str(ROOT / "tools" / "fetch_release_mirror.py"),
-         tag.lstrip("v")], cwd=ROOT, env=os.environ.copy())
+        [sys.executable, str(镜像脚本), tag.lstrip("v")],
+        cwd=str(镜像脚本.parent), env=os.environ.copy())
     print("   ✓ 完成" if r0.returncode == 0 else f"   ✗ 失败（rc={r0.returncode}）")
 
 
@@ -582,7 +591,7 @@ def _试部署(tag: str) -> None:
     # ⚠️ 2026-10-22：官网已拆到独立仓库（`D://code//基石官网`），
     #    这一步和下面那一步都在**那边**跑，这里只是转发（单向：主仓库 → 官网）。
     #    找不到那个仓库不报错 —— 那说明使用者打算手动去官网仓库发。
-    官网 = Path(os.environ.get("JISHI_SITE_REPO") or (ROOT.parent / "基石官网"))
+    官网 = 官网仓库
     if (官网 / "release.sh").is_file():
         print(f"\n[部署 4/4] 官网（{官网.name}）：拉资产 → 生成 → 同步发行包 → 部署 …")
         r2 = subprocess.run(["bash", str(官网 / "release.sh"), tag.lstrip("v")],
