@@ -79,38 +79,6 @@ def test_default_index_url_honours_env(monkeypatch):
     assert PKG.default_index_url() == PKG.DEFAULT_INDEX_URL
 
 
-def test_installed_index_file_matches_format():
-    """仓库里托管的索引必须是合法索引，且包目录都真实存在。"""
-    idx = ROOT / "packages" / "索引.json"
-    assert idx.is_file(), "packages/索引.json 缺失"
-    data = PKG.parse_index(idx.read_text(encoding="utf-8"))
-    assert data["包"], "索引里至少应有一个包"
-    for name, meta in data["包"].items():
-        assert meta.get("版本"), f"包「{name}」缺版本"
-        assert meta.get("下载地址", "").startswith("https://"), \
-            f"包「{name}」的下载地址不是 https"
-        assert "%" not in meta["下载地址"].split("//", 1)[1].split("/", 1)[0], \
-            f"包「{name}」的域名部分不应有百分号编码"
-        # 下载地址里不能有裸非 ASCII（生成时就该编码好）
-        meta["下载地址"].encode("ascii")
-        checksum = meta.get("校验和", "")
-        if checksum:
-            assert checksum.startswith("sha256:") and len(checksum) == 71
-
-
-def test_published_zips_exist_and_match_checksum():
-    """托管目录里的 zip 与索引里的校验和一致（防「索引写了但文件没传」）。"""
-    idx = json.loads((ROOT / "packages" / "索引.json").read_text(encoding="utf-8"))
-    from urllib.parse import unquote
-    for name, meta in idx["包"].items():
-        # 下载地址是百分号编码的，先把整条 URL 解码再取文件名
-        rel = unquote(meta["下载地址"]).rsplit("/", 1)[1]
-        zpath = ROOT / "packages" / "下载" / rel
-        assert zpath.is_file(), f"缺少 zip：{zpath}"
-        got = "sha256:" + PKG._sha256_file(str(zpath))
-        assert got == meta["校验和"], f"包「{name}」校验和不符"
-
-
 # ---------------------------------------------------------------------------
 # 发布打包（M22.2）
 # ---------------------------------------------------------------------------

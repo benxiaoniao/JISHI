@@ -745,3 +745,73 @@ def from_extension(exc: BaseException, *, filename: str,
         fix=({"old": fix[0], "new": fix[1]} if fix else None),
     )
     return err.with_source(list(lines))
+
+
+# ---------------------------------------------------------------------------
+# 包管理（E40xx，M131）
+# ---------------------------------------------------------------------------
+# ⚠️ 这些**不是语言错误**，是工具链的错。但同样给码，理由和后面对 `--json-errors`
+#    的支持一样：**用户遇到的每一堵墙都该有名字**，而不是只看到一句 ValueError。
+#
+# ⚠️ 它们**没有行列位置**（`render()` 在 `line is None` 时只打标题+消息）——
+#    装包失败要说的是「你该动什么」，不是「第 3 行第 5 列」。
+
+class PackageError(JishiError, ValueError):
+    """包管理错误的基类（装包 / 发版 / 锁定文件）。
+
+    ⚠️ 单独一个基类的意义：CLI 里可以 `except PackageError` 一把接住，
+    而不是去数「我到底 raise 了哪几种 ValueError」—— 后者迟早漏一个，
+    而漏掉的那个会以**裸 ValueError 冒到用户面前**（`安装失败：` 后面一句什么都没说）。
+
+    ⚠️ **同时继承 `ValueError`**（M131）：`packages.py` 原来所有失败都是
+    `raise ValueError(...)`，调用方到处 `except ValueError`。加码时若只继承
+    `JishiError`，那些 `except` 会**全部接不住** —— 错误会冒到顶层变成 traceback。
+    多继承一个，等于「加了码，但不破坏任何现有的接法」。
+    """
+    code = "E4000"
+    title = "包管理错误"
+
+
+class PackageNotFoundError(PackageError):
+    code = "E4001"
+    title = "索引里没有这个包"
+
+
+class PackageMetaError(PackageError):
+    code = "E4002"
+    title = "包的自述文件不合格"
+
+
+class PackageConflictError(PackageError):
+    code = "E4003"
+    title = "依赖冲突"
+
+
+class PackageMissingDepError(PackageError):
+    code = "E4004"
+    title = "依赖在索引里找不到"
+
+
+class PackageCycleError(PackageError):
+    code = "E4005"
+    title = "依赖成环"
+
+
+class PackageChecksumError(PackageError):
+    code = "E4006"
+    title = "包内容和校验和对不上"
+
+
+class PackageIndexError(PackageError):
+    code = "E4007"
+    title = "读不到索引源"
+
+
+class PackageLockError(PackageError):
+    code = "E4008"
+    title = "锁定文件对不上"
+
+
+class PackageBuildError(PackageError):
+    code = "E4009"
+    title = "打包失败"

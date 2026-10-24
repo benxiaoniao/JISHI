@@ -297,6 +297,8 @@ def _read_index_text(index_url: str) -> str:
 def _install_one(name: str, meta: dict, *, source: str, force: bool) -> None:
     """按索引条目下载 zip 并安装（含校验和比对）。"""
     import os
+
+    from .errors import PackageChecksumError
     import tempfile
     import urllib.request
 
@@ -304,7 +306,14 @@ def _install_one(name: str, meta: dict, *, source: str, force: bool) -> None:
 
     url = meta.get("下载地址")
     if not url:
-        raise ValueError(f"索引里包「{name}」没有「下载地址」字段")
+        # E4002（索引条目不合格）：这条以前是裸 ValueError ——
+        # **索引写错**（漏了下载地址）和**包不存在**是两回事，用户要的改法也不同。
+        from .errors import PackageMetaError
+        raise PackageMetaError(
+            f"索引里包「{name}」没有「下载地址」字段。\n"
+            f"  · 索引：{source}\n"
+            f"  这说明**索引本身**有问题（不是你的环境）—— 去找维护索引的人，"
+            f"或者换一个源。")
     # 地址里含中文等非 ASCII 时统一编码（urllib 不接受裸非 ASCII URL）；
     # 手写的索引可能没编码，这里兜住。
     url = PKG.encode_url(url)
@@ -319,9 +328,13 @@ def _install_one(name: str, meta: dict, *, source: str, force: bool) -> None:
             want = want.split(":", 1)[1] if want.startswith("sha256:") else want
             got = PKG._sha256_file(tmp)
             if got.lower() != want.lower():
-                raise ValueError(
-                    f"包「{name}」的校验和对不上（索引写 {want[:16]}…，"
-                    f"实际 {got[:16]}…），文件可能被改动过，已放弃安装")
+                raise PackageChecksumError(
+                    f"包「{name}」下载到的内容和索引里登记的对不上。\n"
+                    f"  · 索引写：{want[:16]}…\n"
+                    f"  · 实际是：{got[:16]}…\n"
+                    f"  两种可能：**下载不完整**（先重下一次），或者**包被换过**"
+                    f"（那就别装，去找发布者核对）。\n"
+                    f"  ⚠️ 没有「跳过校验」这条路 —— 装进来的东西得有人担保。")
         PKG.install_package_zip(tmp, name, force=force)
     except ValueError:
         raise
@@ -412,8 +425,11 @@ def _install_locked(args) -> int:
     from . import packages as PKG
 
     path = _lock_path()
+    from .errors import PackageLockError
+
     if not os.path.isfile(path):
-        print(f"没有锁定文件：{path}", file=sys.stderr)
+        print(f"错误 {PackageLockError.code}：{PackageLockError.title}"
+              f"（没有锁定文件：{path}）", file=sys.stderr)
         print("先不带 --锁定 装一次（会生成它），或者把已有的 lock 放进去。",
               file=sys.stderr)
         return 1
@@ -503,23 +519,25 @@ def _install_closure(name: str, index: dict, *, source: str,
     **全部装完才写**。中途失败写 lock，等于把「没装成」记成「装成了」。
     """
     from . import packages as PKG
+    from .errors import (PackageConflictError, PackageCycleError,
+                         PackageMissingDepError)
 
     闭包 = PKG.resolve_closure(index, [name])
 
     if 闭包["环"]:
         链 = " → ".join(闭包["环"][0])
-        raise ValueError(f"依赖成环，装不了：{链}")
+        raise PackageCycleError(f"依赖成环，装不了：{链}")
     if 闭包["缺"]:
         项 = 闭包["缺"][0]
         链条 = " → ".join(项["链条"] + [项["包"]]) if 项["链条"] else 项["包"]
-        raise ValueError(
+        raise PackageMissingDepError(
             f"依赖「{项['包']}」在索引里找不到（{链条}）\n"
             f"  · 索引：{source}\n"
             f"  · 要么这个包名写错了，要么它还没发布到这个源")
     if 闭包["冲突"]:
         项 = 闭包["冲突"][0]
         甲, 乙 = 项["甲"], 项["乙"]
-        raise ValueError(
+        raise PackageConflictError(
             f"依赖冲突：「{项['包']}」现在只有 {项['版本']}，但被要求了两种不相容的版本 ——\n"
             f"  · {甲['来自']} 要 {甲['约束']}（{' → '.join(甲['链条'])}）\n"
             f"  · {乙['来自']} 要 {乙['约束']}（{' → '.join(乙['链条'])}）\n"
@@ -539,7 +557,11 @@ def _install_closure(name: str, index: dict, *, source: str,
         try:
             _install_one(n, m, source=source, force=force)
         except ValueError as e:
-            raise ValueError(
+            # ⚠️ **保留异常类型**（M131）：直接 `raise ValueError(...)` 会把
+            # `PackageChecksumError`（E4006）**泡成裸 ValueError**，码就丢了 ——
+            # 用户看到「安装失败：装「X」时失败：…」，但没法 `jishi 错误 E4006` 查。
+            # 用 `type(e)(...)` 重新构造，等于「加一层上下文，不换身份」。
+            raise type(e)(
                 f"装「{n}」（第 {i}/{len(装序)} 个）时失败：{e}\n"
                 f"  ⚠️ 前面的 {i - 1} 个已经装上了；**没有写 jishi.lock**"
                 f"（因为闭包没装全）。重跑一次 `jishi 安装 {name}` 会自动跳过已装的。") from e

@@ -32,6 +32,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+
+from .errors import (
+    PackageBuildError, PackageChecksumError, PackageConflictError,
+    PackageCycleError, PackageIndexError, PackageLockError, PackageMetaError,
+    PackageMissingDepError, PackageNotFoundError,
+)
 import re
 import shutil
 import tempfile
@@ -163,7 +169,7 @@ def resolve_package(index: dict, name: str) -> dict:
         close = [n for n in packages if name and (name in n or n in name)]
         if close:
             hint = f"，你是不是想装 {'、'.join(close[:3])}？"
-        raise ValueError(f"索引里没有包「{name}」{hint}")
+        raise PackageNotFoundError(f"索引里没有包「{name}」{hint}")
     meta = packages[name]
     if not isinstance(meta, dict):
         raise ValueError(f"包「{name}」的元信息格式错误")
@@ -182,45 +188,45 @@ def read_package_meta(pkg_dir: str) -> dict:
     """
     meta_path = os.path.join(pkg_dir, "包.json")
     if not os.path.isfile(meta_path):
-        raise ValueError(f"「{pkg_dir}」里没有 包.json，不是一个基石包")
+        raise PackageMetaError(f"「{pkg_dir}」里没有 包.json，不是一个基石包")
     try:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
     except json.JSONDecodeError as e:
-        raise ValueError(f"「{meta_path}」不是合法 JSON：{e}") from e
+        raise PackageMetaError(f"「{meta_path}」不是合法 JSON：{e}") from e
     except OSError as e:
-        raise ValueError(f"读不了「{meta_path}」：{e}") from e
+        raise PackageMetaError(f"读不了「{meta_path}」：{e}") from e
     if not isinstance(meta, dict):
-        raise ValueError(f"「{meta_path}」顶层必须是 JSON 对象")
+        raise PackageMetaError(f"「{meta_path}」顶层必须是 JSON 对象")
 
     name = (meta.get("名字") or "").strip()
     if not name:
-        raise ValueError(f"「{meta_path}」缺少必填字段「名字」")
+        raise PackageMetaError(f"「{meta_path}」缺少必填字段「名字」")
     version = str(meta.get("版本") or "").strip()
     if not version:
-        raise ValueError(f"包「{name}」的 包.json 缺少必填字段「版本」")
+        raise PackageMetaError(f"包「{name}」的 包.json 缺少必填字段「版本」")
     if not re.fullmatch(r"\d+(\.\d+){0,2}", version):
-        raise ValueError(
+        raise PackageMetaError(
             f"包「{name}」的版本「{version}」不是语义化版本（应形如 1.0.0）")
 
     unknown = set(meta) - ALLOWED_META_KEYS
     if unknown:
-        raise ValueError(
+        raise PackageMetaError(
             f"包「{name}」的 包.json 有无法识别的字段：{'、'.join(sorted(unknown))}"
             f"（可用字段：{'、'.join(sorted(ALLOWED_META_KEYS))}）")
 
     deps = meta.get("依赖")
     if deps is not None:
         if not isinstance(deps, dict):
-            raise ValueError(f"包「{name}」的「依赖」必须是对象（依赖名 → 版本约束）")
+            raise PackageMetaError(f"包「{name}」的「依赖」必须是对象（依赖名 → 版本约束）")
         for dep_name, constraint in deps.items():
             if not isinstance(constraint, str):
-                raise ValueError(
+                raise PackageMetaError(
                     f"包「{name}」依赖「{dep_name}」的约束必须是字符串")
 
     entry = meta.get("入口")
     if entry is not None and not isinstance(entry, str):
-        raise ValueError(f"包「{name}」的「入口」必须是字符串（模块名）")
+        raise PackageMetaError(f"包「{name}」的「入口」必须是字符串（模块名）")
     return meta
 
 
@@ -255,7 +261,7 @@ def build_package_zip(pkg_dir: str, out_dir: str) -> tuple[str, str]:
                 files.append((full, rel))
     modules = [rel for _, rel in files if rel.endswith(".jsh")]
     if not modules:
-        raise ValueError(
+        raise PackageBuildError(
             f"包「{name}」里没有可发布的模块（需要至少一个 .jsh 文件）")
 
     # 🔴 **打出来的字节必须「内容决定」**（M129，2026-10-24）：
