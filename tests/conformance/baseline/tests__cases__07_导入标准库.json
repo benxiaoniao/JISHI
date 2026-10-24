@@ -1,0 +1,806 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 2,
+        "name": "随机",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "line": 3,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "n",
+          "line": 3,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 15,
+              "line": 3,
+              "value": 1,
+              "类型": "Num"
+            },
+            {
+              "col": 18,
+              "line": 3,
+              "value": 1,
+              "类型": "Num"
+            }
+          ],
+          "col": 14,
+          "func": {
+            "attr": "随机整数",
+            "col": 9,
+            "line": 3,
+            "obj": {
+              "col": 7,
+              "id": "随机",
+              "line": 3,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 3,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "id": "n",
+              "line": 4,
+              "类型": "Name"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 4,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 4,
+          "类型": "Call"
+        },
+        "line": 4,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 5,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "洗过",
+          "line": 5,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 14,
+              "elements": [
+                {
+                  "col": 15,
+                  "line": 5,
+                  "value": 1,
+                  "类型": "Num"
+                },
+                {
+                  "col": 18,
+                  "line": 5,
+                  "value": 2,
+                  "类型": "Num"
+                },
+                {
+                  "col": 21,
+                  "line": 5,
+                  "value": 3,
+                  "类型": "Num"
+                }
+              ],
+              "line": 5,
+              "类型": "List"
+            }
+          ],
+          "col": 13,
+          "func": {
+            "attr": "洗牌",
+            "col": 10,
+            "line": 5,
+            "obj": {
+              "col": 8,
+              "id": "随机",
+              "line": 5,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 5,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "id": "洗过",
+                  "line": 6,
+                  "类型": "Name"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "长度",
+                "line": 6,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 6,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 6,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 6,
+          "类型": "Call"
+        },
+        "line": 6,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "5092d5d56f220dd8b7a81a1bb35487597fb96f28a89db77321616a1d0b5834d0",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            2,
+            1,
+            3,
+            0,
+            0,
+            0,
+            2,
+            1,
+            2,
+            0,
+            0,
+            0,
+            3,
+            7,
+            25,
+            1,
+            0,
+            0,
+            3,
+            9,
+            1,
+            0,
+            0,
+            0,
+            3,
+            15,
+            1,
+            0,
+            0,
+            0,
+            3,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            3,
+            14,
+            3,
+            2,
+            0,
+            0,
+            3,
+            1,
+            2,
+            3,
+            0,
+            0,
+            4,
+            1,
+            2,
+            2,
+            0,
+            0,
+            4,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            3,
+            38,
+            0,
+            0,
+            0,
+            4,
+            1,
+            2,
+            0,
+            0,
+            0,
+            5,
+            8,
+            25,
+            4,
+            0,
+            0,
+            5,
+            10,
+            1,
+            0,
+            0,
+            0,
+            5,
+            15,
+            1,
+            1,
+            0,
+            0,
+            5,
+            18,
+            1,
+            2,
+            0,
+            0,
+            5,
+            21,
+            23,
+            3,
+            0,
+            0,
+            5,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            5,
+            13,
+            3,
+            5,
+            0,
+            0,
+            5,
+            1,
+            2,
+            3,
+            0,
+            0,
+            6,
+            1,
+            2,
+            6,
+            0,
+            0,
+            6,
+            4,
+            2,
+            5,
+            0,
+            0,
+            6,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            6,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            6,
+            3,
+            38,
+            0,
+            0,
+            0,
+            6,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "int",
+          "v": 2
+        },
+        {
+          "t": "int",
+          "v": 3
+        }
+      ],
+      "filename": "tests/cases/07_导入标准库.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "随机",
+        "随机整数",
+        "n",
+        "打印",
+        "洗牌",
+        "洗过",
+        "长度"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 2,
+      "source_line": "导入 随机",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 2,
+      "source_line": "导入 随机",
+      "type": "NAME",
+      "value": "随机",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "导入 随机",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "NAME",
+      "value": "n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "NAME",
+      "value": "随机",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "NAME",
+      "value": "随机整数",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 18,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "令 n = 随机.随机整数(1, 1)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 4,
+      "source_line": "打印(n)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 4,
+      "source_line": "打印(n)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 4,
+      "source_line": "打印(n)",
+      "type": "NAME",
+      "value": "n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 4,
+      "source_line": "打印(n)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "打印(n)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "NAME",
+      "value": "洗过",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "NAME",
+      "value": "随机",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "NAME",
+      "value": "洗牌",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 18,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 21,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "NUMBER",
+      "value": 3,
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "令 洗过 = 随机.洗牌([1, 2, 3])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 6,
+      "source_line": "打印(长度(洗过))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 6,
+      "source_line": "打印(长度(洗过))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 6,
+      "source_line": "打印(长度(洗过))",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 6,
+      "source_line": "打印(长度(洗过))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 6,
+      "source_line": "打印(长度(洗过))",
+      "type": "NAME",
+      "value": "洗过",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 6,
+      "source_line": "打印(长度(洗过))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 6,
+      "source_line": "打印(长度(洗过))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "打印(长度(洗过))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:9a891311897b3bee",
+  "语料": "tests/cases/07_导入标准库.jsh"
+}

@@ -1,0 +1,122 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": [
+      1,
+      2
+    ],
+    "修正": null,
+    "列": 1,
+    "提示": "写法是：\n尝试：\n    …\n捕获 异常 为 e：\n    …",
+    "标题": "这里出现了意外的内容",
+    "消息": "「尝试」后面至少要有一个「捕获」或一个「最终」",
+    "渲染": "错误 E0201：这里出现了意外的内容（「尝试」后面至少要有一个「捕获」或一个「最终」）\n  ┌─ tests/error_cases/25_尝试无捕获.jsh:1:1\n  │\n  1 │ 尝试：\n    │ ~^\n  │\n  提示：写法是：\n尝试：\n    …\n捕获 异常 为 e：\n    …",
+    "码": "E0201",
+    "行": 1,
+    "阶段": "语法"
+  },
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 1,
+      "source_line": "尝试：",
+      "type": "KEYWORD",
+      "value": "尝试",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 1,
+      "source_line": "尝试：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "尝试：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "    打印(1)",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "    打印(1)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 2,
+      "source_line": "    打印(1)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 2,
+      "source_line": "    打印(1)",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 2,
+      "source_line": "    打印(1)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "    打印(1)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:35c5bd9d50f6b45b",
+  "语料": "tests/error_cases/25_尝试无捕获.jsh"
+}

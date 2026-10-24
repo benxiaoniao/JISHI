@@ -1,0 +1,332 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 2,
+        "name": "并发",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "elements": [],
+                  "line": 4,
+                  "类型": "List"
+                },
+                {
+                  "col": 16,
+                  "line": 4,
+                  "value": "xx",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "批量摘要",
+                "col": 6,
+                "line": 4,
+                "obj": {
+                  "col": 4,
+                  "id": "并发",
+                  "line": 4,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 4,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 4,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 4,
+          "类型": "Call"
+        },
+        "line": 4,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "af4839fb854144bc6785f54851dd7d7d68ffb0f4da1af6a97c4c8503a380d72c",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            2,
+            1,
+            3,
+            0,
+            0,
+            0,
+            2,
+            1,
+            2,
+            1,
+            0,
+            0,
+            4,
+            1,
+            2,
+            0,
+            0,
+            0,
+            4,
+            4,
+            25,
+            2,
+            0,
+            0,
+            4,
+            6,
+            23,
+            0,
+            0,
+            0,
+            4,
+            12,
+            1,
+            0,
+            0,
+            0,
+            4,
+            16,
+            20,
+            2,
+            -1,
+            0,
+            4,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            3,
+            38,
+            0,
+            0,
+            0,
+            4,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "xx"
+        }
+      ],
+      "filename": "tests/error_cases/56_并发_不支持的算法.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "并发",
+        "打印",
+        "批量摘要"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 2,
+      "source_line": "导入 并发",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 2,
+      "source_line": "导入 并发",
+      "type": "NAME",
+      "value": "并发",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "导入 并发",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "NAME",
+      "value": "并发",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 10,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "NAME",
+      "value": "批量摘要",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 19,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "STRING",
+      "value": "xx",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "打印(并发.批量摘要([], \"xx\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:b1da12df1bb9d88f",
+  "语料": "tests/error_cases/56_并发_不支持的算法.jsh"
+}

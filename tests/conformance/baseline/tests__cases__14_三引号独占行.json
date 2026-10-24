@@ -1,0 +1,646 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 6,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "内容",
+          "line": 6,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "line": 6,
+          "value": "第一行\n第二行\n",
+          "类型": "Str"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 9,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "引号",
+          "line": 9,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "line": 9,
+          "value": "甲\n乙",
+          "类型": "Str"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "id": "内容",
+                  "line": 11,
+                  "类型": "Name"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "长度",
+                "line": 11,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 11,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 11,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 11,
+          "类型": "Call"
+        },
+        "line": 11,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 10,
+                  "line": 12,
+                  "value": "第二行",
+                  "类型": "Str"
+                }
+              ],
+              "col": 9,
+              "func": {
+                "attr": "包含",
+                "col": 6,
+                "line": 12,
+                "obj": {
+                  "col": 4,
+                  "id": "内容",
+                  "line": 12,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 12,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 12,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 12,
+          "类型": "Call"
+        },
+        "line": 12,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "id": "引号",
+              "line": 13,
+              "类型": "Name"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 13,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 13,
+          "类型": "Call"
+        },
+        "line": 13,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "21af3372e2d0eca70d7468a4d0ce3a8e3759a673cf8df265d136d5068dbfa755",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            6,
+            8,
+            3,
+            0,
+            0,
+            0,
+            6,
+            1,
+            1,
+            1,
+            0,
+            0,
+            9,
+            8,
+            3,
+            1,
+            0,
+            0,
+            9,
+            1,
+            2,
+            2,
+            0,
+            0,
+            11,
+            1,
+            2,
+            3,
+            0,
+            0,
+            11,
+            4,
+            2,
+            0,
+            0,
+            0,
+            11,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            11,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            11,
+            3,
+            38,
+            0,
+            0,
+            0,
+            11,
+            1,
+            2,
+            2,
+            0,
+            0,
+            12,
+            1,
+            2,
+            0,
+            0,
+            0,
+            12,
+            4,
+            25,
+            4,
+            0,
+            0,
+            12,
+            6,
+            1,
+            2,
+            0,
+            0,
+            12,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            12,
+            9,
+            20,
+            1,
+            -1,
+            0,
+            12,
+            3,
+            38,
+            0,
+            0,
+            0,
+            12,
+            1,
+            2,
+            2,
+            0,
+            0,
+            13,
+            1,
+            2,
+            1,
+            0,
+            0,
+            13,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            13,
+            3,
+            38,
+            0,
+            0,
+            0,
+            13,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "第一行\n第二行\n"
+        },
+        {
+          "t": "str",
+          "v": "甲\n乙"
+        },
+        {
+          "t": "str",
+          "v": "第二行"
+        }
+      ],
+      "filename": "tests/cases/14_三引号独占行.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "内容",
+        "引号",
+        "打印",
+        "长度",
+        "包含"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "令 内容 = \"\"\"第一行",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 6,
+      "source_line": "令 内容 = \"\"\"第一行",
+      "type": "NAME",
+      "value": "内容",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 6,
+      "source_line": "令 内容 = \"\"\"第一行",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 3,
+      "line": 6,
+      "source_line": "\"\"\"",
+      "type": "STRING",
+      "value": "第一行\n第二行\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "\"\"\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "令 引号 = '''甲",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 9,
+      "source_line": "令 引号 = '''甲",
+      "type": "NAME",
+      "value": "引号",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 9,
+      "source_line": "令 引号 = '''甲",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 4,
+      "line": 9,
+      "source_line": "乙'''",
+      "type": "STRING",
+      "value": "甲\n乙",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "乙'''",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "打印(长度(内容))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 11,
+      "source_line": "打印(长度(内容))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 11,
+      "source_line": "打印(长度(内容))",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 11,
+      "source_line": "打印(长度(内容))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 11,
+      "source_line": "打印(长度(内容))",
+      "type": "NAME",
+      "value": "内容",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 11,
+      "source_line": "打印(长度(内容))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 11,
+      "source_line": "打印(长度(内容))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "打印(长度(内容))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "NAME",
+      "value": "内容",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "NAME",
+      "value": "包含",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 14,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "STRING",
+      "value": "第二行",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "打印(内容.包含(\"第二行\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 13,
+      "source_line": "打印(引号)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 13,
+      "source_line": "打印(引号)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 13,
+      "source_line": "打印(引号)",
+      "type": "NAME",
+      "value": "引号",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 13,
+      "source_line": "打印(引号)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "打印(引号)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:af996ddbdc3756f8",
+  "语料": "tests/cases/14_三引号独占行.jsh"
+}
