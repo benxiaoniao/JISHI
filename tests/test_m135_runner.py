@@ -1,0 +1,269 @@
+# -*- coding: utf-8 -*-
+"""M135：**用基石自己写的**黑盒测试运行器（`tools/自测.jsh`）的判据。
+
+这个文件盯的**不是「能跑」**，而是「**它是不是一把准的尺子**」——
+所以每条都是故意造一个该红／该绿的小用例，看它有没有说对：
+
+| 造的情况 | 它必须说什么 |
+|---|---|
+| 输出一致 | 通过，退出码 0 |
+| 输出不一致 | **点名到第几行** + 期望/实际，退出码 1 |
+| 该报错却成功了 | 红（不是「静默通过」） |
+| 报错文案只是**包含**就够 | 绿（与 `test_error_snapshot` 同口径） |
+| 没有 `.out` / `.err` | **跳过**并点名（不是当通过） |
+| `.out` 是 CRLF 而程序输出 LF | 绿（不归一行末 ⇒ 每条都假红） |
+| 登记了豁免 | **豁免 N**，且**不算通过** |
+| 豁免了但它过了 | 红（豁免过期要清） |
+| 豁免没写原因 | 红（没有原因的豁免等于没有） |
+
+还有两条更硬的：
+
+- **三宿主报告必须逐字一致**（除「用时」）：运行器自己是基石程序，
+  在 Python / Rust / Node 三个宿主下跑出的报告不能有差别；
+- **真语料全量**（`tests/cases` + `tests/error_cases` = 123 条）必须 0 失败 ——
+  这条同时钉住「默认参数能直接用」。
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+PY = sys.executable
+RUNNER = ROOT / "tools" / "自测.jsh"
+RUST = ROOT / "rust" / "target" / "release" / "jishi-rs.exe"
+被测 = [PY, "-m", "oracle.jishi.cli"]
+
+
+# ---------------------------------------------------------------------------
+# 小工具
+# ---------------------------------------------------------------------------
+
+def _跑(用例目录, 额外=(), 被测命令=None, 宿主="python", cwd=None):
+    """跑一次运行器，返回 (退出码, stdout, stderr)。"""
+    命令 = _宿主命令(宿主)
+    if 宿主 != "node":
+        # node 宿主的「程序」是编译好的字节码文件，已经在上面的命令里了
+        命令 += [str(RUNNER)]
+    命令 += ["--用例", str(用例目录)]
+    if 被测命令 is None:
+        被测命令 = 被测
+    命令 += ["--被测"] + list(被测命令)
+    命令 += list(额外)
+    r = subprocess.run(命令, cwd=str(cwd or ROOT), capture_output=True,
+                       text=True, encoding="utf-8", errors="replace", timeout=300)
+    return r.returncode, r.stdout, r.stderr
+
+
+def _宿主命令(宿主):
+    if 宿主 == "python":
+        return [PY, "-m", "oracle.jishi.cli"]
+    if 宿主 == "rust":
+        return [str(RUST)]
+    if 宿主 == "node":
+        # ⚠️ 字节码落到**系统临时目录 + pid 后缀**：并行时固定名会被别的 worker 覆写
+        #    （AGENTS §1 第 3 条那类坑，症状是「单跑必过、并行偶红」）。
+        字节 = Path(tempfile.gettempdir()) / f"m135_{os.getpid()}_自测.bc.json"
+        r = subprocess.run([PY, "-m", "oracle.jishi.cli", "--dump-bytecode", str(RUNNER)],
+                           cwd=str(ROOT), capture_output=True)
+        assert r.returncode == 0, r.stderr
+        字节.write_bytes(r.stdout)
+        return ["node", "oracle/node/index.js", str(字节)]
+    raise AssertionError(宿主)
+
+
+def _写(目录: Path, 名: str, 源: str, 期望=None, 后缀=".out"):
+    目录.mkdir(parents=True, exist_ok=True)
+    (目录 / f"{名}.jsh").write_text(源, encoding="utf-8", newline="\n")
+    if 期望 is not None:
+        (目录 / f"{名}{后缀}").write_text(期望, encoding="utf-8", newline="")
+
+
+def _汇总(out: str) -> str:
+    for 行 in out.splitlines():
+        if 行.startswith("汇总"):
+            return 行
+    raise AssertionError(f"报告里没有汇总行：\n{out}")
+
+
+def _去掉用时(out: str) -> str:
+    return "\n".join(
+        行.split("· 用时")[0].rstrip() if "· 用时" in 行 else 行
+        for 行 in out.splitlines())
+
+
+# ---------------------------------------------------------------------------
+# 判得对不对
+# ---------------------------------------------------------------------------
+
+def test_输出一致就通过_退出码0(tmp_path):
+    _写(tmp_path, "好", "打印(1 + 1)\n", "2\r\n")   # ⚠️ 故意用 CRLF：仓库里就是 CRLF
+    码, 出, 错 = _跑(tmp_path)
+    assert 码 == 0, 出 + 错
+    assert "通过 1 · 失败 0" in _汇总(出), 出
+
+
+def test_输出不一致_要点名到第几行_退出码1(tmp_path):
+    _写(tmp_path, "差", "打印(1)\n打印(3)\n", "1\n2\n")
+    码, 出, 错 = _跑(tmp_path)
+    assert 码 == 1, "输出不一致必须退 1"
+    assert "✗ 差" in 出
+    assert "第 2 行不一样" in 出, 出        # 必须指到具体行，不能只说「不一致」
+    assert "期望：2" in 出 and "实际：3" in 出, 出
+
+
+def test_该报错却成功了_要红(tmp_path):
+    _写(tmp_path, "该报错", "打印(1)\n", "错误 E0301：找不到这个名字", 后缀=".err")
+    码, 出, 错 = _跑(tmp_path)
+    assert 码 == 1
+    assert "该报错却成功了" in 出, 出
+
+
+def test_报错文案是包含_不要求逐字(tmp_path):
+    """与 `test_error_snapshot` 同口径：`.err` 只要求**出现在**错误输出里。"""
+    _写(tmp_path, "该报错", "打印(不存在这个名字)\n", "找不到这个名字", 后缀=".err")
+    码, 出, 错 = _跑(tmp_path)
+    assert 码 == 0, 出 + 错
+    assert "通过 1 · 失败 0" in _汇总(出), 出
+
+
+def test_没有期望文件算跳过_不算通过(tmp_path):
+    _写(tmp_path, "没期望", "打印(1)\n")
+    码, 出, 错 = _跑(tmp_path)
+    assert 码 == 0
+    汇 = _汇总(出)
+    assert "跳过 1" in 汇 and "通过 0" in 汇, 汇
+    assert "⏭ 没期望" in 出, 出
+
+
+def test_期望文件CRLF_程序输出LF_不能假红(tmp_path):
+    """`\r\n` → `\n` 的归一是**必须的**：仓库里的 `.out` 全是 CRLF。
+
+    不归一，43 条黄金语料会**整批假红**，而红的原因看起来像「程序输出变了」。
+    """
+    _写(tmp_path, "混", "打印(\"甲\")\n打印(\"乙\")\n", "甲\r\n乙\r\n")
+    码, 出, 错 = _跑(tmp_path)
+    assert 码 == 0, 出 + 错
+
+
+def test_一条用例都没找到_也要红(tmp_path):
+    """「0 条 · 通过 0 · 失败 0」看起来完全正常 —— 那是**最坏的假绿**。
+
+    目录写错、语料被挪走都会长成这样。所以它必须红。
+    """
+    (tmp_path / "空的子目录").mkdir()
+    码, 出, 错 = _跑(tmp_path)
+    assert 码 == 1, "0 条用例不许当绿"
+    assert "一条用例都没找到" in (出 + 错), 出 + 错
+
+
+# ---------------------------------------------------------------------------
+# 豁免：显式、可复核、会过期
+# ---------------------------------------------------------------------------
+
+def test_豁免生效_但不算通过(tmp_path):
+    _写(tmp_path, "差的", "打印(3)\n", "2\n")
+    表 = tmp_path / "豁免.txt"
+    表.write_text("# 注释行\npython | 差的.jsh | 造出来的边界\n", encoding="utf-8")
+    码, 出, 错 = _跑(tmp_path, 额外=["--豁免", str(表)])
+    汇 = _汇总(出)
+    assert 码 == 0, 出 + 错
+    assert "豁免 1" in 汇 and "失败 0" in 汇, 汇
+    assert "通过 0" in 汇, "豁免**不能**算进通过 —— 那是把边界伪装成绿"
+    assert "⚠ 差的" in 出, 出
+
+
+def test_豁免过期要红(tmp_path):
+    """它过了 ⇒ 那行必须在红着喊你删掉，否则会一直遮着这条用例。"""
+    _写(tmp_path, "好的", "打印(2)\n", "2\n")
+    表 = tmp_path / "豁免.txt"
+    表.write_text("python | 好的.jsh | 这条其实没问题\n", encoding="utf-8")
+    码, 出, 错 = _跑(tmp_path, 额外=["--豁免", str(表)])
+    assert 码 == 1, "豁免过期必须红"
+    assert "豁免过期" in 出, 出
+
+
+def test_豁免表没写原因要报错(tmp_path):
+    _写(tmp_path, "好的", "打印(2)\n", "2\n")
+    表 = tmp_path / "豁免.txt"
+    表.write_text("python | 好的.jsh |\n", encoding="utf-8")
+    码, 出, 错 = _跑(tmp_path, 额外=["--豁免", str(表)])
+    assert 码 == 1
+    assert "没写原因" in (出 + 错), 出 + 错
+
+
+def test_豁免表格式不对要报错(tmp_path):
+    _写(tmp_path, "好的", "打印(2)\n", "2\n")
+    表 = tmp_path / "豁免.txt"
+    表.write_text("python | 好的.jsh\n", encoding="utf-8")
+    码, 出, 错 = _跑(tmp_path, 额外=["--豁免", str(表)])
+    assert 码 == 1
+    assert "要写成" in (出 + 错), 出 + 错
+
+
+# ---------------------------------------------------------------------------
+# 运行器自己是基石程序 ⇒ 三个宿主必须说一样的话
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(not RUST.is_file(), reason="没构建 jishi-rs（cd rust && cargo build --release）")
+@pytest.mark.skipif(shutil.which("node") is None, reason="PATH 上没有 node")
+def test_三宿主报告逐字一致(tmp_path):
+    """同一批用例，运行器在 Python / Rust / Node 三个宿主下跑出来的报告要一样。
+
+    只允许「用时」不同 —— 那个数本来就随机器变。
+
+    ⚠️ 这条抓到过一个真的宿主分叉（2026-10-25）：程序先 `打印` 一整份报告、
+    最后 `抛出` 时，**Python 宿主的 stdout 是块缓冲** ⇒ 错误横幅跑到报告前面，
+    而 Rust / Node 顺序是正的。修在 `cli.py` 的 `_装好错误流`（代理 stderr，
+    写之前先冲 stdout），一处覆盖所有写点。
+    """
+    _写(tmp_path, "甲", "打印(\"甲\")\n", "甲\r\n")
+    _写(tmp_path, "乙", "打印(1 + 1)\n", "2\r\n")
+
+    报告们 = {}
+    for 宿主 in ("python", "rust", "node"):
+        码, 出, 错 = _跑(tmp_path, 宿主=宿主, 被测命令=[str(RUST)])
+        assert 码 == 0, f"{宿主}：{出}{错}"
+        报告们[宿主] = _去掉用时(出)
+
+    基 = 报告们["python"]
+    for 宿主 in ("rust", "node"):
+        assert 报告们[宿主] == 基, (
+            f"{宿主} 宿主的报告和 python 不一样（底下一行起是差异）：\n"
+            + "\n".join(f"  {a!r} vs {b!r}"
+                        for a, b in zip(基.splitlines(), 报告们[宿主].splitlines())
+                        if a != b))
+
+
+# ---------------------------------------------------------------------------
+# 真语料：默认参数就能用
+# ---------------------------------------------------------------------------
+
+@pytest.mark.计时
+def test_真语料全量_默认参数跑通():
+    """`jishi tools/自测.jsh` 不带参数，就该跑完 123 条且 0 失败。
+
+    ⚠️ 这条**故意不给 `--用例` / `--被测`**：默认值才是人真正会敲的那条命令，
+    默认值写错（目录名、被测定位顺序）只有这条能抓到。
+
+    ⚠️ 打 `计时` 是因为它 CPU 重（123 个子进程）：用 Rust 被测 ~3 秒、
+    没构建时退回 Python 参考实现 ~30 秒。留在并行节会制造 CPU 饥荒
+    （AGENTS §1 第 3 条那类）。
+    """
+    被测命令 = [str(RUST)] if RUST.is_file() else 被测
+    r = subprocess.run([PY, "-m", "oracle.jishi.cli", str(RUNNER), "--被测"] + 被测命令,
+                       cwd=str(ROOT), capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", timeout=900)
+    assert r.returncode == 0, r.stdout + r.stderr
+    汇 = _汇总(r.stdout)
+    assert "123 条" in 汇, 汇
+    assert "失败 0" in 汇, 汇
+    if RUST.is_file():
+        # Rust 侧的「从 python 导入」是**宣称过的边界**，已登记在豁免表里。
+        # 它如果是 0，说明豁免那行就该删了 —— 这里钉住「确实有且只有 1 条」。
+        assert "豁免 1" in 汇, 汇

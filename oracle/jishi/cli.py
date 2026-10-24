@@ -1493,6 +1493,50 @@ def _setup_io() -> None:
             stream.reconfigure(newline="\n")
         except Exception:  # noqa: BLE001
             pass
+    _装好错误流()
+
+
+class _先冲stdout的错误流:
+    """往 stderr 写字**之前**，先把 stdout 冲掉。
+
+    🔴 为什么需要（2026-10-25，M135 用基石写测试运行器时撞出来的）：
+
+    运行器先 `打印` 一整份报告，最后 `抛出` 表示失败。Python 的 stdout 在
+    **重定向 / 管道 / `capture_output`** 时是**块缓冲**（不是行缓冲）⇒
+    错误横幅先出去、报告留在缓冲里最后才出去，顺序倒了。
+    而 **Rust / Node 宿主顺序是正的**（它们先刷再写）。
+
+    ⇒ **同一份程序在两个宿主上输出顺序不同，那就是语义分叉**，不是「显示问题」：
+    任何「先打印再报错」的程序（测试运行器、批处理、安装进度）都会看见它。
+
+    修在这里（代理 stderr）而不是逐个改 `print(..., file=sys.stderr)`：
+    一处覆盖全部写点 —— 包括标准库自己打的提示、以及 Python 的 traceback。
+    """
+
+    def __init__(self, 上游):
+        self._上游 = 上游
+
+    def write(self, s):
+        try:
+            sys.stdout.flush()
+        except Exception:  # noqa: BLE001 —— 管道关了/没 stdout 时不该因刷新而炸
+            pass
+        return self._上游.write(s)
+
+    def flush(self):
+        return self._上游.flush()
+
+    def __getattr__(self, 名):  # isatty / encoding / fileno …全部透传
+        return getattr(self._上游, 名)
+
+
+def _装好错误流() -> None:
+    """给 stderr 套上「先冲 stdout」的代理（只套一次；见上面那个类的说明）。"""
+    if isinstance(sys.stderr, _先冲stdout的错误流):
+        return
+    if sys.stderr is None or not hasattr(sys.stderr, "write"):
+        return
+    sys.stderr = _先冲stdout的错误流(sys.stderr)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
