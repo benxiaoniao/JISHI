@@ -89,3 +89,7 @@ ctx.txt
 .tmp-eval/
 tests/_loc_probe.jsh
 site/
+
+# 测试残留（M132 清理：`账.db` 曾被误提交进仓库）
+*.db
+.tmp-eval/

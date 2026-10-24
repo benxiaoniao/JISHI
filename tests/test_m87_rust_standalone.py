@@ -87,7 +87,9 @@ def test_错误码详情_写死的期望():
 def test_错误码总览_结构与条数():
     out, err, code = _run("错误")
     assert err == "" and code == 0
-    assert out.startswith("基石错误码总览（32 个）\n\n"), out[:60]
+    # M131 加了 E40xx 共 10 个码 ⇒ 32 → 42。这个数是**故意写死**的：
+    # 它抓的是「Rust 侧少搬了一段码表」（那时这条会红，而不是悄悄跟着变）。
+    assert out.startswith("基石错误码总览（42 个）\n\n"), out[:60]
     for head in _SECTIONS:
         assert head in out, f"总览里少了分段：{head}"
     # 每个码只出现一次（`  CODE  ` 这种排法）
@@ -103,7 +105,7 @@ def test_错误码_没有这个码走stderr退码2(arg):
     out, err, code = _run("错误", arg)
     assert out == ""
     assert err == (f"没有错误码「{arg.upper() if arg.startswith('E') else 'E' + arg}」"
-                   f"—— 跑 `jishi 错误` 看全部 32 个。\n"), err
+                   f"—— 跑 `jishi 错误` 看全部 42 个。\n"), err
     assert code == 2
 
 

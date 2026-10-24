@@ -54,10 +54,12 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 import urllib.request
@@ -74,12 +76,14 @@ if not PYTHON.is_file():  # 非 Windows / 未建 venv 时退回当前解释器
 DEFAULT_BASE = os.environ.get("JISHI_EVAL_BASE", "https://tokenrhythm.studio/v1")
 
 #: 题集文件（顺序 = 报告里的分节顺序）
-TASK_FILES = (
-    ("01_syntax.json", "语法"),
-    ("02_stdlib.json", "标准库"),
-    ("03_debug.json", "调试"),
-    ("04_refactor.json", "重构"),
-)
+# ⚠️ **不要写成固定清单**（2026-10-24 踩到）：原来这里是四个文件名的元组，
+#    于是新增 `05_测试与包.json` 之后 —— 判据（`test_m45`）认得它，**跑分不认**，
+#    结果「题库 80 题」实际只跑了 **76 题**，而报告里写着「80 题」也没人发现。
+#    ⇒ 改成**扫目录**：加文件就自动算进来（`test_m45` 仍然钉着「该有哪几个文件」，
+#      那个清单是用来抓「文件被误删/误加」的，两件事分工不同）。
+def task_files() -> list[tuple[str, str]]:
+    """题库目录下的所有 `*.json`（按文件名排序，顺序稳定）。"""
+    return [(p.name, "") for p in sorted(TASKS_DIR.glob("*.json")) if p.is_file()]
 
 
 # ---------------------------------------------------------------------------
@@ -96,13 +100,18 @@ class Task:
     标准输出: str
     考点: str = ""
     起始代码: str = ""      # 调试题=有缺陷代码；重构题=原始代码
+    #: 跑之前要铺在**工作目录**里的文件（名字 → 内容）。
+    #: 🔴 为什么需要它（2026-10-24）：有题目要读一个 `包.json`，
+    #:    而评测器原来把答案跑在仓库根、什么都不铺 ⇒ 那题**根本无法解答**，
+    #:    模型再对也拿不到分，跑分表上看起来像「模型不会做」。**题错了不能算模型头上。**
+    前置: dict = field(default_factory=dict)
     额外: dict = field(default_factory=dict)
 
 
 def load_tasks(only_type: Optional[str] = None,
                limit: Optional[int] = None) -> list[Task]:
     tasks: list[Task] = []
-    for fname, kind in TASK_FILES:
+    for fname, kind in task_files():
         path = TASKS_DIR / fname
         if not path.is_file():
             continue
@@ -112,6 +121,7 @@ def load_tasks(only_type: Optional[str] = None,
                 id=raw["id"], 类型=raw.get("类型", kind),
                 题目=raw["题目"], 标准输出=raw["标准输出"],
                 考点=raw.get("考点", raw.get("缺陷", "")),
+                前置=dict(raw.get("前置") or {}),
             )
             t.起始代码 = (raw.get("有缺陷代码") or raw.get("原始代码") or "")
             t.额外 = {k: v for k, v in raw.items()
@@ -149,17 +159,29 @@ class RunResult:
 
 
 def run_jishi(code: str, timeout: float = 20.0,
-              tag: str = "eval") -> RunResult:
+              tag: str = "eval", 前置: Optional[dict] = None) -> RunResult:
     """把代码写成临时文件跑一遍。退出码非 0 一律算失败（见模块 docstring）。"""
     tmp = ROOT / ".tmp-eval"
     tmp.mkdir(exist_ok=True)
-    f = tmp / f"{_safe_name(tag)}.jsh"
+    # 有前置文件就**单独开一个工作目录**（答案里的相对路径 `包.json` 才找得到）；
+    # 没有前置时仍然跑在仓库根 —— 别改默认行为，老题目可能依赖仓库根。
+    cwd = ROOT
+    目录 = None
+    if 前置:
+        目录 = tmp / _safe_name(tag or "eval")
+        if 目录.exists():
+            shutil.rmtree(目录, ignore_errors=True)
+        目录.mkdir(parents=True)
+        for 名, 内容 in 前置.items():
+            (目录 / 名).write_text(str(内容), encoding="utf-8")
+        cwd = 目录
+    f = (目录 or tmp) / f"{_safe_name(tag)}.jsh"
     f.write_text(code, encoding="utf-8")
     try:
         p = subprocess.run(
             [str(PYTHON), "-m", "oracle.jishi.cli", str(f)],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
-            cwd=ROOT, timeout=timeout,
+            cwd=cwd, timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         return RunResult(False, "", f"执行超时（{timeout} 秒）", -1, True)
@@ -168,6 +190,8 @@ def run_jishi(code: str, timeout: float = 20.0,
             f.unlink()
         except OSError:
             pass
+        if 目录 is not None:
+            shutil.rmtree(目录, ignore_errors=True)
     return RunResult(p.returncode == 0, p.stdout, p.stderr, p.returncode)
 
 
@@ -176,9 +200,9 @@ def _safe_name(s: str) -> str:
 
 
 def judge(code: str, want: str, timeout: float = 20.0,
-          tag: str = "eval") -> tuple[bool, RunResult]:
+          tag: str = "eval", 前置: Optional[dict] = None) -> tuple[bool, RunResult]:
     """判一题：输出逐字相同 **且** 退出码 0 才算通过。"""
-    r = run_jishi(code, timeout, tag)
+    r = run_jishi(code, timeout, tag, 前置=前置)
     got = r.stdout.strip()
     want_s = want.strip()
     return (r.ok and got == want_s), r
@@ -311,7 +335,19 @@ RETRYABLE = ("429", "RATE_LIMITED", "503", "SERVICE_BUSY", "502", "504",
 
 
 def _retryable(err: str) -> bool:
-    return any(sig in err for sig in RETRYABLE)
+    """这个错误值不值得再试一次。
+
+    🔴 **任何 5xx 都算**（2026-10-24 踩到）：原来只列了 502/503/504，
+    漏掉 **526**（Cloudflare 的「源站证书无效」）—— 那是最典型的**边缘节点抖动**，
+    等几秒重试通常就好了。漏掉的后果很隐蔽：那一批题被记成「跳过」，
+    而「跳过」会混进跑分表，让人以为**模型不会做**（实际是通道打嗝）。
+    📌 判据：**5xx 一定是对方的问题，不是模型的问题** ⇒ 一律重试。
+    """
+    if any(sig in err for sig in RETRYABLE):
+        return True
+    # 形如「HTTP 526」「HTTP 500」…… 一律重试（4xx 不重试：那是我们请求写错了）
+    import re as _re
+    return bool(_re.search(r"\bHTTP\s*5\d\d\b", err))
 
 
 #: 真实请求计数（**含重试**）。
@@ -467,7 +503,8 @@ def eval_one(t: Task, base: str, key: str, model: str,
 
         code = strip_code_fence(reply.text)
         last_code = code
-        ok, run = judge(code, t.标准输出, tag=f"{model}_{t.id}_r{rnd}")
+        ok, run = judge(code, t.标准输出, tag=f"{model}_{t.id}_r{rnd}",
+                       前置=getattr(t, "前置", None))
         last_out = run.stdout.strip()
         last_err = run.错误摘要
 
@@ -636,6 +673,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                          "（如 表格）—— 用来量「分片卡够不够用」")
     ap.add_argument("--key", default=None, help="API key（默认读 JISHI_EVAL_KEY）")
     ap.add_argument("--base", default=DEFAULT_BASE, help="接口地址")
+    ap.add_argument("--节标题", default=None,
+                    help="插进跑分表时那一节的标题（默认 `## 日期（N 题）`）")
     ap.add_argument("--写报告", action="store_true",
                     help="局部跑（--限制/--类型）也写正式跑分表。默认不写 —— "
                          "探路的 2 题通过率会覆盖掉历史记录，那是毁档案")
@@ -792,6 +831,34 @@ def main(argv: Optional[list[str]] = None) -> int:
         if not args.输出:
             return 0
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    # 🔴 **跑分表是累积的，新的一节要插在最前**（2026-10-24 修正）：
+    #    文件开头自己写着「新的一节放最前；旧的留着，方便对照」——
+    #    而这里原来是 `write_text`，**整份覆盖**。也就是说：跑一次分，
+    #    前面所有历史跑分全没了（我第一次探路就那么干的，`git checkout` 才救回来）。
+    #    ⇒ 默认目标（跑分表）改成「插到最前」；`--输出` 指定别的路径时还是整份写
+    #      （那是「导出这一份」，不是「记一笔账」）。
+    if (not args.输出) and out_path.is_file():
+        旧文 = out_path.read_text(encoding="utf-8")
+        新节 = report
+        # 去掉新报告自己的文件头（`# 标题` 那段引用块），只留正文各节
+        行们 = 新节.splitlines()
+        for i, ln in enumerate(行们):
+            if ln.startswith("## "):
+                新节 = "\n".join(行们[i:])
+                break
+        # 旧文件里第一个 `## ` 之前是文件头，插在它前面
+        旧行 = 旧文.splitlines()
+        头止 = next((i for i, ln in enumerate(旧行) if ln.startswith("## ")), len(旧行))
+        # 节标题：`## 2026-10-24（80 题）` —— 历史各节都是这个形状，
+        # 缺了它，插进来的那一节就**没有日期**（我第一次插就漏了）。
+        标题 = getattr(args, "节标题", None) or (
+            f"## {datetime.now().strftime('%Y-%m-%d')}（{len(tasks)} 题）")
+        头 = "\n".join(旧行[:头止]).rstrip()
+        余 = "\n".join(旧行[头止:]).rstrip()
+        out_path.write_text(头 + "\n\n" + 标题 + "\n\n" + 新节.rstrip() + "\n\n" + 余 + "\n",
+                            encoding="utf-8")
+        print(f"\n报告已**插到最前**：{out_path}（历史各节保留）")
+        return 0
     out_path.write_text(report, encoding="utf-8")
     print(f"\n报告已写入：{out_path}")
     print("\n" + summarize_table(all_results, args.最大轮数))
