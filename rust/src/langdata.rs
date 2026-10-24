@@ -6,7 +6,7 @@
 //! `--dump` 自报家底来比）。改 Python 侧元数据后**必须重跑生成器**，否则会红。
 
 /// 语言版本（与 `oracle/jishi/version.py` 的 `VERSION` 同步）。
-pub const LANG_VERSION: &str = "0.2.6";
+pub const LANG_VERSION: &str = "0.2.7";
 
 /// 关键字 → 中文说明（**有序**，与 `tokenizer.KEYWORDS` 的键顺序一致）。
 pub const KEYWORDS: &[(&str, &str)] = &[
@@ -535,6 +535,16 @@ pub const ERROR_CODES: &[(&str, &str, &str, bool)] = &[
     ("E2997", "RunContinue", "（内部）继续", true),
     ("E2998", "RunStopIteration", "（内部）迭代结束", true),
     ("E2999", "RunBreak", "（内部）中断", true),
+    ("E4000", "PackageError", "包管理错误", false),
+    ("E4001", "PackageNotFoundError", "索引里没有这个包", false),
+    ("E4002", "PackageMetaError", "包的自述文件不合格", false),
+    ("E4003", "PackageConflictError", "依赖冲突", false),
+    ("E4004", "PackageMissingDepError", "依赖在索引里找不到", false),
+    ("E4005", "PackageCycleError", "依赖成环", false),
+    ("E4006", "PackageChecksumError", "包内容和校验和对不上", false),
+    ("E4007", "PackageIndexError", "读不到索引源", false),
+    ("E4008", "PackageLockError", "锁定文件对不上", false),
+    ("E4009", "PackageBuildError", "打包失败", false),
 ];
 
 /// 静态检查问题码：(码, 级别, 名称, 说明)。
