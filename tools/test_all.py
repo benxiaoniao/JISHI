@@ -44,15 +44,86 @@ ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 
 
-def _跑(标题: str, 参数: list[str], 说明: str) -> tuple[bool, float]:
+#: 出现这些字样就说明**并行 worker 崩过**（不是用例失败，是结果不可信）。
+#:
+#: 🔴 为什么必须单独认（2026-10-24）：pytest-xdist 的 worker 在 CPU 饥荒下会
+#:    **无退出码地死掉**（上游 #784 / #1313 / #1401），而 `--dist loadfile` 会
+#:    **永久等那个死掉的 worker** —— 现象是「跑到 98% 不动、没有任何失败」。
+#:    更坏的情况是它**刚好在崩之前跑完**：pytest 退出码 0，于是这一轮被当成了「全绿」，
+#:    而实际上**有测试根本没跑**。⇒ 见到这些字样一律判**失败**，并明说不是用例的错。
+崩的记号 = (
+    "node down",
+    "worker 'gw",
+    "crashed while running",
+    "worker crashed",
+    "xdist: worker",
+)
+
+
+def _跑(标题: str, 参数: list[str], 说明: str,
+        节超时: float = 0.0) -> tuple[bool, float]:
+    """跑一节 pytest，边跑边打印、同时留一份日志。
+
+    ⚠️ **不能用 `subprocess.run` 直接继承 stdout**（2026-10-24 改）：
+    那样既拿不到输出（没法事后查 `node down`），也**没有整节超时** ——
+    真卡住的时候这个工具自己也不会退出，只能人去 Ctrl-C。
+    现在：逐行 tee 到屏幕 + `build/test_all_<时间>.log`，并且**整节有墙钟上限**。
+    """
     print(f"\n{'=' * 72}\n{标题}\n  命令：{' '.join(['pytest', *参数])}\n{'=' * 72}", flush=True)
     if 说明:
         print(说明, flush=True)
+    日志目录 = ROOT / "build"
+    日志目录.mkdir(exist_ok=True)
+    日志 = 日志目录 / f"test_all_{time.strftime('%m%d_%H%M%S')}_{abs(hash(标题)) % 10000}.log"
     起 = time.perf_counter()
-    r = subprocess.run([PY, "-m", "pytest", *参数], cwd=str(ROOT))
+    命中崩 = ""
+    with open(日志, "w", encoding="utf-8") as f:
+        p = subprocess.Popen([PY, "-m", "pytest", *参数], cwd=str(ROOT),
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             text=True, encoding="utf-8", errors="replace", bufsize=1)
+        assert p.stdout is not None
+        超时了 = False
+        for 行 in p.stdout:
+            print(行, end="", flush=True)
+            f.write(行)
+            if not 命中崩:
+                小写 = 行.lower()
+                for 记号 in 崩的记号:
+                    if 记号 in 小写:
+                        命中崩 = 记号
+                        # 🔴 **一旦确认 worker 崩了，立刻停**（2026-10-24 实测）：
+                        #    崩了之后 `--dist loadfile` 会**永久等那个死掉的 worker**
+                        #    （实测：`[gw0] node down: Not properly terminated` 之后
+                        #    卡在 99% 再也不动）。等下去拿不到任何新信息，
+                        #    只会白耗时间 —— 直接杀掉，判红，让人改用 `--分块`。
+                        print(f"\n❌ 检测到 worker 崩了（「{命中崩}」）—— "
+                              f"xdist 会永久等它，不等了，直接停。", flush=True)
+                        f.write(f"\n[test_all] 检测到「{命中崩}」，已主动停止\n")
+                        p.kill()
+                        break
+            if 节超时 and time.perf_counter() - 起 > 节超时:
+                超时了 = True
+                print(f"\n⚠️ 本节超过 {节超时:.0f} 秒 —— 判为卡住，杀掉。", flush=True)
+                f.write(f"\n[test_all] 本节超过 {节超时:.0f} 秒，被杀\n")
+                p.kill()
+                break
+        p.wait()
     用时 = time.perf_counter() - 起
-    print(f"\n→ {标题}结束：退出码 {r.returncode}，用时 {用时:.1f} 秒", flush=True)
-    return r.returncode == 0, 用时
+    码 = p.returncode
+    print(f"\n→ {标题}结束：退出码 {码}，用时 {用时:.1f} 秒（日志：{日志.relative_to(ROOT)}）",
+          flush=True)
+
+    if 超时了:
+        return False, 用时
+    if 命中崩:
+        print(f"\n❌ 这一节里 worker 崩过（命中「{命中崩}」）—— **结果不可信**：\n"
+              f"   崩掉的那个 worker 手上的测试**根本没跑**，但 pytest 可能仍然退 0。\n"
+              f"   ⇒ 别把它当「全绿」。\n"
+              f"   ✅ 改用：`python tools/test_all.py --分块 4`"
+              f"（每批独立进程，崩一批只废那一批；实测这是这台机器上唯一稳的并行跑法）。",
+              flush=True)
+        return False, 用时
+    return 码 == 0, 用时
 
 
 def main(argv: list[str]) -> int:
@@ -80,7 +151,8 @@ def main(argv: list[str]) -> int:
         if 分块 <= 1:
             结果["第 1 节（并行）"] = _跑(
                 "第 1 节：并行（`not 计时`）", 并行参数,
-                "  · 按**文件**分发（`--dist loadfile`），每条带超时兜底")
+                "  · 按**文件**分发（`--dist loadfile`），每条带超时兜底",
+                节超时=1800)
         else:
             # 分块：每批独立进程。崩一批只废那一批，其余照样出结果。
             文件们 = sorted(p.name for p in (ROOT / "tests").glob("test_*.py"))
@@ -97,7 +169,7 @@ def main(argv: list[str]) -> int:
                     [f"tests/{f}" for f in 批] + ["-q", "-n", 并发,
                      "--dist", "loadfile", "-m", "not 计时", "--tb=line", "-rf"]
                     + (["--timeout", 超时, "--timeout-method", "thread"] if 超时 != "0" else []),
-                    "")
+                    "", 节超时=1200)
                 全过 = 全过 and 成功
                 总 += 用时
                 结果[f"第 1 节·批{i + 1}"] = (成功, 用时)
@@ -112,7 +184,8 @@ def main(argv: list[str]) -> int:
         结果["第 2 节（串行）"] = _跑(
             "第 2 节：串行（`计时`）",
             ["tests/", "-q", "-m", "计时", "--tb=short", "-rf"],
-            "  · 这些断言**墙上时间**，必须独占 —— 并行时的负载会把它们抬成假红")
+            "  · 这些断言**墙上时间**，必须独占 —— 并行时的负载会把它们抬成假红",
+            节超时=1800)
 
     print(f"\n{'=' * 72}\n汇总\n{'=' * 72}")
     总用时 = 0.0
