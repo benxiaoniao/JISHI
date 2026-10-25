@@ -1531,8 +1531,20 @@ class _先冲stdout的错误流:
 
 
 def _装好错误流() -> None:
-    """给 stderr 套上「先冲 stdout」的代理（只套一次；见上面那个类的说明）。"""
+    """给 stderr 套上「先冲 stdout」的代理（只套一次；见上面那个类的说明）。
+
+    🔴 **只给「真正的 stderr」套**（2026-10-25 补的）：这个代理是给**真 CLI 运行**用的。
+    如果 `sys.stderr` 已经被别人换过（pytest 的 `capsys`、`contextlib.redirect_stderr`、
+    IDE 的控制台包装…），套上去就变成**替那个人保管一个引用** —— 那个对象在它自己的
+    作用域结束时被关掉，之后所有 `print(file=sys.stderr)` 都会走进一个死流子里，
+    **消息静默消失**（CI 上就出现了「退出码 1、两条流都读到空串」这种现场）。
+
+    ⇒ 判据很简单：`sys.stderr is sys.__stderr__` 才套 —— 那时我们拥有真的 stderr，
+    写进去就是用户眼前那个终端（或者它被重定向到的文件）。
+    """
     if isinstance(sys.stderr, _先冲stdout的错误流):
+        return
+    if sys.stderr is not sys.__stderr__:
         return
     if sys.stderr is None or not hasattr(sys.stderr, "write"):
         return

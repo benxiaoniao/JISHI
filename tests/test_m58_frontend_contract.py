@@ -13,6 +13,8 @@ R1 只做两件事：**定义接口（`docs/前端契约.md`）** 与 **给一�
 验收标准（照 `docs/架构迁移路径.md`）：**改坏一处，能指出具体位置。**
 """
 
+import contextlib
+import io
 import json
 import shutil
 import sys
@@ -107,6 +109,24 @@ def _save(p: Path, d: dict) -> None:
     p.write_text(C.dumps(d), encoding="utf-8")
 
 
+@contextlib.contextmanager
+def _显式捕获():
+    """`with _显式捕获() as (出, 错):` —— **进程内、纯内存**的捕获。
+
+    🔴 为什么要用它（2026-10-25，CI 上红了三轮才定下来）：
+    这两条判据用 `capfd` 时，CI 上出现过「退出码对、但 stdout 和 stderr **都读到空串**」
+    —— 本地（Windows）永远复现不出来。`capfd` 走的是**文件描述符 + 临时文件**，
+    中间隔着 Python 自己的输出缓冲；`capsys` 又依赖「`sys.stdout` 没被别人换掉」。
+    ⇒ 这一小段干脆**自己在调用前后把两个流接管掉**：`redirect_stdout` 的落点是内存，
+    没有缓冲、没有 fd、也不依赖夹具 —— 谁在别处怎么折腾都影响不到它。
+
+    📌 只给**这两条**用（其余仍用 `capfd`，那套是 2026-10-22 定的、一直是绿的）。
+    """
+    出, 错 = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(出), contextlib.redirect_stderr(错):
+        yield 出, 错
+
+
 def _first_corpus_id() -> str:
     """取一个真实存在的语料 id（不写死名字，语料增删都能跑）。"""
     return C.corpus_id(C.collect_corpus()[0][1])
@@ -148,7 +168,7 @@ def test_compare_改坏一个_AST_节点也能定位(ext, capfd):
     assert "ast" in out and "长度" in out, f"应该报到列表长度上：{out[-600:]}"
 
 
-def test_stage_只比指定阶段(ext, capfd):
+def test_stage_只比指定阶段(ext):
     """R2 只做分词时就只比 tokens —— 别的阶段**不该**参与判断。"""
     cid = _first_corpus_id()
     p = ext / f"{cid}.json"
@@ -157,21 +177,18 @@ def test_stage_只比指定阶段(ext, capfd):
     _save(p, d)
 
     # 全量比 → 会报不一致
-    capfd.readouterr()
-    assert C.main(["compare", "--from", str(ext)]) == 1
+    with _显式捕获() as (出1, 错1):
+        码1 = C.main(["compare", "--from", str(ext)])
+    assert 码1 == 1, f"全量该报不一致：\n{出1.getvalue()}\n{错1.getvalue()}"
     # 只比 tokens → 绿（因为坏的是 ast）
-    capfd.readouterr()
-    码 = C.main(["compare", "--from", str(ext), "--stage", "tokens"])
-    捕获 = capfd.readouterr()
-    # 🔴 **失败信息要能自证**（2026-10-25 CI 上这条红过，当时只打了 stdout 的尾巴，
-    #    偏偏它是空的 —— 等于什么都没说）。三条都给上：退出码 / stdout / stderr。
-    #    下次再红，一眼分得清是「没打阶段名」还是「报到别的流去了」还是「提前退出」。
-    现场 = f"退出码={码}\n--- stdout ---\n{捕获.out}\n--- stderr ---\n{捕获.err}"
-    assert 码 == 0, f"只比 tokens 该绿：\n{现场}"
-    assert "tokens" in 捕获.out, f"没打出阶段名：\n{现场}"
+    with _显式捕获() as (出2, 错2):
+        码2 = C.main(["compare", "--from", str(ext), "--stage", "tokens"])
+    现场 = f"退出码={码2}\n--- stdout ---\n{出2.getvalue()}\n--- stderr ---\n{错2.getvalue()}"
+    assert 码2 == 0, f"只比 tokens 该绿：\n{现场}"
+    assert "tokens" in 出2.getvalue(), f"没打出阶段名：\n{现场}"
 
 
-def test_缺阶段要报未提供而不是静默通过(ext, capfd):
+def test_缺阶段要报未提供而不是静默通过(ext):
     """**「没测」与「测过了」必须能分开。**
 
     外部只给了 tokens（像 R2 阶段那样）时，不带 `--stage` 必须**报「未提供」**
@@ -182,14 +199,13 @@ def test_缺阶段要报未提供而不是静默通过(ext, capfd):
     d = _reload(p)
     _save(p, {"语料": d["语料"], "tokens": d["tokens"]})    # 只留 tokens
 
-    capfd.readouterr()
-    码 = C.main(["compare", "--from", str(ext)])
-    捕获 = capfd.readouterr()
-    # 🔴 **失败信息要能自证**（2026-10-25 CI 上这条红过，当时只打了 stdout 的尾巴，
-    #    偏偏它是空的 —— 等于什么都没说）。三条都给上，下次红了一眼看得懂。
-    现场 = f"退出码={码}\n--- stdout ---\n{捕获.out}\n--- stderr ---\n{捕获.err}"
+    with _显式捕获() as (出, 错):
+        码 = C.main(["compare", "--from", str(ext)])
+    # 🔴 **失败信息要能自证**：退出码 / stdout / stderr 三条都给上 ——
+    #    CI 上红过一次，当时只打 stdout 的尾巴，而它恰好是空的，等于什么都没说。
+    现场 = f"退出码={码}\n--- stdout ---\n{出.getvalue()}\n--- stderr ---\n{错.getvalue()}"
     assert 码 == 1, f"缺阶段时该退 1：\n{现场}"
-    assert "未提供" in 捕获.out, f"缺阶段却没报：\n{现场}"
+    assert "未提供" in 出.getvalue(), f"缺阶段却没报：\n{现场}"
 
 
 def test_缺语料要报未产出(tmp_path, capfd):
