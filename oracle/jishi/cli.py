@@ -800,6 +800,259 @@ def _cmd_test(args) -> int:
     return 0 if (断言败 == 0 and 崩了 == 0) else 1
 
 
+# ---------------------------------------------------------------------------
+# M137：`自测` —— 用「固定版」跑基石自带的黑盒运行器
+# ---------------------------------------------------------------------------
+
+#: 固定版记在哪：`JISHI_HOME`（默认 `~/.jishi`）下的两个纯文本文件，**一行一个词元**。
+#:
+#: 🔴 **为什么不用 JSON**（这是刻意的）：
+#: ① Rust 侧没有 serde_json —— 加第三方依赖要用户拍板，不能为一个小配置破例；
+#: ② Windows 路径里的反斜杠在 JSON 里**必须转义**，手写读写最容易在这种地方出错
+#:    （`C:\a` 会被当成 `\a` 转义）。而「一行一个词元」**没有转义问题**
+#:    （路径里不可能有换行），两边十几行就能读写，也不会漂。
+_自测_运行者文件 = "自测-运行者.txt"
+_自测_被测文件 = "自测-被测.txt"
+
+
+def _jishi_home() -> "Path":
+    """基石的用户目录：`JISHI_HOME`，没有就 `~/.jishi`。
+
+    ⚠️ **不跟「猜安装目录」那一套**（`rust/src/selfupdate.rs::猜安装目录` 会拐去
+    Inno 的安装目录）：固定版是**开发机的偏好**，不该写进安装目录 ——
+    一来升级会把它冲掉，二来 Inno 目录未必可写。⇒ 这里只认这两条。
+    """
+    from pathlib import Path
+
+    指定 = os.environ.get("JISHI_HOME", "").strip()
+    return Path(指定) if 指定 else Path.home() / ".jishi"
+
+
+def _读命令(文件名: str) -> "list[str]":
+    """读一份记下来的命令（一行一个词元）；没记过就是空列表。"""
+    路径 = _jishi_home() / 文件名
+    if not 路径.is_file():
+        return []
+    文 = 路径.read_text(encoding="utf-8", errors="replace")
+    return [行[:-1] if 行.endswith("\r") else 行
+            for 行 in 文.split("\n") if 行.strip()]
+
+
+def _写命令(文件名: str, 命令: "list[str]") -> None:
+    目录 = _jishi_home()
+    目录.mkdir(parents=True, exist_ok=True)
+    (目录 / 文件名).write_text("\n".join(命令) + "\n", encoding="utf-8", newline="\n")
+
+
+def _删命令(文件名: str) -> bool:
+    路径 = _jishi_home() / 文件名
+    if 路径.is_file():
+        路径.unlink()
+        return True
+    return False
+
+
+def _自己命令() -> "list[str]":
+    """「当前这个 jishi」怎么被调起来。
+
+    - PyInstaller 打的单文件版 ⇒ 就是它自己；
+    - 源码 / 装好的包 ⇒ **`python -m oracle.jishi.cli`**。
+      ⚠️ 不能用 `sys.argv[0]`：那可能只是 `jishi` 这个启动器，或者干脆是
+      pytest 的 argv（判据里就是这种情况）—— 拿它当命令会得到一条跑不起来的命令行。
+    """
+    if getattr(sys, "frozen", False):
+        return [sys.executable]
+    return [sys.executable, "-m", "oracle.jishi.cli"]
+
+
+def _定位命令(命令: "list[str]", 谁: str) -> "tuple[list[str], str]":
+    """把命令里的「程序」定成绝对路径。返回 `(命令, 错误说明)`，错误说明空 = 没问题。
+
+    🔴 **找不到就报错，绝不悄悄退回「当前版」**：固定版的意义就是
+    「跑尺子的」和「被量的」是**两个**版本；悄悄退回去，自测就变成自欺 ——
+    而且它会是**绿的**（拿自己考自己当然过），这比红更糟。
+    """
+    from pathlib import Path
+    import shutil as _shutil
+
+    首 = 命令[0]
+    候选 = Path(首)
+    if 候选.is_file():
+        # ⚠️ 只**绝对化**，不 `resolve()`（不跟符号链接）：与 Rust 侧 `path::absolute`
+        #    同一口径。跟了链接会让「钉住的到底是哪个文件」变得不可预期 ——
+        #    macOS 上 `bin/python` 是链接，一跟就变成 `python3.13`（M135 的标签判据踩过）。
+        return [os.path.abspath(首)] + 命令[1:], ""
+    # 不像路径（没有分隔符、也没有 Windows 可执行后缀）⇒ 当命令名去 PATH 找
+    if "/" not in 首 and "\\" not in 首 and not 首.lower().endswith((".exe", ".cmd", ".bat")):
+        找到 = _shutil.which(首)
+        if 找到:
+            return [找到] + 命令[1:], ""
+    return 命令, f"{谁}找不到这个程序：{首}"
+
+
+def _取参数(原始: "list[str]"):
+    """手工解析 `自测` 的参数。
+
+    ⚠️ **不用 argparse**：`--被测 python -m oracle.jishi.cli` 里那个 `-m`
+    是**被测命令的一部分**，argparse 会把它当成自己的选项咬掉。
+    这里按「遇到 `--xxx` 才收手」的规则贪心取词元，和 `tools/自测.jsh` 同一套规则。
+    """
+    固定版 = 被测 = 运行器 = None
+    只看 = 忘掉 = 帮助 = False
+    透传: "list[str]" = []
+    i = 0
+    while i < len(原始):
+        a = 原始[i]
+        if a in ("--固定版", "--被测"):
+            i += 1
+            值 = []
+            while i < len(原始) and not 原始[i].startswith("--"):
+                值.append(原始[i])
+                i += 1
+            if not 值:
+                return None, f"「{a}」后面要跟一个命令（比如 {a} C:/jishi/bin/jishi.exe）"
+            if a == "--固定版":
+                固定版 = 值
+            else:
+                被测 = 值
+        elif a == "--运行器":
+            i += 1
+            if i >= len(原始):
+                return None, "「--运行器」后面要跟一个 .jsh 路径"
+            运行器 = 原始[i]
+            i += 1
+        elif a == "--看":
+            只看 = True
+            i += 1
+        elif a == "--忘掉":
+            忘掉 = True
+            i += 1
+        elif a in ("--帮助", "-h"):
+            帮助 = True
+            i += 1
+        else:
+            透传 = 原始[i:]
+            break
+    return {"固定版": 固定版, "被测": 被测, "运行器": 运行器,
+            "只看": 只看, "忘掉": 忘掉, "帮助": 帮助, "透传": 透传}, ""
+
+
+def _命令文本(命令: "list[str]") -> str:
+    return " ".join(命令)
+
+
+def _cmd_selfrun(原始: "list[str]") -> int:
+    """`jishi 自测`：**用「固定版」跑基石自带的黑盒运行器**（M137）。
+
+    ## 它补的是「自举」那一环
+
+    0.2.8 要做的正是「用基石测基石」。但这里有个先有鸡还是先有蛋的问题：
+    **新构建的基石要是坏了（连解析都不行），拿它去跑测试就什么都测不出来** ——
+    你只会看到一次启动失败，看不出「到底哪 17 条用例挂了」。
+
+    ⇒ 把两件事**分开记住**：
+    - **运行者**（固定版）：谁去跑 `tools/自测.jsh` 这把**尺子**；
+    - **被测**：谁被量（默认就是你现在手上这个 jishi）。
+
+    尺子用上一版、被量的用新版 —— 新版坏成什么样，尺子都还能把结论说出来。
+
+    ## 用法
+
+    ```bash
+    jishi 自测 --固定版 C:/Program\\ Files/jishi/bin/jishi.exe   # 记住并立刻跑一次
+    jishi 自测                                                  # 以后就这么跑
+    jishi 自测 --被测 rust/target/release/jishi-rs.exe           # 换被测（也会记住）
+    jishi 自测 --看                                             # 看现在记着什么
+    jishi 自测 --忘掉                                           # 清掉
+    jishi 自测 --用例 tests/cases --详细 --路数 8                # 其余参数透传给运行器
+    ```
+
+    ## 和 `jishi 测试` 的区别（别混）
+
+    - `jishi 测试` → 跑**你自己项目**里的 `*_test.jsh`（用户视角）；
+    - `jishi 自测` → 跑**基石自己**的黑盒运行器（开发基石时用，带固定版）。
+    """
+    from pathlib import Path
+    import subprocess
+
+    参, 错 = _取参数(list(原始))
+    if 错:
+        print(错, file=sys.stderr)
+        return 2
+    if 参["帮助"]:
+        print("用法：jishi 自测 [--固定版 <命令…>] [--被测 <命令…>] "
+              "[--运行器 <路径>] [--看] [--忘掉] [其余参数透传给运行器]")
+        print("  与 `jishi 测试` 的区别：`测试` 跑你自己项目里的 *_test.jsh；"
+              "`自测` 跑基石自己的 tools/自测.jsh（开发基石时用，带固定版）。")
+        return 0
+
+    if 参["忘掉"]:
+        删了 = [_删命令(_自测_运行者文件), _删命令(_自测_被测文件)]
+        print("已忘掉固定版。" if any(删了) else "本来就没记着什么，不用忘。")
+        return 0
+
+    记住的运行者 = _读命令(_自测_运行者文件)
+    记住的被测 = _读命令(_自测_被测文件)
+    # ⚠️ **显示用原字符串、判存在才用 Path**：Windows 上 `Path("tools/自测.jsh")`
+    #    的 `str()` 会归一成 `tools\自测.jsh`，而用户敲的是 `/` —— 两边显示不一致、
+    #    与 Rust 侧（保留输入）也对不上。⇒ 谁输入什么就显示什么。
+    运行器文本 = 参["运行器"] or "tools/自测.jsh"
+    运行器 = Path(运行器文本)
+
+    # 🔴 `--看` **只看不写**：它是「我有记着什么吗」，不是「改成这些」。
+    if 参["只看"]:
+        运行者 = 记住的运行者 or _自己命令()
+        被测 = 记住的被测 or _自己命令()
+        print("自测 · 现在记着：")
+        print(f"   运行者：{_命令文本(运行者)}"
+              + ("" if 记住的运行者 else "（没记固定版 ⇒ 用当前这个 jishi）"))
+        print(f"   被测：{_命令文本(被测)}"
+              + ("" if 记住的被测 else "（没指定 ⇒ 用当前这个 jishi）"))
+        print(f"   运行器：{运行器文本}"
+              + ("" if 运行器.is_file() else " ⚠️ 不存在"))
+        return 0
+
+    if 参["固定版"]:
+        命令, 错 = _定位命令(参["固定版"], "固定版（运行者）")
+        if 错:
+            print(f"❌ {错}", file=sys.stderr)
+            return 2
+        _写命令(_自测_运行者文件, 命令)
+        参["固定版"] = 命令
+    if 参["被测"]:
+        命令, 错 = _定位命令(参["被测"], "被测")
+        if 错:
+            print(f"❌ {错}", file=sys.stderr)
+            return 2
+        _写命令(_自测_被测文件, 命令)
+        参["被测"] = 命令
+
+    运行者 = 参["固定版"] or 记住的运行者 or _自己命令()
+    运行者来源 = "固定版" if (参["固定版"] or 记住的运行者) else "当前"
+    被测 = 参["被测"] or 记住的被测 or _自己命令()
+    被测来源 = "指定" if (参["被测"] or 记住的被测) else "当前"
+
+    if not 运行器.is_file():
+        print(f"❌ 找不到运行器脚本：{运行器文本}", file=sys.stderr)
+        print("   在仓库根跑，或者用 --运行器 <另一个 .jsh> 指定。", file=sys.stderr)
+        return 2
+
+    print(f"自测 · 运行者：{_命令文本(运行者)}（{运行者来源}）")
+    print(f"       被测：{_命令文本(被测)}（{被测来源}）")
+    print(f"       运行器：{运行器文本}")
+    sys.stdout.flush()          # 必须在起子进程之前刷（否则管道里顺序会倒，M135 踩过）
+
+    命令行 = list(运行者) + [运行器文本, "--被测"] + list(被测) + list(参["透传"])
+    try:
+        码 = subprocess.run(命令行).returncode
+    except FileNotFoundError:
+        print(f"❌ 起不来：{_命令文本(运行者)}", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:                  # pragma: no cover - 人手 Ctrl-C
+        return 130
+    return 码
+
+
 def _cmd_new_project(args) -> int:
     """`jishi 新项目 名字`：生成脚手架（M16.5）。"""
     import os
@@ -1387,7 +1640,17 @@ def _run_package_cmd(argv: list[str]) -> int:
 
 
 def _run_tool_cmd(argv: list[str]) -> int:
-    """工具子命令分发：jishi 医生/新项目/教程（M16）。"""
+    """工具子命令分发：jishi 医生/新项目/教程（M16）。
+
+    `自测`（M137）**不走 argparse**，见下面的说明。
+    """
+    # 🔴 `自测` 的参数里可能带**别的程序的命令行**：`--被测 python -m oracle.jishi.cli`
+    #    那个 `-m` 是**值**，但 argparse 会把它当自己的选项咬掉（`nargs='+'` 也只认到
+    #    下一个以 `-` 开头的词）。⇒ 这条子命令自己解析，规则与 `tools/自测.jsh` 一致
+    #    （「遇到 `--xxx` 才收手」）。
+    if argv and argv[0] == "自测":
+        return _cmd_selfrun(list(argv[1:]))
+
     parser = argparse.ArgumentParser(
         prog="jishi", description="基石工具")
     sub = parser.add_subparsers(dest="subcommand", metavar="命令", required=True)
@@ -1562,7 +1825,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     # 工具子命令（医生/新项目/教程/格式化/lsp/调试/dap/源码静态检查，
     # M16 / M21 / M37 / M43 / M44）
     if argv and argv[0] in ("医生", "新项目", "教程", "错误", "格式化", "lsp", "调试",
-                            "dap", "源码静态检查", "静态检查", "测试"):
+                            "dap", "源码静态检查", "静态检查", "测试", "自测"):
         return _run_tool_cmd(argv)
 
     parser = argparse.ArgumentParser(

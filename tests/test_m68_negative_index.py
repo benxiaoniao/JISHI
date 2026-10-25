@@ -46,7 +46,12 @@ from oracle.jishi.vm import VM                                           # noqa:
 
 NODE = shutil.which("node")
 MK = "~_~"
-REL = "build/_m68_src.jsh"
+#: 合成程序的落点。🔴 **必须带 pid**（AGENTS §1 ①）：以前是写死的
+#: `build/_m68_src.jsh`，2026-10-25 全量跑时连续两次在**同一个位置**报
+#: `PermissionError: [Errno 13] … build\_m68_src.jsh` —— 18 条 parametrize 全变 ERROR。
+#: 名字固定 = 任何一个还没退干净的进程（上一轮被打断的子进程、编辑器、杀软扫描）
+#: 都能让这一整个文件红；带上 pid 就再也撞不上。
+REL = f"build/_m68_src_{os.getpid()}.jsh"
 
 #: 形状名 → `(前置语句, 结果表达式)`；包进小函数里跑（同名变量不冲突）。
 SHAPES: dict[str, tuple[str, str]] = {
@@ -138,7 +143,11 @@ def engine_outputs() -> dict[str, dict[str, str]]:
         outs["Node"] = subprocess.run([NODE, str(ROOT / "oracle/node/index.js"), str(tmp)],
                                       capture_output=True, input=b"",
                                       cwd=str(ROOT)).stdout.decode("utf-8", "replace")
-    return {k: _parse(v) for k, v in outs.items()}
+    try:
+        return {k: _parse(v) for k, v in outs.items()}
+    finally:
+        # 用完就删：留在 `build/` 里既占地方，又会被下一轮的扫描/查杀盯上
+        (ROOT / REL).unlink(missing_ok=True)
 
 
 def test_负索引全部形状五执行器一致(engine_outputs):

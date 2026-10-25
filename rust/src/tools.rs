@@ -383,3 +383,295 @@ fn run_one(名: &str) -> Result<(), Option<String>> {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// M137：`自测` —— 用「固定版」跑基石自带的黑盒运行器
+// ---------------------------------------------------------------------------
+//
+// 语义**逐条对齐** Python 侧 `cli.py::_cmd_selfrun`（判据 `test_m137_selfrun.py`
+// 拿同一批参数比两边的输出）。要读「为什么需要固定版」，见那边的文档串。
+
+/// 固定版配置放在哪：`JISHI_HOME`（默认 `~/.jishi`）下的两个纯文本文件，**一行一个词元**。
+///
+/// 🔴 **为什么不用 JSON**（与 Python 侧同一条理由，两边都这么写是**故意的**）：
+/// ① 本 crate 没有 serde_json —— 加第三方依赖要用户拍板，不能为一个小配置破例；
+/// ② Windows 路径里的反斜杠在 JSON 里**必须转义**，手写读写最容易在这里出错。
+///    「一行一个词元」**没有转义问题**（路径里不可能有换行）。
+const 自测_运行者文件: &str = "自测-运行者.txt";
+const 自测_被测文件: &str = "自测-被测.txt";
+
+/// 基石的用户目录：`JISHI_HOME`，没有就 `~/.jishi`。
+///
+/// ⚠️ **不跟 `selfupdate::猜安装目录` 那一套**：那是**安装位置**，而固定版是
+/// **开发机的偏好** —— 写进安装目录会被升级冲掉，而且 Inno 目录未必可写。
+fn 自测用户目录() -> PathBuf {
+    if let Ok(v) = std::env::var("JISHI_HOME") {
+        let v = v.trim().to_string();
+        if !v.is_empty() {
+            return PathBuf::from(v);
+        }
+    }
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .unwrap_or_default();
+    PathBuf::from(home).join(".jishi")
+}
+
+fn 读命令(文件名: &str) -> Vec<String> {
+    let p = 自测用户目录().join(文件名);
+    match std::fs::read_to_string(&p) {
+        Ok(文) => 文
+            .split('\n')
+            .filter(|行| !行.trim().is_empty())
+            .map(|行| 行.trim_end_matches('\r').to_string())
+            .collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn 写命令(文件名: &str, 命令: &[String]) -> std::io::Result<()> {
+    let 目录 = 自测用户目录();
+    std::fs::create_dir_all(&目录)?;
+    std::fs::write(目录.join(文件名), format!("{}\n", 命令.join("\n")))
+}
+
+fn 删命令(文件名: &str) -> bool {
+    let p = 自测用户目录().join(文件名);
+    if p.is_file() {
+        std::fs::remove_file(&p).is_ok()
+    } else {
+        false
+    }
+}
+
+fn 自己命令() -> Vec<String> {
+    match std::env::current_exe() {
+        Ok(p) => vec![p.to_string_lossy().to_string()],
+        Err(_) => vec!["jishi".to_string()],
+    }
+}
+
+/// 在 PATH 上找可执行文件（std 没有 `which`，也不为这个引依赖）。
+fn 找程序(名: &str) -> Option<PathBuf> {
+    let 路径 = std::env::var_os("PATH")?;
+    for 目录 in std::env::split_paths(&路径) {
+        let 候选 = 目录.join(名);
+        if 候选.is_file() {
+            return Some(候选);
+        }
+        #[cfg(windows)]
+        for 后缀 in ["exe", "cmd", "bat"] {
+            let c = 目录.join(format!("{名}.{后缀}"));
+            if c.is_file() {
+                return Some(c);
+            }
+        }
+    }
+    None
+}
+
+/// 把命令里的「程序」定成绝对路径。`Err` = 找不到 —— **绝不悄悄退回当前版**。
+fn 定位自测命令(命令: &[String], 谁: &str) -> Result<Vec<String>, String> {
+    let 首 = &命令[0];
+    let 候选 = Path::new(首);
+    if 候选.is_file() {
+        // ⚠️ 用 `path::absolute`，**不用 `canonicalize`**：后者在 Windows 上会加上
+        //    `\\?\` 前缀（写进配置就再也别想跨机器用），而且它会解析符号链接 ——
+        //    与 Python 侧 `os.path.abspath` 同一口径。
+        let 绝对 = std::path::absolute(候选).unwrap_or_else(|_| 候选.to_path_buf());
+        let mut 出 = vec![绝对.to_string_lossy().to_string()];
+        出.extend_from_slice(&命令[1..]);
+        return Ok(出);
+    }
+    let 不像路径 = !首.contains('/')
+        && !首.contains('\\')
+        && !首.to_lowercase().ends_with(".exe")
+        && !首.to_lowercase().ends_with(".cmd")
+        && !首.to_lowercase().ends_with(".bat");
+    if 不像路径 {
+        if let Some(找到) = 找程序(首) {
+            let mut 出 = vec![找到.to_string_lossy().to_string()];
+            出.extend_from_slice(&命令[1..]);
+            return Ok(出);
+        }
+    }
+    Err(format!("{谁}找不到这个程序：{首}"))
+}
+
+#[derive(Default)]
+struct 自测参数 {
+    固定版: Option<Vec<String>>,
+    被测: Option<Vec<String>>,
+    运行器: Option<String>,
+    只看: bool,
+    忘掉: bool,
+    帮助: bool,
+    透传: Vec<String>,
+}
+
+/// 手工解析（**不用 clap**：`--被测 python -m ...` 里那个 `-m` 是**值**，
+/// 任何正常的选项解析器都会把它当自己的参数咬掉）。规则与 `tools/自测.jsh` 一致。
+fn 取自测参数(原始: &[String]) -> Result<自测参数, String> {
+    let mut 参 = 自测参数::default();
+    let mut i = 0usize;
+    while i < 原始.len() {
+        let a = 原始[i].as_str();
+        if a == "--固定版" || a == "--被测" {
+            i += 1;
+            let mut 值: Vec<String> = Vec::new();
+            while i < 原始.len() && !原始[i].starts_with("--") {
+                值.push(原始[i].clone());
+                i += 1;
+            }
+            if 值.is_empty() {
+                return Err(format!("「{a}」后面要跟一个命令（比如 {a} C:/jishi/bin/jishi.exe）"));
+            }
+            if a == "--固定版" {
+                参.固定版 = Some(值);
+            } else {
+                参.被测 = Some(值);
+            }
+        } else if a == "--运行器" {
+            i += 1;
+            if i >= 原始.len() {
+                return Err("「--运行器」后面要跟一个 .jsh 路径".to_string());
+            }
+            参.运行器 = Some(原始[i].clone());
+            i += 1;
+        } else if a == "--看" {
+            参.只看 = true;
+            i += 1;
+        } else if a == "--忘掉" {
+            参.忘掉 = true;
+            i += 1;
+        } else if a == "--帮助" || a == "-h" {
+            参.帮助 = true;
+            i += 1;
+        } else {
+            参.透传 = 原始[i..].to_vec();
+            break;
+        }
+    }
+    Ok(参)
+}
+
+fn 命令文本(命令: &[String]) -> String {
+    命令.join(" ")
+}
+
+pub fn run_selfrun(原始: &[String]) -> ExitCode {
+    let 参 = match 取自测参数(原始) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::from(2);
+        }
+    };
+
+    if 参.帮助 {
+        println!("用法：jishi 自测 [--固定版 <命令…>] [--被测 <命令…>] [--运行器 <路径>] [--看] [--忘掉] [其余参数透传给运行器]");
+        println!("  与 `jishi 测试` 的区别：`测试` 跑你自己项目里的 *_test.jsh；`自测` 跑基石自己的 tools/自测.jsh（开发基石时用，带固定版）。");
+        return ExitCode::SUCCESS;
+    }
+
+    if 参.忘掉 {
+        let 删了 = [删命令(自测_运行者文件), 删命令(自测_被测文件)];
+        if 删了.iter().any(|x| *x) {
+            println!("已忘掉固定版。");
+        } else {
+            println!("本来就没记着什么，不用忘。");
+        }
+        return ExitCode::SUCCESS;
+    }
+
+    let 记住的运行者 = 读命令(自测_运行者文件);
+    let 记住的被测 = 读命令(自测_被测文件);
+    // ⚠️ 显示用原字符串、判存在才用 PathBuf（与 Python 侧同一口径：谁输入什么就显示什么）
+    let 运行器文本 = 参.运行器.clone().unwrap_or_else(|| "tools/自测.jsh".to_string());
+    let 运行器 = PathBuf::from(&运行器文本);
+
+    // `--看` **只看不写**：它是「我有记着什么吗」，不是「改成这些」。
+    if 参.只看 {
+        let 运行者 = if 记住的运行者.is_empty() { 自己命令() } else { 记住的运行者.clone() };
+        let 被测 = if 记住的被测.is_empty() { 自己命令() } else { 记住的被测.clone() };
+        println!("自测 · 现在记着：");
+        println!("   运行者：{}{}", 命令文本(&运行者),
+                 if 记住的运行者.is_empty() { "（没记固定版 ⇒ 用当前这个 jishi）" } else { "" });
+        println!("   被测：{}{}", 命令文本(&被测),
+                 if 记住的被测.is_empty() { "（没指定 ⇒ 用当前这个 jishi）" } else { "" });
+        println!("   运行器：{}{}", 运行器文本,
+                 if 运行器.is_file() { "" } else { " ⚠️ 不存在" });
+        return ExitCode::SUCCESS;
+    }
+
+    let mut 固定版 = 参.固定版.clone();
+    if let Some(v) = &固定版 {
+        match 定位自测命令(v, "固定版（运行者）") {
+            Ok(命令) => {
+                if let Err(e) = 写命令(自测_运行者文件, &命令) {
+                    eprintln!("❌ 记不住固定版（写 {} 失败：{e}）", 自测用户目录().display());
+                    return ExitCode::from(2);
+                }
+                固定版 = Some(命令);
+            }
+            Err(e) => {
+                eprintln!("❌ {e}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    let mut 被测参 = 参.被测.clone();
+    if let Some(v) = &被测参 {
+        match 定位自测命令(v, "被测") {
+            Ok(命令) => {
+                if let Err(e) = 写命令(自测_被测文件, &命令) {
+                    eprintln!("❌ 记不住被测（写 {} 失败：{e}）", 自测用户目录().display());
+                    return ExitCode::from(2);
+                }
+                被测参 = Some(命令);
+            }
+            Err(e) => {
+                eprintln!("❌ {e}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let 有固定版 = 固定版.is_some() || !记住的运行者.is_empty();
+    let 运行者 = 固定版
+        .or_else(|| if 记住的运行者.is_empty() { None } else { Some(记住的运行者) })
+        .unwrap_or_else(自己命令);
+    let 有指定被测 = 被测参.is_some() || !记住的被测.is_empty();
+    let 被测 = 被测参
+        .or_else(|| if 记住的被测.is_empty() { None } else { Some(记住的被测) })
+        .unwrap_or_else(自己命令);
+
+    if !运行器.is_file() {
+        eprintln!("❌ 找不到运行器脚本：{运行器文本}");
+        eprintln!("   在仓库根跑，或者用 --运行器 <另一个 .jsh> 指定。");
+        return ExitCode::from(2);
+    }
+
+    println!("自测 · 运行者：{}（{}）", 命令文本(&运行者), if 有固定版 { "固定版" } else { "当前" });
+    println!("       被测：{}（{}）", 命令文本(&被测), if 有指定被测 { "指定" } else { "当前" });
+    println!("       运行器：{运行器文本}");
+    // 必须在起子进程之前刷（否则管道里顺序会倒 —— M135 踩过同一个坑）
+    use std::io::Write as _;
+    let _ = std::io::stdout().flush();
+
+    let mut 命令行 = 运行者.clone();
+    命令行.push(运行器文本.clone());
+    命令行.push("--被测".to_string());
+    命令行.extend(被测.iter().cloned());
+    命令行.extend(参.透传.iter().cloned());
+
+    let mut cmd = std::process::Command::new(&命令行[0]);
+    cmd.args(&命令行[1..]);
+    match cmd.status() {
+        Ok(st) => ExitCode::from(st.code().unwrap_or(1).clamp(0, 255) as u8),
+        Err(_) => {
+            eprintln!("❌ 起不来：{}", 命令文本(&运行者));
+            ExitCode::from(2)
+        }
+    }
+}

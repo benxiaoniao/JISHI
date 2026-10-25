@@ -581,6 +581,11 @@ fn main() -> ExitCode {
         }
         return jishi_ffi::tools::run_test(目录);
     }
+    // M137：`自测` —— 用「固定版」跑基石自带的黑盒运行器。
+    // ⚠️ 参数**原样**交过去（里面有别的程序的命令行，见 `tools::取自测参数`）。
+    if args[1] == "自测" {
+        return jishi_ffi::tools::run_selfrun(&args[2..]);
+    }
     // 其余一律交给 CLI 主入口（R7.4）。
     //
     // ⚠️ **位置参数的语义从 R7.4 起是「源码」**（与 Python 的 `jishi <文件>` 对齐），
