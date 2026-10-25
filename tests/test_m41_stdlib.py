@@ -487,7 +487,8 @@ def test_test_module_continues_after_failure():
                  '测试.用例("坏的", 坏)\n'
                  '测试.用例("好的", 好)\n'
                  '打印(测试.统计())')
-    assert "{'用例': 2, '通过': 1, '失败': 1, '出错': 0}" in out
+    # M136 起 `统计` 多一个 `跳过` 键（跳过要单独计数，不许混进通过也不许混进失败）
+    assert "{'用例': 2, '通过': 1, '失败': 1, '出错': 0, '跳过': 0}" in out
 
 
 def test_test_module_assertion_helpers():

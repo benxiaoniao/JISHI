@@ -61,21 +61,26 @@ RUST = rust_exe_path()
 #: 这是并集，只用来做「哪几个模块可能缺」的说明；**判据按宿主各算一份**
 #: （见 `HOST_EXEMPT_BY_HOST`）。
 #:
-#: - `测试`：基石自带的测试框架。**Rust 2026-10-05 已补上**（`stdlib/testmod.rs`，
-#:   含它需要的「往 stderr 写」这个宿主能力）；**Node 仍缺** —— R8 会用 wasm 顶替
-#:   JS 宿主，不再往那边投人。
-HOST_EXEMPT: frozenset[str] = frozenset({"测试"})
+#: **现在是空的** —— 三个宿主的标准库已经齐了。
+#:
+#: 📌 历史（留着，省得下次又「顺手豁免」）：这里曾经只有一条 `测试` ——
+#: Rust 2026-10-05 补上（`stdlib/testmod.rs`），**Node 一直缺**，
+#: 当时的说法是「R8 会用 wasm 顶替 JS 宿主，不再往那边投人」。
+#: 但 M136 要动的就是这个模块，而它又是「自己测自己」的地基（D91）——
+#: 地基缺一个角不能算地基 ⇒ 这轮把整个模块（含原有 11 个函数）在 Node 上补齐，
+#: 于是这条豁免**毕业**了。
+HOST_EXEMPT: frozenset[str] = frozenset()
 
 #: 每个宿主**各自**缺哪些（判据用它算期望；补掉一个就来删一行）。
 HOST_EXEMPT_BY_HOST: dict[str, frozenset[str]] = {
-    "Node": frozenset({"测试"}),
+    "Node": frozenset(),
     "Rust": frozenset(),
 }
 
 #: 反过来：**只有某个宿主有**的模块（Python 侧也有，但另一个宿主没有）。
 #: 只有「两宿主互查」那条判据用得上 —— 那里比的是「谁也不该单边多出东西」。
 HOST_ONLY: dict[str, frozenset[str]] = {
-    "Rust": frozenset({"测试"}),
+    "Rust": frozenset(),
     "Node": frozenset(),
 }
 

@@ -691,6 +691,8 @@ class VM {
       throw R.funcErr(`没有找到标准库模块「${name}」`, line, col,
                       '试试：导入 随机 / 导入 数学 / 导入 时间 / 导入 文本');
     }
+    // 有的模块要求「每次导入都是干净的一份」（比如 `测试` 的用例记录）
+    if (mod.onImport) mod.onImport();
     return mod;
   }
 }
@@ -4772,6 +4774,247 @@ function 转TSV文本(tab) {
   return 出.join('\n');
 }
 
+// ---------------------------------------------------------------------------
+// M136：`测试` 模块（**本宿主以前根本没有这个模块**，`导入 测试` 直接 E0302）
+//
+// 语义与 Python 侧 `jishi/stdlib/测试.py` 逐条对齐：用例 + 断言 + 总结，
+// 加上 M136 的 `用例们`（多组数据）/ `跳过` / `每例前` / `每例后`。
+//
+// ⚠️ **状态要按「每次导入」重置**（Python 用 `__基石新建__`、Rust 在 `module()`
+// 里重置）：本宿主的模块是**单例**，所以走 `Module` 的 `onImport` 钩子，
+// 由 `_doImport` 在每次 `导入 测试` 时调一次。不重置的话，同一个脚本里
+// `导入 测试` 两次会看到累积的记录 —— 那和另外两个宿主就对不上了。
+// ---------------------------------------------------------------------------
+const _测试状态 = { 记录: [], 当前: null, 前: null, 后: null };
+
+function _重置测试状态() {
+  _测试状态.记录 = [];
+  _测试状态.当前 = null;
+  _测试状态.前 = null;
+  _测试状态.后 = null;
+}
+
+/** 出错摘要：`标题（消息）`；没有消息就只给标题（与 Python 的 `_摘要` 同口径）。 */
+function _测试摘要(e) {
+  if (!(e instanceof R.JishiError)) return String(e && e.message ? e.message : e);
+  const 名 = e.title || e.typeName;
+  return e.message ? `${名}（${e.message}）` : 名;
+}
+
+/** 断言类错误：**已经记过失败了**，`用例` 不该再把它记成「用例崩了」。 */
+function _是断言(e) {
+  return e instanceof R.JishiError && e.typeName === '断言错误';
+}
+
+/** 跳过：`测试.跳过()` 抛的内部标记（类型名与 Rust/Python 对齐）。 */
+function _是跳过(e) {
+  return e instanceof R.JishiError && e.typeName === '跳过用例';
+}
+
+/** 记一条用例的错（跳过 / 崩了 / 断言失败已记过）。 */
+function _记用例抛错(下标, e, 前缀) {
+  const 条 = _测试状态.记录[下标];
+  if (!条) return;
+  if (_是跳过(e)) {
+    条.跳过 = e.message || '';
+  } else if (!_是断言(e)) {
+    const 摘 = 前缀 + _测试摘要(e);
+    条.异常 = 条.异常 === null ? 摘 : `${条.异常}；${摘}`;
+  }
+}
+
+/** 在用例里就记进用例；否则直接抛（独立用断言时）—— 与 Python `_失败` 同口径。 */
+function _测试记失败(说明, 详) {
+  if (_测试状态.当前 !== null) {
+    const 条 = _测试状态.记录[_测试状态.当前];
+    if (条) { 条.失败.push([说明, 详]); return null; }
+  }
+  // ⚠️ 用**断言错误**（E2008）而不是 runErr（E2000）：Python 侧抛的是
+  //    `RunAssertionError`、Rust 侧 `err("断言错误", …)` —— 三边得同一个码。
+  return R.EXCEPTION_TYPES['断言错误'].make(`${说明}：${详}`);
+}
+
+function _测试断言(成立, 说明, 详) {
+  if (成立) return null;
+  return _测试记失败(说明, 详);
+}
+
+/** 可选的第 3 个参数（说明），缺省空串。 */
+function _说明(args, i) {
+  return args[i] === undefined ? '' : R.display(args[i]);
+}
+
+/** 跑一条用例（含前后置）—— `用例` 与 `用例们` 共用。 */
+function _跑一条(名字, 函数, 参数们) {
+  const 条 = { 名字: String(名字), 失败: [], 异常: null, 跳过: null };
+  _测试状态.记录.push(条);
+  const 下标 = _测试状态.记录.length - 1;
+  const 旧 = _测试状态.当前;
+  _测试状态.当前 = 下标;
+  try {
+    let 能跑 = true;
+    if (_测试状态.前) {
+      try { R.callValue(_测试状态.前, []); } catch (e) {
+        _记用例抛错(下标, e, '前置出错 —— ');
+        能跑 = false;
+      }
+    }
+    if (能跑) {
+      try { R.callValue(函数, 参数们); } catch (e) {
+        _记用例抛错(下标, e, '');
+      }
+    }
+    if (_测试状态.后) {
+      try { R.callValue(_测试状态.后, []); } catch (e) {
+        // 后置出错**算这条用例出错**：它污染的是后面的用例，不能吞。
+        _记用例抛错(下标, e, '后置出错 —— ');
+      }
+    }
+  } finally {
+    _测试状态.当前 = 旧;
+  }
+  return new Map([
+    ['名字', 条.名字],
+    ['失败', 条.失败.map(([a, b]) => [a, b])],
+    ['异常', 条.异常],
+    ['跳过', 条.跳过],
+  ]);
+}
+
+const TEST_FUNCS = {
+  '重置': new R.Builtin('重置', () => {
+    _测试状态.记录 = [];
+    return null;
+  }),
+  '用例': new R.Builtin('用例', (名字, 函数) => {
+    if (函数 === undefined || 函数 === null) {
+      throw R.runErr('「测试.用例」要一个函数，写成 测试.用例("名字", 函数()：…)');
+    }
+    return _跑一条(R.display(名字), 函数, []);
+  }),
+  '用例们': new R.Builtin('用例们', (名字, 数据们, 函数) => {
+    if (函数 === undefined || 函数 === null) {
+      throw R.runErr('「测试.用例们」要一个函数，写成 测试.用例们("名字", 数据们, 函数)');
+    }
+    if (!Array.isArray(数据们)) {
+      throw R.runErr('「测试.用例们」的第二个参数（数据们）要是一个列表');
+    }
+    return 数据们.map((组, i) => _跑一条(`${R.display(名字)}[${i + 1}]`, 函数, [组]));
+  }),
+  '相等': new R.Builtin('相等', (实际, 期望, 说明) => {
+    const 成 = R.valueEq(实际, 期望);
+    return _测试断言(成, _说明([实际, 期望, 说明], 2) || '相等',
+      `期望 ${R.display(期望)}，实际 ${R.display(实际)}`);
+  }),
+  '不等': new R.Builtin('不等', (实际, 不该等于, 说明) => {
+    const 等 = R.valueEq(实际, 不该等于);
+    return _测试断言(!等, _说明([实际, 不该等于, 说明], 2) || '不等',
+      `不该等于 ${R.display(不该等于)}，但实际就是它`);
+  }),
+  '为真': new R.Builtin('为真', (条件, 说明) => {
+    return _测试断言(R.truthy(条件), _说明([条件, 说明], 1) || '为真',
+      `期望为真，实际是 ${R.display(条件)}`);
+  }),
+  '为假': new R.Builtin('为假', (条件, 说明) => {
+    return _测试断言(!R.truthy(条件), _说明([条件, 说明], 1) || '为假',
+      `期望为假，实际是 ${R.display(条件)}`);
+  }),
+  '近似': new R.Builtin('近似', (实际, 期望, 误差, 说明) => {
+    const 容 = 误差 === undefined ? 1e-9 : Number(R.unwrap(误差));
+    const 差 = Math.abs(Number(R.unwrap(实际)) - Number(R.unwrap(期望)));
+    return _测试断言(差 <= 容, _说明([实际, 期望, 误差, 说明], 3) || '近似',
+      `期望 ${R.display(期望)}（±${R.display(误差 === undefined ? 1e-9 : 误差)}），实际 ${R.display(实际)}`);
+  }),
+  '包含': new R.Builtin('包含', (容器, 元素, 说明) => {
+    let 有 = false;
+    try { 有 = R.contains(容器, 元素); } catch (e) {
+      throw R.runErr(`「${R.display(容器)}」不能判包含`);
+    }
+    return _测试断言(有, _说明([容器, 元素, 说明], 2) || '包含',
+      `${R.display(容器)} 里没有 ${R.display(元素)}`);
+  }),
+  '抛出': new R.Builtin('抛出', (函数, 说明) => {
+    try {
+      R.callValue(函数, []);
+    } catch (e) {
+      // 抛出来的错误**当成值返回**（可以再看它的类型）—— 与另外两个宿主同口径
+      return e instanceof R.JishiError ? e : R.runErr(String(e && e.message ? e.message : e));
+    }
+    return _测试记失败(_说明([函数, 说明], 1) || '抛出', '期望报错，但它正常跑完了');
+  }),
+  '跳过': new R.Builtin('跳过', (原因) => {
+    if (_测试状态.当前 === null) {
+      throw R.runErr('「测试.跳过」只能在用例里用'
+        + '（在用例外面调它等于把整份脚本静默跳过，那不是它的意思）');
+    }
+    // ⚠️ 用**独立的类型名**当控制流标记：不能被「断言错误」或「运行期错误」误认。
+    throw new R.JishiError('跳过用例', '跳过用例',
+      原因 === undefined ? '' : R.display(原因));
+  }),
+  '每例前': new R.Builtin('每例前', (函数) => {
+    _测试状态.前 = 函数;
+    return null;
+  }),
+  '每例后': new R.Builtin('每例后', (函数) => {
+    _测试状态.后 = 函数;
+    return null;
+  }),
+  '统计': new R.Builtin('统计', () => {
+    const 记录 = _测试状态.记录;
+    const 失败 = 记录.reduce((n, t) => n + t.失败.length, 0);
+    const 出错 = 记录.filter((t) => t.异常 !== null).length;
+    const 跳过 = 记录.filter((t) => t.跳过 !== null && t.异常 === null).length;
+    const 通过 = 记录.filter(
+      (t) => t.失败.length === 0 && t.异常 === null && t.跳过 === null).length;
+    return new Map([
+      ['用例', 记录.length], ['通过', 通过], ['失败', 失败],
+      ['出错', 出错], ['跳过', 跳过],
+    ]);
+  }),
+  '汇总': new R.Builtin('汇总', () => {
+    const 记录 = _测试状态.记录;
+    const 失败数 = 记录.reduce((n, t) => n + t.失败.length, 0);
+    const 出错数 = 记录.filter((t) => t.异常 !== null).length;
+    const 跳过数 = 记录.filter((t) => t.跳过 !== null && t.异常 === null).length;
+    const 通过数 = 记录.filter(
+      (t) => t.失败.length === 0 && t.异常 === null && t.跳过 === null).length;
+    // 失败明细走**错误流**、汇总行走**输出流**（另两个宿主就是这个口径）
+    for (const t of 记录) {
+      if (t.异常 !== null) {
+        process.stderr.write(`✗ ${t.名字}：用例里出错 —— ${t.异常}\n`);
+      }
+      for (const [说明, 详] of t.失败) {
+        process.stderr.write(`✗ ${t.名字} · ${说明}：${详}\n`);
+      }
+    }
+    // ⏭ 明细走**输出流**（跳过不是错误），且在汇总行之前
+    for (const t of 记录) {
+      if (t.跳过 !== null && t.异常 === null) {
+        const 尾 = t.跳过 ? `：${t.跳过}` : '';
+        process.stdout.write(`⏭ ${t.名字}${尾}\n`);
+      }
+    }
+    const 全过 = 失败数 === 0 && 出错数 === 0;
+    const 标记 = 全过 ? '✅' : '❌';
+    const 尾巴 = 跳过数 === 0
+      ? `（${记录.length} 个用例）`
+      : `（${记录.length} 个用例，跳过 ${跳过数}）`;
+    if (全过) {
+      process.stdout.write(`${标记} 全部通过 ${尾巴}\n`);
+    } else {
+      process.stdout.write(
+        `${标记} 通过 ${通过数} / 失败 ${失败数} / 出错 ${出错数} ${尾巴}\n`);
+    }
+    if (!全过) {
+      // 抛断言错误表达失败 —— 脚本里设不了退出码，但抛出去 CLI 会以 1 退出。
+      // （必须 **E2008**，与另外两个宿主一致）
+      throw R.EXCEPTION_TYPES['断言错误'].make(
+        `测试没全过：失败 ${失败数} 项、出错 ${出错数} 项`);
+    }
+    return true;
+  }),
+};
+
 const STDLIB = {  '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
     '平方': new R.Builtin('平方', (x) => x * x),
@@ -5058,6 +5301,10 @@ const STDLIB = {  '数学': new R.Module('数学', {
   // M115：本地 HTTP 小服务。纯协议核心能用；`启动`/`空闲端口` 明确报边界，见上面。
   'HTTP服务端': new R.Module('HTTP服务端', HTTP_FUNCS),
   'HTTP路由': new R.Module('HTTP路由', ROUTE_FUNCS),
+  // M136：测试（用例 / 断言 / 跳过 / 参数化 / 前后置）。
+  // ⚠️ `onImport`：本宿主模块是单例，而 `测试` 要「按每次导入隔离」状态
+  //    （Python 的 `__基石新建__`、Rust 在 `module()` 里重置）—— 见上面那段注释。
+  '测试': new R.Module('测试', TEST_FUNCS, { onImport: _重置测试状态 }),
   // M123：Excel 读。内部工具从这里注入（zip 解析 / 表格构造 / 文本与类型）
   'Excel': new R.Module('Excel', require('./excel_mod')({
     zipBytes, readZipEntries, makeTable, pText, R, crc32,

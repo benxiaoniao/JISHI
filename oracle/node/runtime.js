@@ -1846,7 +1846,7 @@ function range(a, b, step) {
 // 模块
 // ---------------------------------------------------------------------------
 class Module {
-  constructor(name, attrs) {
+  constructor(name, attrs, opts) {
     // 给标准库函数补上「模块.」前缀（M51）：命名参数的映射表按
     // 「模块.函数」索引 —— 全库有 19 组跨模块同名函数（`解析` 在
     // json / 参数 / 日期 都有），只按函数名查会歧义。前缀在这里统一加，
@@ -1858,6 +1858,8 @@ class Module {
     }
     this.name = name;
     this.attrs = attrs;
+    //: 每次 `导入` 时调一次（有的模块要求「按每次导入隔离」状态，见 `测试`）。
+    this.onImport = (opts && opts.onImport) || null;
   }
 
   toString() { return `<模块 ${this.name}>`; }

@@ -44,8 +44,14 @@ RUST = ROOT / "rust" / "target" / "release" / "jishi-rs.exe"
 # 小工具
 # ---------------------------------------------------------------------------
 
-def _跑(用例目录, 额外=(), 被测命令=None, 宿主="python", cwd=None):
-    """跑一次运行器，返回 (退出码, stdout, stderr)。"""
+def _跑(用例目录, 额外=(), 被测命令=None, 宿主="python", cwd=None, 标签="python"):
+    """跑一次运行器，返回 (退出码, stdout, stderr)。
+
+    🔴 **默认带 `--标签 python`**（2026-10-25 CI 红过一次之后加的）：
+    标签默认取自**被测程序的文件名** —— Windows 上是 `python.exe`（→ `python`），
+    macOS / Linux 上是 `python3.13`（→ `python3.13`）。测试里写死的豁免表按
+    `python` 记，于是**本地全绿、CI 全红**。显式给标签，判据才与平台无关。
+    """
     命令 = _宿主命令(宿主)
     if 宿主 != "node":
         # node 宿主的「程序」是编译好的字节码文件，已经在上面的命令里了
@@ -54,6 +60,8 @@ def _跑(用例目录, 额外=(), 被测命令=None, 宿主="python", cwd=None):
     if 被测命令 is None:
         被测命令 = 被测
     命令 += ["--被测"] + list(被测命令)
+    if 标签 is not None:
+        命令 += ["--标签", 标签]
     命令 += list(额外)
     r = subprocess.run(命令, cwd=str(cwd or ROOT), capture_output=True,
                        text=True, encoding="utf-8", errors="replace", timeout=300)
@@ -160,6 +168,29 @@ def test_一条用例都没找到_也要红(tmp_path):
     码, 出, 错 = _跑(tmp_path)
     assert 码 == 1, "0 条用例不许当绿"
     assert "一条用例都没找到" in (出 + 错), 出 + 错
+
+
+def test_标签默认取程序文件名_所以跨平台的表必须显式给(tmp_path):
+    """🔴 **这条是 CI 红过一次之后补的**（2026-10-25）。
+
+    默认标签 = **被测程序的文件名去掉扩展名**。而「Python 参考实现」在三个系统上
+    叫得不一样：Windows `python.exe` → `python`，macOS / Linux `python3.13`
+    → `python3.13`。于是「`python | 用例 | 原因`」这种豁免表在本地绿、在 CI 上一片红。
+
+    判据钉两件事：
+    1. 默认确实跟着**文件名**走（用 `Path(sys.executable).stem` 算期望，与平台无关）；
+    2. 给了 `--标签` 就**以给的为准**（这就是跨平台表的正确写法）。
+    """
+    _写(tmp_path, "好", "打印(1)\n", "1\n")
+    期望标签 = Path(PY).stem
+
+    码, 出, 错 = _跑(tmp_path, 标签=None)
+    assert 码 == 0, 出 + 错
+    assert f"（标签 {期望标签}）" in 出, f"默认标签应该取自文件名：{期望标签}\n{出}"
+
+    码, 出, 错 = _跑(tmp_path, 标签="随便起的名字")
+    assert 码 == 0, 出 + 错
+    assert "（标签 随便起的名字）" in 出, f"--标签 没生效：\n{出}"
 
 
 # ---------------------------------------------------------------------------

@@ -180,9 +180,10 @@ def test_独立判据_lang_spec结构与关键事实():
     assert d["builtins"][0]["doc"] == "输出内容到屏幕"
     assert list(d["methods"]) == _METHOD_CATS
     assert [m["module"] for m in d["stdlib"]] == _STDLIB_MODULES
-    # M133/M134 加了 系统.执行详细 / 系统.并行执行 ⇒ 307 → 309。
+    # M133/M134 加了 系统.执行详细 / 系统.并行执行 ⇒ 307 → 309；
+    # M136 给 `测试` 加了 用例们 / 跳过 / 每例前 / 每例后 ⇒ 309 → 313。
     # ⚠️ 这个数是**故意写死**的：它抓「宿主侧少搬了函数」（那时会红，而不是悄悄跟着变）。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 309
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 313
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。
