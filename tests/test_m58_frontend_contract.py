@@ -66,15 +66,15 @@ def test_context_对列表给项数():
 
 
 # ---------------------------------------------------------------------------
-# ⚠️ **这里一律用 `capfd` 而不是 `capfd`**（2026-10-22 定的）。
+# ⚠️ **这里一律用 `capsys` 而不是 `capsys`**（2026-10-22 定的）。
 #
-# `capfd` 靠**替换 `sys.stdout` 对象**来抓输出；`capfd` 抓的是**底层文件描述符**。
+# `capsys` 靠**替换 `sys.stdout` 对象**来抓输出；`capsys` 抓的是**底层文件描述符**。
 # 区别在 CI 上暴露过：v0.2.6 那两轮 CI，一条是 ubuntu 的 `test_产物读不动要如实报`、
 # 一条是 windows 的 `test_stage_只比指定阶段`，**不同平台、不同用例，却都是
 # `assert 'X' in ''`** —— 而且其中一条走的是**成功路径**（`main` 返回 0），
-# 说明不是「报错打错了地方」，而是 **`capfd` 压根没抓到**。
-# `capfd` 不依赖那个替换，谁动了 `sys.stdout` 都不影响它。
-# 📌 代价：`capfd` 抓不到**子进程**的输出 —— 本文件里的用例都不起子进程，正好。
+# 说明不是「报错打错了地方」，而是 **`capsys` 压根没抓到**。
+# `capsys` 不依赖那个替换，谁动了 `sys.stdout` 都不影响它。
+# 📌 代价：`capsys` 抓不到**子进程**的输出 —— 本文件里的用例都不起子进程，正好。
 
 
 # 二、compare：拿外地产物与基线比
@@ -105,14 +105,19 @@ def _first_corpus_id() -> str:
     return C.corpus_id(C.collect_corpus()[0][1])
 
 
-def test_compare_自比自必须全绿(ext, capfd):
+# ⚠️ **这一整个文件统一用 `capsys` 而不是 `capfd`**（2026-10-25）：
+#    `conformance` 全程只 `print`（不起子进程、不碰 `sys.stdout.buffer`），
+#    用 sys 级捕获就够；而 **fd 级捕获在 xdist 下会偶尔「抓不到」** ——
+#    表现为「退出码 1、stdout 空」，CI 上红过一次（本地永远绿）。
+#    📌 判据要选**确定性**的捕获方式，不要为了「更底层」去赌。
+def test_compare_自比自必须全绿(ext, capsys):
     """基线 vs 基线 = 全绿。**尺子先要量得准自己** —— 这条不绿说明工具坏了。"""
     assert C.main(["compare", "--from", str(ext)]) == 0
-    out = capfd.readouterr().out
+    out = capsys.readouterr().out
     assert "全部一致" in out, out[-500:]
 
 
-def test_compare_改坏一处能定位到具体位置(ext, capfd):
+def test_compare_改坏一处能定位到具体位置(ext, capsys):
     """**R1 的验收标准**：把某个 token 的列号 +1，要能指出是**哪一个**。"""
     cid = _first_corpus_id()
     p = ext / f"{cid}.json"
@@ -120,28 +125,28 @@ def test_compare_改坏一处能定位到具体位置(ext, capfd):
     d["tokens"][2]["col"] += 1
     _save(p, d)
 
-    capfd.readouterr()
+    capsys.readouterr()
     assert C.main(["compare", "--from", str(ext)]) == 1
-    out = capfd.readouterr().out
+    out = capsys.readouterr().out
     assert "tokens[2].col" in out, f"没指出位置：{out[-600:]}"
     # 还要说出「这是哪个东西」—— 否则人还得自己去数第 3 个 token 是什么
     assert "基线：" in out and "外部：" in out, out[-600:]
 
 
-def test_compare_改坏一个_AST_节点也能定位(ext, capfd):
+def test_compare_改坏一个_AST_节点也能定位(ext, capsys):
     cid = _first_corpus_id()
     p = ext / f"{cid}.json"
     d = _reload(p)
     d["ast"]["body"] = d["ast"]["body"][:-1]        # 少一个语句
     _save(p, d)
 
-    capfd.readouterr()
+    capsys.readouterr()
     assert C.main(["compare", "--from", str(ext)]) == 1
-    out = capfd.readouterr().out
+    out = capsys.readouterr().out
     assert "ast" in out and "长度" in out, f"应该报到列表长度上：{out[-600:]}"
 
 
-def test_stage_只比指定阶段(ext, capfd):
+def test_stage_只比指定阶段(ext, capsys):
     """R2 只做分词时就只比 tokens —— 别的阶段**不该**参与判断。"""
     cid = _first_corpus_id()
     p = ext / f"{cid}.json"
@@ -150,16 +155,16 @@ def test_stage_只比指定阶段(ext, capfd):
     _save(p, d)
 
     # 全量比 → 会报不一致
-    capfd.readouterr()
+    capsys.readouterr()
     assert C.main(["compare", "--from", str(ext)]) == 1
     # 只比 tokens → 绿（因为坏的是 ast）
-    capfd.readouterr()
+    capsys.readouterr()
     assert C.main(["compare", "--from", str(ext), "--stage", "tokens"]) == 0
-    out = capfd.readouterr().out
+    out = capsys.readouterr().out
     assert "tokens" in out, out[-300:]
 
 
-def test_缺阶段要报未提供而不是静默通过(ext, capfd):
+def test_缺阶段要报未提供而不是静默通过(ext, capsys):
     """**「没测」与「测过了」必须能分开。**
 
     外部只给了 tokens（像 R2 阶段那样）时，不带 `--stage` 必须**报「未提供」**
@@ -170,13 +175,19 @@ def test_缺阶段要报未提供而不是静默通过(ext, capfd):
     d = _reload(p)
     _save(p, {"语料": d["语料"], "tokens": d["tokens"]})    # 只留 tokens
 
-    capfd.readouterr()
-    assert C.main(["compare", "--from", str(ext)]) == 1
-    out = capfd.readouterr().out
-    assert "未提供" in out, f"缺阶段却没报：{out[-500:]}"
+    capsys.readouterr()
+    码 = C.main(["compare", "--from", str(ext)])
+    捕获 = capsys.readouterr()
+    # 🔴 **失败信息要能自证**（2026-10-25 CI 上这条红过一次，而当时只打了 stdout
+    #    尾部 —— 偏偏 stdout 是空的，等于什么都没说）。三条都给上：
+    #    退出码、stdout、stderr。这样下次红的时候一眼看得见是「没报」还是
+    #    「报到别的流去了」还是「提前退出（比如读不到基线清单）」。
+    现场 = f"退出码={码}\n--- stdout ---\n{捕获.out}\n--- stderr ---\n{捕获.err}"
+    assert 码 == 1, f"缺阶段时该退 1：\n{现场}"
+    assert "未提供" in 捕获.out, f"缺阶段却没报：\n{现场}"
 
 
-def test_缺语料要报未产出(tmp_path, capfd):
+def test_缺语料要报未产出(tmp_path, capsys):
     """外部少产出一个语料 → 报「未产出」（不许当它不存在）。"""
     dst = tmp_path / "partial"
     dst.mkdir()
@@ -184,28 +195,28 @@ def test_缺语料要报未产出(tmp_path, capfd):
     cid = _first_corpus_id()
     shutil.copy(C.BASELINE_DIR / f"{cid}.json", dst / f"{cid}.json")
 
-    capfd.readouterr()
+    capsys.readouterr()
     assert C.main(["compare", "--from", str(dst)]) == 1
-    out = capfd.readouterr().out
+    out = capsys.readouterr().out
     assert "外部未产出" in out, out[-500:]
 
 
-def test_产物读不动要如实报(ext, capfd):
+def test_产物读不动要如实报(ext, capsys):
     cid = _first_corpus_id()
     (ext / f"{cid}.json").write_text("{ 这不是 JSON", encoding="utf-8")
 
-    capfd.readouterr()
+    capsys.readouterr()
     assert C.main(["compare", "--from", str(ext)]) == 1
-    抓 = capfd.readouterr()
+    抓 = capsys.readouterr()
     # ⚠️ 失败时**连 stderr 一起带出来**（2026-10-22）：CI 上只告诉我们 `out` 是空，
     #    但空的原因可能在 stderr（比如「没有基线」「找不到产物目录」两条提前返回）——
     #    不带 err 就没法判断是「工具没打印」还是「工具提前退了」。
     assert "读不动" in 抓.out, f"stdout={抓.out[-400:]!r}\nstderr={抓.err[-400:]!r}"
 
 
-def test_目录不存在要报错(capfd):
+def test_目录不存在要报错(capsys):
     assert C.main(["compare", "--from", str(ROOT / "不存在的目录")]) == 1
-    assert "找不到产物目录" in capfd.readouterr().err
+    assert "找不到产物目录" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
