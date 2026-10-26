@@ -51,7 +51,7 @@ jishi tools/自测.jsh --被测 python -m oracle.jishi.cli    # 路径含空格�
 `--被测` 没给时按这个顺序定，并**把它打出来**（不能让人猜）：
 
 1. 环境变量 `JISHI_UNDER_TEST`（空格分隔，如 `python -m oracle.jishi.cli`）；
-2. `rust/target/release/jishi-rs.exe`（存在就用它）；
+2. `rust/target/release/jishi-rs.exe` / `jishi-rs`（按平台，存在就用它）；
 3. `jishi`（PATH 上那个）。
 
 📌 **路径要在 `chdir` 之前绝对化**：`--被测 rust/target/release/jishi-rs.exe` 是相对
@@ -200,6 +200,13 @@ C VM 的对拍由 `tools/check_engines.py` 和 `tests/test_cvm.py` 负责，不�
                     结果.追加(片)
         否则如果 路径.存在("rust/target/release/jishi-rs.exe")：
             结果.追加(路径.绝对路径("rust/target/release/jishi-rs.exe"))
+        否则如果 路径.存在("rust/target/release/jishi-rs")：
+            # 🔴 **不能只认 `.exe`**（2026-10-26 被 CI 抓到）：Linux / macOS 上
+            #   cargo 产出的就叫 `jishi-rs`，没有扩展名。只写 `.exe` 的话，
+            #   那两个平台上这条会**悄悄退化成裸 `jishi`**（PATH 上没有就起不来），
+            #   而症状是「每条用例实际输出为空」—— 看着像被测坏了，其实是没找到。
+            #   （同族病：`test_m98` 的 `bin/` 可执行名也栽过。）
+            结果.追加(路径.绝对路径("rust/target/release/jishi-rs"))
         否则：
             结果.追加("jishi")
         返回 结果

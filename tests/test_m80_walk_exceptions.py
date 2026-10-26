@@ -42,6 +42,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 os.environ.setdefault("JISHI_FRONTEND", "python")
 
 import conformance as C                                            # noqa: E402
+from conftest import 去掉遮蔽提示                                   # noqa: E402
 from oracle.jishi.compiler import compile_to_json                         # noqa: E402
 from oracle.jishi.errors import JishiError                                # noqa: E402
 from oracle.jishi.interpreter import run_source as run_tree               # noqa: E402
@@ -79,7 +80,10 @@ def _three(src: str) -> tuple[str, str, str, str]:
     """
     def _with_err(out: str, err: str) -> str:
         """报错也算一种「输出」：**出错前打印的 + 报错首行**（两边同口径）。"""
-        err = err.strip()
+        # ⚠️ 先剥掉「`导入 文本` 会遮蔽内建」那条提示：它按进程去重，
+        #    子进程（Rust）每次都打、同进程（参考实现）只打第一次 —— 留着它，
+        #    「stderr 第一行」就不再是报错首行（见 conftest.去掉遮蔽提示）。
+        err = 去掉遮蔽提示(err).strip()
         return out + (("【错】" + err.splitlines()[0]) if err else "")
 
     ast_p = _write(C.jsonable(parse_source(src, "x.jsh")), "_m80_ast.json")

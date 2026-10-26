@@ -39,7 +39,7 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from conftest import rust_exe_path, tmp_bc_path      # noqa: E402
+from conftest import rust_exe_path, 去掉遮蔽提示, tmp_bc_path      # noqa: E402
 
 from oracle.jishi import ai                                 # noqa: E402
 from oracle.jishi import serialize                          # noqa: E402
@@ -576,6 +576,9 @@ def _five_agree(src: str) -> str:
     base_label, base = None, None
     for label, run in _engines():
         ok, out = run(src)
+        # ⚠️ 「`导入 文本` 会遮蔽内建」那条提示按**进程**去重，同进程/子进程打得不一样
+        #    —— 它不是语义，比之前先剥掉（见 conftest.去掉遮蔽提示 的说明）
+        out = 去掉遮蔽提示(out)
         assert ok, f"{label} 本该正常退出却报错：{out[:300]}"
         if base is None:
             base_label, base = label, out

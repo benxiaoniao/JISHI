@@ -1386,8 +1386,16 @@ impl Walker {
         }
         let modv = stdlib_module(&name)?;
         // 有别名就绑别名，否则绑模块名（与编译器 `c_import` 的 `store_name` 同一口径）。
-        let bind = n.get("alias").and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty()).map(|s| s.to_string()).unwrap_or(name);
+        let 别名 = n.get("alias").and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty()).map(|s| s.to_string());
+        // 🔴 **树遍历这条路径也要提示**（2026-10-26，`check_walk` 抓到的）：
+        //    「模块名遮蔽内建」是**宿主级**的提醒，不是字节码 VM 独有的。
+        //    只给 VM 加，`--walk` 与 `--load-bytecode` 就会一个有一个没有
+        //    —— 而这两条正是 `tools/check_walk.py` 逐字节比的对象。
+        if 别名.is_none() {
+            crate::提示遮蔽内建(&name);
+        }
+        let bind = 别名.unwrap_or(name);
         self.env.borrow_mut().vars.insert(bind, modv);
         Ok(())
     }
