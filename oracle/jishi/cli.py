@@ -274,6 +274,23 @@ def _cmd_install(args) -> int:
         return 1
 
 
+def _加时间戳(url: str) -> str:
+    """给 http(s) 地址加一个时间戳参数，**绕开 CDN / 代理缓存**。
+
+    只处理「没有任何查询串」的地址 —— 已经有 `?a=b` 的不动（那是调用方故意的）。
+
+    📌 为什么单独抽出来：这条规则要能被**不联网**地测到。索引地址是
+    `…/索引.json`（文件名固定、内容每版都变），被缓存住就等于新包发不出去。
+    """
+    import time
+
+    if not url.startswith(("http://", "https://")):
+        return url
+    if "?" in url:
+        return url
+    return f"{url}?t={int(time.time())}"
+
+
 def _read_index_text(index_url: str) -> str:
     """读索引文本：本地文件直接读，远端 URL 走 HTTP。
 
@@ -281,6 +298,7 @@ def _read_index_text(index_url: str) -> str:
     否则用户会以为程序卡死了，而且没有时间去试下一个源（M49a）。
     """
     import os
+    import time
     import urllib.request
 
     from . import packages as PKG
@@ -290,6 +308,13 @@ def _read_index_text(index_url: str) -> str:
             return f.read()
     # 索引地址本身也可能含中文（如 --index https://…/索引.json）
     url = PKG.encode_url(index_url)
+    # 🔴 **必须绕缓存**（2026-10-26，发第一个第三方包时踩到）：
+    #    站点前面有 CDN，而索引文件名固定、内容每版都变 —— 不绕就是
+    #    「包发布了、索引也更新了，用户这边还是『索引里没有这个包』」。
+    #    实测：刚发完 `图片`，`安装 图片` 报 E4001；手动加 `?t=` 立刻能读到。
+    #    📌 `jishi 升级` 读 `jishi-release.json` 早就这么做了（`?t=`），
+    #       包索引漏了 —— 同一类东西，规矩要一样。
+    url = _加时间戳(url)
     with urllib.request.urlopen(url, timeout=PKG.INDEX_TIMEOUT) as resp:
         return resp.read().decode("utf-8")
 

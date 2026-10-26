@@ -942,6 +942,26 @@ pub fn list_packages(dest_root: Option<&str>) -> Vec<(String, String, String)> {
 // 网络
 // ---------------------------------------------------------------------------
 
+/// 给 http(s) 地址加时间戳参数，**绕开 CDN / 代理缓存**（与 Python 侧
+/// `cli._加时间戳` 同一口径）。只处理没有查询串的地址。
+///
+/// 🔴 为什么必须有（2026-10-26 发第一个第三方包时踩到）：索引文件名固定、
+/// 内容每版都变；站点前面有 CDN ⇒「包发布了、索引也更新了，用户这边还是
+/// 『索引里没有这个包』」。`jishi 升级` 读版本清单早就加了 `?t=`，包索引漏了。
+fn add_timestamp(url: &str) -> String {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return url.to_string();
+    }
+    if url.contains('?') {
+        return url.to_string();
+    }
+    let 秒 = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    format!("{url}?t={秒}")
+}
+
 /// 读索引文本：本地文件直接读，远端 URL 走 HTTP（`file://` 也认）。
 ///
 /// `pub(crate)`：`jishi 医生` 的「索引源可达性」那一项要用它（R8.4）。
@@ -949,7 +969,7 @@ pub(crate) fn read_index_text(index_url: &str) -> Result<String, String> {
     if Path::new(index_url).is_file() {
         return fs::read_to_string(index_url).map_err(|e| format!("{e}"));
     }
-    let url = encode_url(index_url);
+    let url = add_timestamp(&encode_url(index_url));
     let bytes = fetch(&url, INDEX_TIMEOUT)?;
     Ok(String::from_utf8_lossy(&bytes).to_string())
 }

@@ -197,3 +197,23 @@ def test_parse_index_missing_packages():
     with pytest.raises(ValueError) as ei:
         parse_index('{"格式": "jishi-package-index", "版本": 1}')
     assert "包" in str(ei.value)
+
+
+def test_索引地址要绕缓存():
+    """索引文件名固定、内容每版都变 ⇒ 必须带 `?t=`，否则 CDN 缓存让新包发不出去。
+
+    2026-10-26 实测：刚把 `图片` 发到自建源，`jishi 安装 图片` 报
+    「索引里没有这个包」（E4001），手动加 `?t=` 立刻能读到 —— 因为站点前面有 CDN。
+    ⚠️ 这条**不联网**（只验地址长什么样），所以 CI 上稳。
+    """
+    from oracle.jishi import cli
+
+    原 = "https://xn--3jsy75e.cn/packages/%E7%B4%A2%E5%BC%95.json"
+    带 = cli._加时间戳(原)
+    assert 带.startswith(原 + "?t="), 带
+    assert 带[len(原) + 3:].isdigit(), 带
+
+    # 已经有查询串的**不许再动**（那是调用方故意带上的）
+    assert cli._加时间戳(原 + "?a=1") == 原 + "?a=1"
+    # 本地文件路径不动
+    assert cli._加时间戳("packages/索引.json") == "packages/索引.json"
