@@ -138,7 +138,19 @@ def _跑比对(参数):
 
 
 def _现场(码, 出, 错) -> str:
-    return f"退出码={码}\n--- stdout ---\n{出}\n--- stderr ---\n{错}"
+    """失败现场：**退出码 + 两条流**。
+
+    🔴 两条流**都空**时再补一段「可疑事实」（2026-10-26）：那时 `compare` 一定是
+    提前返回了，而它的两条提前返回（「没有基线」「找不到产物目录」）都会往 stderr
+    打一句 —— 两处都空就说明我们还没弄清真相。⇒ 把 `MANIFEST` / 基线目录 / 语料数
+    直接摆出来，下一次红就能一眼定性，不用再猜一轮。
+    """
+    文 = f"退出码={码}\n--- stdout ---\n{出}\n--- stderr ---\n{错}"
+    if not 出 and not 错:
+        文 += (f"\n（可疑：两条流都空）MANIFEST 存在={C.MANIFEST.is_file()} "
+               f"基线目录存在={C.BASELINE_DIR.is_dir()} "
+               f"C.ROOT={C.ROOT} 语料数={len(C.collect_corpus())}")
+    return 文
 
 
 def _first_corpus_id() -> str:
