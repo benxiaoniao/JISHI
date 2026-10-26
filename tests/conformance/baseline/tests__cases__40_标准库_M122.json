@@ -1,0 +1,9206 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 8,
+        "name": "HTTP路由",
+        "类型": "Import"
+      },
+      {
+        "annotations": [
+          null,
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 11,
+            "value": {
+              "col": 8,
+              "line": 11,
+              "value": "首页",
+              "类型": "Str"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null,
+          null
+        ],
+        "line": 10,
+        "name": "首页",
+        "param_kind": [
+          0,
+          0
+        ],
+        "params": [
+          "请求",
+          "参数"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null,
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 14,
+            "value": {
+              "col": 14,
+              "left": {
+                "col": 8,
+                "line": 14,
+                "value": "文章 ",
+                "类型": "Str"
+              },
+              "line": 14,
+              "op": "+",
+              "right": {
+                "col": 18,
+                "index": {
+                  "col": 19,
+                  "line": 14,
+                  "value": "id",
+                  "类型": "Str"
+                },
+                "line": 14,
+                "obj": {
+                  "col": 16,
+                  "id": "参数",
+                  "line": 14,
+                  "类型": "Name"
+                },
+                "类型": "Subscript"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null,
+          null
+        ],
+        "line": 13,
+        "name": "文章",
+        "param_kind": [
+          0,
+          0
+        ],
+        "params": [
+          "请求",
+          "参数"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null,
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 17,
+            "value": {
+              "col": 8,
+              "line": 17,
+              "value": "静态",
+              "类型": "Str"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null,
+          null
+        ],
+        "line": 16,
+        "name": "静态",
+        "param_kind": [
+          0,
+          0
+        ],
+        "params": [
+          "请求",
+          "参数"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null,
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 20,
+            "value": {
+              "col": 8,
+              "line": 20,
+              "value": "通配",
+              "类型": "Str"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null,
+          null
+        ],
+        "line": 19,
+        "name": "通配",
+        "param_kind": [
+          0,
+          0
+        ],
+        "params": [
+          "请求",
+          "参数"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "line": 23,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "表",
+          "line": 23,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [],
+          "col": 17,
+          "func": {
+            "attr": "路由表",
+            "col": 13,
+            "line": 23,
+            "obj": {
+              "col": 7,
+              "id": "HTTP路由",
+              "line": 23,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 23,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "id": "表",
+                  "line": 24,
+                  "类型": "Name"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "长度",
+                "line": 24,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 24,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 24,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 24,
+          "类型": "Call"
+        },
+        "line": 24,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 12,
+              "id": "表",
+              "line": 26,
+              "类型": "Name"
+            },
+            {
+              "col": 15,
+              "line": 26,
+              "value": "GET",
+              "类型": "Str"
+            },
+            {
+              "col": 22,
+              "line": 26,
+              "value": "/",
+              "类型": "Str"
+            },
+            {
+              "col": 27,
+              "id": "首页",
+              "line": 26,
+              "类型": "Name"
+            }
+          ],
+          "col": 11,
+          "func": {
+            "attr": "加路由",
+            "col": 7,
+            "line": 26,
+            "obj": {
+              "col": 1,
+              "id": "HTTP路由",
+              "line": 26,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 26,
+          "类型": "Call"
+        },
+        "line": 26,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 12,
+              "id": "表",
+              "line": 27,
+              "类型": "Name"
+            },
+            {
+              "col": 15,
+              "line": 27,
+              "value": "GET",
+              "类型": "Str"
+            },
+            {
+              "col": 22,
+              "line": 27,
+              "value": "/文章/:id",
+              "类型": "Str"
+            },
+            {
+              "col": 33,
+              "id": "文章",
+              "line": 27,
+              "类型": "Name"
+            }
+          ],
+          "col": 11,
+          "func": {
+            "attr": "加路由",
+            "col": 7,
+            "line": 27,
+            "obj": {
+              "col": 1,
+              "id": "HTTP路由",
+              "line": 27,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 27,
+          "类型": "Call"
+        },
+        "line": 27,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 12,
+              "id": "表",
+              "line": 28,
+              "类型": "Name"
+            },
+            {
+              "col": 15,
+              "line": 28,
+              "value": "POST",
+              "类型": "Str"
+            },
+            {
+              "col": 23,
+              "line": 28,
+              "value": "/文章",
+              "类型": "Str"
+            },
+            {
+              "col": 30,
+              "id": "静态",
+              "line": 28,
+              "类型": "Name"
+            }
+          ],
+          "col": 11,
+          "func": {
+            "attr": "加路由",
+            "col": 7,
+            "line": 28,
+            "obj": {
+              "col": 1,
+              "id": "HTTP路由",
+              "line": 28,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 28,
+          "类型": "Call"
+        },
+        "line": 28,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "id": "表",
+                  "line": 29,
+                  "类型": "Name"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "长度",
+                "line": 29,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 29,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 29,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 29,
+          "类型": "Call"
+        },
+        "line": 29,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 15,
+                  "id": "表",
+                  "line": 30,
+                  "类型": "Name"
+                }
+              ],
+              "col": 14,
+              "func": {
+                "attr": "路径们",
+                "col": 10,
+                "line": 30,
+                "obj": {
+                  "col": 4,
+                  "id": "HTTP路由",
+                  "line": 30,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 30,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 30,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 30,
+          "类型": "Call"
+        },
+        "line": 30,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 36,
+                  "id": "空",
+                  "line": 32,
+                  "类型": "Name"
+                },
+                {
+                  "col": 39,
+                  "id": "空",
+                  "line": 32,
+                  "类型": "Name"
+                }
+              ],
+              "col": 35,
+              "func": {
+                "col": 29,
+                "index": {
+                  "col": 30,
+                  "line": 32,
+                  "value": "处理",
+                  "类型": "Str"
+                },
+                "line": 32,
+                "obj": {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "表",
+                      "line": 32,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 18,
+                      "line": 32,
+                      "value": "GET",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 25,
+                      "line": 32,
+                      "value": "/",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "匹配",
+                    "col": 10,
+                    "line": 32,
+                    "obj": {
+                      "col": 4,
+                      "id": "HTTP路由",
+                      "line": 32,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 32,
+                  "类型": "Call"
+                },
+                "类型": "Subscript"
+              },
+              "keywords": [],
+              "line": 32,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 32,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 32,
+          "类型": "Call"
+        },
+        "line": 32,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 34,
+              "index": {
+                "col": 35,
+                "line": 33,
+                "value": "参数",
+                "类型": "Str"
+              },
+              "line": 33,
+              "obj": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "表",
+                    "line": 33,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 18,
+                    "line": 33,
+                    "value": "GET",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 25,
+                    "line": 33,
+                    "value": "/文章/42",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 33,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 33,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 33,
+                "类型": "Call"
+              },
+              "类型": "Subscript"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 33,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 33,
+          "类型": "Call"
+        },
+        "line": 33,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 39,
+                  "id": "空",
+                  "line": 34,
+                  "类型": "Name"
+                },
+                {
+                  "col": 42,
+                  "id": "空",
+                  "line": 34,
+                  "类型": "Name"
+                }
+              ],
+              "col": 38,
+              "func": {
+                "col": 32,
+                "index": {
+                  "col": 33,
+                  "line": 34,
+                  "value": "处理",
+                  "类型": "Str"
+                },
+                "line": 34,
+                "obj": {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "表",
+                      "line": 34,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 18,
+                      "line": 34,
+                      "value": "POST",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 26,
+                      "line": 34,
+                      "value": "/文章",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "匹配",
+                    "col": 10,
+                    "line": 34,
+                    "obj": {
+                      "col": 4,
+                      "id": "HTTP路由",
+                      "line": 34,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 34,
+                  "类型": "Call"
+                },
+                "类型": "Subscript"
+              },
+              "keywords": [],
+              "line": 34,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 34,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 34,
+          "类型": "Call"
+        },
+        "line": 34,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 36,
+                  "id": "空",
+                  "line": 37,
+                  "类型": "Name"
+                },
+                {
+                  "col": 39,
+                  "id": "空",
+                  "line": 37,
+                  "类型": "Name"
+                }
+              ],
+              "col": 35,
+              "func": {
+                "col": 29,
+                "index": {
+                  "col": 30,
+                  "line": 37,
+                  "value": "处理",
+                  "类型": "Str"
+                },
+                "line": 37,
+                "obj": {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "表",
+                      "line": 37,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 18,
+                      "line": 37,
+                      "value": "get",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 25,
+                      "line": 37,
+                      "value": "/",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "匹配",
+                    "col": 10,
+                    "line": 37,
+                    "obj": {
+                      "col": 4,
+                      "id": "HTTP路由",
+                      "line": 37,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 37,
+                  "类型": "Call"
+                },
+                "类型": "Subscript"
+              },
+              "keywords": [],
+              "line": 37,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 37,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 37,
+          "类型": "Call"
+        },
+        "line": 37,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 36,
+                  "id": "空",
+                  "line": 38,
+                  "类型": "Name"
+                },
+                {
+                  "col": 39,
+                  "id": "空",
+                  "line": 38,
+                  "类型": "Name"
+                }
+              ],
+              "col": 35,
+              "func": {
+                "col": 29,
+                "index": {
+                  "col": 30,
+                  "line": 38,
+                  "value": "处理",
+                  "类型": "Str"
+                },
+                "line": 38,
+                "obj": {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "表",
+                      "line": 38,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 18,
+                      "line": 38,
+                      "value": "GET",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 25,
+                      "line": 38,
+                      "value": "/",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "匹配",
+                    "col": 10,
+                    "line": 38,
+                    "obj": {
+                      "col": 4,
+                      "id": "HTTP路由",
+                      "line": 38,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 38,
+                  "类型": "Call"
+                },
+                "类型": "Subscript"
+              },
+              "keywords": [],
+              "line": 38,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 38,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 38,
+          "类型": "Call"
+        },
+        "line": 38,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 40,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "全收",
+          "line": 40,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [],
+          "col": 18,
+          "func": {
+            "attr": "路由表",
+            "col": 14,
+            "line": 40,
+            "obj": {
+              "col": 8,
+              "id": "HTTP路由",
+              "line": 40,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 40,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 12,
+              "id": "全收",
+              "line": 41,
+              "类型": "Name"
+            },
+            {
+              "col": 16,
+              "line": 41,
+              "value": "*",
+              "类型": "Str"
+            },
+            {
+              "col": 21,
+              "line": 41,
+              "value": "/任何",
+              "类型": "Str"
+            },
+            {
+              "col": 28,
+              "id": "通配",
+              "line": 41,
+              "类型": "Name"
+            }
+          ],
+          "col": 11,
+          "func": {
+            "attr": "加路由",
+            "col": 7,
+            "line": 41,
+            "obj": {
+              "col": 1,
+              "id": "HTTP路由",
+              "line": 41,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 41,
+          "类型": "Call"
+        },
+        "line": 41,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 42,
+                  "id": "空",
+                  "line": 42,
+                  "类型": "Name"
+                },
+                {
+                  "col": 45,
+                  "id": "空",
+                  "line": 42,
+                  "类型": "Name"
+                }
+              ],
+              "col": 41,
+              "func": {
+                "col": 35,
+                "index": {
+                  "col": 36,
+                  "line": 42,
+                  "value": "处理",
+                  "类型": "Str"
+                },
+                "line": 42,
+                "obj": {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "全收",
+                      "line": 42,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 42,
+                      "value": "DELETE",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 29,
+                      "line": 42,
+                      "value": "/任何",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "匹配",
+                    "col": 10,
+                    "line": 42,
+                    "obj": {
+                      "col": 4,
+                      "id": "HTTP路由",
+                      "line": 42,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 42,
+                  "类型": "Call"
+                },
+                "类型": "Subscript"
+              },
+              "keywords": [],
+              "line": 42,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 42,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 42,
+          "类型": "Call"
+        },
+        "line": 42,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 39,
+                  "id": "空",
+                  "line": 43,
+                  "类型": "Name"
+                },
+                {
+                  "col": 42,
+                  "id": "空",
+                  "line": 43,
+                  "类型": "Name"
+                }
+              ],
+              "col": 38,
+              "func": {
+                "col": 32,
+                "index": {
+                  "col": 33,
+                  "line": 43,
+                  "value": "处理",
+                  "类型": "Str"
+                },
+                "line": 43,
+                "obj": {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "全收",
+                      "line": 43,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 43,
+                      "value": "get",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 26,
+                      "line": 43,
+                      "value": "/任何",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "匹配",
+                    "col": 10,
+                    "line": 43,
+                    "obj": {
+                      "col": 4,
+                      "id": "HTTP路由",
+                      "line": 43,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 43,
+                  "类型": "Call"
+                },
+                "类型": "Subscript"
+              },
+              "keywords": [],
+              "line": 43,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 43,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 43,
+          "类型": "Call"
+        },
+        "line": 43,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 46,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "优先",
+          "line": 46,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [],
+          "col": 18,
+          "func": {
+            "attr": "路由表",
+            "col": 14,
+            "line": 46,
+            "obj": {
+              "col": 8,
+              "id": "HTTP路由",
+              "line": 46,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 46,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 12,
+              "id": "优先",
+              "line": 47,
+              "类型": "Name"
+            },
+            {
+              "col": 16,
+              "line": 47,
+              "value": "GET",
+              "类型": "Str"
+            },
+            {
+              "col": 23,
+              "line": 47,
+              "value": "/用户/:id",
+              "类型": "Str"
+            },
+            {
+              "col": 34,
+              "id": "文章",
+              "line": 47,
+              "类型": "Name"
+            }
+          ],
+          "col": 11,
+          "func": {
+            "attr": "加路由",
+            "col": 7,
+            "line": 47,
+            "obj": {
+              "col": 1,
+              "id": "HTTP路由",
+              "line": 47,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 47,
+          "类型": "Call"
+        },
+        "line": 47,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 12,
+              "id": "优先",
+              "line": 48,
+              "类型": "Name"
+            },
+            {
+              "col": 16,
+              "line": 48,
+              "value": "GET",
+              "类型": "Str"
+            },
+            {
+              "col": 23,
+              "line": 48,
+              "value": "/用户/新建",
+              "类型": "Str"
+            },
+            {
+              "col": 33,
+              "id": "静态",
+              "line": 48,
+              "类型": "Name"
+            }
+          ],
+          "col": 11,
+          "func": {
+            "attr": "加路由",
+            "col": 7,
+            "line": 48,
+            "obj": {
+              "col": 1,
+              "id": "HTTP路由",
+              "line": 48,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 48,
+          "类型": "Call"
+        },
+        "line": 48,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 42,
+                  "id": "空",
+                  "line": 49,
+                  "类型": "Name"
+                },
+                {
+                  "col": 45,
+                  "id": "空",
+                  "line": 49,
+                  "类型": "Name"
+                }
+              ],
+              "col": 41,
+              "func": {
+                "col": 35,
+                "index": {
+                  "col": 36,
+                  "line": 49,
+                  "value": "处理",
+                  "类型": "Str"
+                },
+                "line": 49,
+                "obj": {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "优先",
+                      "line": 49,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 19,
+                      "line": 49,
+                      "value": "GET",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 26,
+                      "line": 49,
+                      "value": "/用户/新建",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "attr": "匹配",
+                    "col": 10,
+                    "line": 49,
+                    "obj": {
+                      "col": 4,
+                      "id": "HTTP路由",
+                      "line": 49,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 49,
+                  "类型": "Call"
+                },
+                "类型": "Subscript"
+              },
+              "keywords": [],
+              "line": 49,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 49,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 49,
+          "类型": "Call"
+        },
+        "line": 49,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 34,
+              "index": {
+                "col": 35,
+                "line": 50,
+                "value": "参数",
+                "类型": "Str"
+              },
+              "line": 50,
+              "obj": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "优先",
+                    "line": 50,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 19,
+                    "line": 50,
+                    "value": "GET",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 26,
+                    "line": 50,
+                    "value": "/用户/7",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 50,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 50,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 50,
+                "类型": "Call"
+              },
+              "类型": "Subscript"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 50,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 50,
+          "类型": "Call"
+        },
+        "line": 50,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 34,
+              "comparators": [
+                {
+                  "col": 37,
+                  "id": "空",
+                  "line": 53,
+                  "类型": "Name"
+                }
+              ],
+              "left": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "表",
+                    "line": 53,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 18,
+                    "line": 53,
+                    "value": "GET",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 25,
+                    "line": 53,
+                    "value": "/没有这个",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 53,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 53,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 53,
+                "类型": "Call"
+              },
+              "line": 53,
+              "ops": [
+                "=="
+              ],
+              "类型": "Compare"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 53,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 53,
+          "类型": "Call"
+        },
+        "line": 53,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 33,
+              "comparators": [
+                {
+                  "col": 36,
+                  "id": "空",
+                  "line": 54,
+                  "类型": "Name"
+                }
+              ],
+              "left": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "表",
+                    "line": 54,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 18,
+                    "line": 54,
+                    "value": "DELETE",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 28,
+                    "line": 54,
+                    "value": "/",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 54,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 54,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 54,
+                "类型": "Call"
+              },
+              "line": 54,
+              "ops": [
+                "=="
+              ],
+              "类型": "Compare"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 54,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 54,
+          "类型": "Call"
+        },
+        "line": 54,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 32,
+              "comparators": [
+                {
+                  "col": 35,
+                  "id": "空",
+                  "line": 55,
+                  "类型": "Name"
+                }
+              ],
+              "left": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "表",
+                    "line": 55,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 18,
+                    "line": 55,
+                    "value": "GET",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 25,
+                    "line": 55,
+                    "value": "/文章",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 55,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 55,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 55,
+                "类型": "Call"
+              },
+              "line": 55,
+              "ops": [
+                "=="
+              ],
+              "类型": "Compare"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 55,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 55,
+          "类型": "Call"
+        },
+        "line": 55,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 33,
+              "comparators": [
+                {
+                  "col": 36,
+                  "id": "空",
+                  "line": 58,
+                  "类型": "Name"
+                }
+              ],
+              "left": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "表",
+                    "line": 58,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 18,
+                    "line": 58,
+                    "value": "GET",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 25,
+                    "line": 58,
+                    "value": "/文章/",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 58,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 58,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 58,
+                "类型": "Call"
+              },
+              "line": 58,
+              "ops": [
+                "=="
+              ],
+              "类型": "Compare"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 58,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 58,
+          "类型": "Call"
+        },
+        "line": 58,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 33,
+              "index": {
+                "col": 34,
+                "line": 59,
+                "value": "参数",
+                "类型": "Str"
+              },
+              "line": 59,
+              "obj": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "表",
+                    "line": 59,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 18,
+                    "line": 59,
+                    "value": "GET",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 25,
+                    "line": 59,
+                    "value": "/文章/1",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 59,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 59,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 59,
+                "类型": "Call"
+              },
+              "类型": "Subscript"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 59,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 59,
+          "类型": "Call"
+        },
+        "line": 59,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 62,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "深",
+          "line": 62,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [],
+          "col": 17,
+          "func": {
+            "attr": "路由表",
+            "col": 13,
+            "line": 62,
+            "obj": {
+              "col": 7,
+              "id": "HTTP路由",
+              "line": 62,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 62,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 12,
+              "id": "深",
+              "line": 63,
+              "类型": "Name"
+            },
+            {
+              "col": 15,
+              "line": 63,
+              "value": "GET",
+              "类型": "Str"
+            },
+            {
+              "col": 22,
+              "line": 63,
+              "value": "/a/:x/:y",
+              "类型": "Str"
+            },
+            {
+              "col": 34,
+              "id": "通配",
+              "line": 63,
+              "类型": "Name"
+            }
+          ],
+          "col": 11,
+          "func": {
+            "attr": "加路由",
+            "col": 7,
+            "line": 63,
+            "obj": {
+              "col": 1,
+              "id": "HTTP路由",
+              "line": 63,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 63,
+          "类型": "Call"
+        },
+        "line": 63,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 34,
+              "index": {
+                "col": 35,
+                "line": 64,
+                "value": "参数",
+                "类型": "Str"
+              },
+              "line": 64,
+              "obj": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "深",
+                    "line": 64,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 18,
+                    "line": 64,
+                    "value": "GET",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 25,
+                    "line": 64,
+                    "value": "/a/1/2",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 64,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 64,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 64,
+                "类型": "Call"
+              },
+              "类型": "Subscript"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 64,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 64,
+          "类型": "Call"
+        },
+        "line": 64,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 33,
+              "comparators": [
+                {
+                  "col": 36,
+                  "id": "空",
+                  "line": 65,
+                  "类型": "Name"
+                }
+              ],
+              "left": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "深",
+                    "line": 65,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 18,
+                    "line": 65,
+                    "value": "GET",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 25,
+                    "line": 65,
+                    "value": "/a/1",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 65,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 65,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 65,
+                "类型": "Call"
+              },
+              "line": 65,
+              "ops": [
+                "=="
+              ],
+              "类型": "Compare"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 65,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 65,
+          "类型": "Call"
+        },
+        "line": 65,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 37,
+              "comparators": [
+                {
+                  "col": 40,
+                  "id": "空",
+                  "line": 66,
+                  "类型": "Name"
+                }
+              ],
+              "left": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "深",
+                    "line": 66,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 18,
+                    "line": 66,
+                    "value": "GET",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 25,
+                    "line": 66,
+                    "value": "/a/1/2/3",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "匹配",
+                  "col": 10,
+                  "line": 66,
+                  "obj": {
+                    "col": 4,
+                    "id": "HTTP路由",
+                    "line": 66,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 66,
+                "类型": "Call"
+              },
+              "line": 66,
+              "ops": [
+                "=="
+              ],
+              "类型": "Compare"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 66,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 66,
+          "类型": "Call"
+        },
+        "line": 66,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "d2855d5f8660ce49a7345097d568df70e2eec05dc405a600477254b91a628885",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            8,
+            1,
+            3,
+            0,
+            0,
+            0,
+            8,
+            1,
+            22,
+            1,
+            0,
+            0,
+            10,
+            1,
+            3,
+            3,
+            0,
+            0,
+            10,
+            1,
+            22,
+            2,
+            0,
+            0,
+            13,
+            1,
+            3,
+            4,
+            0,
+            0,
+            13,
+            1,
+            22,
+            3,
+            0,
+            0,
+            16,
+            1,
+            3,
+            5,
+            0,
+            0,
+            16,
+            1,
+            22,
+            4,
+            0,
+            0,
+            19,
+            1,
+            3,
+            6,
+            0,
+            0,
+            19,
+            1,
+            2,
+            0,
+            0,
+            0,
+            23,
+            7,
+            25,
+            7,
+            0,
+            0,
+            23,
+            13,
+            20,
+            0,
+            -1,
+            0,
+            23,
+            17,
+            3,
+            8,
+            0,
+            0,
+            23,
+            1,
+            2,
+            9,
+            0,
+            0,
+            24,
+            1,
+            2,
+            10,
+            0,
+            0,
+            24,
+            4,
+            2,
+            8,
+            0,
+            0,
+            24,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            24,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            24,
+            3,
+            38,
+            0,
+            0,
+            0,
+            24,
+            1,
+            2,
+            0,
+            0,
+            0,
+            26,
+            1,
+            25,
+            11,
+            0,
+            0,
+            26,
+            7,
+            2,
+            8,
+            0,
+            0,
+            26,
+            12,
+            1,
+            6,
+            0,
+            0,
+            26,
+            15,
+            1,
+            7,
+            0,
+            0,
+            26,
+            22,
+            2,
+            3,
+            0,
+            0,
+            26,
+            27,
+            20,
+            4,
+            -1,
+            0,
+            26,
+            11,
+            38,
+            0,
+            0,
+            0,
+            26,
+            1,
+            2,
+            0,
+            0,
+            0,
+            27,
+            1,
+            25,
+            11,
+            0,
+            0,
+            27,
+            7,
+            2,
+            8,
+            0,
+            0,
+            27,
+            12,
+            1,
+            6,
+            0,
+            0,
+            27,
+            15,
+            1,
+            8,
+            0,
+            0,
+            27,
+            22,
+            2,
+            4,
+            0,
+            0,
+            27,
+            33,
+            20,
+            4,
+            -1,
+            0,
+            27,
+            11,
+            38,
+            0,
+            0,
+            0,
+            27,
+            1,
+            2,
+            0,
+            0,
+            0,
+            28,
+            1,
+            25,
+            11,
+            0,
+            0,
+            28,
+            7,
+            2,
+            8,
+            0,
+            0,
+            28,
+            12,
+            1,
+            9,
+            0,
+            0,
+            28,
+            15,
+            1,
+            10,
+            0,
+            0,
+            28,
+            23,
+            2,
+            5,
+            0,
+            0,
+            28,
+            30,
+            20,
+            4,
+            -1,
+            0,
+            28,
+            11,
+            38,
+            0,
+            0,
+            0,
+            28,
+            1,
+            2,
+            9,
+            0,
+            0,
+            29,
+            1,
+            2,
+            10,
+            0,
+            0,
+            29,
+            4,
+            2,
+            8,
+            0,
+            0,
+            29,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            29,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            29,
+            3,
+            38,
+            0,
+            0,
+            0,
+            29,
+            1,
+            2,
+            9,
+            0,
+            0,
+            30,
+            1,
+            2,
+            0,
+            0,
+            0,
+            30,
+            4,
+            25,
+            12,
+            0,
+            0,
+            30,
+            10,
+            2,
+            8,
+            0,
+            0,
+            30,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            30,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            30,
+            3,
+            38,
+            0,
+            0,
+            0,
+            30,
+            1,
+            2,
+            9,
+            0,
+            0,
+            32,
+            1,
+            2,
+            0,
+            0,
+            0,
+            32,
+            4,
+            25,
+            13,
+            0,
+            0,
+            32,
+            10,
+            2,
+            8,
+            0,
+            0,
+            32,
+            15,
+            1,
+            6,
+            0,
+            0,
+            32,
+            18,
+            1,
+            7,
+            0,
+            0,
+            32,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            32,
+            14,
+            1,
+            11,
+            0,
+            0,
+            32,
+            30,
+            27,
+            0,
+            0,
+            0,
+            32,
+            29,
+            1,
+            1,
+            0,
+            0,
+            32,
+            36,
+            1,
+            1,
+            0,
+            0,
+            32,
+            39,
+            20,
+            2,
+            -1,
+            0,
+            32,
+            35,
+            20,
+            1,
+            -1,
+            0,
+            32,
+            3,
+            38,
+            0,
+            0,
+            0,
+            32,
+            1,
+            2,
+            9,
+            0,
+            0,
+            33,
+            1,
+            2,
+            0,
+            0,
+            0,
+            33,
+            4,
+            25,
+            13,
+            0,
+            0,
+            33,
+            10,
+            2,
+            8,
+            0,
+            0,
+            33,
+            15,
+            1,
+            6,
+            0,
+            0,
+            33,
+            18,
+            1,
+            12,
+            0,
+            0,
+            33,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            33,
+            14,
+            1,
+            13,
+            0,
+            0,
+            33,
+            35,
+            27,
+            0,
+            0,
+            0,
+            33,
+            34,
+            20,
+            1,
+            -1,
+            0,
+            33,
+            3,
+            38,
+            0,
+            0,
+            0,
+            33,
+            1,
+            2,
+            9,
+            0,
+            0,
+            34,
+            1,
+            2,
+            0,
+            0,
+            0,
+            34,
+            4,
+            25,
+            13,
+            0,
+            0,
+            34,
+            10,
+            2,
+            8,
+            0,
+            0,
+            34,
+            15,
+            1,
+            9,
+            0,
+            0,
+            34,
+            18,
+            1,
+            10,
+            0,
+            0,
+            34,
+            26,
+            20,
+            3,
+            -1,
+            0,
+            34,
+            14,
+            1,
+            11,
+            0,
+            0,
+            34,
+            33,
+            27,
+            0,
+            0,
+            0,
+            34,
+            32,
+            1,
+            1,
+            0,
+            0,
+            34,
+            39,
+            1,
+            1,
+            0,
+            0,
+            34,
+            42,
+            20,
+            2,
+            -1,
+            0,
+            34,
+            38,
+            20,
+            1,
+            -1,
+            0,
+            34,
+            3,
+            38,
+            0,
+            0,
+            0,
+            34,
+            1,
+            2,
+            9,
+            0,
+            0,
+            37,
+            1,
+            2,
+            0,
+            0,
+            0,
+            37,
+            4,
+            25,
+            13,
+            0,
+            0,
+            37,
+            10,
+            2,
+            8,
+            0,
+            0,
+            37,
+            15,
+            1,
+            14,
+            0,
+            0,
+            37,
+            18,
+            1,
+            7,
+            0,
+            0,
+            37,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            37,
+            14,
+            1,
+            11,
+            0,
+            0,
+            37,
+            30,
+            27,
+            0,
+            0,
+            0,
+            37,
+            29,
+            1,
+            1,
+            0,
+            0,
+            37,
+            36,
+            1,
+            1,
+            0,
+            0,
+            37,
+            39,
+            20,
+            2,
+            -1,
+            0,
+            37,
+            35,
+            20,
+            1,
+            -1,
+            0,
+            37,
+            3,
+            38,
+            0,
+            0,
+            0,
+            37,
+            1,
+            2,
+            9,
+            0,
+            0,
+            38,
+            1,
+            2,
+            0,
+            0,
+            0,
+            38,
+            4,
+            25,
+            13,
+            0,
+            0,
+            38,
+            10,
+            2,
+            8,
+            0,
+            0,
+            38,
+            15,
+            1,
+            6,
+            0,
+            0,
+            38,
+            18,
+            1,
+            7,
+            0,
+            0,
+            38,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            38,
+            14,
+            1,
+            11,
+            0,
+            0,
+            38,
+            30,
+            27,
+            0,
+            0,
+            0,
+            38,
+            29,
+            1,
+            1,
+            0,
+            0,
+            38,
+            36,
+            1,
+            1,
+            0,
+            0,
+            38,
+            39,
+            20,
+            2,
+            -1,
+            0,
+            38,
+            35,
+            20,
+            1,
+            -1,
+            0,
+            38,
+            3,
+            38,
+            0,
+            0,
+            0,
+            38,
+            1,
+            2,
+            0,
+            0,
+            0,
+            40,
+            8,
+            25,
+            7,
+            0,
+            0,
+            40,
+            14,
+            20,
+            0,
+            -1,
+            0,
+            40,
+            18,
+            3,
+            14,
+            0,
+            0,
+            40,
+            1,
+            2,
+            0,
+            0,
+            0,
+            41,
+            1,
+            25,
+            11,
+            0,
+            0,
+            41,
+            7,
+            2,
+            14,
+            0,
+            0,
+            41,
+            12,
+            1,
+            15,
+            0,
+            0,
+            41,
+            16,
+            1,
+            16,
+            0,
+            0,
+            41,
+            21,
+            2,
+            6,
+            0,
+            0,
+            41,
+            28,
+            20,
+            4,
+            -1,
+            0,
+            41,
+            11,
+            38,
+            0,
+            0,
+            0,
+            41,
+            1,
+            2,
+            9,
+            0,
+            0,
+            42,
+            1,
+            2,
+            0,
+            0,
+            0,
+            42,
+            4,
+            25,
+            13,
+            0,
+            0,
+            42,
+            10,
+            2,
+            14,
+            0,
+            0,
+            42,
+            15,
+            1,
+            17,
+            0,
+            0,
+            42,
+            19,
+            1,
+            16,
+            0,
+            0,
+            42,
+            29,
+            20,
+            3,
+            -1,
+            0,
+            42,
+            14,
+            1,
+            11,
+            0,
+            0,
+            42,
+            36,
+            27,
+            0,
+            0,
+            0,
+            42,
+            35,
+            1,
+            1,
+            0,
+            0,
+            42,
+            42,
+            1,
+            1,
+            0,
+            0,
+            42,
+            45,
+            20,
+            2,
+            -1,
+            0,
+            42,
+            41,
+            20,
+            1,
+            -1,
+            0,
+            42,
+            3,
+            38,
+            0,
+            0,
+            0,
+            42,
+            1,
+            2,
+            9,
+            0,
+            0,
+            43,
+            1,
+            2,
+            0,
+            0,
+            0,
+            43,
+            4,
+            25,
+            13,
+            0,
+            0,
+            43,
+            10,
+            2,
+            14,
+            0,
+            0,
+            43,
+            15,
+            1,
+            14,
+            0,
+            0,
+            43,
+            19,
+            1,
+            16,
+            0,
+            0,
+            43,
+            26,
+            20,
+            3,
+            -1,
+            0,
+            43,
+            14,
+            1,
+            11,
+            0,
+            0,
+            43,
+            33,
+            27,
+            0,
+            0,
+            0,
+            43,
+            32,
+            1,
+            1,
+            0,
+            0,
+            43,
+            39,
+            1,
+            1,
+            0,
+            0,
+            43,
+            42,
+            20,
+            2,
+            -1,
+            0,
+            43,
+            38,
+            20,
+            1,
+            -1,
+            0,
+            43,
+            3,
+            38,
+            0,
+            0,
+            0,
+            43,
+            1,
+            2,
+            0,
+            0,
+            0,
+            46,
+            8,
+            25,
+            7,
+            0,
+            0,
+            46,
+            14,
+            20,
+            0,
+            -1,
+            0,
+            46,
+            18,
+            3,
+            15,
+            0,
+            0,
+            46,
+            1,
+            2,
+            0,
+            0,
+            0,
+            47,
+            1,
+            25,
+            11,
+            0,
+            0,
+            47,
+            7,
+            2,
+            15,
+            0,
+            0,
+            47,
+            12,
+            1,
+            6,
+            0,
+            0,
+            47,
+            16,
+            1,
+            18,
+            0,
+            0,
+            47,
+            23,
+            2,
+            4,
+            0,
+            0,
+            47,
+            34,
+            20,
+            4,
+            -1,
+            0,
+            47,
+            11,
+            38,
+            0,
+            0,
+            0,
+            47,
+            1,
+            2,
+            0,
+            0,
+            0,
+            48,
+            1,
+            25,
+            11,
+            0,
+            0,
+            48,
+            7,
+            2,
+            15,
+            0,
+            0,
+            48,
+            12,
+            1,
+            6,
+            0,
+            0,
+            48,
+            16,
+            1,
+            19,
+            0,
+            0,
+            48,
+            23,
+            2,
+            5,
+            0,
+            0,
+            48,
+            33,
+            20,
+            4,
+            -1,
+            0,
+            48,
+            11,
+            38,
+            0,
+            0,
+            0,
+            48,
+            1,
+            2,
+            9,
+            0,
+            0,
+            49,
+            1,
+            2,
+            0,
+            0,
+            0,
+            49,
+            4,
+            25,
+            13,
+            0,
+            0,
+            49,
+            10,
+            2,
+            15,
+            0,
+            0,
+            49,
+            15,
+            1,
+            6,
+            0,
+            0,
+            49,
+            19,
+            1,
+            19,
+            0,
+            0,
+            49,
+            26,
+            20,
+            3,
+            -1,
+            0,
+            49,
+            14,
+            1,
+            11,
+            0,
+            0,
+            49,
+            36,
+            27,
+            0,
+            0,
+            0,
+            49,
+            35,
+            1,
+            1,
+            0,
+            0,
+            49,
+            42,
+            1,
+            1,
+            0,
+            0,
+            49,
+            45,
+            20,
+            2,
+            -1,
+            0,
+            49,
+            41,
+            20,
+            1,
+            -1,
+            0,
+            49,
+            3,
+            38,
+            0,
+            0,
+            0,
+            49,
+            1,
+            2,
+            9,
+            0,
+            0,
+            50,
+            1,
+            2,
+            0,
+            0,
+            0,
+            50,
+            4,
+            25,
+            13,
+            0,
+            0,
+            50,
+            10,
+            2,
+            15,
+            0,
+            0,
+            50,
+            15,
+            1,
+            6,
+            0,
+            0,
+            50,
+            19,
+            1,
+            20,
+            0,
+            0,
+            50,
+            26,
+            20,
+            3,
+            -1,
+            0,
+            50,
+            14,
+            1,
+            13,
+            0,
+            0,
+            50,
+            35,
+            27,
+            0,
+            0,
+            0,
+            50,
+            34,
+            20,
+            1,
+            -1,
+            0,
+            50,
+            3,
+            38,
+            0,
+            0,
+            0,
+            50,
+            1,
+            2,
+            9,
+            0,
+            0,
+            53,
+            1,
+            2,
+            0,
+            0,
+            0,
+            53,
+            4,
+            25,
+            13,
+            0,
+            0,
+            53,
+            10,
+            2,
+            8,
+            0,
+            0,
+            53,
+            15,
+            1,
+            6,
+            0,
+            0,
+            53,
+            18,
+            1,
+            21,
+            0,
+            0,
+            53,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            53,
+            14,
+            1,
+            1,
+            0,
+            0,
+            53,
+            37,
+            15,
+            0,
+            0,
+            0,
+            53,
+            34,
+            20,
+            1,
+            -1,
+            0,
+            53,
+            3,
+            38,
+            0,
+            0,
+            0,
+            53,
+            1,
+            2,
+            9,
+            0,
+            0,
+            54,
+            1,
+            2,
+            0,
+            0,
+            0,
+            54,
+            4,
+            25,
+            13,
+            0,
+            0,
+            54,
+            10,
+            2,
+            8,
+            0,
+            0,
+            54,
+            15,
+            1,
+            17,
+            0,
+            0,
+            54,
+            18,
+            1,
+            7,
+            0,
+            0,
+            54,
+            28,
+            20,
+            3,
+            -1,
+            0,
+            54,
+            14,
+            1,
+            1,
+            0,
+            0,
+            54,
+            36,
+            15,
+            0,
+            0,
+            0,
+            54,
+            33,
+            20,
+            1,
+            -1,
+            0,
+            54,
+            3,
+            38,
+            0,
+            0,
+            0,
+            54,
+            1,
+            2,
+            9,
+            0,
+            0,
+            55,
+            1,
+            2,
+            0,
+            0,
+            0,
+            55,
+            4,
+            25,
+            13,
+            0,
+            0,
+            55,
+            10,
+            2,
+            8,
+            0,
+            0,
+            55,
+            15,
+            1,
+            6,
+            0,
+            0,
+            55,
+            18,
+            1,
+            10,
+            0,
+            0,
+            55,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            55,
+            14,
+            1,
+            1,
+            0,
+            0,
+            55,
+            35,
+            15,
+            0,
+            0,
+            0,
+            55,
+            32,
+            20,
+            1,
+            -1,
+            0,
+            55,
+            3,
+            38,
+            0,
+            0,
+            0,
+            55,
+            1,
+            2,
+            9,
+            0,
+            0,
+            58,
+            1,
+            2,
+            0,
+            0,
+            0,
+            58,
+            4,
+            25,
+            13,
+            0,
+            0,
+            58,
+            10,
+            2,
+            8,
+            0,
+            0,
+            58,
+            15,
+            1,
+            6,
+            0,
+            0,
+            58,
+            18,
+            1,
+            22,
+            0,
+            0,
+            58,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            58,
+            14,
+            1,
+            1,
+            0,
+            0,
+            58,
+            36,
+            15,
+            0,
+            0,
+            0,
+            58,
+            33,
+            20,
+            1,
+            -1,
+            0,
+            58,
+            3,
+            38,
+            0,
+            0,
+            0,
+            58,
+            1,
+            2,
+            9,
+            0,
+            0,
+            59,
+            1,
+            2,
+            0,
+            0,
+            0,
+            59,
+            4,
+            25,
+            13,
+            0,
+            0,
+            59,
+            10,
+            2,
+            8,
+            0,
+            0,
+            59,
+            15,
+            1,
+            6,
+            0,
+            0,
+            59,
+            18,
+            1,
+            23,
+            0,
+            0,
+            59,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            59,
+            14,
+            1,
+            13,
+            0,
+            0,
+            59,
+            34,
+            27,
+            0,
+            0,
+            0,
+            59,
+            33,
+            20,
+            1,
+            -1,
+            0,
+            59,
+            3,
+            38,
+            0,
+            0,
+            0,
+            59,
+            1,
+            2,
+            0,
+            0,
+            0,
+            62,
+            7,
+            25,
+            7,
+            0,
+            0,
+            62,
+            13,
+            20,
+            0,
+            -1,
+            0,
+            62,
+            17,
+            3,
+            16,
+            0,
+            0,
+            62,
+            1,
+            2,
+            0,
+            0,
+            0,
+            63,
+            1,
+            25,
+            11,
+            0,
+            0,
+            63,
+            7,
+            2,
+            16,
+            0,
+            0,
+            63,
+            12,
+            1,
+            6,
+            0,
+            0,
+            63,
+            15,
+            1,
+            24,
+            0,
+            0,
+            63,
+            22,
+            2,
+            6,
+            0,
+            0,
+            63,
+            34,
+            20,
+            4,
+            -1,
+            0,
+            63,
+            11,
+            38,
+            0,
+            0,
+            0,
+            63,
+            1,
+            2,
+            9,
+            0,
+            0,
+            64,
+            1,
+            2,
+            0,
+            0,
+            0,
+            64,
+            4,
+            25,
+            13,
+            0,
+            0,
+            64,
+            10,
+            2,
+            16,
+            0,
+            0,
+            64,
+            15,
+            1,
+            6,
+            0,
+            0,
+            64,
+            18,
+            1,
+            25,
+            0,
+            0,
+            64,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            64,
+            14,
+            1,
+            13,
+            0,
+            0,
+            64,
+            35,
+            27,
+            0,
+            0,
+            0,
+            64,
+            34,
+            20,
+            1,
+            -1,
+            0,
+            64,
+            3,
+            38,
+            0,
+            0,
+            0,
+            64,
+            1,
+            2,
+            9,
+            0,
+            0,
+            65,
+            1,
+            2,
+            0,
+            0,
+            0,
+            65,
+            4,
+            25,
+            13,
+            0,
+            0,
+            65,
+            10,
+            2,
+            16,
+            0,
+            0,
+            65,
+            15,
+            1,
+            6,
+            0,
+            0,
+            65,
+            18,
+            1,
+            26,
+            0,
+            0,
+            65,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            65,
+            14,
+            1,
+            1,
+            0,
+            0,
+            65,
+            36,
+            15,
+            0,
+            0,
+            0,
+            65,
+            33,
+            20,
+            1,
+            -1,
+            0,
+            65,
+            3,
+            38,
+            0,
+            0,
+            0,
+            65,
+            1,
+            2,
+            9,
+            0,
+            0,
+            66,
+            1,
+            2,
+            0,
+            0,
+            0,
+            66,
+            4,
+            25,
+            13,
+            0,
+            0,
+            66,
+            10,
+            2,
+            16,
+            0,
+            0,
+            66,
+            15,
+            1,
+            6,
+            0,
+            0,
+            66,
+            18,
+            1,
+            27,
+            0,
+            0,
+            66,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            66,
+            14,
+            1,
+            1,
+            0,
+            0,
+            66,
+            40,
+            15,
+            0,
+            0,
+            0,
+            66,
+            37,
+            20,
+            1,
+            -1,
+            0,
+            66,
+            3,
+            38,
+            0,
+            0,
+            0,
+            66,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 10,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            11,
+            8,
+            21,
+            0,
+            0,
+            0,
+            11,
+            5,
+            1,
+            1,
+            0,
+            0,
+            10,
+            1,
+            21,
+            0,
+            0,
+            0,
+            10,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "请求",
+            "参数"
+          ],
+          "name": "首页",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            1,
+            2
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "请求",
+            "参数"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 13,
+          "freevars": [],
+          "instrs": [
+            1,
+            2,
+            0,
+            0,
+            14,
+            8,
+            4,
+            1,
+            0,
+            0,
+            14,
+            16,
+            1,
+            3,
+            0,
+            0,
+            14,
+            19,
+            27,
+            0,
+            0,
+            0,
+            14,
+            18,
+            13,
+            0,
+            0,
+            0,
+            14,
+            14,
+            21,
+            0,
+            0,
+            0,
+            14,
+            5,
+            1,
+            1,
+            0,
+            0,
+            13,
+            1,
+            21,
+            0,
+            0,
+            0,
+            13,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "请求",
+            "参数"
+          ],
+          "name": "文章",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            1,
+            2
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "请求",
+            "参数"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 16,
+          "freevars": [],
+          "instrs": [
+            1,
+            4,
+            0,
+            0,
+            17,
+            8,
+            21,
+            0,
+            0,
+            0,
+            17,
+            5,
+            1,
+            1,
+            0,
+            0,
+            16,
+            1,
+            21,
+            0,
+            0,
+            0,
+            16,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "请求",
+            "参数"
+          ],
+          "name": "静态",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            1,
+            2
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "请求",
+            "参数"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 19,
+          "freevars": [],
+          "instrs": [
+            1,
+            5,
+            0,
+            0,
+            20,
+            8,
+            21,
+            0,
+            0,
+            0,
+            20,
+            5,
+            1,
+            1,
+            0,
+            0,
+            19,
+            1,
+            21,
+            0,
+            0,
+            0,
+            19,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "请求",
+            "参数"
+          ],
+          "name": "通配",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            1,
+            2
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "请求",
+            "参数"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "首页"
+        },
+        {
+          "t": "none"
+        },
+        {
+          "t": "str",
+          "v": "文章 "
+        },
+        {
+          "t": "str",
+          "v": "id"
+        },
+        {
+          "t": "str",
+          "v": "静态"
+        },
+        {
+          "t": "str",
+          "v": "通配"
+        },
+        {
+          "t": "str",
+          "v": "GET"
+        },
+        {
+          "t": "str",
+          "v": "/"
+        },
+        {
+          "t": "str",
+          "v": "/文章/:id"
+        },
+        {
+          "t": "str",
+          "v": "POST"
+        },
+        {
+          "t": "str",
+          "v": "/文章"
+        },
+        {
+          "t": "str",
+          "v": "处理"
+        },
+        {
+          "t": "str",
+          "v": "/文章/42"
+        },
+        {
+          "t": "str",
+          "v": "参数"
+        },
+        {
+          "t": "str",
+          "v": "get"
+        },
+        {
+          "t": "str",
+          "v": "*"
+        },
+        {
+          "t": "str",
+          "v": "/任何"
+        },
+        {
+          "t": "str",
+          "v": "DELETE"
+        },
+        {
+          "t": "str",
+          "v": "/用户/:id"
+        },
+        {
+          "t": "str",
+          "v": "/用户/新建"
+        },
+        {
+          "t": "str",
+          "v": "/用户/7"
+        },
+        {
+          "t": "str",
+          "v": "/没有这个"
+        },
+        {
+          "t": "str",
+          "v": "/文章/"
+        },
+        {
+          "t": "str",
+          "v": "/文章/1"
+        },
+        {
+          "t": "str",
+          "v": "/a/:x/:y"
+        },
+        {
+          "t": "str",
+          "v": "/a/1/2"
+        },
+        {
+          "t": "str",
+          "v": "/a/1"
+        },
+        {
+          "t": "str",
+          "v": "/a/1/2/3"
+        }
+      ],
+      "filename": "tests/cases/40_标准库_M122.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "HTTP路由",
+        "请求",
+        "参数",
+        "首页",
+        "文章",
+        "静态",
+        "通配",
+        "路由表",
+        "表",
+        "打印",
+        "长度",
+        "加路由",
+        "路径们",
+        "匹配",
+        "全收",
+        "优先",
+        "深"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 8,
+      "source_line": "导入 HTTP路由",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 8,
+      "source_line": "导入 HTTP路由",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "导入 HTTP路由",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 10,
+      "source_line": "函数 首页(请求, 参数)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 10,
+      "source_line": "函数 首页(请求, 参数)：",
+      "type": "NAME",
+      "value": "首页",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 10,
+      "source_line": "函数 首页(请求, 参数)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 10,
+      "source_line": "函数 首页(请求, 参数)：",
+      "type": "NAME",
+      "value": "请求",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 10,
+      "source_line": "函数 首页(请求, 参数)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 10,
+      "source_line": "函数 首页(请求, 参数)：",
+      "type": "NAME",
+      "value": "参数",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 10,
+      "source_line": "函数 首页(请求, 参数)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 10,
+      "source_line": "函数 首页(请求, 参数)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "函数 首页(请求, 参数)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "    返回 \"首页\"",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 11,
+      "source_line": "    返回 \"首页\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 11,
+      "line": 11,
+      "source_line": "    返回 \"首页\"",
+      "type": "STRING",
+      "value": "首页",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "    返回 \"首页\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "NAME",
+      "value": "文章",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "NAME",
+      "value": "请求",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "NAME",
+      "value": "参数",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "函数 文章(请求, 参数)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "    返回 \"文章 \" + 参数[\"id\"]",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 14,
+      "source_line": "    返回 \"文章 \" + 参数[\"id\"]",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 12,
+      "line": 14,
+      "source_line": "    返回 \"文章 \" + 参数[\"id\"]",
+      "type": "STRING",
+      "value": "文章 ",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 14,
+      "source_line": "    返回 \"文章 \" + 参数[\"id\"]",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 14,
+      "source_line": "    返回 \"文章 \" + 参数[\"id\"]",
+      "type": "NAME",
+      "value": "参数",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 14,
+      "source_line": "    返回 \"文章 \" + 参数[\"id\"]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 14,
+      "source_line": "    返回 \"文章 \" + 参数[\"id\"]",
+      "type": "STRING",
+      "value": "id",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 14,
+      "source_line": "    返回 \"文章 \" + 参数[\"id\"]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "    返回 \"文章 \" + 参数[\"id\"]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "NAME",
+      "value": "静态",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "NAME",
+      "value": "请求",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "NAME",
+      "value": "参数",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "函数 静态(请求, 参数)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "    返回 \"静态\"",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 17,
+      "source_line": "    返回 \"静态\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 11,
+      "line": 17,
+      "source_line": "    返回 \"静态\"",
+      "type": "STRING",
+      "value": "静态",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "    返回 \"静态\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "NAME",
+      "value": "通配",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "NAME",
+      "value": "请求",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "NAME",
+      "value": "参数",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "函数 通配(请求, 参数)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    返回 \"通配\"",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 20,
+      "source_line": "    返回 \"通配\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 11,
+      "line": 20,
+      "source_line": "    返回 \"通配\"",
+      "type": "STRING",
+      "value": "通配",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    返回 \"通配\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 12,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 16,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "路由表",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "令 表 = HTTP路由.路由表()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 24,
+      "source_line": "打印(长度(表))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 24,
+      "source_line": "打印(长度(表))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 24,
+      "source_line": "打印(长度(表))",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 24,
+      "source_line": "打印(长度(表))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 24,
+      "source_line": "打印(长度(表))",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 24,
+      "source_line": "打印(长度(表))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 24,
+      "source_line": "打印(长度(表))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "打印(长度(表))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 6,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "NAME",
+      "value": "加路由",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 19,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 24,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "STRING",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "NAME",
+      "value": "首页",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/\", 首页)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 6,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "NAME",
+      "value": "加路由",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 19,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 30,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "STRING",
+      "value": "/文章/:id",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "NAME",
+      "value": "文章",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 27,
+      "source_line": "HTTP路由.加路由(表, \"GET\", \"/文章/:id\", 文章)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 6,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "NAME",
+      "value": "加路由",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 20,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "STRING",
+      "value": "POST",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 27,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "STRING",
+      "value": "/文章",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "NAME",
+      "value": "静态",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "HTTP路由.加路由(表, \"POST\", \"/文章\", 静态)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 29,
+      "source_line": "打印(长度(表))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 29,
+      "source_line": "打印(长度(表))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 29,
+      "source_line": "打印(长度(表))",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 29,
+      "source_line": "打印(长度(表))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 29,
+      "source_line": "打印(长度(表))",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 29,
+      "source_line": "打印(长度(表))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 29,
+      "source_line": "打印(长度(表))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "打印(长度(表))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 13,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "NAME",
+      "value": "路径们",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 30,
+      "source_line": "打印(HTTP路由.路径们(表))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 27,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "处理",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 36,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 39,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 32,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "STRING",
+      "value": "/文章/42",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 38,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "STRING",
+      "value": "参数",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 33,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/42\")[\"参数\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 23,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "POST",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 30,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "/文章",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 36,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "处理",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 39,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 42,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 44,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 45,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 34,
+      "source_line": "打印(HTTP路由.匹配 (表, \"POST\", \"/文章\")[\"处理\"](空, 空))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "get",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 27,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "处理",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 36,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 39,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "打印(HTTP路由.匹配 (表, \"get\", \"/\")[\"处理\"](空, 空))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 27,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "处理",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 36,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 39,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/\")[\"处理\"](空, 空))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "令 全收 = HTTP路由.路由表()",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 40,
+      "source_line": "令 全收 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "全收",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 40,
+      "source_line": "令 全收 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 13,
+      "line": 40,
+      "source_line": "令 全收 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 40,
+      "source_line": "令 全收 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 17,
+      "line": 40,
+      "source_line": "令 全收 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "路由表",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 40,
+      "source_line": "令 全收 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 40,
+      "source_line": "令 全收 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "令 全收 = HTTP路由.路由表()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 6,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "NAME",
+      "value": "加路由",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "NAME",
+      "value": "全收",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 18,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "STRING",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 25,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "STRING",
+      "value": "/任何",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "NAME",
+      "value": "通配",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 41,
+      "source_line": "HTTP路由.加路由(全收, \"*\", \"/任何\", 通配)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "全收",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 26,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "DELETE",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 33,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "/任何",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 39,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "处理",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 42,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 44,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 45,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 47,
+      "end_col": 48,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 42,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"DELETE\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "全收",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 23,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "get",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 30,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "/任何",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 36,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "处理",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 39,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 42,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 44,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 45,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 43,
+      "source_line": "打印(HTTP路由.匹配 (全收, \"get\", \"/任何\")[\"处理\"](空, 空))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 46,
+      "source_line": "令 优先 = HTTP路由.路由表()",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 46,
+      "source_line": "令 优先 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "优先",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 46,
+      "source_line": "令 优先 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 13,
+      "line": 46,
+      "source_line": "令 优先 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 46,
+      "source_line": "令 优先 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 17,
+      "line": 46,
+      "source_line": "令 优先 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "路由表",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 46,
+      "source_line": "令 优先 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 46,
+      "source_line": "令 优先 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 46,
+      "source_line": "令 优先 = HTTP路由.路由表()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 6,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "NAME",
+      "value": "加路由",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "NAME",
+      "value": "优先",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 20,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 31,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "STRING",
+      "value": "/用户/:id",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "NAME",
+      "value": "文章",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 47,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/:id\", 文章)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 6,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "NAME",
+      "value": "加路由",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "NAME",
+      "value": "优先",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 20,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 30,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "STRING",
+      "value": "/用户/新建",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "NAME",
+      "value": "静态",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 48,
+      "source_line": "HTTP路由.加路由(优先, \"GET\", \"/用户/新建\", 静态)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "NAME",
+      "value": "优先",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 23,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 33,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "/用户/新建",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 39,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "STRING",
+      "value": "处理",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 42,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 44,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 45,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 47,
+      "end_col": 48,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 49,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/新建\")[\"处理\"](空, 空))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "NAME",
+      "value": "优先",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 23,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 32,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "STRING",
+      "value": "/用户/7",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 38,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "STRING",
+      "value": "参数",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 50,
+      "source_line": "打印(HTTP路由.匹配 (优先, \"GET\", \"/用户/7\")[\"参数\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 31,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "STRING",
+      "value": "/没有这个",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 36,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "OP",
+      "value": "==",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 37,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 53,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/没有这个\") == 空)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 25,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "STRING",
+      "value": "DELETE",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 30,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "STRING",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 35,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "OP",
+      "value": "==",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 36,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 54,
+      "source_line": "打印(HTTP路由.匹配 (表, \"DELETE\", \"/\") == 空)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 29,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "STRING",
+      "value": "/文章",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 34,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "OP",
+      "value": "==",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 35,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 55,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章\") == 空)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 30,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "STRING",
+      "value": "/文章/",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 35,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "OP",
+      "value": "==",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 36,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 58,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/\") == 空)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "NAME",
+      "value": "表",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 31,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "STRING",
+      "value": "/文章/1",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 37,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "STRING",
+      "value": "参数",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "打印(HTTP路由.匹配 (表, \"GET\", \"/文章/1\")[\"参数\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 62,
+      "source_line": "令 深 = HTTP路由.路由表()",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 62,
+      "source_line": "令 深 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "深",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 62,
+      "source_line": "令 深 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 12,
+      "line": 62,
+      "source_line": "令 深 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 62,
+      "source_line": "令 深 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 16,
+      "line": 62,
+      "source_line": "令 深 = HTTP路由.路由表()",
+      "type": "NAME",
+      "value": "路由表",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 62,
+      "source_line": "令 深 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 62,
+      "source_line": "令 深 = HTTP路由.路由表()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 62,
+      "source_line": "令 深 = HTTP路由.路由表()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 6,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "NAME",
+      "value": "加路由",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "NAME",
+      "value": "深",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 19,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 31,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "STRING",
+      "value": "/a/:x/:y",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "NAME",
+      "value": "通配",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 63,
+      "source_line": "HTTP路由.加路由(深, \"GET\", \"/a/:x/:y\", 通配)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "NAME",
+      "value": "深",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 32,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "STRING",
+      "value": "/a/1/2",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 38,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "STRING",
+      "value": "参数",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 64,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2\")[\"参数\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "NAME",
+      "value": "深",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 30,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "STRING",
+      "value": "/a/1",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 35,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "OP",
+      "value": "==",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 36,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 65,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1\") == 空)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 9,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "NAME",
+      "value": "HTTP路由",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "KEYWORD",
+      "value": "匹配",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "NAME",
+      "value": "深",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "STRING",
+      "value": "GET",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 34,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "STRING",
+      "value": "/a/1/2/3",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 39,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "OP",
+      "value": "==",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 40,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 66,
+      "source_line": "打印(HTTP路由.匹配 (深, \"GET\", \"/a/1/2/3\") == 空)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 66,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:a358849d206f12c7",
+  "语料": "tests/cases/40_标准库_M122.jsh"
+}

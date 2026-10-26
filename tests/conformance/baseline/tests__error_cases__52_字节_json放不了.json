@@ -1,0 +1,426 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 2,
+        "name": "编码",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 3,
+        "name": "json",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 23,
+                      "line": 5,
+                      "value": "0CFF",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 22,
+                  "func": {
+                    "attr": "十六进制解码",
+                    "col": 15,
+                    "line": 5,
+                    "obj": {
+                      "col": 13,
+                      "id": "编码",
+                      "line": 5,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 5,
+                  "类型": "Call"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "转文本",
+                "col": 8,
+                "line": 5,
+                "obj": {
+                  "col": 4,
+                  "id": "json",
+                  "line": 5,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 5,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 5,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 5,
+          "类型": "Call"
+        },
+        "line": 5,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "69278b735fd1286251751fb9d549fcde423a96b6629a315528514a06f8c875e4",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            2,
+            1,
+            3,
+            0,
+            0,
+            0,
+            2,
+            1,
+            31,
+            1,
+            0,
+            -1,
+            3,
+            1,
+            3,
+            1,
+            0,
+            0,
+            3,
+            1,
+            2,
+            2,
+            0,
+            0,
+            5,
+            1,
+            2,
+            1,
+            0,
+            0,
+            5,
+            4,
+            25,
+            3,
+            0,
+            0,
+            5,
+            8,
+            2,
+            0,
+            0,
+            0,
+            5,
+            13,
+            25,
+            4,
+            0,
+            0,
+            5,
+            15,
+            1,
+            0,
+            0,
+            0,
+            5,
+            23,
+            20,
+            1,
+            -1,
+            0,
+            5,
+            22,
+            20,
+            1,
+            -1,
+            0,
+            5,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            5,
+            3,
+            38,
+            0,
+            0,
+            0,
+            5,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "0CFF"
+        }
+      ],
+      "filename": "tests/error_cases/52_字节_json放不了.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "编码",
+        "json",
+        "打印",
+        "转文本",
+        "十六进制解码"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 2,
+      "source_line": "导入 编码",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 2,
+      "source_line": "导入 编码",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "导入 编码",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 3,
+      "source_line": "导入 json",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 3,
+      "source_line": "导入 json",
+      "type": "NAME",
+      "value": "json",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "导入 json",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "NAME",
+      "value": "json",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "NAME",
+      "value": "转文本",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 21,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "NAME",
+      "value": "十六进制解码",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 28,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "STRING",
+      "value": "0CFF",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "打印(json.转文本(编码.十六进制解码(\"0CFF\")))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:7224bb98b6bb8164",
+  "语料": "tests/error_cases/52_字节_json放不了.jsh"
+}
