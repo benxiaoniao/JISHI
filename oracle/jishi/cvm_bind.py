@@ -54,7 +54,7 @@ _NATIVE = Path(__file__).resolve().parent / "_native"
 #: 参数错位、算错甚至崩。本项目已经踩过两次同族坑（改了 `cvm/src/`、Python
 #: 加载的却是 `oracle/jishi/_native/` 里那份旧库，一句提示都没有）——宁可拦住。
 #: 结构钉：`tests/test_m84_cvm_live_iter.py::test_ABI版本号与头文件一致`。
-_JSVM_ABI_VERSION = 2
+_JSVM_ABI_VERSION = 3
 
 
 def _lib_name() -> str:

@@ -23,8 +23,12 @@ extern "C" {
  *
  * v2（2026-10-05，设计决策 D77 §二）：`iter_next_batch` 增加 `from` 参数
  *   —— 宿主必须按「VM 已确认的下标」取批，不许用自己的「已读到哪」。
- *   原因见该字段的注释（遍历中改容器要拿到**活值**）。 */
-#define JSVM_ABI_VERSION 2
+ *   原因见该字段的注释（遍历中改容器要拿到**活值**）。
+ *
+ * v3（2026-10-26，M138）：`do_import` 增加 `alias_idx` 参数
+ *   —— 别名下标（`-1` = 没写 `为 别的名字`）。以前不传，宿主只能按
+ *   `alias is None` 猜，于是**用了别名也会提示「模块名遮蔽内建」**（提示与实际不符）。 */
+#define JSVM_ABI_VERSION 3
 
 /* 导出宏：Windows 用 dllexport/dllimport；其余用 visibility */
 #if defined(_WIN32)
