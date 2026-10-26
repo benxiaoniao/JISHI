@@ -1,27 +1,24 @@
 # -*- coding: utf-8 -*-
-"""黄金文件测试：cases/*.jsh 对照 *.out；error_cases/*.jsh 对照 *.err。
+"""测试夹具与共用工具。
 
-- 黄金测试：执行源码，stdout 必须与 .out 完全一致（自动收集）
-- 错误快照：执行必须抛 JishiError，渲染文本必须包含 .err 中的关键子串
+⚠️ **这里曾经放着 `test_golden` / `test_error_snapshot` 的一份副本**（2026-10-26 删）：
+`conftest.py` **不是测试模块**，pytest 根本不收集它 —— 那两条**从来没跑过**，
+只是和 `tests/test_golden.py` 里的正本长得一样，看着像「有两把尺子」。
+📌 而正本那两条也已按 M138 的规划**搬去 `tools/自测.jsh`**（CI 上跑），
+现在 pytest 侧只剩 `test_m138_runner_summary.py` 把整批语料交给运行器 + 对账。
 """
 
-import io
 import os
 import tempfile
 import sys
-from contextlib import redirect_stdout
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from oracle.jishi.interpreter import run_source
-from oracle.jishi.errors import JishiError
 
 ROOT = Path(__file__).resolve().parents[1]
-CASES = Path(__file__).parent / "cases"
-ERROR_CASES = Path(__file__).parent / "error_cases"
 
 # 项目根下的 build/ 是临时工作目录（被 .gitignore）。CI 是**全新检出**、没有这个
 # 目录，而个别用例会往它里面写文件（`打开("build/…", "写")`）→ 在 CI 上报
@@ -129,33 +126,3 @@ def _cleanup_tmp_bytecode():
             pass
 
 
-def _list_cases(directory: Path) -> list[str]:
-    if not directory.exists():
-        return []
-    return sorted(p.name for p in directory.glob("*.jsh"))
-
-
-@pytest.mark.parametrize("jsh", _list_cases(CASES))
-def test_golden(jsh):
-    src = (CASES / jsh).read_text(encoding="utf-8")
-    expected = (CASES / jsh).with_suffix(".out").read_text(encoding="utf-8")
-    out = io.StringIO()
-    try:
-        with redirect_stdout(out):
-            run_source(src, filename=jsh)
-    except Exception as e:
-        pytest.fail(f"执行失败：{e}")
-    assert out.getvalue() == expected, (
-        f"输出不一致\n期望：\n{expected!r}\n实际：\n{out.getvalue()!r}")
-
-
-@pytest.mark.parametrize("jsh", _list_cases(ERROR_CASES))
-def test_error_snapshot(jsh):
-    src = (ERROR_CASES / jsh).read_text(encoding="utf-8")
-    expected = (ERROR_CASES / jsh).with_suffix(".err").read_text(
-        encoding="utf-8").strip()
-    with pytest.raises(JishiError) as ei:
-        run_source(src, filename=jsh)
-    rendered = str(ei.value)
-    assert expected in rendered, (
-        f"错误消息不匹配\n期望包含：\n{expected}\n实际：\n{rendered}")

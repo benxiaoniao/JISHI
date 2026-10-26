@@ -1,52 +1,34 @@
 # -*- coding: utf-8 -*-
-"""黄金文件测试与错误快照测试（自动收集 cases/ 与 error_cases/）。"""
+"""语料输出的**跨平台可比性**检查（`test_golden` / `test_error_snapshot` 已退役）。
 
-import io
+## 那两条去哪了（M138，2026-10-26）
+
+`test_golden`（43 条）与 `test_error_snapshot`（80 条）**搬去 `tools/自测.jsh` 了** ——
+那是 0.2.8 的「用基石测基石」：**每个用例一个子进程**、比 stdout / stderr / 退出码，
+而且**在 CI 上跑**（`.github/workflows/ci.yml` 的「基石自测」两步，被测分别是
+Python 参考实现与构建出来的 `jishi-rs`）。
+
+⚠️ **顺序是有讲究的**：必须先让运行器进 CI，再删这里的两条 ——
+反过来就等于把这 123 条用例**从 CI 上抹掉**（CI 只跑 pytest）。
+
+📌 **删了不等于没人守**：`tests/test_m138_runner_summary.py` 仍会**在 pytest 里**
+把整批语料交给运行器跑一遍，并独立数一遍语料与汇总对账 ——
+所以本地 `pytest` 照样能发现「某条语料的输出变了」。
+
+## 留下的这条是另一件事
+
+它查的是「**同一份 `.out` 在别的平台上会不会对不上**」——
+跟「哪个执行器跑」无关，运行器（只在跑的那台机器上比）也管不了它。
+"""
+
 import sys
-from contextlib import redirect_stdout
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from oracle.jishi.interpreter import run_source
-from oracle.jishi.errors import JishiError
-
 CASES = Path(__file__).parent / "cases"
-ERROR_CASES = Path(__file__).parent / "error_cases"
-
-
-def _list_cases(directory: Path) -> list[str]:
-    if not directory.exists():
-        return []
-    return sorted(p.name for p in directory.glob("*.jsh"))
-
-
-@pytest.mark.parametrize("jsh", _list_cases(CASES))
-def test_golden(jsh):
-    src = (CASES / jsh).read_text(encoding="utf-8")
-    expected = (CASES / jsh).with_suffix(".out").read_text(encoding="utf-8")
-    out = io.StringIO()
-    try:
-        with redirect_stdout(out):
-            run_source(src, filename=jsh)
-    except Exception as e:
-        pytest.fail(f"执行失败：{e}")
-    assert out.getvalue() == expected, (
-        f"输出不一致\n期望：\n{expected!r}\n实际：\n{out.getvalue()!r}")
-
-
-@pytest.mark.parametrize("jsh", _list_cases(ERROR_CASES))
-def test_error_snapshot(jsh):
-    src = (ERROR_CASES / jsh).read_text(encoding="utf-8")
-    expected = (ERROR_CASES / jsh).with_suffix(".err").read_text(
-        encoding="utf-8").strip()
-    with pytest.raises(JishiError) as ei:
-        run_source(src, filename=jsh)
-    rendered = str(ei.value)
-    assert expected in rendered, (
-        f"错误消息不匹配\n期望包含：\n{expected}\n实际：\n{rendered}")
 
 
 # ---------------------------------------------------------------------------
