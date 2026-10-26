@@ -2516,6 +2516,10 @@ impl VM {
                         return Err(err("运行期错误", format!("Rust 引擎不支持「从 python/本地包」导入「{name}」")));
                     }
                     let modv = stdlib_module(&name)?;
+                    // `ins.c` 是别名下标：`-1` = 没写 `为 别的名字` ⇒ 才可能遮蔽内建
+                    if ins.c < 0 {
+                        提示遮蔽内建(&name);
+                    }
                     self.stack.push(modv);
                 }
                 op::STORE_LAST => {
@@ -5014,6 +5018,41 @@ pub fn dump_val_size() -> String {
         std::mem::size_of::<(String, HashMap<String, Val>)>(),
         std::mem::size_of::<ExcValue>(),
     )
+}
+
+thread_local! {
+    /// 「模块名遮蔽内建」已经提示过的名字（与 Python 侧 `_warned_shadow` 同口径）。
+    static 已提示遮蔽: std::cell::RefCell<std::collections::HashSet<String>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// 标准库**模块名**与**内建函数名**同名时，往 stderr 打一次中文提示。
+///
+/// ## 为什么要有（2026-10-26，`check_cli` 报了「只有 Python 侧打」）
+///
+/// `导入 文本` 会把名字「文本」绑到模块上，于是内建转换函数 `文本(...)` 就**用不了**了
+/// （再调它会报「模块不能直接调用」）。这条提示是提醒 + 给替代写法（别名导入）。
+///
+/// 命中范围极小：**模块名 ∩ 内建函数名 = {文本}**（其余 29 个模块名都不撞）。
+///
+/// ⚠️ **口径与 Python 侧 `runtime._warn_shadow_builtin` 逐字对齐**：
+/// ① 一个进程里每个名字只打**一次**（进程内的去重计数器 —— `check_engines`
+///    早就把这条提示当成「进程模型的副产物」剥掉了，所以它不参与语义对拍）；
+/// ② 用了**别名**导入（`导入 文本 为 文字`）就不打 —— 那时内建没被遮蔽。
+fn 提示遮蔽内建(name: &str) {
+    // 与 Python 一样：先看这个名字是不是内建；是才记「提示过」。
+    if !new_builtins().contains_key(name) {
+        return;
+    }
+    let 头一次 = 已提示遮蔽.with(|s| s.borrow_mut().insert(name.to_string()));
+    if !头一次 {
+        return;
+    }
+    eprintln!(
+        "提示：「{name}」既是标准库模块名，又是内建函数名。\
+         导入后，内建的 {name}(...) 会被模块「{name}」遮蔽。\
+         如需两者都用，建议用别名导入：导入 {name} 为 别的名字"
+    );
 }
 
 /// 内建函数名（排好序）。

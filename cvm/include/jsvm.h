@@ -125,7 +125,10 @@ typedef struct JsHost {
      * （C 侧不变式见 `jsvm.c` 的 `release_buf`。） */
     int (*iter_next_batch)(JVal *it, int from, JVal *out, int cap, int *n,
                            int line, int col);
-    int (*do_import)  (int name_idx, int from_python, JVal *out,
+    /* M138：`alias_idx` 是**别名下标**（-1 = 没写 `为 别的名字`）。
+     * 以前不传 —— 于是宿主不知道有没有别名，「模块名遮蔽内建」那条提示
+     * 在**用了别名时也照打**（判断依据只有 `alias is None`）。 */
+    int (*do_import)  (int name_idx, int from_python, int alias_idx, JVal *out,
                        int line, int col);
     int (*to_int)     (JVal *a, JVal *out, int line, int col);
     int (*release_handle)(uint32_t handle);

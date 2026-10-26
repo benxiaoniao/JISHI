@@ -2072,7 +2072,8 @@ static int run_loop(JsVm *vm) {
             case JS_OP_IMPORT: {
                 JVal out;
                 SAVE_IP();
-                if (HC(vm, do_import)(a, b, &out, line, col) != 0) goto dispatch_err;
+                /* c = 别名下标（-1 表示没别名），宿主据此决定要不要提示遮蔽 */
+                if (HC(vm, do_import)(a, b, c, &out, line, col) != 0) goto dispatch_err;
                 PUSH(vm, out);
                 break;
             }

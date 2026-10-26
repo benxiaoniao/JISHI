@@ -437,7 +437,8 @@ class VM {
             frameLocals[ins.a] = iv;
           } else if (op === Op.IMPORT) {
             const src = ins.b;
-            stack.push(this._doImport(names[ins.a], src, ins.line, ins.col));
+            // ins.c = 别名下标（-1 = 没写 `为 别的名字`），见 `_doImport` 的说明
+            stack.push(this._doImport(names[ins.a], src, ins.line, ins.col, ins.c));
           } else if (op === Op.STORE_LAST) {
             this.lastValue = stack.pop();
           } else if (op === Op.SETUP_TRY) {
@@ -682,7 +683,7 @@ class VM {
   }
 
   // 标准库导入：JS 里只支持内建的核心模块（数学/文本/随机等轻量实现）
-  _doImport(name, src, line, col) {
+  _doImport(name, src, line, col, aliasIdx) {
     // src: 0=标准库 1=python 2=本地包
     if (src === 1) throw R.runErr(`JS 引擎不支持「从 python」导入「${name}」`, line, col);
     if (src === 2) throw R.runErr(`JS 引擎不支持「从 本地包」导入「${name}」`, line, col);
@@ -693,8 +694,37 @@ class VM {
     }
     // 有的模块要求「每次导入都是干净的一份」（比如 `测试` 的用例记录）
     if (mod.onImport) mod.onImport();
+    // `aliasIdx` 为空/-1 ⇒ 没写别名 ⇒ 才可能遮蔽内建（口径见 `_提示遮蔽内建`）
+    if (aliasIdx === undefined || aliasIdx === null || aliasIdx < 0) {
+      _提示遮蔽内建(name);
+    }
     return mod;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 「模块名遮蔽内建」提示（M138）
+//
+// `导入 文本` 会把名字「文本」绑到模块上，内建转换函数 `文本(...)` 就用不了了。
+// 命中范围极小：模块名 ∩ 内建函数名 = {文本}（其余 29 个都不撞）。
+//
+// ⚠️ 口径与 Python 侧 `runtime._warn_shadow_builtin`、Rust 侧 `提示遮蔽内建`
+//    三者**逐字对齐**：一个进程里每个名字只打一次；用了别名导入就不打。
+//    （`check_engines` 把这条提示当「进程模型的副产物」剥掉，不参与语义对拍；
+//     但**用户看得见**，所以三个宿主都得有 —— 否则只有 Python 版会提醒。）
+// ---------------------------------------------------------------------------
+const _已提示遮蔽 = new Set();
+let _内建名集 = null;
+
+function _提示遮蔽内建(name) {
+  if (_内建名集 === null) _内建名集 = new Set(Object.keys(R.newBuiltins()));
+  if (!_内建名集.has(name)) return;          // 与 Python 一样：先看是不是内建
+  if (_已提示遮蔽.has(name)) return;         // 一个进程里只打一次
+  _已提示遮蔽.add(name);
+  process.stderr.write(
+    `提示：「${name}」既是标准库模块名，又是内建函数名。`
+    + `导入后，内建的 ${name}(...) 会被模块「${name}」遮蔽。`
+    + `如需两者都用，建议用别名导入：导入 ${name} 为 别的名字\n`);
 }
 
 // ---------------------------------------------------------------------------

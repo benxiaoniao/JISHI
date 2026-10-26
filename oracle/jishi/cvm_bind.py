@@ -343,7 +343,7 @@ CB_IS_SIGNAL = CFUNCTYPE(c_int, _JPV, POINTER(c_int))
 CB_MAKE_CLASS = CFUNCTYPE(c_int, _JPV, _JPV, _JPV, c_int, _JPV,
                           c_int, c_int)
 CB_UNPACK = CFUNCTYPE(c_int, _JPV, c_int, c_int, _JPV, c_int, c_int)
-CB_DO_IMPORT = CFUNCTYPE(c_int, c_int, c_int, _JPV, c_int, c_int)
+CB_DO_IMPORT = CFUNCTYPE(c_int, c_int, c_int, c_int, _JPV, c_int, c_int)
 CB_TO_INT = CFUNCTYPE(c_int, _JPV, _JPV, c_int, c_int)
 CB_RELEASE_HANDLE = CFUNCTYPE(c_int, c_uint32)
 CB_RAISE_NAME = CFUNCTYPE(c_int, c_int, c_int, c_int)
@@ -1221,11 +1221,14 @@ class CvmHost:
         except BaseException as e:
             return self._fail(e)
 
-    def _cb_do_import(self, name_idx, src, out, line, col):
+    def _cb_do_import(self, name_idx, src, alias_idx, out, line, col):
         try:
             # src 编码导入来源：0=标准库 1=python 2=本地包
+            # alias_idx：别名下标（-1 = 没别名）—— 以前没传，导致「用了别名
+            # 还提示遮蔽内建」（M138 由 tests/test_m138_shadow_hint.py 抓到）
+            别名 = None if alias_idx < 0 else self.names[alias_idx]
             r = R.do_import(self.names[name_idx], src == 1, src == 2,
-                            line=line, col=col, filename=self.filename)
+                            line=line, col=col, filename=self.filename, alias=别名)
             out[0] = self.py2c(r)
             return 0
         except BaseException as e:

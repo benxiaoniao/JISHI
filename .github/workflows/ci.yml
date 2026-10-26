@@ -178,6 +178,67 @@ jobs:
           #    所有 worker 在 wait、主进程在 join，**没人失败**。按文件分发才稳。
           python -m pytest tests/ -q --tb=short -rf -m "not 计时" -n 4 --dist loadfile 2>&1 | tee pytest.log
 
+      # 🧪 **基石自测**（M138）：用**基石自己写的黑盒运行器**（`tools/自测.jsh`）
+      #    再跑一遍那 123 条用例。它和 pytest 是**两条独立的路**：
+      #
+      #    | | pytest（`test_golden` / `test_error_snapshot`） | 自测（`tools/自测.jsh`） |
+      #    |---|---|---|
+      #    | 跑法 | **同进程**，直接调解释器 | **每个用例一个子进程** |
+      #    | 比什么 | stdout / stderr / 退出码 | 同上（外加「超时」这条独立判据） |
+      #    | 谁写的 | Python | **基石自己** |
+      #
+      #    为什么要两条：0.2.8 的主题就是「用基石测基石」，而运行器平时只在本机跑 ——
+      #    **不进 CI 就等于没人守**（哪天它坏了，只有作者某天手动跑才会发现）。
+      #
+      #    ⚠️ **CI 仍然保留 pytest**（用户 2026-10-24 定）：要保证
+      #    「连基石都起不来时也能测」—— 运行器自己也是基石写的，
+      #    基石整体坏掉时它跟着坏。⇒ 两条都留着，**不是替换关系**。
+      #
+      #    ⚠️ 这两步**只在 pytest 过了之后才跑**（默认行为）：pytest 已经红的时候
+      #    再花两分钟跑一遍同批用例，只会把失败面变宽，定位更难。
+      - name: 基石自测（被测 = Python 参考实现）
+        shell: bash
+        run: |
+          set -o pipefail
+          # `--标签 python` 必须给：标签默认取自**程序文件名**
+          # （Windows `python.exe` → `python`，macOS/Linux `python3.13` → `python3.13`），
+          # 不给的话豁免表在三个平台上对不上（v0.2.7 就这么红过）。
+          #
+          # 🔴 `--被测` 要给**解析后的绝对路径**，不能裸写 `python`（2026-10-26 实测）：
+          #    Windows 上 `python.exe` 可能是**应用商店的别名**，子进程起得来但
+          #    **一个字都不输出** —— 123 条全报「实际输出为空」，而直接手敲
+          #    `python x.jsh` 却是好的（终端里的 PATH 顺序与子进程不一定一致）。
+          #    这又是「从环境里推出来的名字别当契约」那一课。
+          PYBIN=$(command -v python)
+          python -m oracle.jishi.cli tools/自测.jsh \
+            --被测 "$PYBIN" -m oracle.jishi.cli --标签 python --路数 4 2>&1 | tee selftest-py.log
+
+      - name: 基石自测（被测 = Rust 宿主）
+        shell: bash
+        run: |
+          set -o pipefail
+          # Windows 是 `jishi-rs.exe`、POSIX 没有扩展名 —— 写死任一边都会在另一半上失败
+          BIN=rust/target/release/jishi-rs
+          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          # 不给 `--标签`：两侧推出来的都是 `jishi-rs`（`jishi-rs.exe` 去后缀），
+          # 正好对上 `tools/自测豁免.txt` 里登记的那一条。
+          python -m oracle.jishi.cli tools/自测.jsh --被测 "$BIN" --路数 4 2>&1 | tee selftest-rs.log
+
+      # 自测失败也写成注解（同下面 pytest 那条的理由：job 日志只有登录网页能看）
+      - name: 自测失败摘要（写成注解）
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          for f in selftest-py.log selftest-rs.log; do
+            [ -f "$f" ] || continue
+            LIST=$(grep -aE '^  (✗|⚠)' "$f" | head -20 | tr -d '\r' | tr '\n' ' ')
+            SUM=$(grep -a '^汇总 ' "$f" | tail -1 | tr -d '\r')
+            [ -z "$LIST$SUM" ] && continue
+            echo "::error file=.github/workflows/ci.yml,line=1::【自测失败·$f】${SUM} ${LIST}"
+          done
+          exit 0
+
       # 失败时把「哪些用例挂了」写成 Actions 注解（M35 加）。
       # 来由：CI 一直红，而 job 日志只能登录网页看、公开 API 下载要管理员权限，
       # 排查时两眼一抹黑。注解可以用公开 API 读到（check-runs/annotations），
