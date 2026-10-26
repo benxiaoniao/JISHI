@@ -153,7 +153,7 @@ _BUILTINS = ["打印", "输入", "整数", "小数", "文本", "精确", "序数
 
 _METHOD_CATS = ["列表", "字典", "文本", "集合", "文件", "小数"]
 
-_STDLIB_MODULES = ["Excel", "HTTP服务端", "HTTP路由", "html", "json", "加密", "压缩", "参数", "容器", "对比",
+_STDLIB_MODULES = ["Excel", "HTTP服务端", "HTTP路由", "html", "json", "加密", "压缩", "参数", "向量", "容器", "对比",
                    "并发", "数学",
                    "数据库", "文件", "文本", "日志", "日期", "时间", "标识", "正则",
                    "测试", "系统", "统计", "编码", "网络", "表格", "路径", "迭代",
@@ -183,7 +183,8 @@ def test_独立判据_lang_spec结构与关键事实():
     # M133/M134 加了 系统.执行详细 / 系统.并行执行 ⇒ 307 → 309；
     # M136 给 `测试` 加了 用例们 / 跳过 / 每例前 / 每例后 ⇒ 309 → 313。
     # ⚠️ 这个数是**故意写死**的：它抓「宿主侧少搬了函数」（那时会红，而不是悄悄跟着变）。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 313
+    # M139 新增模块 `向量`（11 个函数）⇒ 313 → 324。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 324
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

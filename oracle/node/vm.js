@@ -3049,6 +3049,131 @@ function _isInt(v) {
   return typeof x === 'number' && Number.isInteger(x);
 }
 
+// ---------------------------------------------------------------------------
+// 向量（M139）：一列数字上的逐元素运算与点积
+//
+// ⚠️ **必须与 Python 一样保留「整数 / 小数」**：JS 侧的小数是 `FloatBox` 包装，
+//    而 `_numsFor` 会一律解包 —— 解包之后 `[1, 2] × 0.5` 会打成 `[0.5, 1]`，
+//    而 Python 给的是 `[0.5, 1.0]`（对拍逐字节比，差一个 `.0` 就红）。
+//    ⇒ 这里自己取数，每个元素记成 `{n: 数值, i: 是否整数, 原: 原值}`。
+// ---------------------------------------------------------------------------
+function _vecNums(name, v) {
+  if (typeof v === 'string' || R.isBytes(v)) {
+    throw R.typeErr(`「${name}」要传一列数字，不能传文本`);
+  }
+  const s = R.seqOf(v, false, undefined, undefined);
+  if (s === null) throw R.typeErr(`「${name}」要传一列数字（列表）`);
+  return s.map((原, i) => {
+    const 数值 = R.unwrap(原);
+    if (typeof 数值 === 'boolean' || typeof 数值 !== 'number') {
+      throw R.typeErr(`「${name}」里第 ${i + 1} 个不是数字：${R.display(原)}`);
+    }
+    return { n: 数值, i: !R.isFloatBox(原), 原 };
+  });
+}
+function _vec同长(a, b, name) {
+  if (a.length !== b.length) {
+    throw R.valueErr(`「${name}」要求两列数字**长度相同**，实际是 ${a.length} 和 ${b.length}`
+      + '（长度不等时逐元素算会错位，所以这里直接报错）');
+  }
+}
+function _vec非空(a, name) {
+  if (a.length === 0) throw R.valueErr(`「${name}」要至少有一个数，现在是空的`);
+  return a;
+}
+/** 两个数做一次算术：**都是整数就还整数**（与 Python 规则一致）。 */
+function _vec算(x, y, f) { return { n: f(x.n, y.n), i: x.i && y.i }; }
+function _vec出(c) { return c.i ? c.n : new R.FloatBox(c.n); }
+function _vec整数(name, v, 哪) {
+  const x = R.unwrap(v);
+  if (R.isFloatBox(v) || typeof x !== 'number' || !Number.isInteger(x)) {
+    throw R.typeErr(`「${name}」的${哪}要是整数，给的是 ${R.display(v)}`);
+  }
+  return x;
+}
+
+const VECTOR_FUNCS = {
+  '构造': new R.Builtin('构造', (个, 初) => {
+    const n = _vec整数('构造', 个, '个数');
+    if (n < 0) throw R.valueErr(`「构造」的个数不能是负数（给的是 ${n}）`);
+    let 初值 = 0;
+    let 是整数 = true;
+    if (初 !== undefined) {
+      是整数 = !R.isFloatBox(初);
+      const x = R.unwrap(初);
+      if (typeof x !== 'number' || typeof x === 'boolean') {
+        throw R.typeErr(`「构造」的初值要是数字，给的是 ${R.display(初)}`);
+      }
+      初值 = x;
+    }
+    return Array.from({ length: n }, () => (是整数 ? 初值 : new R.FloatBox(初值)));
+  }),
+  '加': new R.Builtin('加', (甲, 乙) => {
+    const a = _vecNums('加', 甲); const b = _vecNums('加', 乙);
+    _vec同长(a, b, '加');
+    return a.map((x, k) => _vec出(_vec算(x, b[k], (p, q) => p + q)));
+  }),
+  '减': new R.Builtin('减', (甲, 乙) => {
+    const a = _vecNums('减', 甲); const b = _vecNums('减', 乙);
+    _vec同长(a, b, '减');
+    return a.map((x, k) => _vec出(_vec算(x, b[k], (p, q) => p - q)));
+  }),
+  '标量乘': new R.Builtin('标量乘', (甲, 倍) => {
+    const a = _vecNums('标量乘', 甲);
+    const 倍值 = R.unwrap(倍);
+    if (typeof 倍值 !== 'number' || typeof 倍值 === 'boolean') {
+      throw R.typeErr(`「标量乘」的倍数要是数字，给的是 ${R.display(倍)}`);
+    }
+    const k = { n: 倍值, i: !R.isFloatBox(倍) };
+    return a.map((x) => _vec出(_vec算(x, k, (p, q) => p * q)));
+  }),
+  '点积': new R.Builtin('点积', (甲, 乙) => {
+    const a = _vecNums('点积', 甲); const b = _vecNums('点积', 乙);
+    _vec同长(a, b, '点积');
+    let 合 = { n: 0, i: true };
+    for (let k = 0; k < a.length; k += 1) {
+      合 = _vec算(合, _vec算(a[k], b[k], (p, q) => p * q), (p, q) => p + q);
+    }
+    return _vec出(合);
+  }),
+  '和': new R.Builtin('和', (甲) => {
+    const a = _vecNums('和', 甲);
+    let 合 = { n: 0, i: true };
+    for (const x of a) 合 = _vec算(合, x, (p, q) => p + q);
+    return _vec出(合);
+  }),
+  '均值': new R.Builtin('均值', (甲) => {
+    const a = _vec非空(_vecNums('均值', 甲), '均值');
+    // Python 里 `/` 是真除法 ⇒ 结果**一定是小数**
+    return new R.FloatBox(a.reduce((t, x) => t + x.n, 0) / a.length);
+  }),
+  '最大': new R.Builtin('最大', (甲) => {
+    const a = _vec非空(_vecNums('最大', 甲), '最大');
+    let 最好 = a[0];
+    for (const x of a) if (x.n > 最好.n) 最好 = x;
+    return 最好.原;
+  }),
+  '最小': new R.Builtin('最小', (甲) => {
+    const a = _vec非空(_vecNums('最小', 甲), '最小');
+    let 最好 = a[0];
+    for (const x of a) if (x.n < 最好.n) 最好 = x;
+    return 最好.原;
+  }),
+  '维数': new R.Builtin('维数', (甲) => _vecNums('维数', 甲).length),
+  '切片': new R.Builtin('切片', (甲, 起, 止) => {
+    const a = _vecNums('切片', 甲);
+    const 总数 = a.length;
+    const 首 = _vec整数('切片', 起, '起');
+    const 尾 = (止 === undefined || 止 === null) ? 总数 : _vec整数('切片', 止, '止');
+    if (首 < 0 || 尾 < 0) {
+      throw R.valueErr(`「切片」的起和止都不能是负数（给的是 ${首} 和 ${尾}）`);
+    }
+    if (首 > 尾) throw R.valueErr(`「切片」的起 ${首} 不能大于止 ${尾}`);
+    if (尾 > 总数) throw R.valueErr(`「切片」的止 ${尾} 超出维数 ${总数}`);
+    return a.slice(首, 尾).map((x) => x.原);
+  }),
+};
+
 const STATS_FUNCS = {
   '求和': new R.Builtin('求和', (d) => _numsFor('求和', d).reduce((a, b) => a + b, 0)),
   '平均': new R.Builtin('平均', (d) => {
@@ -5319,6 +5444,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '日志': new R.Module('日志', LOG_FUNCS),
   // M50 新增的六个模块（与 Python 侧 jishi/stdlib/ 下同名文件对齐）
   '统计': new R.Module('统计', STATS_FUNCS),
+  '向量': new R.Module('向量', VECTOR_FUNCS),
   '编码': new R.Module('编码', ENCODE_FUNCS),
   '配置': new R.Module('配置', CFG_FUNCS),
   'html': new R.Module('html', HTML_FUNCS),
