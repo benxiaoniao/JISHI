@@ -68,23 +68,14 @@ def test_context_对列表给项数():
 
 
 # ---------------------------------------------------------------------------
-# ⚠️ **这里一律用 `capfd` 而不是 `capsys`**（2026-10-22 定的）。
+# ⚠️ **本文件的判据只比**「`conformance` 自己打出来的那几行」**，所以一律用
+# `_跑比对()`（`redirect_stdout/redirect_stderr` 到内存），**不用任何捕获夹具**。
 #
-# `capsys` 靠**替换 `sys.stdout` 对象**来抓输出；`capfd` 抓的是**底层文件描述符**。
-# 区别在 CI 上暴露过：v0.2.6 那两轮 CI，一条是 ubuntu 的 `test_产物读不动要如实报`、
-# 一条是 windows 的 `test_stage_只比指定阶段`，**不同平台、不同用例，却都是
-# `assert 'X' in ''`** —— 而且其中一条走的是**成功路径**（`main` 返回 0），
-# 说明不是「报错打错了地方」，而是 **`capsys` 压根没抓到**。
-# `capfd` 不依赖那个替换，谁动了 `sys.stdout` 都不影响它。
-# 📌 代价：`capfd` 抓不到**子进程**的输出 —— 本文件里的用例都不起子进程，正好。
-#
-# 🔴 **2026-10-25 又踩了一次（而且我把它改反了）**：CI 上 ubuntu / macOS 各红一条，
-# 症状还是 `assert 'X' in ''`。我照着症状把上面这段整体改成了 `capsys`，
-# 结果 macOS 换了另一条继续红 —— 因为**这段注释本身就是答案**，只是它被上一次
-# 批量替换弄坏了（"一律用 `capfd` 而不是 `capfd`"，读起来像废话，于是没人当真）。
-# ⇒ 现在只在**失败信息**上加料（退出码 + stdout + stderr 三条都打出来），
-#    捕获方式一个字没动。📌 **别在没读懂注释为什么这么写之前，用 sed 把它批量改掉。**
-
+# 📌 历史（两次踩，值得记）：这里原来写的是「一律用 `capfd` 而不是 `capsys`」——
+#    理由是对的（`capsys` 依赖 `sys.stdout` 没被别人换掉，而 CI 上恰恰被换过）。
+#    但 2026-10-25 / 26 又出现「退出码对、抓到的 stdout 是空串、pytest 自己的
+#    `Captured stdout` 里却有内容」—— 换回 `capfd`/`capsys` 只是**换个赌注**。
+#    ⇒ 结论：**判据要自己接管它依赖的东西**，别赌夹具行为。
 
 # 二、compare：拿外地产物与基线比
 # ---------------------------------------------------------------------------
@@ -127,19 +118,42 @@ def _显式捕获():
         yield 出, 错
 
 
+def _跑比对(参数):
+    """显式接管两条流跑一次 `C.main`，返回 `(退出码, stdout, stderr)`。
+
+    🔴 **为什么不直接用 `capfd`**（2026-10-25 / 26 各踩一次）：
+    CI 上出现过「退出码对、但抓到的 stdout 是**空串**」，而 pytest 自己的
+    `Captured stdout` 里**明明有内容** —— 说明是**捕获夹具**没拿到，不是程序没打。
+    换夹具（capfd ↔ capsys）只是换个赌注，**没有解决「赌」本身**。
+    ⇒ 进程内 `redirect_stdout/redirect_stderr` 到内存：没有 fd、没有缓冲、
+    不依赖任何夹具，谁在别处怎么折腾都影响不到。
+
+    ⚠️ 顺带把**退出码与两条流**一起返回 —— 失败信息就能自证
+    （是「没打印」还是「提前退了」）。
+    """
+    出, 错 = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(出), contextlib.redirect_stderr(错):
+        码 = C.main(参数)
+    return 码, 出.getvalue(), 错.getvalue()
+
+
+def _现场(码, 出, 错) -> str:
+    return f"退出码={码}\n--- stdout ---\n{出}\n--- stderr ---\n{错}"
+
+
 def _first_corpus_id() -> str:
     """取一个真实存在的语料 id（不写死名字，语料增删都能跑）。"""
     return C.corpus_id(C.collect_corpus()[0][1])
 
 
-def test_compare_自比自必须全绿(ext, capfd):
+def test_compare_自比自必须全绿(ext):
     """基线 vs 基线 = 全绿。**尺子先要量得准自己** —— 这条不绿说明工具坏了。"""
-    assert C.main(["compare", "--from", str(ext)]) == 0
-    out = capfd.readouterr().out
-    assert "全部一致" in out, out[-500:]
+    码, 出, 错 = _跑比对(["compare", "--from", str(ext)])
+    assert 码 == 0, _现场(码, 出, 错)
+    assert "全部一致" in 出, _现场(码, 出, 错)
 
 
-def test_compare_改坏一处能定位到具体位置(ext, capfd):
+def test_compare_改坏一处能定位到具体位置(ext):
     """**R1 的验收标准**：把某个 token 的列号 +1，要能指出是**哪一个**。"""
     cid = _first_corpus_id()
     p = ext / f"{cid}.json"
@@ -147,25 +161,53 @@ def test_compare_改坏一处能定位到具体位置(ext, capfd):
     d["tokens"][2]["col"] += 1
     _save(p, d)
 
-    capfd.readouterr()
-    assert C.main(["compare", "--from", str(ext)]) == 1
-    out = capfd.readouterr().out
-    assert "tokens[2].col" in out, f"没指出位置：{out[-600:]}"
+    码, 出, 错 = _跑比对(["compare", "--from", str(ext)])
+    # 🔴 失败信息要带**退出码与两条流**（2026-10-26）：CI 上这条只报「out 是空串」，
+    #    而空的原因可能在 stderr（「没有基线」「找不到产物目录」都是提前返回）。
+    现场 = _现场(码, 出, 错)
+    assert 码 == 1, 现场
+    assert "tokens[2].col" in 出, f"没指出位置：\n{现场}"
     # 还要说出「这是哪个东西」—— 否则人还得自己去数第 3 个 token 是什么
-    assert "基线：" in out and "外部：" in out, out[-600:]
+    assert "基线：" in 出 and "外部：" in 出, 现场
 
 
-def test_compare_改坏一个_AST_节点也能定位(ext, capfd):
+def test_compare_改坏一个_AST_节点也能定位(ext):
     cid = _first_corpus_id()
     p = ext / f"{cid}.json"
     d = _reload(p)
     d["ast"]["body"] = d["ast"]["body"][:-1]        # 少一个语句
     _save(p, d)
 
-    capfd.readouterr()
-    assert C.main(["compare", "--from", str(ext)]) == 1
-    out = capfd.readouterr().out
-    assert "ast" in out and "长度" in out, f"应该报到列表长度上：{out[-600:]}"
+    码, 出, 错 = _跑比对(["compare", "--from", str(ext)])
+    现场 = _现场(码, 出, 错)
+    assert 码 == 1, 现场
+    assert "ast" in 出 and "长度" in 出, f"应该报到列表长度上：\n{现场}"
+
+
+def test_缺语料要报未产出(tmp_path):
+    """外部少产出一个语料 → 报「未产出」（不许当它不存在）。"""
+    dst = tmp_path / "partial"
+    dst.mkdir()
+    # 只放一个语料的产物
+    cid = _first_corpus_id()
+    shutil.copy(C.BASELINE_DIR / f"{cid}.json", dst / f"{cid}.json")
+
+    码, 出, 错 = _跑比对(["compare", "--from", str(dst)])
+    现场 = _现场(码, 出, 错)
+    assert 码 == 1, 现场
+    assert "外部未产出" in 出, f"该报未产出：\n{现场}"
+
+
+def test_产物读不动要如实报(ext):
+    cid = _first_corpus_id()
+    (ext / f"{cid}.json").write_text("{ 这不是 JSON", encoding="utf-8")
+
+    码, 出, 错 = _跑比对(["compare", "--from", str(ext)])
+    现场 = _现场(码, 出, 错)
+    assert 码 == 1, 现场
+    # ⚠️ 失败时**连 stderr 一起带出来**（2026-10-22 定的）：只报「out 是空」没法判断
+    #    是「工具没打印」还是「工具提前退了」。2026-10-26 起连退出码一起报。
+    assert "读不动" in 出, f"该说读不动：\n{现场}"
 
 
 def test_stage_只比指定阶段(ext):
@@ -177,15 +219,13 @@ def test_stage_只比指定阶段(ext):
     _save(p, d)
 
     # 全量比 → 会报不一致
-    with _显式捕获() as (出1, 错1):
-        码1 = C.main(["compare", "--from", str(ext)])
-    assert 码1 == 1, f"全量该报不一致：\n{出1.getvalue()}\n{错1.getvalue()}"
+    码1, 出1, 错1 = _跑比对(["compare", "--from", str(ext)])
+    assert 码1 == 1, f"全量该报不一致：\n{_现场(码1, 出1, 错1)}"
     # 只比 tokens → 绿（因为坏的是 ast）
-    with _显式捕获() as (出2, 错2):
-        码2 = C.main(["compare", "--from", str(ext), "--stage", "tokens"])
-    现场 = f"退出码={码2}\n--- stdout ---\n{出2.getvalue()}\n--- stderr ---\n{错2.getvalue()}"
+    码2, 出2, 错2 = _跑比对(["compare", "--from", str(ext), "--stage", "tokens"])
+    现场 = _现场(码2, 出2, 错2)
     assert 码2 == 0, f"只比 tokens 该绿：\n{现场}"
-    assert "tokens" in 出2.getvalue(), f"没打出阶段名：\n{现场}"
+    assert "tokens" in 出2, f"没打出阶段名：\n{现场}"
 
 
 def test_缺阶段要报未提供而不是静默通过(ext):
@@ -199,45 +239,17 @@ def test_缺阶段要报未提供而不是静默通过(ext):
     d = _reload(p)
     _save(p, {"语料": d["语料"], "tokens": d["tokens"]})    # 只留 tokens
 
-    with _显式捕获() as (出, 错):
-        码 = C.main(["compare", "--from", str(ext)])
-    # 🔴 **失败信息要能自证**：退出码 / stdout / stderr 三条都给上 ——
-    #    CI 上红过一次，当时只打 stdout 的尾巴，而它恰好是空的，等于什么都没说。
-    现场 = f"退出码={码}\n--- stdout ---\n{出.getvalue()}\n--- stderr ---\n{错.getvalue()}"
+    码, 出, 错 = _跑比对(["compare", "--from", str(ext)])
+    现场 = _现场(码, 出, 错)
     assert 码 == 1, f"缺阶段时该退 1：\n{现场}"
-    assert "未提供" in 出.getvalue(), f"缺阶段却没报：\n{现场}"
+    assert "未提供" in 出, f"缺阶段却没报：\n{现场}"
 
 
-def test_缺语料要报未产出(tmp_path, capfd):
-    """外部少产出一个语料 → 报「未产出」（不许当它不存在）。"""
-    dst = tmp_path / "partial"
-    dst.mkdir()
-    # 只放一个语料的产物
-    cid = _first_corpus_id()
-    shutil.copy(C.BASELINE_DIR / f"{cid}.json", dst / f"{cid}.json")
-
-    capfd.readouterr()
-    assert C.main(["compare", "--from", str(dst)]) == 1
-    out = capfd.readouterr().out
-    assert "外部未产出" in out, out[-500:]
-
-
-def test_产物读不动要如实报(ext, capfd):
-    cid = _first_corpus_id()
-    (ext / f"{cid}.json").write_text("{ 这不是 JSON", encoding="utf-8")
-
-    capfd.readouterr()
-    assert C.main(["compare", "--from", str(ext)]) == 1
-    抓 = capfd.readouterr()
-    # ⚠️ 失败时**连 stderr 一起带出来**（2026-10-22）：CI 上只告诉我们 `out` 是空，
-    #    但空的原因可能在 stderr（比如「没有基线」「找不到产物目录」两条提前返回）——
-    #    不带 err 就没法判断是「工具没打印」还是「工具提前退了」。
-    assert "读不动" in 抓.out, f"stdout={抓.out[-400:]!r}\nstderr={抓.err[-400:]!r}"
-
-
-def test_目录不存在要报错(capfd):
-    assert C.main(["compare", "--from", str(ROOT / "不存在的目录")]) == 1
-    assert "找不到产物目录" in capfd.readouterr().err
+def test_目录不存在要报错():
+    码, 出, 错 = _跑比对(["compare", "--from", str(ROOT / "不存在的目录")])
+    现场 = _现场(码, 出, 错)
+    assert 码 == 1, 现场
+    assert "找不到产物目录" in 错, f"该在 stderr 说清：\n{现场}"
 
 
 # ---------------------------------------------------------------------------
