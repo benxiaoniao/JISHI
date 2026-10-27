@@ -1372,17 +1372,34 @@ impl Walker {
 
     /// `导入 模块 [从 python/本地包] [为 别名]`。
     ///
-    /// ⚠️ **跨语言宿主有意不支持 `从 python / 本地包`** —— 单二进制里没有
-    /// Python。报的那句话是**给用户看的正确信息**，登记在
-    /// `tools/check_engines.py` 的 `HOST_KNOWN_GAPS` 里；这里与字节码 VM
-    /// **逐字相同**（不一致的话互拍会立刻红）。
+    /// ⚠️ **两条边界，成因不同，别混为一谈**（M145 把它们分开了）：
+    ///
+    /// 1. `从 python` —— 单二进制里**没有 Python**，这是**语言形态**上的边界，
+    ///    永久如此；报的那句话是给用户看的正确信息，登记在
+    ///    `tools/check_engines.py` 的 `HOST_KNOWN_GAPS` 里。
+    /// 2. `从 本地包` —— **字节码 VM 通道已经支持了**（M145，
+    ///    见 `crate::localpkg`）；这里没跟上，是**树遍历通道**（调试器 DAP /
+    ///    FFI 的 `--walk`）自己的欠账：它跑的是 AST JSON，而包里的 `.jsh`
+    ///    只有源码，要先把前端的 `J` 树转成这套 AST JSON 才能跑。
+    ///    ⇒ 这**不是**「语言不支持」，是这条通道没做，所以提示要给出可走的路。
+    ///    登记在 `tools/check_engines.py` 的 `HOST_KNOWN_GAPS`（会过期报红）。
     fn exec_import(&mut self, n: &Json) -> Result<(), JishiError> {
         let name = field(n, "name")?.as_str().unwrap_or("").to_string();
         let from_python = n.get("from_python").and_then(|v| v.as_bool()).unwrap_or(false);
         let from_local = n.get("from_local").and_then(|v| v.as_bool()).unwrap_or(false);
-        if from_python || from_local {
+        if from_python {
             return Err(err("运行期错误",
-                format!("Rust 引擎不支持「从 python/本地包」导入「{name}」")));
+                format!("Rust 引擎不支持「从 python」导入「{name}」")));
+        }
+        if from_local {
+            // M145：本地包在**编译期**就展开成函数调用了（见
+            // `jishi_frontend::localpkg`），正常情况下走不到这里。能到这儿只有
+            // 一种情况：这条通道吃的是**现成的 AST JSON**（`jishi-rs --walk` /
+            // 调试器），那份 AST 没经过编译器 ⇒ 没有展开过。
+            // ⇒ 这不是「语言不支持」，是这条通道缺一环，提示要给出可走的路。
+            return Err(err_with_hint("运行期错误",
+                format!("Rust 树遍历通道暂不支持「从 本地包」导入「{name}」"),
+                "用 `jishi-rs 文件.jsh` 跑 —— 那条会走编译器，本地包在编译期                 就展开好了；这条通道吃的是现成 AST，没经过编译器".to_string()));
         }
         let modv = stdlib_module(&name)?;
         // 有别名就绑别名，否则绑模块名（与编译器 `c_import` 的 `store_name` 同一口径）。

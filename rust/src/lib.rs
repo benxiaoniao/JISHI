@@ -32,6 +32,7 @@ pub mod mcp;        // R7.4：MCP 服务器（mcp_server.py 的移植，`jishi-r
 pub mod debugger;   // R7.5：调试会话（debugger.py 的移植）
 pub mod dap;        // R7.5：DAP 适配器（dap.py 的移植，`jishi-rs dap`）
 pub mod packages;   // R7.6：包管理（packages.py + cli.py 的包命令）
+mod localpkg;       // M145：本地包**加载**（`导入 图片 从 本地包` 在宿主上真能跑）
 pub mod tools;      // R8.4：`医生` / `新项目` / `教程`（发行包换单二进制后不能缺）
 pub mod repl;       // R8.4b：交互式 REPL（repl.py 的移植，`-i`）
 pub mod selfupdate; // M110：语言本体的升级与卸载（`jishi 升级` / `jishi 卸载 --自身`）
@@ -2513,7 +2514,21 @@ impl VM {
                     check_import_guard(&name, src == 1, src == 2,
                                        0, 0, &self.module.filename)?;
                     if src != 0 {
-                        return Err(err("运行期错误", format!("Rust 引擎不支持「从 python/本地包」导入「{name}」")));
+                        // M145：本地包的**静态**导入在编译期就展开掉了（见
+                        // `crate::localpkg` / `jishi_frontend::localpkg`），能走到
+                        // 这里的只有「运行时拼出来的」动态导入
+                        // （「运行时才拼出来的」导入）—— 展开只发生在编译期。
+                        if src == 2 {
+                            return Err(err_with_hint(
+                                "运行期错误",
+                                format!("运行时动态导入不支持「从 本地包」：「{name}」"),
+                                format!("把 `导入 {name} 从 本地包` 直接写进源码就行\
+                                         （编译期会展开成一个函数调用）；\
+                                         `执行(...)` 里拼出来的字符串没经过编译器，走不了这条路"),
+                            ));
+                        }
+                        return Err(err("运行期错误",
+                            format!("Rust 引擎不支持「从 python」导入「{name}」")));
                     }
                     let modv = stdlib_module(&name)?;
                     // `ins.c` 是别名下标：`-1` = 没写 `为 别的名字` ⇒ 才可能遮蔽内建

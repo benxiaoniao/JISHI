@@ -268,6 +268,10 @@ pub fn timeout_error(timeout: f64) -> JishiError {
 pub fn compile_source(text: &str, filename: &str) -> Result<String, JishiError> {
     let prog = jishi_frontend::parser::parse(text, filename)
         .map_err(|e| parse_err_to_jishi(&e))?;
+    // M145：本地包在**编译期**展开（`导入 图片 从 本地包` → 一次函数调用）。
+    // ⚠️ 放在这里而不是 `compile_program` 里面：那边不返回 Result，
+    //    「包找不到 / 依赖版本不对」这类**用户错误**不能靠 panic 报。
+    let prog = crate::localpkg::expand(&prog, filename)?;
     // ⚠️ `lib_dir = None`：**不展开基石库层**（`jishi/stdlib-jishi/*.jsh`）。
     // 宿主的标准库是原生实现、25 个模块一个不缺（`--dump-stdlib`），
     // 所以不需要把 `.jsh` 源码编进来 —— 单二进制也就**不依赖源码目录**。

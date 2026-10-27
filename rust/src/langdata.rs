@@ -576,6 +576,7 @@ pub const ERROR_CODES: &[(&str, &str, &str, bool)] = &[
     ("E4007", "PackageIndexError", "读不到索引源", false),
     ("E4008", "PackageLockError", "锁定文件对不上", false),
     ("E4009", "PackageBuildError", "打包失败", false),
+    ("E4010", "PackageVersionError", "基石版本不够", false),
 ];
 
 /// 静态检查问题码：(码, 级别, 名称, 说明)。

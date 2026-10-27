@@ -227,6 +227,13 @@ fn run_file(o: &Opts) -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
+    // M145：本地包在编译期展开（`导入 图片 从 本地包` → 一次函数调用）。
+    // 放在 `--ast` 之后：`--ast` 看的是**用户写的**那棵树，不是展开后的。
+    let prog = match crate::localpkg::expand(&prog, &filename) {
+        Ok(p) => p,
+        Err(e) => return report(&e, &filename, &lines, o.json_errors),
+    };
+
     let module = jishi_frontend::compiler::compile_program(&prog, &filename, None, false);
     let bytecode = jishi_frontend::serialize::dump_json(&module);
     crate::set_args(o.rest.clone());

@@ -295,6 +295,49 @@ def _git(*args: str, cwd: Path | None = None) -> str:
     return r.stdout
 
 
+#: GitHub 兜底的**原始文件**前缀。与 `packages.DEFAULT_INDEX_URLS` 里那条
+#: raw 地址同源（`…/JISHI/master/packages/索引.json`），只是这个指向 `下载/`。
+_RAW_PKG_BASE = ("https://raw.githubusercontent.com/benxiaoniao/JISHI/"
+                 + BRANCH + "/packages/下载")
+
+
+def _export_packages(snapshot: Path) -> None:
+    """把 `examples/packages/` 导出成快照里的 `packages/`（索引 + `下载/*.zip`）。
+
+    🔴 **为什么必须有**（M145 补，2026-10-26 实测）：`jishi 安装` 有两个索引源
+    —— 自建源，和一条 **GitHub 兜底**（`packages.DEFAULT_INDEX_URLS[1]`，
+    `raw.githubusercontent.com/…/packages/索引.json`）。以前只把**代码**推上去，
+    `packages/下载/*.zip` **从来不在快照里** ⇒ 兜底一律 404，自建源一挂就装不上。
+    实测：`…/master/packages/下载/基础库-1.0.0.zip` → 404。
+
+    📌 快照里这份索引的下载地址用 **raw 前缀**；自建源那份（同域前缀）由
+    `基石官网/build_index_mirror.py` 另行改写。**两份各自自洽**，互不依赖。
+    """
+    src_root = snapshot / "examples" / "packages"
+    out = snapshot / "packages"
+    if not src_root.is_dir():
+        print("   ⚠️ 快照里没有 examples/packages，跳过包导出")
+        return
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from oracle.jishi import packages as PKG
+
+    dl = out / "下载"
+    dl.mkdir(parents=True, exist_ok=True)
+    包: dict = {}
+    for pkg_dir in PKG.scan_packages(str(src_root)):
+        meta = PKG.read_package_meta(pkg_dir)
+        name = (meta.get("名字") or "").strip()
+        zip_path, _ = PKG.build_package_zip(pkg_dir, str(dl))
+        entry = PKG.index_entry(pkg_dir, base_url=_RAW_PKG_BASE)
+        # 校验和按**刚打出来的那份 zip** 算（与自建源同一规矩：装的时候要核）
+        entry["校验和"] = "sha256:" + PKG._sha256_file(zip_path)
+        包[name] = entry
+    text = PKG.index_to_text(PKG.make_index(包))
+    io.open(out / "索引.json", "w", encoding="utf-8", newline="\n").write(text)
+    print(f"   包索引 {len(包)} 个：{'、'.join(sorted(包)) or '（没有包）'}")
+
+
 def _sanitize(snapshot: Path) -> None:
     """隐私屏蔽（每步幂等，重复运行安全）。
 
@@ -624,6 +667,9 @@ def main() -> int:
         raise SystemExit(f"git archive 失败：{r.stderr.decode('utf-8', 'replace')}")
     with tarfile.open(fileobj=io.BytesIO(r.stdout)) as tf:
         tf.extractall(snapshot, filter="data")  # 自家 git archive 产物
+
+    print("[1.5/4] 导出包索引与 zip → packages/（GitHub 兜底要用）")
+    _export_packages(snapshot)
 
     print("[2/4] 隐私屏蔽 + 终检")
     _sanitize(snapshot)

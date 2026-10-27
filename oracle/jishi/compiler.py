@@ -1125,6 +1125,13 @@ def compile_program(program: A.Program, filename: str = "<输入>",
     Python VM 与 Node/Rust 宿主不认识那条指令。默认关闭，于是默认产物
     与之前逐字节相同。
     """
+    # M145：先把「本地包」展开进来（`导入 图片 从 本地包` →
+    # `图片 = $造模块("图片", __本地包_图片__())`）。**放在基石库层之前** ——
+    # 包的源码里如果又写了 `导入 统计`，下一行就会连它一起展开。
+    from . import localpkg
+
+    program = localpkg.expand(program, filename)
+
     # M52：先把「用基石写的标准库」展开进本程序（`导入 统计` →
     # `统计 = __基石库_统计__()`）。放在最前面，改写后的 AST 才参与
     # 作用域分析与报错行列。详细设计见 `jishilib.py` 的模块文档。

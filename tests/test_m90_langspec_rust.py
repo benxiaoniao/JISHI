@@ -194,9 +194,10 @@ def test_独立判据_lang_spec结构与关键事实():
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。
+    # M145：加 E4010（基石版本不够）⇒ 45 → 46。
     # ⚠️ 这个数是「码表的总数」，加一段码就要跟着改 —— 它是**故意写死**的，
     #    因为「Rust 侧少搬了一段」正是这个测试要抓的东西。
-    assert len(d["error_codes"]) == 45
+    assert len(d["error_codes"]) == 46
     assert d["error_codes"] == sorted(d["error_codes"], key=lambda e: e["code"])
     # content_hash 是 8 位小写十六进制（值本身随元数据变化，不写死 —— 写死了每次
     # 改文案都要回来改它，而它在这里起不到判据作用）。

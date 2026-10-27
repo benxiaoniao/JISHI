@@ -9,6 +9,7 @@
 //! | [`compiler`] | `jishi/compiler.py` | AST → 字节码（[`compiler::Module`]） |
 //! | [`serialize`] | `jishi/serialize.py` | 字节码 → JSON 文本（前端契约的 `bytecode` 阶段产物） |
 //! | [`jishilib`] | `jishi/jishilib.py` | 基石库层（`jishi/stdlib-jishi/*.jsh`）的编译期展开 |
+//! | [`localpkg`] | `jishi/localpkg.py` | 本地包（`.jishi/packages/*`）的编译期展开（M145） |
 //! | [`opcodes`] / [`sha256`] | `jishi/opcodes.py` / `hashlib` | 指令常量表 / `checksum` 用的哈希 |
 //!
 //! ## 为什么单独一个 crate（R7.1-a，2026-10-05）
@@ -32,6 +33,7 @@
 
 pub mod compiler;
 pub mod jishilib;
+pub mod localpkg;   // M145：本地包（`.jishi/packages/*`）的编译期展开
 pub mod opcodes;
 pub mod parser;
 pub mod serialize;

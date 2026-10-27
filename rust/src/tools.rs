@@ -351,6 +351,14 @@ fn run_one(名: &str) -> Result<(), Option<String>> {
             return Err(je.code);
         }
     };
+    // M145：本地包在编译期展开（与 `run.rs` / `sandbox.rs` 同一处逻辑）
+    let prog = match crate::localpkg::expand(&prog, 名) {
+        Ok(p) => p,
+        Err(je) => {
+            eprintln!("  ⚠️ {}", je.message);
+            return Err(je.code);
+        }
+    };
     let module = jishi_frontend::compiler::compile_program(&prog, 名, None, false);
     let bytecode = jishi_frontend::serialize::dump_json(&module);
     crate::set_args(Vec::new());

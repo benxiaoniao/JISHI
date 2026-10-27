@@ -86,8 +86,9 @@ pub const INDEX_ENV_VAR: &str = "JISHI_INDEX";
 pub const INDEX_TIMEOUT: f64 = 6.0;
 
 /// 包元信息里允许出现的字段（发布时校验，拼错字段名会被拦下）。
-pub const ALLOWED_META_KEYS: [&str; 9] =
-    ["名字", "版本", "描述", "依赖", "入口", "许可", "作者", "主页", "关键字"];
+pub const ALLOWED_META_KEYS: [&str; 10] =
+    // M145：包可以声明「我要多新的基石」（形如 `>=0.2.8`，约束语法同依赖）
+    ["名字", "版本", "描述", "依赖", "入口", "许可", "作者", "主页", "关键字", "基石版本"];
 
 /// 按优先级返回索引源列表；`JISHI_INDEX` 给了就**只用**它。
 pub fn default_index_urls() -> Vec<String> {
@@ -198,6 +199,29 @@ pub fn version_satisfies(version: &str, constraint: &str) -> bool {
         }
     }
     ver == parse_version(c)
+}
+
+/// 校验包要求的**基石版本**（M145）。
+///
+/// 单独一条错（E4010）的理由：这条的修法是「**升级语言本体**」，
+/// 与其他包错误（换源 / 重下 / 改 包.json）完全不同，混着报会指错方向。
+pub fn check_base_version(meta: &Json, name: &str) -> Result<(), String> {
+    let want = meta.get("基石版本")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if want.is_empty() {
+        return Ok(());
+    }
+    let now = crate::langdata::LANG_VERSION;
+    if !version_satisfies(now, &want) {
+        return Err(format!(
+            "错误 E4010：基石版本不够（包「{name}」要求的基石版本满足 '{want}'，\
+             当前是 {now}。\n  · 升级语言本体：jishi 升级\n  \
+             ⚠️ 别去改 包.json 把要求调低 —— 那只会变成运行时一句「没有这个函数」，更难查。）"));
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +375,12 @@ fn read_package_meta_raw(pkg_dir: &str) -> Result<Json, String> {
     if let Some(entry) = obj.get("入口") {
         if !matches!(entry, Json::Null) && entry.as_str().is_none() {
             return Err(format!("包「{name}」的「入口」必须是字符串（模块名）"));
+        }
+    }
+    if let Some(base) = obj.get("基石版本") {
+        if !matches!(base, Json::Null) && base.as_str().is_none() {
+            return Err(meta_err(format!(
+                "包「{name}」的「基石版本」必须是字符串（形如 \">=0.2.8\"）")));
         }
     }
     Ok(meta)
@@ -813,6 +843,7 @@ pub fn install_package_dir(src_dir: &str, name: &str, dest_root: Option<&str>,
     if real_name != name {
         return Err(format!("包「{name}」的 包.json 声明名字为「{real_name}」，不一致"));
     }
+    check_base_version(&meta, name)?;
 
     let root = match dest_root {
         Some(r) => r.to_string(),

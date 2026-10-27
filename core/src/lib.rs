@@ -17,7 +17,7 @@
 // R7.1-a（2026-10-05）：**前端本体已抽成独立 crate** `jishi-frontend`（纯 Rust、
 // 零依赖），与独立宿主 `rust/` 共用同一份实现。本文件只剩「搬运用」的 pyo3 壳。
 // 引用方式不变（还是 `tokenizer::tokenize` 这样写），只是名字来自下面这行 `use`。
-use jishi_frontend::{compiler, opcodes, parser, serialize, tokenizer};
+use jishi_frontend::{compiler, localpkg, opcodes, parser, serialize, tokenizer};
 
 use std::sync::OnceLock;
 
@@ -191,6 +191,24 @@ fn j_to_py(py: Python<'_>, v: &parser::J) -> PyResult<Py<PyAny>> {
             cls.call((), Some(&kwargs))?.unbind()
         }
     })
+}
+
+/// 本地包展开的失败（M145）→ Python 异常。
+///
+/// 走的是**与语法错同一个出口**（`_core.ParseError`，`码` 交给 Python 侧现查类）：
+/// `码 = E0302` 在 Python 那边就还原成 `SemanticFuncError`，与参考实现抛的
+/// 是同一个类、同一套文案（`errors.from_extension` 是唯一还原出口）。
+fn to_pkg_err(py: Python<'_>, e: jishi_frontend::localpkg::PkgErr) -> PyErr {
+    let err = ParseError::new_err(e.message.clone());
+    let v = err.value(py);
+    let _ = v.setattr("码", "E0302");
+    let _ = v.setattr("消息", e.message);
+    let _ = v.setattr("行", e.line);
+    let _ = v.setattr("列", e.col);
+    let _ = v.setattr("提示", e.hint);
+    let _ = v.setattr("下划线", py.None());
+    let _ = v.setattr("修正", py.None());
+    err
 }
 
 fn to_parse_err(py: Python<'_>, e: parser::ParseErr) -> PyErr {
@@ -377,6 +395,7 @@ fn to_py_module(py: Python<'_>, m: &compiler::Module) -> PyResult<Py<PyAny>> {
 fn compile(py: Python<'_>, source: &str, filename: &str,
            lib_dir: Option<&str>, fuse_method_call: bool) -> PyResult<String> {
     let prog = parser::parse(source, filename).map_err(|e| to_parse_err(py, e))?;
+    let prog = localpkg::expand(&prog).map_err(|e| to_pkg_err(py, e))?;
     let m = compiler::compile_program(&prog, filename, lib_dir, fuse_method_call);
     Ok(serialize::dump_json(&m))
 }
@@ -389,6 +408,7 @@ fn compile_module(py: Python<'_>, source: &str, filename: &str,
                   lib_dir: Option<&str>, fuse_method_call: bool)
     -> PyResult<Py<PyAny>> {
     let prog = parser::parse(source, filename).map_err(|e| to_parse_err(py, e))?;
+    let prog = localpkg::expand(&prog).map_err(|e| to_pkg_err(py, e))?;
     let m = compiler::compile_program(&prog, filename, lib_dir, fuse_method_call);
     to_py_module(py, &m)
 }

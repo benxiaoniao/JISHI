@@ -36,7 +36,7 @@ import os
 from .errors import (
     PackageBuildError, PackageChecksumError, PackageConflictError,
     PackageCycleError, PackageIndexError, PackageLockError, PackageMetaError,
-    PackageMissingDepError, PackageNotFoundError,
+    PackageMissingDepError, PackageNotFoundError, PackageVersionError,
 )
 import re
 import shutil
@@ -81,6 +81,8 @@ INDEX_TIMEOUT = 6.0
 #: 包元信息里允许出现的字段（发布时校验，拼错字段名会被拦下）
 ALLOWED_META_KEYS = {
     "名字", "版本", "描述", "依赖", "入口", "许可", "作者", "主页", "关键字",
+    # M145：包可以声明「我要多新的基石」。形如 `>=0.2.8`（约束语法与依赖一致）。
+    "基石版本",
 }
 
 
@@ -233,7 +235,34 @@ def read_package_meta(pkg_dir: str) -> dict:
     entry = meta.get("入口")
     if entry is not None and not isinstance(entry, str):
         raise PackageMetaError(f"包「{name}」的「入口」必须是字符串（模块名）")
+
+    base = meta.get("基石版本")
+    if base is not None and not isinstance(base, str):
+        raise PackageMetaError(
+            f"包「{name}」的「基石版本」必须是字符串（形如 \">=0.2.8\"）")
     return meta
+
+
+def check_base_version(meta: dict, name: str) -> None:
+    """校验包要求的「基石版本」（M145）。
+
+    为什么要单独一条错：这条的修法是「**升级语言本体**」，与其他包错误
+    （换源 / 重下 / 改 包.json）完全不同 —— 混着报会把人指错方向。
+
+    ⚠️ 用 `version_satisfies` 判断（与依赖约束同一套语义），别自己写比较：
+    否则 `>=0.2.10` 与 `0.2.9` 谁大就会各说各话。
+    """
+    want = str(meta.get("基石版本") or "").strip()
+    if not want:
+        return
+    from .version import VERSION
+
+    if not version_satisfies(VERSION, want):
+        raise PackageVersionError(
+            f"包「{name}」要求的基石版本满足 {want!r}，当前是 {VERSION}。\n"
+            f"  · 升级语言本体：jishi 升级\n"
+            f"  ⚠️ 别去改 包.json 把要求调低 —— 那只会变成运行时一句"
+            f"「没有这个函数」，更难查。")
 
 
 def _sha256_file(path: str) -> str:
@@ -541,6 +570,7 @@ def install_package_dir(src_dir: str, name: str, *, dest_root: str | None = None
     real_name = meta.get("名字") or name
     if real_name != name:
         raise ValueError(f"包「{name}」的 包.json 声明名字为「{real_name}」，不一致")
+    check_base_version(meta, name)
 
     root = dest_root or ensure_root()
     target = os.path.join(root, name)
@@ -580,6 +610,14 @@ def install_package_zip(zip_path: str, name: str, *, dest_root: str | None = Non
         if inner is None:
             raise ValueError(
                 f"zip「{zip_path}」里没有与包名「{name}」对应的顶层目录")
+        # 只读 zip 里的 包.json 来校验「基石版本」（M145）—— 解压之前就要拦下，
+        # 装进目录之后再报错就成了「装了一半」。
+        try:
+            _meta = json.loads(zf.read(f"{inner}/包.json").decode("utf-8"))
+        except (KeyError, json.JSONDecodeError, UnicodeDecodeError):
+            _meta = {}
+        if isinstance(_meta, dict):
+            check_base_version(_meta, name)
         target = os.path.join(root, name)
         if os.path.exists(target) and not force:
             raise ValueError(f"包「{name}」已安装，用「--force」覆盖")

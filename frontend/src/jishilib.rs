@@ -71,7 +71,7 @@ fn module_path(lib_dir: &str, name: &str) -> Option<PathBuf> {
 /// - `__X` → 导出为 **`X`**（显式改名。有的导出名是关键字，写不成函数名）
 /// - `_X` → 私有，不导出
 /// - 其余 → 原名导出
-fn export_names(program: &Node) -> Vec<(String, String)> {
+pub(crate) fn export_names(program: &Node) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     for node in as_list(field(program, "body")) {
         let n = match node {
@@ -132,7 +132,7 @@ fn shell_source(lib_dir: &str, name: &str) -> String {
 /// 和「元组里的节点」，**嵌套列表不进去**。所以 `如果` 的 `branches`（列表套元组）
 /// 里，`test` 会挪、**块体那半不会**。多下探一层就会让模块里的行号整体差一行
 /// （实测抓到过：`统计.jsh` 的 `计数` 里第 35 行被挪成了 34）。
-fn shift_lines(node: &mut Node, delta: i64) {
+pub(crate) fn shift_lines(node: &mut Node, delta: i64) {
     if let Some(J::Int(line)) = field(node, "line").cloned() {
         for (k, v) in node.fields.iter_mut() {
             if *k == "line" {

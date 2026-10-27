@@ -529,7 +529,12 @@ def _install_locked(args) -> int:
     print(f"按锁定文件装 {len(装序)} 个包（源：{源}）：")
     for i, (n, m) in enumerate(装序, 1):
         print(f"  {i}. {n} {m.get('版本', '')}")
+    已装 = {} if getattr(args, "force", False) else _已装的版本()
     for i, (n, m) in enumerate(装序, 1):
+        想装 = str(m.get("版本") or "")
+        if 想装 and 已装.get(n) == 想装:
+            print(f"已装过、版本一致，跳过：{n} {想装}")
+            continue
         try:
             _install_one(n, m, source=源, force=getattr(args, "force", False))
         except ValueError as e:
@@ -591,7 +596,16 @@ def _install_closure(name: str, index: dict, *, source: str,
         for i, (n, m) in enumerate(装序, 1):
             print(f"  {i}. {n} {m.get('版本', '')}")
 
+    已装 = {} if force else _已装的版本()
     for i, (n, m) in enumerate(装序, 1):
+        想装 = str(m.get("版本") or "")
+        if 想装 and 已装.get(n) == 想装:
+            # 🔴 不能整次失败（M145）：闭包里「已装」的包以前会让
+            #    `安装 数学工具` 直接报「包「基础库」已安装」—— 而它自己
+            #    刚说过「重跑一次会自动跳过已装的」，重跑照样失败，自相矛盾。
+            #    ⇒ 版本一致就跳过（仍会写进 jishi.lock）。
+            print(f"已装过、版本一致，跳过：{n} {想装}")
+            continue
         try:
             _install_one(n, m, source=source, force=force)
         except ValueError:
@@ -615,6 +629,17 @@ def _install_closure(name: str, index: dict, *, source: str,
     _write_lock(PKG.lock_from_closure({"装序": 装序}))
     if len(装序) > 1:
         print(f"已写锁定文件：{_lock_path()}")
+
+
+def _已装的版本() -> dict:
+    """已装的包 → 版本（跳过逻辑要用）。
+
+    ⚠️ 用 `list_packages()` 而不是自己扫目录：包目录里可能还有 `.jishi-lock`
+    之类的内部文件，`list_packages` 已经按「含 包.json 的子目录」筛过一遍。
+    """
+    from . import packages as PKG
+
+    return {p["名字"]: p["版本"] for p in PKG.list_packages()}
 
 
 def _lock_path() -> str:

@@ -815,3 +815,14 @@ class PackageLockError(PackageError):
 class PackageBuildError(PackageError):
     code = "E4009"
     title = "打包失败"
+
+
+class PackageVersionError(PackageError):
+    """包要求的**基石版本**比现在高（M145，E4010）。
+
+    为什么要单独的码：这条的修法与别的包错误**完全不同** ——
+    不是「换个源」「重下一次」，而是「**升级语言本体**」。混进 E4002
+    （自述文件不合格）会让人去改 包.json，方向就错了。
+    """
+    code = "E4010"
+    title = "基石版本不够"
