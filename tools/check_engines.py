@@ -288,11 +288,30 @@ def _run(fn, lines: "list[str] | None" = None) -> tuple[str, str]:
             err_buf.getvalue() + f"「{type(e).__name__}」{e}")
 
 
+def _是包自带测试(路径: str) -> bool:
+    """`examples/packages/<包名>/<包名>_test.jsh` —— **包自带的测试，不算语料**。
+
+    🔴 为什么单独排掉（2026-10-27，M144 的 `图片` 包第一次把它撞出来）：
+
+    1. 它要**先 `jishi 安装` 那个包**才有意义 —— 语料是「拿来就能跑」的，
+       依赖环境的文件放进来，换台机器就红一片；
+    2. 它用 `导入 <包> 从 本地包`，而**宿主（Rust / Node）按设计不支持这条路**
+       （单二进制里没有 Python），本来就不是「语义分叉」。
+
+    跑它们的正确方式是 `jishi 测试 examples/packages/<包名>`（见包的 README），
+    **不是**进全语料对拍。这条规则只排这一个形状，不会盖住别的问题。
+    """
+    parts = Path(路径).parts
+    return (len(parts) >= 2 and parts[-3] == "packages"
+            and parts[-2] == Path(路径).parent.name
+            and Path(路径).name == f"{Path(路径).parent.name}_test.jsh")
+
+
 def _corpora() -> list[str]:
     out: list[str] = []
     for pat in SOURCES:
         out += sorted(glob.glob(str(ROOT / pat), recursive=True))
-    return out
+    return [p for p in out if not _是包自带测试(p)]
 
 
 def main(argv: "list[str] | None" = None) -> int:

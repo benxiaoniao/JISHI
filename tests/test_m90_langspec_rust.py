@@ -189,7 +189,8 @@ def test_独立判据_lang_spec结构与关键事实():
     # M139 新增模块 `向量`（11 个函数）⇒ 313 → 324。
     # M141 新增模块 `矩阵`（8 个函数）⇒ 324 → 332。
     # M142 给 `文本` 加了 `对齐表` ⇒ 332 → 333。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 333
+    # M143 给 `数学` 加了 `反余弦` ⇒ 333 → 334。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 334
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

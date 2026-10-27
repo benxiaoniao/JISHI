@@ -5542,6 +5542,17 @@ const STDLIB = {  '数学': new R.Module('数学', {
     // Python 的 `math.sin` 同口径。
     '正弦': new R.Builtin('正弦', (x) => new R.FloatBox(Math.sin(Number(x)))),
     '余弦': new R.Builtin('余弦', (x) => new R.FloatBox(Math.cos(Number(x)))),
+    '反余弦': new R.Builtin('反余弦', (x) => {
+      // M143：补上「比值 → 角度」，否则「两个向量的夹角」写不出来。
+      const v = R.unwrap(x);
+      if (typeof v !== 'number' || typeof v === 'boolean') {
+        throw R.typeErr(`「反余弦」要传一个数，给的是 ${R.display(x)}`);
+      }
+      if (v < -1 || v > 1) {
+        throw R.valueErr(`「反余弦」要传 -1 到 1 之间的数（给的是 ${R.display(x)}）`);
+      }
+      return new R.FloatBox(Math.acos(v));
+    }),
     '正切': new R.Builtin('正切', (x) => new R.FloatBox(Math.tan(Number(x)))),
     '角度转弧度': new R.Builtin('角度转弧度',
       (x) => new R.FloatBox(Number(x) * Math.PI / 180)),

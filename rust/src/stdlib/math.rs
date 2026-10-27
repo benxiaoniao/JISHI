@@ -192,6 +192,28 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need("余弦", args, 1)?;
             Ok(Val::Float(as_num(&args[0])?.cos()))
         },
+        "反余弦" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            // M143：补上「比值 → 角度」，否则「两个向量的夹角」写不出来。
+            // ⚠️ 只补反余弦，反正弦/反正切先不做（没有真实需求）。
+            need("反余弦", args, 1)?;
+            let x = match &args[0] {
+                Val::Int(i) => *i as f64,
+                Val::Float(f) => *f,
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「反余弦」要传一个数，给的是 {}", display(other)),
+                    ))
+                }
+            };
+            if !(-1.0..=1.0).contains(&x) {
+                return Err(err(
+                    "值错误",
+                    format!("「反余弦」要传 -1 到 1 之间的数（给的是 {}）", display(&args[0])),
+                ));
+            }
+            Ok(Val::Float(x.acos()))
+        },
         "正切" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("正切", args, 1)?;
             Ok(Val::Float(as_num(&args[0])?.tan()))
