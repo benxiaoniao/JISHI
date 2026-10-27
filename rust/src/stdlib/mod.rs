@@ -56,6 +56,8 @@ mod stats;
 mod ident;
 // M139 新增（与 Python 侧 jishi/stdlib/向量.py 对齐）
 mod vector;
+// M141 新增（与 Python 侧 jishi/stdlib/矩阵.py 对齐）
+mod matrix;
 mod encode;
 mod htmlmod;
 mod diffmod;
@@ -111,6 +113,7 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         // M50 新增的六个模块
         ("统计", stats::module),
         ("向量", vector::module),
+        ("矩阵", matrix::module),
         ("标识", ident::module),
         ("编码", encode::module),
         ("html", htmlmod::module),

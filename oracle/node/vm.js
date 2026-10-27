@@ -3092,6 +3092,229 @@ function _vec整数(name, v, 哪) {
   return x;
 }
 
+// ---------------------------------------------------------------------------
+// 矩阵（M141）：构造 / 单位 / 行数 / 列数 / 转置 / 乘 / 行列式 / 解方程
+//
+// 与 Python 侧同一套数值决定：
+//   · 整数矩阵的行列式**给精确整数**（无分数消元），整数方程组**给精确解**
+//     （克莱姆法则）—— 否则 `[[1,2],[3,4]]` 会算出 -1.9999999999999993，
+//     教学语言里不可接受；
+//   · JS 的整数是 double 包装，所以精确路径内部一律用 **BigInt**，
+//     出结果时再按「超过 2^53 就给浮点」统一口径（Rust 的 i128 用同一个界）。
+// ---------------------------------------------------------------------------
+const _安全整数上限 = 9007199254740992n;
+
+function _matRows(name, v) {
+  if (typeof v === 'string' || R.isBytes(v)) {
+    throw R.typeErr(`「${name}」要传一个矩阵（列表的列表），不能传文本`);
+  }
+  const 行们 = R.seqOf(v, false, undefined, undefined);
+  if (行们 === null) throw R.typeErr(`「${name}」要传一个矩阵（列表的列表）`);
+  if (行们.length === 0) throw R.valueErr(`「${name}」要至少有一行，现在是空的`);
+  let 宽 = null;
+  return 行们.map((行, i) => {
+    if (typeof 行 === 'string' || R.isBytes(行)) {
+      throw R.typeErr(`「${name}」第 ${i + 1} 行不是列表（是文本）`);
+    }
+    const 列们 = R.seqOf(行, false, undefined, undefined);
+    if (列们 === null) throw R.typeErr(`「${name}」第 ${i + 1} 行不是列表`);
+    if (宽 === null) 宽 = 列们.length;
+    else if (列们.length !== 宽) {
+      throw R.valueErr(`「${name}」每行的长度要相同：第 1 行有 ${宽} 个，`
+        + `第 ${i + 1} 行有 ${列们.length} 个`);
+    }
+    列们.forEach((x, j) => {
+      const n = R.unwrap(x);
+      if (typeof n !== 'number' || typeof n === 'boolean') {
+        throw R.typeErr(`「${name}」第 ${i + 1} 行第 ${j + 1} 个不是数字：${R.display(x)}`);
+      }
+    });
+    return 列们;
+  });
+}
+function _matSquare(name, m) {
+  if (m.length !== m[0].length) {
+    throw R.valueErr(`「${name}」只对方阵有定义，这个矩阵是 ${m.length}×${m[0].length}`);
+  }
+}
+function _matInt(name, v, 中文) {
+  const x = R.unwrap(v);
+  if (R.isFloatBox(v) || typeof x !== 'number' || !Number.isInteger(x)) {
+    throw R.typeErr(`「${name}」的${中文}要是整数，给的是 ${R.display(v)}`);
+  }
+  return x;
+}
+function _matCell(v) {
+  return { n: R.unwrap(v), i: !R.isFloatBox(v), 原: v };
+}
+/** 精确整数结果 → 值（超过 2^53 给浮点，与 Python / Rust 同一口径）。 */
+function _bigOut(b) {
+  if (b > _安全整数上限 || b < -_安全整数上限) return new R.FloatBox(Number(b));
+  return Number(b);
+}
+/** Bareiss 无分数消元（BigInt 精确）。 */
+function _bigDet(rows) {
+  const n = rows.length;
+  const m = rows.map((r) => r.slice());
+  if (n === 1) return m[0][0];
+  let 上一 = 1n; let 符号 = 1n;
+  for (let k = 0; k < n - 1; k += 1) {
+    if (m[k][k] === 0n) {
+      let 换 = -1;
+      for (let r = k + 1; r < n; r += 1) if (m[r][k] !== 0n) { 换 = r; break; }
+      if (换 < 0) return 0n;
+      const t = m[k]; m[k] = m[换]; m[换] = t;
+      符号 = -符号;
+    }
+    const 主 = m[k][k];
+    for (let i = k + 1; i < n; i += 1) {
+      for (let j = k + 1; j < n; j += 1) {
+        m[i][j] = (m[i][j] * 主 - m[i][k] * m[k][j]) / 上一;
+      }
+    }
+    上一 = 主;
+  }
+  return 符号 * m[n - 1][n - 1];
+}
+function _floatDet(rows) {
+  const n = rows.length;
+  const m = rows.map((r) => r.slice());
+  let 结果 = 1.0;
+  for (let k = 0; k < n; k += 1) {
+    let 主行 = k;
+    for (let r = k + 1; r < n; r += 1) if (Math.abs(m[r][k]) > Math.abs(m[主行][k])) 主行 = r;
+    if (Math.abs(m[主行][k]) < 1e-12) return 0.0;
+    if (主行 !== k) { const t = m[k]; m[k] = m[主行]; m[主行] = t; 结果 = -结果; }
+    结果 *= m[k][k];
+    for (let r = k + 1; r < n; r += 1) {
+      const 倍 = m[r][k] / m[k][k];
+      for (let c = k; c < n; c += 1) m[r][c] -= 倍 * m[k][c];
+    }
+  }
+  return 结果;
+}
+function _全整数(rows, 右) {
+  const 都整 = rows.every((r) => r.every(
+    (v) => !R.isFloatBox(v) && Number.isInteger(R.unwrap(v))));
+  const 右整 = (右 === null)
+    || 右.every((v) => !R.isFloatBox(v) && Number.isInteger(R.unwrap(v)));
+  return 都整 && 右整;
+}
+
+const MATRIX_FUNCS = {
+  '构造': new R.Builtin('构造', (行, 列, 初) => {
+    const r = _matInt('构造', 行, '行数'); const c = _matInt('构造', 列, '列数');
+    if (r <= 0 || c <= 0) {
+      throw R.valueErr(`「构造」的行数和列数都要大于 0（给的是 ${r} 和 ${c}）`);
+    }
+    let 初值 = 0;
+    if (初 !== undefined) {
+      const x = R.unwrap(初);
+      if (typeof x !== 'number' || typeof x === 'boolean') {
+        throw R.typeErr(`「构造」的初值要是数字，给的是 ${R.display(初)}`);
+      }
+      初值 = R.isFloatBox(初) ? new R.FloatBox(x) : x;
+    }
+    return Array.from({ length: r }, () => Array.from({ length: c }, () => 初值));
+  }),
+  '单位': new R.Builtin('单位', (阶) => {
+    const n = _matInt('单位', 阶, '阶');
+    if (n <= 0) throw R.valueErr(`「单位」的阶要大于 0（给的是 ${n}）`);
+    return Array.from({ length: n },
+      (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)));
+  }),
+  '行数': new R.Builtin('行数', (甲) => _matRows('行数', 甲).length),
+  '列数': new R.Builtin('列数', (甲) => _matRows('列数', 甲)[0].length),
+  '转置': new R.Builtin('转置', (甲) => {
+    const m = _matRows('转置', 甲);
+    return m[0].map((_, j) => m.map((r) => r[j]));
+  }),
+  '乘': new R.Builtin('乘', (甲, 乙) => {
+    const a = _matRows('乘', 甲); const b = _matRows('乘', 乙);
+    if (a[0].length !== b.length) {
+      throw R.valueErr('「乘」要求左矩阵的列数等于右矩阵的行数，实际是 '
+        + `${a.length}×${a[0].length} 乘 ${b.length}×${b[0].length}`);
+    }
+    return a.map((行) => b[0].map((_, j) => {
+      let 合 = { n: 0, i: true };
+      for (let k = 0; k < b.length; k += 1) {
+        const 积 = _vec算(_matCell(行[k]), _matCell(b[k][j]), (p, q) => p * q);
+        合 = _vec算(合, 积, (p, q) => p + q);
+      }
+      return _vec出(合);
+    }));
+  }),
+  '行列式': new R.Builtin('行列式', (甲) => {
+    const m = _matRows('行列式', 甲);
+    _matSquare('行列式', m);
+    if (_全整数(m, null)) {
+      const 整 = m.map((r) => r.map((v) => BigInt(R.unwrap(v))));
+      return _bigOut(_bigDet(整));
+    }
+    return new R.FloatBox(_floatDet(m.map((r) => r.map((v) => R.unwrap(v)))));
+  }),
+  '解方程': new R.Builtin('解方程', (甲, 乙) => {
+    const a = _matRows('解方程', 甲);
+    _matSquare('解方程', a);
+    const n = a.length;
+    if (typeof 乙 === 'string' || R.isBytes(乙)) {
+      throw R.typeErr('「解方程」右边的常数项要传一列数，不能传文本');
+    }
+    const 右值 = R.seqOf(乙, false, undefined, undefined);
+    if (右值 === null) throw R.typeErr('「解方程」右边的常数项要传一列数（列表）');
+    if (右值.length !== n) {
+      throw R.valueErr(`「解方程」右边要有 ${n} 个常数（与系数矩阵的行数一致），`
+        + `实际有 ${右值.length} 个`);
+    }
+    右值.forEach((v, i) => {
+      const x = R.unwrap(v);
+      if (typeof x !== 'number' || typeof x === 'boolean') {
+        throw R.typeErr(`「解方程」右边第 ${i + 1} 个不是数字：${R.display(v)}`);
+      }
+    });
+
+    if (_全整数(a, 右值)) {
+      const 整甲 = a.map((r) => r.map((v) => BigInt(R.unwrap(v))));
+      const 整右 = 右值.map((v) => BigInt(R.unwrap(v)));
+      const 底 = _bigDet(整甲);
+      if (底 !== 0n && 底 <= _安全整数上限 && 底 >= -_安全整数上限) {
+        const 解 = [];
+        let 超界 = false;
+        for (let i = 0; i < n; i += 1) {
+          const 列 = 整甲.map((r, ri) => r.map((v, ci) => (ci === i ? 整右[ri] : v)));
+          const 分子 = _bigDet(列);
+          if (分子 > _安全整数上限 || 分子 < -_安全整数上限) { 超界 = true; break; }
+          if (分子 % 底 === 0n) 解.push(Number(分子 / 底));
+          else 解.push(new R.FloatBox(Number(分子) / Number(底)));
+        }
+        if (!超界) return 解;
+      }
+    }
+
+    const m = a.map((r) => r.map((v) => R.unwrap(v)));
+    const 右 = 右值.map((v) => R.unwrap(v));
+    for (let k = 0; k < n; k += 1) {
+      let 主行 = k;
+      for (let r = k + 1; r < n; r += 1) if (Math.abs(m[r][k]) > Math.abs(m[主行][k])) 主行 = r;
+      if (Math.abs(m[主行][k]) < 1e-12) {
+        throw R.valueErr('「解方程」这个方程组没有唯一解（系数矩阵的行列式为 0）');
+      }
+      if (主行 !== k) {
+        const t = m[k]; m[k] = m[主行]; m[主行] = t;
+        const s = 右[k]; 右[k] = 右[主行]; 右[主行] = s;
+      }
+      for (let r = 0; r < n; r += 1) {
+        if (r === k) continue;
+        const 倍 = m[r][k] / m[k][k];
+        if (倍 === 0) continue;
+        for (let c = k; c < n; c += 1) m[r][c] -= 倍 * m[k][c];
+        右[r] -= 倍 * 右[k];
+      }
+    }
+    return Array.from({ length: n }, (_, i) => new R.FloatBox(右[i] / m[i][i]));
+  }),
+};
+
 const VECTOR_FUNCS = {
   '构造': new R.Builtin('构造', (个, 初) => {
     const n = _vec整数('构造', 个, '个数');
@@ -5445,6 +5668,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
   // M50 新增的六个模块（与 Python 侧 jishi/stdlib/ 下同名文件对齐）
   '统计': new R.Module('统计', STATS_FUNCS),
   '向量': new R.Module('向量', VECTOR_FUNCS),
+  '矩阵': new R.Module('矩阵', MATRIX_FUNCS),
   '编码': new R.Module('编码', ENCODE_FUNCS),
   '配置': new R.Module('配置', CFG_FUNCS),
   'html': new R.Module('html', HTML_FUNCS),
