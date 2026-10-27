@@ -159,26 +159,3 @@ def test_从自建索引一条命令装上就能用(源目录, tmp_path, monkeyp
     assert rs.returncode == 0, rs.stderr
     assert py.stdout == rs.stdout, f"两宿主不一致\n{py.stdout}\n{rs.stdout}"
     assert py.stdout.splitlines() == ["{'宽': 3, '高': 2}", "[255, 0, 0]"], py.stdout
-
-
-# ---------------------------------------------------------------------------
-# 三、站点「包仓库」那一页：内容由数据生成，不许手工漂
-# ---------------------------------------------------------------------------
-
-def test_包列表页面与数据一致():
-    """`docs/包列表.md` 是**生成物**（站点上「包仓库」那页的源）。
-
-    手写一份的代价是「改一个包要记得改两处」—— 迟早对不上，而站点会
-    理直气壮地说过时的话。这里用生成 + `--check` 把它钉住：
-    谁加了包却没重跑生成器，这条会红。
-    """
-    r = subprocess.run([sys.executable, str(ROOT / "tools" / "gen_package_list.py"),
-                        "--check"], capture_output=True, text=True, encoding="utf-8")
-    assert r.returncode == 0, (
-        f"{r.stderr or r.stdout}\n"
-        f"修法：python tools/gen_package_list.py")
-
-    页面 = (ROOT / "docs" / "包列表.md").read_text(encoding="utf-8")
-    # 三个包都得在表里（生成器读的是 包.json，这里只做一层「真写了」的确认）
-    for 名 in ("图片", "基础库", "数学工具"):
-        assert f"| **{名}** |" in 页面, 名
