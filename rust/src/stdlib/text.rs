@@ -416,6 +416,171 @@ fn format_template(tpl: &str, args: &[Val]) -> String {
     out
 }
 
+/// 定点：把数字写成固定小数位的文本，**四舍五入（远离零）**。
+///
+/// 🔴 为什么不用 `format!("{:.N}", x)`：正好一半时三个宿主结论不同 ——
+/// `4.25` 保留 1 位，Python 的 `format` 给 `4.2`（半偶）、JS 的 `toFixed` 给
+/// `4.3`。而「三执行器语义一致」是硬约束，所以这里**在十进制字符串上进位**：
+/// 先取 `display`（这个显示口径本来就已对拍），再按位四舍五入。
+fn 定点(v: &Val, 位: usize) -> String {
+    let s = display(v);
+    if s.contains('e') || s.contains('E') {
+        return s;                       // 科学计数法少见，原样给（见文档的已知边界）
+    }
+    let 负 = s.starts_with('-');
+    let 纯 = if 负 { &s[1..] } else { s.as_str() };
+    let (整数部, 小数部) = match 纯.find('.') {
+        Some(i) => (&纯[..i], &纯[i + 1..]),
+        None => (纯, ""),
+    };
+    let 整数部 = if 整数部.is_empty() { "0" } else { 整数部 };
+    let mut 补足 = String::from(小数部);
+    while 补足.chars().count() < 位 {
+        补足.push('0');
+    }
+    let 保留: String = 补足.chars().take(位).collect();
+    let 丢弃: Vec<char> = 补足.chars().skip(位).collect();
+    let mut 结果 = if 位 > 0 {
+        format!("{整数部}.{保留}")
+    } else {
+        整数部.to_string()
+    };
+    if 丢弃.first().map(|c| *c >= '5').unwrap_or(false) {
+        结果 = 进一(&结果);
+    }
+    if 负 {
+        format!("-{结果}")
+    } else {
+        结果
+    }
+}
+
+/// 十进制字符串加一（带小数点）：`9.9` → `10.0`。
+fn 进一(s: &str) -> String {
+    let mut 位们: Vec<char> = s.chars().collect();
+    let mut 走 = 位们.len() as isize - 1;
+    while 走 >= 0 {
+        let i = 走 as usize;
+        match 位们[i] {
+            '.' => 走 -= 1,
+            '9' => {
+                位们[i] = '0';
+                走 -= 1;
+            }
+            c => {
+                位们[i] = char::from_u32(c as u32 + 1).unwrap_or(c);
+                return 位们.into_iter().collect();
+            }
+        }
+    }
+    format!("1{s}")
+}
+
+/// 按**显示宽度**补空格（汉字算 2 列，与 `左对齐`/`右对齐` 同口径）。
+fn 补(s: &str, 宽: usize, 靠右: bool) -> String {
+    let 差 = 宽.saturating_sub(display_width(s));
+    if 差 == 0 {
+        return s.to_string();
+    }
+    let 空格 = " ".repeat(差);
+    if 靠右 {
+        format!("{空格}{s}")
+    } else {
+        format!("{s}{空格}")
+    }
+}
+
+/// `文本.对齐表`（M142）：一列值 → 一行；列表的列表 → 一张对齐的表。
+fn 对齐表(args: &[Val]) -> R {
+    need_range("对齐表", args, 1, 2)?;
+    if let Val::Str(_) | Val::Bytes(_) = &args[0] {
+        return Err(err(
+            "类型错误",
+            "「对齐表」要传一列值或一张表（列表），不能传文本",
+        ));
+    }
+    let 原始 = super::to_vec(&args[0])
+        .map_err(|_| err("类型错误", "「对齐表」要传一列值或一张表（列表）"))?;
+    if 原始.is_empty() {
+        return Err(err("值错误", "「对齐表」要至少有一个值，现在是空的"));
+    }
+    let 小数位 = match args.get(1) {
+        None => None,
+        Some(Val::Int(n)) if *n >= 0 && *n <= 10 => Some(*n as usize),
+        Some(Val::Int(n)) => {
+            return Err(err(
+                "值错误",
+                format!("「对齐表」的小数位要在 0 到 10 之间（给的是 {n}）"),
+            ))
+        }
+        Some(v) => {
+            return Err(err(
+                "类型错误",
+                format!("「对齐表」的小数位要是不给或整数，给的是 {}", display(v)),
+            ))
+        }
+    };
+
+    let 多行 = matches!(原始[0], Val::List(_));
+    let 表: Vec<Vec<Val>> = if 多行 {
+        let mut t: Vec<Vec<Val>> = Vec::with_capacity(原始.len());
+        for 行 in &原始 {
+            t.push(super::to_vec(行)?);
+        }
+        let 宽 = t[0].len();
+        for (i, 行) in t.iter().enumerate() {
+            if 行.len() != 宽 {
+                return Err(err(
+                    "值错误",
+                    format!(
+                        "「对齐表」每行的列数要相同：第 1 行有 {宽} 列，第 {} 行有 {} 列",
+                        i + 1,
+                        行.len()
+                    ),
+                ));
+            }
+        }
+        t
+    } else {
+        vec![原始]
+    };
+
+    let 格子: Vec<Vec<String>> = 表
+        .iter()
+        .map(|行| {
+            行.iter()
+                .map(|v| match (小数位, v) {
+                    (Some(n), Val::Int(_)) | (Some(n), Val::Float(_)) => 定点(v, n),
+                    _ => display(v),
+                })
+                .collect()
+        })
+        .collect();
+
+    let 列数 = 格子[0].len();
+    let 列宽: Vec<usize> = (0..列数)
+        .map(|j| 格子.iter().map(|r| display_width(&r[j])).max().unwrap_or(0))
+        .collect();
+    let 数字列: Vec<bool> = (0..列数)
+        .map(|j| {
+            表.iter().all(|r| {
+                matches!(r[j], Val::Int(_) | Val::Float(_))
+            })
+        })
+        .collect();
+
+    let mut 行们 = Vec::with_capacity(格子.len());
+    for 行 in &格子 {
+        let 片: Vec<String> = 行
+            .iter()
+            .enumerate()
+            .map(|(j, 格)| 补(格, 列宽[j], 数字列[j]))
+            .collect();
+        行们.push(片.join("  ").trim_end().to_string());
+    }
+    Ok(Val::Str(行们.join("\n")))
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "文本";
         "拼接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -442,6 +607,9 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 s,
                 repeat_char(fill, marg - left)
             )))
+        },
+        "对齐表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            对齐表(args)
         },
         "显示宽度" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("显示宽度", args, 1)?;

@@ -188,7 +188,8 @@ def test_独立判据_lang_spec结构与关键事实():
     # ⚠️ 这个数是**故意写死**的：它抓「宿主侧少搬了函数」（那时会红，而不是悄悄跟着变）。
     # M139 新增模块 `向量`（11 个函数）⇒ 313 → 324。
     # M141 新增模块 `矩阵`（8 个函数）⇒ 324 → 332。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 332
+    # M142 给 `文本` 加了 `对齐表` ⇒ 332 → 333。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 333
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

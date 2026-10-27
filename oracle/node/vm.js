@@ -5088,6 +5088,109 @@ function 格式化偏移(分钟) {
 }
 
 /** 按**显示宽度**补空格（汉字算 2 列，与 `文本.显示宽度` 同口径）。 */
+/** 定点：固定小数位，**四舍五入（远离零）**，在十进制字符串上进位。
+ *
+ * 🔴 不用 `toFixed`：正好一半时 `(4.25).toFixed(1)` 给 `4.3`，而 Python 的
+ * `format(4.25, ".1f")` 给 `4.2`（半偶）—— 三个宿主会各说各话。所以这里
+ * 一律在**十进制字符串**上进位：先取 `display`（打印口径，已对拍），再按位取舍。
+ */
+function 定点文本(v, 位) {
+  const s = R.display(v);
+  if (s.includes('e') || s.includes('E')) return s;   // 科学计数法原样给
+  const 负 = s.startsWith('-');
+  const 纯 = 负 ? s.slice(1) : s;
+  const 点 = 纯.indexOf('.');
+  let 整数部 = 点 < 0 ? 纯 : 纯.slice(0, 点);
+  let 小数部 = 点 < 0 ? '' : 纯.slice(点 + 1);
+  if (!整数部) 整数部 = '0';
+  while (小数部.length < 位) 小数部 += '0';
+  const 保留 = 小数部.slice(0, 位);
+  const 丢弃 = 小数部.slice(位);
+  let 结果 = 位 > 0 ? `${整数部}.${保留}` : 整数部;
+  if (丢弃.length > 0 && 丢弃.charCodeAt(0) >= 53) 结果 = 进一文本(结果);
+  return (负 ? '-' : '') + 结果;
+}
+
+/** 十进制字符串加一（带小数点）：`9.9` → `10.0`。 */
+function 进一文本(s) {
+  const 位们 = s.split('');
+  let 走 = 位们.length - 1;
+  while (走 >= 0) {
+    const c = 位们[走];
+    if (c === '.') { 走 -= 1; continue; }
+    if (c === '9') { 位们[走] = '0'; 走 -= 1; continue; }
+    位们[走] = String.fromCharCode(c.charCodeAt(0) + 1);
+    return 位们.join('');
+  }
+  return `1${s}`;
+}
+
+/** `文本.对齐表`（M142）：一列值 → 一行；列表的列表 → 一张对齐的表。 */
+function 对齐表文本(行们, 小数位) {
+  if (typeof 行们 === 'string' || R.isBytes(行们)) {
+    throw R.typeErr('「对齐表」要传一列值或一张表（列表），不能传文本');
+  }
+  const 原始 = R.seqOf(行们, false, undefined, undefined);
+  if (原始 === null) throw R.typeErr('「对齐表」要传一列值或一张表（列表）');
+  if (原始.length === 0) throw R.valueErr('「对齐表」要至少有一个值，现在是空的');
+
+  let 位 = null;
+  if (小数位 !== undefined && 小数位 !== null) {
+    const n = R.unwrap(小数位);
+    if (R.isFloatBox(小数位) || typeof n !== 'number' || !Number.isInteger(n)) {
+      throw R.typeErr(`「对齐表」的小数位要是不给或整数，给的是 ${R.display(小数位)}`);
+    }
+    if (n < 0 || n > 10) {
+      throw R.valueErr(`「对齐表」的小数位要在 0 到 10 之间（给的是 ${n}）`);
+    }
+    位 = n;
+  }
+
+  const 第一 = 原始[0];
+  const 多行 = Array.isArray(第一) || (第一 !== null && typeof 第一 === 'object'
+    && !R.isFloatBox(第一) && !R.isBytes(第一) && typeof 第一 !== 'string'
+    && R.seqOf(第一, false, undefined, undefined) !== null);
+  let 表;
+  if (多行) {
+    表 = 原始.map((行) => {
+      const 列们 = R.seqOf(行, false, undefined, undefined);
+      if (列们 === null) throw R.typeErr('「对齐表」要传一列值或一张表（列表）');
+      return 列们;
+    });
+    const 宽 = 表[0].length;
+    表.forEach((行, i) => {
+      if (行.length !== 宽) {
+        throw R.valueErr(`「对齐表」每行的列数要相同：第 1 行有 ${宽} 列，`
+          + `第 ${i + 1} 行有 ${行.length} 列`);
+      }
+    });
+  } else {
+    表 = [原始];
+  }
+
+  const 是不是数 = (x) => typeof R.unwrap(x) === 'number' && typeof x !== 'boolean';
+  const 格子 = 表.map((行) => 行.map((v) => {
+    if (位 !== null && 是不是数(v)) return 定点文本(v, 位);
+    return R.display(v);
+  }));
+
+  const 列数 = 格子[0].length;
+  const 列宽 = [];
+  for (let j = 0; j < 列数; j += 1) {
+    let 最宽 = 0;
+    for (const 行 of 格子) 最宽 = Math.max(最宽, displayWidth(行[j]));
+    列宽.push(最宽);
+  }
+  const 数字列 = [];
+  for (let j = 0; j < 列数; j += 1) 数字列.push(表.every((行) => 是不是数(行[j])));
+
+  return 格子.map((行) => 行
+    .map((格, j) => 补齐(格, 列宽[j], 数字列[j]))
+    .join('  ')
+    .replace(/\s+$/, ''))
+    .join('\n');
+}
+
 function 补齐(s, 宽, 靠右) {
   const 差 = 宽 - displayWidth(s);
   if (差 <= 0) return s;
@@ -5463,6 +5566,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
       R.asIterable(seq, '要拼接的内容').map((x) => R.pyStr(x)).join(String(sep))),
     // 居中/左右对齐：Python 的 center/ljust/rjust 在**填不满**时原样返回；
     // ⚠️ 宽度按**显示宽度**算（一个汉字 2 列）—— M106 改的，中文表格才对得齐。
+    '对齐表': new R.Builtin('对齐表', (行们, 小数位) => 对齐表文本(行们, 小数位)),
     '显示宽度': new R.Builtin('显示宽度', (s) => displayWidth(s)),
     '居中': new R.Builtin('居中', (s, width, fill = ' ') => {
       const text = String(s); const w = Number(width);
