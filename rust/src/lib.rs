@@ -32,7 +32,7 @@ pub mod mcp;        // R7.4：MCP 服务器（mcp_server.py 的移植，`jishi-r
 pub mod debugger;   // R7.5：调试会话（debugger.py 的移植）
 pub mod dap;        // R7.5：DAP 适配器（dap.py 的移植，`jishi-rs dap`）
 pub mod packages;   // R7.6：包管理（packages.py + cli.py 的包命令）
-mod localpkg;       // M145：本地包**加载**（`导入 图片 从 本地包` 在宿主上真能跑）
+mod localpkg;       // M145：本地包**加载**（`导入 图片格式转换 从 本地包` 在宿主上真能跑）
 pub mod tools;      // R8.4：`医生` / `新项目` / `教程`（发行包换单二进制后不能缺）
 pub mod repl;       // R8.4b：交互式 REPL（repl.py 的移植，`-i`）
 pub mod selfupdate; // M110：语言本体的升级与卸载（`jishi 升级` / `jishi 卸载 --自身`）

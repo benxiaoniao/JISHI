@@ -227,7 +227,7 @@ fn run_file(o: &Opts) -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    // M145：本地包在编译期展开（`导入 图片 从 本地包` → 一次函数调用）。
+    // M145：本地包在编译期展开（`导入 图片格式转换 从 本地包` → 一次函数调用）。
     // 放在 `--ast` 之后：`--ast` 看的是**用户写的**那棵树，不是展开后的。
     let prog = match crate::localpkg::expand(&prog, &filename) {
         Ok(p) => p,

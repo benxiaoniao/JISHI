@@ -106,11 +106,11 @@
       "路径": "examples/13_面向对象.jsh"
     },
     {
-      "id": "examples__packages__图片__图片",
-      "产物哈希": "sha256:f5151154d1bf7d51",
-      "内容哈希": "sha256:a4a1666751d4a2c9",
+      "id": "examples__packages__图片格式转换__图片格式转换",
+      "产物哈希": "sha256:8bea66bf87e66811",
+      "内容哈希": "sha256:362940576fcacb18",
       "类别": "examples",
-      "路径": "examples/packages/图片/图片.jsh"
+      "路径": "examples/packages/图片格式转换/图片格式转换.jsh"
     },
     {
       "id": "examples__packages__基础库__工具",
