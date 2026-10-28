@@ -1346,7 +1346,8 @@ def new_builtins() -> dict[str, Any]:
 
 def make_exception(value: Any, *, line: Optional[int] = None,
                    col: Optional[int] = None,
-                   filename: str = "<输入>") -> JishiError:
+                   filename: str = "<输入>",
+                   cause: Optional[JishiError] = None) -> JishiError:
     """把 `抛出` 的值规范化成异常对象。
 
     - 已经是异常对象 → 原样抛出；
@@ -1354,6 +1355,14 @@ def make_exception(value: Any, *, line: Optional[int] = None,
     - 其他任意值 → 包装成「异常」，原值留在 `e.消息` 里。
 
     抛出点才补行列号，因此异常即使被捕获再抛出，位置也指向最新的抛出点。
+
+    `cause`（M148）是**当前正在处理的异常**（没有就是 None）—— 由执行器在
+    `抛出` 的那一刻查出来传进来。`make_exception` 只负责挂上去，并在两种
+    情况下**不挂**：
+
+    1. `cause is exc`：`捕获 为 e: 抛出 e`（原样重抛）不该把自己挂成自己的原因；
+    2. 已经挂过了：`抛出 e` 之后再被包一层时，保留 e 原来的原因 ——
+       否则「中间那层」会被自己盖掉，链就断了。
     """
     if isinstance(value, JishiError):
         exc = value
@@ -1367,6 +1376,8 @@ def make_exception(value: Any, *, line: Optional[int] = None,
         exc.col = col
     if not exc.filename or exc.filename == "<输入>":
         exc.filename = filename
+    if cause is not None and cause is not exc and exc.cause is None:
+        exc.cause = cause
     return exc
 
 

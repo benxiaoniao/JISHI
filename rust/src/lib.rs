@@ -811,17 +811,52 @@ pub(crate) struct ExcValue {
     pub(crate) message: String,
     /// 错误码（M56）：从抛出的 `JishiError` 带过来，`打印(e)` 时与 Python 同形。
     pub(crate) code: Option<String>,
+    /// 出错位置（M148）：**起因层也要印出「哪一行」** —— 链的价值就在于
+    /// 「看到根子发生在哪」，只印一句话等于没帮上忙。
+    pub(crate) line: Option<i64>,
+    pub(crate) col: Option<i64>,
+    /// 上一层异常（M148，`e.原因`）：**正在处理某个异常时又抛出的新异常**，
+    /// 会把被处理的那个挂在这里。`None` = 没有（`e.原因` 得到 `空`）。
+    ///
+    /// 为什么这里也要一份（`JishiError` 已经有 `cause` 了）：`JishiError` 是
+    /// **宿主内部**的错误对象，而 `e.原因` 是**语言里能拿到的东西** —— 那必须是
+    /// 一个 `Val::Exc`。两边各存一份，方向是「错误 → 值」单向转换（见 `from_error`）。
+    pub(crate) cause: Option<Rc<ExcValue>>,
 }
 
 impl ExcValue {
     /// 从宿主错误造一个「被捕获的异常」值 —— 与 `VM::dispatch_exception` 压栈的
     /// **同一个形状**（树遍历参考执行器也要用它把 `捕获 X 为 e` 的 `e` 造出来）。
     pub(crate) fn from_error(e: &JishiError) -> Val {
-        Val::Exc(Rc::new(ExcValue {
+        Val::Exc(Rc::new(ExcValue::of(e)))
+    }
+
+    /// 由宿主错误造一个 `ExcValue`（带「起因」链，M148）。
+    pub(crate) fn of(e: &JishiError) -> ExcValue {
+        ExcValue {
             type_name: e.type_name.clone(),
             message: e.message.clone(),
             code: e.code.clone(),
-        }))
+            line: e.line,
+            col: e.col,
+            cause: e.cause.as_deref().map(|c| Rc::new(ExcValue::of(c))),
+        }
+    }
+
+    /// `ExcValue` 反向变回宿主错误（重抛时用，M148）：消息/码/起因都带过去。
+    ///
+    /// ⚠️ 行号列号**带不过去**（`ExcValue` 里根本没有）：重抛的位置按新的
+    /// `抛出` 点算 —— 与 Python 侧「重抛时行列指向最新抛出点」的设计一致
+    /// （`runtime.make_exception` 只在 `line is None` 时补，重抛的同一个对象
+    /// 反而保留旧位置……这里两边的差异在于**是否复用同一个对象**。
+    /// 语料里不比较这个，`tests/test_m148_cause.py` 只比消息与链）。
+    pub(crate) fn to_error(x: &ExcValue) -> JishiError {
+        let mut e = err(&x.type_name, &x.message);
+        e.code = x.code.clone();
+        e.line = x.line;
+        e.col = x.col;
+        e.cause = x.cause.as_deref().map(|c| Box::new(ExcValue::to_error(c)));
+        e
     }
 }
 
@@ -1388,6 +1423,12 @@ pub struct JishiError {
     /// 调用链（R6.3）：**从外到内**，最外层模块帧不算。
     /// 没进过函数调用就是空（那种情况 Python 侧也不印回溯块）。
     pub trace: Vec<TraceFrame>,
+    /// 「起因」链（M148）：**正在处理某个异常时又抛出的新异常**，把被处理的
+    /// 那个挂在这里。与 Python 侧 `JishiError.cause`、Node 侧 `cause` 同一语义。
+    ///
+    /// 用 `Box` 而不是直接内联：链一般只有一两层，但类型是递归的，
+    /// 不装箱就没有确定大小。
+    pub cause: Option<Box<JishiError>>,
 }
 
 /// 类型名 → 错误码（M56）。
@@ -1447,7 +1488,7 @@ pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
                  line: None, col: None, underline: None, hint: None, fix: None,
-                 trace: Vec::new() }
+                 trace: Vec::new(), cause: None }
 }
 
 /// 带提示语的报错（M56）：`hint` 会渲染成「  提示：…」那一行。
@@ -1551,7 +1592,7 @@ pub(crate) fn err_with_hint(t: &str, msg: impl Into<String>, hint: String) -> Ji
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
                  line: None, col: None, underline: None, hint: Some(hint),
-                 fix: None, trace: Vec::new() }
+                 fix: None, trace: Vec::new(), cause: None }
 }
 
 // ---------------------------------------------------------------------------
@@ -1722,6 +1763,12 @@ struct Frame {
     /// (记录时的栈深, 继续目标, 中断目标, 登记序号)
     loops: Vec<(usize, i64, i64, i64)>,
     handlers: Vec<Handler>,
+    /// 「正在处理的异常」（M148）：`(异常值, 捕获区左界, 右界)`。
+    ///
+    /// 判有效性只看 ip（`左界 <= ip < 右界`），**不需要压栈/弹栈指令**；
+    /// 压之前会把不包含新捕获入口的旧条目剪掉，长度最多等于嵌套深度。
+    /// 与 Python `_Frame.handled`、C 侧 `JsFrame.handled` 同一套。
+    handled: Vec<(Val, i64, i64)>,
     /// 被 finally 挂起的返回值（`返回` 落在 try 块里时用）。
     /// 对齐 Python 侧 `_Frame.pending_return`。
     pending_return: Option<Val>,
@@ -1738,7 +1785,7 @@ impl Frame {
             call_line: None, call_col: None,
             in_trace: false,
             locals: Vec::new(), locals_set: Vec::new(), cells: Vec::new(),
-            loops: Vec::new(), handlers: Vec::new(),
+            loops: Vec::new(), handlers: Vec::new(), handled: Vec::new(),
             pending_return: None, block_seq: 0,
         }
     }
@@ -1750,6 +1797,10 @@ struct Handler {
     finally_ip: i64,
     sp: usize,
     seq: i64,
+    /// 捕获区右边界（M148）：整条 `尝试` 语句结束的位置（编译器写在
+    /// `SETUP_TRY` 的 c 上）。`catch_ip <= ip < region_end` ⇒ 本帧此刻正在
+    /// 处理这次捕获到的异常。与 Python `_Handler.region_end` 同一个字段。
+    region_end: i64,
 }
 
 // ---------------------------------------------------------------------------
@@ -1868,6 +1919,7 @@ impl VM {
             cells: new_cells(ncells),
             loops: Vec::new(),
             handlers: Vec::new(),
+            handled: Vec::new(),
             pending_return: None,
             block_seq: 0,
         };
@@ -2315,6 +2367,13 @@ impl VM {
                                 type_name: t.clone(),
                                 message: msg,
                                 code: error_code(&t).map(|s| s.to_string()),
+                                // ⚠️ **不带位置**：与 Python `ExcType.__call__`
+                                // （`self.cls(message)`，行列留空）一致。带上
+                                // CALL 指令的行列会让 `抛出 值错误("x")` 报在
+                                // 调用的括号上（8:15），而规范报在 `抛出`（8:9）。
+                                line: None,
+                                col: None,
+                                cause: None,
                             })));
                         }
                         // 类型名与提示都照 Python 的 `runtime.call_value`：
@@ -2564,6 +2623,7 @@ impl VM {
                     self.frames[fi].handlers.push(Handler {
                         catch_ip: ins.a, finally_ip: ins.b,
                         sp: self.stack.len(), seq,
+                        region_end: ins.c,      // 捕获区右边界（M148）
                     });
                 }
                 op::POP_TRY => { self.frames[fi].handlers.pop(); }
@@ -2578,14 +2638,18 @@ impl VM {
                     let v = self.stack.pop().unwrap_or(Val::None_);
                     // 循环信号借道 finally：CHECK_SIGNAL 后的 THROW 会重新抛出它，
                     // 这时要还原成「信号」而不是错误（对齐 Python 侧的块栈语义）
-                    if let Val::LoopSignal(code) = v {
-                        return Ok(Flow::Signal(if code == 1 {
+                    if let Val::LoopSignal(code) = &v {
+                        let c = *code;
+                        return Ok(Flow::Signal(if c == 1 {
                             Signal::Break
                         } else {
                             Signal::Continue
                         }));
                     }
-                    return Err(make_exception(v));
+                    // 「正在处理的异常」（M148）：`ip` 此刻已经指向这条 THROW，
+                    // 拿它去比捕获区就能知道是不是在某个 `捕获` 体里。
+                    let cause = self.find_handled();
+                    return Err(make_exception(v, cause.as_ref()));
                 }
                 op::MATCH_EXC => {
                     let cond = self.stack.pop().unwrap_or(Val::None_);
@@ -2612,6 +2676,31 @@ impl VM {
         }
     }
 
+    /// 记一笔「本帧正在处理 `val`」（M148）。与 Python `_note_handled` 逐条对齐。
+    fn note_handled(&mut self, fi: usize, h: &Handler, val: &Val) {
+        let (lo, hi) = (h.catch_ip, h.region_end);
+        if hi <= 0 {
+            return;      // 老字节码没写 c：宁可不记，也不挂错
+        }
+        self.frames[fi].handled.retain(|(_, l, hh)| {
+            *l <= lo && lo < *hh && !(*l == lo && *hh == hi)
+        });
+        self.frames[fi].handled.push((val.clone(), lo, hi));
+    }
+
+    /// `抛出` 的那一刻，「正在被处理的异常」是谁（M148）：从最内层帧往外找。
+    fn find_handled(&self) -> Option<Val> {
+        for f in self.frames.iter().rev() {
+            let ip = f.ip as i64;
+            for (v, lo, hi) in f.handled.iter().rev() {
+                if *lo <= ip && ip < *hi {
+                    return Some(v.clone());
+                }
+            }
+        }
+        None
+    }
+
     fn dispatch_exception(&mut self, e: &JishiError, stop_at: Option<usize>) -> Result<bool, JishiError> {
         // 从当前帧向外找 handler
         while !self.frames.is_empty() {
@@ -2627,11 +2716,12 @@ impl VM {
                 // （源码注释自认是「简化为字符串标记」），于是 `打印(e)` 只给
                 // 「类型错误」、`e.消息` 直接报「没有属性」。现在 `e` 是带内容的
                 // 异常对象，与 Python / Node 侧对齐。
-                self.stack.push(Val::Exc(Rc::new(ExcValue {
-                    type_name: e.type_name.clone(),
-                    message: e.message.clone(),
-                    code: e.code.clone(),
-                })));
+                //
+                // M148：`from_error` 把「起因」链一起带进来，`e.原因` 才读得到；
+                // 同时给本帧记一笔「正在处理它」。
+                let val = ExcValue::from_error(e);
+                self.note_handled(fi, &h, &val);
+                self.stack.push(val);
                 self.frames[fi].ip = catch_ip as usize;
                 return Ok(true);
             }
@@ -4664,6 +4754,18 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
         Val::Exc(e) => match attr {
             "类型" => Ok(Val::Str(e.type_name.clone())),
             "消息" => Ok(Val::Str(e.message.clone())),
+            // M148：`e.原因`（上一层）/ `e.根因`（链最底下），与 Python 侧同名同义
+            "原因" => Ok(match &e.cause {
+                Some(c) => Val::Exc(c.clone()),
+                None => Val::None_,
+            }),
+            "根因" => {
+                let mut cur = e.clone();
+                while let Some(c) = cur.cause.clone() {
+                    cur = c;
+                }
+                Ok(Val::Exc(cur))
+            }
             other => Err(err("类型错误", format!("「异常」没有属性「{other}」"))),
         },
         Val::Str(s) => str_method(attr, Val::Str(s), line, col),
@@ -5184,15 +5286,26 @@ pub(crate) fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, Jis
     Ok(out)
 }
 
-pub(crate) fn make_exception(v: Val) -> JishiError {
-    match v {
-        Val::ExcType(t) => err(&t, ""),
+pub(crate) fn make_exception(v: Val, cause: Option<&Val>) -> JishiError {
+    let mut e = match &v {
+        Val::ExcType(t) => err(t, ""),
         // 重抛一个**捕获到的**异常（`抛出 e` / `捕获 … 再 抛出`）：消息要保住，
-        // 否则一路丢成「错误（类型错误）：」（M56）
-        Val::Exc(e) => err(&e.type_name, &e.message),
-        Val::Str(s) => err("异常", s),
-        other => err("异常", display(&other)),
+        // 否则一路丢成「错误（类型错误）：」（M56）。
+        // M148：连同它自己的「起因」链一起带过来（`ExcValue::to_error`）。
+        Val::Exc(x) => ExcValue::to_error(x),
+        Val::Str(s) => err("异常", s.clone()),
+        other => err("异常", display(other)),
+    };
+    // 挂「起因」（M148）：与 Python `runtime.make_exception` 同两条规则 ——
+    // ① `抛出 e` 里 e 就是正在被处理的那个（同一个对象）→ 不挂，避免自环；
+    // ② 已经挂过了（重抛一个带着链的异常）→ 保留原来的，别把中间层盖掉。
+    if let Some(Val::Exc(c)) = cause {
+        let self_same = matches!(&v, Val::Exc(x) if Rc::ptr_eq(x, c));
+        if !self_same && e.cause.is_none() {
+            e.cause = Some(Box::new(ExcValue::to_error(c)));
+        }
     }
+    e
 }
 
 pub(crate) fn exception_matches(exc: &Val, cond: &Val) -> Result<bool, JishiError> {
@@ -6123,10 +6236,52 @@ pub(crate) fn error_head(e: &JishiError) -> String {
 /// 字节码 VM 从 `vm.module`（磁盘）读；树遍历参考执行器从**外部传入的源文件
 /// 路径**读（它的输入是 AST JSON，里面没有源码）。渲染格式必须**只有一份**，
 /// 否则「源码行 / `^` / 调用链」这些用户可见的细节会漂。
+/// 「起因」链最多摊几层 —— 与 Python `errors.MAX_CAUSE_DEPTH` **同一个数**
+/// （不一样的话，同一个错误的渲染长度就不一致了）。
+pub(crate) const MAX_CAUSE_DEPTH: usize = 5;
+
 pub(crate) fn render_error_with(
     e: &JishiError,
     filename: &str,
     get_line: &dyn Fn(i64) -> Option<String>,
+) -> String {
+    let mut out = String::new();
+    let mut cur: Option<&JishiError> = Some(e);
+    let mut depth = 0usize;
+    let mut seen: Vec<*const JishiError> = Vec::new();
+    while let Some(x) = cur {
+        if !out.is_empty() {
+            out.push_str("\n起因：\n");
+        }
+        // 只有**最外层**印调用链：起因层印位置就够了，四层链各带一遍
+        // 「从外到内」会淹没真正的信息（三边都这么办）。
+        out.push_str(&render_error_one(x, filename, get_line, depth == 0));
+        let p = x as *const JishiError;
+        if seen.contains(&p) {
+            // 自环兜底：链绕回来了就别再印（Python 侧同一句话、同一位置）
+            out.push_str("\n起因：（这条链绕回来了，就此打住）");
+            break;
+        }
+        seen.push(p);
+        if depth >= MAX_CAUSE_DEPTH {
+            if x.cause.is_some() {
+                out.push_str("\n起因：（还更深，只摊到这里）");
+            }
+            break;
+        }
+        depth += 1;
+        cur = x.cause.as_deref();
+    }
+    out.push('\n');
+    out
+}
+
+/// 只渲染**这一层**（不带起因链、不带结尾换行）。与 Python `render_one` 逐字同源。
+fn render_error_one(
+    e: &JishiError,
+    filename: &str,
+    get_line: &dyn Fn(i64) -> Option<String>,
+    with_trace: bool,
 ) -> String {
     let mut out = error_head(e);
     if let Some(line) = e.line {
@@ -6154,7 +6309,7 @@ pub(crate) fn render_error_with(
         }
         out.push_str("\n  │");
     }
-    if !e.trace.is_empty() {
+    if with_trace && !e.trace.is_empty() {
         out.push_str("\n调用链（从外到内）：");
         for fr in e.trace.iter().rev().take(20).rev() {
             let where_ = match fr.line {
@@ -6167,7 +6322,6 @@ pub(crate) fn render_error_with(
     if let Some(hint) = &e.hint {
         out.push_str(&format!("\n  提示：{hint}"));
     }
-    out.push('\n');
     out
 }
 

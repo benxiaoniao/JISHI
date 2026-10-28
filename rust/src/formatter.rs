@@ -591,6 +591,7 @@ pub fn render_lex_error(e: &LexErr, filename: &str, source: &str) -> String {
         hint: e.hint.clone(),
         fix: None,          // 词法错没有替换建议（`fix` 只有解析器会填）
         trace: Vec::new(),
+        cause: None,
     };
     render_error_with(&err, filename, &|line| {
         if line >= 1 {

@@ -884,9 +884,20 @@ class _Emitter:
             self.compile_body(st.finalbody)
             self.emit(O.Op.END_FINALLY, st)
 
+        # `after` = 整条 `尝试` 语句结束的位置。它同时是**捕获区的右边界**
+        # （M148 异常链）：`catch_at <= ip < after` 就说明「本帧正在处理
+        # 这条 `尝试` 捕获的那个异常」——执行器据此给新抛出的错误挂「起因」。
+        #
+        # 为什么右边界取 `after` 而不是 `fin_start`：`最终` 块里的 `抛出`
+        # 也算「在处理它」（Python 的 `__context__` 同样如此）；而 reraise 那条
+        # 路上的 finally 副本本来就在 `after` 之前，两个副本口径才一致。
+        # 过了 `after` 就出了这条语句，再抛的错误跟这里捕获的东西无关。
+        after_at = self.here()
+
         # 回填跳转
         self.patch(setup, catch_at, "a")
         self.patch(setup, fin_start if has_fin else -1, "b")
+        self.patch(setup, after_at, "c")           # 捕获区右边界（M148）
         self.patch(to_fin, fin_start)
         self.patch(to_reraise, reraise_at)
         if to_reraise2 is not None:

@@ -293,6 +293,7 @@ pub fn parse_err_to_jishi(e: &jishi_frontend::parser::ParseErr) -> JishiError {
         hint: e.hint.clone(),
         fix: e.fix.clone(),
         trace: Vec::new(),
+        cause: None,
     }
 }
 

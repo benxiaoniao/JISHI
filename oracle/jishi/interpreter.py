@@ -285,6 +285,11 @@ class Interpreter:
         self._pending_call_site: tuple[int, int] = (0, 0)
         #: 调用帧栈（M17.2）：从外到内，出错时挂到 JishiError.trace
         self._call_stack: list = []
+        #: 「正在处理的异常」栈（M148）：进入 `捕获` 体时压、离开时弹。
+        #: 这比字节码那套「按 ip 区间判断」更直接（这里是 Python 原生
+        #: try/except，天然知道自己在不在捕获体里），两边结果**必须一致**
+        #: —— 见 `tests/test_m148_cause.py` 的五引擎对拍。
+        self._handling: list = []
         #: 调试器（M37）：非 None 时每次执行语句前会调它的 before_stmt。
         #: 平时是 None，多出来的开销只有一次属性判断。
         self.debugger = None
@@ -639,18 +644,32 @@ class Interpreter:
                     # 以及两个 VM 一致。R5.1 修。
                     if h.name:
                         env.set(h.name, err)
+                    # ⚠️ `_handling` 要盖住**捕获体 + 最终块**（M148）：字节码那边
+                    # 的捕获区右边界取的是 `after`（整条语句结束），所以最终块里
+                    # 抛出的错误在两边都得挂同一个「起因」。`抛出 e` 自己时由
+                    # `make_exception` 挡掉自环，这里不用管。
+                    self._handling.append(err)
                     try:
-                        self.exec_block(h.body, env)
-                    except (RunBreak, RunContinue, _ReturnSignal, DebugQuit):
+                        try:
+                            self.exec_block(h.body, env)
+                        except (RunBreak, RunContinue, _ReturnSignal, DebugQuit):
+                            if stmt.finalbody is not None:
+                                self.exec_block(stmt.finalbody, env)
+                            raise
                         if stmt.finalbody is not None:
                             self.exec_block(stmt.finalbody, env)
-                        raise
-                    if stmt.finalbody is not None:
-                        self.exec_block(stmt.finalbody, env)
+                    finally:
+                        self._handling.pop()
                     return
-            # 没有处理器接住：执行最终块后继续向上抛
-            if stmt.finalbody is not None:
-                self.exec_block(stmt.finalbody, env)
+            # 没有处理器接住：执行最终块后继续向上抛。
+            # `_handling` 照样要盖住最终块 —— 字节码那边这条路（reraise）
+            # 的 ip 也在捕获区里，最终块抛出的错误同样挂这个起因（M148）。
+            self._handling.append(err)
+            try:
+                if stmt.finalbody is not None:
+                    self.exec_block(stmt.finalbody, env)
+            finally:
+                self._handling.pop()
             raise err
         else:
             if stmt.finalbody is not None:
@@ -677,7 +696,8 @@ class Interpreter:
                 line=stmt.line, col=stmt.col, filename=self.filename)
         value = self.eval_expr(stmt.value, env)
         raise R.make_exception(value, line=stmt.line, col=stmt.col,
-                               filename=self.filename)
+                               filename=self.filename,
+                               cause=self._handling[-1] if self._handling else None)
 
     # -- 表达式 -------------------------------------------------------------
 

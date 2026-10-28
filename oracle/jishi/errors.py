@@ -52,6 +52,10 @@ def _safe_text(s: str) -> str:
 #: 少数错误码是**运行期临时挂上**的（没有独立异常类）。在这里登记，
 #: 好让语言规格的错误码表（`ai.build_lang_spec()["error_codes"]`）一并报出来，
 #: 不漏；使用时直接引用常量，改码只改这一处，不会两边漂移。
+#: 「起因」链最多摊几层（M148）。再深的只印一句，避免「捕获里包捕获」刷屏。
+#: ⚠️ 三个宿主必须用**同一个数**，否则同一个错误的渲染长度就不一样了。
+MAX_CAUSE_DEPTH = 5
+
 CODE_INPUT_END = "E2010"
 CODE_INTERRUPTED = "E2100"
 
@@ -77,6 +81,7 @@ class JishiError(Exception):
         underline: Optional[tuple[int, int]] = None,  # (起, 止) 列区间（1 起）
         fix: Optional[dict] = None,
         trace: Optional[list["Frame"]] = None,
+        cause: Optional["JishiError"] = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -91,9 +96,50 @@ class JishiError(Exception):
         self.fix = fix
         #: 调用栈回溯（M17.2）：从外到内的调用帧列表；None 表示无回溯。
         self.trace = trace
+        #: 「起因」链（M148）：**正在处理某个异常时又抛出的新异常**，
+        #: 会把被处理的那个挂在这里。真实痛点：`文件读不了 → 解析失败 →
+        #: 业务报错` 三层各自换过一次说法，只留最外层就等于把根子丢了。
+        #: 见 `render`（链会一起印出来）与 `原因` / `根因`（给程序读）。
+        self.cause = cause
 
     def render(self, *, color: bool = False) -> str:
-        """把错误渲染成带源码行与 ^ 指示的多行文本。"""
+        """把错误渲染成带源码行与 ``^`` 指示的多行文本，**带上整条「起因」链**（M148）。
+
+        每一层都用自己的 `render_one()` 渲染（各带自己的源码行、调用链、提示），
+        层与层之间只隔一行 ``起因：``：既好读，也好 grep（`grep -A3 起因：`）。
+
+        ⚠️ 三个宿主（Python / Rust / Node）必须**逐字一致** ——
+        段落顺序是「本层 → 调用链 → 提示 → 起因：→ 下一层」。
+        """
+        parts = [self.render_one(trace=True)]
+        cause = self.cause
+        seen = {id(self)}
+        depth = 0
+        while cause is not None:
+            if id(cause) in seen:
+                # 自环（`抛出 e` 把 e 自己挂成原因那种）理论上在挂的时候就挡掉了，
+                # 但异常对象是可以被程序直接改的 —— 渲染这一侧也留一道，别死循环。
+                parts.append("起因：（这条链绕回来了，就此打住）")
+                break
+            seen.add(id(cause))
+            if depth >= MAX_CAUSE_DEPTH:
+                parts.append(f"起因：（还更深，只摊到这里）")
+                break
+            depth += 1
+            parts.append("起因：")
+            # 只有**最外层**印调用链：起因层印位置就够了，四层链各带一遍
+            # 「从外到内」会淹没真正的信息（三个宿主都这么办）。
+            parts.append(cause.render_one(trace=False))
+            cause = cause.cause
+        # 统一兜底：标题/消息/提示/回溯里任何一段混进非法码位，都不能让
+        # 渲染本身抛异常（见 _safe_text 说明）。
+        return _safe_text("\n".join(parts))
+
+    def render_one(self, *, trace: bool = True) -> str:
+        """只渲染**这一层**（不带起因链）；`render` 拿它拼整条链。
+
+        `trace=False` 时不印调用链 —— 起因层只用位置说话。
+        """
         head = f"错误 {self.code}：{self.title}"
         if self.message:
             head += f"（{self.message}）"
@@ -120,7 +166,7 @@ class JishiError(Exception):
             lines.append("  │")
             body = "\n".join(lines)
         # 调用栈回溯（M17.2）
-        trace_block = self._render_trace()
+        trace_block = self._render_trace() if trace else ""
         parts = [body]
         if trace_block:
             parts.append(trace_block)
@@ -164,10 +210,50 @@ class JishiError(Exception):
         """异常的类型名，如「值错误」（`e.类型`）。"""
         return self.exc_name or self.title
 
+    @property
+    def 原因(self):
+        """上一层异常（`e.原因`）；没有就是 `空`（M148）。
+
+        什么时候会有：**正在处理某个异常的时候又抛出一个新的**。典型是
+        「读文件失败 → 换成自己的话再抛」这种包装：
+
+        ```python
+        尝试:
+            内容 = 文件.读文本(路径)
+        捕获 文件错误 为 e:
+            抛出 值错误("配置读不了")     # 这条的 `原因` 就是刚才那个文件错误
+        ```
+
+        串起来看，才看得出「业务层那句话」底下到底是什么。
+        """
+        return self.cause
+
+    @property
+    def 根因(self):
+        """链**最底下**那一层（`e.根因`）；没有原因时返回自己（M148）。
+
+        写日志时常用：`日志.错误("启动失败", e.消息, "根因：", e.根因.消息)`。
+        """
+        cur = self
+        seen = {id(self)}
+        while cur.cause is not None and id(cur.cause) not in seen:
+            cur = cur.cause
+            seen.add(id(cur))
+        return cur
+
     def with_source(self, source_lines: list[str]) -> "JishiError":
-        """补充源码行上下文后返回自身（就地补全，方便链式使用）。"""
-        if self.line is not None and 1 <= self.line <= len(source_lines):
-            self.source_line = source_lines[self.line - 1]
+        """补充源码行上下文后返回自身（就地补全，方便链式使用）。
+
+        ⚠️ **要顺着「起因」链一路补**（M148）：只补最外层的话，链上每一层
+        都只剩「错误 E2007：…”」这一行、没有源码行和 `^` —— 而链的价值
+        恰恰是「看到根子发生在**哪一行**」。
+        """
+        cur, seen = self, set()
+        while cur is not None and id(cur) not in seen:
+            seen.add(id(cur))
+            if cur.line is not None and 1 <= cur.line <= len(source_lines):
+                cur.source_line = source_lines[cur.line - 1]
+            cur = cur.cause
         return self
 
 

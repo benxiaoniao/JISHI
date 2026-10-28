@@ -80,9 +80,11 @@ const CMPOP = {
 };
 
 class Handler {
-  constructor(catchIp, finallyIp, sp, seq) {
+  constructor(catchIp, finallyIp, sp, seq, regionEnd) {
     this.catchIp = catchIp; this.finallyIp = finallyIp;
     this.sp = sp; this.seq = seq;
+    //: 捕获区右边界（M148）：整条 `尝试` 语句结束的位置（`SETUP_TRY` 的 c）。
+    this.regionEnd = regionEnd;
   }
 }
 
@@ -95,6 +97,8 @@ class Frame {
     this.cells = cells;
     this.loops = [];       // [depth, cont, brk, seq]
     this.handlers = [];    // Handler[]
+    //: 「正在处理的异常」（M148）：`[异常, 左界, 右界]`。判有效性只看 ip。
+    this.handled = [];
     this.pendingReturn = R.PENDING_NONE;
     this.blockSeq = 0;
     //: **本帧是在哪被调用的**（R6.4）—— 调用链要的是这个，不是「当前跑到第几行」。
@@ -443,13 +447,14 @@ class VM {
             this.lastValue = stack.pop();
           } else if (op === Op.SETUP_TRY) {
             frame.blockSeq += 1;
-            frame.handlers.push(new Handler(ins.a, ins.b, stack.length, frame.blockSeq));
+            frame.handlers.push(new Handler(ins.a, ins.b, stack.length, frame.blockSeq, ins.c));
           } else if (op === Op.POP_TRY) {
             if (frame.handlers.length) frame.handlers.pop();
           } else if (op === Op.THROW) {
             const v = stack.pop();
             frame.ip = ip;
-            throw R.makeException(v, ins.line, ins.col);
+            // 「正在处理的异常」（M148）：ip 此刻已指向这条 THROW，拿它比捕获区
+            throw R.makeException(v, ins.line, ins.col, this._findHandled());
           } else if (op === Op.CHECK_SIGNAL) {
             if (R.isLoopSignal(stack[stack.length - 1])) ip = ins.a;
           } else if (op === Op.MATCH_EXC) {
@@ -570,7 +575,11 @@ class VM {
     }
     if (fn instanceof R.ExcType) {
       this._rejectKwargs(`异常类型「${fn.name}」`, kwargs, line, col);
-      return fn.make(args[0] !== undefined ? args[0] : '', line, col);
+      // ⚠️ **不带位置**（M148 对齐）：Python 的 `ExcType.__call__` 是
+      // `self.cls(message)` —— 造出来的实例没有行列，位置等 `抛出` 时才补。
+      // 宿主以前把 CALL 指令的 line/col 塞进去，于是 `抛出 值错误("x")`
+      // 报在**括号上**（如 8:15），Python 报在 `抛出`（8:9）。
+      return fn.make(args[0] !== undefined ? args[0] : '');
     }
     // Python 侧是 `RunNotCallableError`（E2006「这个东西不能调用」）——
     // 以前这里报宽泛的「运行期错误」，`e.类型` 与错误码都跟着漂（R6.4）
@@ -629,6 +638,29 @@ class VM {
     exc.trace = chain;
   }
 
+  /** 记一笔「本帧正在处理 exc」（M148）。与 Python `_note_handled` 逐条对齐。 */
+  _noteHandled(frame, h, exc) {
+    const lo = h.catchIp;
+    const hi = h.regionEnd;
+    if (hi == null || hi <= 0) return;    // 老字节码没写 c：宁可不记，也不挂错
+    frame.handled = frame.handled.filter(
+      ([, l, hh]) => l <= lo && lo < hh && !(l === lo && hh === hi));
+    frame.handled.push([exc, lo, hi]);
+  }
+
+  /** `抛出` 的那一刻，「正在被处理的异常」是谁（M148）：从最内层帧往外找。 */
+  _findHandled() {
+    for (let i = this.frames.length - 1; i >= 0; i--) {
+      const frame = this.frames[i];
+      const ip = frame.ip;
+      for (let j = frame.handled.length - 1; j >= 0; j--) {
+        const [exc, lo, hi] = frame.handled[j];
+        if (lo <= ip && ip < hi) return exc;
+      }
+    }
+    return null;
+  }
+
   _dispatchException(exc, stopAt) {
     const frames = this.frames;
     const stack = this.stack;
@@ -653,6 +685,7 @@ class VM {
       } else if (h !== null) {
         frame.handlers.pop();
         stack.length = h.sp;
+        this._noteHandled(frame, h, exc);
         stack.push(exc);
         frame.ip = h.catchIp;
         return true;

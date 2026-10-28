@@ -61,6 +61,10 @@ const ERROR_CODES = {
 
 //: 「遍历时改了容器的大小」——文案与提示**只有一份**（Python `errors.py` 同名常量，
 //: Rust 侧 `ITER_SIZE_CHANGED` 同名），五个执行器逐字一致（D77 §二）。
+//: 「起因」链最多摊几层（M148）。与 Python `errors.MAX_CAUSE_DEPTH`、
+//: Rust `MAX_CAUSE_DEPTH` **同一个数** —— 不一样的话同一个错误的渲染长度就不同。
+const MAX_CAUSE_DEPTH = 5;
+
 const ITER_SIZE_CHANGED = '遍历的过程中改了容器的大小（这次遍历没法继续了）';
 const ITER_SIZE_CHANGED_HINT = '要边遍历边改，就先把元素取出来（或复制一份）再遍历';
 
@@ -100,6 +104,9 @@ class JishiError extends Error {
     //: 所以一直是 null —— 与 Python 侧**运行期错误**走的正是那条路
     //: （`underline=None` ⇒ `^` 宽 1），因此这一处不差分毫。
     this.underline = null;
+    //: 「起因」链（M148）：**正在处理某个异常时又抛出的新异常**，会把被处理的
+    //: 那个挂在这里。与 Python `JishiError.cause`、Rust `JishiError.cause` 同义。
+    this.cause = null;
   }
 
   /**
@@ -114,6 +121,16 @@ class JishiError extends Error {
    * 就保持 null、退回「没有源码行」—— **不崩、也不报 IO 错**。
    */
   attachSource() {
+    // ⚠️ **顺着「起因」链一路补**（M148）：只补最外层的话，链上每一层都只剩
+    // 一行标题、没有源码行和 `^` —— 而链的价值恰恰是「看到根子在哪一行」。
+    // 与 Python `JishiError.with_source` 同一条。
+    for (let cur = this; cur; cur = cur.cause) {
+      cur._attachOne();
+    }
+    return this;
+  }
+
+  _attachOne() {
     if (this.sourceLine != null || this.line == null) return this;
     try {
       const text = fs.readFileSync(this.filename || '', 'utf-8');
@@ -144,6 +161,36 @@ class JishiError extends Error {
    * —— 它必须自己长出完整的那一份，否则单二进制的报错会**退步**。
    */
   render() {
+    // M148：本层 → `起因：` → 下一层。段序与 Python `errors.render` /
+    // Rust `render_error_with` 逐字一致（三边必须一样，否则同一个错的
+    // 报错长度都不同）。深度上限也是同一个数（`MAX_CAUSE_DEPTH`）。
+    const parts = [this.renderOne(true)];
+    let cur = this.cause;
+    const seen = new Set([this]);
+    let depth = 0;
+    while (cur) {
+      if (seen.has(cur)) {
+        parts.push('起因：（这条链绕回来了，就此打住）');
+        break;
+      }
+      seen.add(cur);
+      if (depth >= MAX_CAUSE_DEPTH) {
+        parts.push('起因：（还更深，只摊到这里）');
+        break;
+      }
+      depth += 1;
+      parts.push('起因：');
+      // 起因层不印调用链（只有最外层印）—— 三个宿主同一条口径
+      parts.push(cur.renderOne(false));
+      cur = cur.cause;
+    }
+    return parts.join('\n');
+  }
+
+  /** 只渲染**这一层**（不带起因链）；`render` 拿它拼整条链。
+   *
+   * `withTrace=false` 时不印调用链 —— 起因层只用位置说话。 */
+  renderOne(withTrace) {
     let head;
     if (!this.code) {
       head = `错误（${this.typeName}）：${this.message}`;
@@ -170,7 +217,7 @@ class JishiError extends Error {
       }
       parts.push('  │');
     }
-    const trace = this._renderTrace();
+    const trace = withTrace === false ? '' : this._renderTrace();
     if (trace) parts.push(trace);
     if (this.hint) parts.push(`  提示：${this.hint}`);
     return parts.join('\n');
@@ -2394,6 +2441,13 @@ function getAttr(obj, attr, line, col) {
   if (obj instanceof JishiError) {
     if (attr === '类型') return obj.typeName;
     if (attr === '消息') return obj.message;
+    // M148：`e.原因`（上一层）/ `e.根因`（链最底下），与 Python 侧同名同义
+    if (attr === '原因') return obj.cause || null;
+    if (attr === '根因') {
+      let cur = obj;
+      while (cur.cause) cur = cur.cause;
+      return cur;
+    }
     throw typeErr(`「异常」没有属性「${attr}」`, line, col);
   }
   if (obj instanceof Module) {
@@ -3262,10 +3316,23 @@ function exceptionMatches(exc, cond, line, col) {
 }
 
 // make_exception：把 `抛出` 的值规范化成异常对象
-function makeException(value, line, col) {
-  if (value instanceof JishiError) return value;
-  if (value instanceof ExcType) return value.make('', line, col);
-  return new JishiError('异常', '异常', display(value), line, col);
+//
+// `cause`（M148）是**正在处理的异常**（没有就不传）—— 与 Python
+// `runtime.make_exception` / Rust `make_exception` 同两条规则：
+// ① `抛出 e` 里 e 就是正在被处理的那个（同一个对象）→ 不挂，避免自环；
+// ② 已经挂过了（重抛一个带着链的异常）→ 保留原来的，别把中间层盖掉。
+function makeException(value, line, col, cause) {
+  let exc;
+  if (value instanceof JishiError) exc = value;
+  else if (value instanceof ExcType) exc = value.make('');
+  else exc = new JishiError('异常', '异常', display(value), line, col);
+  // 抛出点才补行列，已经在别处抛过的（又捕获又重抛）保留原位置 ——
+  // 与 Python `make_exception` 的「`if exc.line is None` 才补」同一条。
+  if (exc.line == null) { exc.line = line ?? null; exc.col = col ?? null; }
+  if (cause instanceof JishiError && cause !== exc && exc.cause == null) {
+    exc.cause = cause;
+  }
+  return exc;
 }
 
 module.exports = {

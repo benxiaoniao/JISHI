@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 38,
     "frontend": 1,
-    "lang": 124,
+    "lang": 126,
     "stdlib": 4
   },
   "语料": [
@@ -93,14 +93,14 @@
     },
     {
       "id": "examples__12_异常处理",
-      "产物哈希": "sha256:243e5c503e2635e8",
+      "产物哈希": "sha256:7e0f895cea31f3e0",
       "内容哈希": "sha256:cd25fb8f062a28b0",
       "类别": "examples",
       "路径": "examples/12_异常处理.jsh"
     },
     {
       "id": "examples__13_面向对象",
-      "产物哈希": "sha256:5c856005ca64dea9",
+      "产物哈希": "sha256:bbdbb8f45b50bbd4",
       "内容哈希": "sha256:a26183ca649597d3",
       "类别": "examples",
       "路径": "examples/13_面向对象.jsh"
@@ -142,35 +142,35 @@
     },
     {
       "id": "examples__projects__待办清单__待办",
-      "产物哈希": "sha256:9329e477af194785",
+      "产物哈希": "sha256:408b8ee604c43476",
       "内容哈希": "sha256:a301c5daf0f0e742",
       "类别": "examples",
       "路径": "examples/projects/待办清单/待办.jsh"
     },
     {
       "id": "examples__projects__成绩分析__分析",
-      "产物哈希": "sha256:3398233604bb891a",
+      "产物哈希": "sha256:c53dad8969787013",
       "内容哈希": "sha256:d87dd5dedc478a64",
       "类别": "examples",
       "路径": "examples/projects/成绩分析/分析.jsh"
     },
     {
       "id": "examples__projects__排序跑分__排序",
-      "产物哈希": "sha256:5d536a3f907428ac",
+      "产物哈希": "sha256:c6514692e4d7c678",
       "内容哈希": "sha256:06495bf7c3ea34bf",
       "类别": "examples",
       "路径": "examples/projects/排序跑分/排序.jsh"
     },
     {
       "id": "examples__projects__日志统计__统计",
-      "产物哈希": "sha256:1ad4707fc26bf399",
+      "产物哈希": "sha256:a663ee29fb4e984a",
       "内容哈希": "sha256:b9c4f9ddb77647ed",
       "类别": "examples",
       "路径": "examples/projects/日志统计/统计.jsh"
     },
     {
       "id": "examples__projects__网页采集__采集",
-      "产物哈希": "sha256:8e8473c41ae525bd",
+      "产物哈希": "sha256:b1c0440976cf7588",
       "内容哈希": "sha256:70c4ac6c160071a9",
       "类别": "examples",
       "路径": "examples/projects/网页采集/采集.jsh"
@@ -261,7 +261,7 @@
     },
     {
       "id": "examples__科学计算__03_平均值与标准差",
-      "产物哈希": "sha256:5f7f9912581b84ac",
+      "产物哈希": "sha256:244ab9938e3c00d5",
       "内容哈希": "sha256:a72e2b5b85671bad",
       "类别": "examples",
       "路径": "examples/科学计算/03_平均值与标准差.jsh"
@@ -310,7 +310,7 @@
     },
     {
       "id": "examples__绕道探针__本地小服务__服务",
-      "产物哈希": "sha256:f2bb4032cfe2ad25",
+      "产物哈希": "sha256:b00e94a562fe958a",
       "内容哈希": "sha256:6ffb734d7e75d9d6",
       "类别": "examples",
       "路径": "examples/绕道探针/本地小服务/服务.jsh"
@@ -331,28 +331,28 @@
     },
     {
       "id": "oracle__jishi__stdlib-jishi__参数",
-      "产物哈希": "sha256:ebdcf3e921376997",
+      "产物哈希": "sha256:450ac3e158655ba0",
       "内容哈希": "sha256:21e3acc6595ef03e",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/参数.jsh"
     },
     {
       "id": "oracle__jishi__stdlib-jishi__容器",
-      "产物哈希": "sha256:2e95f3764ef902a2",
+      "产物哈希": "sha256:1194ab3ce0a55cab",
       "内容哈希": "sha256:16ec44a849e424ad",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/容器.jsh"
     },
     {
       "id": "oracle__jishi__stdlib-jishi__统计",
-      "产物哈希": "sha256:70061ac8f86f7cf4",
+      "产物哈希": "sha256:1c6823b4360180e9",
       "内容哈希": "sha256:01769482d8647365",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/统计.jsh"
     },
     {
       "id": "oracle__jishi__stdlib-jishi__迭代",
-      "产物哈希": "sha256:4dcf5e8513755a63",
+      "产物哈希": "sha256:c6ae246b7e9a2dea",
       "内容哈希": "sha256:3549313c0a16e47f",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/迭代.jsh"
@@ -471,7 +471,7 @@
     },
     {
       "id": "tests__cases__17_尝试块作用域",
-      "产物哈希": "sha256:e700842567c66950",
+      "产物哈希": "sha256:f0e898db67bdc531",
       "内容哈希": "sha256:de3afc766ee4df19",
       "类别": "lang",
       "路径": "tests/cases/17_尝试块作用域.jsh"
@@ -492,7 +492,7 @@
     },
     {
       "id": "tests__cases__20_函数帧复用",
-      "产物哈希": "sha256:a0d02c3fe7896979",
+      "产物哈希": "sha256:3faaa9dbf1f7ba51",
       "内容哈希": "sha256:3eb7c7830f141ed0",
       "类别": "lang",
       "路径": "tests/cases/20_函数帧复用.jsh"
@@ -527,7 +527,7 @@
     },
     {
       "id": "tests__cases__25_异常与导入",
-      "产物哈希": "sha256:053faef1d690f5f7",
+      "产物哈希": "sha256:d120988b112bb673",
       "内容哈希": "sha256:79c13bd44e77f99b",
       "类别": "lang",
       "路径": "tests/cases/25_异常与导入.jsh"
@@ -541,7 +541,7 @@
     },
     {
       "id": "tests__cases__27_标准库新增",
-      "产物哈希": "sha256:a49de9aeb6f7cde8",
+      "产物哈希": "sha256:75dd1d57eef4709f",
       "内容哈希": "sha256:58cc3dd947ffbe70",
       "类别": "lang",
       "路径": "tests/cases/27_标准库新增.jsh"
@@ -611,7 +611,7 @@
     },
     {
       "id": "tests__cases__36_标准库_M117",
-      "产物哈希": "sha256:0f46f9d051de4efa",
+      "产物哈希": "sha256:3699f796ed9e49d0",
       "内容哈希": "sha256:334470702671b1f1",
       "类别": "lang",
       "路径": "tests/cases/36_标准库_M117.jsh"
@@ -660,10 +660,17 @@
     },
     {
       "id": "tests__cases__43_科学计算_M143",
-      "产物哈希": "sha256:a43582493089db78",
+      "产物哈希": "sha256:f7b557e714ccf0e7",
       "内容哈希": "sha256:e2d0382f515f2847",
       "类别": "lang",
       "路径": "tests/cases/43_科学计算_M143.jsh"
+    },
+    {
+      "id": "tests__cases__44_异常链",
+      "产物哈希": "sha256:9cf9ac7a79fe4742",
+      "内容哈希": "sha256:21fb2555d608f97d",
+      "类别": "lang",
+      "路径": "tests/cases/44_异常链.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -1206,7 +1213,7 @@
     },
     {
       "id": "tests__error_cases__77_容器_追加是列表方法",
-      "产物哈希": "sha256:99efda8c7d1950fc",
+      "产物哈希": "sha256:72f5e0215a43f045",
       "内容哈希": "sha256:ce13f354278ef73b",
       "类别": "lang",
       "路径": "tests/error_cases/77_容器_追加是列表方法.jsh"
@@ -1226,6 +1233,13 @@
       "路径": "tests/error_cases/79_模块_内部东西不能访问.jsh"
     },
     {
+      "id": "tests__error_cases__80_异常链未捕获",
+      "产物哈希": "sha256:d4953e377f4453d5",
+      "内容哈希": "sha256:cb8895483d691ff0",
+      "类别": "lang",
+      "路径": "tests/error_cases/80_异常链未捕获.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:293975765ad4c964",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -1233,5 +1247,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 167
+  "语料数": 169
 }

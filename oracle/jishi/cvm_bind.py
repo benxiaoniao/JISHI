@@ -337,7 +337,7 @@ CB_ITER_NEXT = CFUNCTYPE(c_int, _JPV, _JPV, POINTER(c_int), c_int, c_int)
 CB_ITER_NEXT_BATCH = CFUNCTYPE(c_int, _JPV, c_int, _JPV, c_int, POINTER(c_int),
                                c_int, c_int)
 CB_ERROR_HANDLE = CFUNCTYPE(c_int, _JPV)
-CB_MAKE_ERROR = CFUNCTYPE(c_int, _JPV, c_int, c_int, _JPV)
+CB_MAKE_ERROR = CFUNCTYPE(c_int, _JPV, c_int, c_int, _JPV, _JPV)
 CB_MATCH_ERROR = CFUNCTYPE(c_int, _JPV, _JPV, POINTER(c_int), c_int, c_int)
 CB_IS_SIGNAL = CFUNCTYPE(c_int, _JPV, POINTER(c_int))
 CB_MAKE_CLASS = CFUNCTYPE(c_int, _JPV, _JPV, _JPV, c_int, _JPV,
@@ -1319,19 +1319,29 @@ class CvmHost:
         except BaseException as e:
             return self._fail(e)
 
-    def _cb_make_error(self, value, line, col, out):
+    def _cb_make_error(self, value, line, col, cause, out):
         # `抛出 值`：规范化成异常对象，原值所有权转移给返回的异常句柄。
         # **例外**：调试器的「退出」(`DebugQuit`) 不是给用户看的异常，
         # 不能被包装（否则用户程序一句 `捕获` 就把它接住了，M39/M40）。
         # Python VM 在 THROW 处有同样的特判，这里对齐。
+        #
+        # `cause`（M148）：C 侧查出来的「正在处理的异常」，NULL 表示没有。
+        # **借用**引用（C 侧持有），这里只读，不接管所有权。
         try:
             v = self.c2py(value[0])
             if isinstance(v, DebugQuit):
                 self._fresh_error = None
                 out[0] = self.py2c(v)
                 return 0
+            上一层 = None
+            if cause:
+                上一层 = self.c2py(cause[0])
+                if not isinstance(上一层, JishiError):
+                    # C 侧理论上只会传异常对象；万一不是（老字节码 / 别处算错），
+                    # 宁可不挂，也不挂一个不是异常的东西上去。
+                    上一层 = None
             exc = R.make_exception(v, line=line, col=col,
-                                   filename=self.filename)
+                                   filename=self.filename, cause=上一层)
             # 记一笔：C 侧紧接着会调 `note_frames`（那时 self.pending 还是 None），
             # 调用链要挂到这个对象上。见 `_fresh_error` 的说明。
             self._fresh_error = exc

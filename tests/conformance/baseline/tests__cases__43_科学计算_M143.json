@@ -1641,7 +1641,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "d7a7b6db13908ed127ad5f774a65c5c0851ae021ab115b5212fa825690bf1cd1",
+    "checksum": "34c7d398a3995ab5f4e5aa1301127e965fb2f37dbddee13cd82c94ade00ebecb",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -3483,7 +3483,7 @@
             39,
             36,
             -1,
-            0,
+            51,
             32,
             9,
             4,

@@ -697,6 +697,7 @@ impl<'a> Emitter<'a> {
         match field {
             'a' => self.code.instrs[i].a = target,
             'b' => self.code.instrs[i].b = target,
+            'c' => self.code.instrs[i].c = target,   // M148：`SETUP_TRY` 的捕获区右界
             _ => self.code.instrs[i].c = target,
         }
     }
@@ -1400,8 +1401,14 @@ impl<'a> Emitter<'a> {
             self.emit(op::END_FINALLY, Some(n), 0, 0, 0);
         }
 
+        // `after` = 整条 `尝试` 语句结束的位置，同时是**捕获区右边界**（M148）：
+        // `catch_at <= ip < after` ⇒ 本帧此刻正在处理这次捕获到的异常。
+        // 与 Python `compiler._c_try` 逐字同源（同一个 c 字段、同一条判据）。
+        let after_at = self.here();
+
         self.patch(setup, catch_at, 'a');
         self.patch(setup, if has_fin { fin_start } else { -1 }, 'b');
+        self.patch(setup, after_at, 'c');
         self.patch(to_fin, fin_start, 'a');
         self.patch(to_reraise, reraise_at, 'a');
         if let Some(j) = to_reraise2 {

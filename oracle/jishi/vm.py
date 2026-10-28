@@ -111,13 +111,18 @@ class _Handler:
     ``sp``：登记时的栈深度（分发时截栈用）。
     """
 
-    __slots__ = ("catch_ip", "finally_ip", "sp", "seq")
+    __slots__ = ("catch_ip", "finally_ip", "region_end", "sp", "seq")
 
-    def __init__(self, catch_ip: int, finally_ip: int, sp: int, seq: int):
+    def __init__(self, catch_ip: int, finally_ip: int, sp: int, seq: int,
+                 region_end: int = -1):
         self.catch_ip = catch_ip
         self.finally_ip = finally_ip
         self.sp = sp
         self.seq = seq       # 块栈登记序号：越大越内层（越近）
+        #: 捕获区右边界（M148，编译器写在 `SETUP_TRY` 的 c 上）：整条
+        #: `尝试` 语句结束的位置。`catch_ip <= ip < region_end` ⇒ 本帧此刻
+        #: 正在「处理这次捕获到的异常」，新抛的错误要挂它当「起因」。
+        self.region_end = region_end
 
 
 def _frames_to_trace(frames: list) -> list:
@@ -151,7 +156,7 @@ class _Frame:
     """
 
     __slots__ = ("code", "ip", "base", "locals", "cells", "loops",
-                 "handlers", "pending_return", "block_seq",
+                 "handlers", "handled", "pending_return", "block_seq",
                  "call_line", "call_col")
 
     def __init__(self, code: O.Code, ip: int, base: int,
@@ -164,6 +169,15 @@ class _Frame:
         self.cells = cells
         self.loops: list[tuple[int, int, int]] = []
         self.handlers: list[_Handler] = []
+        #: 「正在处理的异常」（M148）：元素是 `(异常对象, 捕获区左界, 右界)`。
+        #:
+        #: 分发到某个 `捕获` 时记一条；**不主动清**，靠 ip 判断还作不作数
+        #: （`左界 <= ip < 右界` 才算「还在处理它」）。为什么不显式压/弹：
+        #: 弹出需要一个「捕获区结束」的指令，而那要求改字节码；用区间判断
+        #: 则**零指令开销**，异常路径才多走几步。
+        #: 长度不会长：压之前会把「不包含新捕获入口」的旧条目剪掉（见
+        #: `_note_handled`），所以最多等于嵌套深度。
+        self.handled: list[tuple[Any, int, int]] = []
         self.pending_return: Any = _PENDING_NONE
         self.block_seq: int = 0
         #: 本帧是**从哪里被调进来的**（调用点，1 基行列）：调试器的调用栈要它。
@@ -741,7 +755,7 @@ class VM:
                         frame.block_seq += 1
                         frame.handlers.append(
                             _Handler(ins.a, ins.b, len(stack),
-                                     frame.block_seq))
+                                     frame.block_seq, ins.c))
                     elif op == Op.POP_TRY:
                         if frame.handlers:
                             frame.handlers.pop()
@@ -754,7 +768,8 @@ class VM:
                             # 会被包装成「异常」而被用户程序接住（M39）。
                             raise v
                         raise R.make_exception(
-                            v, line=ins.line, col=ins.col, filename=filename)
+                            v, line=ins.line, col=ins.col, filename=filename,
+                            cause=self._find_handled())
                     elif op == Op.CHECK_SIGNAL:
                         # 只查看不弹出：未匹配路径末尾的 THROW 统一负责
                         # 弹出并重新抛出（信号原样传播，由外层循环接住）
@@ -881,6 +896,13 @@ class VM:
                 frame.ip = brk if isinstance(exc, RunBreak) else cont
                 return True
             if h is not None:
+                # 记一笔「本帧正在处理这个异常」（M148），供 THROW 查「起因」。
+                # 信号（中断/继续/退出）不算用户的异常，不记 —— 它们只是借道
+                # 处理器去穿 `最终`，记下来会让 finally 里的 `抛出` 挂一个
+                # 内部信号当原因。
+                if not isinstance(exc, _LOOP_SIGNALS) and not isinstance(
+                        exc, DebugQuit):
+                    self._note_handled(frame, exc, h)
                 frame.handlers.pop()
                 del stack[h.sp:]
                 stack.append(exc)
@@ -889,6 +911,45 @@ class VM:
             callee = frames.pop()
             del stack[callee.base:]
         return False
+
+    @staticmethod
+    def _note_handled(frame: _Frame, exc: Any, h: "_Handler") -> None:
+        """记下「本帧正在处理 `exc`」，并限定它的有效区间（M148）。
+
+        区间 = `[catch_ip, region_end)`：编译器把「整条 `尝试` 结束的位置」
+        写在 `SETUP_TRY` 的 c 上。判有效性只看 ip，**不需要任何压栈/弹栈指令**。
+
+        压之前先剪：只留「区间包含这次捕获入口」的旧条目 ——
+        嵌套的捕获区才会互相包含，兄弟/先后关系的自然被剪掉。
+        ⚠️ 同一区间也要剪掉旧的（循环里反复 `尝试/捕获` 时会一直压）：
+        判据是「区间相同就替换」，见下面的 `!=`。
+        """
+        lo, hi = h.catch_ip, h.region_end
+        if hi <= 0:
+            # 老字节码（`c` 没写，-1）：没有区间信息，宁可不记 ——
+            # 行为退化成 M148 之前那样（不挂起因），而不是挂错。
+            return
+        if frame.handled:
+            frame.handled = [e for e in frame.handled
+                             if e[1] <= lo < e[2] and (e[1], e[2]) != (lo, hi)]
+        frame.handled.append((exc, lo, hi))
+
+    def _find_handled(self) -> Any:
+        """`抛出` 的那一刻，「正在被处理的异常」是谁（M148）。
+
+        从**最内层帧**往外找：某个帧的当前 ip 落在它自己的某条捕获区里，
+        就说明「它此刻正在处理那次捕获到的异常」—— 包括「本帧在捕获体里
+        调用了一个函数、那个函数抛出」这种跨帧情形（调用者的 ip 停在调用点上，
+        而调用点就在捕获区里）。
+
+        找不到就返回 `None`（没在处理的异常，与 M148 之前一样）。
+        """
+        for fr in reversed(self.frames):
+            ip = fr.ip
+            for exc, lo, hi in reversed(fr.handled):
+                if lo <= ip < hi:
+                    return exc
+        return None
 
     @staticmethod
     def _signal_needs_dispatch(frame: _Frame) -> bool:

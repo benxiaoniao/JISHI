@@ -144,7 +144,9 @@ typedef struct JsHost {
      *   match_error：判断捕获条件 cond 是否接得住异常 exc。
      *   is_signal：exc 是否「中断/继续」信号（需穿透到循环）。 */
     int (*error_handle)(JVal *out);
-    int (*make_error)(JVal *value, int line, int col, JVal *out);
+    /* `cause`（M148）：正在被处理的异常（没有就是 NULL）。宿主把它挂成
+     * 新异常的「起因」——`抛出` 时若正处在某个 `捕获` 体里就会出现。 */
+    int (*make_error)(JVal *value, int line, int col, JVal *cause, JVal *out);
     /* 类定义：name=类名，base=基类（UNSET 表示无），methods=方法函数数组 */
     int (*make_class)(JVal *name, JVal *base, JVal *methods, int nmethods,
                       JVal *out, int line, int col);

@@ -277,6 +277,10 @@ pub(crate) struct Walker {
     /// 为了让 DAP 的报文与 Python 逐字节一致，这里显式记住「Python 会给哪个
     /// 作用域」，钩子优先用它。非类体时它是 `None`（= 就用 `env`）。
     debug_env: Option<Rc<RefCell<Scope>>>,
+    /// 「正在处理的异常」栈（M148）：进 `捕获` 体时压、离开时弹。
+    /// 与 Python `Interpreter._handling` 逐条对应（树遍历这边天然知道
+    /// 自己在不在捕获体里，不需要字节码那套 ip 区间判断）。
+    handling: Vec<Val>,
 }
 
 /// 调试器要执行器提供的三件事（R7.5）。
@@ -312,6 +316,7 @@ impl Walker {
             output_sink: None,
             debugger: None,
             debug_env: None,
+            handling: Vec::new(),
         }
     }
 
@@ -1226,6 +1231,9 @@ impl Walker {
                     type_name: t.clone(),
                     message: msg,
                     code: crate::error_code(&t).map(|s| s.to_string()),
+                    line: None,
+                    col: None,
+                    cause: None,
                 })))
             }
             // 类型名与提示都照 Python 的 `runtime.call_value`（E2006）——
@@ -1318,27 +1326,44 @@ impl Walker {
                                 .vars.insert(name.to_string(), exc.clone());
                         }
                     }
-                    let hbody = stmts_of(h, "body")?;
-                    match self.exec_body(hbody) {
-                        // ⚠️ **捕获体自己出错**时「最终」不跑 —— 这是既有口径
-                        // （`interpreter._do_try` 那个 `except (RunBreak,
-                        // RunContinue, _ReturnSignal, DebugQuit)` 只接控制信号；
-                        // 四个字节码宿主也一样）。照抄它，不照 Python 语言本身。
-                        Err(he) => return Err(he),
-                        // 捕获体正常结束或**跳出去**（`返回`/`中断`/`继续`）：
-                        // 「最终」要跑；它自己跳出去时**以它为准**（覆盖捕获体的信号）。
-                        Ok(flow) => return match self.run_finally(finalbody)? {
-                            Some(f) => Ok(f),
-                            None => Ok(flow),
-                        },
-                    }
+                    // M148：捕获体 + 最终块都在「正在处理它」的范围里 ——
+                    // 与 Python `_do_try` 的 `self._handling.append(err)` 同一位置，
+                    // 也与字节码那边「捕获区右边界取 after」同一口径。
+                    self.handling.push(exc.clone());
+                    let r = self.run_handler_body(h, finalbody);
+                    self.handling.pop();
+                    return r;
                 }
-                // 没有处理器接住：跑「最终」后继续往上抛（原错误原样带走）
-                match self.run_finally(finalbody)? {
+                // 没有处理器接住：跑「最终」后继续往上抛（原错误原样带走）。
+                // 「最终」块也在「正在处理它」的范围内（同 Python `_do_try`）。
+                self.handling.push(exc.clone());
+                let finr = self.run_finally(finalbody);
+                self.handling.pop();
+                match finr? {
                     Some(f) => Ok(f),
                     None => Err(e),
                 }
             }
+        }
+    }
+
+    /// 跑一个捕获体，然后跑「最终」块（M148 抽出来，好把 `handling`
+    /// 的压/弹写成一对）。口径与 Python `_do_try` 一致：
+    ///
+    /// - 捕获体**自己出错** → 直接往外抛，「最终」**不跑**（既有口径，
+    ///   四个字节码宿主也一样；照抄它，不照 Python 语言本身）；
+    /// - 捕获体正常结束或**跳出去**（`返回`/`中断`/`继续`）→ 「最终」要跑，
+    ///   它自己跳出去时**以它为准**（覆盖捕获体的信号）。
+    fn run_handler_body(&mut self, h: &Json, fin: Option<&[Json]>)
+        -> Result<Flow, JishiError>
+    {
+        let hbody = stmts_of(h, "body")?;
+        match self.exec_body(hbody) {
+            Err(he) => Err(he),
+            Ok(flow) => match self.run_finally(fin)? {
+                Some(f) => Ok(f),
+                None => Ok(flow),
+            },
         }
     }
 
@@ -1367,7 +1392,9 @@ impl Walker {
             _ => return Err(err("类型错误",
                 "「抛出」后面要写一个值（比如 抛出 值错误(\"说明\")）")),
         };
-        Err(make_exception(v))
+        // M148：正在处理某个异常时又抛 → 挂成它的「起因」
+        let cause = self.handling.last().cloned();
+        Err(make_exception(v, cause.as_ref()))
     }
 
     /// `导入 模块 [从 python/本地包] [为 别名]`。

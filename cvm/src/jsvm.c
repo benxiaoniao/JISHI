@@ -181,9 +181,27 @@ typedef struct {
     int finally_ip;    /* finally 代码入口（-1 表示无 finally） */
     int sp;            /* 登记时的栈深度（分发时截栈用） */
     int seq;
+    int region_end;    /* 捕获区右边界（M148）：整条「尝试」语句结束的位置 */
 } JsHandler;
 
 #define JS_MAX_HANDLERS 64
+
+/* 「本帧正在处理哪个异常」（M148 异常链）。
+ *
+ * 分发到某个 `捕获` 时记一条 `[lo, hi)` = 该捕获区；`抛出` 时若当前 ip 落在
+ * 某条区间里，就把那条的异常挂成新错误的「起因」。
+ *
+ * 为什么用区间判断而不是压/弹：弹出需要一个「捕获区结束」的指令，那要改字节码；
+ * 区间判断**零指令开销**，只有异常路径才多走几步（与 vm.py / Rust 同一套）。
+ *
+ * 深度给 16：正常代码不会嵌套这么深；真超了就把最外层挤掉（链只缺最外层，
+ * 不会挂错），绝不允许越界。 */
+#define JS_MAX_HANDLED 16
+
+typedef struct {
+    JVal exc;          /* 本帧持有引用 */
+    int lo, hi;        /* 捕获区 [lo, hi) */
+} JsHandled;
 
 typedef struct {
     int code_idx;
@@ -197,6 +215,8 @@ typedef struct {
     int nloops;
     JsHandler handlers[JS_MAX_HANDLERS];
     int nhandlers;
+    JsHandled handled[JS_MAX_HANDLED];
+    int nhandled;
     int block_seq;         /* 循环/处理器共用登记序号 */
     int pending_return;    /* 被 finally 挂起的返回值：0=无，1=有 */
     JVal ret_val;          /* 挂起的返回值 */
@@ -992,6 +1012,10 @@ static void pop_frame(JsVm *vm, int full_stack_clear) {
         free(f->cells);
         f->cells = NULL;
     }
+    /* 帧走了，它「正在处理的异常」也得放掉（M148） */
+    for (int i = 0; i < f->nhandled; i++)
+        release_val(vm, f->handled[i].exc);
+    f->nhandled = 0;
     vm->nframes--;
 }
 
@@ -1037,6 +1061,55 @@ static int signal_needs_dispatch(JsFrame *f) {
  *   1 = 中断 / 2 = 继续：循环与处理器谁更内层谁先接（与 vm.py 一致）；
  *   3 = **卸载类**（调试器的「退出」）：只穿 `最终` 块，**既不被 `捕获` 接住、
  *       也不被循环接住**——与 Python VM 的 `_UNWIND_SIGNALS` 同一语义（M40）。 */
+/* 记一笔「本帧正在处理 exc」（M148）。
+ *
+ * 区间 = [catch_ip, region_end)：编译器把「整条 `尝试` 结束的位置」写在
+ * SETUP_TRY 的 c 上。有效性只看 ip —— 不需要任何压栈/弹栈指令。
+ *
+ * 压之前先剪：只留「区间包含这次捕获入口」的旧条目（嵌套的才互相包含），
+ * 同一区间也剪掉（循环里反复 `尝试/捕获` 时会一直压）。与 vm.py
+ * `_note_handled` 逐条对齐。 */
+static void note_handled(JsVm *vm, JsFrame *f, JVal *exc, JsHandler *h) {
+    int lo = h->catch_ip, hi = h->region_end;
+    if (hi <= 0) return;    /* 老字节码没写 c：宁可不记，也不挂错 */
+    int w = 0;
+    for (int i = 0; i < f->nhandled; i++) {
+        JsHandled *e = &f->handled[i];
+        if (e->lo <= lo && lo < e->hi && !(e->lo == lo && e->hi == hi)) {
+            f->handled[w++] = *e;
+        } else {
+            release_val(vm, e->exc);
+        }
+    }
+    f->nhandled = w;
+    if (f->nhandled >= JS_MAX_HANDLED) {
+        /* 太深了：挤掉最外层那条（链只缺最外层，绝不越界、绝不挂错） */
+        release_val(vm, f->handled[0].exc);
+        memmove(&f->handled[0], &f->handled[1],
+                (size_t)(f->nhandled - 1) * sizeof(JsHandled));
+        f->nhandled--;
+    }
+    retain_val(vm, *exc);
+    f->handled[f->nhandled].exc = *exc;
+    f->handled[f->nhandled].lo = lo;
+    f->handled[f->nhandled].hi = hi;
+    f->nhandled++;
+}
+
+/* `抛出` 的那一刻，「正在被处理的异常」是谁（M148）。从最内层帧往外找。 */
+static int find_handled(JsVm *vm, JVal *out) {
+    for (int fi = vm->nframes - 1; fi >= 0; fi--) {
+        JsFrame *f = &vm->frames[fi];
+        for (int i = f->nhandled - 1; i >= 0; i--) {
+            if (f->handled[i].lo <= f->ip && f->ip < f->handled[i].hi) {
+                *out = f->handled[i].exc;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 static int dispatch_exception(JsVm *vm, JVal *exc) {
     int sig = 0;
     if (exc_is_signal(vm, exc, &sig) != 0) return 0;
@@ -1076,6 +1149,9 @@ static int dispatch_exception(JsVm *vm, JVal *exc) {
         } else if (h) {
             while (vm->sp > h->sp)
                 release_val(vm, vm->stack[--vm->sp]);
+            /* 记「本帧正在处理它」（M148），供 THROW 查「起因」。
+               信号不算（它们只是借道处理器去穿 `最终`）。 */
+            note_handled(vm, f, exc, h);
             retain_val(vm, *exc);
             PUSH(vm, *exc);
             f->ip = h->catch_ip;
@@ -2098,6 +2174,7 @@ static int run_loop(JsVm *vm) {
                 h->finally_ip = b;
                 h->sp = vm->sp;
                 h->seq = f->block_seq;
+                h->region_end = c;      /* 捕获区右边界（M148） */
                 break;
             }
 
@@ -2106,10 +2183,14 @@ static int run_loop(JsVm *vm) {
                 break;
 
             case JS_OP_THROW: {
-                JVal v = POP(vm), exc;
+                JVal v = POP(vm), exc, cause;
                 SAVE_IP();
+                /* 「正在处理的异常」（M148）：`SAVE_IP` 之后才查 ——
+                   要用 THROW 这一条指令的 ip 去比捕获区。 */
+                int has_cause = find_handled(vm, &cause);
                 /* 让宿主把值规范化成异常对象（make_exception） */
-                if (HC(vm, make_error)(&v, line, col, &exc) != 0) {
+                if (HC(vm, make_error)(&v, line, col,
+                                       has_cause ? &cause : NULL, &exc) != 0) {
                     release_val(vm, v);
                     goto dispatch_err;
                 }
