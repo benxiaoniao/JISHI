@@ -775,6 +775,67 @@ def _cmd_doctor(args) -> int:
     return 1
 
 
+def _包根候选(根) -> list:
+    """`测试 <目录>` 时，把「这些包所在的目录」当成包根（M147）。
+
+    ## 为什么要
+
+    包自带的测试里写着 `导入 自己 从 本地包` —— 而直接对包目录跑测试时
+    它**并没有装**，于是报「没有找到本地包」。要用户「先装一遍自己再跑测试」
+    很别扭，CI 上更糟（安装会往工程里写 `.jishi/`，还得再清）。
+
+    ⇒ 跑测试时把这个包的**父目录**当作包根（`<父>/<包名>/包.json` 正好是这个布局）。
+
+    ⚠️ 只认三种位置，**不递归整棵树**：`根/包.json`、`根/*/包.json`、`根/*/*/包.json`。
+       `examples/packages/` 那种一层布局、以及单包目录，都覆盖到了；
+       真按整棵树扫，会在顺手 `测试 .` 时把 `node_modules` 之类也翻一遍。
+    """
+    from pathlib import Path
+
+    候选: list = []
+
+    def 加(d):
+        p = str(Path(d).resolve())
+        if p and p not in 候选:
+            候选.append(p)
+
+    if (根 / "包.json").is_file():
+        加(根.parent)
+    for 通配 in ("*/包.json", "*/*/包.json"):
+        for 清单 in 根.glob(通配):
+            加(清单.parent.parent)
+    return 候选
+
+
+def _目录里的包名(根) -> list:
+    """一个目录里有哪些包：`根/包.json`，或 `根/*/包.json`、`根/*/*/包.json`。
+
+    与 `_包根候选` 同一套位置口径（不递归整棵树）。
+    """
+    import json
+
+    from pathlib import Path
+
+    清单们 = []
+    if (根 / "包.json").is_file():
+        清单们.append(根 / "包.json")
+    for 通配 in ("*/包.json", "*/*/包.json"):
+        清单们.extend(sorted(根.glob(通配)))
+
+    出: list = []
+    for 清单 in 清单们:
+        名 = 清单.parent.name
+        try:
+            meta = json.loads(Path(清单).read_text(encoding="utf-8"))
+            if isinstance(meta, dict) and str(meta.get("名字") or "").strip():
+                名 = str(meta["名字"]).strip()
+        except (OSError, ValueError):
+            pass                      # 读不了就用目录名（后面会被「找不到」拦下）
+        if 名 not in 出:
+            出.append(名)
+    return 出
+
+
 def _cmd_test(args) -> int:
     """跑目录下的 `*_test.jsh`（M126）。
 
@@ -816,31 +877,48 @@ def _cmd_test(args) -> int:
 
     过, 断言败, 崩了 = 0, 0, 0
 
-    for f in 文件们:
-        相对 = f.relative_to(根) if 根 != Path(".") else f
-        print(f"\n{相对}")
-        行们: list[str] = []
-        try:
-            # ⚠️ 不能走 `run_file`：它把 `JishiError` 渲染完就 `return 1`，
-            #    异常冒不上来，这里就只能见到退出码、分不清「断言没过」和「崩了」。
-            _源码, _名 = _read_source(str(f))
-            行们 = _源码.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-            _程序 = parse_source(_源码, _名)
-            Interpreter(filename=_名).run(_程序)
-        except JishiError as e:
-            e.with_source(行们)
-            if e.code == "E2008":
-                断言败 += 1
-                print("  ↑ 上面是用例的失败明细；本文件有断言没通过")
-            else:
+    # 跑包自带测试时，把这个包的父目录临时当包根（见 `_包根候选` 的说明）。
+    # ⚠️ 用 `finally` 还原环境变量：pytest 会在**同一个进程**里反复调 `main()`，
+    #    漏还原就会污染后面的用例（症状：上一个用例的目录在下一个用例里还生效）。
+    from . import localpkg as _lp
+    旧根 = os.environ.get(_lp.PKG_ROOTS_ENV, "")
+    候选 = _包根候选(根)
+    if 候选:
+        os.environ[_lp.PKG_ROOTS_ENV] = os.pathsep.join(
+            候选 + ([旧根] if 旧根 else []))
+    try:
+        for f in 文件们:
+            相对 = f.relative_to(根) if 根 != Path(".") else f
+            print(f"\n{相对}")
+            行们: list[str] = []
+            try:
+                # ⚠️ 不能走 `run_file`：它把 `JishiError` 渲染完就 `return 1`，
+                #    异常冒不上来，这里就只能见到退出码、分不清「断言没过」和「崩了」。
+                _源码, _名 = _read_source(str(f))
+                行们 = _源码.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+                _程序 = parse_source(_源码, _名)
+                Interpreter(filename=_名).run(_程序)
+            except JishiError as e:
+                e.with_source(行们)
+                if e.code == "E2008":
+                    断言败 += 1
+                    print("  ↑ 上面是用例的失败明细；本文件有断言没通过")
+                else:
+                    崩了 += 1
+                    print(f"  ⚠️ 不是断言失败，是程序出错了（{e.code} {e.title}）")
+                    print(f"     {e.message}" + (f"（第 {e.line} 行）" if e.line else ""))
+            except Exception as e:                      # noqa: BLE001
                 崩了 += 1
-                print(f"  ⚠️ 不是断言失败，是程序出错了（{e.code} {e.title}）")
-                print(f"     {e.message}" + (f"（第 {e.line} 行）" if e.line else ""))
-        except Exception as e:                      # noqa: BLE001
-            崩了 += 1
-            print(f"  ⚠️ 不是断言失败，是宿主异常：{type(e).__name__}: {e}")
-        else:
-            过 += 1
+                print(f"  ⚠️ 不是断言失败，是宿主异常：{type(e).__name__}: {e}")
+            else:
+                过 += 1
+
+    finally:
+        if 候选:
+            if 旧根:
+                os.environ[_lp.PKG_ROOTS_ENV] = 旧根
+            else:
+                os.environ.pop(_lp.PKG_ROOTS_ENV, None)
 
     总 = len(文件们)
     print("\n" + "=" * 48)
@@ -1565,17 +1643,66 @@ def _cmd_index(args) -> int:
 
 
 def _cmd_check(args) -> int:
-    """`jishi 检查`：检测已装包的依赖冲突（钻石依赖，M22.3）。"""
+    """`jishi 检查`：检测已装包的依赖冲突（钻石依赖，M22.3）。
+
+    ## M147：参数可以是**包目录**，而且「找不到的包」必须报错
+
+    以前这条路有两个坑，都会给出**看着像检查过了**的绿字：
+
+    1. 传目录（`jishi 检查 examples/packages/数学工具`）会被当成**包名**
+       —— 那个「包」当然找不到，于是走完流程打「检查了 1 个包，未发现依赖冲突」；
+    2. 传一个拼错的包名同样如此。
+
+    ⇒ 现在：目录 → 先当包根（和 `测试` 一套），再按里面真实的包名去查；
+    名字找不到 → **报错并返回 1**（不许用绿字盖过去）。
+    """
+    import os
+
+    from pathlib import Path
+
+    from . import localpkg as _lp
     from . import packages as PKG
     from .runtime import _find_pkg_dir
 
     installed = [p["名字"] for p in PKG.list_packages()]
-    roots = args.packages or installed
-    if not roots:
-        print("（尚未安装任何本地包）")
-        return 0
+    参数 = list(getattr(args, "packages", None) or [])
 
-    conflicts = PKG.detect_conflicts(roots, find_dir=_find_pkg_dir)
+    # 目录参数 → 临时包根 + 它里面的包名（跑包的检查不该要求先装它）
+    旧根 = os.environ.get(_lp.PKG_ROOTS_ENV, "")
+    候选: list = []
+    名字: list = []
+    for 项 in 参数:
+        路径 = Path(项)
+        if 路径.is_dir():
+            for 根 in _包根候选(路径):
+                if 根 not in 候选:
+                    候选.append(根)
+            for 名 in _目录里的包名(路径):
+                if 名 not in 名字:
+                    名字.append(名)
+        elif 项 not in 名字:
+            名字.append(项)
+    if 候选:
+        os.environ[_lp.PKG_ROOTS_ENV] = os.pathsep.join(
+            候选 + ([旧根] if 旧根 else []))
+    try:
+        roots = 名字 or installed
+        if not roots:
+            print("（尚未安装任何本地包）")
+            return 0
+        找不到 = [n for n in roots if _find_pkg_dir(n) is None]
+        if 找不到:
+            print("❌ 找不到这些包：" + "、".join(找不到), file=sys.stderr)
+            print("   想检查一个包目录，直接把目录传进来："
+                  "jishi 检查 examples/packages/<包名>", file=sys.stderr)
+            return 1
+        conflicts = PKG.detect_conflicts(roots, find_dir=_find_pkg_dir)
+    finally:
+        if 候选:
+            if 旧根:
+                os.environ[_lp.PKG_ROOTS_ENV] = 旧根
+            else:
+                os.environ.pop(_lp.PKG_ROOTS_ENV, None)
     if not conflicts:
         print(f"检查了 {len(roots)} 个包，未发现依赖冲突")
         return 0

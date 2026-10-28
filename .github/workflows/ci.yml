@@ -224,13 +224,44 @@ jobs:
           # 正好对上 `tools/自测豁免.txt` 里登记的那一条。
           python -m oracle.jishi.cli tools/自测.jsh --被测 "$BIN" --路数 4 2>&1 | tee selftest-rs.log
 
+      # M147：第三方包**自带的测试**也要在 CI 上跑。
+      # 为什么：包不跟语言一起发版（它自己迭代），最容易**悄悄烂掉** ——
+      # 语言侧改一点点语义，包里的用例就挂了，而没人会想起去跑它。
+      # `测试 <包们的父目录>` 会把每个包的父目录临时当包根（`JISHI_PKG_ROOTS`），
+      # 所以**不用先装**，也不会往工作区里写 `.jishi/`。
+      - name: 第三方包自带测试（Python 宿主）
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m oracle.jishi.cli 测试 examples/packages 2>&1 | tee pkgtest-py.log
+
+      - name: 第三方包自带测试（Rust 宿主）
+        shell: bash
+        run: |
+          set -o pipefail
+          BIN=rust/target/release/jishi-rs
+          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          "$BIN" 测试 examples/packages 2>&1 | tee pkgtest-rs.log
+
+      # M147：包的**依赖冲突检查**也跑一遍（`检查 <目录>` 现在能吃包目录了）。
+      # 这条以前对目录是「静默通过」——传目录会被当成包名，查不到也照样打
+      # 「检查了 1 个包，未发现依赖冲突」，看着像查过了。
+      - name: 第三方包依赖检查（两宿主）
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN=rust/target/release/jishi-rs
+          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          python -m oracle.jishi.cli 检查 examples/packages
+          "$BIN" 检查 examples/packages
+
       # 自测失败也写成注解（同下面 pytest 那条的理由：job 日志只有登录网页能看）
       - name: 自测失败摘要（写成注解）
         if: failure()
         shell: bash
         run: |
           set +e
-          for f in selftest-py.log selftest-rs.log; do
+          for f in selftest-py.log selftest-rs.log pkgtest-py.log pkgtest-rs.log; do
             [ -f "$f" ] || continue
             LIST=$(grep -aE '^  (✗|⚠)' "$f" | head -20 | tr -d '\r' | tr '\n' ' ')
             SUM=$(grep -a '^汇总 ' "$f" | tail -1 | tr -d '\r')

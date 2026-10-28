@@ -81,11 +81,34 @@ def shell_name(name: str) -> str:
 # 找包（与 runtime._package_dirs 同一顺序：先项目后全局）
 # ---------------------------------------------------------------------------
 
+#: 追加包根的**环境变量名**（`os.pathsep` 分隔）。
+#:
+#: 给 `jishi 测试 <包目录>` 用的（M147）：包自带的测试里写着
+#: `导入 自己 从 本地包`，而**跑包的测试**这件事本身不该要求「先把包装一遍」。
+#: 于是跑测试时把这个包的**父目录**塞进来，它就能当作包根被找到。
+#:
+#: 🔴 **为什么用环境变量、而不是内存里的全局变量**：这个「额外包根」要被
+#: **四处**同时看到 —— Python 编译期展开（本文件）、Python 运行时导入
+#: （`runtime._package_dirs`）、Rust 宿主（`packages::package_dirs`）、
+#: Rust 前端 / pyo3（`frontend/src/localpkg.rs`）。四处各塞一个全局变量既难对，
+#: 也漏 pyo3 那条（Python 侧设不到 pyd 里）。环境变量一次设好，四边都读得到。
+PKG_ROOTS_ENV = "JISHI_PKG_ROOTS"
+
+
+def _环境包根() -> list:
+    raw = (os.environ.get(PKG_ROOTS_ENV) or "").strip()
+    if not raw:
+        return []
+    return [d for d in raw.split(os.pathsep) if d]
+
+
 def package_dirs() -> list:
+    """包搜索目录：**额外根（`JISHI_PKG_ROOTS`）→ 项目 `.jishi/packages` → 用户目录**。"""
     dirs = []
-    for d in (os.path.join(os.getcwd(), ".jishi", "packages"),
-              os.path.join(os.path.expanduser("~"), ".jishi", "packages")):
-        if d not in dirs:
+    for d in (_环境包根()
+              + [os.path.join(os.getcwd(), ".jishi", "packages"),
+                 os.path.join(os.path.expanduser("~"), ".jishi", "packages")]):
+        if d and d not in dirs:
             dirs.append(d)
     return dirs
 

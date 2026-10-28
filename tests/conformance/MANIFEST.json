@@ -107,8 +107,8 @@
     },
     {
       "id": "examples__packages__图片格式转换__图片格式转换",
-      "产物哈希": "sha256:8bea66bf87e66811",
-      "内容哈希": "sha256:362940576fcacb18",
+      "产物哈希": "sha256:dcef52cb745ed950",
+      "内容哈希": "sha256:e607c8dc6bb23235",
       "类别": "examples",
       "路径": "examples/packages/图片格式转换/图片格式转换.jsh"
     },
@@ -128,8 +128,8 @@
     },
     {
       "id": "examples__projects__基石自述站__生成",
-      "产物哈希": "sha256:c1702537288ebfbe",
-      "内容哈希": "sha256:713a88b9c630dddf",
+      "产物哈希": "sha256:7974e4b2f08d7916",
+      "内容哈希": "sha256:82b6ff98a5c1c1be",
       "类别": "examples",
       "路径": "examples/projects/基石自述站/生成.jsh"
     },

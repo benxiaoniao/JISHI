@@ -397,10 +397,34 @@ def test_marks_match_ast_statement_lines(path):
     # 外壳函数的定义。这里**必须做同样的展开**，否则拿「原 AST 的语句行」
     # 去比「展开后字节码的语句标记」，多出来的库行号会让不变式假红。
     # `expand` 是幂等的（找不到 `导入` 就原样返回），所以不必担心叠加。
-    from oracle.jishi import jishilib
+    from oracle.jishi import jishilib, localpkg
 
     program = jishilib.expand(program)
-    cmod = compile_program(program, str(path), lines)
+    # ⚠️ 包里那个 `*_test.jsh` 会 `导入 自己 从 本地包`（M147）：编译期展开要能找到
+    #    自己 ⇒ 临时把「这个包所在的目录」当包根。与 `jishi 测试 <包目录>` 同一套，
+    #    只是这条判据是**逐文件编译**的，得自己给。
+    import contextlib
+    import os
+
+    @contextlib.contextmanager
+    def _包根():
+        旧 = os.environ.get(localpkg.PKG_ROOTS_ENV)
+        if (path.parent / "包.json").is_file():
+            os.environ[localpkg.PKG_ROOTS_ENV] = str(path.parent.parent)
+        try:
+            yield
+        finally:
+            if 旧 is None:
+                os.environ.pop(localpkg.PKG_ROOTS_ENV, None)
+            else:
+                os.environ[localpkg.PKG_ROOTS_ENV] = 旧
+
+    with _包根():
+        # 与 `compile_program` 内部做的事**逐一对应**：它先展开基石库层、再展开本地包。
+        # 这里少展一步，拿「原 AST 的语句行」比「展开后字节码的标记」就会假红
+        # （M147 实测：包里那个 `*_test.jsh` 正好是这种文件）。
+        program = localpkg.expand(program)
+        cmod = compile_program(program, str(path), lines)
     assert mark_lines(cmod) == statement_lines(program), str(path)
 
 

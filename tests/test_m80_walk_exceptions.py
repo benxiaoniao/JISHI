@@ -212,11 +212,44 @@ def test_进度仪表全覆盖():
 def test_导入宿主有意不支持从python():
     """⚠️ **有意的边界**（登记在 `tools/check_engines.py` 的 `HOST_KNOWN_GAPS`）：
     跨语言宿主没有 Python，报的是「宿主不支持…」——那句本身是给用户看的正确信息。
-    这里钉住**树遍历与字节码 VM 逐字相同**（不一致的话互拍会红）。"""
-    for src in ("导入 随机 从 python", "导入 甲 从 本地包"):
-        wo, _, vo, _ = _three(src)
-        assert wo == vo, f"{src!r}：树遍历 {wo!r} != 字节码 {vo!r}"
-        assert "不支持" in vo, vo
+    这里钉住**树遍历与字节码 VM 逐字相同**（不一致的话互拍会红）。
+
+    📌 **`从 本地包` 已从这条拆走**（M145）：本地包改成编译期展开后，宿主**支持**它了，
+    所以它不再是「有意的边界」—— 它现在钉的是「包不存在时两宿主说同一句」，
+    见下面那条。
+    """
+    wo, _, vo, _ = _three("导入 随机 从 python")
+    assert wo == vo, f"树遍历 {wo!r} != 字节码 {vo!r}"
+    assert "不支持" in vo, vo
+
+
+def test_本地包不存在时两宿主说同一句(tmp_path):
+    """`导入 甲 从 本地包` 且**没有这个包** ⇒ 两宿主都在编译阶段报 E0302。
+
+    为什么单独一条：这类错发生在**编译期**（展开要读包源码），拿 `_three` 跑会在
+    「编译成字节码」那一步就抛出来，比不了「两宿主的说法」。⇒ 各起一个进程比文案。
+    """
+    import subprocess
+
+    from conftest import rust_exe_path
+
+    工程 = tmp_path / "工程"
+    工程.mkdir()
+    (工程 / "x.jsh").write_text("导入 甲 从 本地包\n", encoding="utf-8", newline="\n")
+
+    def 跑(命令):
+        r = subprocess.run(命令 + ["x.jsh"], cwd=str(工程), capture_output=True,
+                           text=True, encoding="utf-8")
+        return (r.stdout or "") + (r.stderr or "")
+
+    py = 跑([sys.executable, "-m", "oracle.jishi.cli"])
+    rs_bin = rust_exe_path()
+    if not rs_bin.exists():
+        pytest.skip("没有编出 jishi-rs")
+    rs = 跑([str(rs_bin)])
+
+    assert "没有找到本地包「甲」" in py, py[:300]
+    assert py == rs, f"两宿主说法不一致\n--- python ---\n{py}\n--- rust ---\n{rs}"
 
 
 # ---------------------------------------------------------------------------

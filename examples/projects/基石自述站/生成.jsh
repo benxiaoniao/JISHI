@@ -301,7 +301,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px
                        +"</td><td class=\"num\">" + 转义(条[2]) + "</td></tr>")
     最近 = 最近 + "</table>"
     最近 = 最近 + ("<p>全部 "
-        + `{长度(数据["里程碑"])}` + " 个里程碑见<a href=\"里程碑.html\">里程碑</a>页。</p>")
+        +`{长度(数据["里程碑"])}` + " 个里程碑见<a href=\"里程碑.html\">里程碑</a>页。</p>")
 
     返回 页面("概览", "index.html", 正文 + 最近,
               `由基石生成器产出 · 版本 {数据["版本"]}`)

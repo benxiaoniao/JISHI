@@ -119,13 +119,46 @@ fn cwd() -> String {
         .unwrap_or_else(|_| ".".to_string())
 }
 
-fn package_dirs() -> Vec<String> {
-    let mut v = vec![
+/// 追加包根的**环境变量名**（M147）—— 与 Python 侧 `localpkg.PKG_ROOTS_ENV` 同名同义。
+///
+/// 为什么要有：包自带的测试里写着 `导入 自己 从 本地包`，而**跑包的测试**不该
+/// 要求「先把包装一遍」。`jishi 测试 <包目录>` 会把这个包的父目录塞进来。
+///
+/// 🔴 为什么用环境变量：同一份「额外包根」要被 Python 编译期、Python 运行时、
+/// Rust 宿主、前端/pyo3 **四处**看到。环境变量一次设好，四边都读得到；
+/// 内存全局变量则要各自塞一份，pyo3 那条（Python 设不到 pyd 里）一定会漏。
+pub const PKG_ROOTS_ENV: &str = "JISHI_PKG_ROOTS";
+
+/// 环境变量里的额外包根（`;` / `:` 分隔，按平台）。
+pub fn extra_package_roots() -> Vec<String> {
+    let raw = match std::env::var(PKG_ROOTS_ENV) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    let sep = if cfg!(windows) { ';' } else { ':' };
+    raw.split(sep)
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// 包搜索目录：**额外根 → 项目 `.jishi/packages` → 用户目录**。
+pub fn package_roots() -> Vec<String> {
+    let mut v: Vec<String> = extra_package_roots();
+    for d in [
         Path::new(&cwd()).join(".jishi").join("packages").to_string_lossy().to_string(),
         Path::new(&home_dir()).join(".jishi").join("packages").to_string_lossy().to_string(),
-    ];
-    v.dedup();
+    ] {
+        if !v.contains(&d) {
+            v.push(d);
+        }
+    }
     v
+}
+
+fn package_dirs() -> Vec<String> {
+    package_roots()
 }
 
 fn find_pkg_dir(name: &str) -> Option<String> {
@@ -652,6 +685,14 @@ fn visit(n: Node) -> Node {
         .f("target", Node::new("Name", line, col).f("id", J::Str(binding)).boxed())
         .f("op", J::Str("=".into()))
         .f("value", make_mod)
+}
+
+/// 程序里所有 `导入 … 从 本地包`：`[(包名, 行, 列)]`。
+///
+/// 给宿主用的（沙箱要在**展开之前**拦这类导入 —— 展开本身要读包源码，
+/// 而沙箱默认不许文件访问）。返回的是 `collect` 的结果，只是换个公开入口。
+pub fn local_imports(program: &Node) -> Vec<(String, i64, i64)> {
+    collect(program)
 }
 
 /// 深度优先重写：**每个字段**都下探（含 `branches` 的块体、元组里的节点）。

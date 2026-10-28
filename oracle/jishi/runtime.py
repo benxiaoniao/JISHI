@@ -2298,15 +2298,16 @@ def _warn_shadow_builtin(name: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _package_dirs() -> list[str]:
-    """本地包搜索目录（先项目后全局）。"""
-    import os
-    dirs = []
-    cwd = os.path.join(os.getcwd(), ".jishi", "packages")
-    home = os.path.join(os.path.expanduser("~"), ".jishi", "packages")
-    for d in (cwd, home):
-        if d not in dirs:
-            dirs.append(d)
-    return dirs
+    """本地包搜索目录（额外根 → 项目 → 全局）。
+
+    🔴 **只认 `localpkg.package_dirs()` 这一处**（M147）：编译期展开在
+    `localpkg` 里找包、运行时导入在这里找包 —— **两边必须是同一批目录**。
+    各写一份的话，「跑包自带测试」那种临时加进来的根只会进一边，
+    结果就是「编译过了、运行时说找不到」，而且只在特定命令下复现。
+    """
+    from . import localpkg
+
+    return localpkg.package_dirs()
 
 
 def _find_pkg_dir(name: str) -> Optional[str]:

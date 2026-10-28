@@ -4440,7 +4440,7 @@ pub fn set_import_guard(g: Option<ImportGuardFn>) {
 }
 
 /// 问一次守卫；没设守卫就放行。
-fn check_import_guard(name: &str, from_python: bool, from_local: bool,
+pub(crate) fn check_import_guard(name: &str, from_python: bool, from_local: bool,
                       line: i64, col: i64, filename: &str) -> Result<(), JishiError> {
     IMPORT_GUARD.with(|c| {
         let b = c.borrow();

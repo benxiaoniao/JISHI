@@ -27,6 +27,25 @@ use crate::JishiError;
 pub fn expand(program: &jishi_frontend::parser::Node, filename: &str)
     -> Result<jishi_frontend::parser::Node, JishiError>
 {
+    // 🔴 **沙箱要在展开之前拦「从 本地包」**（M147 对拍撞出来的）：
+    //    展开要读包源码（文件访问），而导用守卫是**运行时**才调的 —— 展开一做，
+    //    运行时那条 IMPORT 就没了，守卫永远等不到，于是沙箱里报的是
+    //    「没有找到本地包」（E0302），而 Python 那边报「沙箱禁止」（E2000）。
+    //    两边对同一段源码给出不同的错，是最不该有的分叉。
+    for (name, line, col) in jishi_frontend::localpkg::local_imports(program) {
+        if let Err(mut e) = crate::check_import_guard(&name, false, true, line, col, filename) {
+            // 守卫本身不记位置（运行时那条由 VM 在 IMPORT 指令处补上）——
+            // 编译期没有那条指令，所以这里补：不然 `--json-result` 里
+            // 同一件事 Python 给 1:1、Rust 给 null，对拍就红。
+            if e.line.is_none() {
+                e.line = Some(if line > 0 { line } else { 1 });
+            }
+            if e.col.is_none() {
+                e.col = Some(if col > 0 { col } else { 1 });
+            }
+            return Err(e);
+        }
+    }
     jishi_frontend::localpkg::expand(program).map_err(|e| {
         let mut err = crate::err("找不到这个函数", e.message);
         err.line = Some(if e.line > 0 { e.line } else { 1 });

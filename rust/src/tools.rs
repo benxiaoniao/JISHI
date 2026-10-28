@@ -279,6 +279,76 @@ fn collect_tests(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// `测试 <目录>` 时，把这些包所在的目录当成**额外包根**（M147，与 Python 侧
+/// `cli._包根候选` 同口径）。
+///
+/// 为什么要：包自带的测试写着 `导入 自己 从 本地包`，而直接对包目录跑测试时
+/// 它没装 —— 报「没有找到本地包」。跑自己的测试还要先装自己，太别扭，
+/// CI 上还会往工程里写 `.jishi/`。
+///
+/// ⚠️ 只认 `根/包.json`、`根/*/包.json`、`根/*/*/包.json` 三种位置，
+///    **不递归整棵树**（顺手 `测试 .` 时不该去翻 node_modules）。
+pub(crate) fn package_root_candidates(root: &Path) -> Vec<String> {
+    let mut 候选: Vec<String> = Vec::new();
+    let mut 加 = |p: &Path| {
+        if let Ok(abs) = p.canonicalize() {
+            let s = abs.to_string_lossy().to_string();
+            if !候选.contains(&s) {
+                候选.push(s);
+            }
+        }
+    };
+    if root.join("包.json").is_file() {
+        if let Some(parent) = root.parent() {
+            加(parent);
+        }
+    }
+    for pat in ["*/包.json", "*/*/包.json"] {
+        if let Ok(rd) = glob_manifests(root, pat) {
+            for man in rd {
+                if let Some(grand) = man.parent().and_then(|d| d.parent()) {
+                    加(grand);
+                }
+            }
+        }
+    }
+    候选
+}
+
+/// 极简的「一层/两层通配」：`*/包.json` 与 `*/*/包.json`。
+/// 不引 `glob` crate —— 就这两种形状，手写十几行即可。
+fn glob_manifests(root: &Path, pat: &str) -> Result<Vec<std::path::PathBuf>, ()> {
+    let 深度 = pat.matches('/').count();          // `*/包.json` → 1
+    let mut 出 = Vec::new();
+    let 第一层: Vec<_> = std::fs::read_dir(root)
+        .map_err(|_| ())?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
+    for d in 第一层 {
+        if 深度 == 1 {
+            let man = d.join("包.json");
+            if man.is_file() {
+                出.push(man);
+            }
+        } else if 深度 >= 2 {
+            if let Ok(rd2) = std::fs::read_dir(&d) {
+                for e2 in rd2.flatten() {
+                    let d2 = e2.path();
+                    if d2.is_dir() {
+                        let man = d2.join("包.json");
+                        if man.is_file() {
+                            出.push(man);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(出)
+}
+
 pub fn run_test(root: &str) -> ExitCode {
     let 根 = Path::new(root);
     if !根.is_dir() {
@@ -291,6 +361,22 @@ pub fn run_test(root: &str) -> ExitCode {
     if 文件们.is_empty() {
         eprintln!("没找到 *_test.jsh（在 {root} 下）—— 测试文件名要以 `_test.jsh` 结尾。");
         return ExitCode::from(2);
+    }
+
+    // 跑包自带测试时，把这个包的父目录临时当包根（见 `package_root_candidates`）。
+    // 用**环境变量**传：编译期展开（前端）、运行时导入（packages）、pyo3 三处都读得到。
+    let 旧根 = std::env::var(jishi_frontend::localpkg::PKG_ROOTS_ENV).ok();
+    let 候选 = package_root_candidates(根);
+    if !候选.is_empty() {
+        let sep = if cfg!(windows) { ';' } else { ':' };
+        let mut 值 = 候选.clone();
+        if let Some(old) = &旧根 {
+            if !old.is_empty() {
+                值.push(old.clone());
+            }
+        }
+        let 分隔 = sep.to_string();
+        std::env::set_var(jishi_frontend::localpkg::PKG_ROOTS_ENV, 值.join(分隔.as_str()));
     }
 
     let mut 过 = 0usize;
@@ -325,6 +411,16 @@ pub fn run_test(root: &str) -> ExitCode {
         尾.push_str(&format!("，{崩了} 个程序出错"));
     }
     println!("汇总：{}/{} 个测试文件通过{尾}", 过, 文件们.len());
+
+    // 还原环境变量：`jishi 测试` 结束后不该把「临时包根」留给后续动作
+    if !候选.is_empty() {
+        match &旧根 {
+            Some(old) if !old.is_empty() => {
+                std::env::set_var(jishi_frontend::localpkg::PKG_ROOTS_ENV, old)
+            }
+            _ => std::env::remove_var(jishi_frontend::localpkg::PKG_ROOTS_ENV),
+        }
+    }
 
     if 断言败 == 0 && 崩了 == 0 {
         ExitCode::SUCCESS

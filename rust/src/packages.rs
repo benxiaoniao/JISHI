@@ -58,7 +58,7 @@
 //! 要抹平它得让核心 JSON 类型保序（那是**热路径**上的类型，`Walker` 每个节点都
 //! 要 `get` 一次），代价与收益不成比例 —— 所以这里**如实登记**，不硬凑。
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -768,15 +768,14 @@ fn cwd() -> String {
         .unwrap_or_else(|_| ".".to_string())
 }
 
-/// 本地包搜索目录（先项目后全局）—— 与 `runtime._package_dirs` 一致。
+/// 本地包搜索目录（**额外根 → 项目 → 全局**）。
+///
+/// 🔴 **只认前端那一处**（M147）：编译期展开在 `jishi_frontend::localpkg` 里找包、
+/// 运行时导入在这里找包 —— 两边必须是同一批目录。以前各写一份，于是
+/// 「`jishi 测试 <包目录>` 临时加进来的额外根」只有一边看得到，
+/// 结果就是「编译过了、运行时说找不到」。现在统一走 `package_roots()`。
 pub fn package_dirs() -> Vec<String> {
-    let mut v = vec![
-        join(&cwd(), ".jishi/packages"),
-        join(&home_dir(), ".jishi/packages"),
-    ];
-    let mut seen = HashSet::new();
-    v.retain(|d| seen.insert(d.clone()));
-    v
+    jishi_frontend::localpkg::package_roots()
 }
 
 /// 本地包缓存根目录：优先项目 `.jishi/packages/`，其次用户目录。
@@ -1437,12 +1436,125 @@ fn cmd_index(rest: &[String]) -> i32 {
     0
 }
 
+/// 一个目录里有哪些包：`根/包.json`、`根/*/包.json`、`根/*/*/包.json`
+/// （与 Python 侧 `cli._目录里的包名` 同口径，也不递归整棵树）。
+fn names_in_dir(root: &Path) -> Vec<String> {
+    let mut 清单们: Vec<std::path::PathBuf> = Vec::new();
+    let own = root.join("包.json");
+    if own.is_file() {
+        清单们.push(own);
+    }
+    if let Ok(第一层) = std::fs::read_dir(root) {
+        for e in 第一层.flatten() {
+            let d = e.path();
+            if !d.is_dir() {
+                continue;
+            }
+            let man = d.join("包.json");
+            if man.is_file() {
+                清单们.push(man);
+            }
+            if let Ok(第二层) = std::fs::read_dir(&d) {
+                for e2 in 第二层.flatten() {
+                    let d2 = e2.path();
+                    if d2.is_dir() {
+                        let man2 = d2.join("包.json");
+                        if man2.is_file() {
+                            清单们.push(man2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut 出: Vec<String> = Vec::new();
+    for man in 清单们 {
+        let 名 = man.parent()
+            .and_then(|d| d.file_name())
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let mut 用名 = 名.clone();
+        if let Ok(text) = std::fs::read_to_string(&man) {
+            if let Ok(meta) = crate::json::parse(&text) {
+                if let Some(v) = meta.get("名字") {
+                    let s = py_str(v).trim().to_string();
+                    if !s.is_empty() {
+                        用名 = s;
+                    }
+                }
+            }
+        }
+        if !用名.is_empty() && !出.contains(&用名) {
+            出.push(用名);
+        }
+    }
+    出
+}
+
 fn cmd_check(rest: &[String]) -> i32 {
     let installed: Vec<String> = list_packages(None).into_iter().map(|p| p.0).collect();
-    let roots: Vec<String> = if rest.is_empty() { installed } else { rest.to_vec() };
+
+    // M147：参数可以是**包目录**（先把它的父目录当额外包根，再按里面真实的包名查）；
+    // 传进来的名字**找不到就报错** —— 以前这两种情况都会打「检查了 1 个包，
+    // 未发现依赖冲突」，看着像检查过了。
+    let 旧根 = std::env::var(jishi_frontend::localpkg::PKG_ROOTS_ENV).ok();
+    let mut 候选: Vec<String> = Vec::new();
+    let mut 名字: Vec<String> = Vec::new();
+    for 项 in rest {
+        let 路径 = Path::new(项);
+        if 路径.is_dir() {
+            for r in crate::tools::package_root_candidates(路径) {
+                if !候选.contains(&r) {
+                    候选.push(r);
+                }
+            }
+            for n in names_in_dir(路径) {
+                if !名字.contains(&n) {
+                    名字.push(n);
+                }
+            }
+        } else if !名字.contains(项) {
+            名字.push(项.clone());
+        }
+    }
+    if !候选.is_empty() {
+        let sep = if cfg!(windows) { ';' } else { ':' };
+        let mut 值 = 候选.clone();
+        if let Some(old) = &旧根 {
+            if !old.is_empty() {
+                值.push(old.clone());
+            }
+        }
+        let 分隔 = sep.to_string();
+        std::env::set_var(jishi_frontend::localpkg::PKG_ROOTS_ENV, 值.join(分隔.as_str()));
+    }
+
+    let roots: Vec<String> = if 名字.is_empty() { installed } else { 名字.clone() };
+    let 码 = cmd_check_inner(&roots);
+
+    if !候选.is_empty() {
+        match &旧根 {
+            Some(old) if !old.is_empty() => {
+                std::env::set_var(jishi_frontend::localpkg::PKG_ROOTS_ENV, old)
+            }
+            _ => std::env::remove_var(jishi_frontend::localpkg::PKG_ROOTS_ENV),
+        }
+    }
+    码
+}
+
+fn cmd_check_inner(roots: &[String]) -> i32 {
     if roots.is_empty() {
         println!("（尚未安装任何本地包）");
         return 0;
+    }
+    let 找不到: Vec<&String> = roots.iter().filter(|n| find_pkg_dir(n).is_none()).collect();
+    if !找不到.is_empty() {
+        let 名单: Vec<String> = 找不到.iter().map(|s| (*s).clone()).collect();
+        eprintln!("❌ 找不到这些包：{}", 名单.join("、"));
+        eprintln!("   想检查一个包目录，直接把目录传进来：jishi 检查 examples/packages/<包名>");
+        return 1;
     }
     let find_dir = |n: &str| find_pkg_dir(n);
     let version_of = |n: &str| -> String {
