@@ -145,6 +145,26 @@ def test_剥围栏_只有前半截围栏():
     assert eval_ai.strip_code_fence("```jsh\n打印(1)") == "打印(1)"
 
 
+def test_网关把上游故障当正文时不能当成答案():
+    """网关回 HTTP 200 + 「三方请求失败: 502 …」时，那**不是模型的回答**。
+
+    2026-10-29 真实踩到（GitCode AI 上 Qwen3-4B 的上游挂了）：上层看到
+    `ok=True`，就把那段 HTML 当代码去跑，必然跑不通 ⇒ 记成「模型不会做」。
+    **通道故障不能算进模型的分数**，所以要在这一层认出来。
+    """
+    for 坏 in ("三方请求失败: 502 <html>\r\n<head><title>502 Bad Gateway</title>",
+              "三方请求失败: 401 {\"error\":{\"message\":\"Authentication Error\"}}",
+              "invalid_api_key"):
+        assert eval_ai.网关故障(坏), f"漏了：{坏!r}"
+    # 正常答案不能被误判（否则「跳过」会吃掉真分数）
+    for 好 in ("打印(1 + 2)\n",
+              '导入 HTTP服务端\n# 网关返回 Bad Gateway 时按 502 处理\n打印("ok")\n'):
+        assert eval_ai.网关故障(好) == "", f"误判：{好!r}"
+    # 长文本（真的是一整段代码）不算 —— 宁可放过，也不要误杀
+    长 = "打印(1)\n" + "# Bad Gateway\n" * 60
+    assert eval_ai.网关故障(长) == ""
+
+
 def test_限流会被识破并重试():
     """429 / RATE_LIMITED / 503 这些是「等一等就过」，不能记成模型失败。"""
     for sig in ("HTTP 429：{\"code\":\"RATE_LIMITED\"}", "HTTP 503", "timed out"):

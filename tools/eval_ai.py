@@ -360,6 +360,38 @@ def _retryable(err: str) -> bool:
 _计数 = {"请求": 0, "重试": 0}
 
 
+#: 网关把「上游故障」**当成正文**塞回来的特征词（2026-10-29 加）。
+#:
+#: 真实踩到：GitCode AI 那边 Qwen3-4B 的上游挂了，它回的却是
+#: **HTTP 200 + `{"content": "三方请求失败: 502 <html>…"}`** —— 上层看到
+#: `ok=True`，就把这段 HTML 当成模型的代码去跑，必然跑不通，于是记成
+#: 「模型不会做」。这比「跳过」坏得多：**会把通道故障算成模型的分数**。
+#:
+#: ⇒ 判据是「**短**且含特征词」：正常答案是一段基石代码，不会几十个字就
+#:   只写一句 Bad Gateway（放宽到 400 字是为了容纳带说明的前言）。
+通道故障特征 = ("三方请求失败", "Bad Gateway", "Authentication Error",
+                "invalid_api_key", "token rejected")
+
+
+def 网关故障(text: str) -> str:
+    """这段「回答」其实是网关的错误页吗？是就返回原因（非空），否则空串。
+
+    ⚠️ **判据是「开头」而不是「出现过」**：网关总是把错误放在**最前面**；
+    而一段正常代码里完全可能（也应该）出现「`Bad Gateway` 按 502 处理」这种
+    注释 —— 按「出现过」判会把**正确回答**当成通道故障跳过，那是更坏的错
+    （静默吃掉真分数）。所以只认开头，外加一条「短且是 HTML 错误页」。
+    """
+    t = (text or "").strip()
+    if not t:
+        return ""
+    for w in 通道故障特征:
+        if t.startswith(w):
+            return f"通道故障（网关把上游错误当正文返回）：{t[:120]}"
+    if "<html" in t.lower() and len(t) <= 400:
+        return f"通道故障（返回的是 HTML 错误页）：{t[:120]}"
+    return ""
+
+
 def call_llm(base: str, key: str, model: str, messages: list[dict],
              max_tokens: int = 4096, timeout: float = 75.0,
              retries: int = 4, quiet: bool = False,
@@ -432,6 +464,22 @@ def call_llm(base: str, key: str, model: str, messages: list[dict],
         if not text.strip():
             return LlmReply("", False,
                             "模型返回了空内容（可能是 max_tokens 太小或纯推理模型）")
+
+        # ⚠️ 网关可能把上游故障当正文返回（HTTP 200 + 一段错误页）。这**不是**
+        # 模型的回答，不能拿去判分 —— 否则「通道坏了」会变成「模型不行」。
+        # 当作临时故障重试（与 429 同一套退避），重试完还这样就记「跳过」。
+        故障 = 网关故障(text)
+        if 故障:
+            last_err = 故障
+            if attempt < retries:
+                wait = 2 ** attempt * 3
+                if not quiet:
+                    print(f"      ⏳ {故障[:40]}…，{wait}s 后重试"
+                          f"（第 {attempt + 1}/{retries} 次）", flush=True)
+                time.sleep(wait)
+                continue
+            return LlmReply("", False, 故障)
+
         return LlmReply(text, True,
                         prompt_tokens=usage.get("prompt_tokens", 0),
                         completion_tokens=usage.get("completion_tokens", 0))
