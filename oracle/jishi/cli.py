@@ -1933,6 +1933,15 @@ def _setup_io() -> None:
             stream.reconfigure(newline="\n")
         except Exception:  # noqa: BLE001
             pass
+    # M150：**行缓冲**。Python 默认「不是终端就整块缓冲（8KB）」—— 写交互程序时
+    # 那就等于「敲了回车没反应，退出时才全冒出来」，与死机没法区分。
+    # 实测 20 万次 `print` 走 `/dev/null` 开不开都是 0.65~0.84 秒（差别在噪声里），
+    # 所以**一律开**，不必去猜「这次算不算交互」。
+    # 只开 stdout：错误流本来就该尽快出来（且它写得更少）。
+    try:
+        sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001
+        pass
     _装好错误流()
 
 

@@ -261,6 +261,10 @@ pub(crate) struct Walker {
     /// `output` 事件，粒度必须与 Python 的 `_StreamOut.write` 一致）。
     /// 参数 `(文本, 是不是 stderr)`。
     output_sink: Option<Box<dyn FnMut(&str, bool)>>,
+    /// **是否边跑边写终端**（M150）。与 `VM.stream_output` 同一语义、同一条边界：
+    /// 默认关；只有「CLI 直接跑文件」打开。DAP 那边有 `output_sink`，不能同时直写
+    /// （stdio 是协议通道）。
+    stream_output: bool,
     /// 调试钩子（R7.5）。`None` = 不挂调试器 —— 此时每个语句只多一次判空，
     /// 语义与性能都不变（这是「调试器不改语义」那条原则的实现方式）。
     ///
@@ -314,6 +318,7 @@ impl Walker {
             output: String::new(),
             output_err: String::new(),
             output_sink: None,
+            stream_output: false,
             debugger: None,
             debug_env: None,
             handling: Vec::new(),
@@ -321,6 +326,11 @@ impl Walker {
     }
 
     /// 挂上「每写一次就报一次」的输出出口（R7.5 · DAP 用）。
+    /// 开/关「边跑边写终端」（M150）。边界与 `set_stream_output`（VM）完全相同。
+    pub(crate) fn set_stream_output(&mut self, on: bool) {
+        self.stream_output = on;
+    }
+
     pub(crate) fn set_output_sink(&mut self, sink: Option<Box<dyn FnMut(&str, bool)>>) {
         self.output_sink = sink;
     }
@@ -1577,12 +1587,18 @@ impl BuiltinHost for Walker {
         // 必须与 Python 侧一致（那边 `_StreamOut.write` 就是这么干的）。
         if let Some(sink) = self.output_sink.as_mut() {
             sink(s, false);
+        } else if self.stream_output {
+            // M150：**没有 sink 才直写**。DAP 的 stdout 是协议通道，
+            // 多写一个字节就把报文冲坏了。
+            crate::write_stream_stdout(s);
         }
     }
     fn write_stderr(&mut self, s: &str) {
         self.output_err.push_str(s);
         if let Some(sink) = self.output_sink.as_mut() {
             sink(s, true);
+        } else if self.stream_output {
+            crate::write_stream_stderr(s);
         }
     }
 }

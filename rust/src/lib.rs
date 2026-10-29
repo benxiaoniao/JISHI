@@ -1848,6 +1848,19 @@ pub struct VM {
     output_err: String,
     /// stdout 上限（字符数；沙箱用，`None` = 不限）。见 `write_output`。
     output_limit: Option<usize>,
+    /// **是否边跑边把输出写到终端**（M150，默认 `false`）。
+    ///
+    /// 以前只有 `output` 这一个缓冲，`run.rs` 在程序**结束后**才
+    /// `print!("{}", get_output(&vm))` —— 于是脚本模式根本写不了交互程序：
+    /// `打印("请输入")` 加上 `输入()` 会一直等到进程退出才显示提示语
+    /// （真实项目撞出来的头号问题，见 0.2.10 的 M150）。
+    ///
+    /// 为什么是**开关**而不是「一律直写」：有三条路必须继续「只捕获」——
+    /// ① `--json-result` / `--sandbox`（输出要塞进 JSON 的 `stdout` 字段）；
+    /// ② DAP（stdio 是协议通道，多写一个字节就毁协议）；
+    /// ③ 库调用方（测试、`系统.执行` 之类要的是返回值）。
+    /// 所以默认关，只有「CLI 直接跑一个文件」这条路打开。
+    stream_output: bool,
     /// 上一次写入把上限撑爆了 —— 由 `execute_frame` 在**下一条指令前**抛错。
     output_overflow: bool,
     /// **执行步数上限**（R8.1；`u64::MAX` = 不限）—— **只在 `budget` 特征下存在**。
@@ -1893,6 +1906,7 @@ impl VM {
             output: String::new(),
             output_err: String::new(),
             output_limit: None,
+            stream_output: false,
             output_overflow: false,
             #[cfg(feature = "budget")]
             step_limit: u64::MAX,
@@ -3136,9 +3150,17 @@ impl BuiltinHost for VM {
                 return;
             }
         }
+        // M150：CLI 直接跑文件时**真的写出去**（否则全攒到退出，交互程序等于死机）。
+        // ⚠️ 上限判定在前：超限这次写入整个不发生 —— 不能让半句话漏到终端。
+        if self.stream_output {
+            write_stream_stdout(s);
+        }
         self.output.push_str(s);
     }
     fn write_stderr(&mut self, s: &str) {
+        if self.stream_output {
+            write_stream_stderr(s);
+        }
         self.output_err.push_str(s);
     }
 }
@@ -3872,6 +3894,11 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                 }
             }
         }
+        // M150：提示语不带换行 ⇒ 上面那次写入**不会**触发 flush（见
+        // `write_stream_stdout`），读之前必须自己刷一次，否则用户盯着的是
+        // 一个没有任何提示的卡屏 —— 那正是交互程序「像死机」的第二半原因。
+        // 没开流式时这一句是空操作（`stdout` 上本来就没东西），照刷不误。
+        crate::flush_stdout();
         let mut line = String::new();
         let n = std::io::stdin().read_line(&mut line).unwrap_or(0);
         if n == 0 && line.is_empty() {
@@ -6149,6 +6176,46 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
 /// 设 stdout 上限（字符数；沙箱用，`None` = 不限）。
 pub fn set_output_limit(vm: &mut VM, lim: Option<usize>) {
     vm.output_limit = lim;
+}
+
+/// 开/关「边跑边写终端」（M150）。**只有「CLI 直接跑文件」这条路该打开** ——
+/// `--json-result` / 沙箱 / DAP / 库调用都必须保持「只捕获」（见字段上的注释）。
+pub fn set_stream_output(vm: &mut VM, on: bool) {
+    vm.stream_output = on;
+}
+
+/// 把一段输出**立刻**写到 stdout（M150）。
+///
+/// ⚠️ **只在跨行时 flush**：`打印` 的最后一个片段一定是 `"\n"`，所以每次
+/// `打印` 都刷得出去；而 `打印("a" + "b")` 这种多片段写入不会每段都做一次
+/// 系统调用（flush 是要进内核的）。不带换行的提示语（`输入("> ")`）由
+/// `输入` 自己在读之前刷。
+pub(crate) fn write_stream_stdout(s: &str) {
+    use std::io::Write;
+    let out = std::io::stdout();
+    let mut lock = out.lock();
+    let _ = lock.write_all(s.as_bytes());
+    if s.contains('\n') {
+        let _ = lock.flush();
+    }
+}
+
+/// 把 stdout 里还没刷出去的东西刷掉（M150）。`输入()` 读之前要用它 ——
+/// 提示语不带换行，写出去也没触发 flush。
+pub(crate) fn flush_stdout() {
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+}
+
+/// 同 `write_stream_stdout`，但走错误流（`测试.汇总` 的失败明细）。
+pub(crate) fn write_stream_stderr(s: &str) {
+    use std::io::Write;
+    let out = std::io::stderr();
+    let mut lock = out.lock();
+    let _ = lock.write_all(s.as_bytes());
+    if s.contains('\n') {
+        let _ = lock.flush();
+    }
 }
 
 /// 设**执行步数上限**（`None` = 不限）—— wasm 的 playground 防死循环用（R8.1）。

@@ -244,17 +244,16 @@ fn run_file(o: &Opts) -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    // M150：**脚本模式边跑边写**。以前这里是「跑完再 `print!(get_output)`」——
+    // 于是 `打印("请输入")` + `输入()` 在用户眼里就是死机（提示语要等进程退出才出）。
+    // `--json-result` / `--sandbox` 在上面已经 return 了（它们要捕获进 JSON），
+    // DAP 走 `crate::dap`，都不经过这里。
+    crate::set_stream_output(&mut vm, true);
     match vm.run() {
-        Ok(()) => {
-            print!("{}", crate::get_output(&vm));
-            eprint!("{}", crate::get_output_err(&vm));
-            ExitCode::SUCCESS
-        }
-        Err(e) => {
-            eprint!("{}", crate::get_output_err(&vm));
-            print!("{}", crate::get_output(&vm));   // 出错前打印过的内容照样吐
-            report(&e, &filename, &lines, o.json_errors)
-        }
+        // 输出已经随写随到终端，这里**不再补打**（否则会重复一遍）。
+        Ok(()) => ExitCode::SUCCESS,
+        // 出错前打印过的内容同样已经出去了，只补报错本身。
+        Err(e) => report(&e, &filename, &lines, o.json_errors),
     }
 }
 
@@ -268,15 +267,11 @@ fn run_bytecode(text: &str, o: &Opts) -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    // M150：与脚本路径同一条边界（见上面那段注释）。
+    crate::set_stream_output(&mut vm, true);
     match vm.run() {
-        Ok(()) => {
-            print!("{}", crate::get_output(&vm));
-            eprint!("{}", crate::get_output_err(&vm));
-            ExitCode::SUCCESS
-        }
+        Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprint!("{}", crate::get_output_err(&vm));
-            print!("{}", crate::get_output(&vm));
             // 字节码里没有源码文本，源码框按 `filename` 现读（`render_error` 负责）。
             if o.json_errors {
                 let payload = Jv::Obj(vec![

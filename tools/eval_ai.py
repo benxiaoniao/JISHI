@@ -109,7 +109,8 @@ class Task:
 
 
 def load_tasks(only_type: Optional[str] = None,
-               limit: Optional[int] = None) -> list[Task]:
+               limit: Optional[int] = None,
+               只跑: Optional[list[str]] = None) -> list[Task]:
     tasks: list[Task] = []
     for fname, kind in task_files():
         path = TASKS_DIR / fname
@@ -129,6 +130,9 @@ def load_tasks(only_type: Optional[str] = None,
                                    "有缺陷代码", "原始代码", "缺陷", "修法说明",
                                    "目标", "评分口径")}
             if only_type and t.类型 != only_type:
+                continue
+            # 补跑用：题号里含任一子串才跑（通道抖动跳了几道，不必整轮重跑 20 分钟）
+            if 只跑 and not any(子 in t.id for 子 in 只跑):
                 continue
             tasks.append(t)
     if limit:
@@ -334,6 +338,14 @@ RETRYABLE = ("429", "RATE_LIMITED", "503", "SERVICE_BUSY", "502", "504",
              "timed out", "TimeoutError", "URLError", "ConnectionReset")
 
 
+#: 退避的**上限**（秒）。指数退避原本是给 429 设计的（服务商让等），
+#: 但 `HTTP 526` 这类 CDN 边缘错误**等多久都不会好** —— 26 次重试里有 8 次
+#: 撞在同一个 526 上，指数退避一口气排到 **384 秒**，6 道补跑题烧了 10 分钟
+#: 还一道没跑完（2026-10-29 实测）。⇒ 封顶 30 秒：多试几次比「等很久再试一次」
+#: 更适合这类抖动。
+退避上限秒 = 30
+
+
 def _retryable(err: str) -> bool:
     """这个错误值不值得再试一次。
 
@@ -437,7 +449,7 @@ def call_llm(base: str, key: str, model: str, messages: list[dict],
                 pass
             last_err = f"HTTP {e.code}：{detail}"
             if _retryable(last_err) and attempt < retries:
-                wait = 2 ** attempt * 3      # 3s, 6s, 12s, 24s
+                wait = min(2 ** attempt * 3, 退避上限秒)
                 if not quiet:
                     print(f"      ⏳ 限流/故障，{wait}s 后重试"
                           f"（第 {attempt + 1}/{retries} 次）", flush=True)
@@ -447,7 +459,7 @@ def call_llm(base: str, key: str, model: str, messages: list[dict],
         except Exception as e:  # noqa: BLE001
             last_err = f"{type(e).__name__}：{e}"
             if _retryable(last_err) and attempt < retries:
-                wait = 2 ** attempt * 3
+                wait = min(2 ** attempt * 3, 退避上限秒)
                 if not quiet:
                     print(f"      ⏳ 网络异常，{wait}s 后重试", flush=True)
                 time.sleep(wait)
@@ -472,7 +484,7 @@ def call_llm(base: str, key: str, model: str, messages: list[dict],
         if 故障:
             last_err = 故障
             if attempt < retries:
-                wait = 2 ** attempt * 3
+                wait = min(2 ** attempt * 3, 退避上限秒)
                 if not quiet:
                     print(f"      ⏳ {故障[:40]}…，{wait}s 后重试"
                           f"（第 {attempt + 1}/{retries} 次）", flush=True)
@@ -691,6 +703,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--类型", default=None,
                     help="只跑某一类：语法 / 标准库 / 调试 / 重构")
     ap.add_argument("--限制", type=int, default=None, help="只跑前 N 题")
+    ap.add_argument("--只跑", default=None,
+                    help="只跑题号里含这些子串的题（逗号分隔）。用来**补跑**被通道"
+                         "抖动跳掉的那几道，不必整轮重来")
     ap.add_argument("--最大轮数", type=int, default=3,
                     help="失败后回灌报错最多改几轮（默认 3）")
     ap.add_argument("--最大令牌", type=int, default=8192,
@@ -733,7 +748,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("-v", "--verbose", action="store_true", help="逐题打印进度")
     args = ap.parse_args(argv)
 
-    tasks = load_tasks(args.类型, args.限制)
+    只跑们 = [x.strip() for x in (args.只跑 or "").split(",") if x.strip()]
+    tasks = load_tasks(args.类型, args.限制, 只跑们 or None)
     if not tasks:
         print("题集为空——检查 evals/tasks/*.json 是否存在", file=sys.stderr)
         return 2
@@ -871,7 +887,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     #    ⚠️ 局部跑的结果**也不该进跑分表**：2 题的通过率没有统计意义，
     #      留着会让人误以为「这一版掉到 50%」。
     写报告 = bool(getattr(args, "写报告", False))
-    局部 = bool(args.限制 or args.类型)
+    局部 = bool(args.限制 or args.类型 or 只跑们)
     out_path = Path(args.输出) if args.输出 else (ROOT / "evals" / "跑分表.md")
     if 局部 and not 写报告:
         print(f"\n（这是局部跑：--限制/--类型 ⇒ 不写 {out_path.name}；"

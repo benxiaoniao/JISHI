@@ -629,13 +629,42 @@ def _as_iterable(v, what: str, *, line=None, col=None, filename="<输入>"):
 def _b_print(*args):
     """输出到屏幕。走 `jishi_repr(top=True)`，所以 空/真/假 显示为中文，
     与 REPL 回显、`文本()`、字符串插值用的是同一套规则（M27）。
+
+    ⚠️ **每次写完就刷**（M150）：不刷的话，`打印("请输入")` 后面接 `输入()`
+    在管道/重定向下会一直卡在 8KB 缓冲里 —— 用户看到的是一个不动的屏幕。
+    这一层刷比「靠 CLI 开行缓冲」更彻底：**C VM 与库调用方也要一样**
+    （它们不走 CLI 入口，拿不到那个设置）。代价实测在噪声里（20 万次 print
+    开不开刷 0.65~0.84 秒）。
     """
+    import sys
+
     print(*[jishi_repr(a, top=True) for a in args])
+    try:
+        sys.stdout.flush()
+    except (OSError, ValueError):
+        pass
     return None
 
 
 def _b_input(prompt: str = ""):
-    return input(prompt)
+    """`输入(提示语="")` 读一行。
+
+    ⚠️ **提示语要自己写、自己刷**（M150）：`input(prompt)` 把提示语写进
+    `sys.stdout` 后**不会**冲刷（它不带换行，行缓冲也不管），于是
+    「先 `打印("请输入")`、再 `输入("> ")`」的程序在管道/重定向下会一直
+    卡在缓冲区里 —— 用户看到的是一个没有任何提示的静止屏幕，与「死机」
+    没法区分。这正是真实项目里那条「交互程序像卡死」的第二半原因。
+    """
+    import sys
+
+    if prompt:
+        sys.stdout.write(prompt)
+    try:
+        sys.stdout.flush()
+    except (OSError, ValueError):
+        pass
+    # 不带提示语地读 —— 提示语上面已经写出去了（再传一次会重复）。
+    return input()
 
 
 def _b_int(v):

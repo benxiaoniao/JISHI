@@ -169,9 +169,18 @@ def test_int_float_str():
 
 
 def test_input_builtin():
+    """`输入("提示")` 读一行；**提示语算输出**（M150 起在 Python 侧也对齐了）。
+
+    ⚠️ 这条期望在 M150 改过：以前这里断的是 `"你好， 小石"`（提示语**不**进
+    捕获的输出）。那是 `input(prompt)` 在「`sys.stdout` 被替换成 StringIO」时的
+    实现细节（走 readline 那条路，提示语直接写真正的 stdout），**不是语言语义** ——
+    Rust 宿主一直把提示语写进自己的输出缓冲（`vm.write_output`），两边本来就不一致。
+    M150 为了让「提示语先刷出去」，改成自己写、自己刷，于是**两边一致**：
+    提示语属于程序输出（终端里看得见，捕获时也该在）。
+    """
     out = run_capture('令 名字 = 输入("你是谁：")\n打印("你好，", 名字)',
                       inputs=["小石"])
-    assert out.strip() == "你好， 小石"
+    assert out.strip() == "你是谁：你好， 小石"
 
 
 def test_boolop_and_compare():
