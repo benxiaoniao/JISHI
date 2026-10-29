@@ -1,0 +1,3186 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 11,
+        "name": "数学",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 12,
+        "name": "向量",
+        "类型": "Import"
+      },
+      {
+        "alias": "文本工具",
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 13,
+        "name": "文本",
+        "类型": "Import"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "expr": {
+              "col": 5,
+              "line": 16,
+              "value": "向量的长度：自己跟自己点乘，再开方。",
+              "类型": "Str"
+            },
+            "line": 16,
+            "类型": "ExprStmt"
+          },
+          {
+            "col": 5,
+            "line": 17,
+            "value": {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 20,
+                      "id": "v",
+                      "line": 17,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 23,
+                      "id": "v",
+                      "line": 17,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 19,
+                  "func": {
+                    "attr": "点积",
+                    "col": 16,
+                    "line": 17,
+                    "obj": {
+                      "col": 14,
+                      "id": "向量",
+                      "line": 17,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 17,
+                  "类型": "Call"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "开方",
+                "col": 10,
+                "line": 17,
+                "obj": {
+                  "col": 8,
+                  "id": "数学",
+                  "line": 17,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 17,
+              "类型": "Call"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 15,
+        "name": "模长",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "v"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null,
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "expr": {
+              "col": 5,
+              "line": 20,
+              "value": "返回 (弧度, 角度)。",
+              "类型": "Str"
+            },
+            "line": 20,
+            "类型": "ExprStmt"
+          },
+          {
+            "col": 5,
+            "line": 21,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "余弦值",
+              "line": 21,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 25,
+              "left": {
+                "args": [
+                  {
+                    "col": 19,
+                    "id": "a",
+                    "line": 21,
+                    "类型": "Name"
+                  },
+                  {
+                    "col": 22,
+                    "id": "b",
+                    "line": 21,
+                    "类型": "Name"
+                  }
+                ],
+                "col": 18,
+                "func": {
+                  "attr": "点积",
+                  "col": 15,
+                  "line": 21,
+                  "obj": {
+                    "col": 13,
+                    "id": "向量",
+                    "line": 21,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 21,
+                "类型": "Call"
+              },
+              "line": 21,
+              "op": "/",
+              "right": {
+                "col": 34,
+                "left": {
+                  "args": [
+                    {
+                      "col": 31,
+                      "id": "a",
+                      "line": 21,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 30,
+                  "func": {
+                    "col": 28,
+                    "id": "模长",
+                    "line": 21,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 21,
+                  "类型": "Call"
+                },
+                "line": 21,
+                "op": "*",
+                "right": {
+                  "args": [
+                    {
+                      "col": 39,
+                      "id": "b",
+                      "line": 21,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 38,
+                  "func": {
+                    "col": 36,
+                    "id": "模长",
+                    "line": 21,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 21,
+                  "类型": "Call"
+                },
+                "类型": "BinOp"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Assign"
+          },
+          {
+            "branches": [
+              [
+                {
+                  "col": 12,
+                  "comparators": [
+                    {
+                      "col": 14,
+                      "line": 24,
+                      "value": 1,
+                      "类型": "Num"
+                    }
+                  ],
+                  "left": {
+                    "col": 8,
+                    "id": "余弦值",
+                    "line": 24,
+                    "类型": "Name"
+                  },
+                  "line": 24,
+                  "ops": [
+                    ">"
+                  ],
+                  "类型": "Compare"
+                },
+                [
+                  {
+                    "col": 9,
+                    "line": 25,
+                    "op": "=",
+                    "target": {
+                      "col": 9,
+                      "id": "余弦值",
+                      "line": 25,
+                      "类型": "Name"
+                    },
+                    "value": {
+                      "col": 15,
+                      "line": 25,
+                      "value": 1,
+                      "类型": "Num"
+                    },
+                    "类型": "Assign"
+                  }
+                ]
+              ]
+            ],
+            "col": 5,
+            "line": 24,
+            "orelse": null,
+            "类型": "If"
+          },
+          {
+            "branches": [
+              [
+                {
+                  "col": 12,
+                  "comparators": [
+                    {
+                      "col": 14,
+                      "line": 26,
+                      "op": "-",
+                      "operand": {
+                        "col": 15,
+                        "line": 26,
+                        "value": 1,
+                        "类型": "Num"
+                      },
+                      "类型": "UnaryOp"
+                    }
+                  ],
+                  "left": {
+                    "col": 8,
+                    "id": "余弦值",
+                    "line": 26,
+                    "类型": "Name"
+                  },
+                  "line": 26,
+                  "ops": [
+                    "<"
+                  ],
+                  "类型": "Compare"
+                },
+                [
+                  {
+                    "col": 9,
+                    "line": 27,
+                    "op": "=",
+                    "target": {
+                      "col": 9,
+                      "id": "余弦值",
+                      "line": 27,
+                      "类型": "Name"
+                    },
+                    "value": {
+                      "col": 15,
+                      "line": 27,
+                      "op": "-",
+                      "operand": {
+                        "col": 16,
+                        "line": 27,
+                        "value": 1,
+                        "类型": "Num"
+                      },
+                      "类型": "UnaryOp"
+                    },
+                    "类型": "Assign"
+                  }
+                ]
+              ]
+            ],
+            "col": 5,
+            "line": 26,
+            "orelse": null,
+            "类型": "If"
+          },
+          {
+            "col": 5,
+            "line": 28,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "弧度",
+              "line": 28,
+              "类型": "Name"
+            },
+            "value": {
+              "args": [
+                {
+                  "col": 19,
+                  "id": "余弦值",
+                  "line": 28,
+                  "类型": "Name"
+                }
+              ],
+              "col": 18,
+              "func": {
+                "attr": "反余弦",
+                "col": 14,
+                "line": 28,
+                "obj": {
+                  "col": 12,
+                  "id": "数学",
+                  "line": 28,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 28,
+              "类型": "Call"
+            },
+            "类型": "Assign"
+          },
+          {
+            "col": 5,
+            "line": 29,
+            "value": {
+              "col": 8,
+              "elements": [
+                {
+                  "col": 9,
+                  "id": "弧度",
+                  "line": 29,
+                  "类型": "Name"
+                },
+                {
+                  "col": 22,
+                  "left": {
+                    "col": 16,
+                    "left": {
+                      "col": 13,
+                      "id": "弧度",
+                      "line": 29,
+                      "类型": "Name"
+                    },
+                    "line": 29,
+                    "op": "*",
+                    "right": {
+                      "col": 18,
+                      "line": 29,
+                      "value": 180,
+                      "类型": "Num"
+                    },
+                    "类型": "BinOp"
+                  },
+                  "line": 29,
+                  "op": "/",
+                  "right": {
+                    "attr": "圆周率",
+                    "col": 26,
+                    "line": 29,
+                    "obj": {
+                      "col": 24,
+                      "id": "数学",
+                      "line": 29,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "类型": "BinOp"
+                }
+              ],
+              "line": 29,
+              "类型": "List"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null,
+          null
+        ],
+        "line": 19,
+        "name": "夹角",
+        "param_kind": [
+          0,
+          0
+        ],
+        "params": [
+          "a",
+          "b"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "line": 31,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "a",
+          "line": 31,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 7,
+          "elements": [
+            {
+              "col": 8,
+              "line": 31,
+              "value": 1,
+              "类型": "Num"
+            },
+            {
+              "col": 11,
+              "line": 31,
+              "value": 0,
+              "类型": "Num"
+            }
+          ],
+          "line": 31,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 32,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "b",
+          "line": 32,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 7,
+          "elements": [
+            {
+              "col": 8,
+              "line": 32,
+              "value": 1,
+              "类型": "Num"
+            },
+            {
+              "col": 11,
+              "line": 32,
+              "value": 1,
+              "类型": "Num"
+            }
+          ],
+          "line": 32,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 33,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "结果",
+          "line": 33,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 11,
+              "id": "a",
+              "line": 33,
+              "类型": "Name"
+            },
+            {
+              "col": 14,
+              "id": "b",
+              "line": 33,
+              "类型": "Name"
+            }
+          ],
+          "col": 10,
+          "func": {
+            "col": 8,
+            "id": "夹角",
+            "line": 33,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 33,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 35,
+              "value": "a = [1, 0]，b = [1, 1]",
+              "类型": "Str"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 35,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 35,
+          "类型": "Call"
+        },
+        "line": 35,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "elements": [
+                    {
+                      "col": 14,
+                      "elements": [
+                        {
+                          "col": 15,
+                          "line": 36,
+                          "value": "弧度",
+                          "类型": "Str"
+                        },
+                        {
+                          "col": 23,
+                          "index": {
+                            "col": 24,
+                            "line": 36,
+                            "value": 0,
+                            "类型": "Num"
+                          },
+                          "line": 36,
+                          "obj": {
+                            "col": 21,
+                            "id": "结果",
+                            "line": 36,
+                            "类型": "Name"
+                          },
+                          "类型": "Subscript"
+                        }
+                      ],
+                      "line": 36,
+                      "类型": "List"
+                    },
+                    {
+                      "col": 29,
+                      "elements": [
+                        {
+                          "col": 30,
+                          "line": 36,
+                          "value": "角度",
+                          "类型": "Str"
+                        },
+                        {
+                          "col": 38,
+                          "index": {
+                            "col": 39,
+                            "line": 36,
+                            "value": 1,
+                            "类型": "Num"
+                          },
+                          "line": 36,
+                          "obj": {
+                            "col": 36,
+                            "id": "结果",
+                            "line": 36,
+                            "类型": "Name"
+                          },
+                          "类型": "Subscript"
+                        }
+                      ],
+                      "line": 36,
+                      "类型": "List"
+                    }
+                  ],
+                  "line": 36,
+                  "类型": "List"
+                },
+                {
+                  "col": 45,
+                  "line": 36,
+                  "value": 4,
+                  "类型": "Num"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "对齐表",
+                "col": 8,
+                "line": 36,
+                "obj": {
+                  "col": 4,
+                  "id": "文本工具",
+                  "line": 36,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 36,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 36,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 36,
+          "类型": "Call"
+        },
+        "line": 36,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "712efd0181900d54ac47045dfe015d1fe2342d1a291804d02bd9e4661c0f3ec1",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            11,
+            1,
+            3,
+            0,
+            0,
+            0,
+            11,
+            1,
+            31,
+            1,
+            0,
+            -1,
+            12,
+            1,
+            3,
+            1,
+            0,
+            0,
+            12,
+            1,
+            31,
+            3,
+            0,
+            2,
+            13,
+            1,
+            3,
+            2,
+            0,
+            0,
+            13,
+            1,
+            22,
+            1,
+            0,
+            0,
+            15,
+            1,
+            3,
+            7,
+            0,
+            0,
+            15,
+            1,
+            22,
+            2,
+            0,
+            0,
+            19,
+            1,
+            3,
+            12,
+            0,
+            0,
+            19,
+            1,
+            1,
+            3,
+            0,
+            0,
+            31,
+            8,
+            1,
+            5,
+            0,
+            0,
+            31,
+            11,
+            23,
+            2,
+            0,
+            0,
+            31,
+            7,
+            3,
+            8,
+            0,
+            0,
+            31,
+            1,
+            1,
+            3,
+            0,
+            0,
+            32,
+            8,
+            1,
+            3,
+            0,
+            0,
+            32,
+            11,
+            23,
+            2,
+            0,
+            0,
+            32,
+            7,
+            3,
+            9,
+            0,
+            0,
+            32,
+            1,
+            2,
+            12,
+            0,
+            0,
+            33,
+            8,
+            2,
+            8,
+            0,
+            0,
+            33,
+            11,
+            2,
+            9,
+            0,
+            0,
+            33,
+            14,
+            20,
+            2,
+            -1,
+            0,
+            33,
+            10,
+            3,
+            13,
+            0,
+            0,
+            33,
+            1,
+            2,
+            14,
+            0,
+            0,
+            35,
+            1,
+            1,
+            6,
+            0,
+            0,
+            35,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            35,
+            3,
+            38,
+            0,
+            0,
+            0,
+            35,
+            1,
+            2,
+            14,
+            0,
+            0,
+            36,
+            1,
+            2,
+            2,
+            0,
+            0,
+            36,
+            4,
+            25,
+            15,
+            0,
+            0,
+            36,
+            8,
+            1,
+            7,
+            0,
+            0,
+            36,
+            15,
+            2,
+            13,
+            0,
+            0,
+            36,
+            21,
+            1,
+            5,
+            0,
+            0,
+            36,
+            24,
+            27,
+            0,
+            0,
+            0,
+            36,
+            23,
+            23,
+            2,
+            0,
+            0,
+            36,
+            14,
+            1,
+            8,
+            0,
+            0,
+            36,
+            30,
+            2,
+            13,
+            0,
+            0,
+            36,
+            36,
+            1,
+            3,
+            0,
+            0,
+            36,
+            39,
+            27,
+            0,
+            0,
+            0,
+            36,
+            38,
+            23,
+            2,
+            0,
+            0,
+            36,
+            29,
+            23,
+            2,
+            0,
+            0,
+            36,
+            13,
+            1,
+            9,
+            0,
+            0,
+            36,
+            45,
+            20,
+            2,
+            -1,
+            0,
+            36,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            36,
+            3,
+            38,
+            0,
+            0,
+            0,
+            36,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 15,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            16,
+            5,
+            9,
+            0,
+            0,
+            0,
+            16,
+            5,
+            2,
+            0,
+            0,
+            0,
+            17,
+            8,
+            25,
+            5,
+            0,
+            0,
+            17,
+            10,
+            2,
+            1,
+            0,
+            0,
+            17,
+            14,
+            25,
+            6,
+            0,
+            0,
+            17,
+            16,
+            4,
+            0,
+            0,
+            0,
+            17,
+            20,
+            4,
+            0,
+            0,
+            0,
+            17,
+            23,
+            20,
+            2,
+            -1,
+            0,
+            17,
+            19,
+            20,
+            1,
+            -1,
+            0,
+            17,
+            13,
+            21,
+            0,
+            0,
+            0,
+            17,
+            5,
+            1,
+            1,
+            0,
+            0,
+            15,
+            1,
+            21,
+            0,
+            0,
+            0,
+            15,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "v"
+          ],
+          "name": "模长",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            4
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "v"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 19,
+          "freevars": [],
+          "instrs": [
+            1,
+            2,
+            0,
+            0,
+            20,
+            5,
+            9,
+            0,
+            0,
+            0,
+            20,
+            5,
+            2,
+            1,
+            0,
+            0,
+            21,
+            13,
+            25,
+            6,
+            0,
+            0,
+            21,
+            15,
+            4,
+            0,
+            0,
+            0,
+            21,
+            19,
+            4,
+            1,
+            0,
+            0,
+            21,
+            22,
+            20,
+            2,
+            -1,
+            0,
+            21,
+            18,
+            2,
+            7,
+            0,
+            0,
+            21,
+            28,
+            4,
+            0,
+            0,
+            0,
+            21,
+            31,
+            20,
+            1,
+            -1,
+            0,
+            21,
+            30,
+            2,
+            7,
+            0,
+            0,
+            21,
+            36,
+            4,
+            1,
+            0,
+            0,
+            21,
+            39,
+            20,
+            1,
+            -1,
+            0,
+            21,
+            38,
+            13,
+            2,
+            0,
+            0,
+            21,
+            34,
+            13,
+            3,
+            0,
+            0,
+            21,
+            25,
+            5,
+            2,
+            0,
+            0,
+            21,
+            5,
+            4,
+            2,
+            0,
+            0,
+            24,
+            8,
+            1,
+            3,
+            0,
+            0,
+            24,
+            14,
+            15,
+            3,
+            0,
+            0,
+            24,
+            12,
+            17,
+            23,
+            0,
+            0,
+            24,
+            12,
+            1,
+            3,
+            0,
+            0,
+            25,
+            15,
+            5,
+            2,
+            0,
+            0,
+            25,
+            9,
+            16,
+            23,
+            0,
+            0,
+            24,
+            5,
+            4,
+            2,
+            0,
+            0,
+            26,
+            8,
+            1,
+            3,
+            0,
+            0,
+            26,
+            15,
+            14,
+            0,
+            0,
+            0,
+            26,
+            14,
+            15,
+            2,
+            0,
+            0,
+            26,
+            12,
+            17,
+            32,
+            0,
+            0,
+            26,
+            12,
+            1,
+            3,
+            0,
+            0,
+            27,
+            16,
+            14,
+            0,
+            0,
+            0,
+            27,
+            15,
+            5,
+            2,
+            0,
+            0,
+            27,
+            9,
+            16,
+            32,
+            0,
+            0,
+            26,
+            5,
+            2,
+            0,
+            0,
+            0,
+            28,
+            12,
+            25,
+            10,
+            0,
+            0,
+            28,
+            14,
+            4,
+            2,
+            0,
+            0,
+            28,
+            19,
+            20,
+            1,
+            -1,
+            0,
+            28,
+            18,
+            5,
+            3,
+            0,
+            0,
+            28,
+            5,
+            4,
+            3,
+            0,
+            0,
+            29,
+            9,
+            4,
+            3,
+            0,
+            0,
+            29,
+            13,
+            1,
+            4,
+            0,
+            0,
+            29,
+            18,
+            13,
+            2,
+            0,
+            0,
+            29,
+            16,
+            2,
+            0,
+            0,
+            0,
+            29,
+            24,
+            25,
+            11,
+            0,
+            0,
+            29,
+            26,
+            13,
+            3,
+            0,
+            0,
+            29,
+            22,
+            23,
+            2,
+            0,
+            0,
+            29,
+            8,
+            21,
+            0,
+            0,
+            0,
+            29,
+            5,
+            1,
+            1,
+            0,
+            0,
+            19,
+            1,
+            21,
+            0,
+            0,
+            0,
+            19,
+            1
+          ],
+          "local_hints": {
+            "0": "外层也有一个叫「a」的变量。在这个函数里给它赋过值，它就成了这个函数的局部变量，赋值之前不能读取",
+            "1": "外层也有一个叫「b」的变量。在这个函数里给它赋过值，它就成了这个函数的局部变量，赋值之前不能读取"
+          },
+          "local_names": [
+            "a",
+            "b",
+            "余弦值",
+            "弧度"
+          ],
+          "name": "夹角",
+          "nlocals": 4,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            8,
+            9
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "a",
+            "b"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "向量的长度：自己跟自己点乘，再开方。"
+        },
+        {
+          "t": "none"
+        },
+        {
+          "t": "str",
+          "v": "返回 (弧度, 角度)。"
+        },
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "int",
+          "v": 180
+        },
+        {
+          "t": "int",
+          "v": 0
+        },
+        {
+          "t": "str",
+          "v": "a = [1, 0]，b = [1, 1]"
+        },
+        {
+          "t": "str",
+          "v": "弧度"
+        },
+        {
+          "t": "str",
+          "v": "角度"
+        },
+        {
+          "t": "int",
+          "v": 4
+        }
+      ],
+      "filename": "examples/科学计算/02_两向量夹角.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "数学",
+        "向量",
+        "文本工具",
+        "文本",
+        "v",
+        "开方",
+        "点积",
+        "模长",
+        "a",
+        "b",
+        "反余弦",
+        "圆周率",
+        "夹角",
+        "结果",
+        "打印",
+        "对齐表"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "导入 数学",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 11,
+      "source_line": "导入 数学",
+      "type": "NAME",
+      "value": "数学",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "导入 数学",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 12,
+      "source_line": "导入 向量",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 12,
+      "source_line": "导入 向量",
+      "type": "NAME",
+      "value": "向量",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "导入 向量",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 13,
+      "source_line": "导入 文本 为 文本工具",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 13,
+      "source_line": "导入 文本 为 文本工具",
+      "type": "NAME",
+      "value": "文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 13,
+      "source_line": "导入 文本 为 文本工具",
+      "type": "KEYWORD",
+      "value": "为",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 12,
+      "line": 13,
+      "source_line": "导入 文本 为 文本工具",
+      "type": "NAME",
+      "value": "文本工具",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "导入 文本 为 文本工具",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 15,
+      "source_line": "函数 模长(v)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 15,
+      "source_line": "函数 模长(v)：",
+      "type": "NAME",
+      "value": "模长",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 15,
+      "source_line": "函数 模长(v)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 15,
+      "source_line": "函数 模长(v)：",
+      "type": "NAME",
+      "value": "v",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 15,
+      "source_line": "函数 模长(v)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 15,
+      "source_line": "函数 模长(v)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "函数 模长(v)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "    \"\"\"向量的长度：自己跟自己点乘，再开方。\"\"\"",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 28,
+      "line": 16,
+      "source_line": "    \"\"\"向量的长度：自己跟自己点乘，再开方。\"\"\"",
+      "type": "STRING",
+      "value": "向量的长度：自己跟自己点乘，再开方。",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "    \"\"\"向量的长度：自己跟自己点乘，再开方。\"\"\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "NAME",
+      "value": "数学",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "NAME",
+      "value": "开方",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "NAME",
+      "value": "向量",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "NAME",
+      "value": "点积",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 20,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "NAME",
+      "value": "v",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 23,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "NAME",
+      "value": "v",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "    返回 数学.开方(向量.点积(v, v))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "NAME",
+      "value": "夹角",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "NAME",
+      "value": "b",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "函数 夹角(a, b)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    \"\"\"返回 (弧度, 角度)。\"\"\"",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 22,
+      "line": 20,
+      "source_line": "    \"\"\"返回 (弧度, 角度)。\"\"\"",
+      "type": "STRING",
+      "value": "返回 (弧度, 角度)。",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    \"\"\"返回 (弧度, 角度)。\"\"\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NAME",
+      "value": "余弦值",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NAME",
+      "value": "向量",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NAME",
+      "value": "点积",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 19,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 22,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NAME",
+      "value": "b",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NAME",
+      "value": "模长",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 31,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NAME",
+      "value": "模长",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 39,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NAME",
+      "value": "b",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "    令 余弦值 = 向量.点积(a, b) / (模长(a) * 模长(b))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 24,
+      "source_line": "    如果 余弦值 > 1：",
+      "type": "KEYWORD",
+      "value": "如果",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 24,
+      "source_line": "    如果 余弦值 > 1：",
+      "type": "NAME",
+      "value": "余弦值",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 24,
+      "source_line": "    如果 余弦值 > 1：",
+      "type": "OP",
+      "value": ">",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 24,
+      "source_line": "    如果 余弦值 > 1：",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 24,
+      "source_line": "    如果 余弦值 > 1：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "    如果 余弦值 > 1：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        余弦值 = 1",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 25,
+      "source_line": "        余弦值 = 1",
+      "type": "NAME",
+      "value": "余弦值",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 25,
+      "source_line": "        余弦值 = 1",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 25,
+      "source_line": "        余弦值 = 1",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        余弦值 = 1",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    如果 余弦值 < -1：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 26,
+      "source_line": "    如果 余弦值 < -1：",
+      "type": "KEYWORD",
+      "value": "如果",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 26,
+      "source_line": "    如果 余弦值 < -1：",
+      "type": "NAME",
+      "value": "余弦值",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 26,
+      "source_line": "    如果 余弦值 < -1：",
+      "type": "OP",
+      "value": "<",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 26,
+      "source_line": "    如果 余弦值 < -1：",
+      "type": "OP",
+      "value": "-",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 26,
+      "source_line": "    如果 余弦值 < -1：",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 26,
+      "source_line": "    如果 余弦值 < -1：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    如果 余弦值 < -1：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 27,
+      "source_line": "        余弦值 = -1",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 27,
+      "source_line": "        余弦值 = -1",
+      "type": "NAME",
+      "value": "余弦值",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 27,
+      "source_line": "        余弦值 = -1",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 27,
+      "source_line": "        余弦值 = -1",
+      "type": "OP",
+      "value": "-",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 27,
+      "source_line": "        余弦值 = -1",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 27,
+      "source_line": "        余弦值 = -1",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "NAME",
+      "value": "弧度",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "NAME",
+      "value": "数学",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 17,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "NAME",
+      "value": "反余弦",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 21,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "NAME",
+      "value": "余弦值",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "    令 弧度 = 数学.反余弦(余弦值)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "NAME",
+      "value": "弧度",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "NAME",
+      "value": "弧度",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "OP",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 20,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "NUMBER",
+      "value": 180,
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "OP",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "NAME",
+      "value": "数学",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 29,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "NAME",
+      "value": "圆周率",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "    返回 [弧度, 弧度 * 180 / 数学.圆周率]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 31,
+      "source_line": "令 a = [1, 0]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "令 b = [1, 1]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 32,
+      "source_line": "令 b = [1, 1]",
+      "type": "NAME",
+      "value": "b",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 32,
+      "source_line": "令 b = [1, 1]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 32,
+      "source_line": "令 b = [1, 1]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 32,
+      "source_line": "令 b = [1, 1]",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 32,
+      "source_line": "令 b = [1, 1]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 32,
+      "source_line": "令 b = [1, 1]",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 32,
+      "source_line": "令 b = [1, 1]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "令 b = [1, 1]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "NAME",
+      "value": "结果",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "NAME",
+      "value": "夹角",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "NAME",
+      "value": "b",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 33,
+      "source_line": "令 结果 = 夹角(a, b)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 35,
+      "source_line": "打印(\"a = [1, 0]，b = [1, 1]\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 35,
+      "source_line": "打印(\"a = [1, 0]，b = [1, 1]\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 26,
+      "line": 35,
+      "source_line": "打印(\"a = [1, 0]，b = [1, 1]\")",
+      "type": "STRING",
+      "value": "a = [1, 0]，b = [1, 1]",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 35,
+      "source_line": "打印(\"a = [1, 0]，b = [1, 1]\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 35,
+      "source_line": "打印(\"a = [1, 0]，b = [1, 1]\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "NAME",
+      "value": "文本工具",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "NAME",
+      "value": "对齐表",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 18,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "STRING",
+      "value": "弧度",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "NAME",
+      "value": "结果",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 24,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "STRING",
+      "value": "角度",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "NAME",
+      "value": "结果",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 39,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 44,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 45,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "NUMBER",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 47,
+      "end_col": 48,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 36,
+      "source_line": "打印(文本工具.对齐表([[\"弧度\", 结果[0]], [\"角度\", 结果[1]]], 4))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 36,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:6eb71830d1772774",
+  "语料": "examples/科学计算/02_两向量夹角.jsh"
+}

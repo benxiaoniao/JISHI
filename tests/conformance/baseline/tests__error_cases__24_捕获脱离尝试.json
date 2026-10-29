@@ -1,0 +1,149 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": [
+      1,
+      2
+    ],
+    "修正": null,
+    "列": 1,
+    "提示": "写法是：\n尝试：\n    …\n捕获 值错误 为 e：\n    …",
+    "标题": "这里出现了意外的内容",
+    "消息": "「捕获」必须跟在「尝试」的代码块后面",
+    "渲染": "错误 E0201：这里出现了意外的内容（「捕获」必须跟在「尝试」的代码块后面）\n  ┌─ tests/error_cases/24_捕获脱离尝试.jsh:1:1\n  │\n  1 │ 捕获 值错误 为 e：\n    │ ~^\n  │\n  提示：写法是：\n尝试：\n    …\n捕获 值错误 为 e：\n    …",
+    "码": "E0201",
+    "行": 1,
+    "阶段": "语法"
+  },
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 1,
+      "source_line": "捕获 值错误 为 e：",
+      "type": "KEYWORD",
+      "value": "捕获",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "捕获 值错误 为 e：",
+      "type": "NAME",
+      "value": "值错误",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 1,
+      "source_line": "捕获 值错误 为 e：",
+      "type": "KEYWORD",
+      "value": "为",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "捕获 值错误 为 e：",
+      "type": "NAME",
+      "value": "e",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 1,
+      "source_line": "捕获 值错误 为 e：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "捕获 值错误 为 e：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "    打印(e)",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "    打印(e)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 2,
+      "source_line": "    打印(e)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 2,
+      "source_line": "    打印(e)",
+      "type": "NAME",
+      "value": "e",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 2,
+      "source_line": "    打印(e)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "    打印(e)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:af8a4914e27ce4ff",
+  "语料": "tests/error_cases/24_捕获脱离尝试.jsh"
+}

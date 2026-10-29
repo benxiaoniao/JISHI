@@ -1,0 +1,317 @@
+//! 标准库 `文件`（Python 侧 `jishi/stdlib/文件.py`，17 个函数）。
+//!
+//! **换行保真**：写 `\n` 就是 `\n`，不做平台转换。
+//!
+//! Python 的文本模式在 Windows 上会把 `\n` 悄悄写成 `\r\n`，于是「同一份
+//! 程序在两个平台产出的文件字节不同」，也与 Node 的 `fs`（不转换）对不上。
+//! M31 在 Python 侧显式 `newline=""` 定下这条规矩；本宿主天然就是字节保真
+//! （`fs::write` 不转换），两边因此逐字节一致。
+
+use crate::BuiltinHost;
+use std::collections::HashMap;
+use std::fs;
+use std::io::Write;
+use std::path::Path;
+
+use super::path::{file_name_of, suffix_of};
+use super::text::split_lines;
+use super::{as_text, need, table, to_vec, R};
+use crate::{err, JishiError, Val};
+
+fn read_utf8(path: &str, on_missing: impl FnOnce() -> String) -> Result<String, JishiError> {
+    if !Path::new(path).is_file() {
+        return Err(err("文件错误", on_missing()));
+    }
+    let bytes =
+        fs::read(path).map_err(|e| err("文件错误", format!("读文件「{path}」失败：{e}")))?;
+    String::from_utf8(bytes)
+        .map_err(|_| err("文件错误", format!("文件「{path}」不是 UTF-8 编码，没法按文本读取")))
+}
+
+/// 字节写（不做换行转换）。
+fn write_bytes(path: &str, data: &[u8]) -> Result<(), JishiError> {
+    fs::write(path, data).map_err(|e| err("文件错误", format!("写文件「{path}」失败：{e}")))
+}
+
+/// 递归复制目录树（M118 / 台账 R207）。
+fn 复制目录树(src: &Path, dst: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let e = entry?;
+        let to = dst.join(e.file_name());
+        if e.file_type()?.is_dir() {
+            复制目录树(&e.path(), &to)?;
+        } else {
+            fs::copy(e.path(), &to)?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn module() -> HashMap<String, Val> {
+    table! { "文件";
+        "写文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("写文本", args, 2)?;
+            let p = as_text(&args[0]);
+            write_bytes(&p, as_text(&args[1]).as_bytes())?;
+            Ok(Val::None_)
+        },
+        "读文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("读文本", args, 1)?;
+            let p = as_text(&args[0]);
+            Ok(Val::Str(read_utf8(&p, || format!("找不到文件「{p}」，没法读取"))?))
+        },
+        // M113：读整个文件成**字节**（不做任何编码转换）
+        "读字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("读字节", args, 1)?;
+            let p = as_text(&args[0]);
+            if !Path::new(&p).is_file() {
+                return Err(err("文件错误", format!("找不到文件「{p}」，没法读取")));
+            }
+            let bytes = fs::read(&p)
+                .map_err(|e| err("文件错误", format!("读文件「{p}」失败：{e}")))?;
+            Ok(Val::Bytes(std::rc::Rc::new(bytes)))
+        },
+        "写字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("写字节", args, 2)?;
+            let p = as_text(&args[0]);
+            let data = match &args[1] {
+                Val::Bytes(b) => b.as_ref().clone(),
+                other => {
+                    return Err(err(
+                        "文件错误",
+                        format!("「写字节」要传字节，得到了「{}」", crate::display(other)),
+                    ))
+                }
+            };
+            write_bytes(&p, &data)?;
+            Ok(Val::None_)
+        },
+        "追加文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("追加文本", args, 2)?;
+            let p = as_text(&args[0]);
+            let mut f = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&p)
+                .map_err(|e| err("文件错误", format!("打开「{p}」准备追加失败：{e}")))?;
+            f.write_all(as_text(&args[1]).as_bytes())
+                .map_err(|e| err("文件错误", format!("往「{p}」追加内容失败：{e}")))?;
+            Ok(Val::None_)
+        },
+        // 🔴 M118：`追加字节`。⚠️ 只收**字节**（M113 的类型）—— 文本走 `追加文本`，
+        // 两者分开，免得「追加文本时字符编码由谁决定」这种模糊地带又冒出来。
+        "追加字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("追加字节", args, 2)?;
+            let p = as_text(&args[0]);
+            let 内容 = match &args[1] {
+                Val::Bytes(b) => b.clone(),
+                v => {
+                    return Err(err(
+                        "文件错误",
+                        format!(
+                            "「追加字节」要的是**字节**（现在是「{}」）；文本请用 `追加文本`",
+                            crate::display(v)
+                        ),
+                    ))
+                }
+            };
+            let mut f = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&p)
+                .map_err(|e| err("文件错误", format!("打开「{p}」准备追加失败：{e}")))?;
+            f.write_all(&内容)
+                .map_err(|e| err("文件错误", format!("往「{p}」追加字节失败：{e}")))?;
+            Ok(Val::Int(内容.len() as i128))
+        },
+        "写行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("写行", args, 2)?;
+            let p = as_text(&args[0]);
+            let lines = to_vec(&args[1])?;
+            let mut buf = String::new();
+            for line in &lines {
+                buf.push_str(&as_text(line));
+                buf.push('\n');
+            }
+            write_bytes(&p, buf.as_bytes())?;
+            Ok(Val::None_)
+        },
+        "按行读" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("按行读", args, 1)?;
+            let p = as_text(&args[0]);
+            let text = read_utf8(&p, || format!("找不到文件「{p}」，没法读取"))?;
+            let items: Vec<Val> = split_lines(&text).into_iter().map(Val::Str).collect();
+            Ok(crate::list_new(items))
+        },
+        "文件存在" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("文件存在", args, 1)?;
+            Ok(Val::Bool(Path::new(&as_text(&args[0])).exists()))
+        },
+        "是文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("是文件", args, 1)?;
+            Ok(Val::Bool(Path::new(&as_text(&args[0])).is_file()))
+        },
+        "是目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("是目录", args, 1)?;
+            Ok(Val::Bool(Path::new(&as_text(&args[0])).is_dir()))
+        },
+        "列出目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            let p = if args.is_empty() { ".".to_string() } else { as_text(&args[0]) };
+            let path = Path::new(&p);
+            if !path.is_dir() {
+                return Err(err("文件错误", format!("目录「{p}」不存在，没法列出内容")));
+            }
+            let mut names: Vec<String> = Vec::new();
+            for entry in fs::read_dir(path)
+                .map_err(|e| err("文件错误", format!("读目录「{p}」失败：{e}")))?
+            {
+                let entry =
+                    entry.map_err(|e| err("文件错误", format!("读目录「{p}」失败：{e}")))?;
+                names.push(entry.file_name().to_string_lossy().to_string());
+            }
+            names.sort();
+            Ok(crate::list_new(names.into_iter().map(Val::Str).collect()))
+        },
+        "创建目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("创建目录", args, 1)?;
+            let p = as_text(&args[0]);
+            // 与 Python 侧一致：自动创建中间层级、已存在也不报错
+            fs::create_dir_all(&p)
+                .map_err(|e| err("文件错误", format!("创建目录「{p}」失败：{e}")))?;
+            Ok(Val::None_)
+        },
+        "删除文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("删除文件", args, 1)?;
+            let p = as_text(&args[0]);
+            let path = Path::new(&p);
+            if path.is_file() {
+                fs::remove_file(path)
+                    .map_err(|e| err("文件错误", format!("删除「{p}」失败：{e}")))?;
+                Ok(Val::None_)
+            } else if path.is_dir() {
+                Err(err(
+                    "文件错误",
+                    format!("「{p}」是目录，请先清空再删里面的文件；删目录的功能暂未提供"),
+                ))
+            } else {
+                Err(err("文件错误", format!("找不到文件「{p}」，没法删除")))
+            }
+        },
+        "复制" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("复制", args, 2)?;
+            let src = as_text(&args[0]);
+            let dst = as_text(&args[1]);
+            fs::copy(&src, &dst)
+                .map_err(|_| err("文件错误", format!("无法把「{src}」复制到「{dst}」")))?;
+            Ok(Val::None_)
+        },
+        // 🔴 M118（台账 R207）：复制**整棵目录树**。目标已存在就报错 ——
+        // 自动合并/覆盖太容易把东西搞乱（与 `shutil.copytree` 同规矩）。
+        "复制目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("复制目录", args, 2)?;
+            let src = as_text(&args[0]);
+            let dst = as_text(&args[1]);
+            if !Path::new(&src).is_dir() {
+                return Err(err("文件错误", format!("「{src}」不是目录，没法复制")));
+            }
+            if Path::new(&dst).exists() {
+                return Err(err(
+                    "文件错误",
+                    format!("「{dst}」已经存在，没法复制目录过去（先 `路径.递归删除` 它）"),
+                ));
+            }
+            复制目录树(Path::new(&src), Path::new(&dst))
+                .map_err(|e| err("文件错误", format!("复制目录「{src}」到「{dst}」失败：{e}")))?;
+            Ok(Val::Str(dst))
+        },
+        "文件大小" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("文件大小", args, 1)?;
+            let p = as_text(&args[0]);
+            match fs::metadata(&p) {
+                Ok(m) if m.is_file() => Ok(Val::Int(m.len() as i128)),
+                _ => Err(err("文件错误", format!("找不到文件「{p}」，没法获取大小"))),
+            }
+        },
+        "原子写" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("原子写", args, 2)?;
+            let p = as_text(&args[0]);
+            let path = Path::new(&p);
+            // 临时文件必须与目标**同目录**（同盘才能 `rename` 成原子操作）
+            let dir = match path.parent() {
+                Some(d) if !d.as_os_str().is_empty() => d.to_path_buf(),
+                _ => std::path::PathBuf::from("."),
+            };
+            fs::create_dir_all(&dir)
+                .map_err(|e| err("文件错误", format!("写「{p}」失败：建不了目录（{e}）")))?;
+            let 本名 = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "临时".to_string());
+            let 临时 = dir.join(format!("{本名}.{}.tmp", super::path::唯一名()));
+            fs::write(&临时, as_text(&args[1]).as_bytes())
+                .map_err(|e| err("文件错误", format!("写「{p}」失败：{e}")))?;
+            match fs::rename(&临时, &p) {
+                Ok(()) => Ok(Val::None_),
+                Err(e) => {
+                    let _ = fs::remove_file(&临时); // 出错清掉临时文件
+                    Err(err("文件错误", format!("写「{p}」失败：{e}")))
+                }
+            }
+        },
+        "路径拼接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            // 对齐 Python 侧：用的是 `PurePosixPath`，**总是 `/`**。
+            // ⚠️ 它不只是「用 `/` 连起来」—— 见 `pure_posix_join` 的注释。
+            let parts: Vec<String> = args.iter().map(as_text).collect();
+            Ok(Val::Str(pure_posix_join(&parts)))
+        },
+        "文件名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("文件名", args, 1)?;
+            Ok(Val::Str(file_name_of(&as_text(&args[0]))))
+        },
+        "扩展名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("扩展名", args, 1)?;
+            Ok(Val::Str(suffix_of(&file_name_of(&as_text(&args[0])))))
+        },
+    }
+}
+
+/// `PurePosixPath(*parts)` 的等价物 —— Python 的 `文件.路径拼接` 就是它。
+///
+/// ⚠️ **它不只是「用 `/` 连起来」**：`PurePosixPath` 会**吃掉空段与 `.` 段**
+/// （`("./x", "y")` → `x/y`、`(".", "x")` → `x`、`("a//b", "c")` → `a/b/c`），
+/// 但**保留 `..`**（`("a", "..")` → `a/..`）；整段都空时给 `"."`（绝对路径给 `"/"`）。
+///
+/// 📌 宿主以前只做「拼接」，于是 `文件.路径拼接(".", "pyproject.toml")` 在宿主上
+/// 给 `./pyproject.toml`、在 Python 上给 `pyproject.toml` —— 而这个串还会被塞进
+/// 「找不到文件「X」，无法读取」这类**给用户看的报错**里，一眼就能看出两边不一样
+/// （R7.4 的 CLI 闸门逐字节比出来的）。
+fn pure_posix_join(parts: &[String]) -> String {
+    // ① 先按 `posixpath.join` 拼：绝对段重置、空段不生效、非空段之间补 `/`
+    let mut joined = String::new();
+    for p in parts {
+        if p.starts_with('/') || joined.is_empty() {
+            joined = p.clone();
+        } else {
+            if !joined.ends_with('/') {
+                joined.push('/');
+            }
+            joined.push_str(p);
+        }
+    }
+    // ② 再按 `PurePath` 的解析规则分段：丢掉空段与 `.`，保留 `..`
+    let abs = joined.starts_with('/');
+    let segs: Vec<&str> = joined
+        .split('/')
+        .filter(|s| !s.is_empty() && *s != ".")
+        .collect();
+    if segs.is_empty() {
+        return if abs { "/".to_string() } else { ".".to_string() };
+    }
+    let body = segs.join("/");
+    if abs {
+        format!("/{body}")
+    } else {
+        body
+    }
+}

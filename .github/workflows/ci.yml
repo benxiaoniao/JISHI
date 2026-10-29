@@ -1,0 +1,355 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# 🔴 连推几个 commit 时**自动取消过时的 run**（2026-10-17 加）：
+#    PR 上改一版推一次，旧的那轮还在慢慢跑 = 白烧 runner，而且结果已经没人看了。
+#    只对 CI 这样做 —— **Release 不能 cancel**（见 release.yml 里的说明）。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest（Python ${{ matrix.python }} · ${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    # ⚠️ **故意不设 `timeout-minutes`**（2026-10-17 用户定）：
+    #    名字看着很安全，但**上限会随着题库和平台慢慢变长** —— 今天按实测
+    #    （windows 105 分）设 90 都是错的；明天用例再多一截，设多少都会在某天
+    #    「正常构建被自己杀掉」。**默认 6 小时**就是个很松的兜底，够用。
+    #    真要治「偶发 hang」，该治的是 hang 本身（像这次 macOS 的 `getfqdn`），
+    #    不是把上限调低。
+    env:
+      # Windows 上 Python stdout 默认非 UTF-8，打印中文会 UnicodeEncodeError
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    strategy:
+      fail-fast: false
+      matrix:
+        # 🔴 2026-10-17 加 macOS：之前**只有 ubuntu + windows**，于是
+        # `test_m115_http_server` 那几条服务端用例**从来没在 macOS 上跑过**，
+        # 直到 release.yml 首跑才炸（`getfqdn` 反向 DNS 卡 30 秒+）。
+        # ⚠️ macOS runner 有**排队**（官方注解：容量紧张时 queued 会久一些），
+        #    所以它比另两条慢进「running」状态 —— 不是卡住了。
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        # 🔻 2026-10-10 起**只跑一个 Python 版本**（原先 3.10 + 3.13 两档）。
+        #    缘由（作者定）：那两档是当初照「本机装了两个 Python」设的，
+        #    对这个**语言项目**来说并不是真需求 —— Python 侧已退役
+        #    （只作判据基准），版本约束只影响作者自己，没必要拿两倍的
+        #    runner 额度去守它。留 3.13：本机 venv 与 Release 构建都用它。
+        #    ⚠️ 因此 `pyproject.toml` 的 `requires-python` 同步提到 `>=3.13`
+        #    （声明必须与实际测过的一致，不许「声明 3.10、只测 3.13」）。
+        #    📌 跨 Python 版本的**语法陷阱**仍有兜底：`test_m57_conformance.py`
+        #    第七节用 AST 扫描「f-string 表达式里含反斜杠」（3.12 以下直接
+        #    SyntaxError）—— 那条在**任何**版本上跑都会红，不依赖多版本矩阵。
+        python: ["3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: 安装 pytest
+        # 🔴 `pytest-xdist`（2026-10-17 加）：CI 上原来**没有 `-n`**，3.7k 条用例
+        # **一条一条跑** —— Windows 上实测 **101 分钟**（本机 `-n 12` 只要 6 分钟）。
+        # 这是发版墙时的**唯一大头**，比缓存/矩阵那些优化都重要。
+        run: python -m pip install pytest pytest-xdist
+
+      - name: 安装项目（可编辑）
+        run: python -m pip install -e .
+
+      # 编译 C 虚拟机所需 gcc：Ubuntu 自带；Windows 用 MSYS2 工具链
+      - name: 准备 gcc（Windows）
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+          path-type: inherit
+
+      - name: 确认 gcc（Windows）
+        if: runner.os == 'Windows'
+        shell: bash
+        run: gcc --version | head -1
+
+      - name: 构建 C 虚拟机
+        run: python cvm/build.py
+
+      # 🔴 2026-10-09：**测试前必须把 Rust 那两份产物编出来**，否则「全量测试」
+      # 名不副实 —— 实测：没有 `rust/target/release/jishi-rs` 时，74 个
+      # 对拍/工具用例是**直接跳过**（`skipif`）而不是失败，CI 一直静默少跑这一批；
+      # 没有 `oracle/jishi/_core.*` 时前端四阶段那批也跳过。
+      # 症状是「CI 全绿但本地能跑出的问题它看不见」。
+      - name: 准备 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      # 实测 Rust 构建只要 ~1.8 分钟（不是很多人以为的 5 分钟），所以这条**省的是 1~2 分钟**；
+      # 但它是一行的事、没有副作用，顺手加上。⚠️ 仓库有**三个** cargo workspace
+      # （rust/ core/ frontend/），默认只在根找 Cargo.toml（这里没有）⇒ 必须显式列，
+      # 否则一条都不缓存、还只留一句 warning。
+      - name: 缓存 cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            rust -> target
+            core -> target
+            frontend -> target
+          cache-on-failure: true
+
+      - name: 构建 Rust 宿主（测试要用）
+        run: cargo build --release --manifest-path rust/Cargo.toml
+
+      # ⚠️ 用 bash 包一层：cargo 失败时只在 job 日志里留痕（而日志要登录网页才看得到），
+      #    这里顺手把它写成 Actions 注解 —— 2026-10-09 macos 上这一步退出码 101、
+      #    注解却是空的，查了半天。诊断信息必须是**公开 API 拿得到**的。
+      - name: 构建前端扩展（pyo3，测试要用）
+        shell: bash
+        run: |
+          set +e
+          # ⚠️ `-u`：不缓冲 stdout —— 否则 stdout/stderr 在日志里**交错错乱**，
+          #    排查时看到的顺序是假的（2026-10-10 就被这个误导过）。
+          python -u core/build.py 2>&1 | tee pyo3.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "::error file=.github/workflows/ci.yml,line=1::pyo3 扩展构建失败（rc=$rc）：$(tail -c 1800 pyo3.log | tr -d '\r' | tr '\n' ' ')"
+          fi
+          exit "$rc"
+
+      # 全量测试：三执行器对拍（树遍历 / Python VM / C VM 逐字节一致）
+
+      # 环境诊断（M35 加）：时区/平台这类「开发机与 CI 不同」的事实，先打出来。
+      # 来由：时间格式化在 CI 上不一致，而本地（UTC+8）永远复现不了——与其猜，
+      # 不如让 CI 把自己的事实说清楚。
+      - name: 环境诊断
+        shell: bash
+        run: |
+          # 同时写进 env-diag.txt：job 日志只有登录网页能看，而「失败摘要」注解
+          # 可以带文件内容一起发出去（M35）
+          {
+            echo "date: $(date)"
+            echo "TZ=${TZ:-<未设置>}"
+            echo -n "python 本地时区: "
+            python -c "import time,datetime;print(time.tzname, datetime.datetime.fromtimestamp(0))"
+            echo -n "python utcfromtimestamp(0): "
+            python -c "import datetime;print(datetime.datetime.utcfromtimestamp(0))"
+            echo -n "node: "
+            node -e "console.log(new Date(0).toString(), '| offset', new Date(0).getTimezoneOffset(), '| TZ', process.env.TZ)"
+            echo -n "/etc/localtime: "
+            (ls -l /etc/localtime 2>/dev/null || echo "（无）")
+            # 🔴 2026-10-22 加：`test_m58` 有一条「产物读不动要如实报」在 CI 上
+            #    偶发 `assert '读不动' in ''` —— 说明 `compare` 走了**提前返回**
+            #    （「没有基线」或「找不到产物目录」，两条都打到 stderr，所以 stdout 空）。
+            #    本地复现不了，那就让 CI 把「基线在不在」直接说出来。
+            echo -n "MANIFEST.json: "
+            python -c "from pathlib import Path; p=Path('tests/conformance/MANIFEST.json'); print(('exists, %d 字节' % p.stat().st_size) if p.exists() else '**不存在**')"
+            echo -n "baseline/*.json 个数: "
+            python -c "from pathlib import Path; print(len(list(Path('tests/conformance/baseline').glob('*.json'))))"
+          } 2>&1 | tee env-diag.txt
+
+      - name: 全量测试
+        shell: bash
+        run: |
+          set -o pipefail
+          # ⚠️ `--tb=short`（不是 `--tb=line`）：`--tb=line` **每次失败只给一行**，
+          # 多行的断言消息（探针会把「哪几条不一致 + 各引擎的值」打成多行）
+          # 会被吃光，注解里只看得到「AssertionError: 标准库体检没过：」这种空壳
+          # —— 2026-10-09 排查 m67 时正是被这个坑住的。
+          #
+          # 🔴 **只跑「非墙上护栏」的用例**（`-m "not 计时"`）：`计时` 那批断言的是
+          # **墙上时间**（例：「20 万次调用 < 300ms」），而共享 runner 的负载能把
+          # 同一份代码抬到 2~3 倍 —— 实测本机 202ms、CI Windows 上 386ms，
+          # 于是**假红挡住发版**（2026-10-09 的 v0.2.2 就是这么连红三轮的）。
+          # 绝对耗时阈值在 CI 上**没有判别力**；墙上护栏照 `AGENTS.md` §1 的配方
+          # **在本机串行跑**（`python -m pytest tests/ -m 计时`）。
+          # `-n 4`：4 路并行（runner 是 4 核）。本机的配方是 `-n 12`，
+          # 按核数等比降到 4 —— **别用 `auto`**：runner 的核数是变数，
+          # 写死 4 至少每轮可比。同理也不是越大越好：这堆用例里不少是
+          # 「起子进程跑 Rust / node / gcc」，满载会互相抢（见 AGENTS.md §1 那三条纪律）。
+          # 🔴 `--dist loadfile` 不是可选项（2026-10-20）：xdist 默认的 `load`
+          #    （按测试分发）在本题量下会**死锁** —— 表现「跑到 98% 就不动」，
+          #    所有 worker 在 wait、主进程在 join，**没人失败**。按文件分发才稳。
+          python -m pytest tests/ -q --tb=short -rf -m "not 计时" -n 4 --dist loadfile 2>&1 | tee pytest.log
+
+      # 🧪 **基石自测**（M138）：用**基石自己写的黑盒运行器**（`tools/自测.jsh`）
+      #    再跑一遍那 123 条用例。它和 pytest 是**两条独立的路**：
+      #
+      #    | | pytest（`test_golden` / `test_error_snapshot`） | 自测（`tools/自测.jsh`） |
+      #    |---|---|---|
+      #    | 跑法 | **同进程**，直接调解释器 | **每个用例一个子进程** |
+      #    | 比什么 | stdout / stderr / 退出码 | 同上（外加「超时」这条独立判据） |
+      #    | 谁写的 | Python | **基石自己** |
+      #
+      #    为什么要两条：0.2.8 的主题就是「用基石测基石」，而运行器平时只在本机跑 ——
+      #    **不进 CI 就等于没人守**（哪天它坏了，只有作者某天手动跑才会发现）。
+      #
+      #    ⚠️ **CI 仍然保留 pytest**（用户 2026-10-24 定）：要保证
+      #    「连基石都起不来时也能测」—— 运行器自己也是基石写的，
+      #    基石整体坏掉时它跟着坏。⇒ 两条都留着，**不是替换关系**。
+      #
+      #    ⚠️ 这两步**只在 pytest 过了之后才跑**（默认行为）：pytest 已经红的时候
+      #    再花两分钟跑一遍同批用例，只会把失败面变宽，定位更难。
+      - name: 基石自测（被测 = Python 参考实现）
+        shell: bash
+        run: |
+          set -o pipefail
+          # `--标签 python` 必须给：标签默认取自**程序文件名**
+          # （Windows `python.exe` → `python`，macOS/Linux `python3.13` → `python3.13`），
+          # 不给的话豁免表在三个平台上对不上（v0.2.7 就这么红过）。
+          #
+          # 🔴 `--被测` 要给**解析后的绝对路径**，不能裸写 `python`（2026-10-26 实测）：
+          #    Windows 上 `python.exe` 可能是**应用商店的别名**，子进程起得来但
+          #    **一个字都不输出** —— 123 条全报「实际输出为空」，而直接手敲
+          #    `python x.jsh` 却是好的（终端里的 PATH 顺序与子进程不一定一致）。
+          #    这又是「从环境里推出来的名字别当契约」那一课。
+          PYBIN=$(command -v python)
+          python -m oracle.jishi.cli tools/自测.jsh \
+            --被测 "$PYBIN" -m oracle.jishi.cli --标签 python --路数 4 2>&1 | tee selftest-py.log
+
+      - name: 基石自测（被测 = Rust 宿主）
+        shell: bash
+        run: |
+          set -o pipefail
+          # Windows 是 `jishi-rs.exe`、POSIX 没有扩展名 —— 写死任一边都会在另一半上失败
+          BIN=rust/target/release/jishi-rs
+          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          # 不给 `--标签`：两侧推出来的都是 `jishi-rs`（`jishi-rs.exe` 去后缀），
+          # 正好对上 `tools/自测豁免.txt` 里登记的那一条。
+          python -m oracle.jishi.cli tools/自测.jsh --被测 "$BIN" --路数 4 2>&1 | tee selftest-rs.log
+
+      # M147：第三方包**自带的测试**也要在 CI 上跑。
+      # 为什么：包不跟语言一起发版（它自己迭代），最容易**悄悄烂掉** ——
+      # 语言侧改一点点语义，包里的用例就挂了，而没人会想起去跑它。
+      # `测试 <包们的父目录>` 会把每个包的父目录临时当包根（`JISHI_PKG_ROOTS`），
+      # 所以**不用先装**，也不会往工作区里写 `.jishi/`。
+      - name: 第三方包自带测试（Python 宿主）
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m oracle.jishi.cli 测试 examples/packages 2>&1 | tee pkgtest-py.log
+
+      - name: 第三方包自带测试（Rust 宿主）
+        shell: bash
+        run: |
+          set -o pipefail
+          BIN=rust/target/release/jishi-rs
+          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          "$BIN" 测试 examples/packages 2>&1 | tee pkgtest-rs.log
+
+      # M147：包的**依赖冲突检查**也跑一遍（`检查 <目录>` 现在能吃包目录了）。
+      # 这条以前对目录是「静默通过」——传目录会被当成包名，查不到也照样打
+      # 「检查了 1 个包，未发现依赖冲突」，看着像查过了。
+      - name: 第三方包依赖检查（两宿主）
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN=rust/target/release/jishi-rs
+          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          python -m oracle.jishi.cli 检查 examples/packages
+          "$BIN" 检查 examples/packages
+
+      # 自测失败也写成注解（同下面 pytest 那条的理由：job 日志只有登录网页能看）
+      - name: 自测失败摘要（写成注解）
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          for f in selftest-py.log selftest-rs.log pkgtest-py.log pkgtest-rs.log; do
+            [ -f "$f" ] || continue
+            LIST=$(grep -aE '^  (✗|⚠)' "$f" | head -20 | tr -d '\r' | tr '\n' ' ')
+            SUM=$(grep -a '^汇总 ' "$f" | tail -1 | tr -d '\r')
+            [ -z "$LIST$SUM" ] && continue
+            echo "::error file=.github/workflows/ci.yml,line=1::【自测失败·$f】${SUM} ${LIST}"
+          done
+          exit 0
+
+      # 失败时把「哪些用例挂了」写成 Actions 注解（M35 加）。
+      # 来由：CI 一直红，而 job 日志只能登录网页看、公开 API 下载要管理员权限，
+      # 排查时两眼一抹黑。注解可以用公开 API 读到（check-runs/annotations），
+      # 于是「失败摘要」变成可被工具直接取到的信息。
+      - name: 失败摘要（写成注解）
+        if: failure()
+        shell: bash
+        run: |
+          # 必须 set +e：pytest 被**中断**时（退出码 2）日志里没有 FAILED 行，
+          # grep 返回 1，在 -e 下会把这一步本身弄挂、注解反而写不出来
+          # （M35 实测踩到，白等一轮 CI）。
+          set +e
+          if [ ! -f pytest.log ]; then
+            echo "::error file=.github/workflows/ci.yml,line=1::pytest.log 不存在（测试步骤可能没执行到 tee）"
+            exit 0
+          fi
+          # 🔴 **FAILED 清单放最前**（2026-10-17 补，与 release.yml 对齐）：
+          #    GitHub 注解的 message 只留 **1024 字符**，而 pytest 输出里 `E ` 行
+          #    （多行断言）在前、`FAILED` 行在后 —— 原来一股脑拼起来，
+          #    1024 字符**刚好把「挂了哪几条」截掉**，只剩几条断言。
+          #    2026-10-17 就是靠 `m43` 那条 FAILED 行才定位到用例的。
+          FAILED_LIST=$(grep -aE '^(FAILED|ERROR)' pytest.log | head -30 | tr -d '\r' | tr '\n' ' ')
+          DETAIL=$(grep -aE '^E  ' pytest.log | head -8 | tr -d '\r' | tr '\n' ' ')
+          SUMMARY="【清单】${FAILED_LIST} 【细节】${DETAIL}"
+          if [ -z "$FAILED_LIST" ]; then
+            # 没有 FAILED 行 —— 多半是进程被中断/崩溃，退回日志末尾
+            SUMMARY="【无 FAILED 行，退回日志末尾】(exit=$(tail -c 200 pytest.log | tr -d '\r\n' | tail -c 60)) $(tail -c 700 pytest.log | tr -d '\r' | tr '\n' ' ')"
+          fi
+          # 🔴 **顺序：失败清单必须在最前**（2026-10-18 补）：
+          #    GitHub 注解只留 **1024 字符**。原来 `${DIAG}` 放在前面，而环境诊断
+          #    （TZ / python 时区 / node / /etc/localtime 那一长串）自己就吃掉一大半
+          #    ⇒ 「挂了哪几条」照样被挤掉。M117 只把 FAILED 清单提到了 SUMMARY 里，
+          #    没注意到 DIAG 还在它前面 —— v0.2.4 那次三平台全红，注解里只剩下
+          #    `【环境】…【失败】【清单`，根本没法定位。
+          #    ⇒ 清单在前；环境诊断**截断到 320 字符**放最后 —— 它是参考信息，
+          #      而「挂了哪几条」是必须看到的信息。
+          DIAG=""
+          if [ -f env-diag.txt ]; then
+            DIAG=" 【环境】$(tr -d '\r' < env-diag.txt | tr '\n' ' ')"
+            DIAG=${DIAG:0:320}
+            DIAG=$(printf '%s' "$DIAG" | sed 's/%/%25/g')
+          fi
+          SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/%/%25/g')
+          echo "::error file=.github/workflows/ci.yml,line=1::【失败】${SUMMARY}${DIAG}"
+          exit 0
+
+      # 一键全检（含 C VM 构建 + 基准冒烟 + 一致性夹具 + 内建体检）
+      - name: 一键全检
+        shell: bash
+        env:
+          # 🔴 `ci.py` 内部**也会跑一遍 `pytest tests/`** —— 上一一步已经跑过了，
+          #    再跑一遍纯浪费：实测 Windows runner 上那一遍要 3924 秒（65 分钟），
+          #    两个步骤叠一起把 job 拖到 **2 小时 10 分**（2026-10-10）。
+          #    传这个开关让它跳过；CI 那遍 pytest 由「全量测试」步骤负责
+          #    （那里带 `-m "not 计时"`：墙上护栏在共享 runner 上没有判别力）。
+          JISHI_SKIP_PYTEST: "1"
+        run: |
+          set -o pipefail
+          python tools/ci.py 2>&1 | tee ci.log
+
+      # 一键全检失败时也要能看到「哪一步挂了」（M57 补）。
+      # 来由：ubuntu 两个任务一直是「全量测试✅、一键全检❌」，而 **ci.py 的
+      # 输出没有进注解** —— 公开 API 只能读到注解，于是等于「只知道红了、
+      # 不知道为什么」。这条把它的摘要也写成注解。
+      - name: 一键全检失败摘要（写成注解）
+        if: failure()
+        shell: bash
+        run: |
+          # `set +e`：这一步本身绝不能把 job 弄挂（M35 的教训）
+          set +e
+          if [ ! -f ci.log ]; then
+            exit 0     # 没跑到这里（多半是「全量测试」先挂了，已有另一条注解）
+          fi
+          # ⚠️ 也要抓 `✗` 与「悬案」这类行 —— ci.py 里几个体检工具**不输出
+          # `FAILED`**，它们的失败长这样（2026-09-30 白跑了一轮才补上）。
+          SUMMARY=$(grep -aE -B 1 -A 2 '(^FAILED|^ERROR|^E |.*Error:|Traceback|✗|悬案|不一致|--- .*(失败|通过) ---)' ci.log \
+                    | tail -30 | tr -d '\r' | tr '\n' ' ')
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY="【无匹配行，退回日志末尾】$(tail -c 900 ci.log | tr -d '\r' | tr '\n' ' ')"
+          fi
+          SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/%/%25/g')
+          echo "::error file=tools/ci.py,line=1::【一键全检失败】${SUMMARY}"
+          exit 0
