@@ -107,7 +107,7 @@ pub fn default_index_url() -> String {
 // ---------------------------------------------------------------------------
 
 /// JSON 值 → Python `str()` 的样子（版本号这类「既可能是串也可能是数」的字段用）。
-fn py_str(v: &Json) -> String {
+pub(crate) fn py_str(v: &Json) -> String {
     match v {
         Json::Str(s) => s.clone(),
         Json::Int(i) => i.to_string(),
@@ -126,7 +126,7 @@ fn display_of(v: Option<&Json>) -> String {
     }
 }
 
-fn truthy(v: Option<&Json>) -> bool {
+pub(crate) fn truthy(v: Option<&Json>) -> bool {
     match v {
         None | Some(Json::Null) => false,
         Some(Json::Bool(b)) => *b,

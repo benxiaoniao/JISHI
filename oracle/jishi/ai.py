@@ -468,6 +468,178 @@ def _标准库段(规格: dict, 模块们: list | None) -> str:
     return 头 + "\n".join(块们)
 
 
+# ---------------------------------------------------------------------------
+# 已装包的 API（M149）
+# ---------------------------------------------------------------------------
+
+def 扫包里的公开函数(源码: str) -> list[dict]:
+    """从包的入口 `.jsh` 里扫出**公开函数**：`[{"sig", "doc"}]`。
+
+    ## 判据（**必须与 Rust 侧逐条一致**，否则卡片两个宿主长得不一样）
+
+    - **顶格**的 `函数 名(参数)：`（前面不能有空格）—— 缩进的就是内部函数；
+    - **名字以 `_` 开头的不算**（包的约定：`_建CRC表` 这类是实现细节）；
+    - 文档串取「紧跟函数行、缩进、以三引号开头」那一段的**第一行**
+      —— 一行摘要足够模型判断「该调哪个」，整段会把卡片撑爆。
+
+    ⚠️ 为什么**扫源码**而不是在 `包.json` 里写一份 API：写两处就要改两处，
+    迟早对不上；源码是唯一事实。成本是这条**行式扫描**要两边各写一遍
+    （Python 与 Rust），所以判据 `test_m149_pkg_card.py` 拿同一份源码比两边结果。
+    """
+    行们 = 源码.split("\n")
+    出: list[dict] = []
+    i = 0
+    while i < len(行们):
+        行 = 行们[i]
+        if not 行.startswith("函数 "):
+            i += 1
+            continue
+        体 = 行[len("函数 "):]
+        左 = 体.find("(")
+        if 左 <= 0:
+            i += 1
+            continue
+        名 = 体[:左].strip()
+        # 参数括号要配对（默认值里可能有括号：`底色 = 空图(1)`）
+        深 = 0
+        右 = -1
+        for j in range(左, len(体)):
+            if 体[j] == "(":
+                深 += 1
+            elif 体[j] == ")":
+                深 -= 1
+                if 深 == 0:
+                    右 = j
+                    break
+        if 右 < 0:
+            i += 1
+            continue
+        if 名 and not 名.startswith("_"):
+            出.append({"sig": f"{名}{体[左:右 + 1]}".strip(),
+                       "doc": _紧跟的文档首行(行们, i + 1)})
+        i += 1
+    return 出
+
+
+def _紧跟的文档首行(行们: list[str], 起: int) -> str:
+    """函数定义后面那一段文档串的**第一行**（没有就返回空串）。"""
+    引 = '"' * 3
+    i = 起
+    while i < len(行们) and not 行们[i].strip():
+        i += 1
+    if i >= len(行们):
+        return ""
+    行 = 行们[i].strip()
+    if not 行.startswith(引):
+        return ""
+    余 = 行[len(引):]
+    收 = 余.find(引)
+    if 收 >= 0:
+        余 = 余[:收]
+    return 余.strip()
+
+
+def 已装的包() -> list[dict]:
+    """**本机能导入的**本地包（名字排序）：`[{名字, 版本, 描述, 函数们}]`。
+
+    「能导入的」= `localpkg.package_dirs()` 里那些目录（额外根 → 项目 → 用户）；
+    同名包**先出现的赢**，与 `导入 X 从 本地包` 的查找顺序一致 —— 卡片说的必须是
+    「你真正 import 得到的那个」，不然模型照着写会拿到另一份实现。
+
+    ⚠️ 读不了 / 没有 `包.json` 的目录**跳过**（不猜、不报错）：
+    卡片是给人贴进提示词的东西，不能因为某个装坏了的包就打不出来。
+    """
+    import json
+    import os
+
+    from . import localpkg
+
+    看到: set = set()
+    出: list[dict] = []
+    for 根 in localpkg.package_dirs():
+        if not os.path.isdir(根):
+            continue
+        try:
+            名们 = sorted(os.listdir(根))
+        except OSError:
+            continue
+        for 名 in 名们:
+            目录 = os.path.join(根, 名)
+            清单 = os.path.join(目录, "包.json")
+            if 名 in 看到 or not os.path.isfile(清单):
+                continue
+            看到.add(名)
+            try:
+                with open(清单, encoding="utf-8") as f:
+                    元 = json.load(f)
+            except (OSError, ValueError):
+                continue
+            if not isinstance(元, dict):
+                continue
+            真名 = str(元.get("名字") or 名)
+            函数们 = _扫一个包的公开函数(目录, 元)
+            出.append({"名字": 真名,
+                       "版本": str(元.get("版本") or "未知"),
+                       "描述": str(元.get("描述") or "").strip(),
+                       "函数们": 函数们})
+    return sorted(出, key=lambda x: x["名字"])
+
+
+def _扫一个包的公开函数(目录: str, 元: dict) -> list[dict]:
+    """一个包里所有**对外**的函数（顺序 = 文件里出现的顺序）。
+
+    ⚠️ 走的规则必须与**导入**时一致（`localpkg.module_files`）：
+    声明了「入口」就只扫入口那一个文件；**没声明就按文件名排序把全部 `.jsh`
+    都扫一遍** —— 因为导入时就是这么把它们编进同一个作用域的。
+    （老包如 `基础库` 就没写「入口」，只扫 `<包名>.jsh` 会一个字都扫不到。）
+    """
+    import os
+
+    文件们: list[str] = []
+    入口 = str(元.get("入口") or "").strip()
+    try:
+        全部 = sorted(f for f in os.listdir(目录) if f.endswith(".jsh"))
+    except OSError:
+        return []
+    if 入口:
+        if not 入口.endswith(".jsh"):
+            入口 += ".jsh"
+        文件们 = [入口] if 入口 in 全部 else []
+    else:
+        文件们 = 全部
+
+    出: list[dict] = []
+    for f in 文件们:
+        try:
+            with open(os.path.join(目录, f), encoding="utf-8") as fh:
+                出.extend(扫包里的公开函数(fh.read()))
+        except OSError:
+            continue
+    return 出
+
+
+def _已装的包段() -> str:
+    """已装包那一段；一个包都没装就返回空串（**整段不出现**）。
+
+    ⚠️ 没装包时返回空串是要紧的：一份干净环境里的卡片必须与 M149 之前
+    **逐字节相同**，否则所有拿它做基线的判据都会无谓地红。
+    """
+    包们 = 已装的包()
+    if not 包们:
+        return ""
+    块们 = []
+    for p in 包们:
+        头 = f"### `{p['名字']}`（{p['版本']}）"
+        if p["描述"]:
+            头 += f" —— {p['描述']}"
+        行 = [头]
+        for f in p["函数们"]:
+            行.append(f"- `{f['sig']}`" + (f" —— {f['doc']}" if f["doc"] else ""))
+        块们.append("\n".join(行))
+    return ("## 已装的包（本机；先 `导入 包名 从 本地包`，再用 `包名.函数(参数)`）\n"
+            + "\n".join(块们))
+
+
 def _惯用段(规格: dict, 任务: str | None) -> str:
     if 任务 is not None and 任务 in 卡_任务惯用:
         行 = [f"## 「{任务}」这类活的惯用法"]
@@ -537,6 +709,14 @@ def render_ai_card(模块: str | None = None, 任务: str | None = None) -> str:
     段.append("")
     段.append(_标准库段(规格, 模块们))
     段.append("")
+    # 已装的包（M149）：**全量卡与任务卡带，单模块分片不带** ——
+    # 分片的意义就是「只要这一个模块」，包表会把那点预算吃掉。
+    # ⚠️ 空格子那条判断要和 Rust 侧一模一样（不然两边的卡片差一个空行）。
+    if 模块 is None:
+        包段 = _已装的包段()
+        if 包段:
+            段.append(包段)
+            段.append("")
     段.append("## 对象方法")
     段.extend(方法行)
     段.append("")
@@ -552,6 +732,10 @@ def 卡统计() -> dict:
     """给「分片到底省了多少」用（`--ai-card --统计`）。**字符数**，不是精确 token。"""
     全 = render_ai_card()
     出 = {"全量": len(全)}
+    # 已装包段占多少（M149）：装了包才列 —— 没装时 `--统计` 的输出与以前一样。
+    包段 = _已装的包段()
+    if 包段:
+        出["已装包"] = len(包段)
     for m in build_lang_spec()["stdlib"]:
         if m["module"] in ("文本", "表格", "数据库"):
             出[f"模块:{m['module']}"] = len(render_ai_card(模块=m["module"]))

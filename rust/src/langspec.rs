@@ -133,6 +133,213 @@ pub fn lang_spec_json() -> String {
 /// ⚠️ 卡片里的**中文文本**（语法段 / 错误对照段 / 任务表 / 任务惯用法）不是写在这里的
 /// —— 它们在 `langdata.rs` 里（由 `tools/gen_langdata_rs.py` 从 Python 侧**投影**过来）。
 /// 手抄两遍必漂，而 `tests/test_m90_langspec_rust.py` 盯着「逐字节一致」。
+// ---------------------------------------------------------------------------
+// 已装的包（M149）—— **与 Python `oracle/jishi/ai.py` 逐条一致**
+// ---------------------------------------------------------------------------
+
+/// 一个包的对外函数：`(签名, 文档首行)`。
+pub(crate) type 包函数 = (String, String);
+
+/// 从包的入口 `.jsh` 源码里扫出**公开函数**（与 Python `扫包里的公开函数` 同规则）：
+///
+/// - **顶格**的 `函数 名(参数)：`（前面不能有空格）—— 缩进的是内部函数；
+/// - 名字以 `_` 开头的不算（包的约定：那类是实现细节）；
+/// - 文档串取「紧跟函数行、缩进、以三引号开头」那一段的**第一行**。
+///
+/// ⚠️ 为什么扫源码而不是让包在 `包.json` 里报一份 API：写两处就要改两处，
+/// 迟早对不上。代价是这条**行式扫描**两边各写一遍 —— 判据
+/// `tests/test_m149_pkg_card.py` 拿同一份源码比两边结果。
+pub(crate) fn 扫包里的公开函数(源码: &str) -> Vec<包函数> {
+    // CRLF 归一（Python 是文本模式读的，天然没有 `\r`；这里显式对齐）
+    let 文本 = 源码.replace("\r\n", "\n").replace('\r', "\n");
+    let 行们: Vec<&str> = 文本.split('\n').collect();
+    let 引 = "\"\"\"";
+    let mut 出: Vec<包函数> = Vec::new();
+    let mut i = 0usize;
+    while i < 行们.len() {
+        let 行 = 行们[i];
+        if !行.starts_with("函数 ") {
+            i += 1;
+            continue;
+        }
+        let 体 = &行["函数 ".len()..];
+        let 左 = match 体.find('(') {
+            Some(x) if x > 0 => x,
+            _ => { i += 1; continue; }
+        };
+        let 名 = 体[..左].trim();
+        // 参数括号要配对（默认值里可能有括号：`底色 = 空图(1)`）
+        let mut 深 = 0i32;
+        let mut 右: Option<usize> = None;
+        for (j, ch) in 体.char_indices() {
+            if j < 左 { continue; }
+            if ch == '(' { 深 += 1; }
+            else if ch == ')' {
+                深 -= 1;
+                if 深 == 0 { 右 = Some(j); break; }
+            }
+        }
+        let 右 = match 右 {
+            Some(r) => r,
+            None => { i += 1; continue; }
+        };
+        if !名.is_empty() && !名.starts_with('_') {
+            let sig = format!("{}{}", 名, &体[左..=右]).trim().to_string();
+            出.push((sig, 紧跟的文档首行(&行们, i + 1)));
+        }
+        i += 1;
+    }
+    出
+}
+
+/// 函数定义后面那一段文档串的**第一行**（没有就返回空串）。
+fn 紧跟的文档首行(行们: &[&str], 起: usize) -> String {
+    let 引 = "\"\"\"";
+    let mut i = 起;
+    while i < 行们.len() && 行们[i].trim().is_empty() {
+        i += 1;
+    }
+    if i >= 行们.len() {
+        return String::new();
+    }
+    let 行 = 行们[i].trim();
+    if !行.starts_with(引) {
+        return String::new();
+    }
+    let 余 = &行[引.len()..];
+    match 余.find(引) {
+        Some(k) => 余[..k].trim().to_string(),
+        None => 余.trim().to_string(),
+    }
+}
+
+/// 一个包的对外函数（顺序 = 文件里出现的顺序）。
+///
+/// ⚠️ 规则必须与**导入**时一致（`packages::module_files`）：声明了「入口」就只扫
+/// 入口那一个文件；**没声明就按文件名排序把全部 `.jsh` 都扫一遍** —— 导入时就是
+/// 这么把它们编进同一个作用域的。（老包如 `基础库` 没写「入口」，只扫
+/// `<包名>.jsh` 会一个字都扫不到。）
+fn 扫一个包(pkg_dir: &std::path::Path, meta: &crate::json::Json) -> Vec<包函数> {
+    let 取 = |k: &str| -> String {
+        match meta.get(k) {
+            Some(v) if crate::packages::truthy(Some(v)) => crate::packages::py_str(v),
+            _ => String::new(),
+        }
+    };
+    let 全部: Vec<String> = match std::fs::read_dir(pkg_dir) {
+        Ok(rd) => {
+            let mut v: Vec<String> = rd.flatten()
+                .filter(|e| e.path().is_file())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .filter(|n| n.ends_with(".jsh"))
+                .collect();
+            v.sort();
+            v
+        }
+        Err(_) => return Vec::new(),
+    };
+    let mut 入口 = 取("入口").trim().to_string();
+    let 文件们: Vec<String> = if !入口.is_empty() {
+        if !入口.ends_with(".jsh") { 入口.push_str(".jsh"); }
+        if 全部.iter().any(|f| *f == 入口) { vec![入口] } else { Vec::new() }
+    } else {
+        全部
+    };
+    let mut 出: Vec<包函数> = Vec::new();
+    for f in 文件们 {
+        if let Ok(text) = std::fs::read_to_string(pkg_dir.join(&f)) {
+            出.extend(扫包里的公开函数(&text));
+        }
+    }
+    出
+}
+
+/// **本机能导入的**本地包（名字排序）。
+///
+/// 「能导入的」= `localpkg::package_roots()` 那些目录（额外根 → 项目 → 用户）；
+/// 同名包**先出现的赢** —— 与 `导入 X 从 本地包` 的查找顺序一致，卡片说的必须是
+/// 「你真正 import 得到的那个」。
+///
+/// ⚠️ 读不了 / 没有 `包.json` 的目录**跳过**（不猜、不报错）：卡片是给人贴进
+/// 提示词的东西，不能因为某个装坏了的包就打不出来。
+fn 已装的包() -> Vec<(String, String, String, Vec<包函数>)> {
+    let mut 看到: Vec<String> = Vec::new();
+    let mut 出: Vec<(String, String, String, Vec<包函数>)> = Vec::new();
+    for 根 in jishi_frontend::localpkg::package_roots() {
+        let 根p = std::path::Path::new(&根);
+        if !根p.is_dir() { continue; }
+        let mut 名们: Vec<String> = match std::fs::read_dir(根p) {
+            Ok(rd) => rd.flatten()
+                .filter(|e| e.path().is_dir())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect(),
+            Err(_) => continue,
+        };
+        名们.sort();
+        for 名 in 名们 {
+            if 看到.contains(&名) { continue; }
+            let 目录 = 根p.join(&名);
+            let 清单 = 目录.join("包.json");
+            if !清单.is_file() { continue; }
+            看到.push(名.clone());
+            let text = match std::fs::read_to_string(&清单) {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+            let meta = match crate::json::parse(&text) {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if meta.as_obj().is_none() { continue; }
+            let 取 = |k: &str| -> String {
+                match meta.get(k) {
+                    Some(v) if crate::packages::truthy(Some(v)) => crate::packages::py_str(v),
+                    _ => String::new(),
+                }
+            };
+            let 真名 = {
+                let n = 取("名字");
+                if n.trim().is_empty() { 名.clone() } else { n.trim().to_string() }
+            };
+            let 版 = {
+                let v = 取("版本");
+                if v.trim().is_empty() { "未知".to_string() } else { v.trim().to_string() }
+            };
+            出.push((真名, 版, 取("描述").trim().to_string(), 扫一个包(&目录, &meta)));
+        }
+    }
+    出.sort_by(|a, b| a.0.cmp(&b.0));
+    出
+}
+
+/// 已装包那一段；一个包都没装就返回空串（**整段不出现**）。
+///
+/// ⚠️ 没装包时返回空串是要紧的：干净环境里的卡片必须与 M149 之前**逐字节相同**。
+fn 已装的包段() -> String {
+    let 包们 = 已装的包();
+    if 包们.is_empty() {
+        return String::new();
+    }
+    let mut 块们: Vec<String> = Vec::new();
+    for (名字, 版本, 描述, 函数们) in 包们 {
+        let mut 头 = format!("### `{名字}`（{版本}）");
+        if !描述.is_empty() {
+            头.push_str(&format!(" —— {描述}"));
+        }
+        let mut 行 = vec![头];
+        for (sig, doc) in 函数们 {
+            行.push(if doc.is_empty() {
+                format!("- `{sig}`")
+            } else {
+                format!("- `{sig}` —— {doc}")
+            });
+        }
+        块们.push(行.join("\n"));
+    }
+    format!("## 已装的包（本机；先 `导入 包名 从 本地包`，再用 `包名.函数(参数)`）\n{}",
+            块们.join("\n"))
+}
+
 pub fn render_ai_card(模块: Option<&str>, 任务: Option<&str>) -> Result<String, String> {
     if 模块.is_some() && 任务.is_some() {
         return Err("「模块」与「任务」只能给一个".to_string());
@@ -215,6 +422,16 @@ pub fn render_ai_card(模块: Option<&str>, 任务: Option<&str>) -> Result<Stri
     惯用.push(format!("{}. 字典构建：`{{x: x*x 遍历 x 在 [1, 2, 3]}}`", 起点 + 3));
     惯用.push(format!("{}. 异常兜底：`尝试：` … `捕获 文件错误 为 e：` `打印(e.消息)`", 起点 + 4));
 
+    // ---- 已装的包（M149）：全量卡与任务卡带，**单模块分片不带** ----
+    // 与 Python `render_ai_card` 里那条 `if 模块 is None` 逐条对应；
+    // 空格子也要一起判断（少一个 `\n` 两边的卡片就不等了）。
+    let 包段 = if 模块.is_none() {
+        let s = 已装的包段();
+        if s.is_empty() { String::new() } else { format!("{s}\n\n") }
+    } else {
+        String::new()
+    };
+
     // ---- 说明那两行（分片形态不同）----
     let 头 = "基石是一门**中文编程语言**，语法对标 Python 的易用性。";
     let 说明 = if let Some(t) = 任务 {
@@ -238,6 +455,7 @@ pub fn render_ai_card(模块: Option<&str>, 任务: Option<&str>) -> Result<Stri
          \n\
          {标准库}\n\
          \n\
+         {包段}\
          ## 对象方法\n\
          {methods}\n\
          \n\
@@ -247,7 +465,7 @@ pub fn render_ai_card(模块: Option<&str>, 任务: Option<&str>) -> Result<Stri
          \n\
          {错误}\n",
         ver = D::LANG_VERSION, hash = hash, 说明 = 说明, kw = kw,
-        builtins = builtins, 标准库 = 标准库, methods = methods,
+        builtins = builtins, 标准库 = 标准库, 包段 = 包段, methods = methods,
         语法 = D::CARD_语法段, 惯用 = 惯用.join("\n"), 错误 = D::CARD_错误段,
     ))
 }
