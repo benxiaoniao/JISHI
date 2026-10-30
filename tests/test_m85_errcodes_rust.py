@@ -18,7 +18,6 @@ R7 的验收是「编辑器不再依赖 Python」。这一件是最先落地的�
 from __future__ import annotations
 
 import functools
-import inspect
 import json
 import os
 import subprocess
@@ -67,16 +66,17 @@ def _py_errcode(*argv: str):
 
 
 def _py_tables():
-    """Python 侧的两张表（**与 `cli._all_error_codes` 同一套抽法**）。"""
-    from oracle.jishi import errcodes as EC
-    from oracle.jishi import errors as E
+    """Python 侧的两张表（**与 `cli._all_error_codes` 同一套抽法**）。
 
-    codes: dict[str, str] = {}
-    for obj in vars(E).values():
-        if (inspect.isclass(obj) and issubclass(obj, E.JishiError)
-                and obj is not E.JishiError):
-            codes.setdefault(obj.code, obj.title)
-    return EC.SECTIONS, sorted(codes.items()), EC.INFO
+    ⚠️ M151：这里原来**自己抄了一遍**「只扫 `errors.py` 的类」，于是 CLI 把
+    `EXTRA_CODES`（E2010 输入结束 / E2100 被中断，没有独立类）并进去之后，
+    这份副本还停在旧的 44 个 —— 判据会红在「漂移」上，而**真正的漂移是
+    判据自己**。抽法只该有一份：直接调它。
+    """
+    from oracle.jishi import errcodes as EC
+    from oracle.jishi.cli import _all_error_codes
+
+    return EC.SECTIONS, list(_all_error_codes()), EC.INFO
 
 
 @_need_rust

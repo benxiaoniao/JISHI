@@ -57,12 +57,17 @@ def _safe_text(s: str) -> str:
 MAX_CAUSE_DEPTH = 5
 
 CODE_INPUT_END = "E2010"
+CODE_INPUT_ENCODING = "E2011"
 CODE_INTERRUPTED = "E2100"
 
 EXTRA_CODES = {
     CODE_INPUT_END: "输入结束",
     CODE_INTERRUPTED: "程序被中断",
 }
+# ⚠️ E2011（编码错误）**不在这里**：它有自己的错误类 `RunInputEncodingError`，
+# 而 EXTRA_CODES 是给「没有独立类、只在运行时临时挂码」的那些准备的口袋。
+# 两边都登记的话，`gen_langdata_rs.py` 会把它生成两遍（实测过：表里一次带类名、
+# 一次空描述）。判据 `test_m56_errcodes.py` 会报「同一个码出现两次」。
 
 
 class JishiError(Exception):
@@ -373,6 +378,22 @@ class RunError(JishiError):
     title = "运行期错误"
 
 
+#: **输入结束**该怎么说（M151）：以前只有一句「输入已经结束」，用户在交互程序里
+#: 看到它就是一头雾水（「我没让它结束啊」）。现在带一句**修法**。
+#: ⚠️ 文案在三个宿主里**逐字一致**（Python / Rust / Node 各写一遍，判据逐字比）。
+INPUT_END_MESSAGE = "输入已经结束，程序没有更多内容可读了"
+INPUT_END_HINT = ("交互程序要用 `尝试` + `捕获 异常 为 e` 包住输入循环，"
+                  "靠 e.类型 == \"输入结束\" 判断正常退出；"
+                  "手动结束时 Windows 按 Ctrl+Z 再回车、macOS/Linux 按 Ctrl+D")
+
+#: **标准输入不是 UTF-8**（M151）。Windows 控制台默认代码页是 936（GBK），
+#: 中文输入到 `输入()` 里就是这样一串解不开的字节 —— 以前 Python 报的是
+#: 「数值不对」（还把 Python 的英文 codec 原文塞在括号里），Rust 干脆报
+#: 「输入结束」，Node 直接变成乱码。三个说法都不是用户能自己修的样子。
+INPUT_ENCODING_MESSAGE = "标准输入不是合法的 UTF-8 文本"
+INPUT_ENCODING_HINT = ("Windows 控制台默认是 GBK（代码页 936）：先 `chcp 65001` "
+                       "再运行；或者改用命令行参数 / UTF-8 文件传中文")
+
 #: 「遍历时改了容器的大小」——Python 侧的原生异常是 `RuntimeError`（英文、无码、无行列），
 #: 各引擎都要把它换成**同一条**基石错误（D77 §二）：带码、带行列、带修法。
 #: ⚠️ 文案在这里**只有一份**，五个执行器逐字引用（对拍盯得住）。
@@ -435,6 +456,22 @@ class RunAssertionError(RunError):
     code = "E2008"
     exc_name = "断言错误"
     title = "断言没通过"
+
+
+class RunInputEncodingError(RunError):
+    """`输入()` 读到的字节不是合法 UTF-8（M151）。
+
+    ⚠️ **不进 `EXCEPTION_TYPES`**：与「输入结束」同一档 —— 它说的是**输入流**
+    的事，不是程序里的某个值错了，所以不提供 `捕获 编码错误`（要接就
+    `捕获 异常 为 e` 再看 `e.类型`）。这样也不用扩语言的异常类型表。
+    """
+
+    code = "E2011"
+    exc_name = "编码错误"
+    # ⚠️ 标题与类型名**必须一样**：Rust 侧只有一个 `type_name` 字段（渲染时当标题用），
+    # 所以「类型名 ≠ 标题」在那里表达不出来。标题写成「输入不是 UTF-8」会让同一份
+    # 坏输入在两个宿主上报出两个不同的头（实测撞过一次），细节放 message 里。
+    title = "编码错误"
 
 
 class RunStopIteration(RunError):
@@ -674,8 +711,9 @@ def translate_python_exception(
         return wrap(RunValueError, msg)
     if isinstance(exc, EOFError):
         e = JishiError(
-            "输入已经结束，程序没有更多内容可读了",
-            line=line, col=col, filename=filename)
+            INPUT_END_MESSAGE,
+            line=line, col=col, filename=filename,
+            hint=INPUT_END_HINT)
         e.code = CODE_INPUT_END
         e.title = "输入结束"
         return e

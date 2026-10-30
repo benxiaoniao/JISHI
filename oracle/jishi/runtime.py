@@ -19,12 +19,15 @@ from typing import Any, Optional
 
 from .errors import (
     EXCEPTION_TYPES,
+    INPUT_ENCODING_HINT,
+    INPUT_ENCODING_MESSAGE,
     JishiError,
     RunAssertionError,
     RunCustomError,
     RunError,
     RunFileError,
     RunIndexError,
+    RunInputEncodingError,
     RunKeyError,
     RunNotCallableError,
     RunTypeError,
@@ -654,6 +657,15 @@ def _b_input(prompt: str = ""):
     「先 `打印("请输入")`、再 `输入("> ")`」的程序在管道/重定向下会一直
     卡在缓冲区里 —— 用户看到的是一个没有任何提示的静止屏幕，与「死机」
     没法区分。这正是真实项目里那条「交互程序像卡死」的第二半原因。
+
+    M151 又补了两件事（都是 Windows 上真撞到的）：
+
+    - **行首的 `U+FEFF` 去掉**：PowerShell 5.1 通过管道喂中文时会带一个 BOM，
+      它不可见、却会参与字符串比较 —— `三加五` 其实读成 `\\ufeff三加五`，
+      于是 `如果 行 == "三加五"` 静默不成立、`整数(行)` 直接报错。
+    - **不是 UTF-8 时给专门的说法**：以前 Python 报「数值不对（'utf-8' codec
+      can't decode…）」，Rust 报「输入结束」，Node 变成乱码 —— 三个都不像
+      用户能自己修的样子。
     """
     import sys
 
@@ -663,8 +675,15 @@ def _b_input(prompt: str = ""):
         sys.stdout.flush()
     except (OSError, ValueError):
         pass
-    # 不带提示语地读 —— 提示语上面已经写出去了（再传一次会重复）。
-    return input()
+    try:
+        # 不带提示语地读 —— 提示语上面已经写出去了（再传一次会重复）。
+        line = input()
+    except UnicodeDecodeError:
+        raise RunInputEncodingError(INPUT_ENCODING_MESSAGE,
+                                    hint=INPUT_ENCODING_HINT)
+    if line.startswith("\ufeff"):
+        line = line[1:]
+    return line
 
 
 def _b_int(v):

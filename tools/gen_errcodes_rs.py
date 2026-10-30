@@ -34,13 +34,16 @@ OUT = ROOT / "rust" / "src" / "errcodes.rs"
 
 
 def all_codes() -> list[tuple[str, str]]:
-    """与 `cli._all_error_codes()` 同一套抽法：从 `errors.py` 的类属性抽。"""
-    out: dict[str, str] = {}
-    for obj in vars(E).values():
-        if (inspect.isclass(obj) and issubclass(obj, E.JishiError)
-                and obj is not E.JishiError):
-            out.setdefault(obj.code, obj.title)
-    return sorted(out.items())
+    """**直接调用** `cli._all_error_codes()` —— 不再自己抄一遍抽法（M151）。
+
+    ⚠️ 原来这里复制了一份「只扫 `errors.py` 的类」的逻辑，于是两边迟早会分叉：
+    M151 给 `cli` 补上「`EXTRA_CODES` 里那些没有独立类的码也要收」之后，
+    这份副本还停在 44 个、CLI 已经是 46 个 —— `jishi 错误 E2010`（输入结束）
+    在 Python 查得到、在 Rust 查不到。**单一来源就调它，别复制。**
+    """
+    from oracle.jishi.cli import _all_error_codes
+
+    return list(_all_error_codes())
 
 
 def rs_str(s: str) -> str:

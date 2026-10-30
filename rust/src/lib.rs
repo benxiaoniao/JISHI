@@ -1588,6 +1588,14 @@ pub(crate) const ITER_SIZE_CHANGED: &str = "遍历的过程中改了容器的大
 pub(crate) const ITER_SIZE_CHANGED_HINT: &str =
     "要边遍历边改，就先把元素取出来（或复制一份）再遍历";
 
+/// `输入()` 的两条说法（M151）—— 文案与提示**只有一份**（Python 侧
+/// `errors.INPUT_END_*` / `INPUT_ENCODING_*` 同名，Node 侧同字面量）。
+/// ⚠️ 三个宿主必须**逐字相同**，否则同一份坏输入在三个宿主上报出三样的话。
+pub(crate) const INPUT_END_MESSAGE: &str = "输入已经结束，程序没有更多内容可读了";
+pub(crate) const INPUT_END_HINT: &str = "交互程序要用 `尝试` + `捕获 异常 为 e` 包住输入循环，靠 e.类型 == \"输入结束\" 判断正常退出；手动结束时 Windows 按 Ctrl+Z 再回车、macOS/Linux 按 Ctrl+D";
+pub(crate) const INPUT_ENCODING_MESSAGE: &str = "标准输入不是合法的 UTF-8 文本";
+pub(crate) const INPUT_ENCODING_HINT: &str = "Windows 控制台默认是 GBK（代码页 936）：先 `chcp 65001` 再运行；或者改用命令行参数 / UTF-8 文件传中文";
+
 pub(crate) fn err_with_hint(t: &str, msg: impl Into<String>, hint: String) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
@@ -3900,13 +3908,31 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         // 没开流式时这一句是空操作（`stdout` 上本来就没东西），照刷不误。
         crate::flush_stdout();
         let mut line = String::new();
-        let n = std::io::stdin().read_line(&mut line).unwrap_or(0);
-        if n == 0 && line.is_empty() {
-            // 与 Python / Node 侧同一套说法（两边都是「输入结束」）
-            return Err(err("输入结束", "输入已经结束，程序没有更多内容可读了"));
+        // M151：**三种结局要分开**。原来是一句 `read_line(...).unwrap_or(0)` 然后
+        // 「读到 0 就当结束」—— 于是「不是 UTF-8」（Windows 控制台默认 GBK）
+        // 也被报成「输入结束」，用户完全看不出真实原因。
+        match std::io::stdin().read_line(&mut line) {
+            Ok(0) => Err(err_with_hint("输入结束", INPUT_END_MESSAGE,
+                                       INPUT_END_HINT.to_string())),
+            Ok(_) => {
+                // 只去掉行尾换行（`\n` 或 `\r\n`）
+                let mut 行 = line.trim_end_matches(['\n', '\r']);
+                // M151：PowerShell 5.1 通过管道喂中文时会带一个 BOM。它不可见，
+                // 却会参与字符串比较 —— `三加五` 读成 `\u{feff}三加五`，
+                // 于是 `如果 行 == "三加五"` 静默不成立。去掉它（只去一个）。
+                if let Some(余) = 行.strip_prefix('\u{feff}') {
+                    行 = 余;
+                }
+                Ok(Val::Str(行.to_string()))
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => Err(
+                err_coded_hint("编码错误", "E2011",
+                               INPUT_ENCODING_MESSAGE,
+                               INPUT_ENCODING_HINT.to_string())),
+            // 其它 IO 错误（终端被关掉等）按「输入结束」处理，与以前一致。
+            Err(_) => Err(err_with_hint("输入结束", INPUT_END_MESSAGE,
+                                        INPUT_END_HINT.to_string())),
         }
-        // 只去掉行尾换行（`\n` 或 `\r\n`）
-        Ok(Val::Str(line.trim_end_matches(['\n', '\r']).to_string()))
     }));
     m.insert("整数".to_string(), Val::Builtin("整数", |args, _vm| {
         need_builtin_args("整数", args, 1, 1)?;

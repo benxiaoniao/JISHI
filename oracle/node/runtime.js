@@ -50,6 +50,9 @@ const ERROR_CODES = {
   // 以前这条报错**没有码**，用户看到一个「错误（输入结束）」——
   // 而 Python 侧是 `错误 E2010：输入结束`，查不到码就接不上 `jishi 错误`。
   '输入结束': 'E2010',
+  // M151：标准输入不是 UTF-8（Windows 控制台默认 GBK）。与 Python
+  // `errors.CODE_INPUT_ENCODING`、Rust 侧 `err_coded_hint` 同码。
+  '编码错误': 'E2011',
   // M56-5：`抛出 值` 把非异常值包成「异常」（Python 侧 `RunCustomError` E2009）。
   // 与 Rust 侧同一收口：语义错误都已改成具体类型名（nameErr/funcErr/…），
   // 剩下的「异常」就是 `抛出` 的包装这一种（见 `makeException`）。
@@ -67,6 +70,14 @@ const MAX_CAUSE_DEPTH = 5;
 
 const ITER_SIZE_CHANGED = '遍历的过程中改了容器的大小（这次遍历没法继续了）';
 const ITER_SIZE_CHANGED_HINT = '要边遍历边改，就先把元素取出来（或复制一份）再遍历';
+
+//: `输入()` 的两条说法（M151）—— 与 Python `errors.INPUT_END_*` /
+//: `INPUT_ENCODING_*`、Rust `INPUT_END_*` / `INPUT_ENCODING_*` **逐字相同**。
+//: 三个宿主必须一样，否则同一份坏输入在三处报出三样的话。
+const INPUT_END_MESSAGE = '输入已经结束，程序没有更多内容可读了';
+const INPUT_END_HINT = '交互程序要用 `尝试` + `捕获 异常 为 e` 包住输入循环，靠 e.类型 == "输入结束" 判断正常退出；手动结束时 Windows 按 Ctrl+Z 再回车、macOS/Linux 按 Ctrl+D';
+const INPUT_ENCODING_MESSAGE = '标准输入不是合法的 UTF-8 文本';
+const INPUT_ENCODING_HINT = 'Windows 控制台默认是 GBK（代码页 936）：先 `chcp 65001` 再运行；或者改用命令行参数 / UTF-8 文件传中文';
 
 /** 集合 / 字典在遍历中被改了大小 → 同一条基石错误（带码 + 行列 + 修法）。 */
 function iterSizeErr(line, col) {
@@ -944,10 +955,24 @@ function stdinLine() {
   // 一个字节都没读到就到末尾：与 Python 的 `input()` 一样报「输入结束」，
   // 而不是悄悄给个空串（那样程序会拿着空路径乱跑）
   if (eof && !got) {
-    throw new JishiError('输入结束', '输入结束',
-                         '输入已经结束，程序没有更多内容可读了');
+    throw new JishiError('输入结束', '输入结束', INPUT_END_MESSAGE,
+                         null, null, INPUT_END_HINT);
   }
-  return Buffer.from(bytes).toString('utf8');
+  // ⚠️ **必须严格解码**（M151）：`Buffer.toString('utf8')` 会把非法字节换成
+  // U+FFFD（一个「问号方块」），程序照常往下跑、只是数据静默坏了 ——
+  // 而 Python 那边是抛异常、Rust 那边是读失败。三条路三种结局，必须统一成
+  // 「明确报编码错误」。`fatal: true` 就是一遇到非法字节就抛。
+  let 文本;
+  try {
+    文本 = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(bytes));
+  } catch (e) {
+    throw new JishiError('编码错误', '编码错误', INPUT_ENCODING_MESSAGE,
+                         null, null, INPUT_ENCODING_HINT);
+  }
+  // M151：PowerShell 5.1 通过管道喂中文时会带一个 BOM —— 不可见，却会参与
+  // 字符串比较（`三加五` 读成 `\uFEFF三加五`，`如果 行 == "三加五"` 静默不成立）。
+  if (文本.startsWith('\uFEFF')) 文本 = 文本.slice(1);
+  return 文本;
 }
 
 // ---------------------------------------------------------------------------

@@ -121,6 +121,11 @@ def _error_codes() -> list[dict]:
             continue
         if getattr(obj, "__module__", "") != _errors.__name__:
             continue                      # 只认本模块定义的，别把 import 进来的算上
+        # ⚠️ **基类 `JishiError`（E0000）要留着**（M151 试过删掉，被判据拦住了）：
+        # `--lang-spec` 与 MCP 的 `lookup_error` 一直把它当「兜底码」列着，
+        # 删了会让 `test_m45::test_工具查到的错误码与语言规格一致` 直接 KeyError。
+        # 但 `jishi 错误` 的总览**不列**它（给用户看的清单里放个查不到的码没意义）——
+        # 两处数量因此差 1，是**有意**的，别拿「两边必须一样」去套。
         code = getattr(obj, "code", None)
         if not code:
             continue

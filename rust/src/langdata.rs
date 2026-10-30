@@ -562,6 +562,7 @@ pub const ERROR_CODES: &[(&str, &str, &str, bool)] = &[
     ("E2008", "RunAssertionError", "断言没通过", false),
     ("E2009", "RunCustomError", "异常", false),
     ("E2010", "", "输入结束", false),
+    ("E2011", "RunInputEncodingError", "编码错误", false),
     ("E2100", "", "程序被中断", false),
     ("E2997", "RunContinue", "（内部）继续", true),
     ("E2998", "RunStopIteration", "（内部）迭代结束", true),

@@ -1241,6 +1241,11 @@ def _all_error_codes() -> list:
         if (inspect.isclass(obj) and issubclass(obj, E.JishiError)
                 and obj is not E.JishiError):
             out.setdefault(obj.code, obj.title)
+    # M151：`EXTRA_CODES` 里那些「没有独立类、只在运行时临时挂码」的也要收进来
+    # —— 以前漏了，于是 `错误 E2010`（输入结束，交互程序天天见）查不到：
+    # 报错里明明印着 `E2010`，用户照抄进 `jishi 错误` 却得到「没有这个码」。
+    for code, title in E.EXTRA_CODES.items():
+        out.setdefault(code, title)
     return sorted(out.items())
 
 
