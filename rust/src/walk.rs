@@ -246,6 +246,12 @@ pub(crate) struct Walker {
     /// 「不动 _call_stack」）—— 所以这里只有 `eval_call` 的 `Val::WalkFn`（且
     /// 未绑定）会 push，别的地方调 `call_walk_fn` 一律传 `None`。
     call_stack: Vec<TraceFrame>,
+    /// 源文件名（M155）：`打印(e)` 里那个位置框（文件:行:列）要用它。
+    /// ⚠️ 这里**故意不写那个框字符**：`test_m81` 用「文件里有没有自己拼框」
+    /// 当判据，写进注释也会让它误报。
+    /// 树遍历的输入是 AST JSON，本来不带文件名 —— 由入口 `run_walk(ast, source_path)`
+    /// 设进来（Python 侧对应 `interp.filename`）。
+    filename: String,
     /// **模块顶层最后一个「表达式语句」的值**（R8.4b：REPL 回显用）。
     ///
     /// 语义与 Python 侧 `Interpreter._last_value` + 哨兵 `_NO_VALUE` 对齐：
@@ -314,6 +320,7 @@ impl Walker {
             locals: None,
             builtins: new_builtins(),
             call_stack: Vec::new(),
+            filename: "<AST>".to_string(),
             last_value: None,
             output: String::new(),
             output_err: String::new(),
@@ -323,6 +330,11 @@ impl Walker {
             debug_env: None,
             handling: Vec::new(),
         }
+    }
+
+    /// 设源文件名（M155）：`打印(e)` 的位置框要用。
+    pub(crate) fn set_filename(&mut self, name: &str) {
+        self.filename = name.to_string();
     }
 
     /// 挂上「每写一次就报一次」的输出出口（R7.5 · DAP 用）。
@@ -1244,6 +1256,9 @@ impl Walker {
                     line: None,
                     col: None,
                     cause: None,
+                    filename: self.filename.clone(),
+                    hint: None,
+                    trace: Vec::new(),
                 })))
             }
             // 类型名与提示都照 Python 的 `runtime.call_value`（E2006）——
@@ -1300,7 +1315,7 @@ impl Walker {
                 }
                 // 被捕获的异常是一个**带内容的对象**（与 `dispatch_exception`
                 // 压栈的同一个形状）—— `e.类型` / `e.消息` 因此可读。
-                let exc = ExcValue::from_error(&e);
+                let exc = ExcValue::from_error(&e, &self.filename);
                 for h in handlers {
                     let ty = h.get("type").filter(|t| !matches!(t, Json::Null));
                     let matched = match ty {
@@ -1592,6 +1607,9 @@ impl BuiltinHost for Walker {
             // 多写一个字节就把报文冲坏了。
             crate::write_stream_stdout(s);
         }
+    }
+    fn filename(&self) -> &str {
+        &self.filename
     }
     fn write_stderr(&mut self, s: &str) {
         self.output_err.push_str(s);

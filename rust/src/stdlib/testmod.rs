@@ -369,7 +369,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             match vm.call_value(函数, Vec::new()) {
                 // 抛出来的错误**当成值返回**（可以再看它的类型）——
                 // 与 Python 侧 `except BaseException as e: return e` 同口径。
-                Err(e) => Ok(ExcValue::from_error(&e)),
+                Err(e) => Ok(ExcValue::from_error(&e, vm.filename())),
                 Ok(_) => {
                     记失败(if 说明.is_empty() { "抛出" } else { &说明 },
                            "期望报错，但它正常跑完了".to_string())?;

@@ -822,24 +822,38 @@ pub(crate) struct ExcValue {
     /// **宿主内部**的错误对象，而 `e.原因` 是**语言里能拿到的东西** —— 那必须是
     /// 一个 `Val::Exc`。两边各存一份，方向是「错误 → 值」单向转换（见 `from_error`）。
     pub(crate) cause: Option<Rc<ExcValue>>,
+    /// 源文件名（M155）：`打印(e)` 要印 `┌─ 文件:行:列`，与 Python / Node 同形。
+    /// 以前宿主只印一行「错误 E2001：不能除以零」，两个 Python 执行器与 Node
+    /// 都印「头 + 位置框 + 调用链」—— 同一段程序打印出三样东西。
+    pub(crate) filename: String,
+    /// 提示（M155）：`render_one` 最后那行「  提示：…」。
+    pub(crate) hint: Option<String>,
+    /// 调用链（M155）：`打印(e)` 里的「调用链（从外到内）」那一段。
+    pub(crate) trace: Vec<TraceFrame>,
 }
 
 impl ExcValue {
     /// 从宿主错误造一个「被捕获的异常」值 —— 与 `VM::dispatch_exception` 压栈的
     /// **同一个形状**（树遍历参考执行器也要用它把 `捕获 X 为 e` 的 `e` 造出来）。
-    pub(crate) fn from_error(e: &JishiError) -> Val {
-        Val::Exc(Rc::new(ExcValue::of(e)))
+    pub(crate) fn from_error(e: &JishiError, filename: &str) -> Val {
+        Val::Exc(Rc::new(ExcValue::of(e, filename)))
     }
 
-    /// 由宿主错误造一个 `ExcValue`（带「起因」链，M148）。
-    pub(crate) fn of(e: &JishiError) -> ExcValue {
+    /// 由宿主错误造一个 `ExcValue`（带「起因」链，M148；带文件名，M155）。
+    ///
+    /// ⚠️ **文件名只能从外面传**（`JishiError` 里没有这个字段）——
+    /// 但 `打印(e)` 的框要印 `┌─ 程序.jsh:2:13`，所以捕获那一刻就得记住。
+    pub(crate) fn of(e: &JishiError, filename: &str) -> ExcValue {
         ExcValue {
             type_name: e.type_name.clone(),
             message: e.message.clone(),
             code: e.code.clone(),
             line: e.line,
             col: e.col,
-            cause: e.cause.as_deref().map(|c| Rc::new(ExcValue::of(c))),
+            cause: e.cause.as_deref().map(|c| Rc::new(ExcValue::of(c, filename))),
+            filename: filename.to_string(),
+            hint: e.hint.clone(),
+            trace: e.trace.clone(),
         }
     }
 
@@ -856,6 +870,10 @@ impl ExcValue {
         e.line = x.line;
         e.col = x.col;
         e.cause = x.cause.as_deref().map(|c| Box::new(ExcValue::to_error(c)));
+        // M155：提示与调用链也要带回去 —— 否则 `打印(e)` 少了「提示」和
+        // 「调用链」两段（Python / Node 都有）。
+        e.hint = x.hint.clone();
+        e.trace = x.trace.clone();
         e
     }
 }
@@ -1449,6 +1467,13 @@ pub(crate) fn error_code(type_name: &str) -> Option<&'static str> {
         // `SemanticNameError` E0301 / `SemanticFuncError` E0302 /
         // `RunNotCallableError` E2006）—— 以前宿主把它们笼统写成「异常」，
         // 于是连错误码都给不出。
+        // M155：「运行期错误」在 Python 侧就是 `RunError`，**一直带 E2000**
+        // （`class RunError.code = "E2000"`）。宿主这张表里却没有它 ——
+        // 于是 `打印(e)` 时 Python 印「错误 E2000：运行期错误（…）」、
+        // 宿主印「错误（运行期错误）：…」。以前注释写的是「故意不配码」，
+        // 但那个理由只对「宁可不给码也别瞎标」的内部兜底成立；
+        // 用户 `抛出 运行期错误("…")` 是**正正经经的一个码**。
+        "运行期错误" => "E2000",
         "输入结束" => "E2010",
         "程序被中断" => "E2100",
         T_NAME => "E0301",
@@ -2396,6 +2421,9 @@ impl VM {
                                 line: None,
                                 col: None,
                                 cause: None,
+                                filename: self.module.filename.clone(),
+                                hint: None,
+                                trace: Vec::new(),
                             })));
                         }
                         // 类型名与提示都照 Python 的 `runtime.call_value`：
@@ -2752,7 +2780,7 @@ impl VM {
                 //
                 // M148：`from_error` 把「起因」链一起带进来，`e.原因` 才读得到；
                 // 同时给本帧记一笔「正在处理它」。
-                let val = ExcValue::from_error(e);
+                let val = ExcValue::from_error(e, &self.module.filename);
                 self.note_handled(fi, &h, &val);
                 self.stack.push(val);
                 self.frames[fi].ip = catch_ip as usize;
@@ -3094,6 +3122,12 @@ pub(crate) trait BuiltinHost {
     /// 只有一个 stdout 缓冲的话，两边流的内容就对不上（测试比的是每个流的内容）。
     /// ⚠️ 加方法要**有意识** —— 这个接口是「先把用法列出来」再定的，别随手加。
     fn write_stderr(&mut self, s: &str);
+    /// 源文件名（M155）：`测试.抛出` 接住的异常要能印出 `┌─ 文件:行:列`。
+    ///
+    /// 📌 为什么要加这条能力：`ExcValue` 一旦造出来就不再经过宿主，文件名
+    /// 只能在「造的那一刻」记住；而 `测试.抛出` 是**内建回调**里捕获错误，
+    /// 手里只有 `&mut dyn BuiltinHost`。
+    fn filename(&self) -> &str;
 }
 
 /// 格式化一个值 —— **与宿主无关的那部分**（容器递归 + 标量显示）。
@@ -3181,6 +3215,9 @@ impl BuiltinHost for VM {
             write_stream_stderr(s);
         }
         self.output_err.push_str(s);
+    }
+    fn filename(&self) -> &str {
+        &self.module.filename
     }
 }
 
@@ -3320,16 +3357,19 @@ pub(crate) fn display(v: &Val) -> String {
         Val::Super(sp) => format!("<超 {}>", sp.defining),
         // 与 Node 侧 `JishiError.render()` 同一套（M56）：
         // 有码时「错误 E2008：断言没通过（故意失败）」，没码时「错误（异常）：…」
-        Val::Exc(e) => match &e.code {
-            Some(code) => {
-                let title = error_title(&e.type_name);
-                if e.message.is_empty() || e.message == title {
-                    format!("错误 {code}：{title}")
-                } else {
-                    format!("错误 {code}：{title}（{}）", e.message)
-                }
-            }
-            None => format!("错误（{}）：{}", e.type_name, e.message),
+        // M155：与 Python 的 `str(JishiError)`（= `render()`）、Node 的
+        // `JishiError.render()` **同一形状**：头 + 位置框 + 调用链 + 提示。
+        // 以前宿主只印一行头，另外两个执行器印四五行 —— `打印(e)` 是用户
+        // 排查问题的主要手段，长得不一样就等于「同一段程序三种行为」。
+        //
+        // ⚠️ **没有源码行**（`┌─` 之后直接收口）：源码行只在 CLI 出口补
+        // （Python 侧 `with_source`），被捕获的异常本来就拿不到它 ——
+        // 三边一致，不是漏了。
+        Val::Exc(e) => {
+            let 错 = ExcValue::to_error(e);
+            render_error_with(&错, &e.filename, &|_: i64| None)
+                .trim_end_matches('\n')
+                .to_string()
         },
     }
 }
@@ -3481,7 +3521,20 @@ fn numeric_mul(a: Val, b: Val) -> Result<Val, JishiError> {
             for _ in 0..n.max(0) { out.extend(src.iter().cloned()); }
             Ok(list_new(out))
         }
-        _ => Err(err("类型错误", "不支持的乘法")),
+        // M155：**序列 × 非整数** —— 与 Python 侧同一条话
+        // （`can't multiply sequence by non-int of type 'float'` 的中文翻译）。
+        // 以前宿主只有一句「不支持的乘法」，另四个执行器都说「序列只能乘整数」。
+        (a, b) => {
+            let 左序列 = matches!(a, Val::Str(_) | Val::List(_) | Val::Bytes(_));
+            let 右序列 = matches!(b, Val::Str(_) | Val::List(_) | Val::Bytes(_));
+            if 左序列 != 右序列 {
+                let 对方 = if 左序列 { &b } else { &a };
+                Err(err("类型错误",
+                        format!("序列只能乘整数，不能乘「{}」", type_label(对方))))
+            } else {
+                Err(err("类型错误", "不支持的乘法"))
+            }
+        }
     }
 }
 
@@ -4014,10 +4067,13 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                     while iter_next(&mut cur)?.is_some() { n += 1; }
                     Ok(Val::Int(n))
                 } else {
-                    Err(err("类型错误", "没有长度"))
+                    // M155：**带上那个值**（Python / Node 一直带，宿主漏了）。
+                    Err(err("类型错误",
+                            format!("「{}」没有长度", display(&args[0]))))
                 }
             }
-            _ => Err(err("类型错误", "没有长度")),
+            _ => Err(err("类型错误",
+                         format!("「{}」没有长度", display(&args[0])))),
         }
     }));
     m.insert("范围".to_string(), Val::Builtin("范围", |args, _vm| {
@@ -6105,6 +6161,8 @@ pub fn run_walk(ast_text: &str, source_path: Option<&str>) -> Result<String, (St
         Err(e) => return Err((String::new(), format!("AST JSON 解析失败：{e}"))),
     };
     let mut w = walk::Walker::new();
+    // M155：`打印(e)` 的位置框要印文件名 —— 树遍历的输入里没有它，从入口传进去。
+    w.set_filename(source_path.unwrap_or("<AST>"));
     match w.run(&ast) {
         // 成功路径：程序自己没往错误流写东西（`测试.汇总` 有失败就会抛），
         // 所以这里只回 stdout。

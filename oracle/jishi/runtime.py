@@ -926,7 +926,9 @@ def _b_len(v):
         # 数一数有几个元素是自然的事，不必再要求作者额外写一个方法。
         if isinstance(v, JishiInstance) and "迭代" in v.cls.methods:
             return sum(1 for _ in v)
-        raise RunTypeError(f"「{v}」没有长度")
+        # M155：用**基石的显示**（`真/假` 而不是 Python 的 `True/False`）——
+        # 以前 `长度(真)` 报「「True」没有长度」，而 Node 报「「真」没有长度」。
+        raise RunTypeError(f"「{jishi_repr(v, top=True)}」没有长度")
 
 
 def _b_range(*args):

@@ -145,8 +145,12 @@ def test_接口故意做小_只有六个方法():
     m = re.search(r"pub\(crate\) trait BuiltinHost \{(.*?)\n\}", lib, re.S)
     assert m, "lib.rs 里找不到 BuiltinHost 的声明"
     names = sorted(re.findall(r"fn (\w+)\(", m.group(1)))
+    # 📌 **第七个 `filename` 是 M155 有意识加的**：`测试.抛出` 是一个内建回调，
+    # 它接住的异常要在 `打印(e)` 里印 `文件:行:列` —— 而文件名只能在**造异常的
+    # 那一刻**记住（`ExcValue` 之后就不再经过宿主）。这条测试照设计又报红了一次。
     assert names == sorted(["format_value", "lookup_method", "make_iter",
-                            "call_value", "write_output", "write_stderr"]), names
+                            "call_value", "write_output", "write_stderr",
+                            "filename"]), names
 
 
 @need_rust
