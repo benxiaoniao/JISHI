@@ -169,10 +169,22 @@ def main() -> None:
     # ⚠️ **为什么要把这些中文文本搬过来**：`--ai-card` 两边都要出，而且
     #    `test_m90` 盯着「逐字节一致」。手抄两遍必漂 —— 走生成器是**单源投影**
     #    （与 §0.5 核心二「语言事实是投影出来的」同一条）。
-    from oracle.jishi.ai import _语法段, _错误对照段, 卡_任务表, 卡_任务惯用
+    from oracle.jishi.ai import (_方法说明, _坑段, _语法段, _错误对照段,
+                                卡_任务表, 卡_任务惯用)
 
     add("/// 语言卡：运算符 + 语法速览 + 块缩进（尾部无空行）。")
     add(f"pub const CARD_语法段: &str = {rs_str(_语法段.rstrip())};")
+    add("")
+    add("/// 语言卡：**容易踩的坑**（M154：关键字当名字 / 模块遮内建 / 输入异常 / 数字写法 / 格式化个数）。")
+    add(f"pub const CARD_坑段: &str = {rs_str(_坑段.rstrip())};")
+    add("")
+    add("/// 对象方法的一句话说明：(类, 方法, 说明)。只给「光看名字猜不出」的那些。")
+    add("/// ⚠️ 顺序 = `ai._方法说明` 的书写顺序；渲染时按 `METHODS` 查表（不依赖顺序）。")
+    add("pub const METHOD_DOCS: &[(&str, &str, &str)] = &[")
+    for 类, 表 in _方法说明.items():
+        for 名, 说 in 表.items():
+            add(f"    ({rs_str(类)}, {rs_str(名)}, {rs_str(说)}),")
+    add("];")
     add("")
     add("/// 语言卡：常见错误对照 + 报错怎么读、怎么查。")
     add(f"pub const CARD_错误段: &str = {rs_str(_错误对照段.rstrip())};")

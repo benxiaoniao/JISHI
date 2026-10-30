@@ -350,8 +350,27 @@ pub fn render_ai_card(模块: Option<&str>, 任务: Option<&str>) -> Result<Stri
     let builtins = D::BUILTINS.iter()
         .map(|(n, doc)| format!("- `{n}`：{doc}"))
         .collect::<Vec<_>>().join("\n");
+    // M154：方法名后面带**一句话说明**（只给「光看名字猜不出」的那些）。
+    // `METHOD_DOCS` 是生成物（`tools/gen_langdata_rs.py`，来源 `ai._方法说明`），
+    // 与 Python 侧逐字节一致由 `test_m90` 盯着。
+    // M154：**坑段只进全量卡与任务卡，单模块分片不带**（与「已装的包」同一规矩：
+    // 分片的意义就是只留一个模块，坑段 700 字能把 3800 字的分片撑到 4500）。
+    let 坑段 = if 模块.is_none() {
+        format!("{}\n\n", D::CARD_坑段)
+    } else {
+        String::new()
+    };
+
     let methods = D::METHODS.iter()
-        .map(|(k, v)| format!("- {k}：{}", v.join("、")))
+        .map(|(k, v)| {
+            let 片 = v.iter().map(|名| {
+                match D::METHOD_DOCS.iter().find(|(类, n, _)| 类 == k && n == 名) {
+                    Some((_, _, 说)) => format!("{名}（{说}）"),
+                    None => (*名).to_string(),
+                }
+            }).collect::<Vec<_>>().join("、");
+            format!("- {k}：{片}")
+        })
         .collect::<Vec<_>>().join("\n");
 
     // 要带哪些模块：None = 全部
@@ -461,12 +480,13 @@ pub fn render_ai_card(模块: Option<&str>, 任务: Option<&str>) -> Result<Stri
          \n\
          {语法}\n\
          \n\
-         {惯用}\n\
+         {坑}{惯用}\n\
          \n\
          {错误}\n",
         ver = D::LANG_VERSION, hash = hash, 说明 = 说明, kw = kw,
         builtins = builtins, 标准库 = 标准库, 包段 = 包段, methods = methods,
-        语法 = D::CARD_语法段, 惯用 = 惯用.join("\n"), 错误 = D::CARD_错误段,
+        语法 = D::CARD_语法段, 坑 = 坑段,
+        惯用 = 惯用.join("\n"), 错误 = D::CARD_错误段,
     ))
 }
 
