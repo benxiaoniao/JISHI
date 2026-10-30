@@ -1128,8 +1128,8 @@ function jsonDecode(text, line, col) {
   try {
     got = JSON.parse(String(text));
   } catch (e) {
-    throw R.valueErr(`不是有效的 JSON 文本`
-      + `（${e && e.message ? e.message : e}）`, line, col);
+    // M155：与 Python / Rust 同一句话（各自的细节是英文/各家不一，统一去掉）。
+    throw R.valueErr('不是有效的 JSON 文本', line, col);
   }
   return jsonWrap(got);
 }

@@ -54,8 +54,14 @@ def 解析(文本) -> object:
     """
     try:
         return _py_json.loads(文本, parse_constant=_拒非常量)
-    except (TypeError, ValueError) as e:
-        raise RunValueError(f"不是有效的 JSON 文本：{e}")
+    except (TypeError, ValueError):
+        # ⚠️ M155：**文案里不带引擎自己的细节**。
+        # Python 原来把 `Expecting property name enclosed in double quotes:
+        # line 1 column 2 (char 1)` 整段塞进来（英文原文漏给用户），
+        # Rust 有自己的中文细节、Node 又是另一句英文 —— 同一段坏 JSON
+        # 三个宿主三种话，而且是**用户一眼能看懂几句英文**的问题。
+        # 现在统一一句话；位置仍有 `json.解析(...)` 调用处的行列。
+        raise RunValueError("不是有效的 JSON 文本")
 
 
 def 有效(文本) -> bool:

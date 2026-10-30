@@ -201,8 +201,15 @@ impl<'a> P<'a> {
         }
     }
 
-    fn error<T>(&self, msg: &str) -> Result<T, JishiError> {
-        Err(err("值错误", format!("不是有效的 JSON 文本：{msg}（第 {} 个字符附近）", self.i + 1)))
+    fn error<T>(&self, _msg: &str) -> Result<T, JishiError> {
+        Err(Self::fail())
+    }
+
+    /// 「不是有效的 JSON 文本」—— **M155 起只有这一句**，不带宿主自己的细节
+    /// （Python/Node 给不出同样的细节，三个宿主三句话比「少一点信息」更糟）。
+    /// 位置仍有 `json.解析(...)` 调用处的行列。
+    fn fail() -> JishiError {
+        err("值错误", "不是有效的 JSON 文本")
     }
 
     fn value(&mut self) -> Result<Val, JishiError> {
@@ -265,7 +272,7 @@ impl<'a> P<'a> {
         if is_float {
             text.parse::<f64>()
                 .map(Val::Float)
-                .map_err(|_| err("值错误", format!("不是有效的 JSON 文本：数字「{text}」读不出来")))
+                .map_err(|_| Self::fail())
         } else {
             match text.parse::<i128>() {
                 Ok(i) => Ok(Val::Int(i)),
@@ -346,7 +353,7 @@ impl<'a> P<'a> {
         }
         let s = std::str::from_utf8(&self.b[self.i..self.i + 4]).unwrap_or("");
         let v = u32::from_str_radix(s, 16)
-            .map_err(|_| err("值错误", "不是有效的 JSON 文本：\\u 后面要是四位十六进制"))?;
+            .map_err(|_| Self::fail())?;
         self.i += 4;
         Ok(v)
     }
@@ -439,7 +446,7 @@ pub(crate) fn parse(text: &str) -> Result<Val, JishiError> {
     let v = p.value()?;
     p.ws();
     if p.i != p.b.len() {
-        return Err(err("值错误", "不是有效的 JSON 文本：末尾有多余内容"));
+        return Err(P::fail());
     }
     Ok(v)
 }

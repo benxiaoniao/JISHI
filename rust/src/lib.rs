@@ -3422,8 +3422,77 @@ pub(crate) fn py_repr(v: &Val) -> String {
     }
 }
 
+/// 浮点 → 文本 —— **Python `repr(float)` 的规则**（M155）。
+///
+/// 以前这里分两句：整数就给 `{:.1}`、其余给 `to_string()`。于是
+/// `打印(1e16)` 宿主给 `10000000000000000.0`、Python 给 `1e+16`；
+/// `打印(1e300)` 宿主直接打 **301 位**（`to_string()` 从不用指数）。
+/// 同一段程序在两个执行器上长得完全不同 —— 而数字是最常被打印的东西。
+///
+/// 规则（与 CPython 一致）：
+/// - **科学计数法**当且仅当 `|x| >= 1e16` 或 `0 < |x| < 1e-4`（即十进制指数 ≥ 16 或 ≤ -5）；
+/// - 指数写法是 `e+16` / `e-05`（**带符号、至少两位**），尾数是 `1` / `1.5`（不补 `.0`）；
+/// - 普通写法下**整数值补 `.0`**（`2.0` 而不是 `2`，与 `打印(2.0)` 的既有口径一致）。
 pub(crate) fn format_float(f: f64) -> String {
-    if f == f.trunc() && f.is_finite() { format!("{:.1}", f) } else { f.to_string() }
+    if f.is_nan() {
+        return "nan".to_string();
+    }
+    if f.is_infinite() {
+        return if f < 0.0 { "-inf".to_string() } else { "inf".to_string() };
+    }
+    // `{:e}` 给的是**最短往返**的尾数 + 科学计数法指数（Rust 的 Display 不给指数）
+    let raw = format!("{:e}", f);           // 例：`1.5e0` / `3.0000000000000004e-1` / `1e300`
+    let (负, 体) = match raw.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, raw.as_str()),
+    };
+    let (尾数, 指文) = match 体.split_once('e') {
+        Some((m, e)) => (m, e),
+        None => (体, "0"),
+    };
+    let 指: i32 = 指文.parse().unwrap_or(0);
+    let 数字: String = 尾数.chars().filter(|c| *c != '.').collect();
+    let 数字 = if 数字.is_empty() { "0".to_string() } else { 数字 };
+    let mut out = String::new();
+    if 负 {
+        out.push('-');
+    }
+    if 指 >= 16 || 指 <= -5 {
+        // 指数写法：尾数 `d[.ddd]` + `e±NN`
+        out.push_str(&数字[..1]);
+        if 数字.len() > 1 {
+            out.push('.');
+            out.push_str(&数字[1..]);
+        }
+        out.push('e');
+        out.push(if 指 < 0 { '-' } else { '+' });
+        let 绝对值 = 指.unsigned_abs();
+        if 绝对值 < 10 {
+            out.push('0');
+        }
+        out.push_str(&绝对值.to_string());
+        return out;
+    }
+    // 普通写法：按指数把小数点挪回去
+    let 点位置 = 指 + 1;                     // 数字里小数点该落在第几位之后
+    if 点位置 <= 0 {
+        out.push_str("0.");
+        for _ in 0..(-点位置) {
+            out.push('0');
+        }
+        out.push_str(&数字);
+    } else if (点位置 as usize) < 数字.len() {
+        out.push_str(&数字[..点位置 as usize]);
+        out.push('.');
+        out.push_str(&数字[点位置 as usize..]);
+    } else {
+        out.push_str(&数字);
+        for _ in 0..(点位置 as usize - 数字.len()) {
+            out.push('0');
+        }
+        out.push_str(".0");                 // 整数值补 `.0`（`打印(2.0)` → `2.0`）
+    }
+    out
 }
 
 pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {

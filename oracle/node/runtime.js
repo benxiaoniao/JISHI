@@ -1391,6 +1391,41 @@ function cmpVals(a, b) {
   return xn < yn ? -1 : xn > yn ? 1 : 0;
 }
 
+/**
+ * 浮点 → 文本，**与 Python `repr(float)` 同一套规则**（M155）。
+ *
+ * JS 的 `String(x)` 只在 | x | ≥ 1e21 或 < 1e-6 时才用指数，而且指数不补零
+ * （`1e-7`）；Python 的规矩是 **≥1e16 或 <1e-4 就用指数**、写成 `1e-07`。
+ * 于是同一个数在 `打印` 里两边长得不一样 —— 数字又是最常打印的东西。
+ *
+ * 规则：指数写法当且仅当十进制指数 ≥ 16 或 ≤ -5；指数 `e±NN`（带符号、补两位）；
+ * 普通写法下整数值补 `.0`（`2.0` 而不是 `2`）。
+ */
+function floatText(x) {
+  if (Number.isNaN(x)) return 'nan';
+  // `-0.0`：`toExponential()` 会把符号丢掉（给 `0e+0`），而 Python 印 `-0.0`
+  if (Object.is(x, -0)) return '-0.0';
+  if (!Number.isFinite(x)) return x < 0 ? '-inf' : 'inf';
+  const raw = x.toExponential();          // 最短往返：'1.5e+0' / '3.0000000000000004e-1'
+  const 负 = raw.startsWith('-');
+  const 体 = 负 ? raw.slice(1) : raw;
+  const [尾数, 指文] = 体.split('e');
+  const 指 = parseInt(指文, 10);
+  const 数字 = 尾数.replace('.', '') || '0';
+  let out = 负 ? '-' : '';
+  if (指 >= 16 || 指 <= -5) {
+    out += 数字[0];
+    if (数字.length > 1) out += '.' + 数字.slice(1);
+    out += 'e' + (指 < 0 ? '-' : '+') + String(Math.abs(指)).padStart(2, '0');
+    return out;
+  }
+  const 点位置 = 指 + 1;
+  if (点位置 <= 0) out += '0.' + '0'.repeat(-点位置) + 数字;
+  else if (点位置 < 数字.length) out += 数字.slice(0, 点位置) + '.' + 数字.slice(点位置);
+  else out += 数字 + '0'.repeat(点位置 - 数字.length) + '.0';
+  return out;
+}
+
 function display(v) {
   if (v === null || v === undefined) return '空';
   if (v === true) return '真';
@@ -1402,7 +1437,12 @@ function display(v) {
   if (isSlice(v)) return sliceRepr(v);
   if (Array.isArray(v)) return '[' + v.map(display).join(', ') + ']';
   if (v instanceof JishiError) return v.message;
-  if (isFloatBox(v)) return String(v.value);
+  if (isFloatBox(v)) return floatText(v.value);
+  // ⚠️ 没被 `FloatBox` 包住的普通 number 也要走同一套（M155）：字面量
+  // `1e-9` 在宿主里就是普通 number，以前落到 `String(v)` 给出 `1e-9`（不补零）。
+  if (typeof v === 'number') {
+    return Number.isInteger(v) && !Object.is(v, -0) ? String(v) : floatText(v);
+  }
   return String(v);
 }
 
@@ -1420,9 +1460,9 @@ function pyStr(v) {
   if (v instanceof Map) return dictPyRepr(v);
   if (v instanceof JishiSet) return setRepr(v, true);
   if (isSlice(v)) return sliceRepr(v);
-  if (isFloatBox(v)) {
-    const x = v.value;
-    return Number.isInteger(x) ? x.toFixed(1) : String(x);
+  if (isFloatBox(v)) return floatText(v.value);
+  if (typeof v === 'number') {
+    return Number.isInteger(v) && !Object.is(v, -0) ? String(v) : floatText(v);
   }
   return String(v);
 }
@@ -1462,9 +1502,10 @@ function pyRepr(v) {
   if (v instanceof Map) return dictPyRepr(v);
   if (v instanceof JishiSet) return setRepr(v, true);
   if (isSlice(v)) return sliceRepr(v);
-  if (isFloatBox(v)) {
-    const x = v.value;
-    return Number.isInteger(x) ? x.toFixed(1) : String(x);
+  // M155：容器里走的是**另一条**显示路径，浮点同样要按 Python 的规矩写
+  if (isFloatBox(v)) return floatText(v.value);
+  if (typeof v === 'number') {
+    return Number.isInteger(v) && !Object.is(v, -0) ? String(v) : floatText(v);
   }
   return String(v);
 }
@@ -2309,6 +2350,9 @@ function applyBinop(op, l, r, line, col) {
 function applyUnary(op, v, line, col) {
   if (op === '-') {
     if (isDecimal(v)) return v.neg();
+    // ⚠️ M155：`-v` 会把 `FloatBox` 拆成裸 number，于是 `打印(-1.0e20)`
+    // 从「小数」变成「整数」—— Python 那边仍是小数（印 `-1e+20`）。
+    if (isFloatBox(v)) return new FloatBox(-v.value);
     return -v;
   }
   if (op === '非') return !truthy(v);
