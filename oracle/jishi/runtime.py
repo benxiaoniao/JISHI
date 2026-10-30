@@ -2144,7 +2144,11 @@ def call_value(fn, args, kwargs=None, *, line=None, col=None,
     if isinstance(fn, Module):
         raise SemanticFuncError(
             f"模块「{fn.name}」不能直接调用，要用「{fn.name}.函数名(...)」",
-            line=line, col=col, filename=filename)
+            line=line, col=col, filename=filename,
+            # M152：光说「不能直接调用」还不够 —— `导入 文本` 之后写 `文本(123)`
+            # 的人其实是想用**内建转换函数**，得告诉他别名导入这条路。
+            hint=f"模块名后面要接 `.函数名`；如果这个模块名原本是个内建函数"
+                 f"（比如 `文本`），用别名导入：导入 文本 为 文本库")
     if isinstance(fn, JishiClass):
         # 实例化：新建 类(...) → 造实例，若定义了「初始化」则调用构造方法
         return make_instance(fn, args, kwargs or {}, line=line, col=col,

@@ -580,8 +580,20 @@ impl Parser {
     }
 
     fn expect_name(&mut self, what: &str) -> R<Tok> {
-        if self.cur().kind == "NAME" {
+        let t = self.cur().clone();
+        if t.kind == "NAME" {
             return Ok(self.advance());
+        }
+        if t.kind == "KEYWORD" {
+            // M152：**关键字当名字**是最典型的「报错没指到点子上」——
+            // 以前只说「这里需要一个变量名」，用户盯着 `令 类 = 1` 看不出
+            // 「类」这个词本身不能用。与 Python 侧 `_expect_name` 逐字一致。
+            return Err(self.err_tok(
+                E_NAME,
+                format!("「{}」是关键字，不能当{}", tok_text(&t), what),
+                Some("换个说法就行（中文同义词很多，比如「类」→「种类」）；\
+全部关键字见 `jishi --ai-card` 的「关键字（全部）」".to_string()),
+                &t, None));
         }
         Err(self.err_here(E_NAME, format!("这里需要一个{}", what), None))
     }

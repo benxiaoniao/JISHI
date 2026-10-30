@@ -2401,6 +2401,17 @@ impl VM {
                         // 类型名与提示都照 Python 的 `runtime.call_value`：
                         // 「这个东西不能调用」是 `RunNotCallableError` 的 title（E2006），
                         // 写「运行期错误」会让 `e.类型` / `捕获` 都对不上（R6.2 对齐）。
+                        // M152：**模块被当函数调用**是最常见的「学了个新语言」的坑
+                        // （`导入 文本` 之后写 `文本(123)`）。Python 侧早就给了
+                        // 「要用 文本.函数名(...)」这种能照做的说法，宿主原来只说
+                        // 「「<模块 文本>」不能调用」—— 用户看不懂 `<模块 …>` 是啥。
+                        // 三宿主现在同一句话、同一个码（Python `SemanticFuncError` E0302）。
+                        Val::Module(name, _) => return Err(err_with_hint(
+                            T_FUNC,
+                            format!("模块「{name}」不能直接调用，\
+要用「{name}.函数名(...)」"),
+                            "模块名后面要接 `.函数名`；如果这个模块名原本是个内建函数\
+（比如 `文本`），用别名导入：导入 文本 为 文本库".to_string())),
                         other => return Err(err_with_hint(
                             T_NOT_CALLABLE,
                             format!("「{}」不能调用", display(&other)),

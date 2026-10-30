@@ -552,7 +552,14 @@ class VM {
       return fn.fn(...R.mapKwargs(fn.name, args, kwargs, line, col));
     }
     if (fn instanceof R.Module) {
-      throw R.typeErr(`模块「${fn.name}」不能直接调用`, line, col);
+      // M152：与 Python `runtime.call_value` / Rust `CALL` 同一句话、同一个码
+      // （`找不到这个函数` E0302）。以前 Node 报的是「类型错误」E2002，
+      // 三个宿主三个码 —— 用户拿 A 机器的报错去查，在 B 上对不上。
+      throw R.funcErr(
+        `模块「${fn.name}」不能直接调用，要用「${fn.name}.函数名(...)」`,
+        line, col,
+        '模块名后面要接 `.函数名`；如果这个模块名原本是个内建函数'
+        + '（比如 `文本`），用别名导入：导入 文本 为 文本库');
     }
     if (fn instanceof R.JishiClass) {
       this._rejectKwargs(`类「${fn.name}」`, kwargs, line, col);
@@ -772,6 +779,39 @@ function roundHalfEven(x, p) {
     return (t % 2 === 0 ? t : t + Math.sign(v)) / f;
   }
   return Math.round(v) / f;
+}
+
+/**
+ * 数模板要几个**位置参数**（`{}` / `{0}`）；数不清返回 `null`（M152）。
+ * 规则与 Python `_占位符个数`、Rust `占位符个数` **必须一致**：
+ * `{{` / `}}` 是字面花括号；命名占位符、花括号不配对都不做个数检查。
+ */
+function 占位符个数(tpl) {
+  let n = 0;
+  const s = String(tpl);
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '{') {
+      if (s[i + 1] === '{') { i += 1; continue; }
+      let j = i + 1;
+      while (j < s.length && s[j] !== '}') {
+        if (s[j] === '{') return null;          // 嵌套 / 坏模板
+        j += 1;
+      }
+      if (j >= s.length) return null;           // 没配对的 `{`
+      const inner = s.slice(i + 1, j);
+      const colon = inner.indexOf(':');
+      const field = (colon >= 0 ? inner.slice(0, colon) : inner).trim();
+      if (field === '') n += 1;
+      else if (/^\d+$/.test(field)) n = Math.max(n, Number(field) + 1);
+      else return null;                         // 命名占位符
+      i = j;
+    } else if (c === '}') {
+      if (s[i + 1] === '}') { i += 1; continue; }
+      return null;                              // 单个 `}`：模板坏了
+    }
+  }
+  return n;
 }
 
 /**
@@ -5681,15 +5721,44 @@ const STDLIB = {  '数学': new R.Module('数学', {
     //   {:>8} {:<8} {:^8}  右/左/居中对齐
     //   {:08.2f}  补零      {:d} 整数      {:,} 千分位
     '格式化': new R.Builtin('格式化', (tpl, ...rest) => {
+      // M152：占位符与参数个数不符要**报错**（以前多给丢、少给填空串）。
+      // 规则与 Python `_占位符个数`、Rust `占位符个数` 必须一致。
+      const 需要 = 占位符个数(String(tpl));
+      if (需要 !== null && 需要 !== rest.length) {
+        throw R.valueErr(
+          `「格式化」的模板里有 ${需要} 个占位符，但给了 ${rest.length} 个参数`,
+          null, null,
+          '模板里的 {} 与参数要一一对应；想输出真的花括号就写 {{ 或 }}');
+      }
+      // ⚠️ **不能再走 `String.replace(/\{[^{}]*\}/g)`**（M152 顺手修的既有分叉）：
+      // 那条正则会跳过 `{{` 的转义语义，`格式化("{{}}")` 在宿主上给出 `{空}`、
+      // 在 Python / Rust 上给出 `{}`（后者才对）。改成**手写扫描**，
+      // 与 Rust 的 `format_template` 一步一步对齐。
+      const s = String(tpl);
+      let out = '';
       let auto = 0;
-      return String(tpl).replace(/\{([^{}]*)\}/g, (_m, spec) => {
-        let idxPart = spec;
-        let fmt = '';
-        const colon = spec.indexOf(':');
-        if (colon >= 0) { idxPart = spec.slice(0, colon); fmt = spec.slice(colon + 1); }
-        const arg = idxPart === '' ? rest[auto++] : rest[Number(idxPart)];
-        return fmtOne(arg, fmt);
-      });
+      for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (c === '{') {
+          if (s[i + 1] === '{') { out += '{'; i += 1; continue; }
+          let j = i + 1;
+          while (j < s.length && s[j] !== '}') j += 1;
+          if (j >= s.length) { out += c; continue; }   // 没配对：原样输出
+          const inner = s.slice(i + 1, j);
+          const colon = inner.indexOf(':');
+          const idxPart = colon >= 0 ? inner.slice(0, colon) : inner;
+          const fmt = colon >= 0 ? inner.slice(colon + 1) : '';
+          const arg = idxPart === '' ? rest[auto++] : rest[Number(idxPart)];
+          out += fmtOne(arg, fmt);
+          i = j;
+        } else if (c === '}') {
+          if (s[i + 1] === '}') { out += '}'; i += 1; continue; }
+          out += c;                                     // 单 `}`：原样输出
+        } else {
+          out += c;
+        }
+      }
+      return out;
     }),
     '切成三段': new R.Builtin('切成三段', (s, sep) => {
       const t = String(s); const d = String(sep);

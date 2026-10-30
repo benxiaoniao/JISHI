@@ -411,8 +411,19 @@ class Parser:
                   f"但看到了「{_tok_text(self._peek())}」")
 
     def _expect_name(self, what: str = "名字") -> Token:
-        if self._peek().type == "NAME":
+        t = self._peek()
+        if t.type == "NAME":
             return self._next()
+        if t.type == "KEYWORD":
+            # M152：**关键字当名字**是最典型的「报错没指到点子上」——
+            # 以前只说「这里需要一个变量名」，用户盯着 `令 类 = 1` 看不出
+            # 「类」这个词本身不能用（它长得太像一个普通词了）。
+            # 现在直接点名，并给一条能照做的建议。
+            self._err(ParseMissingNameError,
+                      f"「{t.value}」是关键字，不能当{what}",
+                      tok=t,
+                      hint="换个说法就行（中文同义词很多，比如「类」→「种类」）；"
+                           "全部关键字见 `jishi --ai-card` 的「关键字（全部）」")
         self._err(ParseMissingNameError, f"这里需要一个{what}")
 
     def _expect_attr_name(self) -> Token:

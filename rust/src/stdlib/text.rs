@@ -14,7 +14,7 @@ use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{as_intish, need, need_range, table, R};
-use crate::{display, err, JishiError, Val};
+use crate::{display, err, err_with_hint, JishiError, Val};
 
 /// `str.center` 的偏置公式（CPython 的 `unicode_center_impl`）。
 fn center_left(marg: usize, width: usize) -> usize {
@@ -348,6 +348,63 @@ fn fmt_one(v: &Val, spec: &str) -> String {
         };
     }
     s
+}
+
+/// 数模板要几个**位置参数**（`{}` / `{0}`）；数不清就返回 `None`。
+///
+/// M152：`格式化` 以前对「占位符与参数个数不符」**一声不响** —— 多给直接丢、
+/// 少给填空串（三个宿主还各错各的）。规则与 Python 侧 `_占位符个数`、
+/// Node 侧 `占位符个数` **必须一致**：
+/// - `{{` / `}}` 是**字面花括号**，不算占位符；
+/// - `{}` 计一个、`{N}` 取 `N+1` 的最大值；
+/// - 命名占位符（`{名字}`）与花括号不配对 → `None`（不做个数检查，
+///   那是模板本身写坏了，各宿主本来报法不同）。
+fn 占位符个数(tpl: &str) -> Option<usize> {
+    let chars: Vec<char> = tpl.chars().collect();
+    let mut i = 0usize;
+    let mut n = 0usize;
+    while i < chars.len() {
+        match chars[i] {
+            '{' => {
+                if i + 1 < chars.len() && chars[i + 1] == '{' {
+                    i += 2;
+                    continue;
+                }
+                let mut j = i + 1;
+                while j < chars.len() && chars[j] != '}' {
+                    if chars[j] == '{' {
+                        return None;            // 嵌套/坏模板
+                    }
+                    j += 1;
+                }
+                if j >= chars.len() {
+                    return None;                // 没配对的 `{`
+                }
+                let inner: String = chars[i + 1..j].iter().collect();
+                let field = match inner.find(':') {
+                    Some(k) => &inner[..k],
+                    None => &inner[..],
+                };
+                if field.is_empty() {
+                    n += 1;
+                } else if let Ok(k) = field.trim().parse::<usize>() {
+                    n = n.max(k + 1);
+                } else {
+                    return None;                // 命名占位符
+                }
+                i = j + 1;
+            }
+            '}' => {
+                if i + 1 < chars.len() && chars[i + 1] == '}' {
+                    i += 2;
+                    continue;
+                }
+                return None;                    // 单个 `}`：模板写坏了
+            }
+            _ => i += 1,
+        }
+    }
+    Some(n)
 }
 
 /// Python 的 `str.format` 子集：`{}` 顺序取值、`{0}` 按下标取值，
@@ -739,6 +796,17 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "格式化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("格式化", args, 1, usize::MAX)?;
             let tpl = super::as_text(&args[0]);
+            // M152：占位符与参数个数不符要**报错**（以前多给丢、少给填空串）。
+            if let Some(需要) = 占位符个数(&tpl) {
+                if 需要 != args.len() - 1 {
+                    return Err(err_with_hint(
+                        "值错误",
+                        format!("「格式化」的模板里有 {} 个占位符，但给了 {} 个参数",
+                                需要, args.len() - 1),
+                        "模板里的 {} 与参数要一一对应；想输出真的花括号就写 {{ 或 }}"
+                            .to_string()));
+                }
+            }
             // 布尔与空先转成中文文本，免得 `格式化("{}", 真)` 给出 `True`；
             // 数字保持原样，好让 `{:.1f}` 这类说明符仍然生效（对齐 Python 侧）
             let rest: Vec<Val> = args[1..]

@@ -174,13 +174,52 @@ def 去后缀(文本: str, 后缀: str) -> str:
     return str(文本).removesuffix(str(后缀))
 
 
+def _占位符个数(模板: str):
+    """数一数模板要几个**位置参数**（`{}` 与 `{0}`/`{1}`）；数不清就返回 `None`。
+
+    M152：`格式化` 以前对「占位符与参数个数不符」**一声不响** ——
+    多给直接丢、少给填空串（Python 那边更是抛一句英文的
+    `Replacement index 1 out of range…` 还被归成「索引越界」）。
+    三种宿主三种表现，而用户/模型看到的都是「程序跑通了、结果不对」。
+
+    返回 `None` 的两种情况（都**不**做个数检查，交给原生报错/原样输出）：
+    - 用了**命名**占位符（`{名字}`）：那不是按位置对应的；
+    - 花括号不配对：模板本身写坏了，各宿主报法本来就不一样。
+    """
+    import string as _string
+
+    n = 0
+    try:
+        for _, field, _spec, _conv in _string.Formatter().parse(模板):
+            if field is None:          # 字面段（`{{` / `}}` 都在这里，不算占位符）
+                continue
+            if field == "":            # `{}` 自动编号
+                n += 1
+            elif field.isdigit():      # `{0}` `{1}` 显式编号
+                n = max(n, int(field) + 1)
+            else:                      # `{名字}` / `{0.属性}` —— 不按位置算
+                return None
+    except ValueError:
+        return None
+    return n
+
+
 def 格式化(模板: str, *参数) -> str:
     """把 {} 占位符依次替换成参数：格式化("{}今年{}岁", "小明", 12)。
 
     支持常见的格式说明符（`{:.1f}`、`{:>5}`…）。布尔与空先转成中文文本，
     免得 `格式化("{}", 真)` 给出 `True`（与 `文本()` 的显示不一致）；
     数字保持原样，好让 `{:.1f}` 这类说明符仍然生效。
+
+    ⚠️ 占位符与参数个数**必须一致**（M152）—— 以前多给丢、少给填空串，
+    而三个执行器各错各的（Python 报英文的「索引越界」、Rust 填个空、
+    Node 填个「空」）。现在统一报一条中文错误。
     """
+    个数 = _占位符个数(str(模板))
+    if 个数 is not None and 个数 != len(参数):
+        raise RunValueError(
+            f"「格式化」的模板里有 {个数} 个占位符，但给了 {len(参数)} 个参数",
+            hint="模板里的 {} 与参数要一一对应；想输出真的花括号就写 {{ 或 }}")
     转好的 = [jishi_repr(a, top=True) if (a is None or isinstance(a, bool))
               else a for a in 参数]
     return str(模板).format(*转好的)
