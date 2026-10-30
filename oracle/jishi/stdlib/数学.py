@@ -6,6 +6,7 @@ from __future__ import annotations
 import math as _py_math
 
 from ..errors import RunTypeError, RunValueError
+from ..runtime import 十进制_舍入, 最短十进制
 
 __all__ = [
     "开方", "平方", "幂", "绝对值", "向上取整", "向下取整", "四舍五入",
@@ -52,14 +53,25 @@ def 向下取整(x: float) -> int:
 
 
 def 四舍五入(x: float, 位数: int = 0) -> float:
-    """把 x 四舍五入到指定小数位数。"""
+    """把 x 四舍五入到指定小数位数 —— **半入（远离零），按十进制写法数**（M153）。
+
+    `四舍五入(2.5)` 是 **3**、`四舍五入(-2.5)` 是 **-3**；`四舍五入(1.005, 2)`
+    是 **1.01**、`四舍五入(2.675, 2)` 是 **2.68**。
+
+    ⚠️ 与 Python 的 `round` **不一样**，这是**有意的破坏性变更**：`round(2.5)` 给 2
+    （银行家舍入），`round(1.005, 2)` 给 1.0（1.005 的二进制其实是 1.00499999…）。
+    用户说「四舍五入」时想的就是「五就进一位、按我写的那个十进制数算」，
+    金额场景（D90）也是这个口径。舍入在**十进制字符串**上做、不经浮点 ——
+    否则 `1.005` 这种边界永远说不清。
+    """
     try:
-        result = round(x, int(位数))
-        if 位数 <= 0:
-            return round(result)
-        return result
+        位 = int(位数)
     except (TypeError, ValueError):
-        raise RunTypeError(f"「{x}」不能四舍五入")
+        raise RunTypeError(f"「{位数}」不能当小数位数")
+    if isinstance(x, bool):
+        x = 1 if x else 0
+    文本 = 十进制_舍入(最短十进制(x), 位)
+    return int(文本) if 位 <= 0 else float(文本)
 
 
 # 常量

@@ -350,6 +350,21 @@ fn fmt_one(v: &Val, spec: &str) -> String {
     s
 }
 
+/// 数值 → 十进制文本（`小数位` / `百分比` / `千分位` 只收数值）。
+///
+/// ⚠️ 精确小数（`Val::Dec`）本来就是十进制，直接 `to_string` —— 千万不要转成 f64
+/// 再取最短写法，那会把「金额」这类值弄出浮点尾巴。
+fn 数值文本(v: &Val) -> Result<String, JishiError> {
+    match v {
+        Val::Int(i) => Ok(i.to_string()),
+        Val::Bool(b) => Ok((if *b { 1 } else { 0 }).to_string()),
+        Val::Float(f) => Ok(super::最短十进制(*f)),
+        Val::Dec(d) => Ok(d.to_string()),
+        other => Err(err("类型错误",
+                         format!("「{}」不是数值", display(other)))),
+    }
+}
+
 /// 数模板要几个**位置参数**（`{}` / `{0}`）；数不清就返回 `None`。
 ///
 /// M152：`格式化` 以前对「占位符与参数个数不符」**一声不响** —— 多给直接丢、
@@ -817,6 +832,32 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 })
                 .collect();
             Ok(Val::Str(format_template(&tpl, &rest)))
+        },
+        // M153：三个「数字 → 文本」的日常写法。以前只能写
+        // `格式化("{:.2f}", x)` —— 那个 `:.2f` 是暗号，初学者猜不出（D90）。
+        "小数位" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("小数位", args, 1, 2)?;
+            let 位 = if args.len() > 1 { as_intish(&args[1])? as i32 } else { 2 };
+            if 位 < 0 {
+                return Err(err("值错误", format!(
+                    "「小数位」的位不能是负数（给的是 {位}）")));
+            }
+            Ok(Val::Str(super::十进制_舍入(&数值文本(&args[0])?, 位)))
+        },
+        "百分比" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("百分比", args, 1, 2)?;
+            let 位 = if args.len() > 1 { as_intish(&args[1])? as i32 } else { 0 };
+            if 位 < 0 {
+                return Err(err("值错误", format!(
+                    "「百分比」的位不能是负数（给的是 {位}）")));
+            }
+            // 乘 100 在十进制字符串上做：`0.07 * 100` 在浮点里是 7.000000000000001
+            let 放大 = super::十进制_乘(&数值文本(&args[0])?, 2);
+            Ok(Val::Str(format!("{}%", super::十进制_舍入(&放大, 位))))
+        },
+        "千分位" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("千分位", args, 1)?;
+            Ok(Val::Str(super::十进制_千分位(&数值文本(&args[0])?)))
         },
         "切成三段" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("切成三段", args, 2)?;

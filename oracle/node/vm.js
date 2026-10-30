@@ -5198,6 +5198,135 @@ function 进一文本(s) {
   return `1${s}`;
 }
 
+// ---------------------------------------------------------------------------
+// 十进制字符串上的舍入 / 移位 / 千分位（M153）
+// ---------------------------------------------------------------------------
+//
+// 与 Python `runtime.py`、Rust `stdlib/mod.rs` 的同名函数**逐字对齐**
+// （`tests/test_m153_numbers.py` 盯五个执行器）。
+//
+// 为什么不在浮点上做：用户说「四舍五入」想的是「按我写的那个十进制数，
+// 五就进一位」—— `1.005` 的二进制其实是 1.00499999…，任何 f64 舍入都给 1.00；
+// 而且三个宿主各用一套浮点舍入，`2.675` 这种边界必然各说各话。
+
+/** 数值 → 归一后的十进制文本（`2.0` → `2`）。 */
+function 最短十进制(v) {
+  const u = R.unwrap(v);
+  if (typeof u === 'number') {
+    if (Number.isInteger(u) && Math.abs(u) < 1e21) return String(u);
+    return 去尾零(十进制展开(String(u)));
+  }
+  if (typeof u === 'bigint') return u.toString();
+  return 去尾零(十进制展开(String(u)));      // 精确小数：它自己的十进制写法
+}
+
+/** `2.0` → `2`、`3.500` → `3.5`（只动小数部分）。 */
+function 去尾零(s) {
+  if (!s.includes('.')) return s;
+  const i = s.indexOf('.');
+  const 整 = s.slice(0, i);
+  const 小 = s.slice(i + 1).replace(/0+$/, '');
+  return 小 ? `${整}.${小}` : 整;
+}
+
+/** 科学计数法展开成纯小数写法：`1e-7` → `0.0000001`。 */
+function 十进制展开(s) {
+  const t = String(s).trim();
+  if (!/[eE]/.test(t)) return t;
+  const 负 = t.startsWith('-');
+  const 体 = t.replace(/^[-+]/, '').toLowerCase();
+  const [底, 指文] = 体.split('e');
+  const 指 = parseInt(指文 || '0', 10);
+  const [整, 小 = ''] = 底.split('.');
+  const 数字 = 整 + 小;
+  const 点位置 = 整.length + 指;
+  let 结果;
+  if (点位置 <= 0) 结果 = '0.' + '0'.repeat(-点位置) + 数字;
+  else if (点位置 >= 数字.length) 结果 = 数字 + '0'.repeat(点位置 - 数字.length);
+  else 结果 = 数字.slice(0, 点位置) + '.' + 数字.slice(点位置);
+  return (负 ? '-' : '') + 结果;
+}
+
+/** `'-1.005'` → `{负:true, 数字:'1005', 位:3}`（值 = ±1005 × 10⁻³）。 */
+function 十进制解析(s) {
+  const 负 = s.startsWith('-');
+  const 体 = s.replace(/^[-+]/, '');
+  const i = 体.indexOf('.');
+  const 整 = i < 0 ? 体 : 体.slice(0, i);
+  const 小 = i < 0 ? '' : 体.slice(i + 1);
+  const 数字 = (整 + 小).replace(/^0+/, '') || '0';
+  return { 负, 数字, 位: 小.length };
+}
+
+/** 「有效数字 + 小数位数」拼回文本（`'1005', 3` → `1.005`）。 */
+function 十进制拼(数字, 小数位) {
+  if (小数位 <= 0) return (数字 + '0'.repeat(-小数位)) || '0';
+  if (数字.length <= 小数位) return '0.' + '0'.repeat(小数位 - 数字.length) + 数字;
+  const k = 数字.length - 小数位;
+  return 数字.slice(0, k) + '.' + 数字.slice(k);
+}
+
+/** 有效数字串 +1（`999` → `1000`）。 */
+function 十进制进一(数字) {
+  const 位们 = 数字.split('');
+  for (let i = 位们.length - 1; i >= 0; i--) {
+    if (位们[i] === '9') { 位们[i] = '0'; continue; }
+    位们[i] = String.fromCharCode(位们[i].charCodeAt(0) + 1);
+    return 位们.join('');
+  }
+  return '1' + 位们.join('');
+}
+
+/** 按**半入（远离零）**舍到 `小数位` 位；负数位＝往整数高位舍。 */
+function 十进制舍入(s, 小数位) {
+  const 解 = 十进制解析(十进制展开(s));
+  let 数字 = 解.数字;
+  let 位 = 解.位;
+  if (位 < 小数位) {
+    数字 += '0'.repeat(小数位 - 位);
+    位 = 小数位;
+  } else if (位 > 小数位) {
+    const 丢 = 位 - 小数位;
+    let 看;
+    if (丢 >= 数字.length) {
+      看 = 数字.padStart(丢, '0')[0];
+      数字 = '0';
+    } else {
+      看 = 数字[数字.length - 丢];
+      数字 = 数字.slice(0, 数字.length - 丢);
+    }
+    if (看 >= '5') 数字 = 十进制进一(数字);
+  }
+  const 文本 = 十进制拼(数字, 小数位);
+  if (/^[0.]+$/.test(文本)) return 文本;          // 全零不挂负号（-0.4 舍成 0）
+  return (解.负 ? '-' : '') + 文本;
+}
+
+/** 十进制字符串 × 10^k（`百分比` 用；不经过浮点）。 */
+function 十进制乘(s, k) {
+  const 解 = 十进制解析(s);
+  const 体 = 十进制拼(解.数字, 解.位 - k);
+  return (解.负 ? '-' : '') + 体;
+}
+
+/** 整数部分每三位插一个逗号：`1234567.891` → `1,234,567.891`。 */
+function 十进制千分位(s) {
+  const t = 十进制展开(s);
+  const 负 = t.startsWith('-');
+  const 体 = t.replace(/^[-+]/, '');
+  const i = 体.indexOf('.');
+  const 整 = i < 0 ? 体 : 体.slice(0, i);
+  const 小 = i < 0 ? null : 体.slice(i + 1);
+  const 组 = [];
+  let 余 = 整;
+  while (余.length > 3) {
+    组.unshift(余.slice(余.length - 3));
+    余 = 余.slice(0, 余.length - 3);
+  }
+  组.unshift(余 || '0');
+  return (负 ? '-' : '') + 组.join(',') + (小 === null ? '' : '.' + 小);
+}
+
 /** `文本.对齐表`（M142）：一列值 → 一行；列表的列表 → 一张对齐的表。 */
 function 对齐表文本(行们, 小数位) {
   if (typeof 行们 === 'string' || R.isBytes(行们)) {
@@ -5592,14 +5721,16 @@ const STDLIB = {  '数学': new R.Module('数学', {
     '向上取整': new R.Builtin('向上取整', (x) => Math.ceil(x)),
     '向下取整': new R.Builtin('向下取整', (x) => Math.floor(x)),
     '四舍五入': new R.Builtin('四舍五入', (x, d = 0) => {
-      // ⚠️ **银行家舍入**（半值向偶数），与 Python 的 `round` 一致 —— R6.4 修。
-      // 原来是 `Math.round(x * f) / f`（**半值向上**），于是
-      // `四舍五入(2.5)` 在 Node 给 `3`、其它四个执行器给 `2`。
-      // 📌 二进制浮点下「先加 0.5 再取整」会**系统性偏大**，所以要走专门的
-      // `roundHalfEven`（f-string 那边一直用的就是它）。
+      // M153：**半入（远离零）、按十进制写法数**，与 Python / Rust 同一套：
+      // `四舍五入(2.5)` = 3、`四舍五入(-2.5)` = -3、`四舍五入(1.005, 2)` = 1.01。
+      // ⚠️ 与 Python 的 `round`（银行家舍入）**不同**，这是有意的破坏性变更 ——
+      // 用户说「四舍五入」时想的就是「五就进一位」，金额场景也是这个口径（D90）。
       const n = Number(R.unwrap(d)) | 0;
-      const r = roundHalfEven(Number(R.unwrap(x)), n);
-      return n <= 0 ? Math.trunc(r) : r;
+      const 文本 = 十进制舍入(最短十进制(R.unwrap(x)), n);
+      // 位数 > 0 要返回**小数**：`10.0` 与 `10` 在打印上不一样（前者是小数）。
+      // JS 只有一种 number，所以用 `FloatBox` 标出「这是小数」——
+      // 与 Python 的 `float` / Rust 的 `Val::Float` 对齐。
+      return n <= 0 ? Math.trunc(Number(文本)) : new R.FloatBox(Number(文本));
     }),
     '圆周率': Math.PI,
     '自然常数': Math.E,
@@ -5760,6 +5891,19 @@ const STDLIB = {  '数学': new R.Module('数学', {
       }
       return out;
     }),
+    // M153：数字 → 文本的三个日常写法（不用记 `:.2f` 这种暗号）
+    '小数位': new R.Builtin('小数位', (v, 位 = 2) => {
+      const n = Number(R.unwrap(位)) | 0;
+      if (n < 0) throw R.valueErr(`「小数位」的位不能是负数（给的是 ${n}）`);
+      return 十进制舍入(最短十进制(v), n);
+    }),
+    '百分比': new R.Builtin('百分比', (v, 位 = 0) => {
+      const n = Number(R.unwrap(位)) | 0;
+      if (n < 0) throw R.valueErr(`「百分比」的位不能是负数（给的是 ${n}）`);
+      // 乘 100 在十进制字符串上做：`0.07 * 100` 在浮点里是 7.000000000000001
+      return 十进制舍入(十进制乘(最短十进制(v), 2), n) + '%';
+    }),
+    '千分位': new R.Builtin('千分位', (v) => 十进制千分位(最短十进制(v))),
     '切成三段': new R.Builtin('切成三段', (s, sep) => {
       const t = String(s); const d = String(sep);
       const at = d === '' ? -1 : t.indexOf(d);

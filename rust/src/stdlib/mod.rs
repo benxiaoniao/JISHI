@@ -370,3 +370,181 @@ pub(crate) fn set_args(args: Vec<String>) {
 pub(crate) fn script_args() -> Vec<String> {
     args_slot().lock().map(|s| s.clone()).unwrap_or_default()
 }
+
+// ---------------------------------------------------------------------------
+// 十进制字符串上的舍入 / 移位 / 千分位（M153）
+// ---------------------------------------------------------------------------
+//
+// 为什么要**在字符串上**做，而不是直接用 f64 运算：
+//
+// 1. 用户说「四舍五入」想的是「按我写的那个十进制数，五就进一位」——
+//    `1.005` 的二进制其实是 1.00499999…，任何 f64 舍入都会给 1.00；
+// 2. 更麻烦的是**跨宿主**：Python / Rust / Node 三边只要有一处用了不同的
+//    十进制实现，`1.005`、`2.675` 这种边界就会各说各话。
+//
+// ⇒ 统一规则：取「最短往返」写法（Rust `{:?}`、Python `repr`、JS `String`，
+//   三者数值等价、经归一后逐字相同），再按位取舍，**半入（远离零）**。
+//   这三份实现（Python `runtime.py` / 这里 / Node `vm.js`）必须逐字对齐。
+
+/// 数值 → 归一后的十进制文本（去掉尾零：`2.0` → `2`）。
+pub(crate) fn 最短十进制(x: f64) -> String {
+    let s = format!("{:?}", x);          // Debug 给**最短往返**（Display 会给长串）
+    去尾零(&十进制_展开(&s))
+}
+
+/// `2.0` → `2`、`3.500` → `3.5`（只动小数部分）。
+fn 去尾零(s: &str) -> String {
+    if !s.contains('.') {
+        return s.to_string();
+    }
+    let (整, 小) = s.split_once('.').unwrap();
+    let 小 = 小.trim_end_matches('0');
+    if 小.is_empty() { 整.to_string() } else { format!("{整}.{小}") }
+}
+
+/// 把科学计数法展开成纯小数写法：`1e-7` → `0.0000001`。
+pub(crate) fn 十进制_展开(s: &str) -> String {
+    let t = s.trim();
+    if !t.contains('e') && !t.contains('E') {
+        return t.to_string();
+    }
+    let 负 = t.starts_with('-');
+    let 体 = t.trim_start_matches(['-', '+']);
+    let lower = 体.to_ascii_lowercase();
+    let (底, 指文) = lower.split_once('e').unwrap_or((&lower, "0"));
+    let 指: i32 = 指文.parse().unwrap_or(0);
+    let (整, 小) = match 底.split_once('.') {
+        Some((a, b)) => (a.to_string(), b.to_string()),
+        None => (底.to_string(), String::new()),
+    };
+    let 数字 = format!("{整}{小}");
+    let 点位置 = 整.chars().count() as i32 + 指;
+    let chars: Vec<char> = 数字.chars().collect();
+    let mut 结果 = String::new();
+    if 点位置 <= 0 {
+        结果.push_str("0.");
+        for _ in 0..(-点位置) { 结果.push('0'); }
+        结果.push_str(&数字);
+    } else if 点位置 as usize >= chars.len() {
+        结果.push_str(&数字);
+        for _ in 0..(点位置 as usize - chars.len()) { 结果.push('0'); }
+    } else {
+        let k = 点位置 as usize;
+        结果.push_str(&chars[..k].iter().collect::<String>());
+        结果.push('.');
+        结果.push_str(&chars[k..].iter().collect::<String>());
+    }
+    if 负 { format!("-{结果}") } else { 结果 }
+}
+
+/// `"-1.005"` → `(true, "1005", 3)`（值 = ±1005 × 10⁻³）。
+fn 十进制_解析(s: &str) -> (bool, String, i32) {
+    let 负 = s.starts_with('-');
+    let 体 = s.trim_start_matches(['-', '+']);
+    let (整, 小) = match 体.split_once('.') {
+        Some((a, b)) => (a, b),
+        None => (体, ""),
+    };
+    let 原 = format!("{整}{小}");
+    let 数字 = 原.trim_start_matches('0');
+    let 数字 = if 数字.is_empty() { "0" } else { 数字 };
+    (负, 数字.to_string(), 小.chars().count() as i32)
+}
+
+/// 「有效数字 + 小数位数」拼回文本（`"1005", 3` → `1.005`）。
+fn 十进制_拼(数字: &str, 小数位: i32) -> String {
+    if 小数位 <= 0 {
+        let mut r = 数字.to_string();
+        for _ in 0..(-小数位) { r.push('0'); }
+        return if r.is_empty() { "0".to_string() } else { r };
+    }
+    let n = 小数位 as usize;
+    let chars: Vec<char> = 数字.chars().collect();
+    if chars.len() <= n {
+        let mut r = String::from("0.");
+        for _ in 0..(n - chars.len()) { r.push('0'); }
+        r.push_str(数字);
+        r
+    } else {
+        let k = chars.len() - n;
+        format!("{}.{}", chars[..k].iter().collect::<String>(),
+                chars[k..].iter().collect::<String>())
+    }
+}
+
+/// 有效数字串 +1（`999` → `1000`）。
+fn 十进制_进一(数字: &str) -> String {
+    let mut 位们: Vec<char> = 数字.chars().collect();
+    let mut i = 位们.len();
+    while i > 0 {
+        i -= 1;
+        if 位们[i] == '9' { 位们[i] = '0'; continue; }
+        位们[i] = char::from_u32(位们[i] as u32 + 1).unwrap_or('0');
+        return 位们.iter().collect();
+    }
+    format!("1{}", 位们.iter().collect::<String>())
+}
+
+/// 按**半入（远离零）**舍到 `小数位` 位；负数位＝往整数高位舍。
+pub(crate) fn 十进制_舍入(s: &str, 小数位: i32) -> String {
+    let (负, mut 数字, mut 位) = 十进制_解析(&十进制_展开(s));
+    if 位 < 小数位 {
+        for _ in 0..(小数位 - 位) { 数字.push('0'); }
+        位 = 小数位;
+    } else if 位 > 小数位 {
+        let 丢 = (位 - 小数位) as usize;
+        let chars: Vec<char> = 数字.chars().collect();
+        let 看 = if 丢 >= chars.len() {
+            let mut 补 = vec!['0'; 丢 - chars.len()];
+            补.extend_from_slice(&chars);
+            补[0]
+        } else {
+            chars[chars.len() - 丢]
+        };
+        数字 = if 丢 >= chars.len() {
+            "0".to_string()
+        } else {
+            chars[..chars.len() - 丢].iter().collect()
+        };
+        if 看 >= '5' {
+            数字 = 十进制_进一(&数字);
+            位 = 小数位;
+        }
+        let _ = 位;
+    }
+    let 文本 = 十进制_拼(&数字, 小数位);
+    if 文本.chars().all(|c| c == '0' || c == '.') {
+        return 文本;
+    }
+    if 负 { format!("-{文本}") } else { 文本 }
+}
+
+/// 十进制字符串 × 10^k（`百分比` 用；不经过浮点）。
+pub(crate) fn 十进制_乘(s: &str, k: i32) -> String {
+    let (负, 数字, 位) = 十进制_解析(s);
+    let 体 = 十进制_拼(&数字, 位 - k);
+    if 负 { format!("-{体}") } else { 体 }
+}
+
+/// 整数部分每三位插一个逗号：`1234567.891` → `1,234,567.891`。
+pub(crate) fn 十进制_千分位(s: &str) -> String {
+    let t = 十进制_展开(s);
+    let 负 = t.starts_with('-');
+    let 体 = t.trim_start_matches(['-', '+']).to_string();
+    let (整, 小) = match 体.split_once('.') {
+        Some((a, b)) => (a.to_string(), Some(b.to_string())),
+        None => (体.clone(), None),
+    };
+    let chars: Vec<char> = 整.chars().collect();
+    let mut 组: Vec<String> = Vec::new();
+    let mut i = chars.len();
+    while i > 3 {
+        i -= 3;
+        组.insert(0, chars[i..i + 3].iter().collect());
+    }
+    let 头: String = chars[..i].iter().collect();
+    组.insert(0, if 头.is_empty() { "0".to_string() } else { 头 });
+    let mut 结果 = 组.join(",");
+    if let Some(小) = 小 { 结果.push('.'); 结果.push_str(&小); }
+    if 负 { format!("-{结果}") } else { 结果 }
+}

@@ -164,24 +164,25 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "四舍五入" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("四舍五入", args, 1, 2)?;
             let n = if args.len() > 1 { as_intish(&args[1])? as i32 } else { 0 };
-            match &args[0] {
-                // Python 的 `round(整数, 位数)` 返回整数
-                Val::Int(i) => Ok(Val::Int(round_int_half_even(*i, n))),
-                Val::Bool(b) => {
-                    let i = if *b { 1i128 } else { 0 };
-                    Ok(Val::Int(round_int_half_even(i, n)))
-                }
+            // M153：一律走**十进制字符串**，不再用 f64 的 half-even。
+            // 用户说「四舍五入」想的就是「五就进一位、按我写的那个十进制数算」：
+            // `四舍五入(2.5)` = 3（以前给 2）、`四舍五入(1.005, 2)` = 1.01
+            // （1.005 的二进制其实是 1.00499999…，任何 f64 舍入都给 1.0）。
+            let 源 = match &args[0] {
+                Val::Int(i) => i.to_string(),
+                Val::Bool(b) => (if *b { 1 } else { 0 }).to_string(),
                 v => {
                     let x = as_num(v).map_err(|_| {
                         err("类型错误", format!("「{}」不能四舍五入", display(v)))
                     })?;
-                    if n <= 0 {
-                        // 位数 ≤ 0 时 Python 再套一层 `round(...)`，得到整数
-                        Ok(Val::Int(round_half_even(x, n) as i128))
-                    } else {
-                        Ok(Val::Float(round_half_even(x, n)))
-                    }
+                    super::最短十进制(x)
                 }
+            };
+            let 文本 = super::十进制_舍入(&源, n);
+            if n <= 0 {
+                Ok(Val::Int(文本.parse::<i128>().unwrap_or(0)))
+            } else {
+                Ok(Val::Float(文本.parse::<f64>().unwrap_or(0.0)))
             }
         },
         "正弦" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
