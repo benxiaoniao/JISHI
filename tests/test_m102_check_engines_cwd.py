@@ -29,13 +29,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 #: 教程语料会往 cwd 写的文件名（AGENTS.md §1 点的就是这三个 + M156 的库文件）
-ARTIFACTS = ("账本.csv", "成绩.csv", "x.txt", "账目.db")
+ARTIFACTS = ("账本.csv", "成绩.csv", "x.txt", "账目.db", "成绩单.xlsx")
 
 #: 语料集里**确实会写文件**的教程（判据非空的锚）
 WRITERS = (
     "examples/tutorial/09_成绩表分析.jsh",
     "examples/tutorial/10_记账程序.jsh",
     "examples/tutorial/11_记账数据库.jsh",
+    "examples/tutorial/12_成绩单Excel.jsh",
 )
 
 

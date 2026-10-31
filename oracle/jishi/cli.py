@@ -1210,7 +1210,7 @@ def _cmd_new_project(args) -> int:
 
 def _cmd_tutorial(args) -> int:
     """`jishi 教程`：打印本地教程索引（M16.5）。"""
-    print("== 基石教程（11 章）==")
+    print("== 基石教程（12 章）==")
     chapters = [
         ("01", "你好基石", "运行基石、打印、变量、注释"),
         ("02", "数与文本", "运算、字符串方法、输入、列表"),
@@ -1223,6 +1223,7 @@ def _cmd_tutorial(args) -> int:
         ("09", "沙箱与 MCP", "沙箱三道保险/统一协议/MCP Server"),
         ("10", "包管理", "安装/卸载/列表/依赖解析"),
         ("11", "数据库", "SQLite：建表/插入/查询/汇总，钱存整数分"),
+        ("12", "Excel", "导出成绩单、读别人的表做汇总"),
     ]
     for num, title, desc in chapters:
         print(f"  第{num}章 {title}：{desc}")

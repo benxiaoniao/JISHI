@@ -57,7 +57,7 @@
     "python": "3.13.14"
   },
   "类别计数": {
-    "examples": 39,
+    "examples": 40,
     "frontend": 1,
     "lang": 126,
     "stdlib": 4
@@ -251,6 +251,13 @@
       "内容哈希": "sha256:ad02c4a9b1fba9e7",
       "类别": "examples",
       "路径": "examples/tutorial/11_记账数据库.jsh"
+    },
+    {
+      "id": "examples__tutorial__12_成绩单Excel",
+      "产物哈希": "sha256:a0da8dc93cf7261f",
+      "内容哈希": "sha256:42616d66cabb97ce",
+      "类别": "examples",
+      "路径": "examples/tutorial/12_成绩单Excel.jsh"
     },
     {
       "id": "examples__科学计算__01_两点距离",
@@ -1254,5 +1261,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 170
+  "语料数": 171
 }

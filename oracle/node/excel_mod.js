@@ -182,6 +182,13 @@ module.exports = function (工具) {
   function _xl数字文本(v) {
     if (typeof v === 'boolean') return v ? '1' : '0';
     if (typeof v === 'bigint') return v.toString();
+    // ⚠️ M157：**小数要先拆盒子**。`FloatBox`（小数）与 `JishiDecimal`（精确小数）
+    //    都是对象，`typeof v === 'object'` —— 以前一路落到 `String(v)`，
+    //    于是 xlsx 里写进的是 `[object Object]`：打开 Excel 一看全是不认识的英文，
+    //    而且读回来是**文本**，再拿去 `汇总` 就报「不是数字的值」。
+    //    （写第 12 章教程、拿 1.5 做往返测试时撞出来的。）
+    if (R.isFloatBox(v)) return String(v.value);
+    if (R.isDecimal(v)) return v.toString();
     if (typeof v === 'number') {
       // 整数不带小数点；浮点用 JS 的最短往返表示（与 Python repr 同口径）
       return Number.isInteger(v) ? String(v) : String(v);

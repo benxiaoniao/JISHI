@@ -92,6 +92,18 @@ def test_tutorial_expense_tracker(tmp_path, monkeypatch):
     assert "演示完成（账本已清理）" in out
 
 
+def test_tutorial_excel(tmp_path, monkeypatch):
+    """第 12 章：成绩单导出/读回（M157）。同样只做「真能跑 + 自己清理」。"""
+    monkeypatch.chdir(tmp_path)
+    out = run_file_stdout("12_成绩单Excel.jsh")
+    assert "工作簿里有： ['成绩']" in out
+    assert "语文 平均 85.0 分（最高 92，最低 78）" in out
+    assert "列「英语」里有不是数字的值「空」" in out
+    assert "Excel 里的 45000 指的是： 2023-03-15" in out
+    assert "演示完成（成绩单.xlsx 已清理）" in out
+    assert not (tmp_path / "成绩单.xlsx").exists(), "示例没把 xlsx 删掉"
+
+
 def test_tutorial_expense_db(tmp_path, monkeypatch):
     """第 11 章：账目存 SQLite（M156）。五引擎逐字一致在 `test_m156` 里盯，
     这里只做「教程示例真能跑、并且自己清理」这一条最低保证。"""

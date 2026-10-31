@@ -1342,7 +1342,9 @@ function writeCsvFile(path, rows) {
 /** 数值感知排序键：能转数字按数字排，否则按文本排（同 Python 侧 `_sort_key`）。 */
 function tableSortKey(row, i) {
   const v = row[i];
-  const s = (v === null || v === undefined) ? '' : String(v);
+  // ⚠️ 空 / 布尔要用**基石的显示**（`空` / `真`）而不是 `''` / `'true'`（M157）：
+  //    非数字那一支是按字符串比大小的，写法不同 ⇒ 同一列排出来的顺序就不同。
+  const s = (v === null || v === undefined) ? '空' : String(v);
   if (s.trim() !== '') {
     const n = Number(s);
     if (!Number.isNaN(n)) return [0, n];
@@ -1462,8 +1464,11 @@ const TABLE_FUNCS = {
     const vals = [];
     for (const row of tab.rows) {
       const n = Number(row[i]);
-      if (row[i] === '' || row[i] === undefined || Number.isNaN(n)) {
-        throw R.typeErr(`列「${列名}」里有不是数字的值「${row[i]}」，没法汇总`);
+      // ⚠️ M157：`null`（空单元格）**必须挡**。`Number(null)` 是 0，
+      //    以前的判断只看 `'' / undefined / NaN`，于是「缺考」被当成 0 分
+      //    静默算进平均 —— 而另外四个执行器都报错。**静默的错答案**最坏。
+      if (row[i] === null || row[i] === '' || row[i] === undefined || Number.isNaN(n)) {
+        throw R.typeErr(`列「${列名}」里有不是数字的值「${R.display(row[i])}」，没法汇总`);
       }
       vals.push(n);
     }
@@ -1488,8 +1493,9 @@ const TABLE_FUNCS = {
     for (const row of tab.rows) {
       const cell = row[iv];
       const n = Number(cell);
-      if (cell === '' || cell === undefined || Number.isNaN(n)) {
-        throw R.typeErr(`列「${值列}」里有不是数字的值「${cell}」，没法汇总`);
+      // ⚠️ M157：`null` 同 `汇总` —— 缺考的格子不能被当成 0 分。
+      if (cell === null || cell === '' || cell === undefined || Number.isNaN(n)) {
+        throw R.typeErr(`列「${值列}」里有不是数字的值「${R.display(cell)}」，没法汇总`);
       }
       const k = R.setKey(row[ig]);
       if (!buckets.has(k)) buckets.set(k, { k: row[ig], vals: [] });

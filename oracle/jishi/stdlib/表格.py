@@ -153,12 +153,17 @@ def 筛选(t: _Table, 列名, 值) -> _Table:
 
 
 def _sort_key(row, i):
-    """数值感知排序键：能转数字按数字排，否则按文本排。"""
+    """数值感知排序键：能转数字按数字排，否则按**基石的显示**排。
+
+    ⚠️ 非数字那一支以前用 `str(v)`（M157 修）：`空` 会变成 Python 的 `None`、
+    `真` 会变成 `True`，而 Rust 宿主用的是 `空` / `真` —— 于是「同一张表、
+    同一列含空值」升序/降序给出的顺序在三宿主上不一样（写第 12 章教程时撞到的）。
+    """
     v = row[i]
     try:
         return (0, float(v))
     except (TypeError, ValueError):
-        return (1, str(v))
+        return (1, jishi_repr(v, top=True))
 
 
 def 排序按(t: _Table, 列名, 倒序: bool = False) -> _Table:
@@ -176,8 +181,12 @@ def 汇总(t: _Table, 列名) -> dict:
         try:
             values.append(float(row[i]))
         except (TypeError, ValueError):
+            # M157：文案要用**基石的显示**（`空` 而不是 Python 的 `None`）——
+            # 以前这里直接 f-string 化，`空` 单元格读出来是 `None`，
+            # 而 Rust 宿主印的是「空」（写教程时撞到的三引擎三说法之一）。
             raise RunTypeError(
-                f"列「{列名}」里有不是数字的值「{row[i]}」，没法汇总")
+                f"列「{列名}」里有不是数字的值"
+                f"「{jishi_repr(row[i], top=True)}」，没法汇总")
     if not values:
         raise RunTypeError(f"表格没有数据行，没法汇总「{列名}」")
     return {
@@ -216,7 +225,8 @@ def 分组汇总(t: _Table, 分组列, 值列) -> dict:
                 数值.append(float(v))
             except (TypeError, ValueError):
                 raise RunTypeError(
-                    f"列「{值列}」里有不是数字的值「{v}」，没法汇总")
+                    f"列「{值列}」里有不是数字的值"
+                    f"「{jishi_repr(v, top=True)}」，没法汇总")
         出[组] = {
             "个数": len(数值),
             "总和": sum(数值),

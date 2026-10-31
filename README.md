@@ -528,8 +528,8 @@ Pyodide（浏览器里的 Python）换成同一份引擎的 **wasm** 版。
     打印(json.dumps({"姓名"： "小明"}, ensure_ascii=假))   # {"姓名": "小明"}
     ```
     基石函数同样支持：`介绍(姓名 = "小红", 年龄 = 8)`
-- **教程**：`docs/tutorial/` **全 11 章**已完成（从你好世界到记账程序综合实战，
-  再到语法糖/沙箱 MCP/包管理/数据库），配套示例在 `examples/tutorial/`，示例全可运行
+- **教程**：`docs/tutorial/` **全 12 章**已完成（从你好世界到记账程序综合实战，
+  再到语法糖/沙箱 MCP/包管理/数据库/Excel），配套示例在 `examples/tutorial/`，示例全可运行
 
 ## 教程目录
 
@@ -546,6 +546,7 @@ Pyodide（浏览器里的 Python）换成同一份引擎的 **wasm** 版。
 | [09 沙箱与 MCP](docs/tutorial/09_沙箱与MCP.md) | 沙箱三道保险/统一协议/MCP Server |
 | [10 包管理](docs/tutorial/10_包管理.md) | 安装/卸载/列表/依赖解析 |
 | [11 数据库](docs/tutorial/11_数据库.md) | SQLite：建表/插入/查询/汇总，钱存整数分 |
+| [12 Excel](docs/tutorial/12_Excel.md) | 导出成绩单、读别人的表做汇总（`.xlsx` 的五个坑） |
 
 ## 项目结构
 
@@ -623,7 +624,7 @@ examples/        示例与真实程序：tutorial/（10 课配套示例）、pro
                  ai/（few-shot 库）、embed/（C 嵌入示例）、packages/（包管理示例；`图片格式转换/` 是**第一个真第三方包** —— 纯基石的格式转换）
 docs/            语言规格.md（语法/语义/标准库 API）、设计决策.md（D1 起的取舍记录）、
                  调试器.md、工具链.md（LSP/REPL/格式化）、真实项目.md、embed.md（嵌入其它宿主）、
-                 ai/（系统提示词 / 提示词指南）、tutorial/（教程 11 章）、
+                 ai/（系统提示词 / 提示词指南）、tutorial/（教程 12 章）、
                  版本历史/（**归档区：只作历史，不是设计参考**）
 assets/          品牌资产（基石_logo.png，源图 基石_logo.jpeg）
 tools/           自测.jsh **用基石自己写的**黑盒运行器（M135；CI 上跑两遍，豁免表 自测豁免.txt）/

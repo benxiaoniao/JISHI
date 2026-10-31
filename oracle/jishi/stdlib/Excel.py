@@ -46,6 +46,7 @@ import re as _re
 import zipfile as _zip
 
 from ..errors import RunError, RunTypeError, RunValueError
+from ..runtime import JishiDecimal
 
 __all__ = ["读工作簿", "读工作表", "写工作簿", "写多表"]
 
@@ -105,7 +106,10 @@ def _单元格XML(列: int, 行号: int, 值) -> str:
         return ""
     if isinstance(值, bool):
         return f'<c r="{引用}" t="b"><v>{_数字文本(值)}</v></c>'
-    if isinstance(值, (int, float)):
+    # M157：**精确小数按数字写**（不是文本）。xlsx 没有十进制类型，写 `1.50`
+    # 就是数字 1.5 —— 但它是**能算的**；写成文本的话，用户在 Excel 里一求和就发现
+    # 这一列不算数。宿主（Rust / Node）一直是数字，这里补齐。
+    if isinstance(值, (int, float, JishiDecimal)):
         return f'<c r="{引用}"><v>{_数字文本(值)}</v></c>'
     return (f'<c r="{引用}" t="inlineStr"><is><t>{_逃(str(值))}</t></is></c>')
 
