@@ -1,0 +1,337 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 1,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "d",
+          "line": 1,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 7,
+          "keys": [
+            {
+              "col": 8,
+              "line": 1,
+              "value": "a",
+              "类型": "Str"
+            }
+          ],
+          "line": 1,
+          "values": [
+            {
+              "col": 12,
+              "line": 1,
+              "value": 1,
+              "类型": "Num"
+            }
+          ],
+          "类型": "Dict"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 6,
+              "line": 2,
+              "value": "b",
+              "类型": "Str"
+            }
+          ],
+          "col": 5,
+          "func": {
+            "attr": "弹出",
+            "col": 2,
+            "line": 2,
+            "obj": {
+              "col": 1,
+              "id": "d",
+              "line": 2,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 2,
+          "类型": "Call"
+        },
+        "line": 2,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "aff92d95144f95b8769672a7274057f82611929f6a28d05829712185ea459a46",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            8,
+            1,
+            1,
+            0,
+            0,
+            1,
+            12,
+            24,
+            1,
+            0,
+            0,
+            1,
+            7,
+            3,
+            0,
+            0,
+            0,
+            1,
+            1,
+            2,
+            0,
+            0,
+            0,
+            2,
+            1,
+            25,
+            1,
+            0,
+            0,
+            2,
+            2,
+            1,
+            2,
+            0,
+            0,
+            2,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            2,
+            5,
+            38,
+            0,
+            0,
+            0,
+            2,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "a"
+        },
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "str",
+          "v": "b"
+        }
+      ],
+      "filename": "tests/error_cases/18_字典弹出缺失键.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "d",
+        "弹出"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 d = {\"a\"：1}",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "令 d = {\"a\"：1}",
+      "type": "NAME",
+      "value": "d",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "令 d = {\"a\"：1}",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 1,
+      "source_line": "令 d = {\"a\"：1}",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "令 d = {\"a\"：1}",
+      "type": "STRING",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 1,
+      "source_line": "令 d = {\"a\"：1}",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 1,
+      "source_line": "令 d = {\"a\"：1}",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 1,
+      "source_line": "令 d = {\"a\"：1}",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 d = {\"a\"：1}",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "d.弹出(\"b\")",
+      "type": "NAME",
+      "value": "d",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 2,
+      "source_line": "d.弹出(\"b\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 2,
+      "source_line": "d.弹出(\"b\")",
+      "type": "NAME",
+      "value": "弹出",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "d.弹出(\"b\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 8,
+      "line": 2,
+      "source_line": "d.弹出(\"b\")",
+      "type": "STRING",
+      "value": "b",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 2,
+      "source_line": "d.弹出(\"b\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "d.弹出(\"b\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:bfcfa23775e1bd65",
+  "语料": "tests/error_cases/18_字典弹出缺失键.jsh"
+}

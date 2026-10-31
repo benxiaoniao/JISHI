@@ -1,0 +1,2241 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 6,
+        "name": "文件",
+        "类型": "Import"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 9,
+            "value": {
+              "args": [
+                {
+                  "col": 15,
+                  "id": "路径",
+                  "line": 9,
+                  "类型": "Name"
+                }
+              ],
+              "col": 14,
+              "func": {
+                "attr": "读文本",
+                "col": 10,
+                "line": 9,
+                "obj": {
+                  "col": 8,
+                  "id": "文件",
+                  "line": 9,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 9,
+              "类型": "Call"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 8,
+        "name": "读文本",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "路径"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "body": [
+              {
+                "col": 9,
+                "line": 13,
+                "value": {
+                  "args": [
+                    {
+                      "col": 15,
+                      "id": "内容",
+                      "line": 13,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "col": 12,
+                    "id": "整数",
+                    "line": 13,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 13,
+                  "类型": "Call"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "finalbody": null,
+            "handlers": [
+              {
+                "body": [
+                  {
+                    "col": 9,
+                    "line": 15,
+                    "value": {
+                      "args": [
+                        {
+                          "col": 16,
+                          "line": 15,
+                          "value": "内容不是数字",
+                          "类型": "Str"
+                        }
+                      ],
+                      "col": 15,
+                      "func": {
+                        "col": 12,
+                        "id": "值错误",
+                        "line": 15,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 15,
+                      "类型": "Call"
+                    },
+                    "类型": "Raise"
+                  }
+                ],
+                "col": 5,
+                "line": 14,
+                "name": "e",
+                "type": {
+                  "col": 8,
+                  "id": "值错误",
+                  "line": 14,
+                  "类型": "Name"
+                },
+                "类型": "ExceptHandler"
+              }
+            ],
+            "line": 12,
+            "类型": "Try"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 11,
+        "name": "解析",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "内容"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "body": [
+              {
+                "col": 9,
+                "line": 19,
+                "value": {
+                  "args": [
+                    {
+                      "args": [
+                        {
+                          "col": 19,
+                          "id": "路径",
+                          "line": 19,
+                          "类型": "Name"
+                        }
+                      ],
+                      "col": 18,
+                      "func": {
+                        "col": 15,
+                        "id": "读文本",
+                        "line": 19,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 19,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 14,
+                  "func": {
+                    "col": 12,
+                    "id": "解析",
+                    "line": 19,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 19,
+                  "类型": "Call"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "finalbody": null,
+            "handlers": [
+              {
+                "body": [
+                  {
+                    "col": 9,
+                    "line": 21,
+                    "value": {
+                      "args": [
+                        {
+                          "col": 24,
+                          "left": {
+                            "col": 16,
+                            "line": 21,
+                            "value": "加载失败：",
+                            "类型": "Str"
+                          },
+                          "line": 21,
+                          "op": "+",
+                          "right": {
+                            "col": 26,
+                            "id": "路径",
+                            "line": 21,
+                            "类型": "Name"
+                          },
+                          "类型": "BinOp"
+                        }
+                      ],
+                      "col": 15,
+                      "func": {
+                        "col": 12,
+                        "id": "值错误",
+                        "line": 21,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 21,
+                      "类型": "Call"
+                    },
+                    "类型": "Raise"
+                  }
+                ],
+                "col": 5,
+                "line": 20,
+                "name": "e",
+                "type": {
+                  "col": 8,
+                  "id": "异常",
+                  "line": 20,
+                  "类型": "Name"
+                },
+                "类型": "ExceptHandler"
+              }
+            ],
+            "line": 18,
+            "类型": "Try"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 17,
+        "name": "加载",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "路径"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [],
+        "body": [
+          {
+            "body": [
+              {
+                "col": 9,
+                "expr": {
+                  "args": [
+                    {
+                      "col": 12,
+                      "line": 25,
+                      "value": "没有这个文件.txt",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 11,
+                  "func": {
+                    "col": 9,
+                    "id": "加载",
+                    "line": 25,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 25,
+                  "类型": "Call"
+                },
+                "line": 25,
+                "类型": "ExprStmt"
+              }
+            ],
+            "col": 5,
+            "finalbody": null,
+            "handlers": [
+              {
+                "body": [
+                  {
+                    "col": 9,
+                    "line": 27,
+                    "value": {
+                      "args": [
+                        {
+                          "col": 16,
+                          "line": 27,
+                          "value": "启动失败",
+                          "类型": "Str"
+                        }
+                      ],
+                      "col": 15,
+                      "func": {
+                        "col": 12,
+                        "id": "值错误",
+                        "line": 27,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 27,
+                      "类型": "Call"
+                    },
+                    "类型": "Raise"
+                  }
+                ],
+                "col": 5,
+                "line": 26,
+                "name": "e",
+                "type": {
+                  "col": 8,
+                  "id": "异常",
+                  "line": 26,
+                  "类型": "Name"
+                },
+                "类型": "ExceptHandler"
+              }
+            ],
+            "line": 24,
+            "类型": "Try"
+          }
+        ],
+        "col": 1,
+        "defaults": [],
+        "line": 23,
+        "name": "启动",
+        "param_kind": [],
+        "params": [],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "启动",
+            "line": 29,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 29,
+          "类型": "Call"
+        },
+        "line": 29,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "5f6f21db2342bbfd7e1339b5f02f64fb19286e9fcf7ee535cf3b03c3c72392c7",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            6,
+            1,
+            3,
+            0,
+            0,
+            0,
+            6,
+            1,
+            22,
+            1,
+            0,
+            0,
+            8,
+            1,
+            3,
+            2,
+            0,
+            0,
+            8,
+            1,
+            22,
+            2,
+            0,
+            0,
+            11,
+            1,
+            3,
+            6,
+            0,
+            0,
+            11,
+            1,
+            22,
+            3,
+            0,
+            0,
+            17,
+            1,
+            3,
+            8,
+            0,
+            0,
+            17,
+            1,
+            22,
+            4,
+            0,
+            0,
+            23,
+            1,
+            3,
+            9,
+            0,
+            0,
+            23,
+            1,
+            2,
+            9,
+            0,
+            0,
+            29,
+            1,
+            20,
+            0,
+            -1,
+            0,
+            29,
+            3,
+            38,
+            0,
+            0,
+            0,
+            29,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 8,
+          "freevars": [],
+          "instrs": [
+            2,
+            0,
+            0,
+            0,
+            9,
+            8,
+            25,
+            2,
+            0,
+            0,
+            9,
+            10,
+            4,
+            0,
+            0,
+            0,
+            9,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            9,
+            14,
+            21,
+            0,
+            0,
+            0,
+            9,
+            5,
+            1,
+            0,
+            0,
+            0,
+            8,
+            1,
+            21,
+            0,
+            0,
+            0,
+            8,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "路径"
+          ],
+          "name": "读文本",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            1
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "路径"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 11,
+          "freevars": [],
+          "instrs": [
+            39,
+            7,
+            -1,
+            18,
+            12,
+            5,
+            2,
+            4,
+            0,
+            0,
+            13,
+            12,
+            4,
+            0,
+            0,
+            0,
+            13,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            13,
+            14,
+            21,
+            0,
+            0,
+            0,
+            13,
+            9,
+            40,
+            0,
+            0,
+            0,
+            12,
+            5,
+            16,
+            18,
+            0,
+            0,
+            12,
+            5,
+            42,
+            17,
+            0,
+            0,
+            12,
+            5,
+            2,
+            5,
+            0,
+            0,
+            14,
+            8,
+            43,
+            0,
+            0,
+            0,
+            14,
+            5,
+            17,
+            17,
+            0,
+            0,
+            14,
+            5,
+            5,
+            1,
+            0,
+            0,
+            14,
+            5,
+            2,
+            5,
+            0,
+            0,
+            15,
+            12,
+            1,
+            1,
+            0,
+            0,
+            15,
+            16,
+            20,
+            1,
+            -1,
+            0,
+            15,
+            15,
+            41,
+            0,
+            0,
+            0,
+            15,
+            9,
+            16,
+            18,
+            0,
+            0,
+            14,
+            5,
+            41,
+            0,
+            0,
+            0,
+            12,
+            5,
+            1,
+            0,
+            0,
+            0,
+            11,
+            1,
+            21,
+            0,
+            0,
+            0,
+            11,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "内容",
+            "e"
+          ],
+          "name": "解析",
+          "nlocals": 2,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            3
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "内容"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 17,
+          "freevars": [],
+          "instrs": [
+            39,
+            9,
+            -1,
+            22,
+            18,
+            5,
+            2,
+            6,
+            0,
+            0,
+            19,
+            12,
+            2,
+            2,
+            0,
+            0,
+            19,
+            15,
+            4,
+            0,
+            0,
+            0,
+            19,
+            19,
+            20,
+            1,
+            -1,
+            0,
+            19,
+            18,
+            20,
+            1,
+            -1,
+            0,
+            19,
+            14,
+            21,
+            0,
+            0,
+            0,
+            19,
+            9,
+            40,
+            0,
+            0,
+            0,
+            18,
+            5,
+            16,
+            22,
+            0,
+            0,
+            18,
+            5,
+            42,
+            21,
+            0,
+            0,
+            18,
+            5,
+            2,
+            7,
+            0,
+            0,
+            20,
+            8,
+            43,
+            0,
+            0,
+            0,
+            20,
+            5,
+            17,
+            21,
+            0,
+            0,
+            20,
+            5,
+            5,
+            1,
+            0,
+            0,
+            20,
+            5,
+            2,
+            5,
+            0,
+            0,
+            21,
+            12,
+            1,
+            2,
+            0,
+            0,
+            21,
+            16,
+            4,
+            0,
+            0,
+            0,
+            21,
+            26,
+            13,
+            0,
+            0,
+            0,
+            21,
+            24,
+            20,
+            1,
+            -1,
+            0,
+            21,
+            15,
+            41,
+            0,
+            0,
+            0,
+            21,
+            9,
+            16,
+            22,
+            0,
+            0,
+            20,
+            5,
+            41,
+            0,
+            0,
+            0,
+            18,
+            5,
+            1,
+            0,
+            0,
+            0,
+            17,
+            1,
+            21,
+            0,
+            0,
+            0,
+            17,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "路径",
+            "e"
+          ],
+          "name": "加载",
+          "nlocals": 2,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            1
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "路径"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 23,
+          "freevars": [],
+          "instrs": [
+            39,
+            7,
+            -1,
+            18,
+            24,
+            5,
+            2,
+            8,
+            0,
+            0,
+            25,
+            9,
+            1,
+            3,
+            0,
+            0,
+            25,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            25,
+            11,
+            9,
+            0,
+            0,
+            0,
+            25,
+            9,
+            40,
+            0,
+            0,
+            0,
+            24,
+            5,
+            16,
+            18,
+            0,
+            0,
+            24,
+            5,
+            42,
+            17,
+            0,
+            0,
+            24,
+            5,
+            2,
+            7,
+            0,
+            0,
+            26,
+            8,
+            43,
+            0,
+            0,
+            0,
+            26,
+            5,
+            17,
+            17,
+            0,
+            0,
+            26,
+            5,
+            5,
+            0,
+            0,
+            0,
+            26,
+            5,
+            2,
+            5,
+            0,
+            0,
+            27,
+            12,
+            1,
+            4,
+            0,
+            0,
+            27,
+            16,
+            20,
+            1,
+            -1,
+            0,
+            27,
+            15,
+            41,
+            0,
+            0,
+            0,
+            27,
+            9,
+            16,
+            18,
+            0,
+            0,
+            26,
+            5,
+            41,
+            0,
+            0,
+            0,
+            24,
+            5,
+            1,
+            0,
+            0,
+            0,
+            23,
+            1,
+            21,
+            0,
+            0,
+            0,
+            23,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "e"
+          ],
+          "name": "启动",
+          "nlocals": 1,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "none"
+        },
+        {
+          "t": "str",
+          "v": "内容不是数字"
+        },
+        {
+          "t": "str",
+          "v": "加载失败："
+        },
+        {
+          "t": "str",
+          "v": "没有这个文件.txt"
+        },
+        {
+          "t": "str",
+          "v": "启动失败"
+        }
+      ],
+      "filename": "tests/error_cases/80_异常链未捕获.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "文件",
+        "路径",
+        "读文本",
+        "内容",
+        "整数",
+        "值错误",
+        "解析",
+        "异常",
+        "加载",
+        "启动"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 6,
+      "source_line": "导入 文件",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 6,
+      "source_line": "导入 文件",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "导入 文件",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 8,
+      "source_line": "函数 读文本(路径)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 8,
+      "source_line": "函数 读文本(路径)：",
+      "type": "NAME",
+      "value": "读文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 8,
+      "source_line": "函数 读文本(路径)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 8,
+      "source_line": "函数 读文本(路径)：",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 8,
+      "source_line": "函数 读文本(路径)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 8,
+      "source_line": "函数 读文本(路径)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "函数 读文本(路径)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "    返回 文件.读文本(路径)",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 9,
+      "source_line": "    返回 文件.读文本(路径)",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 9,
+      "source_line": "    返回 文件.读文本(路径)",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 9,
+      "source_line": "    返回 文件.读文本(路径)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 13,
+      "line": 9,
+      "source_line": "    返回 文件.读文本(路径)",
+      "type": "NAME",
+      "value": "读文本",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 9,
+      "source_line": "    返回 文件.读文本(路径)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 9,
+      "source_line": "    返回 文件.读文本(路径)",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 9,
+      "source_line": "    返回 文件.读文本(路径)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "    返回 文件.读文本(路径)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "函数 解析(内容)：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "函数 解析(内容)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 11,
+      "source_line": "函数 解析(内容)：",
+      "type": "NAME",
+      "value": "解析",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 11,
+      "source_line": "函数 解析(内容)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 11,
+      "source_line": "函数 解析(内容)：",
+      "type": "NAME",
+      "value": "内容",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 11,
+      "source_line": "函数 解析(内容)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 11,
+      "source_line": "函数 解析(内容)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "函数 解析(内容)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "    尝试：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 12,
+      "source_line": "    尝试：",
+      "type": "KEYWORD",
+      "value": "尝试",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 12,
+      "source_line": "    尝试：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "    尝试：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "        返回 整数(内容)",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 13,
+      "source_line": "        返回 整数(内容)",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 13,
+      "source_line": "        返回 整数(内容)",
+      "type": "NAME",
+      "value": "整数",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 13,
+      "source_line": "        返回 整数(内容)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 13,
+      "source_line": "        返回 整数(内容)",
+      "type": "NAME",
+      "value": "内容",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 13,
+      "source_line": "        返回 整数(内容)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "        返回 整数(内容)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "    捕获 值错误 为 e：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 14,
+      "source_line": "    捕获 值错误 为 e：",
+      "type": "KEYWORD",
+      "value": "捕获",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 14,
+      "source_line": "    捕获 值错误 为 e：",
+      "type": "NAME",
+      "value": "值错误",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 14,
+      "source_line": "    捕获 值错误 为 e：",
+      "type": "KEYWORD",
+      "value": "为",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 14,
+      "source_line": "    捕获 值错误 为 e：",
+      "type": "NAME",
+      "value": "e",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 14,
+      "source_line": "    捕获 值错误 为 e：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "    捕获 值错误 为 e：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "        抛出 值错误(\"内容不是数字\")",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 15,
+      "source_line": "        抛出 值错误(\"内容不是数字\")",
+      "type": "KEYWORD",
+      "value": "抛出",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 15,
+      "source_line": "        抛出 值错误(\"内容不是数字\")",
+      "type": "NAME",
+      "value": "值错误",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 15,
+      "source_line": "        抛出 值错误(\"内容不是数字\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 23,
+      "line": 15,
+      "source_line": "        抛出 值错误(\"内容不是数字\")",
+      "type": "STRING",
+      "value": "内容不是数字",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 15,
+      "source_line": "        抛出 值错误(\"内容不是数字\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "        抛出 值错误(\"内容不是数字\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "函数 加载(路径)：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "函数 加载(路径)：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 17,
+      "source_line": "函数 加载(路径)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 17,
+      "source_line": "函数 加载(路径)：",
+      "type": "NAME",
+      "value": "加载",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 17,
+      "source_line": "函数 加载(路径)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 17,
+      "source_line": "函数 加载(路径)：",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 17,
+      "source_line": "函数 加载(路径)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 17,
+      "source_line": "函数 加载(路径)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "函数 加载(路径)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 18,
+      "source_line": "    尝试：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 18,
+      "source_line": "    尝试：",
+      "type": "KEYWORD",
+      "value": "尝试",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 18,
+      "source_line": "    尝试：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 18,
+      "source_line": "    尝试：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "NAME",
+      "value": "解析",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 17,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "NAME",
+      "value": "读文本",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "        返回 解析(读文本(路径))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 20,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "KEYWORD",
+      "value": "捕获",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 20,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "NAME",
+      "value": "异常",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 20,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "KEYWORD",
+      "value": "为",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 20,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "NAME",
+      "value": "e",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 20,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "        抛出 值错误(\"加载失败：\" + 路径)",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 21,
+      "source_line": "        抛出 值错误(\"加载失败：\" + 路径)",
+      "type": "KEYWORD",
+      "value": "抛出",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 21,
+      "source_line": "        抛出 值错误(\"加载失败：\" + 路径)",
+      "type": "NAME",
+      "value": "值错误",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 21,
+      "source_line": "        抛出 值错误(\"加载失败：\" + 路径)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 22,
+      "line": 21,
+      "source_line": "        抛出 值错误(\"加载失败：\" + 路径)",
+      "type": "STRING",
+      "value": "加载失败：",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 21,
+      "source_line": "        抛出 值错误(\"加载失败：\" + 路径)",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 21,
+      "source_line": "        抛出 值错误(\"加载失败：\" + 路径)",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 21,
+      "source_line": "        抛出 值错误(\"加载失败：\" + 路径)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "        抛出 值错误(\"加载失败：\" + 路径)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "函数 启动()：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "函数 启动()：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 23,
+      "source_line": "函数 启动()：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 23,
+      "source_line": "函数 启动()：",
+      "type": "NAME",
+      "value": "启动",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 23,
+      "source_line": "函数 启动()：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 23,
+      "source_line": "函数 启动()：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 23,
+      "source_line": "函数 启动()：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "函数 启动()：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "    尝试：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 24,
+      "source_line": "    尝试：",
+      "type": "KEYWORD",
+      "value": "尝试",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 24,
+      "source_line": "    尝试：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "    尝试：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        加载(\"没有这个文件.txt\")",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 25,
+      "source_line": "        加载(\"没有这个文件.txt\")",
+      "type": "NAME",
+      "value": "加载",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 25,
+      "source_line": "        加载(\"没有这个文件.txt\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 23,
+      "line": 25,
+      "source_line": "        加载(\"没有这个文件.txt\")",
+      "type": "STRING",
+      "value": "没有这个文件.txt",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 25,
+      "source_line": "        加载(\"没有这个文件.txt\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        加载(\"没有这个文件.txt\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 26,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "KEYWORD",
+      "value": "捕获",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 26,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "NAME",
+      "value": "异常",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 26,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "KEYWORD",
+      "value": "为",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 26,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "NAME",
+      "value": "e",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 26,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    捕获 异常 为 e：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 27,
+      "source_line": "        抛出 值错误(\"启动失败\")",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 27,
+      "source_line": "        抛出 值错误(\"启动失败\")",
+      "type": "KEYWORD",
+      "value": "抛出",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 27,
+      "source_line": "        抛出 值错误(\"启动失败\")",
+      "type": "NAME",
+      "value": "值错误",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 27,
+      "source_line": "        抛出 值错误(\"启动失败\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 21,
+      "line": 27,
+      "source_line": "        抛出 值错误(\"启动失败\")",
+      "type": "STRING",
+      "value": "启动失败",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 27,
+      "source_line": "        抛出 值错误(\"启动失败\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 27,
+      "source_line": "        抛出 值错误(\"启动失败\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "启动()",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "启动()",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 29,
+      "source_line": "启动()",
+      "type": "NAME",
+      "value": "启动",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 29,
+      "source_line": "启动()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 29,
+      "source_line": "启动()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "启动()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:cb8895483d691ff0",
+  "语料": "tests/error_cases/80_异常链未捕获.jsh"
+}

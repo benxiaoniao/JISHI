@@ -1,0 +1,187 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 1,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "x",
+          "line": 1,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 9,
+          "left": {
+            "col": 7,
+            "line": 1,
+            "value": 1,
+            "类型": "Num"
+          },
+          "line": 1,
+          "op": "+",
+          "right": {
+            "col": 11,
+            "line": 1,
+            "value": "a",
+            "类型": "Str"
+          },
+          "类型": "BinOp"
+        },
+        "类型": "Assign"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "50ddbdea6da1ecfbdb212af021c20b84c5a1c31de14af2b408860270cfdb2f26",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            7,
+            1,
+            1,
+            0,
+            0,
+            1,
+            11,
+            13,
+            0,
+            0,
+            0,
+            1,
+            9,
+            3,
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "str",
+          "v": "a"
+        }
+      ],
+      "filename": "tests/error_cases/08_类型错误.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "x"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 x = 1 + \"a\"",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "令 x = 1 + \"a\"",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "令 x = 1 + \"a\"",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 1,
+      "source_line": "令 x = 1 + \"a\"",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "令 x = 1 + \"a\"",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 13,
+      "line": 1,
+      "source_line": "令 x = 1 + \"a\"",
+      "type": "STRING",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 x = 1 + \"a\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:e11c25091408f68e",
+  "语料": "tests/error_cases/08_类型错误.jsh"
+}
