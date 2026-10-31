@@ -1,0 +1,8299 @@
+{
+  "ast": {
+    "body": [
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 6,
+            "value": {
+              "col": 10,
+              "left": {
+                "col": 8,
+                "id": "数",
+                "line": 6,
+                "类型": "Name"
+              },
+              "line": 6,
+              "op": "*",
+              "right": {
+                "col": 12,
+                "line": 6,
+                "value": 2,
+                "类型": "Num"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 5,
+        "name": "加倍",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "数"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "line": 7,
+                  "value": 21,
+                  "类型": "Num"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "加倍",
+                "line": 7,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 7,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 7,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 7,
+          "类型": "Call"
+        },
+        "line": 7,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null,
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 9,
+            "value": {
+              "col": 17,
+              "left": {
+                "col": 11,
+                "left": {
+                  "col": 8,
+                  "id": "问候",
+                  "line": 9,
+                  "类型": "Name"
+                },
+                "line": 9,
+                "op": "+",
+                "right": {
+                  "col": 13,
+                  "line": 9,
+                  "value": "，",
+                  "类型": "Str"
+                },
+                "类型": "BinOp"
+              },
+              "line": 9,
+              "op": "+",
+              "right": {
+                "col": 19,
+                "id": "名",
+                "line": 9,
+                "类型": "Name"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null,
+          {
+            "col": 16,
+            "line": 8,
+            "value": "你好",
+            "类型": "Str"
+          }
+        ],
+        "line": 8,
+        "name": "打招呼",
+        "param_kind": [
+          0,
+          0
+        ],
+        "params": [
+          "名",
+          "问候"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 8,
+                  "line": 10,
+                  "value": "小明",
+                  "类型": "Str"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 4,
+                "id": "打招呼",
+                "line": 10,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 10,
+              "类型": "Call"
+            },
+            {
+              "args": [
+                {
+                  "col": 19,
+                  "line": 10,
+                  "value": "小红",
+                  "类型": "Str"
+                },
+                {
+                  "col": 25,
+                  "line": 10,
+                  "value": "早上好",
+                  "类型": "Str"
+                }
+              ],
+              "col": 18,
+              "func": {
+                "col": 15,
+                "id": "打招呼",
+                "line": 10,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 10,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 10,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 10,
+          "类型": "Call"
+        },
+        "line": 10,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 12,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "累计",
+              "line": 12,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 12,
+              "line": 12,
+              "value": 0,
+              "类型": "Num"
+            },
+            "类型": "Assign"
+          },
+          {
+            "body": [
+              {
+                "col": 9,
+                "line": 14,
+                "op": "+=",
+                "target": {
+                  "col": 9,
+                  "id": "累计",
+                  "line": 14,
+                  "类型": "Name"
+                },
+                "value": {
+                  "col": 15,
+                  "id": "数",
+                  "line": 14,
+                  "类型": "Name"
+                },
+                "类型": "Assign"
+              }
+            ],
+            "col": 5,
+            "iter": {
+              "col": 12,
+              "id": "数们",
+              "line": 13,
+              "类型": "Name"
+            },
+            "line": 13,
+            "target": {
+              "col": 8,
+              "id": "数",
+              "line": 13,
+              "类型": "Name"
+            },
+            "类型": "For"
+          },
+          {
+            "col": 5,
+            "line": 15,
+            "value": {
+              "col": 8,
+              "id": "累计",
+              "line": 15,
+              "类型": "Name"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 11,
+        "name": "合计",
+        "param_kind": [
+          1
+        ],
+        "params": [
+          "数们"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "合计",
+                "line": 16,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 16,
+              "类型": "Call"
+            },
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "line": 16,
+                  "value": 1,
+                  "类型": "Num"
+                },
+                {
+                  "col": 16,
+                  "line": 16,
+                  "value": 2,
+                  "类型": "Num"
+                },
+                {
+                  "col": 19,
+                  "line": 16,
+                  "value": 3,
+                  "类型": "Num"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "col": 10,
+                "id": "合计",
+                "line": 16,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 16,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 16,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 16,
+          "类型": "Call"
+        },
+        "line": 16,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 18,
+            "value": {
+              "args": [
+                {
+                  "col": 11,
+                  "id": "选项",
+                  "line": 18,
+                  "类型": "Name"
+                }
+              ],
+              "col": 10,
+              "func": {
+                "col": 8,
+                "id": "长度",
+                "line": 18,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 18,
+              "类型": "Call"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 17,
+        "name": "计数",
+        "param_kind": [
+          2
+        ],
+        "params": [
+          "选项"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "计数",
+                "line": 19,
+                "类型": "Name"
+              },
+              "keywords": [
+                [
+                  "甲",
+                  {
+                    "col": 11,
+                    "line": 19,
+                    "value": 1,
+                    "类型": "Num"
+                  }
+                ],
+                [
+                  "乙",
+                  {
+                    "col": 18,
+                    "line": 19,
+                    "value": 2,
+                    "类型": "Num"
+                  }
+                ]
+              ],
+              "line": 19,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 19,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 19,
+          "类型": "Call"
+        },
+        "line": 19,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null,
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 21,
+            "value": {
+              "col": 10,
+              "left": {
+                "col": 8,
+                "id": "甲",
+                "line": 21,
+                "类型": "Name"
+              },
+              "line": 21,
+              "op": "-",
+              "right": {
+                "col": 12,
+                "id": "乙",
+                "line": 21,
+                "类型": "Name"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null,
+          null
+        ],
+        "line": 20,
+        "name": "相减",
+        "param_kind": [
+          0,
+          0
+        ],
+        "params": [
+          "甲",
+          "乙"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "line": 22,
+                  "value": 5,
+                  "类型": "Num"
+                },
+                {
+                  "col": 10,
+                  "line": 22,
+                  "value": 1,
+                  "类型": "Num"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "相减",
+                "line": 22,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 22,
+              "类型": "Call"
+            },
+            {
+              "args": [],
+              "col": 16,
+              "func": {
+                "col": 14,
+                "id": "相减",
+                "line": 22,
+                "类型": "Name"
+              },
+              "keywords": [
+                [
+                  "乙",
+                  {
+                    "col": 21,
+                    "line": 22,
+                    "value": 1,
+                    "类型": "Num"
+                  }
+                ],
+                [
+                  "甲",
+                  {
+                    "col": 28,
+                    "line": 22,
+                    "value": 5,
+                    "类型": "Num"
+                  }
+                ]
+              ],
+              "line": 22,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 22,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 22,
+          "类型": "Call"
+        },
+        "line": 22,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "branches": [
+              [
+                {
+                  "col": 11,
+                  "comparators": [
+                    {
+                      "col": 13,
+                      "line": 24,
+                      "value": 2,
+                      "类型": "Num"
+                    }
+                  ],
+                  "left": {
+                    "col": 8,
+                    "id": "序号",
+                    "line": 24,
+                    "类型": "Name"
+                  },
+                  "line": 24,
+                  "ops": [
+                    "<"
+                  ],
+                  "类型": "Compare"
+                },
+                [
+                  {
+                    "col": 9,
+                    "line": 25,
+                    "value": {
+                      "col": 12,
+                      "id": "序号",
+                      "line": 25,
+                      "类型": "Name"
+                    },
+                    "类型": "Return"
+                  }
+                ]
+              ]
+            ],
+            "col": 5,
+            "line": 24,
+            "orelse": null,
+            "类型": "If"
+          },
+          {
+            "col": 5,
+            "line": 26,
+            "value": {
+              "col": 19,
+              "left": {
+                "args": [
+                  {
+                    "col": 14,
+                    "left": {
+                      "col": 11,
+                      "id": "序号",
+                      "line": 26,
+                      "类型": "Name"
+                    },
+                    "line": 26,
+                    "op": "-",
+                    "right": {
+                      "col": 16,
+                      "line": 26,
+                      "value": 1,
+                      "类型": "Num"
+                    },
+                    "类型": "BinOp"
+                  }
+                ],
+                "col": 10,
+                "func": {
+                  "col": 8,
+                  "id": "斐波",
+                  "line": 26,
+                  "类型": "Name"
+                },
+                "keywords": [],
+                "line": 26,
+                "类型": "Call"
+              },
+              "line": 26,
+              "op": "+",
+              "right": {
+                "args": [
+                  {
+                    "col": 27,
+                    "left": {
+                      "col": 24,
+                      "id": "序号",
+                      "line": 26,
+                      "类型": "Name"
+                    },
+                    "line": 26,
+                    "op": "-",
+                    "right": {
+                      "col": 29,
+                      "line": 26,
+                      "value": 2,
+                      "类型": "Num"
+                    },
+                    "类型": "BinOp"
+                  }
+                ],
+                "col": 23,
+                "func": {
+                  "col": 21,
+                  "id": "斐波",
+                  "line": 26,
+                  "类型": "Name"
+                },
+                "keywords": [],
+                "line": 26,
+                "类型": "Call"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 23,
+        "name": "斐波",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "序号"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "line": 27,
+                  "value": 10,
+                  "类型": "Num"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "斐波",
+                "line": 27,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 27,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 27,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 27,
+          "类型": "Call"
+        },
+        "line": 27,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "annotations": [
+              null
+            ],
+            "body": [
+              {
+                "col": 9,
+                "line": 30,
+                "value": {
+                  "col": 15,
+                  "left": {
+                    "col": 12,
+                    "id": "基数",
+                    "line": 30,
+                    "类型": "Name"
+                  },
+                  "line": 30,
+                  "op": "+",
+                  "right": {
+                    "col": 17,
+                    "id": "数",
+                    "line": 30,
+                    "类型": "Name"
+                  },
+                  "类型": "BinOp"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [
+              null
+            ],
+            "line": 29,
+            "name": "加",
+            "param_kind": [
+              0
+            ],
+            "params": [
+              "数"
+            ],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "col": 5,
+            "line": 31,
+            "value": {
+              "col": 8,
+              "id": "加",
+              "line": 31,
+              "类型": "Name"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 28,
+        "name": "造加法器",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "基数"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "line": 32,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "加十",
+          "line": 32,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 13,
+              "line": 32,
+              "value": 10,
+              "类型": "Num"
+            }
+          ],
+          "col": 12,
+          "func": {
+            "col": 8,
+            "id": "造加法器",
+            "line": 32,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 32,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "line": 33,
+                  "value": 5,
+                  "类型": "Num"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "加十",
+                "line": 33,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 33,
+              "类型": "Call"
+            },
+            {
+              "args": [
+                {
+                  "col": 21,
+                  "line": 33,
+                  "value": 1,
+                  "类型": "Num"
+                }
+              ],
+              "col": 20,
+              "func": {
+                "args": [
+                  {
+                    "col": 16,
+                    "line": 33,
+                    "value": 100,
+                    "类型": "Num"
+                  }
+                ],
+                "col": 15,
+                "func": {
+                  "col": 11,
+                  "id": "造加法器",
+                  "line": 33,
+                  "类型": "Name"
+                },
+                "keywords": [],
+                "line": 33,
+                "类型": "Call"
+              },
+              "keywords": [],
+              "line": 33,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 33,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 33,
+          "类型": "Call"
+        },
+        "line": 33,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 34,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "三倍",
+          "line": 34,
+          "类型": "Name"
+        },
+        "value": {
+          "annotations": [
+            null
+          ],
+          "body": [
+            {
+              "col": 16,
+              "line": 34,
+              "value": {
+                "col": 16,
+                "left": {
+                  "col": 14,
+                  "id": "数",
+                  "line": 34,
+                  "类型": "Name"
+                },
+                "line": 34,
+                "op": "*",
+                "right": {
+                  "col": 18,
+                  "line": 34,
+                  "value": 3,
+                  "类型": "Num"
+                },
+                "类型": "BinOp"
+              },
+              "类型": "Return"
+            }
+          ],
+          "col": 8,
+          "defaults": [
+            null
+          ],
+          "line": 34,
+          "name": "匿名函数",
+          "param_kind": [
+            0
+          ],
+          "params": [
+            "数"
+          ],
+          "类型": "Lambda"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "line": 35,
+                  "value": 7,
+                  "类型": "Num"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "三倍",
+                "line": 35,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 35,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 35,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 35,
+          "类型": "Call"
+        },
+        "line": 35,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "branches": [
+              [
+                {
+                  "col": 10,
+                  "comparators": [
+                    {
+                      "col": 12,
+                      "line": 37,
+                      "value": 0,
+                      "类型": "Num"
+                    }
+                  ],
+                  "left": {
+                    "col": 8,
+                    "id": "数",
+                    "line": 37,
+                    "类型": "Name"
+                  },
+                  "line": 37,
+                  "ops": [
+                    ">"
+                  ],
+                  "类型": "Compare"
+                },
+                [
+                  {
+                    "col": 9,
+                    "line": 38,
+                    "value": {
+                      "col": 12,
+                      "line": 38,
+                      "value": "正",
+                      "类型": "Str"
+                    },
+                    "类型": "Return"
+                  }
+                ]
+              ],
+              [
+                {
+                  "col": 12,
+                  "comparators": [
+                    {
+                      "col": 14,
+                      "line": 39,
+                      "value": 0,
+                      "类型": "Num"
+                    }
+                  ],
+                  "left": {
+                    "col": 10,
+                    "id": "数",
+                    "line": 39,
+                    "类型": "Name"
+                  },
+                  "line": 39,
+                  "ops": [
+                    "<"
+                  ],
+                  "类型": "Compare"
+                },
+                [
+                  {
+                    "col": 9,
+                    "line": 40,
+                    "value": {
+                      "col": 12,
+                      "line": 40,
+                      "value": "负",
+                      "类型": "Str"
+                    },
+                    "类型": "Return"
+                  }
+                ]
+              ]
+            ],
+            "col": 5,
+            "line": 37,
+            "orelse": [
+              {
+                "col": 9,
+                "line": 42,
+                "value": {
+                  "col": 12,
+                  "line": 42,
+                  "value": "零",
+                  "类型": "Str"
+                },
+                "类型": "Return"
+              }
+            ],
+            "类型": "If"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 36,
+        "name": "判号",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "数"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "line": 43,
+                  "value": 1,
+                  "类型": "Num"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "判号",
+                "line": 43,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 43,
+              "类型": "Call"
+            },
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "line": 43,
+                  "op": "-",
+                  "operand": {
+                    "col": 15,
+                    "line": 43,
+                    "value": 1,
+                    "类型": "Num"
+                  },
+                  "类型": "UnaryOp"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "col": 11,
+                "id": "判号",
+                "line": 43,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 43,
+              "类型": "Call"
+            },
+            {
+              "args": [
+                {
+                  "col": 22,
+                  "line": 43,
+                  "value": 0,
+                  "类型": "Num"
+                }
+              ],
+              "col": 21,
+              "func": {
+                "col": 19,
+                "id": "判号",
+                "line": 43,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 43,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 43,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 43,
+          "类型": "Call"
+        },
+        "line": 43,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "body": [
+              {
+                "branches": [
+                  [
+                    {
+                      "col": 14,
+                      "comparators": [
+                        {
+                          "col": 17,
+                          "id": "目标",
+                          "line": 46,
+                          "类型": "Name"
+                        }
+                      ],
+                      "left": {
+                        "col": 12,
+                        "id": "i",
+                        "line": 46,
+                        "类型": "Name"
+                      },
+                      "line": 46,
+                      "ops": [
+                        "=="
+                      ],
+                      "类型": "Compare"
+                    },
+                    [
+                      {
+                        "col": 13,
+                        "line": 47,
+                        "value": {
+                          "col": 16,
+                          "id": "i",
+                          "line": 47,
+                          "类型": "Name"
+                        },
+                        "类型": "Return"
+                      }
+                    ]
+                  ]
+                ],
+                "col": 9,
+                "line": 46,
+                "orelse": null,
+                "类型": "If"
+              }
+            ],
+            "col": 5,
+            "iter": {
+              "args": [
+                {
+                  "col": 15,
+                  "line": 45,
+                  "value": 10,
+                  "类型": "Num"
+                }
+              ],
+              "col": 14,
+              "func": {
+                "col": 12,
+                "id": "范围",
+                "line": 45,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 45,
+              "类型": "Call"
+            },
+            "line": 45,
+            "target": {
+              "col": 8,
+              "id": "i",
+              "line": 45,
+              "类型": "Name"
+            },
+            "类型": "For"
+          },
+          {
+            "col": 5,
+            "line": 48,
+            "value": {
+              "col": 8,
+              "line": 48,
+              "op": "-",
+              "operand": {
+                "col": 9,
+                "line": 48,
+                "value": 1,
+                "类型": "Num"
+              },
+              "类型": "UnaryOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 44,
+        "name": "找序号",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "目标"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 8,
+                  "line": 49,
+                  "value": 4,
+                  "类型": "Num"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 4,
+                "id": "找序号",
+                "line": 49,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 49,
+              "类型": "Call"
+            },
+            {
+              "args": [
+                {
+                  "col": 16,
+                  "line": 49,
+                  "value": 99,
+                  "类型": "Num"
+                }
+              ],
+              "col": 15,
+              "func": {
+                "col": 12,
+                "id": "找序号",
+                "line": 49,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 49,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 49,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 49,
+          "类型": "Call"
+        },
+        "line": 49,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [],
+        "body": [
+          {
+            "col": 5,
+            "line": 51,
+            "value": null,
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [],
+        "line": 50,
+        "name": "空跑",
+        "param_kind": [],
+        "params": [],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "空跑",
+                "line": 52,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 52,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 52,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 52,
+          "类型": "Call"
+        },
+        "line": 52,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null,
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 54,
+            "value": {
+              "args": [
+                {
+                  "col": 11,
+                  "id": "值",
+                  "line": 54,
+                  "类型": "Name"
+                }
+              ],
+              "col": 10,
+              "func": {
+                "col": 8,
+                "id": "操作",
+                "line": 54,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 54,
+              "类型": "Call"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null,
+          null
+        ],
+        "line": 53,
+        "name": "套用",
+        "param_kind": [
+          0,
+          0
+        ],
+        "params": [
+          "操作",
+          "值"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 7,
+                  "id": "加倍",
+                  "line": 55,
+                  "类型": "Name"
+                },
+                {
+                  "col": 11,
+                  "line": 55,
+                  "value": 5,
+                  "类型": "Num"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "套用",
+                "line": 55,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 55,
+              "类型": "Call"
+            },
+            {
+              "args": [
+                {
+                  "col": 18,
+                  "id": "加倍",
+                  "line": 55,
+                  "类型": "Name"
+                }
+              ],
+              "col": 17,
+              "func": {
+                "col": 15,
+                "id": "类型",
+                "line": 55,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 55,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 55,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 55,
+          "类型": "Call"
+        },
+        "line": 55,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [],
+        "body": [
+          {
+            "col": 5,
+            "line": 57,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "计",
+              "line": 57,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 11,
+              "line": 57,
+              "value": 0,
+              "类型": "Num"
+            },
+            "类型": "Assign"
+          },
+          {
+            "annotations": [],
+            "body": [
+              {
+                "col": 9,
+                "line": 59,
+                "value": {
+                  "col": 12,
+                  "id": "计",
+                  "line": 59,
+                  "类型": "Name"
+                },
+                "类型": "Return"
+              }
+            ],
+            "col": 5,
+            "defaults": [],
+            "line": 58,
+            "name": "加",
+            "param_kind": [],
+            "params": [],
+            "returns": null,
+            "类型": "FuncDef"
+          },
+          {
+            "col": 5,
+            "line": 60,
+            "value": {
+              "col": 8,
+              "id": "加",
+              "line": 60,
+              "类型": "Name"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [],
+        "line": 56,
+        "name": "累加器",
+        "param_kind": [],
+        "params": [],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [],
+              "col": 9,
+              "func": {
+                "args": [],
+                "col": 7,
+                "func": {
+                  "col": 4,
+                  "id": "累加器",
+                  "line": 61,
+                  "类型": "Name"
+                },
+                "keywords": [],
+                "line": 61,
+                "类型": "Call"
+              },
+              "keywords": [],
+              "line": 61,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 61,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 61,
+          "类型": "Call"
+        },
+        "line": 61,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "bbbba86c35a8d07c4b75cb7f33b96971e7394c3eba97f83d61d3836bc6b2483d",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            22,
+            1,
+            0,
+            0,
+            5,
+            1,
+            3,
+            1,
+            0,
+            0,
+            5,
+            1,
+            2,
+            2,
+            0,
+            0,
+            7,
+            1,
+            2,
+            1,
+            0,
+            0,
+            7,
+            4,
+            1,
+            2,
+            0,
+            0,
+            7,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            7,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            7,
+            3,
+            38,
+            0,
+            0,
+            0,
+            7,
+            1,
+            1,
+            3,
+            0,
+            0,
+            8,
+            16,
+            22,
+            2,
+            0,
+            1,
+            8,
+            1,
+            3,
+            5,
+            0,
+            0,
+            8,
+            1,
+            2,
+            2,
+            0,
+            0,
+            10,
+            1,
+            2,
+            5,
+            0,
+            0,
+            10,
+            4,
+            1,
+            5,
+            0,
+            0,
+            10,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            10,
+            7,
+            2,
+            5,
+            0,
+            0,
+            10,
+            15,
+            1,
+            6,
+            0,
+            0,
+            10,
+            19,
+            1,
+            7,
+            0,
+            0,
+            10,
+            25,
+            20,
+            2,
+            -1,
+            0,
+            10,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            10,
+            3,
+            38,
+            0,
+            0,
+            0,
+            10,
+            1,
+            22,
+            3,
+            0,
+            0,
+            11,
+            1,
+            3,
+            7,
+            0,
+            0,
+            11,
+            1,
+            2,
+            2,
+            0,
+            0,
+            16,
+            1,
+            2,
+            7,
+            0,
+            0,
+            16,
+            4,
+            20,
+            0,
+            -1,
+            0,
+            16,
+            6,
+            2,
+            7,
+            0,
+            0,
+            16,
+            10,
+            1,
+            9,
+            0,
+            0,
+            16,
+            13,
+            1,
+            0,
+            0,
+            0,
+            16,
+            16,
+            1,
+            10,
+            0,
+            0,
+            16,
+            19,
+            20,
+            3,
+            -1,
+            0,
+            16,
+            12,
+            20,
+            2,
+            -1,
+            0,
+            16,
+            3,
+            38,
+            0,
+            0,
+            0,
+            16,
+            1,
+            22,
+            4,
+            0,
+            0,
+            17,
+            1,
+            3,
+            10,
+            0,
+            0,
+            17,
+            1,
+            2,
+            2,
+            0,
+            0,
+            19,
+            1,
+            2,
+            10,
+            0,
+            0,
+            19,
+            4,
+            1,
+            9,
+            0,
+            0,
+            19,
+            11,
+            1,
+            0,
+            0,
+            0,
+            19,
+            18,
+            20,
+            0,
+            0,
+            0,
+            19,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            19,
+            3,
+            38,
+            0,
+            0,
+            0,
+            19,
+            1,
+            22,
+            5,
+            0,
+            0,
+            20,
+            1,
+            3,
+            13,
+            0,
+            0,
+            20,
+            1,
+            2,
+            2,
+            0,
+            0,
+            22,
+            1,
+            2,
+            13,
+            0,
+            0,
+            22,
+            4,
+            1,
+            11,
+            0,
+            0,
+            22,
+            7,
+            1,
+            9,
+            0,
+            0,
+            22,
+            10,
+            20,
+            2,
+            -1,
+            0,
+            22,
+            6,
+            2,
+            13,
+            0,
+            0,
+            22,
+            14,
+            1,
+            9,
+            0,
+            0,
+            22,
+            21,
+            1,
+            11,
+            0,
+            0,
+            22,
+            28,
+            20,
+            0,
+            1,
+            0,
+            22,
+            16,
+            20,
+            2,
+            -1,
+            0,
+            22,
+            3,
+            38,
+            0,
+            0,
+            0,
+            22,
+            1,
+            22,
+            6,
+            0,
+            0,
+            23,
+            1,
+            3,
+            15,
+            0,
+            0,
+            23,
+            1,
+            2,
+            2,
+            0,
+            0,
+            27,
+            1,
+            2,
+            15,
+            0,
+            0,
+            27,
+            4,
+            1,
+            12,
+            0,
+            0,
+            27,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            27,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            27,
+            3,
+            38,
+            0,
+            0,
+            0,
+            27,
+            1,
+            22,
+            7,
+            0,
+            0,
+            28,
+            1,
+            3,
+            17,
+            0,
+            0,
+            28,
+            1,
+            2,
+            17,
+            0,
+            0,
+            32,
+            8,
+            1,
+            12,
+            0,
+            0,
+            32,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            32,
+            12,
+            3,
+            18,
+            0,
+            0,
+            32,
+            1,
+            2,
+            2,
+            0,
+            0,
+            33,
+            1,
+            2,
+            18,
+            0,
+            0,
+            33,
+            4,
+            1,
+            11,
+            0,
+            0,
+            33,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            33,
+            6,
+            2,
+            17,
+            0,
+            0,
+            33,
+            11,
+            1,
+            13,
+            0,
+            0,
+            33,
+            16,
+            20,
+            1,
+            -1,
+            0,
+            33,
+            15,
+            1,
+            9,
+            0,
+            0,
+            33,
+            21,
+            20,
+            1,
+            -1,
+            0,
+            33,
+            20,
+            20,
+            2,
+            -1,
+            0,
+            33,
+            3,
+            38,
+            0,
+            0,
+            0,
+            33,
+            1,
+            22,
+            9,
+            0,
+            0,
+            34,
+            8,
+            3,
+            19,
+            0,
+            0,
+            34,
+            1,
+            2,
+            2,
+            0,
+            0,
+            35,
+            1,
+            2,
+            19,
+            0,
+            0,
+            35,
+            4,
+            1,
+            14,
+            0,
+            0,
+            35,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            35,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            35,
+            3,
+            38,
+            0,
+            0,
+            0,
+            35,
+            1,
+            22,
+            10,
+            0,
+            0,
+            36,
+            1,
+            3,
+            20,
+            0,
+            0,
+            36,
+            1,
+            2,
+            2,
+            0,
+            0,
+            43,
+            1,
+            2,
+            20,
+            0,
+            0,
+            43,
+            4,
+            1,
+            9,
+            0,
+            0,
+            43,
+            7,
+            20,
+            1,
+            -1,
+            0,
+            43,
+            6,
+            2,
+            20,
+            0,
+            0,
+            43,
+            11,
+            1,
+            9,
+            0,
+            0,
+            43,
+            15,
+            14,
+            0,
+            0,
+            0,
+            43,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            43,
+            13,
+            2,
+            20,
+            0,
+            0,
+            43,
+            19,
+            1,
+            8,
+            0,
+            0,
+            43,
+            22,
+            20,
+            1,
+            -1,
+            0,
+            43,
+            21,
+            20,
+            3,
+            -1,
+            0,
+            43,
+            3,
+            38,
+            0,
+            0,
+            0,
+            43,
+            1,
+            22,
+            11,
+            0,
+            0,
+            44,
+            1,
+            3,
+            23,
+            0,
+            0,
+            44,
+            1,
+            2,
+            2,
+            0,
+            0,
+            49,
+            1,
+            2,
+            23,
+            0,
+            0,
+            49,
+            4,
+            1,
+            18,
+            0,
+            0,
+            49,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            49,
+            7,
+            2,
+            23,
+            0,
+            0,
+            49,
+            12,
+            1,
+            19,
+            0,
+            0,
+            49,
+            16,
+            20,
+            1,
+            -1,
+            0,
+            49,
+            15,
+            20,
+            2,
+            -1,
+            0,
+            49,
+            3,
+            38,
+            0,
+            0,
+            0,
+            49,
+            1,
+            22,
+            12,
+            0,
+            0,
+            50,
+            1,
+            3,
+            24,
+            0,
+            0,
+            50,
+            1,
+            2,
+            2,
+            0,
+            0,
+            52,
+            1,
+            2,
+            24,
+            0,
+            0,
+            52,
+            4,
+            20,
+            0,
+            -1,
+            0,
+            52,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            52,
+            3,
+            38,
+            0,
+            0,
+            0,
+            52,
+            1,
+            22,
+            13,
+            0,
+            0,
+            53,
+            1,
+            3,
+            27,
+            0,
+            0,
+            53,
+            1,
+            2,
+            2,
+            0,
+            0,
+            55,
+            1,
+            2,
+            27,
+            0,
+            0,
+            55,
+            4,
+            2,
+            1,
+            0,
+            0,
+            55,
+            7,
+            1,
+            11,
+            0,
+            0,
+            55,
+            11,
+            20,
+            2,
+            -1,
+            0,
+            55,
+            6,
+            2,
+            28,
+            0,
+            0,
+            55,
+            15,
+            2,
+            1,
+            0,
+            0,
+            55,
+            18,
+            20,
+            1,
+            -1,
+            0,
+            55,
+            17,
+            20,
+            2,
+            -1,
+            0,
+            55,
+            3,
+            38,
+            0,
+            0,
+            0,
+            55,
+            1,
+            22,
+            14,
+            0,
+            0,
+            56,
+            1,
+            3,
+            29,
+            0,
+            0,
+            56,
+            1,
+            2,
+            2,
+            0,
+            0,
+            61,
+            1,
+            2,
+            29,
+            0,
+            0,
+            61,
+            4,
+            20,
+            0,
+            -1,
+            0,
+            61,
+            7,
+            20,
+            0,
+            -1,
+            0,
+            61,
+            9,
+            20,
+            1,
+            -1,
+            0,
+            61,
+            3,
+            38,
+            0,
+            0,
+            0,
+            61,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 5,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            6,
+            8,
+            1,
+            0,
+            0,
+            0,
+            6,
+            12,
+            13,
+            2,
+            0,
+            0,
+            6,
+            10,
+            21,
+            0,
+            0,
+            0,
+            6,
+            5,
+            1,
+            1,
+            0,
+            0,
+            5,
+            1,
+            21,
+            0,
+            0,
+            0,
+            5,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "数"
+          ],
+          "name": "加倍",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "数"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 8,
+          "freevars": [],
+          "instrs": [
+            4,
+            1,
+            0,
+            0,
+            9,
+            8,
+            1,
+            4,
+            0,
+            0,
+            9,
+            13,
+            13,
+            0,
+            0,
+            0,
+            9,
+            11,
+            4,
+            0,
+            0,
+            0,
+            9,
+            19,
+            13,
+            0,
+            0,
+            0,
+            9,
+            17,
+            21,
+            0,
+            0,
+            0,
+            9,
+            5,
+            1,
+            1,
+            0,
+            0,
+            8,
+            1,
+            21,
+            0,
+            0,
+            0,
+            8,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "名",
+            "问候"
+          ],
+          "name": "打招呼",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            3,
+            4
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "名",
+            "问候"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 11,
+          "freevars": [],
+          "instrs": [
+            1,
+            8,
+            0,
+            0,
+            12,
+            12,
+            5,
+            2,
+            0,
+            0,
+            12,
+            5,
+            4,
+            0,
+            0,
+            0,
+            13,
+            12,
+            29,
+            0,
+            0,
+            0,
+            13,
+            5,
+            34,
+            5,
+            14,
+            0,
+            13,
+            5,
+            30,
+            12,
+            0,
+            0,
+            13,
+            5,
+            5,
+            1,
+            0,
+            0,
+            13,
+            5,
+            4,
+            2,
+            0,
+            0,
+            14,
+            9,
+            4,
+            1,
+            0,
+            0,
+            14,
+            15,
+            13,
+            0,
+            0,
+            0,
+            14,
+            9,
+            5,
+            2,
+            0,
+            0,
+            14,
+            9,
+            16,
+            5,
+            0,
+            0,
+            13,
+            5,
+            35,
+            0,
+            0,
+            0,
+            13,
+            5,
+            16,
+            16,
+            0,
+            0,
+            13,
+            5,
+            9,
+            0,
+            0,
+            0,
+            13,
+            5,
+            35,
+            0,
+            0,
+            0,
+            13,
+            5,
+            4,
+            2,
+            0,
+            0,
+            15,
+            8,
+            21,
+            0,
+            0,
+            0,
+            15,
+            5,
+            1,
+            1,
+            0,
+            0,
+            11,
+            1,
+            21,
+            0,
+            0,
+            0,
+            11,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "数们",
+            "数",
+            "累计"
+          ],
+          "name": "合计",
+          "nlocals": 3,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            6
+          ],
+          "param_kind": [
+            1
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "数们"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 17,
+          "freevars": [],
+          "instrs": [
+            2,
+            9,
+            0,
+            0,
+            18,
+            8,
+            4,
+            0,
+            0,
+            0,
+            18,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            18,
+            10,
+            21,
+            0,
+            0,
+            0,
+            18,
+            5,
+            1,
+            1,
+            0,
+            0,
+            17,
+            1,
+            21,
+            0,
+            0,
+            0,
+            17,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "选项"
+          ],
+          "name": "计数",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            8
+          ],
+          "param_kind": [
+            2
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "选项"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 20,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            21,
+            8,
+            4,
+            1,
+            0,
+            0,
+            21,
+            12,
+            13,
+            1,
+            0,
+            0,
+            21,
+            10,
+            21,
+            0,
+            0,
+            0,
+            21,
+            5,
+            1,
+            1,
+            0,
+            0,
+            20,
+            1,
+            21,
+            0,
+            0,
+            0,
+            20,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "甲",
+            "乙"
+          ],
+          "name": "相减",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            11,
+            12
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "甲",
+            "乙"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 23,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            24,
+            8,
+            1,
+            0,
+            0,
+            0,
+            24,
+            13,
+            15,
+            2,
+            0,
+            0,
+            24,
+            11,
+            17,
+            7,
+            0,
+            0,
+            24,
+            11,
+            4,
+            0,
+            0,
+            0,
+            25,
+            12,
+            21,
+            0,
+            0,
+            0,
+            25,
+            9,
+            16,
+            7,
+            0,
+            0,
+            24,
+            5,
+            2,
+            15,
+            0,
+            0,
+            26,
+            8,
+            4,
+            0,
+            0,
+            0,
+            26,
+            11,
+            1,
+            9,
+            0,
+            0,
+            26,
+            16,
+            13,
+            1,
+            0,
+            0,
+            26,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            26,
+            10,
+            2,
+            15,
+            0,
+            0,
+            26,
+            21,
+            4,
+            0,
+            0,
+            0,
+            26,
+            24,
+            1,
+            0,
+            0,
+            0,
+            26,
+            29,
+            13,
+            1,
+            0,
+            0,
+            26,
+            27,
+            20,
+            1,
+            -1,
+            0,
+            26,
+            23,
+            13,
+            0,
+            0,
+            0,
+            26,
+            19,
+            21,
+            0,
+            0,
+            0,
+            26,
+            5,
+            1,
+            1,
+            0,
+            0,
+            23,
+            1,
+            21,
+            0,
+            0,
+            0,
+            23,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "序号"
+          ],
+          "name": "斐波",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            14
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "序号"
+          ]
+        },
+        {
+          "cellvars": [
+            "基数"
+          ],
+          "firstlineno": 28,
+          "freevars": [],
+          "instrs": [
+            8,
+            0,
+            0,
+            0,
+            29,
+            5,
+            22,
+            8,
+            1,
+            0,
+            29,
+            5,
+            5,
+            0,
+            0,
+            0,
+            29,
+            5,
+            4,
+            0,
+            0,
+            0,
+            31,
+            8,
+            21,
+            0,
+            0,
+            0,
+            31,
+            5,
+            1,
+            1,
+            0,
+            0,
+            28,
+            1,
+            21,
+            0,
+            0,
+            0,
+            28,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "加"
+          ],
+          "name": "造加法器",
+          "nlocals": 1,
+          "param_cell": [
+            0
+          ],
+          "param_idx": [
+            16
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            -1
+          ],
+          "params": [
+            "基数"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 29,
+          "freevars": [
+            "基数"
+          ],
+          "instrs": [
+            6,
+            0,
+            0,
+            0,
+            30,
+            12,
+            4,
+            0,
+            0,
+            0,
+            30,
+            17,
+            13,
+            0,
+            0,
+            0,
+            30,
+            15,
+            21,
+            0,
+            0,
+            0,
+            30,
+            9,
+            1,
+            1,
+            0,
+            0,
+            29,
+            5,
+            21,
+            0,
+            0,
+            0,
+            29,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [
+            "数"
+          ],
+          "name": "加",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "数"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 34,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            34,
+            14,
+            1,
+            10,
+            0,
+            0,
+            34,
+            18,
+            13,
+            2,
+            0,
+            0,
+            34,
+            16,
+            21,
+            0,
+            0,
+            0,
+            34,
+            16,
+            1,
+            1,
+            0,
+            0,
+            34,
+            8,
+            21,
+            0,
+            0,
+            0,
+            34,
+            8
+          ],
+          "local_hints": {},
+          "local_names": [
+            "数"
+          ],
+          "name": "匿名函数",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "数"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 36,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            37,
+            8,
+            1,
+            8,
+            0,
+            0,
+            37,
+            12,
+            15,
+            3,
+            0,
+            0,
+            37,
+            10,
+            17,
+            7,
+            0,
+            0,
+            37,
+            10,
+            1,
+            15,
+            0,
+            0,
+            38,
+            12,
+            21,
+            0,
+            0,
+            0,
+            38,
+            9,
+            16,
+            16,
+            0,
+            0,
+            37,
+            5,
+            4,
+            0,
+            0,
+            0,
+            39,
+            10,
+            1,
+            8,
+            0,
+            0,
+            39,
+            14,
+            15,
+            2,
+            0,
+            0,
+            39,
+            12,
+            17,
+            14,
+            0,
+            0,
+            39,
+            12,
+            1,
+            16,
+            0,
+            0,
+            40,
+            12,
+            21,
+            0,
+            0,
+            0,
+            40,
+            9,
+            16,
+            16,
+            0,
+            0,
+            37,
+            5,
+            1,
+            17,
+            0,
+            0,
+            42,
+            12,
+            21,
+            0,
+            0,
+            0,
+            42,
+            9,
+            1,
+            1,
+            0,
+            0,
+            36,
+            1,
+            21,
+            0,
+            0,
+            0,
+            36,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "数"
+          ],
+          "name": "判号",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "数"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 44,
+          "freevars": [],
+          "instrs": [
+            2,
+            22,
+            0,
+            0,
+            45,
+            12,
+            1,
+            12,
+            0,
+            0,
+            45,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            45,
+            14,
+            29,
+            0,
+            0,
+            0,
+            45,
+            5,
+            34,
+            5,
+            17,
+            0,
+            45,
+            5,
+            30,
+            15,
+            0,
+            0,
+            45,
+            5,
+            5,
+            1,
+            0,
+            0,
+            45,
+            5,
+            4,
+            1,
+            0,
+            0,
+            46,
+            12,
+            4,
+            0,
+            0,
+            0,
+            46,
+            17,
+            15,
+            0,
+            0,
+            0,
+            46,
+            14,
+            17,
+            14,
+            0,
+            0,
+            46,
+            14,
+            4,
+            1,
+            0,
+            0,
+            47,
+            16,
+            21,
+            0,
+            0,
+            0,
+            47,
+            13,
+            16,
+            14,
+            0,
+            0,
+            46,
+            9,
+            16,
+            5,
+            0,
+            0,
+            45,
+            5,
+            35,
+            0,
+            0,
+            0,
+            45,
+            5,
+            16,
+            19,
+            0,
+            0,
+            45,
+            5,
+            9,
+            0,
+            0,
+            0,
+            45,
+            5,
+            35,
+            0,
+            0,
+            0,
+            45,
+            5,
+            1,
+            9,
+            0,
+            0,
+            48,
+            9,
+            14,
+            0,
+            0,
+            0,
+            48,
+            8,
+            21,
+            0,
+            0,
+            0,
+            48,
+            5,
+            1,
+            1,
+            0,
+            0,
+            44,
+            1,
+            21,
+            0,
+            0,
+            0,
+            44,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "目标",
+            "i"
+          ],
+          "name": "找序号",
+          "nlocals": 2,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            21
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "目标"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 50,
+          "freevars": [],
+          "instrs": [
+            1,
+            1,
+            0,
+            0,
+            51,
+            5,
+            21,
+            0,
+            0,
+            0,
+            51,
+            5,
+            1,
+            1,
+            0,
+            0,
+            50,
+            1,
+            21,
+            0,
+            0,
+            0,
+            50,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "空跑",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 53,
+          "freevars": [],
+          "instrs": [
+            4,
+            0,
+            0,
+            0,
+            54,
+            8,
+            4,
+            1,
+            0,
+            0,
+            54,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            54,
+            10,
+            21,
+            0,
+            0,
+            0,
+            54,
+            5,
+            1,
+            1,
+            0,
+            0,
+            53,
+            1,
+            21,
+            0,
+            0,
+            0,
+            53,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "操作",
+            "值"
+          ],
+          "name": "套用",
+          "nlocals": 2,
+          "param_cell": [
+            -1,
+            -1
+          ],
+          "param_idx": [
+            25,
+            26
+          ],
+          "param_kind": [
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1
+          ],
+          "params": [
+            "操作",
+            "值"
+          ]
+        },
+        {
+          "cellvars": [
+            "计"
+          ],
+          "firstlineno": 56,
+          "freevars": [],
+          "instrs": [
+            1,
+            8,
+            0,
+            0,
+            57,
+            11,
+            7,
+            0,
+            0,
+            0,
+            57,
+            5,
+            8,
+            0,
+            0,
+            0,
+            58,
+            5,
+            22,
+            15,
+            1,
+            0,
+            58,
+            5,
+            5,
+            0,
+            0,
+            0,
+            58,
+            5,
+            4,
+            0,
+            0,
+            0,
+            60,
+            8,
+            21,
+            0,
+            0,
+            0,
+            60,
+            5,
+            1,
+            1,
+            0,
+            0,
+            56,
+            1,
+            21,
+            0,
+            0,
+            0,
+            56,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "加"
+          ],
+          "name": "累加器",
+          "nlocals": 1,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 58,
+          "freevars": [
+            "计"
+          ],
+          "instrs": [
+            6,
+            0,
+            0,
+            0,
+            59,
+            12,
+            21,
+            0,
+            0,
+            0,
+            59,
+            9,
+            1,
+            1,
+            0,
+            0,
+            58,
+            5,
+            21,
+            0,
+            0,
+            0,
+            58,
+            5
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "加",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 2
+        },
+        {
+          "t": "none"
+        },
+        {
+          "t": "int",
+          "v": 21
+        },
+        {
+          "t": "str",
+          "v": "你好"
+        },
+        {
+          "t": "str",
+          "v": "，"
+        },
+        {
+          "t": "str",
+          "v": "小明"
+        },
+        {
+          "t": "str",
+          "v": "小红"
+        },
+        {
+          "t": "str",
+          "v": "早上好"
+        },
+        {
+          "t": "int",
+          "v": 0
+        },
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "int",
+          "v": 3
+        },
+        {
+          "t": "int",
+          "v": 5
+        },
+        {
+          "t": "int",
+          "v": 10
+        },
+        {
+          "t": "int",
+          "v": 100
+        },
+        {
+          "t": "int",
+          "v": 7
+        },
+        {
+          "t": "str",
+          "v": "正"
+        },
+        {
+          "t": "str",
+          "v": "负"
+        },
+        {
+          "t": "str",
+          "v": "零"
+        },
+        {
+          "t": "int",
+          "v": 4
+        },
+        {
+          "t": "int",
+          "v": 99
+        }
+      ],
+      "filename": "tests/cases/23_函数与闭包.jsh",
+      "kw_names": [
+        [
+          "甲",
+          "乙"
+        ],
+        [
+          "乙",
+          "甲"
+        ]
+      ],
+      "main": 0,
+      "names": [
+        "数",
+        "加倍",
+        "打印",
+        "名",
+        "问候",
+        "打招呼",
+        "数们",
+        "合计",
+        "选项",
+        "长度",
+        "计数",
+        "甲",
+        "乙",
+        "相减",
+        "序号",
+        "斐波",
+        "基数",
+        "造加法器",
+        "加十",
+        "三倍",
+        "判号",
+        "目标",
+        "范围",
+        "找序号",
+        "空跑",
+        "操作",
+        "值",
+        "套用",
+        "类型",
+        "累加器"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 5,
+      "source_line": "函数 加倍(数)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 5,
+      "source_line": "函数 加倍(数)：",
+      "type": "NAME",
+      "value": "加倍",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 5,
+      "source_line": "函数 加倍(数)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 5,
+      "source_line": "函数 加倍(数)：",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 5,
+      "source_line": "函数 加倍(数)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 5,
+      "source_line": "函数 加倍(数)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "函数 加倍(数)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "    返回 数 * 2",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 6,
+      "source_line": "    返回 数 * 2",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 6,
+      "source_line": "    返回 数 * 2",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 6,
+      "source_line": "    返回 数 * 2",
+      "type": "OP",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 6,
+      "source_line": "    返回 数 * 2",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "    返回 数 * 2",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "打印(加倍(21))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 7,
+      "source_line": "打印(加倍(21))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 7,
+      "source_line": "打印(加倍(21))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 7,
+      "source_line": "打印(加倍(21))",
+      "type": "NAME",
+      "value": "加倍",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 7,
+      "source_line": "打印(加倍(21))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 7,
+      "source_line": "打印(加倍(21))",
+      "type": "NUMBER",
+      "value": 21,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 7,
+      "source_line": "打印(加倍(21))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 7,
+      "source_line": "打印(加倍(21))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "打印(加倍(21))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "NAME",
+      "value": "打招呼",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "NAME",
+      "value": "名",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "NAME",
+      "value": "问候",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 19,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "STRING",
+      "value": "你好",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "函数 打招呼(名, 问候 = \"你好\")：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "    返回 问候 + \"，\" + 名",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 9,
+      "source_line": "    返回 问候 + \"，\" + 名",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 9,
+      "source_line": "    返回 问候 + \"，\" + 名",
+      "type": "NAME",
+      "value": "问候",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 9,
+      "source_line": "    返回 问候 + \"，\" + 名",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 15,
+      "line": 9,
+      "source_line": "    返回 问候 + \"，\" + 名",
+      "type": "STRING",
+      "value": "，",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 9,
+      "source_line": "    返回 问候 + \"，\" + 名",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 19,
+      "line": 9,
+      "source_line": "    返回 问候 + \"，\" + 名",
+      "type": "NAME",
+      "value": "名",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "    返回 问候 + \"，\" + 名",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "NAME",
+      "value": "打招呼",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 11,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "STRING",
+      "value": "小明",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 17,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "NAME",
+      "value": "打招呼",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "STRING",
+      "value": "小红",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 29,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "STRING",
+      "value": "早上好",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "打印(打招呼(\"小明\"), 打招呼(\"小红\", \"早上好\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "函数 合计(*数们)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 11,
+      "source_line": "函数 合计(*数们)：",
+      "type": "NAME",
+      "value": "合计",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 11,
+      "source_line": "函数 合计(*数们)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 11,
+      "source_line": "函数 合计(*数们)：",
+      "type": "OP",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 11,
+      "source_line": "函数 合计(*数们)：",
+      "type": "NAME",
+      "value": "数们",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 11,
+      "source_line": "函数 合计(*数们)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 11,
+      "source_line": "函数 合计(*数们)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "函数 合计(*数们)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "    令 累计 = 0",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 12,
+      "source_line": "    令 累计 = 0",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 12,
+      "source_line": "    令 累计 = 0",
+      "type": "NAME",
+      "value": "累计",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 12,
+      "source_line": "    令 累计 = 0",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 12,
+      "source_line": "    令 累计 = 0",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "    令 累计 = 0",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 13,
+      "source_line": "    遍历 数 在 数们：",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 13,
+      "source_line": "    遍历 数 在 数们：",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 13,
+      "source_line": "    遍历 数 在 数们：",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 13,
+      "source_line": "    遍历 数 在 数们：",
+      "type": "NAME",
+      "value": "数们",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 13,
+      "source_line": "    遍历 数 在 数们：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "    遍历 数 在 数们：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "        累计 += 数",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 14,
+      "source_line": "        累计 += 数",
+      "type": "NAME",
+      "value": "累计",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 14,
+      "source_line": "        累计 += 数",
+      "type": "OP",
+      "value": "+=",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 14,
+      "source_line": "        累计 += 数",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "        累计 += 数",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "    返回 累计",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 15,
+      "source_line": "    返回 累计",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 15,
+      "source_line": "    返回 累计",
+      "type": "NAME",
+      "value": "累计",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "    返回 累计",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "NAME",
+      "value": "合计",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "NAME",
+      "value": "合计",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 19,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "NUMBER",
+      "value": 3,
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "打印(合计(), 合计(1, 2, 3))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 17,
+      "source_line": "函数 计数(**选项)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 17,
+      "source_line": "函数 计数(**选项)：",
+      "type": "NAME",
+      "value": "计数",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 17,
+      "source_line": "函数 计数(**选项)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 17,
+      "source_line": "函数 计数(**选项)：",
+      "type": "OP",
+      "value": "**",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 17,
+      "source_line": "函数 计数(**选项)：",
+      "type": "NAME",
+      "value": "选项",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 17,
+      "source_line": "函数 计数(**选项)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 17,
+      "source_line": "函数 计数(**选项)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "函数 计数(**选项)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 18,
+      "source_line": "    返回 长度(选项)",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 18,
+      "source_line": "    返回 长度(选项)",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 18,
+      "source_line": "    返回 长度(选项)",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 18,
+      "source_line": "    返回 长度(选项)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 18,
+      "source_line": "    返回 长度(选项)",
+      "type": "NAME",
+      "value": "选项",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 18,
+      "source_line": "    返回 长度(选项)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 18,
+      "source_line": "    返回 长度(选项)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "NAME",
+      "value": "计数",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "NAME",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 18,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 19,
+      "source_line": "打印(计数(甲 = 1, 乙 = 2))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 20,
+      "source_line": "函数 相减(甲, 乙)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 20,
+      "source_line": "函数 相减(甲, 乙)：",
+      "type": "NAME",
+      "value": "相减",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 20,
+      "source_line": "函数 相减(甲, 乙)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 20,
+      "source_line": "函数 相减(甲, 乙)：",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 20,
+      "source_line": "函数 相减(甲, 乙)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 20,
+      "source_line": "函数 相减(甲, 乙)：",
+      "type": "NAME",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 20,
+      "source_line": "函数 相减(甲, 乙)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 20,
+      "source_line": "函数 相减(甲, 乙)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 20,
+      "source_line": "函数 相减(甲, 乙)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "    返回 甲 - 乙",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 21,
+      "source_line": "    返回 甲 - 乙",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 21,
+      "source_line": "    返回 甲 - 乙",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 21,
+      "source_line": "    返回 甲 - 乙",
+      "type": "OP",
+      "value": "-",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 21,
+      "source_line": "    返回 甲 - 乙",
+      "type": "NAME",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "    返回 甲 - 乙",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NAME",
+      "value": "相减",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NUMBER",
+      "value": 5,
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NAME",
+      "value": "相减",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NAME",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 21,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 24,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 28,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NUMBER",
+      "value": 5,
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 22,
+      "source_line": "打印(相减(5, 1), 相减(乙 = 1, 甲 = 5))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 23,
+      "source_line": "函数 斐波(序号)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 23,
+      "source_line": "函数 斐波(序号)：",
+      "type": "NAME",
+      "value": "斐波",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 23,
+      "source_line": "函数 斐波(序号)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 23,
+      "source_line": "函数 斐波(序号)：",
+      "type": "NAME",
+      "value": "序号",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 23,
+      "source_line": "函数 斐波(序号)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 23,
+      "source_line": "函数 斐波(序号)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 23,
+      "source_line": "函数 斐波(序号)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "    如果 序号 < 2：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 24,
+      "source_line": "    如果 序号 < 2：",
+      "type": "KEYWORD",
+      "value": "如果",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 24,
+      "source_line": "    如果 序号 < 2：",
+      "type": "NAME",
+      "value": "序号",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 24,
+      "source_line": "    如果 序号 < 2：",
+      "type": "OP",
+      "value": "<",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 24,
+      "source_line": "    如果 序号 < 2：",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 24,
+      "source_line": "    如果 序号 < 2：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "    如果 序号 < 2：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        返回 序号",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 25,
+      "source_line": "        返回 序号",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 25,
+      "source_line": "        返回 序号",
+      "type": "NAME",
+      "value": "序号",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "        返回 序号",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "NAME",
+      "value": "斐波",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "NAME",
+      "value": "序号",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "OP",
+      "value": "-",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "NAME",
+      "value": "斐波",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "NAME",
+      "value": "序号",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "OP",
+      "value": "-",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 29,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    返回 斐波(序号 - 1) + 斐波(序号 - 2)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 27,
+      "source_line": "打印(斐波(10))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 27,
+      "source_line": "打印(斐波(10))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 27,
+      "source_line": "打印(斐波(10))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 27,
+      "source_line": "打印(斐波(10))",
+      "type": "NAME",
+      "value": "斐波",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 27,
+      "source_line": "打印(斐波(10))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 27,
+      "source_line": "打印(斐波(10))",
+      "type": "NUMBER",
+      "value": 10,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 27,
+      "source_line": "打印(斐波(10))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 27,
+      "source_line": "打印(斐波(10))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 27,
+      "source_line": "打印(斐波(10))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 28,
+      "source_line": "函数 造加法器(基数)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 28,
+      "source_line": "函数 造加法器(基数)：",
+      "type": "NAME",
+      "value": "造加法器",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 28,
+      "source_line": "函数 造加法器(基数)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 28,
+      "source_line": "函数 造加法器(基数)：",
+      "type": "NAME",
+      "value": "基数",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 28,
+      "source_line": "函数 造加法器(基数)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 28,
+      "source_line": "函数 造加法器(基数)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "函数 造加法器(基数)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "    函数 加(数)：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 29,
+      "source_line": "    函数 加(数)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 29,
+      "source_line": "    函数 加(数)：",
+      "type": "NAME",
+      "value": "加",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 29,
+      "source_line": "    函数 加(数)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 29,
+      "source_line": "    函数 加(数)：",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 29,
+      "source_line": "    函数 加(数)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 29,
+      "source_line": "    函数 加(数)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "    函数 加(数)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 30,
+      "source_line": "        返回 基数 + 数",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 30,
+      "source_line": "        返回 基数 + 数",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 30,
+      "source_line": "        返回 基数 + 数",
+      "type": "NAME",
+      "value": "基数",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 30,
+      "source_line": "        返回 基数 + 数",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 30,
+      "source_line": "        返回 基数 + 数",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 30,
+      "source_line": "        返回 基数 + 数",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 31,
+      "source_line": "    返回 加",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 31,
+      "source_line": "    返回 加",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 31,
+      "source_line": "    返回 加",
+      "type": "NAME",
+      "value": "加",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 31,
+      "source_line": "    返回 加",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "令 加十 = 造加法器(10)",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "令 加十 = 造加法器(10)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 32,
+      "source_line": "令 加十 = 造加法器(10)",
+      "type": "NAME",
+      "value": "加十",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 32,
+      "source_line": "令 加十 = 造加法器(10)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 11,
+      "line": 32,
+      "source_line": "令 加十 = 造加法器(10)",
+      "type": "NAME",
+      "value": "造加法器",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 32,
+      "source_line": "令 加十 = 造加法器(10)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 32,
+      "source_line": "令 加十 = 造加法器(10)",
+      "type": "NUMBER",
+      "value": 10,
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 32,
+      "source_line": "令 加十 = 造加法器(10)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "令 加十 = 造加法器(10)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "NAME",
+      "value": "加十",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "NUMBER",
+      "value": 5,
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "NAME",
+      "value": "造加法器",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 18,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "NUMBER",
+      "value": 100,
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 21,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 33,
+      "source_line": "打印(加十(5), 造加法器(100)(1))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "NAME",
+      "value": "三倍",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "OP",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 18,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "NUMBER",
+      "value": 3,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 34,
+      "source_line": "令 三倍 = 函数(数)：数 * 3",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 35,
+      "source_line": "打印(三倍(7))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 35,
+      "source_line": "打印(三倍(7))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 35,
+      "source_line": "打印(三倍(7))",
+      "type": "NAME",
+      "value": "三倍",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 35,
+      "source_line": "打印(三倍(7))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 35,
+      "source_line": "打印(三倍(7))",
+      "type": "NUMBER",
+      "value": 7,
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 35,
+      "source_line": "打印(三倍(7))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 35,
+      "source_line": "打印(三倍(7))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 35,
+      "source_line": "打印(三倍(7))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 36,
+      "source_line": "函数 判号(数)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 36,
+      "source_line": "函数 判号(数)：",
+      "type": "NAME",
+      "value": "判号",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 36,
+      "source_line": "函数 判号(数)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 36,
+      "source_line": "函数 判号(数)：",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 36,
+      "source_line": "函数 判号(数)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 36,
+      "source_line": "函数 判号(数)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 36,
+      "source_line": "函数 判号(数)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "    如果 数 > 0：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 37,
+      "source_line": "    如果 数 > 0：",
+      "type": "KEYWORD",
+      "value": "如果",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 37,
+      "source_line": "    如果 数 > 0：",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 37,
+      "source_line": "    如果 数 > 0：",
+      "type": "OP",
+      "value": ">",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 37,
+      "source_line": "    如果 数 > 0：",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 37,
+      "source_line": "    如果 数 > 0：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "    如果 数 > 0：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "        返回 \"正\"",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 38,
+      "source_line": "        返回 \"正\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 38,
+      "source_line": "        返回 \"正\"",
+      "type": "STRING",
+      "value": "正",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "        返回 \"正\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 39,
+      "source_line": "    否则如果 数 < 0：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 8,
+      "line": 39,
+      "source_line": "    否则如果 数 < 0：",
+      "type": "KEYWORD",
+      "value": "否则如果",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 39,
+      "source_line": "    否则如果 数 < 0：",
+      "type": "NAME",
+      "value": "数",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 39,
+      "source_line": "    否则如果 数 < 0：",
+      "type": "OP",
+      "value": "<",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 39,
+      "source_line": "    否则如果 数 < 0：",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 39,
+      "source_line": "    否则如果 数 < 0：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 39,
+      "source_line": "    否则如果 数 < 0：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "        返回 \"负\"",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 40,
+      "source_line": "        返回 \"负\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 40,
+      "source_line": "        返回 \"负\"",
+      "type": "STRING",
+      "value": "负",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "        返回 \"负\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 41,
+      "source_line": "    否则：",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 41,
+      "source_line": "    否则：",
+      "type": "KEYWORD",
+      "value": "否则",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 41,
+      "source_line": "    否则：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 41,
+      "source_line": "    否则：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 42,
+      "source_line": "        返回 \"零\"",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 42,
+      "source_line": "        返回 \"零\"",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 42,
+      "source_line": "        返回 \"零\"",
+      "type": "STRING",
+      "value": "零",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 42,
+      "source_line": "        返回 \"零\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "NAME",
+      "value": "判号",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "NAME",
+      "value": "判号",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": "-",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "NAME",
+      "value": "判号",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 22,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 43,
+      "source_line": "打印(判号(1), 判号(-1), 判号(0))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 44,
+      "source_line": "函数 找序号(目标)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 44,
+      "source_line": "函数 找序号(目标)：",
+      "type": "NAME",
+      "value": "找序号",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 44,
+      "source_line": "函数 找序号(目标)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 44,
+      "source_line": "函数 找序号(目标)：",
+      "type": "NAME",
+      "value": "目标",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 44,
+      "source_line": "函数 找序号(目标)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 44,
+      "source_line": "函数 找序号(目标)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 44,
+      "source_line": "函数 找序号(目标)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "NAME",
+      "value": "i",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "NAME",
+      "value": "范围",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "NUMBER",
+      "value": 10,
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 45,
+      "source_line": "    遍历 i 在 范围(10)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 46,
+      "source_line": "        如果 i == 目标：",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 46,
+      "source_line": "        如果 i == 目标：",
+      "type": "KEYWORD",
+      "value": "如果",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 46,
+      "source_line": "        如果 i == 目标：",
+      "type": "NAME",
+      "value": "i",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 16,
+      "line": 46,
+      "source_line": "        如果 i == 目标：",
+      "type": "OP",
+      "value": "==",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 46,
+      "source_line": "        如果 i == 目标：",
+      "type": "NAME",
+      "value": "目标",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 46,
+      "source_line": "        如果 i == 目标：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 46,
+      "source_line": "        如果 i == 目标：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 47,
+      "source_line": "            返回 i",
+      "type": "INDENT",
+      "value": 12,
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 47,
+      "source_line": "            返回 i",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 47,
+      "source_line": "            返回 i",
+      "type": "NAME",
+      "value": "i",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 1,
+      "line": 47,
+      "source_line": "            返回 i",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 48,
+      "source_line": "    返回 -1",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 48,
+      "source_line": "    返回 -1",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 48,
+      "source_line": "    返回 -1",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 48,
+      "source_line": "    返回 -1",
+      "type": "OP",
+      "value": "-",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 48,
+      "source_line": "    返回 -1",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 48,
+      "source_line": "    返回 -1",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "NAME",
+      "value": "找序号",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "NUMBER",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "NAME",
+      "value": "找序号",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "NUMBER",
+      "value": 99,
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 49,
+      "source_line": "打印(找序号(4), 找序号(99))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 50,
+      "source_line": "函数 空跑()：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 50,
+      "source_line": "函数 空跑()：",
+      "type": "NAME",
+      "value": "空跑",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 50,
+      "source_line": "函数 空跑()：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 50,
+      "source_line": "函数 空跑()：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 50,
+      "source_line": "函数 空跑()：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 50,
+      "source_line": "函数 空跑()：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 51,
+      "source_line": "    返回",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 51,
+      "source_line": "    返回",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 51,
+      "source_line": "    返回",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 52,
+      "source_line": "打印(空跑())",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 52,
+      "source_line": "打印(空跑())",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 52,
+      "source_line": "打印(空跑())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 52,
+      "source_line": "打印(空跑())",
+      "type": "NAME",
+      "value": "空跑",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 52,
+      "source_line": "打印(空跑())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 52,
+      "source_line": "打印(空跑())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 52,
+      "source_line": "打印(空跑())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 52,
+      "source_line": "打印(空跑())",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 53,
+      "source_line": "函数 套用(操作, 值)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 53,
+      "source_line": "函数 套用(操作, 值)：",
+      "type": "NAME",
+      "value": "套用",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 53,
+      "source_line": "函数 套用(操作, 值)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 53,
+      "source_line": "函数 套用(操作, 值)：",
+      "type": "NAME",
+      "value": "操作",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 53,
+      "source_line": "函数 套用(操作, 值)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 53,
+      "source_line": "函数 套用(操作, 值)：",
+      "type": "NAME",
+      "value": "值",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 53,
+      "source_line": "函数 套用(操作, 值)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 53,
+      "source_line": "函数 套用(操作, 值)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 53,
+      "source_line": "函数 套用(操作, 值)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 54,
+      "source_line": "    返回 操作(值)",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 54,
+      "source_line": "    返回 操作(值)",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 54,
+      "source_line": "    返回 操作(值)",
+      "type": "NAME",
+      "value": "操作",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 54,
+      "source_line": "    返回 操作(值)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 54,
+      "source_line": "    返回 操作(值)",
+      "type": "NAME",
+      "value": "值",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 54,
+      "source_line": "    返回 操作(值)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 54,
+      "source_line": "    返回 操作(值)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "NAME",
+      "value": "套用",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "NAME",
+      "value": "加倍",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "NUMBER",
+      "value": 5,
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "NAME",
+      "value": "类型",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "NAME",
+      "value": "加倍",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 55,
+      "source_line": "打印(套用(加倍, 5), 类型(加倍))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 56,
+      "source_line": "函数 累加器()：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 56,
+      "source_line": "函数 累加器()：",
+      "type": "NAME",
+      "value": "累加器",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 56,
+      "source_line": "函数 累加器()：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 56,
+      "source_line": "函数 累加器()：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 56,
+      "source_line": "函数 累加器()：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 56,
+      "source_line": "函数 累加器()：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 57,
+      "source_line": "    令 计 = 0",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 57,
+      "source_line": "    令 计 = 0",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 57,
+      "source_line": "    令 计 = 0",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 57,
+      "source_line": "    令 计 = 0",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 57,
+      "source_line": "    令 计 = 0",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 57,
+      "source_line": "    令 计 = 0",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 58,
+      "source_line": "    函数 加()：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 58,
+      "source_line": "    函数 加()：",
+      "type": "NAME",
+      "value": "加",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 58,
+      "source_line": "    函数 加()：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 58,
+      "source_line": "    函数 加()：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 58,
+      "source_line": "    函数 加()：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 58,
+      "source_line": "    函数 加()：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "        返回 计",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 59,
+      "source_line": "        返回 计",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 59,
+      "source_line": "        返回 计",
+      "type": "NAME",
+      "value": "计",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "        返回 计",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 60,
+      "source_line": "    返回 加",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 60,
+      "source_line": "    返回 加",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 60,
+      "source_line": "    返回 加",
+      "type": "NAME",
+      "value": "加",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 60,
+      "source_line": "    返回 加",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "NAME",
+      "value": "累加器",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 61,
+      "source_line": "打印(累加器()())",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 61,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:042797f2ee6ad1f9",
+  "语料": "tests/cases/23_函数与闭包.jsh"
+}
