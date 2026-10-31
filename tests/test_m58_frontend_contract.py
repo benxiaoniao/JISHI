@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -119,7 +120,17 @@ def _显式捕获():
 
 
 def _跑比对(参数):
-    """显式接管两条流跑一次 `C.main`，返回 `(退出码, stdout, stderr)`。
+    """跑一次 `tools/conformance.py <参数>`（**独立进程**），返回 `(码, stdout, stderr)`。
+
+    🔴 **为什么 2026-10-31 改成子进程**（同一个坑第三次）：
+      最初用 `capfd`，CI 上出现「退出码对、两条流都是空串」；
+      换成进程内 `redirect_stdout` 之后，0.2.10 的 CI（**ubuntu 与 macOS**）**同样的症状又来了**，
+      而 Windows 与本地永远绿。
+      ⇒ 不是夹具选得不对，是**进程内捕获在 CI 的 Linux runner 上不可靠**。
+        换夹具只是换个赌注；**另起一个进程、输出走管道**才是真的接管。
+    ⚠️ 代价：每次多 ~1 秒（`compare` 只读 JSON，不编译，够快）。
+
+    原先的说明（保留作历史）：显式接管两条流跑一次 `C.main`。
 
     🔴 **为什么不直接用 `capfd`**（2026-10-25 / 26 各踩一次）：
     CI 上出现过「退出码对、但抓到的 stdout 是**空串**」，而 pytest 自己的
@@ -131,10 +142,12 @@ def _跑比对(参数):
     ⚠️ 顺带把**退出码与两条流**一起返回 —— 失败信息就能自证
     （是「没打印」还是「提前退了」）。
     """
-    出, 错 = io.StringIO(), io.StringIO()
-    with contextlib.redirect_stdout(出), contextlib.redirect_stderr(错):
-        码 = C.main(参数)
-    return 码, 出.getvalue(), 错.getvalue()
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "conformance.py"), *参数],
+        cwd=str(ROOT), capture_output=True, timeout=300, input=b"")
+    return (r.returncode,
+            r.stdout.decode("utf-8", "replace"),
+            r.stderr.decode("utf-8", "replace"))
 
 
 def _现场(码, 出, 错) -> str:
