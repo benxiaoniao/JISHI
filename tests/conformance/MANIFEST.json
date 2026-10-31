@@ -53,11 +53,11 @@
   ],
   "格式版本": 3,
   "生成环境": {
-    "jishi": "0.2.8",
+    "jishi": "0.2.9",
     "python": "3.13.14"
   },
   "类别计数": {
-    "examples": 38,
+    "examples": 39,
     "frontend": 1,
     "lang": 126,
     "stdlib": 4
@@ -128,8 +128,8 @@
     },
     {
       "id": "examples__projects__基石自述站__生成",
-      "产物哈希": "sha256:7974e4b2f08d7916",
-      "内容哈希": "sha256:82b6ff98a5c1c1be",
+      "产物哈希": "sha256:eee187dfd21a1566",
+      "内容哈希": "sha256:d7827faf7447c108",
       "类别": "examples",
       "路径": "examples/projects/基石自述站/生成.jsh"
     },
@@ -244,6 +244,13 @@
       "内容哈希": "sha256:844a59bbc69128aa",
       "类别": "examples",
       "路径": "examples/tutorial/10_记账程序.jsh"
+    },
+    {
+      "id": "examples__tutorial__11_记账数据库",
+      "产物哈希": "sha256:ac163a96938259c0",
+      "内容哈希": "sha256:ad02c4a9b1fba9e7",
+      "类别": "examples",
+      "路径": "examples/tutorial/11_记账数据库.jsh"
     },
     {
       "id": "examples__科学计算__01_两点距离",
@@ -576,8 +583,8 @@
     },
     {
       "id": "tests__cases__31_标准库_M112",
-      "产物哈希": "sha256:4343423287140bf5",
-      "内容哈希": "sha256:36f3d38ee3ef70ba",
+      "产物哈希": "sha256:7c9a050d82f9e8f9",
+      "内容哈希": "sha256:36b6ab3d3acbff99",
       "类别": "lang",
       "路径": "tests/cases/31_标准库_M112.jsh"
     },
@@ -1247,5 +1254,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 169
+  "语料数": 170
 }

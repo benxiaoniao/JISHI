@@ -4313,7 +4313,7 @@
                         "right": {
                           "col": 10,
                           "line": 289,
-                          "value": "<li><a href=\"/start.html\">官网上的教程</a> —— 10 章，从打印一行字到",
+                          "value": "<li><a href=\"/start.html\">官网上的教程</a> —— 11 章，从打印一行字到",
                           "类型": "Str"
                         },
                         "类型": "BinOp"
@@ -8126,7 +8126,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "c15ef7c7b543a7fa0a04425a537e5e5e5d14456c043f56c730b20294d5687ef2",
+    "checksum": "428f1dbce55b137ed117d5b0ca3f7c703461dc1af74385fb2d060acbe1c71335",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -17354,7 +17354,7 @@
         },
         {
           "t": "str",
-          "v": "<li><a href=\"/start.html\">官网上的教程</a> —— 10 章，从打印一行字到"
+          "v": "<li><a href=\"/start.html\">官网上的教程</a> —— 11 章，从打印一行字到"
         },
         {
           "t": "str",
@@ -27748,7 +27748,7 @@
       "col": 9,
       "end_col": 10,
       "line": 289,
-      "source_line": "        +\"<li><a href=\\\"/start.html\\\">官网上的教程</a> —— 10 章，从打印一行字到\"",
+      "source_line": "        +\"<li><a href=\\\"/start.html\\\">官网上的教程</a> —— 11 章，从打印一行字到\"",
       "type": "OP",
       "value": "+",
       "类型": "Token"
@@ -27757,9 +27757,9 @@
       "col": 10,
       "end_col": 65,
       "line": 289,
-      "source_line": "        +\"<li><a href=\\\"/start.html\\\">官网上的教程</a> —— 10 章，从打印一行字到\"",
+      "source_line": "        +\"<li><a href=\\\"/start.html\\\">官网上的教程</a> —— 11 章，从打印一行字到\"",
       "type": "STRING",
-      "value": "<li><a href=\"/start.html\">官网上的教程</a> —— 10 章，从打印一行字到",
+      "value": "<li><a href=\"/start.html\">官网上的教程</a> —— 11 章，从打印一行字到",
       "类型": "Token"
     },
     {
@@ -34546,6 +34546,6 @@
       "类型": "Token"
     }
   ],
-  "内容哈希": "sha256:82b6ff98a5c1c1be",
+  "内容哈希": "sha256:d7827faf7447c108",
   "语料": "examples/projects/基石自述站/生成.jsh"
 }

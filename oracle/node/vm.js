@@ -4467,7 +4467,7 @@ function _dbCols(conn, table) {
 }
 
 /** 「条件」字典 → `{sql, params}`。 */
-function _dbCond(cond) {
+function _dbCond(cond, cols, 表名) {
   if (cond === null || cond === undefined) return { sql: '', params: [] };
   if (!(cond instanceof Map)) {
     throw R.typeErr(`「条件」要给一个字典（字段 → 值），给过来的却是「${R.typeName(cond)}」`,
@@ -4475,6 +4475,15 @@ function _dbCond(cond) {
   }
   if (cond.size === 0) return { sql: '', params: [] };
   const keys = [...cond.keys()].map(_dbRaw).sort();
+  // ⚠️ **字段名要先对一遍表结构**（M156）：条件写错层级（`{">": 100}` 而不是
+  //    `{"金额": {">": 100}}`）时，SQLite 对双引号里的未知名字会退化成
+  //    「字符串字面量」（DQS）—— 三个执行器给空列表、Node 直接甩一句英文 SQL 错。
+  const 缺 = keys.filter((k) => cols.indexOf(k) < 0);
+  if (缺.length) {
+    throw R.valueErr(`表「${_dbRaw(表名)}」里没有这些字段：${缺.join('、')}`,
+      undefined, undefined,
+      `它有：${cols.join('、')}。比大小要**嵌一层**：{"字段": {">": 100}}`);
+  }
   const parts = [];
   const params = [];
   for (const kRaw of keys) {
@@ -4507,12 +4516,17 @@ function _dbCond(cond) {
   return { sql: ' WHERE ' + parts.join(' AND '), params };
 }
 
-/** 排序片段。**永远拿 rowid 兜底** —— 不然等值的行之间顺序不定。 */
+/** 排序片段。**永远拿 rowid 兜底** —— 不然等值的行之间顺序不定。
+ *
+ * ⚠️ **方向要加在每一个排序字段上**（M156 修）：以前只拼在最后的 `rowid`
+ * 后面，于是 `ORDER BY "金额", rowid DESC` ——「金额」还是**升序**，
+ * 所谓的「倒序」只颠倒了「金额相等的那些行之间」的顺序。
+ */
 function _dbOrder(sort, desc) {
   const dir = desc ? ' DESC' : '';
   if (sort === null || sort === undefined || sort === '') return ` ORDER BY rowid${dir}`;
   const cols = _dbNames(sort, '排序字段').map(_dbName);
-  return ` ORDER BY ${cols.join(', ')}, rowid${dir}`;
+  return ` ORDER BY ${cols.map((c) => c + dir).join(', ')}, rowid${dir}`;
 }
 
 /** 记录数组 → 基石列表（每条是字典）。 */
@@ -4685,15 +4699,15 @@ const DB_FUNCS = {
     if (!Number.isInteger(n) || n < 0) {
       throw R.valueErr(`条数要给非负整数，给的是「${R.display(条数)}」`);
     }
-    const c = _dbCond(条件);
+    const c = _dbCond(条件, cols, 表名);
     const limit = n > 0 ? ` LIMIT ${n}` : '';
     const sql = `SELECT * FROM ${_dbName(表名)}${c.sql}${_dbOrder(排序, R.truthy(倒序))}${limit}`;
     return _dbRecords(_dbRun(conn, sql, c.params));
   }),
   '条数': new R.Builtin('条数', (库, 表名, 条件) => {
     const conn = _dbConn(库);
-    _dbCols(conn, 表名);
-    const c = _dbCond(条件);
+    const cols = _dbCols(conn, 表名);
+    const c = _dbCond(条件, cols, 表名);
     const r = _dbRun(conn, `SELECT COUNT(*) FROM ${_dbName(表名)}${c.sql}`, c.params);
     return r.rows.length ? r.rows[0][0] : 0;
   }),
@@ -4708,7 +4722,7 @@ const DB_FUNCS = {
           undefined, undefined, `它有：${cols.join('、')}`);
       }
     }
-    const c = _dbCond(条件);
+    const c = _dbCond(条件, cols, 表名);
     // ⚠️ 按 rowid 取回来（确定顺序），分组与累加都在本地做。
     //    **两列都起别名** —— 免得「按金额分组 + 对金额求和」这种写法撞上重名列
     //    （JS 侧行对象会把重名列盖掉，见 `_dbRun`）。
@@ -4763,7 +4777,7 @@ const DB_FUNCS = {
           undefined, undefined, `它有：${cols.join('、')}`);
       }
     }
-    const c = _dbCond(条件);
+    const c = _dbCond(条件, cols, 表名);
     const ks = [...新值.keys()].map(_dbRaw).sort();
     const sets = ks.map((k) => `${_dbName(k)} = ?`).join(', ');
     const params = ks.map((k) => {
@@ -4784,8 +4798,8 @@ const DB_FUNCS = {
       throw R.valueErr('「删除」必须给条件', undefined, undefined,
         '要清空整张表就用 数据库.执行(库, "DELETE FROM 表名")');
     }
-    _dbCols(conn, 表名);
-    const c = _dbCond(条件);
+    const cols = _dbCols(conn, 表名);
+    const c = _dbCond(条件, cols, 表名);
     let out;
     try {
       out = conn.prepare(`DELETE FROM ${_dbName(表名)}${c.sql}`).run(...c.params);

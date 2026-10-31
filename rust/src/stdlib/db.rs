@@ -335,7 +335,16 @@ fn 列名们(conn: &rusqlite::Connection, 表: &Val) -> Result<Vec<String>, crat
 }
 
 /// 「条件」字典 → `(WHERE 片段, 参数)`。
-fn 查条件(条件: Option<&Val>) -> Result<(String, Vec<rusqlite::types::Value>), crate::JishiError> {
+///
+/// ⚠️ **字段名要先对一遍表结构**（M156）：条件写错层级（`{">": 100}`
+/// 而不是 `{"金额": {">": 100}}`）时，SQLite 对**双引号里的未知名字**会退化成
+/// 「字符串字面量」（DQS），于是各执行器给三种结果：空列表 / 英文 SQL 报错。
+/// 「静默查不到」比报错难查得多，所以这里统一报一句能照着改的话。
+fn 查条件(
+    条件: Option<&Val>,
+    现有: &[String],
+    表名: &str,
+) -> Result<(String, Vec<rusqlite::types::Value>), crate::JishiError> {
     use rusqlite::types::Value as RV;
     let d = match 条件 {
         None | Some(Val::None_) => return Ok((String::new(), Vec::new())),
@@ -355,6 +364,19 @@ fn 查条件(条件: Option<&Val>) -> Result<(String, Vec<rusqlite::types::Value
     // 键排一下，生成的 SQL 才稳定
     let mut 键们: Vec<Val> = items.iter().map(|(k, _)| k.clone()).collect();
     键们.sort_by_key(|k| display(k));
+    let 缺: Vec<String> = 键们
+        .iter()
+        .map(|k| 裸名(k))
+        .filter(|k| !现有.contains(k))
+        .collect();
+    if !缺.is_empty() {
+        return Err(err_with_hint(
+            "值错误",
+            format!("表「{表名}」里没有这些字段：{}", 缺.join("、")),
+            format!("它有：{}。比大小要**嵌一层**：{{\"字段\": {{\">\": 100}}}}",
+                    现有.join("、")),
+        ));
+    }
     let mut 片段: Vec<String> = Vec::new();
     let mut 参数: Vec<RV> = Vec::new();
     for k in &键们 {
@@ -418,6 +440,10 @@ fn 查条件(条件: Option<&Val>) -> Result<(String, Vec<rusqlite::types::Value
 }
 
 /// 排序片段。**永远拿 rowid 兜底** —— 不然等值的行之间顺序不定。
+///
+/// ⚠️ **方向要加在每一个排序字段上**（M156 修）：以前只拼在最后的 `rowid`
+/// 后面，于是 `ORDER BY "金额", rowid DESC` ——「金额」还是**升序**，
+/// 所谓的「倒序」只颠倒了「金额相等的那些行之间」的顺序。
 fn 定序(排序: Option<&Val>, 倒序: bool) -> Result<String, crate::JishiError> {
     let 方向 = if 倒序 { " DESC" } else { "" };
     match 排序 {
@@ -425,7 +451,11 @@ fn 定序(排序: Option<&Val>, 倒序: bool) -> Result<String, crate::JishiErro
         Some(Val::Str(s)) if s.is_empty() => Ok(format!(" ORDER BY rowid{方向}")),
         Some(v) => {
             let 列 = 名们(v, "排序字段")?;
-            Ok(format!(" ORDER BY {}, rowid{方向}", 列.join(", ")))
+            let 带方向 = 列.iter()
+                .map(|c| format!("{c}{方向}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            Ok(format!(" ORDER BY {带方向}, rowid{方向}"))
         }
     }
 }
@@ -674,7 +704,14 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let 表 = 名(&args[1])?;
             用连接(&键, |c| {
                 let 现有 = 列名们(c, &args[1])?;
-                if let Some(s) = &排序 {
+                // ⚠️ `空` / `""` 都算「不排序」（M156）：Python / Node 一直这么认，
+                //    宿主以前把 `空` 也丢进 `裸名们` → 报「排序字段要给非空列表」。
+                let 空排序 = match &排序 {
+                    None | Some(Val::None_) => true,
+                    Some(Val::Str(t)) => t.is_empty(),
+                    _ => false,
+                };
+                if let (false, Some(s)) = (空排序, &排序) {
                     let 要 = 裸名们(s, "排序字段")?;
                     let 缺: Vec<&String> = 要.iter().filter(|x| !现有.contains(x)).collect();
                     if !缺.is_empty() {
@@ -687,7 +724,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
                         ));
                     }
                 }
-                let (片段, 参数) = 查条件(条件.as_ref())?;
+                let (片段, 参数) =
+                    查条件(条件.as_ref(), &现有, &裸名(&args[1]))?;
                 let 限 = if 条数 > 0 { format!(" LIMIT {条数}") } else { String::new() };
                 let sql = format!(
                     "SELECT * FROM {表}{片段}{}{限}",
@@ -703,8 +741,9 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let 条件 = if args.len() >= 3 { Some(args[2].clone()) } else { None };
             let 表 = 名(&args[1])?;
             用连接(&键, |c| {
-                列名们(c, &args[1])?;
-                let (片段, 参数) = 查条件(条件.as_ref())?;
+                let 现有 = 列名们(c, &args[1])?;
+                let (片段, 参数) =
+                    查条件(条件.as_ref(), &现有, &裸名(&args[1]))?;
                 let r = 跑(c, &format!("SELECT COUNT(*) FROM {表}{片段}"), &参数)?;
                 Ok(Val::Int(crate::as_int(&r.行们[0][0])? as i128))
             })
@@ -729,7 +768,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
                 let 分组 = 名(&args[2])?;
                 let 求和 = 名(&args[3])?;
-                let (片段, 参数) = 查条件(条件.as_ref())?;
+                let (片段, 参数) =
+                    查条件(条件.as_ref(), &现有, &裸名(&args[1]))?;
                 // ⚠️ 按 rowid 取回来（确定顺序），分组与累加都在本地做
                 let r = 跑(c, &format!(
                     "SELECT {分组}, {求和} FROM {表}{片段} ORDER BY rowid"), &参数)?;
@@ -816,7 +856,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
                         ));
                     }
                 }
-                let (片段, 条件参数) = 查条件(Some(&Val::Dict(条件.clone())))?;
+                let (片段, 条件参数) =
+                    查条件(Some(&Val::Dict(条件.clone())), &现有, &裸名(&args[1]))?;
                 let mut 名们: Vec<Val> = items.iter().map(|(k, _)| k.clone()).collect();
                 名们.sort_by_key(|k| display(k));
                 let mut 赋值: Vec<String> = Vec::new();
@@ -848,8 +889,9 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             let 表 = 名(&args[1])?;
             用连接(&键, |c| {
-                列名们(c, &args[1])?;
-                let (片段, 参数) = 查条件(Some(&Val::Dict(条件.clone())))?;
+                let 现有 = 列名们(c, &args[1])?;
+                let (片段, 参数) =
+                    查条件(Some(&Val::Dict(条件.clone())), &现有, &裸名(&args[1]))?;
                 let n = c.execute(
                     &format!("DELETE FROM {表}{片段}"),
                     rusqlite::params_from_iter(参数.iter())).map_err(库错)?;

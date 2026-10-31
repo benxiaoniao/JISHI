@@ -85,7 +85,7 @@ def _both(args: list[str], tmp: Path, name: str) -> str:
 
 @need_rust
 def test_对拍_教程(tmp_path):
-    """10 章教程索引：stdout / stderr / 退码**逐字节一致**。"""
+    """11 章教程索引：stdout / stderr / 退码**逐字节一致**。"""
     work = _both(["教程"], tmp_path, "教程")
     p = _py(["教程"], Path(work))
     r = _rs(["教程"], Path(work))

@@ -1640,6 +1640,17 @@ function newBuiltins() {
       if (x === null || typeof x === 'boolean') {
         return x === null ? 0 : (x ? 1 : 0);
       }
+      // M156：**精确小数按截断取整**（向零）—— 与 `整数(8.5)` → 8、
+      // 以及 Python 的 `int(Decimal("8.5"))` 同一口径。
+      // 以前落进下面那条 `typeof === 'object'` 兜底，报「不能转成整数」。
+      if (isDecimal(x)) {
+        // 值 = coef × 10^exp；BigInt 的除法**向零截断**，正是 `int()` 的口径。
+        const coef = x.coef;
+        const n = x.exp >= 0
+          ? coef * (10n ** BigInt(x.exp))
+          : coef / (10n ** BigInt(-x.exp));
+        return Number(n);
+      }
       if (typeof x === 'object') {
         throw typeErr(`「${display(v)}」不能转成整数`);
       }
@@ -1653,6 +1664,8 @@ function newBuiltins() {
       const x = unwrap(v);
       if (x === null) return new FloatBox(0);
       if (typeof x === 'boolean') return new FloatBox(x ? 1 : 0);
+      // M156：精确小数按 `float(Decimal)` 转（以前落进兜底报「不能转成小数」）
+      if (isDecimal(x)) return new FloatBox(Number(x.toString()));
       if (typeof x === 'object') {
         throw typeErr(`「${display(v)}」不能转成小数`);
       }

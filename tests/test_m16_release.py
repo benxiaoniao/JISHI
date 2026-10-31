@@ -75,7 +75,7 @@ def test_cmd_doctor():
 def test_cmd_tutorial():
     code, out = _run_cli(["教程"])
     assert code == 0
-    assert "10 章" in out or "第10章" in out
+    assert "11 章" in out or "第11章" in out
     assert "包管理" in out
 
 

@@ -286,7 +286,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px
         +"<h2>往下读</h2>"
         +"<ul>"
         +"<li><a href=\"上手.html\">上手</a> —— 十分钟跑起第一个程序</li>"
-        +"<li><a href=\"/start.html\">官网上的教程</a> —— 10 章，从打印一行字到"
+        +"<li><a href=\"/start.html\">官网上的教程</a> —— 11 章，从打印一行字到"
         +"一个能用的记账程序</li>"
         +"<li><a href=\"/stdlib.html\">标准库</a> —— 别自己造轮子，先看有没有现成的</li>"
         +"<li><a href=\"/download.html\">下载</a> —— Windows / macOS / Linux，"

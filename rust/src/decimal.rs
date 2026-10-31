@@ -727,4 +727,37 @@ impl Dec {
         }
         s.to_string().parse::<i64>().ok()
     }
+
+    /// 转 `f64` —— 对应 Python 的 `float(Decimal)`。
+    ///
+    /// M156：`小数(精确("1.5"))` 以前在宿主上直接报「不能转成小数」，
+    /// 另外三个执行器给 `1.5`。走**十进制文本**转，与 CPython 一样是
+    /// 「对精确值取最近的 double」。
+    pub fn to_f64(&self) -> f64 {
+        self.to_string().parse::<f64>().unwrap_or(f64::NAN)
+    }
+
+    /// **截断取整（向零）** —— 对应 Python 的 `int(Decimal)`：`8.9` → 8、`-8.9` → -8。
+    ///
+    /// M156：`整数(精确("8.5"))` 以前在宿主上直接报「不能转成整数」，而
+    /// Python / 树遍历 / C VM 给 8（`int(Decimal("8.5"))`）—— 同一段程序
+    /// 两个说法。写第 11 章「金额存分」时撞到的：`整数(精确(8.5) * 100)`
+    /// 在宿主上直接崩，另外三个执行器给 850。
+    ///
+    /// 放不下 `i128` 时返回 `None`（调用方报「太大」）。
+    pub fn to_i128_trunc(&self) -> Option<i128> {
+        let 除 = if self.exp < 0 {
+            BigInt::pow10((-self.exp) as u32)
+        } else {
+            BigInt::pow10(0)
+        };
+        // `divmod` 的商向零截断（符号由商的符号决定）—— 正是 `int()` 的口径。
+        let (q, _) = self.coef.divmod(&除);
+        let 结果 = if self.exp > 0 {
+            q.mul(&BigInt::pow10(self.exp as u32))
+        } else {
+            q
+        };
+        结果.to_string().parse::<i128>().ok()
+    }
 }

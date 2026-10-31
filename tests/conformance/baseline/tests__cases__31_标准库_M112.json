@@ -16022,13 +16022,13 @@
     {
       "col": 1,
       "end_col": 1,
-      "line": 92,
+      "line": 97,
       "source_line": "",
       "type": "EOF",
       "value": null,
       "类型": "Token"
     }
   ],
-  "内容哈希": "sha256:36f3d38ee3ef70ba",
+  "内容哈希": "sha256:36b6ab3d3acbff99",
   "语料": "tests/cases/31_标准库_M112.jsh"
 }

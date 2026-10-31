@@ -4077,6 +4077,13 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             Val::Bool(b) => Ok(Val::Int(if *b { 1 } else { 0 })),
             Val::Str(s) => s.parse::<i128>().map(Val::Int)
                 .map_err(|_| err("值错误", format!("「{s}」不能转成整数"))),
+            // M156：**精确小数按截断取整**（向零）—— 与 `整数(8.5)` → 8、
+            // 以及 Python 的 `int(Decimal("8.5"))` 同一口径。
+            // 以前落进下面那条兜底，报「不能转成整数」；另外三个执行器都给 8。
+            Val::Dec(d) => d.to_i128_trunc().map(Val::Int).ok_or_else(|| err(
+                "值错误",
+                format!("「{}」太大了，放不进整数", display(&args[0])),
+            )),
             other => Err(err(
                 "类型错误",
                 format!("「{}」不能转成整数", display(other)),
@@ -4091,6 +4098,8 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             Val::Bool(b) => Ok(Val::Float(if *b { 1.0 } else { 0.0 })),
             Val::Str(s) => s.parse::<f64>().map(Val::Float)
                 .map_err(|_| err("值错误", format!("「{s}」不能转成小数"))),
+            // M156：精确小数按 `float(Decimal)` 转（以前落进兜底报「不能转成小数」）
+            Val::Dec(d) => Ok(Val::Float(d.to_f64())),
             other => Err(err(
                 "类型错误",
                 format!("「{}」不能转成小数", display(other)),

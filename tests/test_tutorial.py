@@ -92,6 +92,18 @@ def test_tutorial_expense_tracker(tmp_path, monkeypatch):
     assert "演示完成（账本已清理）" in out
 
 
+def test_tutorial_expense_db(tmp_path, monkeypatch):
+    """第 11 章：账目存 SQLite（M156）。五引擎逐字一致在 `test_m156` 里盯，
+    这里只做「教程示例真能跑、并且自己清理」这一条最低保证。"""
+    monkeypatch.chdir(tmp_path)
+    out = run_file_stdout("11_记账数据库.jsh")
+    assert "新记了 3 笔；一共 5 笔" in out
+    assert "2026-10-03 餐饮 22.00 元 聚餐" in out        # 最近两笔（id 倒序）
+    assert "餐饮 3 笔，合计 45.50 元" in out             # 分类汇总
+    assert "演示完成（账目.db 已清理）" in out
+    assert not (tmp_path / "账目.db").exists(), "示例没把库文件删掉"
+
+
 # -- 交互示例（子进程冒烟） --------------------------------------------------
 
 def _run_cli(path: str, inputs: str) -> subprocess.CompletedProcess:
