@@ -88,6 +88,11 @@ EXEMPT: dict[str, str] = {
         "`frontend` 类别的说明（这类语料**只给前端看**，不参与运行期对拍）",
     "examples/projects/排序跑分/排序.jsh":
         "打印的是**墙上时间**（毫秒），三次跑天然不同 —— 噪声，不是语义差异",
+    "examples/tutorial/13_HTTP服务.jsh":
+        "**服务端示例**（M158 教程）：`HTTP服务端.启动` 在 Node 宿主上明确不支持"
+        "（同步 VM 没有事件循环可泵，见 D81），是有意的平台边界 —— 不是「算得不一样」。"
+        "纯协议那一半由 `examples/tutorial/13_HTTP接口.jsh` 覆盖（五引擎逐字比），"
+        "端到端由 `tests/test_m158_http_tutorial.py` 真起服务打 HTTP 验",
     "examples/projects/小网站/网站.jsh":
         "**服务端示例**：最后一行是 `HTTP服务端.启动(…)`，跑起来会一直监听、不退出 —— "
         "拿它当语料会把对拍挂死。它的行为由 `tests/cases/40_标准库_M122.jsh`（路由语义）"

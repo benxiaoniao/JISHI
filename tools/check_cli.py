@@ -58,6 +58,9 @@ SKIP_RULES = [
     ("要从 Python / 本地包导入 —— 单二进制**故意没有**这个能力"
      "（AGENTS.md §2 的「搬不动的显式登记」：Rust 宿主不链 CPython）",
      lambda name, text: "从 python" in text or "从 本地包" in text),
+    ("真起 HTTP 服务（M158 教程示例）：两边都会**阻塞等请求**，对拍里没人发请求 —— "
+     "只能白等一个超时。端到端由 `tests/test_m158_http_tutorial.py` 真打 HTTP 验",
+     lambda name, text: name == "13_HTTP服务.jsh"),
     ("`时间.计时` 是 m51 `KNOWN_GAPS` 里**已登记**的缺口（要上下文协议 + 带方法的"
      "对象，归基石库层）；且这一份的输出含墙上时间跑分，本来就不可逐字节比",
      lambda name, text: name == "排序.jsh"),

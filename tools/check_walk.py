@@ -69,6 +69,9 @@ def _exe() -> Path:
 不测的语料 = {
     "examples/projects/小网站/网站.jsh":
         "HTTP 服务端示例：启动后永久监听端口、不返回，没有「跑完」可供比对",
+    "examples/tutorial/13_HTTP服务.jsh":
+        "HTTP 服务端示例（M158 教程）：要等外部请求才往下走 —— 对拍里没人发请求，"
+        "跑到它就是白等一个超时。端到端由 `test_m158_http_tutorial.py` 真打 HTTP 验",
 }
 
 #: 单条语料的执行上限（秒）。正常语料远低于它（全量 ~40 秒 / 160 条）。

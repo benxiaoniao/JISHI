@@ -174,7 +174,15 @@ def test_examples_match(jsh, monkeypatch):
     _compare((EXAMPLES / jsh).read_text(encoding="utf-8"), jsh, monkeypatch)
 
 
-@pytest.mark.parametrize("jsh", _list(EXAMPLES / "tutorial"))
+#: 教程里**故意不返回**的示例：`13_HTTP服务.jsh` 真起一个 HTTP 服务、等外部请求。
+#: 这个文件里所有用例都是「跑完再比」，跑到它就是**永远卡住**（M158 踩过：
+#: 串行一整轮被它拖到超时，还以为是自己改坏了）。
+#: 它的端到端由 `test_m158_http_tutorial.py`（真起进程、真发 HTTP 请求）覆盖。
+不参与对拍的教程 = {"13_HTTP服务.jsh"}
+
+
+@pytest.mark.parametrize("jsh", [n for n in _list(EXAMPLES / "tutorial")
+                                 if n not in 不参与对拍的教程])
 def test_tutorial_examples_match(jsh, monkeypatch):
     src = (EXAMPLES / "tutorial" / jsh).read_text(encoding="utf-8")
     _compare(src, jsh, monkeypatch)

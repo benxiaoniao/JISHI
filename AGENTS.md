@@ -1079,7 +1079,7 @@ python tools/publish_pypi.py                        # 只检查，产物落在 d
 | `docs/一致性夹具.md` | **R 线**：R0 夹具的设计与用法（内部） |
 | `docs/架构迁移路径.md` | **R 线**：R0–R8 怎么做、做到哪一步算成功（内部） |
 | `docs/embed.md` | 跨语言嵌入（C/Node/Rust）指南 |
-| `docs/tutorial/` | 教程 12 章 |
+| `docs/tutorial/` | 教程 13 章 |
 | `docs/ai/` | 系统提示词 / 提示词指南（喂模型用） |
 | `examples/projects/` | 真实项目 + 反哺的语法别扭点记录 |
 | `CHANGELOG.md` | 逐版本改了什么（**面向用户**） |
