@@ -2019,7 +2019,11 @@ impl VM {
                 }
                 Ok(Flow::Error(mut e)) => {
                     // 异常分发
-                    self.fill_error_loc(&mut e, fi);
+                    // 🔴 M163：报错定位要用**当前最内层帧**，不能再用 `fi` ——
+                    // 函数调用内部化之后，`execute_frame` 可能已经跑到很深的帧
+                    // 才报错，而 `fi` 还停在「进这个函数时的帧」上。
+                    let 出错帧 = self.frames.len().saturating_sub(1);
+                    self.fill_error_loc(&mut e, 出错帧);
                     // 拍调用链的时机与 Python 侧一样：**错误第一次冒出来那一刻**
                     // （再往外抛的路上帧早就被弹干净了）。见 `snapshot_trace`。
                     self.snapshot_trace(&mut e);
@@ -2039,7 +2043,8 @@ impl VM {
                     //
                     // M56：出错的**位置**在这里统一补 —— 不必去动几百处 `err(...)`
                     // 调用点（内建与标准库也不知道自己在第几行）。
-                    self.fill_error_loc(&mut e, fi);
+                    let 出错帧 = self.frames.len().saturating_sub(1);
+                    self.fill_error_loc(&mut e, 出错帧);
                     // 拍调用链的时机与 Python 侧一样：**错误第一次冒出来那一刻**
                     // （再往外抛的路上帧早就被弹干净了）。见 `snapshot_trace`。
                     self.snapshot_trace(&mut e);
@@ -2096,16 +2101,30 @@ impl VM {
         e.trace = chain;
     }
 
-    fn execute_frame(&mut self, fi: usize) -> Result<Flow, JishiError> {
-        let code_idx = self.frames[fi].code_idx;
+    fn execute_frame(&mut self, start_fi: usize) -> Result<Flow, JishiError> {
+        // 🔴 M163：**函数调用不再返回这个函数**。
+        //
+        // 以前 CALL 压完帧就 `return Ok(Flow::Call)`，外层 `execute` 再
+        // `execute_frame(fi)` 进来 —— 一次调用要**退出并重进这个几千行的指令循环**
+        // （大函数 prologue/epilogue + 重新取 module/instrs）。
+        // 实测一次基石函数调用 **约 430 ns**（纯循环迭代只要 98 ns），
+        // CPython 约 50~80 ns，而且「每多一层调用」都稳定付 430 ns ——
+        // 说明钱就花在这条往返上，不是分配（改分配只快了 2.6%）。
+        //
+        // 现在 CALL / RETURN 在**同一个循环里**换帧继续（CPython 的 CALL 就是这么做的）。
+        // `start_depth` 记住「进来时的帧深」：弹回到它就交回外层（外层负责 pop 与
+        // `stop_at` 判断）；没弹到就继续跑调用者的下一条指令。
+        let start_depth = self.frames.len();
+        let mut fi = start_fi;
+        let mut code_idx = self.frames[fi].code_idx;
         let mut ip = self.frames[fi].ip;
-        let base = self.frames[fi].base;
+        let mut base = self.frames[fi].base;
         // ⚠️ **不再克隆整个指令数组**（原来是 `code.instrs.clone()` —— 每进一次
         // 帧就一次堆分配 + 拷贝）。`module` 是 `Rc`，克隆一次只是引用计数 +1，
         // 于是能在**不借用 `self`** 的前提下长期借用 `instrs` —— 循环体里到处
         // 是 `self.xxx()`（要 `&mut self`），直接借用 `self.module` 会打架。
         let module = Rc::clone(&self.module);
-        let instrs = &module.codes[code_idx].instrs;
+        let mut instrs = &module.codes[code_idx].instrs;
 
         // R8.1：**步数预算** —— 「一步」= **回跳一次**（循环走完一圈）。
         //
@@ -2363,7 +2382,13 @@ impl VM {
                             self.push_func_frame(Some((fi, ip)), *f, args, &knames,
                                                  &kwvals, fn_base,
                                                  (ins.line, ins.col), true)?;
-                            return Ok(Flow::Call);
+                            // M163：**不返回**，在同一个循环里换到新帧继续跑。
+                            fi = self.frames.len() - 1;
+                            code_idx = self.frames[fi].code_idx;
+                            ip = self.frames[fi].ip;
+                            base = self.frames[fi].base;
+                            instrs = &module.codes[code_idx].instrs;
+                            continue;
                         }
                         Val::Builtin(name, bfn) => {
                             // 命名参数在这里映射回位置参数（M51）。以前是直接
@@ -2405,7 +2430,13 @@ impl VM {
                                     self.push_func_frame(Some((fi, ip)), func, all,
                                                          &knames, &kwvals, fn_base,
                                                          (ins.line, ins.col), false)?;
-                                    return Ok(Flow::Call);
+                                    // M163：同「函数调用」——不返回，换帧继续
+                                    fi = self.frames.len() - 1;
+                                    code_idx = self.frames[fi].code_idx;
+                                    ip = self.frames[fi].ip;
+                                    base = self.frames[fi].base;
+                                    instrs = &module.codes[code_idx].instrs;
+                                    continue;
                                 }
                                 builtin => {
                                     reject_kwargs("这个方法", &knames)?;
@@ -2485,7 +2516,19 @@ impl VM {
                         ReturnStep::Done(v) => {
                             self.stack.truncate(base);
                             self.stack.push(v);
-                            return Ok(Flow::Return);
+                            // M163：**弹回调用者继续跑**（不再返回外层再进来）。
+                            // 只有弹到「进来时的帧深」才交回外层 —— 外层负责
+                            // `pop_frame()` 与 `stop_at`（内建回调的同步调用）判断。
+                            if self.frames.len() <= start_depth {
+                                return Ok(Flow::Return);
+                            }
+                            self.frames[fi].ip = ip;
+                            self.pop_frame();
+                            fi = self.frames.len() - 1;
+                            code_idx = self.frames[fi].code_idx;
+                            ip = self.frames[fi].ip;
+                            base = self.frames[fi].base;
+                            instrs = &module.codes[code_idx].instrs;
                         }
                     }
                 }
