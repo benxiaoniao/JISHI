@@ -1818,6 +1818,15 @@ struct Frame {
     /// 块栈登记序号：越大越内层。信号分发时用来判断
     /// 「最近的循环」和「最近的 try」谁更深。
     block_seq: i64,
+    /// 实参绑定的**临时缓冲**（M163）。
+    ///
+    /// 以前 `bind_params` 每次都 `vec![None; nparams]` —— **一次函数调用一次堆分配**，
+    /// 哪怕函数只有一个参数、哪怕实参一个都不缺。帧池复用后这块容量一直在，
+    /// `clear` + `resize` 不重新分配 ⇒ 一次调用**零分配**。
+    ///
+    /// 📌 改动前实测：一次基石函数调用约 **400 ns**（纯循环迭代是 98 ns），
+    /// CPython 约 50~80 ns。这 400 ns 里「一次 Vec 分配」是能直接指认的一笔。
+    bind_buf: Vec<Option<Val>>,
 }
 
 impl Frame {
@@ -1830,6 +1839,7 @@ impl Frame {
             locals: Vec::new(), locals_set: Vec::new(), cells: Vec::new(),
             loops: Vec::new(), handlers: Vec::new(), handled: Vec::new(),
             pending_return: None, block_seq: 0,
+            bind_buf: Vec::new(),
         }
     }
 }
@@ -1979,6 +1989,7 @@ impl VM {
             handled: Vec::new(),
             pending_return: None,
             block_seq: 0,
+            bind_buf: Vec::new(),
         };
         self.frames.push(frame);
         self.execute(None)
@@ -2941,7 +2952,8 @@ impl VM {
         {
             let sub = &self.module.codes[sub_idx];
             bind_args(sub, &args, knames, kwvals, func.defaults.as_deref(),
-                      &mut nf.cells, &mut nf.locals, &mut nf.locals_set)?;
+                      &mut nf.cells, &mut nf.locals, &mut nf.locals_set,
+                      &mut nf.bind_buf)?;
         }
         if let Some((fi, ip)) = set_ip {
             self.frames[fi].ip = ip;
@@ -6078,6 +6090,29 @@ pub(crate) fn bind_params(name: &str, params: &[String], param_kind: &[i64],
                           defaults: Option<&[Val]>, args: &[Val],
                           knames: &[String], kwvals: &[Val])
     -> Result<Vec<Option<Val>>, JishiError> {
+    let mut buf = Vec::new();
+    bind_params_into(&mut buf, name, params, param_kind, defaults, args, knames, kwvals)?;
+    Ok(buf)
+}
+
+/// 与 `bind_params` **同语义**，但把结果填进调用方给的缓冲（M163）。
+///
+/// ## 为什么要多这一个
+///
+/// `bind_params` 每次都 `vec![None; nparams]` —— **一次函数调用一次堆分配**，
+/// 哪怕函数只有一个参数、哪怕一个默认值都没用到。Rust VM 的帧池里常备一块
+/// `bind_buf` 之后，常见路径（无命名参数、个数对得上）**一次调用零分配**。
+///
+/// 📌 改动前实测：一次基石函数调用约 **400 ns**，而纯循环迭代只要 98 ns；
+/// CPython 的一次调用约 50~80 ns。这 400 ns 里「一次 Vec 分配」是能直接指认的一笔。
+///
+/// ⚠️ 语义必须与 `bind_params` **逐字相同** —— 树遍历 / Python VM / C VM 都按同一套
+/// 规矩绑参数（缺参数、多参数、命名参数、默认值、`*参数` / `**选项`）。
+/// 这里只是换个**存放的地方**，任何判断都不许改。
+pub(crate) fn bind_params_into(buf: &mut Vec<Option<Val>>, name: &str, params: &[String],
+                               param_kind: &[i64], defaults: Option<&[Val]>, args: &[Val],
+                               knames: &[String], kwvals: &[Val])
+    -> Result<(), JishiError> {
     let nparams = params.len();
     // 形参种类（M25）：0=普通 1=*参数 2=**选项
     let star_pos = param_kind.iter().position(|k| *k == 1);
@@ -6091,18 +6126,20 @@ pub(crate) fn bind_params(name: &str, params: &[String], param_kind: &[i64],
                     args.len() + knames.len())));
     }
 
-    let mut bound: Vec<Option<Val>> = vec![None; nparams];
+    // 🔴 M163：复用缓冲，**不分配**（`clear` + `resize` 在容量够时是纯写入）
+    buf.clear();
+    buf.resize(nparams, None);
     for (i, a) in args.iter().enumerate() {
-        if i < npos { bound[i] = Some(a.clone()); }
+        if i < npos { buf[i] = Some(a.clone()); }
     }
     if let Some(sp) = star_pos {
-        bound[sp] = Some(list_new(args[npos.min(args.len())..].to_vec()));
+        buf[sp] = Some(list_new(args[npos.min(args.len())..].to_vec()));
     }
     // 未匹配的关键字收进 **选项
     let mut extra: Vec<(Val, Val)> = Vec::new();
     for (k, v) in knames.iter().zip(kwvals.iter()) {
         if let Some(pi) = params[..npos].iter().position(|p| p == k) {
-            bound[pi] = Some(v.clone());
+            buf[pi] = Some(v.clone());
         } else if let Some(dp) = dstar_pos {
             extra.push((Val::Str(k.clone()), v.clone()));
         } else {
@@ -6115,7 +6152,7 @@ pub(crate) fn bind_params(name: &str, params: &[String], param_kind: &[i64],
         }
     }
     if let Some(dp) = dstar_pos {
-        bound[dp] = Some(dict_new(extra));
+        buf[dp] = Some(dict_new(extra));
     }
     if let Some(d) = defaults {
         // `defaults` 是**紧凑尾部**（只有写了默认值的那些）—— 尾部
@@ -6126,27 +6163,29 @@ pub(crate) fn bind_params(name: &str, params: &[String], param_kind: &[i64],
         let first_def = npos.saturating_sub(d.len());
         for (k, dv) in d.iter().enumerate() {
             let i = first_def + k;
-            if i < npos && bound[i].is_none() {
-                bound[i] = Some(dv.clone());
+            if i < npos && buf[i].is_none() {
+                buf[i] = Some(dv.clone());
             }
         }
     }
     let missing: Vec<&str> = params[..npos].iter().enumerate()
-        .filter(|(i, _)| bound[*i].is_none()).map(|(_, p)| p.as_str()).collect();
+        .filter(|(i, _)| buf[*i].is_none()).map(|(_, p)| p.as_str()).collect();
     if !missing.is_empty() {
         return Err(err("类型错误", format!("函数「{name}」缺少参数：{}", missing.join("、"))));
     }
-    Ok(bound)
+    Ok(())
 }
 
 fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val],
              defaults: Option<&[Val]>, cells: &mut [JCell],
-             locals: &mut Vec<Val>, locals_set: &mut Vec<bool>)
+             locals: &mut Vec<Val>, locals_set: &mut Vec<bool>,
+             bind_buf: &mut Vec<Option<Val>>)
     -> Result<(), JishiError> {
-    // 绑定的**判断**在共用的 `bind_params` 里（树遍历也走它）；
-    // 这里只管「把结果放进本执行器的存储」：单元表 + 局部槽。
-    let mut bound = bind_params(&code.name, &code.params, &code.param_kind,
-                                defaults, args, knames, kwvals)?;
+    // 绑定的**判断**在共用的 `bind_params_into` 里（树遍历也走 `bind_params`，
+    // 两者语义逐字相同）；这里只管「把结果放进本执行器的存储」：单元表 + 局部槽。
+    // 🔴 M163：结果填进**帧自带的缓冲**，不再每次 `vec![None; n]` 分配。
+    bind_params_into(bind_buf, &code.name, &code.params, &code.param_kind,
+                     defaults, args, knames, kwvals)?;
     // ⚠️ **就地填**（不再返回新 Vec）：这两个 Vec 来自帧池，容量通常够用 ——
     // `clear` + `resize` 不会重新分配。`locals_set` 必须**全部重置成 false**，
     // 否则会「读到上一帧的残留值」（比报错难查一百倍）。
@@ -6155,7 +6194,7 @@ fn bind_args(code: &Code, args: &[Val], knames: &[String], kwvals: &[Val],
     locals_set.clear();
     locals_set.resize(code.nlocals, false);
     for i in 0..code.params.len() {
-        let Some(v) = bound[i].take() else { continue };
+        let Some(v) = bind_buf[i].take() else { continue };
         let ci = code.param_cell[i];
         if ci >= 0 {
             // 改**单元里的值**（不是换掉单元）：形参若是单元变量（被闭包捕获），
