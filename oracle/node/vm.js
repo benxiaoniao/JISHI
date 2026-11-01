@@ -939,6 +939,8 @@ function makeIterator(obj, line, col) {
 // （不合并标准错误——`execSync` 没有保序合并的能力）。
 const _os = require('os');
 const _cp = require('child_process');
+// 🔴 M161：同步 HTTP 走 **Worker + Atomics**，不再 spawn 自己（见 `netRequest` 上方那段）。
+const _worker = require('worker_threads');
 
 /// 跑一条命令并**分开**收两条流（`执行详细` / `并行执行` 共用）。
 ///
@@ -2626,31 +2628,112 @@ const ZIP_FUNCS = {
 //
 // ⚠️ 子进程把**状态码 + 响应头 + 正文字节（base64）**一起回传成 JSON ——
 // 这样 `获取详情` / `下载` 才拿得到状态码与原始字节（`fetch` 非 2xx 不抛）。
-const NET_CHILD = [
-  "const [method, url, body, timeout, headersJSON] = process.argv.slice(1);",
-  "(async () => {",
-  "  const ctl = new AbortController();",
-  "  const timer = setTimeout(() => ctl.abort(), Math.max(100, Number(timeout) * 1000));",
-  "  try {",
-  "    let extra = {};",
-  "    try { extra = JSON.parse(headersJSON || '{}'); } catch (e) { extra = {}; }",
-  "    const opt = { method, signal: ctl.signal,",
-  "                  headers: { 'User-Agent': 'jishi/0.1', ...extra } };",
-  "    if (method === 'POST' || method === 'PUT' || method === 'PATCH') opt.body = body;",
-  "    const resp = await fetch(url, opt);",
-  "    const buf = Buffer.from(await resp.arrayBuffer());",
-  "    const headers = {};",
-  "    resp.headers.forEach((v, k) => { headers[k] = v; });",
-  "    process.stdout.write(JSON.stringify({ status: resp.status, headers,",
-  "      body: buf.toString('base64') }));",
-  "  } catch (e) {",
-  "    process.stderr.write(String((e && e.message) ? e.message : e));",
-  "    process.exitCode = 1;",
-  "  } finally {",
-  "    clearTimeout(timer);",
-  "  }",
-  "})();",
-].join('\n');
+// 🔴 M161（2026-11-01）：**不再 spawn 自己**。
+//
+// 旧做法：`spawnSync(process.execPath, ['-e', 脚本, ...])` —— 让一个子 node 去发请求，
+// 主线程同步等它。在 Windows 上**偶发 `EBUSY`**（父进程的可执行文件正被占用），
+// 于是 3 个网络用例长期被当成「环境问题」忽略（M31 起）。
+//
+// 新做法：**Worker + SharedArrayBuffer + Atomics.wait** ——
+//   ① 主线程先起一个 Worker（同一进程内的线程，**不碰 EXE**，没有 EBUSY 这回事）；
+//   ② Worker 里照常 `fetch`（异步）；
+//   ③ 结果写进共享内存，`Atomics.notify` 叫醒主线程；
+//   ④ 主线程 `Atomics.wait` 阻塞到被叫醒或超时。
+//
+// ⚠️ 一条必须知道的限制：**主线程阻塞期间，同一进程里的 HTTP 服务没人 accept**。
+//    所以「自己起服务、自己同步请求」在同一进程里必然死锁 —— 这不是 bug，
+//    是「同步语言跑在单线程事件循环上」的固有形状（`HTTP服务端` 在 Node 上本来也只做协议核心）。
+const 同步请求源码 = `
+const { workerData } = require('worker_threads');
+const { sab, method, url, body, timeout, headers } = workerData;
+const i32 = new Int32Array(sab, 0, 8);
+const view = new Uint8Array(sab, 128);
+const BASE = 128;
+const 叫醒 = (码, 状态, meta, 体) => {
+  const metaBuf = Buffer.from(meta, 'utf8');
+  const 体Buf = Buffer.isBuffer(体) ? 体 : Buffer.from(体 || '');
+  const m = Math.min(metaBuf.length, view.length);
+  view.set(metaBuf.subarray(0, m), 0);
+  const rest = view.length - m;
+  const n = Math.min(体Buf.length, Math.max(0, rest));
+  if (n > 0) view.set(体Buf.subarray(0, n), m);
+  i32[2] = m;
+  i32[4] = n;
+  i32[1] = 状态;
+  Atomics.store(i32, 0, 码);
+  Atomics.notify(i32, 0);
+};
+(async () => {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), Math.max(100, Number(timeout) * 1000));
+  try {
+    let extra = {};
+    try { extra = JSON.parse(headers || '{}'); } catch (e) { extra = {}; }
+    const opt = { method, signal: ctl.signal,
+                  headers: { 'User-Agent': 'jishi/0.1', ...extra } };
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH') opt.body = body;
+    const resp = await fetch(url, opt);
+    const buf = Buffer.from(await resp.arrayBuffer());
+    const h = {};
+    resp.headers.forEach((v, k) => { h[k] = v; });
+    叫醒(1, resp.status, JSON.stringify(h), buf);
+  } catch (e) {
+    叫醒(2, 0, String((e && e.message) ? e.message : e), null);
+  } finally {
+    clearTimeout(timer);
+  }
+})();
+`;
+
+//: 共享数据区大小。响应体超过它 ⇒ 明确报错（旧实现的 `maxBuffer` 是 64 MB，
+//: 但那是把整包 base64 进 stdout；这里直接放原始字节，8 MB 够日常用）。
+const 同步请求缓冲 = 8 * 1024 * 1024;
+
+function netRequest(method, url, body, timeout, headers) {
+  const site = 规范网址(pText(url));
+  const secs = Number(timeout);
+  const sab = new SharedArrayBuffer(128 + 同步请求缓冲);
+  const i32 = new Int32Array(sab, 0, 8);
+  const w = new _worker.Worker(同步请求源码, {
+    eval: true,
+    workerData: { sab, method, url: site, body,
+                  timeout: secs, headers: JSON.stringify(headers || {}) },
+  });
+  let 退出;
+  try {
+    退出 = Atomics.wait(i32, 0, 0, Math.max(100, secs * 1000) + 5000);
+  } finally {
+    // 无论醒没醒都要收掉线程：超时后它可能还在跑，留在那儿会拖住进程退出
+    w.terminate();
+  }
+  if (退出 === 'timed-out' || i32[0] === 0) {
+    throw R.runErr(`访问「${site}」失败：超过 ${secs} 秒没有响应`);
+  }
+  const metaLen = i32[2] | 0;
+  const bodyLen = i32[4] | 0;
+  const 区 = new Uint8Array(sab, 128);
+  const metaText = Buffer.from(区.subarray(0, metaLen)).toString('utf8');
+  if (i32[0] === 2) {
+    throw R.runErr(`访问「${site}」失败：${metaText || '未知原因'}`);
+  }
+  let hdr;
+  try {
+    hdr = JSON.parse(metaText || '{}');
+  } catch (e) {
+    hdr = {};
+  }
+  // 数据区被撑满 ⇒ 响应比缓冲大，**如实报错**（不许悄悄截断：截断的 JSON 更难查）
+  if (metaLen + bodyLen >= 128 + 同步请求缓冲 - 1) {
+    throw R.runErr(
+      `访问「${site}」失败：响应超过 ${同步请求缓冲 / (1024 * 1024)} MB 缓冲`
+      + '（改用 `网络.下载` 存到文件，或分段取）');
+  }
+  return {
+    status: Number(i32[1]) || 0,
+    headers: hdr,
+    bodyBuf: Buffer.from(区.subarray(metaLen, metaLen + bodyLen)),
+  };
+}
 
 // 请求头字典（Map）→ 普通对象（ASCII 校验；Content-Length/Host 不让用户写）
 function netHeaders(请求头) {
@@ -2679,35 +2762,6 @@ function netHeaders(请求头) {
 /// 所以再把 `%25XX` 还原回 `%XX`，三边就逐字节一致了。
 function 规范网址(u) {
   return encodeURI(u).replace(/%25([0-9A-Fa-f]{2})/g, '%$1');
-}
-
-function netRequest(method, url, body, timeout, headers) {
-  const site = 规范网址(pText(url));
-  const secs = Number(timeout);
-  const headersJSON = JSON.stringify(headers || {});
-  const args = ['-e', NET_CHILD, method, site,
-                (body === null || body === undefined) ? '' : body,
-                String(secs), headersJSON];
-  const res = _cp.spawnSync(process.execPath, args, {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-    timeout: Math.max(100, secs * 1000) + 5000,
-  });
-  if (res.error) throw R.runErr(`访问「${site}」失败：${res.error.message}`);
-  if (res.status !== 0) {
-    const lines = String(res.stderr || '').trim().split('\n');
-    const why = lines[lines.length - 1] || '未知原因';
-    throw R.runErr(`访问「${site}」失败：${why}`);
-  }
-  let obj;
-  try { obj = JSON.parse(res.stdout); } catch (e) {
-    throw R.runErr(`访问「${site}」失败：响应不是有效 JSON`);
-  }
-  return {
-    status: Number(obj.status) || 0,
-    headers: obj.headers || {},
-    bodyBuf: Buffer.from(obj.body || '', 'base64'),
-  };
 }
 
 // 非 2xx 按统一口径报错（各引擎措辞一致）

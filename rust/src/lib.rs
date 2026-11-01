@@ -47,6 +47,16 @@ use json::Json;
 /// 3: R6.6 起 Code 增加 `local_hints`（按槽位的「赋值前读局部」提示）
 pub const BYTECODE_VERSION: i64 = 3;
 
+/// 调用栈深度上限（M161）。
+///
+/// **与 Node 宿主的 `MAX_FRAMES` 取同一个值**，也与 Python 侧（`sys.setrecursionlimit`
+/// 下的实际表现）对得上 —— 三处不一致的话，同一段递归在三个引擎上会有三种行为，
+/// 而对拍抓不到「谁该报错」这种差异（`check_engines` 比的是同一份程序的输出）。
+///
+/// 📌 **1000 是「够用又不吃内存」的折中**：普通递归（树遍历、快排、表达式求值）
+/// 几十层就够；而把上限放到「不设」的代价是「写错一个递归就把内存吃光」。
+pub const MAX_FRAMES: usize = 1000;
+
 mod decimal;
 use decimal::{BigInt, Dec, Round};
 
@@ -2137,7 +2147,16 @@ impl VM {
 
             match ins.op {
                 op::LOAD_CONST => {
-                    let c = self.module.consts[ins.a as usize].clone();
+                    // M161：**边界检查**（不再直接下标）。一份被改过的字节码可以让
+                    // `a` 指到常量池外面 —— 以前这里直接 panic，现在给中文报错。
+                    let c = match self.module.consts.get(ins.a as usize) {
+                        Some(v) => v.clone(),
+                        None => return Err(err(
+                            "运行期错误",
+                            format!("字节码损坏：常量编号 {} 越界（一共 {} 个常量）",
+                                    ins.a, self.module.consts.len()),
+                        )),
+                    };
                     self.stack.push(c);
                 }
                 op::LOAD_GLOBAL => {
@@ -2886,6 +2905,17 @@ impl VM {
                        args: Vec<Val>, knames: &[String], kwvals: &[Val],
                        base: usize, call_site: (i64, i64), in_trace: bool)
         -> Result<(), JishiError> {
+        // 🔴 M161：**递归深度上限**（Python / Node / C VM 一直有，只有 Rust 缺）。
+        //    缺了它，`返回 1 + f(n+1)` 这种写错的递归会一路跑到 **1500 万层**
+        //    （实测 12 秒），既不报错也不崩，只是内存一直涨，直到被系统杀掉 ——
+        //    用户看到的是「卡住、没输出、没报错」，最难受的一种。
+        //    阈值与 Node 的 `MAX_FRAMES` 对齐（1000），文案也逐字一致。
+        if self.frames.len() >= MAX_FRAMES {
+            return Err(err(
+                "运行期错误",
+                "递归层数太深了，是不是函数忘了写结束条件？",
+            ));
+        }
         let sub_idx = func.code_idx;
         // 从**帧池**取一个旧帧复用（取不到就新建）—— 省掉每次调用
         // `locals` / `locals_set` 两次堆分配。
@@ -6314,6 +6344,15 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
     let mut codes = Vec::new();
     for cd in payload.get("codes").and_then(|v| v.as_array()).ok_or("codes 缺失")? {
         let flat: Vec<i64> = cd.get("instrs").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_i64()).collect()).unwrap_or_default();
+        // 🔴 M161：**长度必须是 6 的整数倍**（每条指令 6 个数）。
+        //    以前 `chunks(6)` 会把尾巴悄悄丢掉 —— 一份被截断的字节码会被当成
+        //    「指令更少的正常程序」**静默跑完**（什么都不打印、退出码 0），
+        //    比 panic 更难查：用户以为跑成功了。
+        if flat.len() % 6 != 0 {
+            return Err(format!(
+                "字节码指令流长度不对（{} 个数，不是 6 的整数倍）—— 文件被截断或被改过",
+                flat.len()));
+        }
         let mut instrs = Vec::new();
         for chunk in flat.chunks(6) {
             if chunk.len() == 6 {
@@ -6341,6 +6380,23 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
     }
 
     let main = payload.get("main").and_then(|v| v.as_i64()).unwrap_or(0) as usize;
+    // 🔴 M161：**结构自检**（加载时，不是跑起来才发现）。
+    //
+    // 以前的写法是「相信文件」：`codes[main]` 直接下标、常量池直接下标 ——
+    // 一份结构不合法的 json（`main` 越界 / 常量池被清空）能让宿主**直接 panic**
+    // （rc=101 + 英文 backtrace），用户看到的是一堆看不懂的 Rust 栈。
+    //
+    // ⚠️ 顺便说清一件事：**校验和挡不住恶意构造**（谁都能重算一份），
+    //    它只挡「传坏了」。所以真正的防线是这里的结构校验 + 执行时的边界检查，
+    //    以及文档里那句「只加载自己编译出来的字节码」。
+    if codes.is_empty() {
+        return Err("字节码里没有任何代码块（文件损坏或被改过）".to_string());
+    }
+    if main >= codes.len() {
+        return Err(format!(
+            "字节码的入口代码块编号 {main} 越界（一共 {} 个代码块）—— 文件损坏或被改过",
+            codes.len()));
+    }
     let filename = payload.get("filename").and_then(|v| v.as_str())
         .unwrap_or("<输入>").to_string();
     Ok(VM::new(Module { consts, names, kw_names, codes, main, filename }))

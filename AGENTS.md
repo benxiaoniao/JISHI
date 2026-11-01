@@ -129,12 +129,17 @@
    「一键全检」调的 `tools/ci.py` **内部还会再跑一遍** `pytest tests/` ——
    实测 Windows runner 上一遍就是 **3924 秒（65 分钟）**，两遍把 job 拖到
    **2 小时 10 分**。CI 上由 workflow 传 `JISHI_SKIP_PYTEST=1` 跳过 ci.py 里那遍。
-   ⚠️ 本机（Windows）上 3 个 Node 网络用例**偶发** `spawnSync … EBUSY` ——
-   环境性的（Node 宿主自己 spawn 自己），Linux / CI 不复现，**别当成新问题查**。
-   📌 **2026-10-08 复现到根**：在**沙箱/受限环境**里这条会变成**必现** ——
-   最小复现是 `node -e "require('child_process').spawnSync(process.execPath,['-e',''])"`
-   直接 `EBUSY`（**系统 node 也一样**）。所以「串行重跑必须全过」这个判据在沙箱里
-   对这 3 条不成立，**用最小复现证环境、别改代码**。
+   ✅ **3 个 Node 网络用例的 `EBUSY` 已根治**（2026-11-01，M161）：
+   根因是 Node 宿主的 `网络` 模块用 `spawnSync(process.execPath, …)` **自己 spawn 自己**，
+   Windows 上父进程的 EXE 正被占用 ⇒ `EBUSY`。现改成 **Worker + SharedArrayBuffer +
+   `Atomics.wait`**（同进程线程，不碰 EXE）。实测 `test_m31_node_stdlib` 全绿、不再偶发。
+   ⚠️ 新实现有一条**固有限制**：主线程阻塞期间，**同一进程里的 HTTP 服务没人 accept** ——
+   所以「自己起服务、自己同步请求」在同一进程里必然死锁。`HTTP服务端` 在 Node 上
+   本来只做协议核心，不冲突；要这么玩请分成两个进程。
+   📌 历史（留作教训）：2026-10-08 曾把这条判成「环境问题、别改代码」，因为最小复现
+   `node -e "require('child_process').spawnSync(process.execPath,['-e',''])"` 在沙箱里**必现**
+   —— 环境确实能触发它，**但代码本来就不该这么写**。两件事都对：环境让它必现，
+   写法让它本来就不稳。
    🔴 **`--dist loadfile` 不是可选项**（2026-10-20 踩）：xdist 默认的 `load`
    （按**测试**分发）在本题量下会**死锁** —— 表现是「跑到 98% 就不动了」，
    `py-spy` 一看：所有 worker 都在 `wait`、主进程在 `join`，**没有人失败**。
@@ -421,13 +426,14 @@
   **三执行器 + 两宿主共用这份字节码，所以四边一起崩；只有树遍历
   （走 Python 的 try/except）是对的 —— 五引擎对拍才抓得住。**
   改 `_c_try` 前先读 `jishi/compiler.py` 里那段栈推演注释。
-- ⚠️ **回归里那 3 个 Node 网络用例是「既有失败」，别当成新问题查**：
+- ✅ **那 3 个 Node 网络用例的失败已经修掉了**（2026-11-01，M161）：
   `test_m31_node_stdlib.py` 的 `test_node_network_get_and_post` /
-  `test_node_network_get_json` / `test_node_real_project_web_crawl` 在 Windows 上
-  **稳定失败**，报 `spawnSync C:\…\node.EXE EBUSY` —— Node 宿主的 `网络` 模块
-  是用**子进程同步封装**的，自己 spawn 自己时被占用（Linux/CI 上不复现）。
-  **证据**：2026-09-26 用 `git stash -u` 把工作区回退到 M51 状态复跑，
-  同样这 3 项失败、其余全绿。
+  `test_node_network_get_json` / `test_node_real_project_web_crawl` 早年报
+  `spawnSync …\node.EXE EBUSY` —— Node 宿主的 `网络` 模块用**子进程同步封装**、
+  自己 spawn 自己时被占用（Linux/CI 上不复现）。现改成 **Worker + Atomics.wait**，
+  子进程整个去掉，实测全绿。
+  📌 **教训**：当年用 `git stash` 回退到 M51 复跑、证明「老版本也失败」，
+  那只是**证明它一直存在**，不是证明它不该修 —— 「既有失败」四个字最容易被当成免修金牌。
 - **新增宿主回调时**：C 侧 `JsHost` struct 与 Python 侧 `JsHost._fields_`
   字段顺序必须**逐字段对齐**（曾因插错位置导致 ctypes 回调错位崩溃）。
 - **异常穿透重入边界**：vm.py 用 `stop_at`、C VM 用 `stop_depth`，两边要一致。
@@ -970,7 +976,7 @@
   默认先问「能不能用内建或标准库实现」。
 - 可按需补的遗留项（不阻塞）：短字符串内联、字节码执行器的调试器、
   LSP 增量同步、非 Windows 平台的 https。
-- 当前版本 **0.2.3**；全量测试 **3609 项**（`-n 12 -m "not 计时"` 3600 + `-m 计时` 9）。⚠️ 其中 3 个 Node 网络用例**偶发**环境性失败（`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题；Linux/CI 不复现）—— 别当成新问题查。
+- 当前版本 **0.2.3**；全量测试 **3609 项**（`-n 12 -m "not 计时"` 3600 + `-m 计时` 9）。⚠️ 其中 3 个 Node 网络用例**偶发**环境性失败（`spawnSync … EBUSY`，Node 宿主自己 spawn 自己时的占用问题；Linux/CI 不复现）—— 别当成新问题查。**✅ 这 3 条 2026-11-01 已根治**（改 Worker + Atomics，见上面「Node 网络」那条）。
   ⚠️ **本机跑全量回归要分段跑**（我这里是 3 段）：一次跑完全部时，会撞上
   **WorkBuddy 沙箱的「批量删除守卫」**（`sitecustomize.py` 在**单次工具调用**里
   累计删除超过阈值就 `SystemExit(1)`），而 pytest 自己的临时目录清理正好会触发它 ——

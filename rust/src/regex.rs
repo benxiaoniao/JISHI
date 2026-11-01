@@ -26,7 +26,73 @@
 //! 分组没参与匹配时 Python 给 `None`，这里给空文本——这一点不同，见下。
 
 use crate::BuiltinHost;
+use std::cell::Cell;
 use std::collections::HashMap;
+
+// ---------------------------------------------------------------------------
+// 回溯步数上限（M161）
+// ---------------------------------------------------------------------------
+//
+// ## 为什么要有
+//
+// 这个引擎是**回溯**的。`(a+)+$` 配「一串 a 加一个 b」会指数爆炸：
+// 实测 20 个 a 用 0.14 秒、24 个 1.02 秒、**28 个就 15 秒回不来**。
+// 用户写错一条正则（或处理一段脏数据）就能把程序挂死 —— 不报错、不崩，
+// 只是卡着，只能 Ctrl-C。
+//
+// ## 做法
+//
+// 每次进 `match_one` 记一步；超过上限就**放弃匹配**并立一个「超限」旗子，
+// 由入口函数翻译成中文报错。这样同一个模式在正常文本上照旧（几万步就完了），
+// 只有真的在爆炸时才被打断。
+//
+// ⚠️ **平台差异（如实记）**：Python 用 CPython 的 `re`、Node 用 JS `RegExp`，
+//    那两个引擎**没有步数上限**，也没法从外面加。所以「ReDoS 保护」目前只在
+//    **Rust 宿主（也就是发行版）**上成立，另两个宿主是已知边界（见
+//    `docs/路线图-0.3.x.md` 的 M161 与语言卡里的提醒）。
+const 步数上限: u64 = 20_000_000;
+
+thread_local! {
+    /// 本轮匹配已经走了多少步（每次调用 `正则.*` 前清零）
+    static 已走步数: Cell<u64> = const { Cell::new(0) };
+    /// 本轮是否已经超限（超了就不再继续试，直接把 false 往上冒）
+    static 已超限: Cell<bool> = const { Cell::new(false) };
+}
+
+/// 开始一轮匹配：清零计数。
+fn 重置步数() {
+    已走步数.with(|c| c.set(0));
+    已超限.with(|c| c.set(false));
+}
+
+/// 这一轮是否超限（入口函数在匹配失败后问它，决定报不报错）。
+fn 超限了吗() -> bool {
+    已超限.with(|c| c.get())
+}
+
+/// 记一步；返回 `true` 表示**还能继续**（`false` = 超限，立刻停手）。
+fn 记一步() -> bool {
+    if 已超限.with(|c| c.get()) {
+        return false;
+    }
+    已走步数.with(|c| {
+        let n = c.get() + 1;
+        c.set(n);
+        if n > 步数上限 {
+            已超限.with(|x| x.set(true));
+            return false;
+        }
+        true
+    })
+}
+
+/// 超限时报的那句话（各入口共用）。
+fn 太复杂了() -> String {
+    format!(
+        "正则太复杂：回溯超过 {} 步还没算完（多半是嵌套量词，如 (a+)+）。\
+         请改写模式，别让两个量词套在一起",
+        步数上限)
+}
 
 use crate::stdlib::{as_text, need, table, R};
 use crate::{err, JishiError, Val};
@@ -498,6 +564,10 @@ fn match_one(
     caps: &mut Caps,
     k: &mut dyn FnMut(usize, &mut Caps) -> bool,
 ) -> bool {
+    // M161：每进一层记一步，超了立刻停（否则指数回溯会把程序挂死）
+    if !记一步() {
+        return false;
+    }
     match node {
         Node::Char(c) => {
             if inp.get(pos) == Some(c) {
@@ -839,28 +909,40 @@ fn build(pattern: &Val) -> Result<Prog, JishiError> {
     compile(&as_text(pattern))
 }
 
+/// 跑一次匹配并**带上步数上限**（M161）：超限就报错，而不是把程序挂死。
+///
+/// 每个 `正则.*` 入口都包一层 —— 忘了包哪一个，那条路就还是能被指数回溯挂死。
+fn 带上限<T>(f: impl FnOnce() -> T) -> Result<T, JishiError> {
+    重置步数();
+    let r = f();
+    if 超限了吗() {
+        return Err(err("运行期错误", 太复杂了()));
+    }
+    Ok(r)
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "正则";
         "匹配" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("匹配", args, 2)?;
             let prog = build(&args[0])?;
-            Ok(Val::Bool(matches_from_start(&prog, &as_text(&args[1]))))
+            Ok(Val::Bool(带上限(|| matches_from_start(&prog, &as_text(&args[1])))?))
         },
         "搜索" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("搜索", args, 2)?;
             let prog = build(&args[0])?;
             let text = as_text(&args[1]);
-            Ok(Val::Str(match search(&prog, &text) {
+            Ok(Val::Str(带上限(|| match search(&prog, &text) {
                 Some((a, b, _)) => text.chars().collect::<Vec<char>>()[a..b].iter().collect(),
                 None => String::new(),
-            }))
+            })?))
         },
         "查找全部" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("查找全部", args, 2)?;
             let prog = build(&args[0])?;
             let text = as_text(&args[1]);
             let inp = chars_of(&text);
-            let found = find_all(&prog, &text);
+            let found = 带上限(|| find_all(&prog, &text))?;
             let n = prog.ngroups;
             let items: Vec<Val> = found
                 .iter()
@@ -885,7 +967,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let tpl = as_text(&args[1]);
             let text = as_text(&args[2]);
             let inp = chars_of(&text);
-            let found = find_all(&prog, &text);
+            let found = 带上限(|| find_all(&prog, &text))?;
             let mut out = String::new();
             let mut last = 0usize;
             for (a, b, caps) in &found {
@@ -903,7 +985,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let prog = build(&args[0])?;
             let text = as_text(&args[1]);
             let inp = chars_of(&text);
-            let found = find_all(&prog, &text);
+            let found = 带上限(|| find_all(&prog, &text))?;
             let mut out: Vec<Val> = Vec::new();
             let mut last = 0usize;
             for (a, b, caps) in &found {
@@ -925,7 +1007,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let prog = build(&args[0])?;
             let text = as_text(&args[1]);
             let inp = chars_of(&text);
-            match search(&prog, &text) {
+            match 带上限(|| search(&prog, &text))? {
                 Some((_, _, caps)) => Ok(crate::list_new(
                     (1..=prog.ngroups).map(|g| Val::Str(slice(&inp, caps[g]))).collect(),
                 )),
