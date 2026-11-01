@@ -243,6 +243,10 @@ def _cmd_install(args) -> int:
         if args.local_zip:
             PKG.install_package_zip(args.local_zip, args.package, force=args.force)
             print(f"已安装包「{args.package}」（来自 {args.local_zip}）")
+            # 🔴 M160：本地包**没有校验和**可对（索引里才登记 sha256）——
+            #    以前是静默装上，用户不知道「这个包没人担保」。与 Rust 侧逐字一致。
+            print("⚠️ 这是本地包文件：没有校验和可对（索引里登记的 sha256 才做得了这件事）。"
+                  "装之前请自己确认来源。")
             return 0
         if args.from_index:
             # 从远端索引 JSON 取下载地址并拉包
