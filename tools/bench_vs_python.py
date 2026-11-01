@@ -309,12 +309,21 @@ def 量启动(d):
 目标时长 = 0.4
 
 
-def 定重复次数(名, jsh, py, d, 建议, 启基石, 启py):
+def 定重复次数(名, jsh, py, d, 建议, 启基石, 启py, 指定=None):
     """把「跑多久」放大到 ≈目标时长：两边各试跑一次，按实测比例放大。
 
     为什么两边**用同一个 repeats**：比的是「同一道题谁快」，
     各自调重复次数等于比不同的题。取两边所需倍数的**较大者**。
+
+    `指定` 不为空时**直接用指定值**（来自基线快照）——
+    ⚠️ 这一点很关键：动态算出来的次数会随机器瞬时负载变，于是「同一台机器、
+    同一份代码」两次跑出来的可能是**不同规模**的程序（实测两次能差 3 倍，
+    见 M162 的教训）。要跟基线比，就得跑与基线**同样规模**的那一份。
     """
+    if 指定:
+        (d / f"{名}.jsh").write_text(jsh * 指定, encoding="utf-8", newline="\n")
+        (d / f"{名}.py").write_text(py * 指定, encoding="utf-8", newline="\n")
+        return 指定
     (d / f"{名}.jsh").write_text(jsh * 建议, encoding="utf-8", newline="\n")
     (d / f"{名}.py").write_text(py * 建议, encoding="utf-8", newline="\n")
     t甲, _ = 跑一次([str(EXE), f"{名}.jsh"], d)
@@ -327,11 +336,51 @@ def 定重复次数(名, jsh, py, d, 建议, 启基石, 启py):
     return max(需甲, 需乙)
 
 
+def _机器指纹() -> dict:
+    """记下「这份数字是哪台机器、哪个版本跑的」。
+
+    📌 没有它，跨机器的数字会被当成同一件事比 —— 而基线快照存在的意义
+    恰恰是「这台机器上，这一版比上一版是升还是降」。
+    """
+    import platform
+    版本 = ""
+    try:
+        r = subprocess.run([str(EXE), "--version"], capture_output=True,
+                           timeout=30, input=b"")
+        版本 = (r.stdout + r.stderr).decode("utf-8", "replace").strip()
+    except Exception:                                        # noqa: BLE001
+        pass
+    return {
+        "平台": platform.platform(),
+        "处理器": platform.processor() or "（取不到）",
+        "机器位宽": platform.machine(),
+        "python": platform.python_version(),
+        "jishi": 版本,
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--轮数", type=int, default=3)
     ap.add_argument("--只跑", default="")
+    ap.add_argument("--json", default="",
+                    help="把结果写成 JSON（建议给一个路径，例如 bench/baseline_cpython.json）")
+    ap.add_argument("--用基线", default="",
+                    help="按这份基线里的「重复次数」跑（要与基线比时必须给，"
+                         "否则两次跑的不是同一规模）")
     a = ap.parse_args()
+
+    # 基线里固化的重复次数（给了 --用基线 才用）
+    固定次 = {}
+    if a.用基线:
+        import json as _j
+        基路 = Path(a.用基线)
+        if not 基路.is_absolute():
+            基路 = ROOT / 基路
+        基 = _j.loads(基路.read_text(encoding="utf-8"))
+        固定次 = {r["名字"]: r.get("重复") for r in 基.get("场景", [])
+                  if r.get("重复")}
+        print(f"按基线重复次数跑（{len(固定次)} 个场景）：{基路.name}")
 
     d = Path(tempfile.mkdtemp(prefix="bench_vs_py_"))
     print(f"工作目录：{d}")
@@ -350,7 +399,7 @@ def main() -> int:
     print("-" * 66)
     结果 = []
     for 名, (jsh, py, 建议) in 选.items():
-        次 = 定重复次数(名, jsh, py, d, 建议, 启基石, 启py)
+        次 = 定重复次数(名, jsh, py, d, 建议, 启基石, 启py, 固定次.get(名))
         (d / f"{名}.jsh").write_text(jsh * 次, encoding="utf-8", newline="\n")
         (d / f"{名}.py").write_text(py * 次, encoding="utf-8", newline="\n")
 
@@ -363,7 +412,8 @@ def main() -> int:
         #    这是**平台换行**差异，不是语义差异，比之前先归一（否则 17 个场景全废）
         o1n, o2n = o1.replace("\r\n", "\n"), o2.replace("\r\n", "\n")
         if o1n != o2n:
-            结果.append((名, None, None, "输出不等价，作废"))
+            结果.append({"名字": 名, "重复": 次, "不等价": True,
+                         "基石ms": None, "cpython ms": None, "倍数": None})
             print(f"{名:<14}{次:>5}{'—':>10}{'—':>13}{'—':>9}   输出不等价："
                   f"{o1[:20]!r} vs {o2[:20]!r}")
             continue
@@ -376,24 +426,51 @@ def main() -> int:
             乙.append(t)
         m甲, m乙 = min(甲), min(乙)
         倍 = m乙 / m甲 if m甲 > 0 else float("inf")
-        结果.append((名, m甲, m乙, 倍))
+        结果.append({"名字": 名, "重复": 次, "基石ms": round(m甲 * 1000, 1),
+                     "cpython ms": round(m乙 * 1000, 1), "倍数": round(倍, 3)})
         尾 = "基石更快" if 倍 >= 1 else "**CPython 更快**"
         print(f"{名:<14}{次:>5}{m甲*1000:>10.1f}{m乙*1000:>13.1f}{倍:>8.2f}x   {尾}")
 
     print("-" * 66)
-    有效 = [r for r in 结果 if r[1]]
-    慢的 = [r for r in 有效 if r[3] < 1]
+    有效 = [r for r in 结果 if r.get("倍数")]
+    慢的 = [r for r in 有效 if r["倍数"] < 1]
+    几何 = None
     if 有效:
         几何 = 1.0
         for r in 有效:
-            几何 *= max(r[3], 1e-6)
+            几何 *= max(r["倍数"], 1e-6)
         几何 **= (1.0 / len(有效))
+        几何 = round(几何, 3)
         print(f"共 {len(有效)} 个有效场景 · 几何平均 **{几何:.2f}x** · "
               f"基石更慢的 {len(慢的)} 个")
         if 慢的:
-            print("更慢的：" + "、".join(f"{r[0]}({r[3]:.2f}x)" for r in 慢的))
+            print("更慢的：" + "、".join(f"{r['名字']}({r['倍数']:.2f}x)" for r in 慢的))
     print(f"\n（含进程启动：基石约 {启基石*1000:.0f} ms · CPython 约 {启py*1000:.0f} ms；"
           f"单轮已放大到 ≥{目标时长*1000:.0f} ms，启动占比 <10%）")
+
+    if a.json:
+        import json as _json
+        from datetime import datetime
+        快照 = {
+            "格式": "jishi-bench-vs-cpython",
+            "格式版本": 1,
+            "时间": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "机器": _机器指纹(),
+            "启动ms": {"基石": round(启基石 * 1000, 1),
+                       "cpython": round(启py * 1000, 1)},
+            "轮数": a.轮数,
+            "目标单轮ms": round(目标时长 * 1000),
+            "场景": 结果,
+            "几何平均": 几何,
+            "更慢的": [r["名字"] for r in 慢的],
+        }
+        路径 = Path(a.json)
+        if not 路径.is_absolute():
+            路径 = ROOT / 路径
+        路径.parent.mkdir(parents=True, exist_ok=True)
+        路径.write_text(_json.dumps(快照, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8")
+        print(f"\n已写入：{路径}")
     return 0
 
 
