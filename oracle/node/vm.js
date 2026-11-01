@@ -2390,8 +2390,40 @@ function centralEntry(e) {
   return Buffer.concat([b, e.nameBuf]);
 }
 
-/** 读 zip：从 EOCD 找中央目录，再逐条按偏移取本地头与数据。 */
-function readZipEntries(buf) {
+/** 条目名安全检查（M160）。返回「问题的一句话」，空串表示没问题。
+ *
+ *  🔴 **不靠黑名单关键字，靠结构**：条目名只能是**相对路径**，且不能往上走。
+ *  解压的写法是「拿条目名当相对路径拼到目标目录后面」，而条目名是**包里写的**、
+ *  不是用户写的 —— 一个 `../../.ssh/authorized_keys` 就能写到目标目录之外。
+ *
+ *  ⚠️ 三个宿主（Python / Rust / Node）必须**逐字一致**：
+ *  靠 `tests/test_m160_zip_slip.py` 钉住。
+ */
+function checkEntryName(name) {
+  if (!name) return '条目名是空的';
+  if (name.indexOf('\0') >= 0) return '条目名里有 NUL 字符';
+  if (name.startsWith('/') || name.startsWith('\\')) {
+    return '条目名以「/」开头（绝对路径）';
+  }
+  if (name.length >= 2 && name[1] === ':' && /[A-Za-z]/.test(name[0])) {
+    return '条目名带盘符（如「C:」）';
+  }
+  const 段们 = name.replace(/\\/g, '/').split('/');
+  for (const 段 of 段们) {
+    if (段 === '..') return '条目名里有「..」（会往上跳到目标目录之外）';
+  }
+  return '';
+}
+
+/** 读 zip：从 EOCD 找中央目录，再逐条按偏移取本地头与数据。
+ *
+ *  `仅目录 = true` 时**只读中央目录**（返回 `{name, usize}`，不 inflate 数据）——
+ *  M160 加它，是为了让「解压前的名字校验与总量判断」发生在**解数据之前**：
+ *  否则一个压缩炸弹会先被解进内存，再谈「要不要拦」就晚了。
+ *  ⚠️ 这也让 Node 与 Python（`infolist`）/ Rust（`read_entries`）的**判定口径一致**：
+ *  三处都看「中央目录里声明的大小」，而不是「我实际解出来多少」。
+ */
+function readZipEntries(buf, 仅目录) {
   let eocd = -1;
   const earliest = Math.max(0, buf.length - 65557);   // 注释最长 65535
   for (let i = buf.length - 22; i >= earliest; i--) {
@@ -2407,6 +2439,7 @@ function readZipEntries(buf) {
     const flags = buf.readUInt16LE(p + 8);
     const method = buf.readUInt16LE(p + 10);
     const csize = buf.readUInt32LE(p + 20);
+    const usize = buf.readUInt32LE(p + 24);
     const nameLen = buf.readUInt16LE(p + 28);
     const extraLen = buf.readUInt16LE(p + 30);
     const commentLen = buf.readUInt16LE(p + 32);
@@ -2414,6 +2447,7 @@ function readZipEntries(buf) {
     const name = buf.subarray(p + 46, p + 46 + nameLen)
       .toString((flags & 0x0800) ? 'utf8' : 'latin1');
     p += 46 + nameLen + extraLen + commentLen;
+    if (仅目录) { out.push({ name, usize }); continue; }
     if (buf.readUInt32LE(localOff) !== 0x04034b50) throw new Error('本地文件头坏了');
     const lNameLen = buf.readUInt16LE(localOff + 26);
     const lExtraLen = buf.readUInt16LE(localOff + 28);
@@ -2483,9 +2517,34 @@ const ZIP_FUNCS = {
     const dst = (target === '' || target === null || target === undefined)
       ? '.' : pText(target);
     const buf = zipBytes(zipPath);
+    // 🔴 M160：**先只看中央目录**（不解数据）就把名字和总量判掉 ——
+    //    否则压缩炸弹会先被解进内存，再谈「要不要拦」就晚了。
+    const 包名 = _path.basename(pText(zipPath));
     let entries;
+    let 目录;
+    try {
+      目录 = readZipEntries(buf, true);
+    } catch (e) {
+      throw R.runErr(`解压「${包名}」失败：${e && e.message ? e.message : e}`);
+    }
+    // 条目名是包里写的，不是用户写的：`../../x` 能写到目标目录之外。
+    let 总量 = 0;
+    for (const e of 目录) {
+      const 问题 = checkEntryName(e.name);
+      if (问题) {
+        throw R.runErr(`解压「${包名}」失败：条目「${e.name}」不合法（${问题}）`);
+      }
+      总量 += (e.usize || 0);
+    }
+    const 上限 = 512 * 1024 * 1024;
+    if (总量 > 上限) {
+      throw R.runErr(
+        `解压「${包名}」失败：解开需要 ${(总量 / (1024 * 1024)).toFixed(1)} MB，`
+        + `超过上限 ${上限 / (1024 * 1024)} MB`
+        + '（先用「压缩.列出内容」看看有哪些，再用「压缩.解压成员」只取需要的）');
+    }
     try { entries = readZipEntries(buf); } catch (e) {
-      throw R.runErr(`解压「${pText(zipPath)}」失败：${e && e.message ? e.message : e}`);
+      throw R.runErr(`解压「${包名}」失败：${e && e.message ? e.message : e}`);
     }
     try {
       fs.mkdirSync(dst, { recursive: true });
@@ -2495,7 +2554,7 @@ const ZIP_FUNCS = {
         fs.writeFileSync(outPath, e.data);
       }
     } catch (e) {
-      throw R.runErr(`解压「${pText(zipPath)}」失败：${e && e.message ? e.message : e}`);
+      throw R.runErr(`解压「${包名}」失败：${e && e.message ? e.message : e}`);
     }
     return dst;
   }),

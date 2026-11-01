@@ -888,6 +888,21 @@ pub fn install_package_zip(zip_path: &str, name: &str, dest_root: Option<&str>,
     let data = fs::read(zip_path).map_err(|e| format!("读不了包文件「{zip_path}」：{e}"))?;
     let entries = crate::zip::read_all(&data).map_err(|e| e.message)?;
 
+    // 🔴 M160：**和 `压缩.解压` 共用同一套校验**（别写两遍 —— 两遍迟早会分叉）。
+    //    条目名是包里写的：`../../.ssh/authorized_keys` 这类能写到包目录之外。
+    let 包名 = Path::new(zip_path)
+        .file_name()
+        .map(|x| x.to_string_lossy().into_owned())
+        .unwrap_or_else(|| zip_path.to_string());
+    for (条目, _) in &entries {
+        if let Err(原因) = crate::zip::check_entry_name(条目) {
+            return Err(format!(
+                "「{包名}」里的条目「{条目}」不合法（{原因}）——\
+                 这个包不能装（包里的路径越出了包目录）"
+            ));
+        }
+    }
+
     let top_dirs: BTreeSet<String> = entries.iter()
         .map(|(n, _)| n.split('/').next().unwrap_or("").to_string())
         .filter(|h| !h.is_empty()).collect();
@@ -1201,7 +1216,12 @@ fn cmd_install(rest: &[String]) -> i32 {
         }
         if let Some(z) = &local_zip {
             install_package_zip(z, &package, None, force)?;
+            // 🔴 M160：本地包**没有校验和**可对（索引里才登记 sha256）——
+            //    以前是静默装上，用户不知道「这个包没人担保」。现在把话说出来。
             println!("已安装包「{package}」（来自 {z}）");
+            println!(
+                "⚠️ 这是本地包文件：没有校验和可对（索引里登记的 sha256 才做得了这件事）。\
+                 装之前请自己确认来源。");
             return Ok(());
         }
         if let Some(src) = &from_index {

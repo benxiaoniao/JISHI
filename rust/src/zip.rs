@@ -286,6 +286,58 @@ pub(crate) fn read_all(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, JishiError
     Ok(out)
 }
 
+/// **条目名**安全检查：解压前必须过这一关（M160）。
+///
+/// ## 为什么要有它
+///
+/// 解压的写法是「拿条目名当相对路径拼到目标目录后面」。条目名是**包里写的**，
+/// 不是用户写的 —— 一个 `../../.ssh/authorized_keys` 就能写到目标目录之外。
+/// 这是包管理器里最经典的一类漏洞（PyPI 上出现过多次）。
+///
+/// ## 怎么判
+///
+/// 不靠「黑名单关键字」，靠**结构**：条目名只能是**相对路径**，且不能往上走。
+///
+/// - 空名 / 含 NUL ⇒ 不合法
+/// - 以 `/` 或 `\` 开头 ⇒ 绝对路径，不合法
+/// - 第二个字符是 `:`（`C:`）⇒ 盘符，不合法
+/// - 按 `/`、`\` 切段后出现 `..` ⇒ 往上走，不合法
+///
+/// `.` 段无害（`a/./b` 就是 `a/b`），放行。
+///
+/// 返回 `Err(一句中文原因)`；调用方负责拼成带上下文的报错。
+pub(crate) fn check_entry_name(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("条目名是空的".to_string());
+    }
+    if name.contains('\0') {
+        return Err("条目名里有 NUL 字符".to_string());
+    }
+    if name.starts_with('/') || name.starts_with('\\') {
+        return Err("条目名以「/」开头（绝对路径）".to_string());
+    }
+    let mut 字 = name.chars();
+    if let (Some(首), Some(':')) = (字.next(), 字.next()) {
+        if 首.is_ascii_alphabetic() {
+            return Err("条目名带盘符（如「C:」）".to_string());
+        }
+    }
+    for 段 in name.split(['/', '\\']) {
+        if 段 == ".." {
+            return Err("条目名里有「..」（会往上跳到目标目录之外）".to_string());
+        }
+    }
+    Ok(())
+}
+
+/// 解压总量的上限（M160）：超过就**不解**，让人自己挑着取。
+///
+/// 512 MB 的来由：常见发行包里最大的单文件也就几十 MB；
+/// 而「39 KB 解出 40 MB」这种压缩炸弹比例可以到 1000:1，
+/// 不设上限时一个很小的包就能把内存/磁盘吃光。
+pub(crate) const MAX_UNPACK_BYTES: usize = 512 * 1024 * 1024;
+
+
 
 // ---------------------------------------------------------------------------
 // gzip 单文件（`压缩文件` / `解压文件`）
@@ -440,6 +492,33 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let data = fs::read(&zip_path)
                 .map_err(|e| err("运行期错误", format!("读「{zip_path}」失败：{e}")))?;
             let entries = read_entries(&data)?;
+            // 🔴 M160：解压前**逐条校验条目名 + 算总解开量**（三个宿主同一套规矩）。
+            //    条目名是包里写的，不是用户写的 ⇒ 一个 `../../x` 就能写到目标目录外。
+            let 包名 = Path::new(&zip_path)
+                .file_name()
+                .map(|x| x.to_string_lossy().into_owned())
+                .unwrap_or_else(|| zip_path.clone());
+            let mut 总量 = 0usize;
+            for e in &entries {
+                if let Err(原因) = check_entry_name(&e.name) {
+                    return Err(err(
+                        "运行期错误",
+                        format!("解压「{包名}」失败：条目「{}」不合法（{原因}）", e.name),
+                    ));
+                }
+                总量 = 总量.saturating_add(e.usize_);
+            }
+            if 总量 > MAX_UNPACK_BYTES {
+                return Err(err(
+                    "运行期错误",
+                    format!(
+                        "解压「{包名}」失败：解开需要 {:.1} MB，超过上限 {} MB\
+                         （先用「压缩.列出内容」看看有哪些，再用「压缩.解压成员」只取需要的）",
+                        总量 as f64 / (1024.0 * 1024.0),
+                        MAX_UNPACK_BYTES / (1024 * 1024)
+                    ),
+                ));
+            }
             fs::create_dir_all(&target)
                 .map_err(|e| err("运行期错误", format!("创建目录「{target}」失败：{e}")))?;
             for e in &entries {

@@ -53,18 +53,83 @@ def 打包(zip路径, *文件或目录) -> str:
     return str(zip路径)
 
 
+#: 解压总量的上限（M160）：超过就**不解**，让人自己挑着取。
+#: 512 MB 的来由：常见发行包里最大的单文件也就几十 MB；而「39 KB 解出 40 MB」
+#: 这种压缩炸弹比例能到 1000:1，不设上限时一个很小的包就能把内存/磁盘吃光。
+_最大解压字节 = 512 * 1024 * 1024
+
+
+def _条目名问题(名: str) -> str:
+    """条目名安全检查（M160）。返回「问题的一句话」，空串表示没问题。
+
+    🔴 **不靠黑名单关键字，靠结构**：条目名只能是**相对路径**，且不能往上走。
+    解压的写法是「拿条目名当相对路径拼到目标目录后面」，而条目名是**包里写的**、
+    不是用户写的 —— 一个 `../../.ssh/authorized_keys` 就能写到目标目录之外。
+    这是包管理器里最经典的一类漏洞（PyPI 上出现过多次）。
+
+    ⚠️ 三个宿主（Python / Rust / Node）必须**逐字一致**：这套规则和那句中文
+    在三处各写一遍，靠 `tests/test_m160_zip_slip.py` 钉住。
+    """
+    if not 名:
+        return "条目名是空的"
+    if "\0" in 名:
+        return "条目名里有 NUL 字符"
+    if 名.startswith(("/", "\\")):
+        return "条目名以「/」开头（绝对路径）"
+    if len(名) >= 2 and 名[1] == ":" and 名[0].isalpha():
+        return "条目名带盘符（如「C:」）"
+    for 段 in 名.replace("\\", "/").split("/"):
+        if 段 == "..":
+            return "条目名里有「..」（会往上跳到目标目录之外）"
+    return ""
+
+
 def 解压(zip路径, 目标目录: str = "") -> str:
-    """把 zip 解压到目标目录（默认当前目录），返回目标目录。"""
+    """把 zip 解压到目标目录（默认当前目录），返回目标目录。
+
+    ⚠️ **M160 起有两条硬规矩**（三个宿主一致）：
+      ① 条目名不合法（绝对路径 / 盘符 / `..`）⇒ **整包不解**，报错说清是哪个条目；
+      ② 解开总量超过 512 MB ⇒ 也不解，提示用 `解压成员` 挑着取。
+    早先 Python 侧靠 `extractall` 的「静默改名」躲过一次穿越，但那是**默默放错地方**，
+    比报错更糟；Rust / Node 则压根没拦 ⇒ 三边行为本来就不一样。
+    """
     import os
     target = str(目标目录) if 目标目录 else "."
     if not _os.path.isfile(str(zip路径)):
         raise RunValueError(f"「{zip路径}」不是文件")
+    包名 = _os.path.basename(str(zip路径))
     try:
-        os.makedirs(target, exist_ok=True)
         with _py_zip.ZipFile(str(zip路径)) as zf:
-            zf.extractall(target)
+            条们 = zf.infolist()
+            总量 = 0
+            for zi in 条们:
+                问题 = _条目名问题(zi.filename)
+                if 问题:
+                    raise RunError(
+                        f"解压「{包名}」失败：条目「{zi.filename}」不合法（{问题}）")
+                总量 += zi.file_size
+            if 总量 > _最大解压字节:
+                raise RunError(
+                    f"解压「{包名}」失败：解开需要 {总量 / (1024 * 1024):.1f} MB，"
+                    f"超过上限 {_最大解压字节 // (1024 * 1024)} MB"
+                    "（先用「压缩.列出内容」看看有哪些，再用「压缩.解压成员」只取需要的）")
+            os.makedirs(target, exist_ok=True)
+            for zi in 条们:
+                dest = _os.path.join(target, zi.filename)
+                if zi.is_dir():
+                    os.makedirs(dest, exist_ok=True)
+                    continue
+                上层 = _os.path.dirname(dest)
+                if 上层:
+                    os.makedirs(上层, exist_ok=True)
+                with zf.open(zi) as src, open(dest, "wb") as dst:
+                    while True:
+                        buf = src.read(65536)
+                        if not buf:
+                            break
+                        dst.write(buf)
     except (_py_zip.BadZipFile, OSError) as e:
-        raise RunError(f"解压「{zip路径}」失败：{e}")
+        raise RunError(f"解压「{包名}」失败：{e}")
     return target
 
 
