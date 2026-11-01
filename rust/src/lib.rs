@@ -2646,11 +2646,22 @@ impl VM {
                 op::LIST_APPEND => {
                     let val = self.stack.pop().unwrap_or(Val::None_);
                     let obj = self.stack.pop().unwrap_or(Val::None_);
-                    let bm = get_attr(obj, "追加", ins.line, ins.col)?;
-                    if let Val::BoundMethod(bm) = bm {
-                        self.call_bound(*bm, &[val])?;
+                    // 🔴 M164：**列表直接 push**，不再绕一圈。
+                    //
+                    // 原来每次都 `get_attr(obj, "追加")` → 造 `BoundMethod` → `call_bound`：
+                    // 一次方法名比较 + 一次 BoundMethod 分配 + 一次调用，为的只是 `push`。
+                    // 列表推导 / `甲.追加(x)` 是最常见的写法，值得一条直路。
+                    // ⚠️ 只有 `Val::List` 才走快路；用户类的 `追加` 方法（自定义对象）仍走下面那条。
+                    if let Val::List(l) = &obj {
+                        l.borrow_mut().push(val);
+                        self.stack.push(Val::None_);
+                    } else {
+                        let bm = get_attr(obj, "追加", ins.line, ins.col)?;
+                        if let Val::BoundMethod(bm) = bm {
+                            self.call_bound(*bm, &[val])?;
+                        }
+                        self.stack.push(Val::None_);
                     }
-                    self.stack.push(Val::None_);
                 }
                 op::BUILD_CLASS => {
                     let n = ins.a as usize;
@@ -5114,8 +5125,42 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
                 ))
             }
             Val::Str(text) => {
+                // 🔴 M164：**不再 `text.chars().collect::<Vec<char>>()`** ——
+                // 那是「为了切 5 个字符，先把整串拆成 40 字节的 Vec」：
+                // 每次切片一次全量分配 + 一次全量遍历。文本切片原本 0.85x 就栽在这。
+                //
+                // 现在两条路：
+                //   ① **ASCII**（英文/JSON/路径这类最常见）：字节就是字符，
+                //      算完偏移直接 `&text[a..b]` —— 一次 memcpy，不遍历；
+                //   ② 含非 ASCII（中文等）：`chars().skip(a).take(len)`，
+                //      只有结果那一次分配。
+                if text.is_ascii() {
+                    let (a, b, st) = slice_indices(sl, text.len())?;
+                    if st == 1 {
+                        let s0 = a.max(0) as usize;
+                        let e0 = b.max(0) as usize;
+                        return Ok(Val::Str(text[s0..e0.max(s0)].to_string()));
+                    }
+                    let bytes = text.as_bytes();
+                    return Ok(Val::Str(
+                        slice_positions(a, b, st)
+                            .into_iter()
+                            .filter_map(|i| bytes.get(i as usize))
+                            .map(|&c| c as char)
+                            .collect(),
+                    ));
+                }
+                let n = text.chars().count();
+                let (a, b, st) = slice_indices(sl, n)?;
+                if st == 1 {
+                    // 连续区间（`a[2:7]` 这种）：跳过前 a 个字符、取 len 个
+                    let s0 = a.max(0) as usize;
+                    let e0 = b.max(0) as usize;
+                    return Ok(Val::Str(
+                        text.chars().skip(s0).take(e0.saturating_sub(s0)).collect(),
+                    ));
+                }
                 let chars: Vec<char> = text.chars().collect();
-                let (a, b, st) = slice_indices(sl, chars.len())?;
                 Ok(Val::Str(
                     slice_positions(a, b, st)
                         .into_iter()
@@ -5153,6 +5198,18 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
         },
         (Val::Dict(d), k) => dict_get(&d.borrow(), &k).ok_or_else(|| err("键错误", missing_key_msg(&k))),
         (Val::Str(s), Val::Int(i)) => {
+            // 🔴 M164：**非负下标不必先 `chars().count()`** —— `chars().nth(j)`
+            // 本来就知道越界没有，先数一遍等于白扫一次。
+            //
+            // ⚠️ 这里**故意不做 `is_ascii()` 的 ASCII 快路径**：同刻 A/B 实测
+            // 加了它反而**慢 3.3%**（中文短串上一个多出来的分支，比省下的那次
+            // 扫描更贵）。本项目的老规矩：**通了再留，不通就删**。
+            if i >= 0 {
+                return match s.chars().nth(i as usize) {
+                    Some(c) => Ok(Val::Str(c.to_string())),
+                    None => Err(err("索引错误", STR_INDEX_MSG)),
+                };
+            }
             let n = s.chars().count();
             match norm_index(i, n) {
                 Some(j) => Ok(Val::Str(s.chars().nth(j).unwrap().to_string())),
