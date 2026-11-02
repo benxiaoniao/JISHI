@@ -36,7 +36,13 @@ class SandboxOpts:
     allow_python_import: bool = False    # 允许 Python 桥接导入
     allow_modules: frozenset = field(    # 标准库白名单（无副作用模块恒允许）
         default_factory=lambda: frozenset(
-            {"随机", "数学", "文本", "时间", "json", "日期", "正则", "加密"}))
+            # M167 补：原来只有 8 个，于是 `html` / `表格` / `向量` 这些**纯计算**
+            # 模块在 playground 里一律「沙箱不允许导入」—— M166 刚做的页面构件
+            # 在网页上一个都用不了。这里只加**无副作用**的；
+            # ⚠️ `表格` 的 `读表格(路径)` 确实碰文件（那是既有问题，见路线图待办）。
+            {"随机", "数学", "文本", "时间", "json", "日期", "正则", "加密",
+             "html", "表格", "向量", "矩阵", "统计", "编码", "迭代", "容器",
+             "对比", "参数", "标识"}))
     extra_stdlib: frozenset = field(default_factory=frozenset)
 
 
@@ -112,6 +118,12 @@ def _make_guard(opts: SandboxOpts):
                         "沙箱禁止导入「系统」（涉及执行外部命令/系统访问）",
                         line=line, col=col, filename=filename,
                         hint="如需系统访问，请显式开启 allow_network")
+                return
+            if name == "浏览器":
+                # 🔴 M167：**沙箱不该拦它** —— 拦了 playground 就永远用不了交互
+                # （那正是这个模块存在的理由）。真实现只在 wasm 里；命令行 / Node
+                # 上「导入」成功、**调用时**报平台错（比「找不到模块」准确）。
+                # ⚠️ 与 Rust 侧 `sandbox.rs` 的 `"浏览器" => return Ok(())` 是同一处。
                 return
             if (name not in opts.allow_modules
                     and name not in opts.extra_stdlib):

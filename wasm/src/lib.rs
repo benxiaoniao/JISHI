@@ -33,7 +33,7 @@ use std::cell::RefCell;
 
 use jishi_ffi::sandbox::{self, SandboxOpts};
 
-const ABI_VERSION: i32 = 1;
+const ABI_VERSION: i32 = 2;   // M167：加 jishi_call / jishi_host_respond
 
 thread_local! {
     /// 上一次调用的结果（**协议 JSON 文本**，与原生 `--json-result` 同形）。
@@ -172,6 +172,70 @@ pub extern "C" fn jishi_out_copy(dst: *mut u8) {
         let b = o.borrow();
         unsafe { std::ptr::copy_nonoverlapping(b.as_ptr(), dst, b.len()) };
     });
+}
+
+// ---------------------------------------------------------------------------
+// M167：事件回调 + 浏览器宿主通道
+// ---------------------------------------------------------------------------
+
+/// 事件回调入口：**重新跑一遍源码，再调那个函数**。
+///
+/// > **一次事件 = 一次完整执行。**（设计见 `jishi_ffi::stdlib::browser` 的模块头）
+///
+/// 为什么是「重跑整个程序 + 再调函数」而不是「只调函数」：`jishi_run` 一返回，
+/// 那次执行的 VM 就没了 —— 「只调函数」意味着要它能常驻，而 wasm 不能阻塞主线程
+/// 等事件（会冻页面）。所以走**无状态重放**：重建全局状态（从 localStorage / DOM
+/// 读回来），再执行处理函数。代价是每次事件都会重跑顶层代码，这是模式的形状。
+///
+/// ⚠️ **函数名要校验**：它会拼进源码（`{src}\n{name}()`），不校验就等于给了
+/// 一个「从 JS 往基石源码里注入」的口子。只放行标识符字符（`is_alphanumeric`
+/// 对中文为真，所以中文函数名照样能用）。
+#[no_mangle]
+pub extern "C" fn jishi_call(src_ptr: *const u8, src_len: usize,
+                             fn_ptr: *const u8, fn_len: usize,
+                             arg_ptr: *const u8, arg_len: usize) -> i32 {
+    let src = read_src(src_ptr, src_len);
+    let name = read_src(fn_ptr, fn_len);
+    if name.is_empty()
+        || !name.chars().all(|c| c.is_alphanumeric() || c == '_')
+    {
+        set_out(fail_json("事件处理函数的名字不合法", &name));
+        return 1;
+    }
+    // 第五、六个参数是**给回调的实参**（`请求` 的响应文本、`绑定` 的事件信息）。
+    // 空 = 不带参数。它会变成一个**字符串字面量**塞进调用里，所以必须转义。
+    let arg = read_src(arg_ptr, arg_len);
+    let 实参 = if arg.is_empty() {
+        String::new()
+    } else {
+        format!("\"{}\"", arg.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n").replace('\r', "\\r"))
+    };
+    let full = format!("{src}\n\n{name}({实参})\n");
+    let o = opts();
+    set_out(sandbox::run_sandboxed_direct(&full, &o, "<playground>"));
+    0
+}
+
+/// JS 侧实现「浏览器宿主调用」时，把响应 JSON 写回来（M167）。
+///
+/// 通道形状：基石侧 `jishi_host_call(请求)` → shim 执行 → 调这个写回响应。
+/// 一条通道而不是十几个 import，加新操作**不用动 ABI**。
+#[no_mangle]
+pub extern "C" fn jishi_host_respond(ptr: *const u8, len: usize) {
+    if ptr.is_null() {
+        return;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    jishi_ffi::browser_respond(bytes);
+}
+
+/// 构造一条「失败」结果（形状与引擎给的失败一致）。
+fn fail_json(title: &str, detail: &str) -> String {
+    let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+    format!(
+        "{{\"ok\": false, \"error\": {{\"code\": null, \"title\": \"{}\", \
+         \"message\": \"{}\", \"line\": null, \"col\": null, \"hint\": null}}}}",
+        esc(title), esc(detail))
 }
 
 /// ABI 版本 —— shim 拿它自检「这份 wasm 是不是配套的」。

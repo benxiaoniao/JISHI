@@ -4067,6 +4067,28 @@ function _htmlContentList(v) {
   return _htmlContent(v);
 }
 
+// M167：`浏览器` 模块 —— **只在 wasm（网页）里能用**。
+//
+// 命令行 / Node 上每个函数都报同一条中文错（平台边界，不是「占位」）：
+// 同步 VM 没有事件循环，浏览器那套异步 API 塞不进来（见 D81）。
+//
+// 文案与 Python 侧 `浏览器.py` 的 `无浏览器` **逐字相同** —— 三个宿主一致。
+const BROWSER_无 = '这个平台没有浏览器：「浏览器」模块只在网页（wasm）里可用。'
+  + '命令行 / Node 上要抓网页请用「html」模块解析、要发请求请用「网络」模块。';
+
+function _noBrowser(name) {
+  return new R.Builtin(name, () => { throw R.runErr(BROWSER_无, 0, 0); });
+}
+
+const BROWSER_FUNCS = {
+  '设文本': _noBrowser('设文本'), '设HTML': _noBrowser('设HTML'),
+  '取值': _noBrowser('取值'), '设值': _noBrowser('设值'),
+  '加类': _noBrowser('加类'), '删类': _noBrowser('删类'), '切类': _noBrowser('切类'),
+  '点击': _noBrowser('点击'), '显示': _noBrowser('显示'), '绑定': _noBrowser('绑定'),
+  '存本地': _noBrowser('存本地'), '读本地': _noBrowser('读本地'), '删本地': _noBrowser('删本地'),
+  '请求': _noBrowser('请求'),
+};
+
 const HTML_FUNCS = {
   '转义': new R.Builtin('转义', (v) => _escapeHtml(v)),
   '原样': new R.Builtin('原样', (v) => (v instanceof RawHtml ? v : new RawHtml(v))),
@@ -6361,6 +6383,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '矩阵': new R.Module('矩阵', MATRIX_FUNCS),
   '编码': new R.Module('编码', ENCODE_FUNCS),
   '配置': new R.Module('配置', CFG_FUNCS),
+  '浏览器': new R.Module('浏览器', BROWSER_FUNCS),
   'html': new R.Module('html', HTML_FUNCS),
   '对比': new R.Module('对比', DIFF_FUNCS),
   '标识': new R.Module('标识', ID_FUNCS),

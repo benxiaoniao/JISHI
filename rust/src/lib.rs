@@ -6969,3 +6969,13 @@ fn render_error_one(
 pub fn render_error(vm: &VM, e: &JishiError) -> String {
     render_error_with(e, &vm.module.filename, &|line| vm.module.source_line(line))
 }
+
+/// wasm 专用（M167）：JS 侧把「浏览器宿主调用」的响应写回来。
+///
+/// 为什么不直接让 `wasm` crate 摸 `stdlib::browser`：那是 `pub(crate)`，
+/// 跨 crate 够不着。这里开一个**只有一个用途**的窄口子 —— 比把整个 stdlib
+/// 提升成 `pub` 干净得多。
+#[cfg(target_arch = "wasm32")]
+pub fn browser_respond(bytes: &[u8]) {
+    stdlib::browser::回填响应(bytes);
+}

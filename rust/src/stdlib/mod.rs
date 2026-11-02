@@ -39,6 +39,7 @@ use std::collections::HashMap;
 
 use crate::{display, err, JishiError, Val};
 
+pub(crate) mod browser;
 pub(crate) mod datetime;
 mod files;
 pub(crate) mod jsonmod;
@@ -90,6 +91,7 @@ pub(crate) type R = Result<Val, JishiError>;
 /// 那种漂移在 M50 第一批上真发生过（宿主缺模块，是手工测出来的）。
 pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, Val>)] {
     &[
+        ("浏览器", browser::module),
         ("数学", math::module),
         ("文本", text::module),
         ("随机", rand::module),
