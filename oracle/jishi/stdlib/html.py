@@ -26,6 +26,9 @@ __all__ = [
     "转义", "原样", "标签", "空元素", "链接", "属性文本", "有序列表", "无序列表",
     # M107：解析方向（从网页里取东西）
     "取文本", "取链接", "取表格",
+    # M166：页面构件（表单 / 表格 / 布局 / 卡片）
+    "输入框", "多行文本", "下拉", "多选", "按钮", "表单",
+    "由表格", "页面", "卡片", "提示",
 ]
 
 # ---------------------------------------------------------------------------
@@ -453,3 +456,260 @@ def 有序列表(项目, 属性=None) -> str:
 def 无序列表(项目, 属性=None) -> str:
     """生成 `<ul><li>…</li>…</ul>`；每项内容都会被转义。"""
     return 标签("ul", 原样("".join(标签("li", x) for x in 项目)), 属性)
+
+
+# ---------------------------------------------------------------------------
+# M166：页面构件
+#
+# 📌 **输出格式是契约**：三个宿主逐字节相同。下面每个函数都写清了输出长什么样，
+#    改一个字都要同时改 Rust / Node 并重录语料期望。
+# ---------------------------------------------------------------------------
+
+
+def _内容们(值) -> str:
+    """内容位，但**列表会被拼起来**（`表单([字段们])` 这种写法）。
+
+    列表里的每个元素照 `_内容` 的规矩走：`原样` 片段原样输出，其余转义。
+    列表里**允许嵌套列表**（拼表单时常见），递归展开。
+    """
+    if isinstance(值, (list, tuple)):
+        return "".join(_内容们(x) for x in 值)
+    return _内容(值)
+
+
+def _文本(名: str, 值) -> str:
+    """要一个非空文本参数（名字用作报错文案）。"""
+    if not isinstance(值, str) or not 值:
+        raise RunTypeError(f"「{名}」要传非空文本")
+    return 值
+
+
+def _标签包(说明, 里面: str) -> str:
+    """给控件套一层 `<label>`：有标签就带 `<span>`，没有就裸着。
+
+    `<label>` 包住控件之后，点标签文字也能聚焦到控件上 —— 不用写 `for`/`id`，
+    省掉一整类「id 拼错了点不动」的问题。
+    """
+    if not 说明:
+        return 里面
+    return f"<label><span>{_内容(说明)}</span>{里面}</label>"
+
+
+def 输入框(名字: str, 说明="", 类型="text", 值="") -> str:
+    """单行输入。`输入框("金额", "金额", "number")` →
+    `<label><span>金额</span><input type="number" name="金额" /></label>`
+
+    有 `值` 才输出 `value`（空值不输出，免得脏 URL）。
+
+    📌 故意**没有「额外属性」参数**：属性顺序在三个宿主上要对齐，多一个字典参数
+    就多一类「顺序不一致」的坑（而且用 `标签()` 自己拼这两行也不麻烦）。
+    """
+    _文本("输入框", 名字)
+    属性们 = {"type": 类型 or "text", "name": 名字}
+    if 值 != "" and 值 is not None:
+        属性们["value"] = 值
+    return 原样(_标签包(说明, 空元素("input", 属性们)))
+
+
+def 多行文本(名字: str, 说明="", 值="", 行数=4) -> str:
+    """多行输入。`多行文本("备注", "备注", "", 6)` →
+    `<label><span>备注</span><textarea name="备注" rows="6"></textarea></label>`
+    """
+    _文本("多行文本", 名字)
+    属性们 = {"name": 名字, "rows": 行数}
+    return 原样(_标签包(说明, 标签("textarea", "" if 值 is None else 值, 属性们)))
+
+
+def 下拉(名字: str, 选项, 说明="", 选中="") -> str:
+    """下拉选择。`下拉("类别", ["餐饮", "交通"], "类别", "交通")` →
+    `<label><span>类别</span><select name="类别">` +
+    `<option value="餐饮">餐饮</option><option value="交通" selected>交通</option>` +
+    `</select></label>`
+
+    `选项` 是文本列表（值 = 显示）。`选中` 那一项带 `selected`。
+    """
+    _文本("下拉", 名字)
+    if not isinstance(选项, (list, tuple)):
+        raise RunTypeError('「下拉」的选项要传列表，例如 下拉("类别", ["餐饮", "交通"])')
+    片 = []
+    for 项 in 选项:
+        值 = 项 if isinstance(项, str) else str(项)
+        标记 = " selected" if 值 == 选中 and 选中 != "" else ""
+        片.append(f'<option value="{_属性(值)}"{标记}>{_内容(值)}</option>')
+    return 原样(_标签包(说明,
+                       标签("select", 原样("".join(片)), {"name": 名字})))
+
+
+def 多选(名字: str, 选项, 说明="", 选中们=None) -> str:
+    """多选框组（不是 `<select multiple>`——手机上勾比按 Ctrl 点友好）。
+
+    `多选("标签", ["工作", "生活"], "分类", ["生活"])` →
+    `<fieldset class="字段组"><legend>分类</legend>` +
+    `<label><input type="checkbox" name="标签" value="工作" />工作</label>` +
+    `<label><input type="checkbox" name="标签" value="生活" checked />生活</label>` +
+    `</fieldset>`
+
+    ⚠️ 这些 `<label>` **不带 `<span>`**（勾选框与文字并排更好点）。
+    """
+    _文本("多选", 名字)
+    if not isinstance(选项, (list, tuple)):
+        raise RunTypeError('「多选」的选项要传列表，例如 多选("标签", ["工作", "生活"])')
+    已选 = set(选中们 or [])
+    片 = []
+    for 项 in 选项:
+        值 = 项 if isinstance(项, str) else str(项)
+        属性们 = {"type": "checkbox", "name": 名字, "value": 值}
+        if 值 in 已选:
+            属性们["checked"] = None
+        片.append(f"<label>{空元素('input', 属性们)}{_内容(值)}</label>")
+    题 = f"<legend>{_内容(说明)}</legend>" if 说明 else ""
+    return 原样(f'<fieldset class="字段组">{题}{"".join(片)}</fieldset>')
+
+
+def 按钮(文字: str, 类型="submit") -> str:
+    """按钮。`按钮("保存")` → `<button type="submit">保存</button>`
+
+    `类型` 可以是 `"submit"` / `"button"` / `"reset"`（原样写进 `type`）。
+    """
+    _文本("按钮", 文字)
+    return 原样(标签("button", 文字, {"type": 类型 or "submit"}))
+
+
+def 表单(内容, 提交到: str, 方法="post") -> str:
+    """表单。`表单([输入框(…), 按钮("保存")], "/新建")` →
+    `<form action="/新建" method="post">…</form>`
+
+    `内容` 可以是列表（会拼起来）或单个片段。
+    """
+    _文本("表单", 提交到)
+    return 原样(标签("form", 原样(_内容们(内容)),
+                    {"action": 提交到, "method": 方法 or "post"}))
+
+
+def 由表格(表, 斑马纹=False) -> str:
+    """**直接从 `表格` 值渲染** `<table>`（不用手拼 `<tr>`）。
+
+    `由表格(表)` →
+    `<table class="基石表格"><thead><tr><th>列1</th></tr></thead>` +
+    `<tbody><tr><td>值</td></tr></tbody></table>`
+
+    `斑马纹` 为真时追加 `斑马纹` 类（隔行浅底，CSS 已在 `页面` 里备好）。
+    单元格全部转义。
+    """
+    # ⚠️ 用**鸭子类型**而不是 `from . import 表格`：本包是按文件名动态加载的
+    # （见 stdlib/__init__.py），模块之间互相 import 会拿到半初始化的对象。
+    if not (hasattr(表, "headers") and hasattr(表, "rows")):
+        raise RunTypeError(
+            "「由表格」要传表格值（用 表格.读表格 / 表格.新建 造出来），"
+            f"不要传{type(表).__name__}")
+    类 = "基石表格 斑马纹" if 斑马纹 else "基石表格"
+    头 = "".join(f"<th>{_内容(h)}</th>" for h in 表.headers)
+    体 = "".join(
+        "<tr>" + "".join(f"<td>{_内容(c)}</td>" for c in 行) + "</tr>"
+        for 行 in 表.rows
+    )
+    return 原样(f'<table class="{类}"><thead><tr>{头}</tr></thead>'
+               f"<tbody>{体}</tbody></table>")
+
+
+#: 页面骨架用的内置样式。**不引 CDN、不引框架** —— 一个 `<style>` 就够，
+#: 而且把它做成常量（不是每个页面一份）才能让五引擎逐字对得上。
+_样式 = (
+    ":root{--底:#fff;--字:#1f2328;--弱:#6b7280;--线:#e5e7eb;--主:#2563eb;"
+    "--成功:#16a34a;--警告:#d97706;--错误:#dc2626}"
+    "*{box-sizing:border-box}"
+    'body{margin:0;font:16px/1.6 system-ui,-apple-system,"Segoe UI",'
+    '"Noto Sans SC",sans-serif;color:var(--字);background:var(--底)}'
+    "header{padding:1rem 1.5rem;border-bottom:1px solid var(--线)}"
+    "header h1{margin:0;font-size:1.25rem}"
+    "nav{margin-top:.5rem}"
+    "nav a{margin-right:1rem;color:var(--主);text-decoration:none}"
+    "main{max-width:56rem;margin:0 auto;padding:1.5rem}"
+    "footer{padding:1rem 1.5rem;color:var(--弱);border-top:1px solid var(--线);"
+    "font-size:.875rem}"
+    ".卡片{border:1px solid var(--线);border-radius:.5rem;padding:1rem;margin:1rem 0}"
+    ".卡片 h2{margin:0 0 .5rem;font-size:1.1rem}"
+    ".提示{padding:.75rem 1rem;border-radius:.375rem;margin:.75rem 0;"
+    "border-left:4px solid;background:#f9fafb}"
+    ".提示-成功{border-color:var(--成功);background:#f0fdf4}"
+    ".提示-警告{border-color:var(--警告);background:#fffbeb}"
+    ".提示-错误{border-color:var(--错误);background:#fef2f2}"
+    ".基石表格{width:100%;border-collapse:collapse}"
+    ".基石表格 th,.基石表格 td{padding:.5rem .75rem;"
+    "border-bottom:1px solid var(--线);text-align:left}"
+    ".基石表格 thead th{background:#f9fafb}"
+    ".斑马纹 tbody tr:nth-child(even){background:#fafafa}"
+    ".字段组{border:1px solid var(--线);border-radius:.375rem;margin:.5rem 0;"
+    "padding:.5rem .75rem}"
+    "label{margin:.5rem 0}"
+    "label span{display:block;font-size:.875rem;color:var(--弱)}"
+    "input,textarea,select{width:100%;padding:.5rem;border:1px solid var(--线);"
+    "border-radius:.375rem;font:inherit}"
+    'input[type="checkbox"]{width:auto;margin-right:.5rem}'
+    "button{padding:.5rem 1rem;border:0;border-radius:.375rem;background:var(--主);"
+    "color:#fff;font:inherit;cursor:pointer}"
+)
+
+
+def 页面(标题: str, 内容, 导航="") -> str:
+    """整页骨架（`<!DOCTYPE html>` 到 `</html>`）。
+
+    `页面("记账", [卡片(…), 表单(…)], [[["首页", "/"]], [["关于", "/关于"]]])`
+
+    - 五行 `header` / `nav` / `main` / `footer` 一处定义，各页面只填内容；
+    - `导航` 传 `[[文字, 地址], …]` 会自动生成链接，也可以直接传一段
+      `原样(...)` 的 HTML（想加图标之类）；
+    - 样式是**内置常量**（见 `_样式`），不引 CDN —— 离线也能看。
+    """
+    _文本("页面", 标题)
+    # 导航：列表 → 自动拼 `<a>`；文本 → 原样（给「我自己拼好了」的场景）
+    if isinstance(导航, (list, tuple)):
+        链接们 = "".join(链接(项[0], 项[1]) for 项 in 导航)
+        导航片 = f"<nav>{链接们}</nav>"
+    elif 导航:
+        导航片 = f"<nav>{_内容(导航)}</nav>"
+    else:
+        导航片 = ""
+    题 = _内容(标题)
+    return 原样(
+        "<!DOCTYPE html>\n"
+        '<html lang="zh-CN">\n'
+        "<head>\n"
+        '<meta charset="utf-8" />\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1" />\n'
+        f"<title>{题}</title>\n"
+        f"<style>{_样式}</style>\n"
+        "</head>\n"
+        "<body>\n"
+        f"<header><h1>{题}</h1>{导航片}</header>\n"
+        f"<main>{_内容们(内容)}</main>\n"
+        "<footer>由基石生成</footer>\n"
+        "</body>\n"
+        "</html>"
+    )
+
+
+def 卡片(标题: str, 内容) -> str:
+    """卡片：`卡片("本月支出", 由表格(表))` →
+    `<section class="卡片"><h2>本月支出</h2><table …></table></section>`
+    """
+    _文本("卡片", 标题)
+    return 原样(f'<section class="卡片"><h2>{_内容(标题)}</h2>{_内容们(内容)}</section>')
+
+
+#: `提示` 认的级别 → CSS 类名后缀（**只认这三个**：多一个都要在样式里加一条）
+_提示级别 = {"成功": "成功", "警告": "警告", "错误": "错误"}
+
+
+def 提示(级别: str, 文本) -> str:
+    """提示条：`提示("错误", "金额要填正数")` →
+    `<div class="提示 提示-错误">金额要填正数</div>`
+
+    级别只认 `成功` / `警告` / `错误`（对应样式里的三种颜色）。
+    写别的会**报错**而不是静默给个没颜色的条 —— 这类「拼错也看不出来」的
+    问题最难查。
+    """
+    if 级别 not in _提示级别:
+        可选 = "、".join(_提示级别)
+        raise RunTypeError(f"「提示」的级别只认{可选}，收到「{级别}」")
+    return 原样(f'<div class="提示 提示-{_提示级别[级别]}">{_内容们(文本)}</div>')

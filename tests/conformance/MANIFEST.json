@@ -57,9 +57,9 @@
     "python": "3.13.14"
   },
   "类别计数": {
-    "examples": 42,
+    "examples": 43,
     "frontend": 1,
-    "lang": 126,
+    "lang": 127,
     "stdlib": 4
   },
   "语料": [
@@ -272,6 +272,13 @@
       "内容哈希": "sha256:1b6fd25ce60bba1f",
       "类别": "examples",
       "路径": "examples/tutorial/13_HTTP服务.jsh"
+    },
+    {
+      "id": "examples__tutorial__14_网页",
+      "产物哈希": "sha256:31f6d87aa4b5c5ff",
+      "内容哈希": "sha256:f6b7b8348deb02e0",
+      "类别": "examples",
+      "路径": "examples/tutorial/14_网页.jsh"
     },
     {
       "id": "examples__科学计算__01_两点距离",
@@ -699,6 +706,13 @@
       "内容哈希": "sha256:21fb2555d608f97d",
       "类别": "lang",
       "路径": "tests/cases/44_异常链.jsh"
+    },
+    {
+      "id": "tests__cases__45_html页面构件",
+      "产物哈希": "sha256:e4283cc0d0aff155",
+      "内容哈希": "sha256:3628acd4336aa771",
+      "类别": "lang",
+      "路径": "tests/cases/45_html页面构件.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -1275,5 +1289,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 173
+  "语料数": 175
 }

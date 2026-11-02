@@ -4032,6 +4032,41 @@ function _attrStr(attrs) {
   return parts.join('');
 }
 
+// M166：页面骨架用的内置样式。
+//
+// ⚠️ **这份字符串是从 Python 侧 `html._样式` 直接导出来的**（`json.dumps`），
+// 不是手抄的 —— 手抄过一版，CSS 里 `"Segoe UI"` 的引号就漏了一个，
+// 于是 Node 产出的页面跟另外两家不一样，而且是**静默**的（页面照样能看）。
+const HTML_样式 = ":root{--底:#fff;--字:#1f2328;--弱:#6b7280;--线:#e5e7eb;--主:#2563eb;--成功:#16a34a;--警告:#d97706;--错误:#dc2626}*{box-sizing:border-box}body{margin:0;font:16px/1.6 system-ui,-apple-system,\"Segoe UI\",\"Noto Sans SC\",sans-serif;color:var(--字);background:var(--底)}header{padding:1rem 1.5rem;border-bottom:1px solid var(--线)}header h1{margin:0;font-size:1.25rem}nav{margin-top:.5rem}nav a{margin-right:1rem;color:var(--主);text-decoration:none}main{max-width:56rem;margin:0 auto;padding:1.5rem}footer{padding:1rem 1.5rem;color:var(--弱);border-top:1px solid var(--线);font-size:.875rem}.卡片{border:1px solid var(--线);border-radius:.5rem;padding:1rem;margin:1rem 0}.卡片 h2{margin:0 0 .5rem;font-size:1.1rem}.提示{padding:.75rem 1rem;border-radius:.375rem;margin:.75rem 0;border-left:4px solid;background:#f9fafb}.提示-成功{border-color:var(--成功);background:#f0fdf4}.提示-警告{border-color:var(--警告);background:#fffbeb}.提示-错误{border-color:var(--错误);background:#fef2f2}.基石表格{width:100%;border-collapse:collapse}.基石表格 th,.基石表格 td{padding:.5rem .75rem;border-bottom:1px solid var(--线);text-align:left}.基石表格 thead th{background:#f9fafb}.斑马纹 tbody tr:nth-child(even){background:#fafafa}.字段组{border:1px solid var(--线);border-radius:.375rem;margin:.5rem 0;padding:.5rem .75rem}label{margin:.5rem 0}label span{display:block;font-size:.875rem;color:var(--弱)}input,textarea,select{width:100%;padding:.5rem;border:1px solid var(--线);border-radius:.375rem;font:inherit}input[type=\"checkbox\"]{width:auto;margin-right:.5rem}button{padding:.5rem 1rem;border:0;border-radius:.375rem;background:var(--主);color:#fff;font:inherit;cursor:pointer}";
+
+/// 要一个非空文本参数。
+function _needText(name, v) {
+  if (typeof v !== 'string' || v === '') {
+    throw R.typeErr(`「${name}」要传非空文本`);
+  }
+}
+
+/// 给控件套一层 `<label>`：有说明就带 `<span>`，没有就裸着。
+function _labelWrap(说明, inner) {
+  if (说明 === undefined || 说明 === null || 说明 === '') return inner;
+  return `<label><span>${_escapeHtml(pText(说明))}</span>${inner}</label>`;
+}
+
+/// 空元素（`<input … />`）。值是 `null` = HTML 布尔属性（不输出 `=""`）。
+function _voidEl(name, pairs) {
+  let out = `<${name}`;
+  for (const [k, v] of pairs) {
+    out += v === null ? ` ${k}` : ` ${k}="${_escapeHtml(v)}"`;
+  }
+  return `${out} />`;
+}
+
+/// 内容位，但**列表会拼起来**（`表单([字段们], "/新建")` 这种写法），可嵌套。
+function _htmlContentList(v) {
+  if (Array.isArray(v)) return v.map(_htmlContentList).join('');
+  return _htmlContent(v);
+}
+
 const HTML_FUNCS = {
   '转义': new R.Builtin('转义', (v) => _escapeHtml(v)),
   '原样': new R.Builtin('原样', (v) => (v instanceof RawHtml ? v : new RawHtml(v))),
@@ -4061,6 +4096,111 @@ const HTML_FUNCS = {
   '无序列表': new R.Builtin('无序列表', (items, attrs = null) => {
     const lis = seqFor('无序列表', items).map((x) => `<li>${_htmlContent(x)}</li>`).join('');
     return `<ul${_attrStr(attrs)}>${lis}</ul>`;
+  }),
+  // M166：页面构件（表单 / 表格 / 布局 / 卡片）
+  //
+  // 📌 输出格式是**契约**（与 Python / Rust 逐字节相同）。
+  // 参数一律「位置 + 默认值」，不用关键字 —— 宿主的内建签名里没有放关键字的位置。
+  '输入框': new R.Builtin('输入框', (名字, 说明 = '', 类型 = 'text', 值 = '') => {
+    _needText('输入框', 名字);
+    const pairs = [['type', 类型 || 'text'], ['name', 名字]];
+    if (值 !== '' && 值 !== undefined && 值 !== null) pairs.push(['value', pText(值)]);
+    return new RawHtml(_labelWrap(说明, _voidEl('input', pairs)));
+  }),
+  '多行文本': new R.Builtin('多行文本', (名字, 说明 = '', 值 = '', 行数 = 4) => {
+    _needText('多行文本', 名字);
+    const 正文 = 值 === undefined || 值 === null ? '' : pText(值);
+    const 行 = 行数 === undefined || 行数 === null ? '4' : pText(行数);
+    const inner = `<textarea name="${_escapeHtml(名字)}" rows="${_escapeHtml(行)}"`
+      + `>${_escapeHtml(正文)}</textarea>`;
+    return new RawHtml(_labelWrap(说明, inner));
+  }),
+  '下拉': new R.Builtin('下拉', (名字, 选项, 说明 = '', 选中 = '') => {
+    _needText('下拉', 名字);
+    const 选中文 = 选中 === undefined || 选中 === null ? '' : pText(选中);
+    const 片 = seqFor('下拉', 选项).map((项) => {
+      const 值 = pText(项);
+      const 标记 = 选中文 !== '' && 值 === 选中文 ? ' selected' : '';
+      return `<option value="${_escapeHtml(值)}"${标记}>${_escapeHtml(值)}</option>`;
+    }).join('');
+    const inner = `<select name="${_escapeHtml(名字)}">${片}</select>`;
+    // ⚠️ 说明是**第 3 个**参数（第 2 个是选项）—— 写成第 2 个会把整个选项列表
+    // 当标签文字印出来（Rust 侧踩过同一个。
+    return new RawHtml(_labelWrap(说明, inner));
+  }),
+  '多选': new R.Builtin('多选', (名字, 选项, 说明 = '', 选中们 = null) => {
+    _needText('多选', 名字);
+    const 已选 = (选中们 === null || 选中们 === undefined)
+      ? []
+      : seqFor('多选', 选中们).map(pText);
+    const 片 = seqFor('多选', 选项).map((项) => {
+      const 值 = pText(项);
+      const pairs = [['type', 'checkbox'], ['name', 名字], ['value', 值]];
+      // ⚠️ 只在勾了的时候才加 `checked`（布尔属性不带 `=""`）
+      if (已选.includes(值)) pairs.push(['checked', null]);
+      return `<label>${_voidEl('input', pairs)}${_escapeHtml(值)}</label>`;
+    }).join('');
+    const 题 = (说明 === undefined || 说明 === null || pText(说明) === '')
+      ? '' : `<legend>${_escapeHtml(pText(说明))}</legend>`;
+    return new RawHtml(`<fieldset class="字段组">${题}${片}</fieldset>`);
+  }),
+  '按钮': new R.Builtin('按钮', (文字, 类型 = 'submit') => {
+    _needText('按钮', 文字);
+    return new RawHtml(
+      `<button type="${_escapeHtml(类型 || 'submit')}">${_escapeHtml(文字)}</button>`);
+  }),
+  '表单': new R.Builtin('表单', (内容, 提交到, 方法 = 'post') => {
+    _needText('表单', 提交到);
+    return new RawHtml(
+      `<form action="${_escapeHtml(提交到)}" method="${_escapeHtml(方法 || 'post')}"`
+      + `>${_htmlContentList(内容)}</form>`);
+  }),
+  '由表格': new R.Builtin('由表格', (表, 斑马纹 = false) => {
+    const t = asTable(表);
+    const 类 = R.truthy(斑马纹) ? '基石表格 斑马纹' : '基石表格';
+    const 头 = t.headers.map((h) => `<th>${_htmlContent(h)}</th>`).join('');
+    const 体 = t.rows.map((行) => `<tr>${行.map((c) => `<td>${_htmlContent(c)}</td>`).join('')}</tr>`).join('');
+    return new RawHtml(
+      `<table class="${类}"><thead><tr>${头}</tr></thead><tbody>${体}</tbody></table>`);
+  }),
+  '页面': new R.Builtin('页面', (标题, 内容, 导航 = '') => {
+    _needText('页面', 标题);
+    const 题 = _escapeHtml(标题);
+    let 导航片 = '';
+    if (Array.isArray(导航)) {
+      const 链接们 = 导航.map((项) => {
+        const 对 = seqFor('页面', 项);
+        if (对.length < 2) return '';
+        return `<a href="${_escapeHtml(pText(对[1]))}">${_escapeHtml(pText(对[0]))}</a>`;
+      }).join('');
+      导航片 = `<nav>${链接们}</nav>`;
+    } else if (导航 !== '' && 导航 !== null && 导航 !== undefined) {
+      const t = _htmlContent(导航);
+      if (t !== '') 导航片 = `<nav>${t}</nav>`;
+    }
+    const out = '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n'
+      + '<meta charset="utf-8" />\n'
+      + '<meta name="viewport" content="width=device-width, initial-scale=1" />\n'
+      + `<title>${题}</title>\n`
+      + `<style>${HTML_样式}</style>\n`
+      + '</head>\n<body>\n'
+      + `<header><h1>${题}</h1>${导航片}</header>\n`
+      + `<main>${_htmlContentList(内容)}</main>\n`
+      + '<footer>由基石生成</footer>\n'
+      + '</body>\n</html>';
+    return new RawHtml(out);
+  }),
+  '卡片': new R.Builtin('卡片', (标题, 内容) => {
+    _needText('卡片', 标题);
+    return new RawHtml(
+      `<section class="卡片"><h2>${_escapeHtml(标题)}</h2>${_htmlContentList(内容)}</section>`);
+  }),
+  '提示': new R.Builtin('提示', (级别, 文本) => {
+    const 名 = pText(级别);
+    if (名 !== '成功' && 名 !== '警告' && 名 !== '错误') {
+      throw R.typeErr(`「提示」的级别只认成功、警告、错误，收到「${名}」`);
+    }
+    return new RawHtml(`<div class="提示 提示-${名}">${_htmlContentList(文本)}</div>`);
   }),
   // M107：解析方向
   '取文本': new R.Builtin('取文本', (片段) => html文本节点(html扫(pText(片段)))),

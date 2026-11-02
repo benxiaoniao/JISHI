@@ -20,7 +20,7 @@
 
 - **三宿主报告必须逐字一致**（除「用时」）：运行器自己是基石程序，
   在 Python / Rust / Node 三个宿主下跑出的报告不能有差别；
-- **真语料全量**（`tests/cases` + `tests/error_cases` = 126 条）必须 0 失败 ——
+- **真语料全量**（`tests/cases` + `tests/error_cases` = **127 条**）必须 0 失败 ——
   这条同时钉住「默认参数能直接用」。
 """
 
@@ -316,12 +316,14 @@ def test_三宿主报告逐字一致(tmp_path):
 
 @pytest.mark.计时
 def test_真语料全量_默认参数跑通():
-    """`jishi tools/自测.jsh` 不带参数，就该跑完 126 条且 0 失败。
+    """`jishi tools/自测.jsh` 不带参数，就该跑完 **127 条**且 0 失败。
+
+    📌 这个数**加语料时要跟着改**（M166 加了 `45_html页面构件.jsh` ⇒ 126 → 127）。
 
     ⚠️ 这条**故意不给 `--用例` / `--被测`**：默认值才是人真正会敲的那条命令，
     默认值写错（目录名、被测定位顺序）只有这条能抓到。
 
-    ⚠️ 打 `计时` 是因为它 CPU 重（126 个子进程）：用 Rust 被测 ~3 秒、
+    ⚠️ 打 `计时` 是因为它 CPU 重（127 个子进程）：用 Rust 被测 ~3 秒、
     没构建时退回 Python 参考实现 ~30 秒。留在并行节会制造 CPU 饥荒
     （AGENTS §1 第 3 条那类）。
     """
@@ -331,7 +333,7 @@ def test_真语料全量_默认参数跑通():
                        encoding="utf-8", errors="replace", timeout=900)
     assert r.returncode == 0, r.stdout + r.stderr
     汇 = _汇总(r.stdout)
-    assert "126 条" in 汇, 汇
+    assert "127 条" in 汇, 汇
     assert "失败 0" in 汇, 汇
     if RUST.is_file():
         # Rust 侧的「从 python 导入」是**宣称过的边界**，已登记在豁免表里。

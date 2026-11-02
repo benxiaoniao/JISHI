@@ -191,7 +191,9 @@ def test_独立判据_lang_spec结构与关键事实():
     # M142 给 `文本` 加了 `对齐表` ⇒ 332 → 333。
     # M143 给 `数学` 加了 `反余弦` ⇒ 333 → 334。
     # M153 给 `文本` 加了 `小数位` / `百分比` / `千分位` ⇒ 334 → 337。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 337
+    # M166 给 `html` 加了 10 个页面构件（输入框/多行文本/下拉/多选/按钮/表单/
+    # 由表格/页面/卡片/提示）⇒ 337 → 347。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 347
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

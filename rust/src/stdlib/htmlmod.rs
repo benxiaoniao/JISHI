@@ -344,6 +344,107 @@ fn 取属性(标签体: &str, 名: &str) -> Option<String> {
     None
 }
 
+// ---------------------------------------------------------------------------
+// M166：页面构件（表单 / 表格 / 布局 / 卡片）
+//
+// 📌 **输出格式是契约**：与 Python 侧逐字节相同（`test_m166_html_page.py` 盯着）。
+// 改这里任何一个字符，都要同时改 `oracle/jishi/stdlib/html.py`、
+// `oracle/node/vm.js`，并重录语料期望。
+// ---------------------------------------------------------------------------
+
+/// 内容位，但**列表会被拼起来**（`表单([字段们], "/新建")` 这种写法）。
+///
+/// 列表里允许嵌套列表（拼表单时常见），递归展开；每个元素按 `content` 的规矩走
+/// （`原样` 片段原样输出，其余转义）。
+fn content_list(v: &Val) -> String {
+    match v {
+        Val::List(l) => l.borrow().iter().map(content).collect::<Vec<_>>().join(""),
+        other => content(other),
+    }
+}
+
+/// 要一个非空文本参数。
+fn need_text(name: &str, v: &Val) -> Result<String, crate::JishiError> {
+    match v {
+        Val::Str(s) if !s.is_empty() => Ok(s.to_string()),
+        _ => Err(err("类型错误", format!("「{name}」要传非空文本"))),
+    }
+}
+
+/// 给控件套一层 `<label>`：有说明就带 `<span>`，没有就裸着。
+///
+/// 包住之后点标签文字也能聚焦控件 —— 不用写 `for`/`id`，省掉一整类
+/// 「id 拼错了点不动」的问题。
+fn label_wrap(说明: Option<&Val>, inner: String) -> String {
+    let t = match 说明 {
+        None | Some(Val::None_) => return inner,
+        Some(v) => crate::display(v),
+    };
+    if t.is_empty() {
+        return inner;
+    }
+    format!("<label><span>{}</span>{inner}</label>", escape_html(&t))
+}
+
+/// 造一个自闭合空元素（`<input … />`）。
+///
+/// 不走 `空元素` 那个内建 —— 这里手里已经是 `(名, 值)` 对，
+/// 转成 `Val::Dict` 再转回来只是白绕一圈。
+///
+/// 值是 `None` 表示 **HTML 布尔属性**（只输出属性名，不输出 `=""`）——
+/// 与 `attrs_str` 对 `空` 的处理同口径（`checked` / `disabled` 都是这种）。
+fn void_el(name: &str, pairs: &[(&str, Option<String>)]) -> String {
+    let mut out = format!("<{name}");
+    for (k, v) in pairs {
+        match v {
+            None => out.push_str(&format!(" {k}")),
+            Some(x) => out.push_str(&format!(" {k}=\"{}\"", escape_html(x))),
+        }
+    }
+    out.push_str(" />");
+    out
+}
+
+/// 页面骨架用的内置样式。
+///
+/// **不引 CDN、不引框架** —— 一个 `<style>` 就够，离线也能看。做成常量
+/// （不是每个页面一份）才能让五个执行器逐字对得上。
+const 样式: &str = concat!(
+    ":root{--底:#fff;--字:#1f2328;--弱:#6b7280;--线:#e5e7eb;--主:#2563eb;",
+    "--成功:#16a34a;--警告:#d97706;--错误:#dc2626}",
+    "*{box-sizing:border-box}",
+    "body{margin:0;font:16px/1.6 system-ui,-apple-system,\"Segoe UI\",",
+    "\"Noto Sans SC\",sans-serif;color:var(--字);background:var(--底)}",
+    "header{padding:1rem 1.5rem;border-bottom:1px solid var(--线)}",
+    "header h1{margin:0;font-size:1.25rem}",
+    "nav{margin-top:.5rem}",
+    "nav a{margin-right:1rem;color:var(--主);text-decoration:none}",
+    "main{max-width:56rem;margin:0 auto;padding:1.5rem}",
+    "footer{padding:1rem 1.5rem;color:var(--弱);border-top:1px solid var(--线);",
+    "font-size:.875rem}",
+    ".卡片{border:1px solid var(--线);border-radius:.5rem;padding:1rem;margin:1rem 0}",
+    ".卡片 h2{margin:0 0 .5rem;font-size:1.1rem}",
+    ".提示{padding:.75rem 1rem;border-radius:.375rem;margin:.75rem 0;",
+    "border-left:4px solid;background:#f9fafb}",
+    ".提示-成功{border-color:var(--成功);background:#f0fdf4}",
+    ".提示-警告{border-color:var(--警告);background:#fffbeb}",
+    ".提示-错误{border-color:var(--错误);background:#fef2f2}",
+    ".基石表格{width:100%;border-collapse:collapse}",
+    ".基石表格 th,.基石表格 td{padding:.5rem .75rem;",
+    "border-bottom:1px solid var(--线);text-align:left}",
+    ".基石表格 thead th{background:#f9fafb}",
+    ".斑马纹 tbody tr:nth-child(even){background:#fafafa}",
+    ".字段组{border:1px solid var(--线);border-radius:.375rem;margin:.5rem 0;",
+    "padding:.5rem .75rem}",
+    "label{margin:.5rem 0}",
+    "label span{display:block;font-size:.875rem;color:var(--弱)}",
+    "input,textarea,select{width:100%;padding:.5rem;border:1px solid var(--线);",
+    "border-radius:.375rem;font:inherit}",
+    "input[type=\"checkbox\"]{width:auto;margin-right:.5rem}",
+    "button{padding:.5rem 1rem;border:0;border-radius:.375rem;background:var(--主);",
+    "color:#fff;font:inherit;cursor:pointer}",
+);
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "html";
         "转义" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -393,6 +494,199 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "无序列表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("无序列表", args, 1, 2)?;
             Ok(Val::Str(list_html("ul", &args[0], args.get(1))?.into()))
+        },
+        // M166：页面构件（表单 / 表格 / 布局 / 卡片）
+        //
+        // 📌 输出格式是**契约**（与 Python 侧逐字节相同）。参数一律「位置 + 默认值」，
+        // 不用关键字 —— 两个宿主的内建签名里没有放关键字的位置（见 `标签` 的注释）。
+        "输入框" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("输入框", args, 1, 4)?;
+            let 名字 = need_text("输入框", &args[0])?;
+            let 类型 = match args.get(2) {
+                Some(Val::Str(s)) if !s.is_empty() => s.to_string(),
+                _ => "text".to_string(),
+            };
+            let mut pairs: Vec<(&str, Option<String>)> = vec![
+                ("type", Some(类型)),
+                ("name", Some(名字)),
+            ];
+            if let Some(v) = args.get(3) {
+                let t = crate::display(v);
+                if !t.is_empty() {
+                    pairs.push(("value", Some(t)));
+                }
+            }
+            Ok(Val::HtmlRaw(label_wrap(args.get(1), void_el("input", &pairs)).into()))
+        },
+        "多行文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("多行文本", args, 1, 4)?;
+            let 名字 = need_text("多行文本", &args[0])?;
+            let 值 = match args.get(2) {
+                None | Some(Val::None_) => String::new(),
+                Some(v) => crate::display(v),
+            };
+            let 行数 = match args.get(3) {
+                None | Some(Val::None_) => "4".to_string(),
+                Some(v) => crate::display(v),
+            };
+            let inner = format!(
+                "<textarea name=\"{}\" rows=\"{}\">{}</textarea>",
+                escape_html(&名字), escape_html(&行数), escape_html(&值));
+            Ok(Val::HtmlRaw(label_wrap(args.get(1), inner).into()))
+        },
+        "下拉" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("下拉", args, 2, 4)?;
+            let 名字 = need_text("下拉", &args[0])?;
+            let 选项 = crate::stdlib::to_vec(&args[1])?;
+            let 选中 = match args.get(3) {
+                None | Some(Val::None_) => String::new(),
+                Some(v) => crate::display(v),
+            };
+            let mut 片 = String::new();
+            for 项 in &选项 {
+                let 值 = crate::display(项);
+                let 标记 = if !选中.is_empty() && 值 == 选中 { " selected" } else { "" };
+                片.push_str(&format!(
+                    "<option value=\"{}\"{标记}>{}</option>",
+                    escape_html(&值), escape_html(&值)));
+            }
+            let inner = format!("<select name=\"{}\">{片}</select>", escape_html(&名字));
+            // ⚠️ 说明是**第 3 个**参数（第 2 个是选项）—— 写成 `get(1)` 会把整个
+            // 选项列表当标签文字印出来（踩过）。
+            Ok(Val::HtmlRaw(label_wrap(args.get(2), inner).into()))
+        },
+        "多选" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("多选", args, 2, 4)?;
+            let 名字 = need_text("多选", &args[0])?;
+            let 选项 = crate::stdlib::to_vec(&args[1])?;
+            let 已选: Vec<String> = match args.get(3) {
+                Some(Val::List(l)) => l.borrow().iter().map(crate::display).collect(),
+                _ => Vec::new(),
+            };
+            let mut 片 = String::new();
+            for 项 in &选项 {
+                let 值 = crate::display(项);
+                let 勾了 = 已选.iter().any(|x| *x == 值);
+                let mut pairs: Vec<(&str, Option<String>)> = vec![
+                    ("type", Some("checkbox".to_string())),
+                    ("name", Some(名字.clone())),
+                    ("value", Some(值.clone())),
+                ];
+                // ⚠️ 只在勾了的时候才 push `checked`。别用「先拼上再 replace 剪掉」——
+                // `checked=""` 剪完会留下一个 `=""`（踩过）。
+                if 勾了 {
+                    pairs.push(("checked", None));
+                }
+                let 控件 = void_el("input", &pairs);
+                片.push_str(&format!("<label>{控件}{}</label>", escape_html(&值)));
+            }
+            let 题 = match args.get(2) {
+                None | Some(Val::None_) => String::new(),
+                Some(v) => {
+                    let t = crate::display(v);
+                    if t.is_empty() { String::new() } else { format!("<legend>{}</legend>", escape_html(&t)) }
+                }
+            };
+            Ok(Val::HtmlRaw(format!("<fieldset class=\"字段组\">{题}{片}</fieldset>").into()))
+        },
+        "按钮" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("按钮", args, 1, 2)?;
+            let 文字 = need_text("按钮", &args[0])?;
+            let 类型 = match args.get(1) {
+                Some(Val::Str(s)) if !s.is_empty() => s.to_string(),
+                _ => "submit".to_string(),
+            };
+            Ok(Val::HtmlRaw(format!(
+                "<button type=\"{}\">{}</button>",
+                escape_html(&类型), escape_html(&文字)).into()))
+        },
+        "表单" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("表单", args, 2, 3)?;
+            let 到 = need_text("表单", &args[1])?;
+            let 方法 = match args.get(2) {
+                Some(Val::Str(s)) if !s.is_empty() => s.to_string(),
+                _ => "post".to_string(),
+            };
+            Ok(Val::HtmlRaw(format!(
+                "<form action=\"{}\" method=\"{}\">{}</form>",
+                escape_html(&到), escape_html(&方法), content_list(&args[0])).into()))
+        },
+        "由表格" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("由表格", args, 1, 2)?;
+            let t = match &args[0] {
+                Val::Table(t) => t.clone(),
+                other => {
+                    return Err(err("类型错误", format!(
+                        "「由表格」要传表格值（用 表格.读表格 / 表格.从记录 造出来），不要传{}",
+                        crate::type_label(other))))
+                }
+            };
+            let 斑马 = args.get(1).map(|v| crate::truthy(v.clone())).unwrap_or(false);
+            let 类 = if 斑马 { "基石表格 斑马纹" } else { "基石表格" };
+            let 头: String = t.headers.iter()
+                .map(|h| format!("<th>{}</th>", content(h))).collect();
+            let 体: String = t.rows.iter().map(|行| {
+                format!("<tr>{}</tr>", 行.iter()
+                    .map(|c| format!("<td>{}</td>", content(c))).collect::<String>())
+            }).collect();
+            Ok(Val::HtmlRaw(format!(
+                "<table class=\"{类}\"><thead><tr>{头}</tr></thead>\
+                 <tbody>{体}</tbody></table>").into()))
+        },
+        "页面" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("页面", args, 2, 3)?;
+            let 题 = escape_html(&need_text("页面", &args[0])?);
+            // 导航：列表 → 自动拼 `<a>`；文本 → 当片段（给「我自己拼好了」的场景）
+            let 导航片 = match args.get(2) {
+                None | Some(Val::None_) => String::new(),
+                Some(Val::List(l)) => {
+                    let mut s = String::new();
+                    for 项 in l.borrow().iter() {
+                        let 对 = crate::stdlib::to_vec(项)?;
+                        if 对.len() >= 2 {
+                            s.push_str(&format!(
+                                "<a href=\"{}\">{}</a>",
+                                escape_html(&crate::display(&对[1])),
+                                escape_html(&crate::display(&对[0]))));
+                        }
+                    }
+                    format!("<nav>{s}</nav>")
+                }
+                Some(v) => {
+                    let t = content(v);
+                    if t.is_empty() { String::new() } else { format!("<nav>{t}</nav>") }
+                }
+            };
+            let mut out = String::new();
+            out.push_str("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n");
+            out.push_str("<meta charset=\"utf-8\" />\n");
+            out.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n");
+            out.push_str(&format!("<title>{题}</title>\n"));
+            out.push_str(&format!("<style>{样式}</style>\n"));
+            out.push_str("</head>\n<body>\n");
+            out.push_str(&format!("<header><h1>{题}</h1>{导航片}</header>\n"));
+            out.push_str(&format!("<main>{}</main>\n", content_list(&args[1])));
+            out.push_str("<footer>由基石生成</footer>\n");
+            out.push_str("</body>\n</html>");
+            Ok(Val::HtmlRaw(out.into()))
+        },
+        "卡片" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("卡片", args, 2, 2)?;
+            let 题 = escape_html(&need_text("卡片", &args[0])?);
+            Ok(Val::HtmlRaw(format!(
+                "<section class=\"卡片\"><h2>{题}</h2>{}</section>",
+                content_list(&args[1])).into()))
+        },
+        "提示" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("提示", args, 2, 2)?;
+            let 级别 = crate::display(&args[0]);
+            if !matches!(级别.as_str(), "成功" | "警告" | "错误") {
+                return Err(err("类型错误", format!(
+                    "「提示」的级别只认成功、警告、错误，收到「{级别}」")));
+            }
+            Ok(Val::HtmlRaw(format!(
+                "<div class=\"提示 提示-{级别}\">{}</div>",
+                content_list(&args[1])).into()))
         },
         // M107：解析方向
         "取文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
