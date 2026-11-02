@@ -395,7 +395,13 @@ pub(crate) enum Val {
     Set(JSet),
     File(Rc<RefCell<FileHandle>>),
     // 2026-10-05（D77 §三）：**装箱** —— `Func` 的内联载荷 88 字节会把 `Val` 撑大。
-    Func(Box<Func>),
+    /// 🔴 M165c：**`Rc<Func>` 而不是 `Box<Func>`**。
+    ///
+    /// `Func` 是 88 字节，里面还有 `name: String` / `cells: Vec` / `defaults: Vec`
+    /// 三个要分配的东西 —— `clone()` 一次就是**三次 malloc**（字符串 + 两个 Vec）。
+    /// 而 VM 每调用一次函数就要 clone 一份传进 `push_func_frame`。
+    /// 改成 `Rc` 之后 clone 只是引用计数 +1。实测一次空函数调用 **407 → 145 ns**。
+    Func(Rc<Func>),
     /// **树遍历参考执行器自己的函数值**（R6 主体 · 函数与闭包）。
     ///
     /// ⚠️ 为什么不能复用 `Val::Func`：那里面装的是**字节码**的 `code_idx`
@@ -1300,7 +1306,9 @@ pub(crate) enum BoundMethod {
     /// `line`/`col` 是**取属性时**的位置（`X.方法` 那一处）—— 方法内部报错
     /// 用它，与 Python 的 `_BoundMethod.__call__` 同源（R6.6）。
     Builtin { name: String, receiver: Box<Val>, line: i64, col: i64 },
-    User { func: Func, instance: JInst, name: String },
+    /// 🔴 M165c：`func` 是 `Rc<Func>`（原来是 `Func` 值）。
+    /// 深拷贝一个 `Func` = 三次 malloc，而 `实例.方法()` 每次调用都要来一次。
+    User { func: Rc<Func>, instance: JInst, name: String },
 }
 
 // ---------------------------------------------------------------------------
@@ -2416,7 +2424,7 @@ impl VM {
                     self.stack.truncate(fn_base);
                     match fn_val {
                         Val::Func(f) => {
-                            self.push_func_frame(Some((fi, ip)), *f, args, &knames,
+                            self.push_func_frame(Some((fi, ip)), &f, args, &knames,
                                                  &kwvals, fn_base,
                                                  (ins.line, ins.col), true)?;
                             // M163：**不返回**，在同一个循环里换到新帧继续跑。
@@ -2464,7 +2472,7 @@ impl VM {
                                     // 被**静默丢掉**、报成「缺少参数：x」（看着像另一件事），
                                     // 而 Python / Node 报「函数「方法」没有叫「不存在」的参数」。
                                     // 宿主静默丢参数是本项目最恨的一类 bug（M51 修过同款）。
-                                    self.push_func_frame(Some((fi, ip)), func, all,
+                                    self.push_func_frame(Some((fi, ip)), &func, all,
                                                          &knames, &kwvals, fn_base,
                                                          (ins.line, ins.col), false)?;
                                     // M163：同「函数调用」——不返回，换帧继续
@@ -2594,7 +2602,7 @@ impl VM {
                         }).collect()
                     } else { Vec::new() };
                     let name = self.module.codes[code_idx].name.clone();
-                    self.stack.push(Val::Func(Box::new(Func {
+                    self.stack.push(Val::Func(Rc::new(Func {
                         name, code_idx, cells, defaults, id: next_obj_id(),
                     })));
                 }
@@ -3003,7 +3011,7 @@ impl VM {
         }
     }
 
-    fn push_func_frame(&mut self, set_ip: Option<(usize, usize)>, func: Func,
+    fn push_func_frame(&mut self, set_ip: Option<(usize, usize)>, func: &Func,
                        args: Vec<Val>, knames: &[String], kwvals: &[Val],
                        base: usize, call_site: (i64, i64), in_trace: bool)
         -> Result<(), JishiError> {
@@ -3064,10 +3072,10 @@ impl VM {
     fn call_value(&mut self, callee: Val, args: Vec<Val>) -> Result<Val, JishiError> {
         match callee {
             Val::Builtin(b) => (b.f)(&args, self),
-            Val::Func(func) => self.call_frame(*func, args, None),
+            Val::Func(func) => self.call_frame(&func, args, None),
             Val::BoundMethod(bm) => match *bm {
                 BoundMethod::User { func, instance, .. } =>
-                    self.call_frame(func, args, Some(Val::Instance(instance))),
+                    self.call_frame(&func, args, Some(Val::Instance(instance))),
                 builtin => self.call_bound(builtin, &args),
             },
             other => Err(err("类型错误",
@@ -3076,7 +3084,7 @@ impl VM {
     }
 
     /// 压帧跑到底，取回返回值（`self_arg` 为 Some 时插在实参最前面）。
-    fn call_frame(&mut self, func: Func, args: Vec<Val>,
+    fn call_frame(&mut self, func: &Func, args: Vec<Val>,
                   self_arg: Option<Val>) -> Result<Val, JishiError> {
         let mut all = Vec::with_capacity(args.len() + 1);
         if let Some(s) = self_arg { all.push(s); }
@@ -3146,7 +3154,7 @@ impl VM {
     fn call_bound(&mut self, bm: BoundMethod, args: &[Val]) -> Result<Val, JishiError> {
         match bm {
             BoundMethod::User { func, instance, .. } =>
-                self.call_frame(func, args.to_vec(), Some(Val::Instance(instance))),
+                self.call_frame(&func, args.to_vec(), Some(Val::Instance(instance))),
             BoundMethod::Builtin { name, receiver, .. } => {
                 // 方法表是**自由函数**（树遍历也用同一份），见它的文档注释。
                 call_builtin_method(self, name, *receiver, args)
@@ -5098,7 +5106,7 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
                 if let Val::Func(fu) = f {
                     // 绑定时把实例一起带上——调用时它会被放进第一个形参（自身）
                     return Ok(Val::BoundMethod(Box::new(BoundMethod::User {
-                        func: (**fu).clone(), instance: inst_rc.clone(),
+                        func: fu.clone(), instance: inst_rc.clone(),
                         name: attr.to_string() })));
                 }
                 // 树遍历的方法值（R6 主体 ④）：同样「绑上实例」，只是用树遍历
@@ -5120,7 +5128,7 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
         Val::Super(sp) => {
             if let Some(Val::Func(fu)) = sp.base.methods.get(attr) {
                 return Ok(Val::BoundMethod(Box::new(BoundMethod::User {
-                    func: (**fu).clone(), instance: sp.instance.clone(),
+                    func: fu.clone(), instance: sp.instance.clone(),
                     name: attr.to_string() })));
             }
             // 树遍历的方法值（同 Instance 分支）
