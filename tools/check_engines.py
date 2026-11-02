@@ -87,7 +87,13 @@ EXEMPT: dict[str, str] = {
         "故意的：Python 整数任意精度、C VM 是 64 位。见 conformance.py 里 "
         "`frontend` 类别的说明（这类语料**只给前端看**，不参与运行期对拍）",
     "examples/projects/排序跑分/排序.jsh":
-        "打印的是**墙上时间**（毫秒），三次跑天然不同 —— 噪声，不是语义差异",
+        "🔴 **这条踩着一个已知缺口，不只是「时间数字不同」**：它用 `时间.计时()`，"
+        "而这个函数在 **Node / C VM / Rust 三个宿主上都不存在**（只有 Python 侧有）。"
+        "三个宿主跑它**直接报错**「模块「时间」里没有「计时」」，根本到不了打印耗时那一步。"
+        "缺口本身是**结构性的**（它返回带方法的宿主对象 + 上下文协议，而宿主的上下文只认"
+        "Jishi 实例与内建容器，见 CHANGELOG M51 与 docs/冒烟清单.md）—— "
+        "**别拿这条豁免当「缺口不用修」的依据**。"
+        "就算缺口补了，它打印的仍是墙上时间，所以照样不能逐字对拍。",
     "examples/tutorial/13_HTTP服务.jsh":
         "**服务端示例**（M158 教程）：`HTTP服务端.启动` 在 Node 宿主上明确不支持"
         "（同步 VM 没有事件循环可泵，见 D81），是有意的平台边界 —— 不是「算得不一样」。"
@@ -154,11 +160,16 @@ def _registered(rel: str) -> bool:
 
 
 def _is_exempt(rel: str) -> bool:
-    if rel in EXEMPT:
-        return True
-    # 计时类：文件名里带「跑分 / 基准 / bench」的一律当噪声
-    name = Path(rel).name
-    return any(k in rel for k in ("跑分", "基准")) or "bench" in name
+    """只有**显式列在 `EXEMPT` 里**的语料才豁免。
+
+    🔴 以前这里还有一条**按文件名**的后门：路径含「跑分 / 基准」或文件名含
+    「bench」就自动豁免 —— **不需要任何理由**，等于给「新建一个 `xxx基准.jsh`
+    就不参与对拍」开了张空白通行证，与项目「豁免必须显式、可复核」的规矩相悖。
+
+    拆之前核实过：**没有一条语料只靠它被豁免**（唯一命中的「排序跑分」本来就在
+    `EXEMPT` 里写着理由），所以拆掉不会多出任何一条不一致。
+    """
+    return rel in EXEMPT
 
 
 def _rust_exe() -> Path:
@@ -484,7 +495,8 @@ def main(argv: "list[str] | None" = None) -> int:
     if exempted and args.verbose:
         print("\n（豁免）")
         for rel in exempted:
-            print(f"   · {rel} —— {EXEMPT.get(rel, '计时类噪声（文件名带「跑分/基准」）')}")
+            # 只可能来自 `EXEMPT`（按文件名的后门已拆）⇒ 理由一定存在
+            print(f"   · {rel} —— {EXEMPT[rel]}")
     # 清理本轮所有语料的私有运行目录（失败也不留垃圾）—— 「仓库根不留产物」的落点
     shutil.rmtree(run_root, ignore_errors=True)
     # 登记过期也当失败：留着它就等于给将来的问题留了张通行证
