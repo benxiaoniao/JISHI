@@ -528,13 +528,19 @@ fn set_key(v: &Val) -> Option<DictKey> {
 /// 与 Python 的 dict 语义一致：插入顺序保持，重复赋值不改变位置。
 fn dict_set(d: &mut Dict, k: Val, v: Val) {
     if let Some(key) = dict_key(&k) {
-        if let Some(&pos) = d.index.get(&key) {
-            d.items[pos].1 = v;
-            return;
+        // 🔴 M165：走 `entry` 而不是 `get` + `insert` —— 后者**每次写要算两遍哈希**
+        // （一次查「有没有」、一次插）。字典写入是热路径（基准「字典写入密集」），
+        // 省下的那一遍是纯赚：命中时一遍都不用插，追加时也不用再查一遍。
+        match d.index.entry(key) {
+            std::collections::hash_map::Entry::Occupied(e) => {
+                d.items[*e.get()].1 = v;
+            }
+            std::collections::hash_map::Entry::Vacant(e) => {
+                let pos = d.items.len();
+                d.items.push((k, v));
+                e.insert(pos);
+            }
         }
-        let pos = d.items.len();
-        d.items.push((k, v));
-        d.index.insert(key, pos);
     } else {
         if let Some(slot) = d.items.iter_mut().find(|(ek, _)| *ek == k) {
             slot.1 = v;
@@ -3608,8 +3614,34 @@ pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
         // 标题已经是「不能除以零」，再来一条同义的消息会让 `e.消息` 与三个
         // Python 执行器不一样（R6.2 对齐）。渲染那边本来就会跳过空消息。
         3 => { let (a, b) = to_num_pair_op(l, r, "/")?; if b == 0.0 { return Err(err("除零错误", "")); } Float(a / b) }
-        4 => { let (a, b) = to_num_pair_op(l, r, "//")?; if b == 0.0 { return Err(err("除零错误", "")); } Int((a / b).floor() as i128) }
-        5 => { let (a, b) = to_num_pair_op(l, r, "%")?; if b == 0.0 { return Err(err("除零错误", "")); } Int(a as i128 % b as i128) }
+        // 🔴 M165：整数 `//` `%` 走**整数路径**。原来一律转 f64 再算，两个后果：
+        //   ① 判错符 —— Rust 的 `%` 是截断语义（`-7 % 3 == -1`），
+        //      Python 是向下取整语义（`-7 % 3 == 2`）；`//` 靠 `.floor()` 侥幸对了；
+        //   ② 丢精度 —— f64 只有 53 位尾数，`9007199254740993 // 1` 会变 ...992。
+        // 顺带也快：省掉「转 f64 → 算 → 转回来」三轮转换。
+        4 => match (&l, &r) {
+            (Int(a), Int(b)) => {
+                if *b == 0 { return Err(err("除零错误", "")); }
+                Int(floor_div(*a, *b)?)
+            }
+            // 有浮点参与时结果仍是浮点（Python `7.5 // 2` 是 `3.0`，不是 `3`）
+            _ => {
+                let (a, b) = to_num_pair_op(l, r, "//")?;
+                if b == 0.0 { return Err(err("除零错误", "")); }
+                Float((a / b).floor())
+            }
+        },
+        5 => match (&l, &r) {
+            (Int(a), Int(b)) => {
+                if *b == 0 { return Err(err("除零错误", "")); }
+                Int(floor_mod(*a, *b)?)
+            }
+            _ => {
+                let (a, b) = to_num_pair_op(l, r, "%")?;
+                if b == 0.0 { return Err(err("除零错误", "")); }
+                Float(float_mod(a, b))
+            }
+        },
         6 => {
             // 整数底数 + 非负整数指数 → 走整数幂：Python 里 `2 ** 64` 是 int
             // 而不是 float（M32）。用快速幂，免得 `1 ** 1000000000` 这类
@@ -3633,6 +3665,31 @@ pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
         _ => return Err(err("运行期错误", "不支持的运算符")),
     };
     Ok(result)
+}
+
+/// Python 语义的**向下取整**整除（`-7 // 3 == -3`，不是 Rust `/` 的 `-2`）。
+///
+/// `i128::MIN / -1` 在 Rust 里会 panic，所以走 `checked_div` —— 溢出时报中文错
+/// （Python 那边是大整数不会溢出，这是 Rust 宿主有界的已登记边界）。
+fn floor_div(a: i128, b: i128) -> Result<i128, JishiError> {
+    let q = big_ok(a.checked_div(b))?;
+    // 余数符号跟被除数一致；与被除数、除数**异号**且余数不为 0 时，真商要再小 1
+    if a % b != 0 && ((a < 0) != (b < 0)) { Ok(q - 1) } else { Ok(q) }
+}
+
+/// Python 语义的取模（结果符号**跟除数一致**：`-7 % 3 == 2`、`7 % -3 == -2`）。
+fn floor_mod(a: i128, b: i128) -> Result<i128, JishiError> {
+    let r = big_ok(a.checked_rem(b))?;
+    Ok(if r != 0 && ((r < 0) != (b < 0)) { r + b } else { r })
+}
+
+/// 浮点取模，同样按 Python 的向下取整语义（`-7.5 % 2 == 0.5`）。
+///
+/// `-0.0` 归一成 `0.0`：Python 里 `-4.0 % 2` 打印的是 `0.0` 而不是 `-0.0`。
+fn float_mod(a: f64, b: f64) -> f64 {
+    let r = a % b;
+    if r == 0.0 { return 0.0; }
+    if (r < 0.0) != (b < 0.0) { r + b } else { r }
 }
 
 fn numeric_add(a: Val, b: Val) -> Result<Val, JishiError> {

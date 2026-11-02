@@ -2329,13 +2329,21 @@ function applyBinop(op, l, r, line, col) {
       result = lv / rv; isFloat = true; break;   // / 永远产 float
     case '//':
       if (rv === 0) throw zeroDiv(line, col);
-      result = Math.floor(lv / rv); isFloat = false; break;  // // 产 int
+      result = Math.floor(lv / rv);
+      // ⚠️ M165：**有浮点参与时结果仍是浮点**。Python 里 `7 // 2` 是 `3`，
+      // 而 `7.5 // 2` 是 `3.0`；原来这里一律产 int，与 Python / C VM 分叉
+      // （`打印(7.5 // 2)` 一个印 `3.0`、一个印 `3`）。
+      isFloat = fl || fr;
+      break;  // // 产 int（两边都是整数时）
     case '%': {
       if (rv === 0) throw zeroDiv(line, col);
       // Python 的 `%` 结果符号跟**除数**一致（JS 的是截断语义）：
       // `-7 % 3` 在 Python 是 2，在 JS 是 -1——不修就是静默算错
       let m = lv % rv;
-      if (m !== 0 && (m < 0) !== (rv < 0)) m += rv;
+      // ⚠️ M165：JS 的 `-6 % 3` 是 **-0**（Python 是 0）。不归一就会被印成 `-0.0`，
+      // 与 Python / Rust / C 三个执行器都不一样。`m === 0` 对 -0 也成立。
+      if (m === 0) m = 0;
+      else if ((m < 0) !== (rv < 0)) m += rv;
       result = m;
       break;
     }
@@ -2348,6 +2356,10 @@ function applyBinop(op, l, r, line, col) {
     }
     default: throw runErr(`不支持的运算符「${op}」`, line, col);
   }
+  // ⚠️ M165：JS 的负数零会污染整数结果 —— `0 * -1`、`Math.floor(-0 / 3)` 都得到
+  // **-0**，而 Python 里是 `0`（`-0` 只有写成浮点 `-0.0` 才存在）。不归一就会被
+  // 印成 `-0.0`，三个执行器里只有 Node 这么印。
+  if (!isFloat && typeof result === 'number' && result === 0) result = 0;
   // 双精度的整数结果一旦超出安全范围就不再精确（`2 ** 64` 会变成
   // 18446744073709552000），这时用 BigInt 重算一遍（M32）。
   // 放在这里而不是 switch 前面，是为了让普通小整数走原本的快路径。
