@@ -2220,6 +2220,62 @@ const TIME_FUNCS = {
     new R.FloatBox(Number(process.hrtime.bigint()) / 1e9)),
   '星期名': DATE_FUNCS['星期名'],
   '加天数': DATE_FUNCS['加天数'],
+  // 🔴 M165d：补上这个一直缺的函数（语言卡里早就列着它）。
+  // 返回「宿主对象」（`JishiNative`），能 `.耗时()` / `.停()`，也能当上下文管理器。
+  '计时': new R.Builtin('计时', (名字) => {
+    if (名字 !== undefined && typeof 名字 !== 'string') {
+      throw R.typeErr('「计时」的名字要传文本', 0, 0);
+    }
+    return R.nativeObj('计时器', TIMER_METHODS, {
+      名字: 名字 === undefined ? '' : 名字,
+      起: process.hrtime.bigint(),
+      止: null,
+      已打印: false,
+    });
+  }),
+};
+
+// -- 计时器的方法表（M165d）--
+// 与 Rust 的 `计时器方法` 一一对应：进入 / 耗时 / 停 / 退出。
+// ⚠️ `进入` 必须返回**自身**（Python 的 `__enter__`）：`用 … 为 t：` 绑的是它的返回值。
+// 参数个数检查：文案与 `runtime.js` 的 `needArgs` **逐字一致**
+// （它没导出，vm.js 里另写一份 —— 但文案必须一样，否则对拍会红）
+function _methodArity(name, args, lo, hi, line, col) {
+  if (args.length < lo || args.length > hi) {
+    const need = lo === hi ? `${lo} 个` : `${lo} 到 ${hi} 个`;
+    throw R.typeErr(`方法「${name}」需要 ${need}参数，但传了 ${args.length} 个`, line, col);
+  }
+}
+
+function _timerSeconds(obj) {
+  const 止 = obj.state.止 === null ? process.hrtime.bigint() : obj.state.止;
+  return Number(止 - obj.state.起) / 1e9;
+}
+
+const TIMER_METHODS = {
+  '进入': (obj, args, line, col) => {
+    _methodArity('进入', args, 0, 0, line, col);
+    return obj;
+  },
+  '耗时': (obj, args, line, col) => {
+    _methodArity('耗时', args, 0, 0, line, col);
+    return new R.FloatBox(_timerSeconds(obj));
+  },
+  '停': (obj, args, line, col) => {
+    _methodArity('停', args, 0, 0, line, col);
+    if (obj.state.止 === null) obj.state.止 = process.hrtime.bigint();
+    return new R.FloatBox(_timerSeconds(obj));
+  },
+  '退出': (obj, args, line, col) => {
+    _methodArity('退出', args, 0, 0, line, col);
+    if (obj.state.止 === null) obj.state.止 = process.hrtime.bigint();
+    // 给了名字才打印（与 Python 侧同一条口径：想把耗时算进自己的表格时不该被打扰）
+    if (obj.state.名字 && !obj.state.已打印) {
+      obj.state.已打印 = true;
+      process.stdout.write(`${obj.state.名字} 耗时 ${_timerSeconds(obj).toFixed(3)} 秒\n`);
+    }
+    return null;
+  },
 };
 
 // -- 加密（M31）--

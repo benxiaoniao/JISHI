@@ -17,8 +17,7 @@
 //! `类型()` 给 `datetime`，与另外两个宿主一致。
 
 use crate::BuiltinHost;
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::collections::HashMap;use std::rc::Rc;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -711,6 +710,106 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 计时器（M165d）：`时间.计时()` 返回的**宿主对象**
+//
+// 这是 `NativeObj`（自带方法表的宿主对象）的**第一个用户**。它之前一直缺
+// （CHANGELOG M51 就登记过）：三个宿主的属性查找只认「Jishi 实例」与
+// 内建容器，标准库直接返回的宿主对象走不通。
+// ---------------------------------------------------------------------------
+
+/// 计时器的状态。字段口径与 Python 侧 `_计时器` 一一对应
+/// （`_名字` / `_起` / `_止` / `_已打印`）。
+///
+/// 它活在 `NativeObj.state`（`Rc<RefCell<dyn Any>>`）里，方法通过
+/// `downcast_ref` 取回 —— 见 `crate::NativeObj` 的注释。
+pub(crate) struct 计时器状态 {
+    名字: String,
+    起: Instant,
+    止: Option<Instant>,
+    已打印: bool,
+}
+
+impl 计时器状态 {
+    /// 从开始到「现在或停表点」的秒数（可多次读，**不停表**）。
+    fn 耗时秒(&self) -> f64 {
+        let 止 = self.止.unwrap_or_else(Instant::now);
+        止.saturating_duration_since(self.起).as_secs_f64()
+    }
+}
+
+fn 借状态(对象: &crate::NativeObj) -> std::cell::Ref<'_, 计时器状态> {
+    std::cell::Ref::map(对象.state.borrow(), |s| {
+        s.downcast_ref::<计时器状态>().expect("NativeObj 应是计时器")
+    })
+}
+
+fn 借状态可变(对象: &crate::NativeObj) -> std::cell::RefMut<'_, 计时器状态> {
+    std::cell::RefMut::map(对象.state.borrow_mut(), |s| {
+        s.downcast_mut::<计时器状态>().expect("NativeObj 应是计时器")
+    })
+}
+
+/// `进入()`：上下文协议的第一步 —— **返回自身**（Python 的 `__enter__`）。
+///
+/// ⚠️ 必须返回 `Val::Native` 而不是 `Val::None_`：`用 时间.计时() 为 t：`
+/// 里绑定给 `t` 的就是这个返回值，后面 `t.耗时()` 还得能用。
+fn 计时_进入(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+             _h: &mut dyn BuiltinHost) -> R {
+    need("进入", args, 0)?;
+    Ok(Val::Native(对象.clone()))
+}
+
+fn 计时_耗时(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+             _h: &mut dyn BuiltinHost) -> R {
+    need("耗时", args, 0)?;
+    Ok(Val::Float(借状态(对象).耗时秒()))
+}
+
+fn 计时_停(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+           _h: &mut dyn BuiltinHost) -> R {
+    need("停", args, 0)?;
+    let mut st = 借状态可变(对象);
+    if st.止.is_none() {
+        st.止 = Some(Instant::now());
+    }
+    Ok(Val::Float(st.耗时秒()))
+}
+
+/// `退出()`：停表；**给了名字才打印**（与 Python 侧同一条口径）。
+///
+/// 为什么「给了名字才打印」：想把耗时算进自己的表格里时，计时输出会跟表格
+/// 混在一起 —— `排序跑分` 那个示例就是为此才写成不给名字的。
+fn 计时_退出(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+             h: &mut dyn BuiltinHost) -> R {
+    need("退出", args, 0)?;
+    let 要打印 = {
+        let mut st = 借状态可变(对象);
+        if st.止.is_none() {
+            st.止 = Some(Instant::now());
+        }
+        if st.名字.is_empty() || st.已打印 {
+            None
+        } else {
+            st.已打印 = true;
+            Some((st.名字.clone(), st.耗时秒()))
+        }
+    };
+    if let Some((名字, 秒)) = 要打印 {
+        h.write_output(&format!("{名字} 耗时 {秒:.3} 秒\n"));
+    }
+    Ok(Val::None_)
+}
+
+/// 计时器的方法表。住手：`进入` 必须在（上下文协议要查它），
+/// `退出` 也必须在（`用 … 为 x：` 出块时调它）。
+const 计时器方法: &[(&str, crate::NativeFn)] = &[
+    ("进入", 计时_进入),
+    ("耗时", 计时_耗时),
+    ("停", 计时_停),
+    ("退出", 计时_退出),
+];
+
 pub(crate) fn time_module() -> HashMap<String, Val> {
     table! { "时间";
         "现在" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -778,6 +877,28 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
             need("加天数", args, 2)?;
             let n = as_intish(&args[0])?;
             Ok(Val::Str(shift_days(&args[1], n as i64)?.into()))
+        },
+        // 🔴 M165d：**补上这个一直缺的函数**（语言卡里早就列着它）。
+        // 返回的是「宿主对象」（`NativeObj`），能 `.耗时()` / `.停()`，
+        // 也能当上下文管理器（`用 时间.计时("建索引") 为 t：`）。
+        "计时" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("计时", args, 0, 1)?;
+            let 名字 = match args.first() {
+                None => String::new(),
+                Some(Val::Str(s)) => s.to_string(),
+                // 与 Python 侧逐字一致：`raise RunTypeError("「计时」的名字要传文本")`
+                Some(_) => return Err(err("类型错误", "「计时」的名字要传文本")),
+            };
+            Ok(crate::native_obj(
+                "计时器",
+                计时器方法,
+                std::rc::Rc::new(std::cell::RefCell::new(计时器状态 {
+                    名字,
+                    起: Instant::now(),
+                    止: None,
+                    已打印: false,
+                })),
+            ))
         },
     }
 }

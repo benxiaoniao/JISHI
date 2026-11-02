@@ -332,6 +332,7 @@ function typeName(v) {
   if (isSlice(v)) return '切片';
   if (isDecimal(v)) return '精确小数';
   if (isFile(v)) return '文件';
+  if (isNative(v)) return v.typeName;      // M165d：宿主对象自称类型
   if (v instanceof Module) return '模块';
   if (v instanceof Builtin) return '内建函数';
   if (v instanceof ExcType) return '异常类型';
@@ -931,6 +932,35 @@ const FILE_READABLE = new Set(['读', '读写', 'r', 'r+', 'w+', 'a+']);
 function isFile(v) { return v instanceof JishiFile; }
 
 /**
+ * 标准库返回的「宿主对象」：自带一张方法表（M165d）—— 与 Rust 的 `NativeObj` 对应。
+ *
+ * ## 为什么需要它
+ *
+ * `时间.计时()` 这类 API 返回的不是「一个值」而是一个**对象**：要能 `.耗时()` /
+ * `.停()`，还要能当上下文管理器（`用 … 为 t：` 会去 `methodTable` 里找 `进入`）。
+ * 而在 M165d 之前，`methodTable` 只认列表/字典/文本/集合/文件/小数 ——
+ * 标准库直接返回的宿主对象走不通，于是 `时间.计时` 在三宿主上**一直缺失**。
+ *
+ * ## 状态就放普通 JS 对象
+ *
+ * Rust 那边要用 `dyn Any` 是因为静态类型；JS 不用，直接挂一个对象即可。
+ */
+class JishiNative {
+  constructor(typeName, methods, state) {
+    this.typeName = typeName;
+    this.methods = methods;   // { 名字: (obj, args, line, col) => … }
+    this.state = state;       // 对象自己解释
+  }
+}
+
+function isNative(v) { return v instanceof JishiNative; }
+
+/** 造一个宿主对象（标准库用）。 */
+function nativeObj(typeName, methods, state) {
+  return new JishiNative(typeName, methods, state);
+}
+
+/**
  * 从标准输入同步读一行（与 Python 的 `input()` 对齐，M30）。
  *
  * 逐字节读到换行、最后一次性按 UTF-8 解码——**不能逐字节 decode**，
@@ -1437,6 +1467,7 @@ function display(v) {
   if (isSlice(v)) return sliceRepr(v);
   if (Array.isArray(v)) return '[' + v.map(display).join(', ') + ']';
   if (v instanceof JishiError) return v.message;
+  if (isNative(v)) return `<${v.typeName} 对象>`;   // M165d（Python 侧带地址，不可能逐字一致）
   if (isFloatBox(v)) return floatText(v.value);
   // ⚠️ 没被 `FloatBox` 包住的普通 number 也要走同一套（M155）：字面量
   // `1e-9` 在宿主里就是普通 number，以前落到 `String(v)` 给出 `1e-9`（不补零）。
@@ -2527,6 +2558,7 @@ function methodTable(obj) {
   if (typeof obj === 'string') return STR_METHODS;
   if (obj instanceof JishiSet) return SET_METHODS;
   if (isFile(obj)) return FILE_METHODS;
+  if (isNative(obj)) return obj.methods;   // M165d：宿主对象自带方法表
   if (isDecimal(obj)) return DECIMAL_METHODS;
   return null;
 }
@@ -3439,7 +3471,8 @@ module.exports = {
   JishiDecimal, isDecimal, toDecimal, compareDecimals,
   JishiSet, setRepr, asIterable, seqOf,
   makeSlice, isSlice,
-  JishiFile, isFile, enterContext, exitContext,
+  JishiFile, isFile, JishiNative, isNative, nativeObj,
+  enterContext, exitContext,
   // M113：字节（不可变字节串）
   JishiBytes, isBytes,
   Builtin, ExcType, EXCEPTION_TYPES, newBuiltins,

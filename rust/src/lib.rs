@@ -3,6 +3,7 @@
 //! 消费 M13.1 产出的 JSON 字节码，脱离 Python 独立执行基石代码。
 //! 语义与 Python VM / JS VM 对齐。
 
+use std::any::Any;
 use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -334,6 +335,64 @@ pub(crate) struct BuiltinDef {
     pub f: fn(&[Val], &mut dyn BuiltinHost) -> Result<Val, JishiError>,
 }
 
+/// 标准库返回的「**宿主对象**」：自带一张方法表（M165d）。
+///
+/// ## 为什么需要它
+///
+/// `时间.计时()` 这类 API 返回的不是「一个值」而是一个**对象**：它要能被
+/// `.耗时()` / `.停()` 调用，还要能当上下文管理器（`用 … 为 t：` 会去查
+/// `进入` / `退出`）。
+///
+/// 而三个宿主的属性查找与上下文查找原来**只认「Jishi 实例」与内建容器**
+/// —— 标准库直接返回的宿主对象走不通，于是 `时间.计时` 在 Node / C VM / Rust
+/// 上**一直缺失**（CHANGELOG M51 就登记了，至今没修）。语言卡却照着 Python 侧
+/// 列着它 ⇒ **文档说谎**。
+///
+/// ## 为什么做成通用的，而不是给计时器单开一个变体
+///
+/// 给 `Val` 加变体的代价见 M113 的教训：`cargo check` 只报得出 `display`
+/// 一处，其余几十处 `_ =>` 兜底臂**一声不响**。而「标准库要返回一个带方法的
+/// 东西」这件事将来还会反复出现（`数据库.连接()`、`进程.启动()`…）。
+/// 所以这里一次把「方法表」做成**数据**，以后新增对象**不改 `Val` 的变体表**。
+///
+/// ## 状态为什么是 `dyn Any`
+///
+/// 每种对象的内部状态长得完全不一样（计时器是一个起点时刻 + 一个终点时刻）。
+/// 用 `Rc<RefCell<dyn Any>>` 让对象自己解释，`downcast_ref::<T>()` 取回 ——
+/// 免得把几十种状态塞进同一个 enum。
+///
+/// ⚠️ 因为 `Any` 要求 `'static`，宿主对象的状态里**不能放带引用的东西**
+/// （放 `Rc` / `String` / 数值都没问题）。
+pub(crate) struct NativeObj {
+    /// `类型()` 给它；报错文案也用它（`「计时器」没有方法「停」`）
+    pub type_name: &'static str,
+    /// 方法表：名字 → 实现。**编译期常量**，运行期不分配。
+    pub methods: &'static [(&'static str, NativeFn)],
+    /// 对象自己的状态，由各类型解释（`state.borrow().downcast_ref::<T>()`）。
+    pub state: Rc<RefCell<dyn Any>>,
+}
+
+/// 宿主对象方法的签名。
+///
+/// 第一个参数是 **`&Rc<NativeObj>` 而不是 `&NativeObj`** —— 因为上下文协议的
+/// `进入()` 要返回**对象自身**（Python 的 `__enter__` 语义），没有 `Rc` 就
+/// 克隆不出来。
+///
+/// 带 `&mut dyn BuiltinHost` 是为了**将来**——像 `数据库.连接.逐行(回调)` 这种
+/// 「对象方法里要回调用户函数」的 API。计时器用不上，但接口一次给对，
+/// 免得以后再改一遍签名、再把所有方法实现跟着改一遍。
+pub(crate) type NativeFn = fn(&Rc<NativeObj>, &[Val], &mut dyn BuiltinHost)
+    -> Result<Val, JishiError>;
+
+/// 造一个宿主对象。
+pub(crate) fn native_obj(
+    type_name: &'static str,
+    methods: &'static [(&'static str, NativeFn)],
+    state: Rc<RefCell<dyn Any>>,
+) -> Val {
+    Val::Native(Rc::new(NativeObj { type_name, methods, state }))
+}
+
 /// 造一个内建值。所有内建表都用它 —— 免得 33 处各自写
 /// `Val::Builtin(Rc::new(BuiltinDef { … }))` 时括号配错。
 pub(crate) fn builtin(name: &'static str,
@@ -394,6 +453,9 @@ pub(crate) enum Val {
     Dict(JDict),
     Set(JSet),
     File(Rc<RefCell<FileHandle>>),
+    /// 标准库返回的**宿主对象**（M165d）：自带方法表，能被 `.方法()` 调、
+    /// 能当上下文管理器。见 `NativeObj` 的注释。
+    Native(Rc<NativeObj>),
     // 2026-10-05（D77 §三）：**装箱** —— `Func` 的内联载荷 88 字节会把 `Val` 撑大。
     /// 🔴 M165c：**`Rc<Func>` 而不是 `Box<Func>`**。
     ///
@@ -1272,6 +1334,8 @@ pub(crate) fn type_label(v: &Val) -> String {
         Val::Dict(_) => "字典".to_string(),
         Val::Set(_) => "集合".to_string(),
         Val::File(_) => "文件".to_string(),
+        // 宿主对象（M165d）：类型名就是它自己带的那个（`计时器`）
+        Val::Native(o) => o.type_name.to_string(),
         Val::Func(_) => "函数".to_string(),
         Val::WalkFn(f) => if f.self_val.is_some() {
             "方法".to_string()
@@ -3221,7 +3285,14 @@ impl VM {
                 }
             }
             _ => match name {
-                "退出" | "关闭" => match get_attr(obj.clone(), name, 0, 0) {
+                // 🔴 M165d：原来只有 `退出` / `关闭`。**`进入` 只在
+                // `Val::Instance` 分支里找** —— 于是宿主对象（`时间.计时()`
+                // 返回的计时器）当上下文管理器时 `用 … 为 t：` 找不到 `进入`，
+                // 只能退到「有 `退出` 就把对象本身绑给 t」。
+                // 补上 `进入` 之后，`t` 拿到的是 `进入()` 的**返回值**
+                // （Python 的 `__enter__` 语义），本项目里计时器返回自身，两者等价；
+                // 但对外来的宿主对象，「返回自身」不该是唯一可能。
+                "进入" | "退出" | "关闭" => match get_attr(obj.clone(), name, 0, 0) {
                     Ok(v @ Val::BoundMethod(_)) => Some(v),
                     _ => None,
                 },
@@ -3479,6 +3550,11 @@ pub(crate) fn display(v: &Val) -> String {
             let cls = i.borrow().class.name.clone();
             format!("<{} 实例>", cls)
         }
+        // 宿主对象（M165d）：`<计时器 对象>`。Python 侧是
+        // `<__main__._计时器 object at 0x…>`（带地址，**不可能逐字一致**），
+        // 所以两边都只保证「看得出是什么东西」——`打印(计时器)` 本来也不是
+        // 正经用法，正经用法是 `.耗时()`。
+        Val::Native(o) => format!("<{} 对象>", o.type_name),
         Val::File(f) => {
             let h = f.borrow();
             format!("<文件 {}（{}）>", h.path, h.state())
@@ -5164,6 +5240,8 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
         Val::Set(s) => set_method(attr, Val::Set(s), line, col),
         Val::Dec(d) => dec_method(attr, d, line, col),
         Val::File(f) => file_method(attr, Val::File(f), line, col),
+        // 宿主对象（M165d）：方法表是**对象自己带的**，这里只负责包成可调用值
+        Val::Native(o) => native_method(attr, o, line, col),
         // ⚠️ 显示**类型名**而不是值：Python 侧是 `type_name(obj)`，所以
         // `1.某某` 报的是「「整数」没有属性「某某」」；宿主原来打的是值
         // （「「1」没有属性…」），两个引擎连报错都不像（R6.2 对齐）。
@@ -5500,6 +5578,39 @@ fn set_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, Jis
 }
 fn file_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
     gated_method(FILE_METHOD_NAMES, "文件", name, receiver, line, col)
+}
+
+/// 宿主对象的方法分派（M165d）。
+///
+/// 与 `file_method` / `str_method` 那几家的**结构差别**：方法名不是这里写死的
+/// 常量表，而是**对象自己带的**（`NativeObj.methods`）—— 所以新增一种宿主对象
+/// **不用改这个函数**，也不用在 `dump_methods` 里补一行。
+fn native_method(name: &str, obj: Rc<NativeObj>, line: i64, col: i64)
+    -> Result<Val, JishiError> {
+    if !obj.methods.iter().any(|(n, _)| *n == name) {
+        // 文案与 `gated_method` 对齐：类型名带「」，并把**可用的方法**列出来
+        let mut avail: Vec<&str> = obj.methods.iter().map(|(n, _)| *n).collect();
+        avail.sort_unstable();
+        return Err(err_with_hint(
+            "类型错误",
+            format!("「{}」没有方法「{name}」", obj.type_name),
+            format!("可用的方法：{}", avail.join("、"))));
+    }
+    Ok(Val::BoundMethod(Box::new(BoundMethod::Builtin {
+        name: name.to_string(),
+        receiver: Box::new(Val::Native(obj)),
+        line,
+        col,
+    })))
+}
+
+/// 调用宿主对象的方法（`call_builtin_method` 的 `(Val::Native, name)` 分支）。
+fn native_call(name: &str, obj: Rc<NativeObj>, host: &mut dyn BuiltinHost, args: &[Val])
+    -> Result<Val, JishiError> {
+    match obj.methods.iter().find(|(n, _)| *n == name) {
+        Some((_, f)) => f(&obj, args, host),        // 理论上到不了这里（`native_method` 已经挡过一次），留着兜底
+        None => Err(err("类型错误", format!("「{}」没有方法「{name}」", obj.type_name))),
+    }
 }
 fn dec_method(name: &str, d: Rc<Dec>, line: i64, col: i64) -> Result<Val, JishiError> {
     gated_method(DEC_METHOD_NAMES, "精确小数", name, Val::Dec(d), line, col)
@@ -6266,6 +6377,8 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
             (Val::Set(s), "复制") => { need_args(&name, args, 0, 0)?; set_new(s.borrow().to_items()) }
             // -- 文件方法（M29）--
             (Val::File(f), _) => file_call(&name, f, args),
+            // -- 宿主对象的方法（M165d）：方法表在对象自己身上 --
+            (Val::Native(o), _) => native_call(&name, o, host, args),
             // -- 精确小数方法（M29）--
             (Val::Dec(d), _) => dec_call(&name, &d, args),
             _ => Err(err("类型错误", format!("「{name}」方法调用未实现"))),

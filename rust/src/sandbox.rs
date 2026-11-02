@@ -395,6 +395,7 @@ fn non_json_name(v: &Val) -> &'static str {
         Val::Date(_) => "datetime",
         Val::Table(_) => "_Table",
         Val::File(_) => "_FileHandle",
+        Val::Native(o) => o.type_name,
         Val::Slice(_) => "slice",
         Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_) | Val::BoundMethod(_) =>
             "function",

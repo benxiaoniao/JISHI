@@ -936,6 +936,8 @@ impl Walker {
             "BoolOp" => self.eval_boolop(n),
             "UnaryOp" => self.eval_unaryop(n),
             "List" => self.eval_list(n),
+            // 列表 / 字典推导式（M165d 补，见 `eval_comprehension` 的注释）
+            "Comprehension" => self.eval_comprehension(n),
             "Dict" => self.eval_dict(n),
             "Subscript" => self.eval_subscript(n),
             "Attr" => {
@@ -1122,6 +1124,55 @@ impl Walker {
     }
 
     /// 列表字面量 `[甲, 乙]`。
+    /// 列表 / 字典推导式（M165d 补）。
+    ///
+    /// 语义照字节码 VM 的那条编译路径（`python/compiler.py::_c_comprehension`）：
+    /// 建空容器 → 遍历 → 绑定循环变量 → 可选条件 → 追加。
+    /// **走 `make_iter` / `assign_to`**（不另写一套），所以容器、文本、
+    /// 自定义对象的迭代语义与 `遍历` 语句完全一致。
+    ///
+    /// ⚠️ **为什么拖到 M165d 才补**：`check_walk` 的硬指标是「还不支持 0」，
+    /// 而唯一用到推导式的语料（`examples/projects/排序跑分/排序.jsh`）在
+    /// `时间.计时` 那一步就失败了 —— 那个函数 Node / Rust 两家都没有。
+    /// M165d 补上计时器之后它才第一次跑通，于是这里立刻报「还没实现「Comprehension」」。
+    /// 这正是「缺口被另一个缺口盖住」的活例子。
+    fn eval_comprehension(&mut self, n: &Json) -> Result<Val, JishiError> {
+        let kind = field(n, "kind")?.as_str().unwrap_or("list");
+        let iterable = self.eval(field(n, "iter")?)?;
+        let target = field(n, "target")?;
+        // `如果` 是可选的：前端给 `null`（不是缺字段）
+        let condition = n.get("condition").filter(|c| !matches!(c, Json::Null));
+        let mut it = self.make_iter(iterable)?;
+
+        if kind == "dict" {
+            let mut 出: Vec<(Val, Val)> = Vec::new();
+            while let Some(v) = iter_next(&mut it)? {
+                self.assign_to(target, v)?;
+                if let Some(c) = condition {
+                    if !truthy(self.eval(c)?) {
+                        continue;
+                    }
+                }
+                let k = self.eval(field(n, "key")?)?;
+                let 值 = self.eval(field(n, "value")?)?;
+                出.push((k, 值));
+            }
+            return Ok(dict_new(出));
+        }
+
+        let mut 出: Vec<Val> = Vec::new();
+        while let Some(v) = iter_next(&mut it)? {
+            self.assign_to(target, v)?;
+            if let Some(c) = condition {
+                if !truthy(self.eval(c)?) {
+                    continue;
+                }
+            }
+            出.push(self.eval(field(n, "elt")?)?);
+        }
+        Ok(list_new(出))
+    }
+
     fn eval_list(&mut self, n: &Json) -> Result<Val, JishiError> {
         let els = n.get("elements").and_then(|v| v.as_array()).map(|v| v.as_slice()).unwrap_or(&[]);
         let mut out = Vec::with_capacity(els.len());
