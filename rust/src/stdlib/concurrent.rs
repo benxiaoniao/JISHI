@@ -165,7 +165,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let 路径们: Vec<String> = 项们.iter().map(as_text).collect();
             let 结果 = 并行做(路径们, k, |p| 摘要一个(p, &算法))?;
             Ok(Val::List(std::rc::Rc::new(std::cell::RefCell::new(
-                结果.into_iter().map(Val::Str).collect(),
+                结果.into_iter().map(|s| Val::Str(s.into())).collect(),
             ))))
         },
         "批量读" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -193,7 +193,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let 网址们: Vec<String> = 项们.iter().map(as_text).collect();
             let 结果 = 并行做(网址们, k, |u| crate::http::取正文(u))?;
             Ok(Val::List(std::rc::Rc::new(std::cell::RefCell::new(
-                结果.into_iter().map(Val::Str).collect(),
+                结果.into_iter().map(|s| Val::Str(s.into())).collect(),
             ))))
         },
     }

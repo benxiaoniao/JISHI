@@ -650,7 +650,7 @@ fn 对齐表(args: &[Val]) -> R {
             .collect();
         行们.push(片.join("  ").trim_end().to_string());
     }
-    Ok(Val::Str(行们.join("\n")))
+    Ok(Val::Str(行们.join("\n").into()))
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
@@ -660,7 +660,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let items = super::to_vec(&args[0])?;
             let sep = if args.len() > 1 { super::as_text(&args[1]) } else { String::new() };
             let parts: Vec<String> = items.iter().map(super::as_text).collect();
-            Ok(Val::Str(parts.join(&sep)))
+            Ok(Val::Str(parts.join(&sep).into()))
         },
         "居中" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("居中", args, 2, 3)?;
@@ -669,7 +669,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let fill = if args.len() > 2 { one_char(&args[2])? } else { ' ' };
             let n = display_width(&s);
             if n >= w {
-                return Ok(Val::Str(s));
+                return Ok(Val::Str(s.into()));
             }
             let marg = w - n;
             let left = center_left(marg, w);
@@ -678,7 +678,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 repeat_char(fill, left),
                 s,
                 repeat_char(fill, marg - left)
-            )))
+            ).into()))
         },
         "对齐表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             对齐表(args)
@@ -697,7 +697,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 s
             } else {
                 format!("{s}{}", repeat_char(fill, w - n))
-            }))
+            }.into()))
         },
         "右对齐" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("右对齐", args, 2, 3)?;
@@ -709,7 +709,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 s
             } else {
                 format!("{}{s}", repeat_char(fill, w - n))
-            }))
+            }.into()))
         },
         "补零" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("补零", args, 2)?;
@@ -717,23 +717,23 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let w = as_intish(&args[1])?.max(0) as usize;
             let n = s.chars().count();
             if n >= w {
-                return Ok(Val::Str(s));
+                return Ok(Val::Str(s.into()));
             }
             // Python 的 `zfill` 把 0 补在**符号之后**
             let pad = repeat_char('0', w - n);
             if let Some(rest) = s.strip_prefix('-') {
-                Ok(Val::Str(format!("-{pad}{rest}")))
+                Ok(Val::Str(format!("-{pad}{rest}").into()))
             } else if let Some(rest) = s.strip_prefix('+') {
-                Ok(Val::Str(format!("+{pad}{rest}")))
+                Ok(Val::Str(format!("+{pad}{rest}").into()))
             } else {
-                Ok(Val::Str(format!("{pad}{s}")))
+                Ok(Val::Str(format!("{pad}{s}").into()))
             }
         },
         "重复" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("重复", args, 2)?;
             let s = super::as_text(&args[0]);
             let n = as_intish(&args[1])?;
-            Ok(Val::Str(if n <= 0 { String::new() } else { s.repeat(n as usize) }))
+            Ok(Val::Str(if n <= 0 { String::new() } else { s.repeat(n as usize) }.into()))
         },
         "计数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("计数", args, 2)?;
@@ -788,7 +788,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     out.extend(c.to_lowercase());
                 }
             }
-            Ok(Val::Str(out))
+            Ok(Val::Str(out.into()))
         },
         "去前缀" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("去前缀", args, 2)?;
@@ -797,7 +797,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             Ok(Val::Str(match s.strip_prefix(p.as_str()) {
                 Some(rest) => rest.to_string(),
                 None => s,
-            }))
+            }.into()))
         },
         "去后缀" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("去后缀", args, 2)?;
@@ -806,7 +806,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             Ok(Val::Str(match s.strip_suffix(p.as_str()) {
                 Some(rest) => rest.to_string(),
                 None => s,
-            }))
+            }.into()))
         },
         "格式化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("格式化", args, 1, usize::MAX)?;
@@ -827,11 +827,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let rest: Vec<Val> = args[1..]
                 .iter()
                 .map(|v| match v {
-                    Val::Bool(_) | Val::None_ => Val::Str(super::as_text(v)),
+                    Val::Bool(_) | Val::None_ => Val::Str(super::as_text(v).into()),
                     other => other.clone(),
                 })
                 .collect();
-            Ok(Val::Str(format_template(&tpl, &rest)))
+            Ok(Val::Str(format_template(&tpl, &rest).into()))
         },
         // M153：三个「数字 → 文本」的日常写法。以前只能写
         // `格式化("{:.2f}", x)` —— 那个 `:.2f` 是暗号，初学者猜不出（D90）。
@@ -842,7 +842,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 return Err(err("值错误", format!(
                     "「小数位」的位不能是负数（给的是 {位}）")));
             }
-            Ok(Val::Str(super::十进制_舍入(&数值文本(&args[0])?, 位)))
+            Ok(Val::Str(super::十进制_舍入(&数值文本(&args[0])?, 位).into()))
         },
         "百分比" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("百分比", args, 1, 2)?;
@@ -853,11 +853,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             // 乘 100 在十进制字符串上做：`0.07 * 100` 在浮点里是 7.000000000000001
             let 放大 = super::十进制_乘(&数值文本(&args[0])?, 2);
-            Ok(Val::Str(format!("{}%", super::十进制_舍入(&放大, 位))))
+            Ok(Val::Str(format!("{}%", super::十进制_舍入(&放大, 位)).into()))
         },
         "千分位" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("千分位", args, 1)?;
-            Ok(Val::Str(super::十进制_千分位(&数值文本(&args[0])?)))
+            Ok(Val::Str(super::十进制_千分位(&数值文本(&args[0])?).into()))
         },
         "切成三段" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("切成三段", args, 2)?;
@@ -865,18 +865,18 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let sep = super::as_text(&args[1]);
             let parts: Vec<Val> = match s.find(&sep) {
                 Some(k) if !sep.is_empty() => vec![
-                    Val::Str(s[..k].to_string()),
-                    Val::Str(sep.clone()),
-                    Val::Str(s[k + sep.len()..].to_string()),
+                    Val::Str(s[..k].to_string().into()),
+                    Val::Str(sep.clone().into()),
+                    Val::Str(s[k + sep.len()..].to_string().into()),
                 ],
-                _ => vec![Val::Str(s), Val::Str(String::new()), Val::Str(String::new())],
+                _ => vec![Val::Str(s.into()), Val::Str(String::new().into()), Val::Str(String::new().into())],
             };
             Ok(crate::list_new(parts))
         },
         "按行拆分" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("按行拆分", args, 1)?;
             let s = super::as_text(&args[0]);
-            let items: Vec<Val> = split_lines(&s).into_iter().map(Val::Str).collect();
+            let items: Vec<Val> = split_lines(&s).into_iter().map(|s| Val::Str(s.into())).collect();
             Ok(crate::list_new(items))
         },
         // M51 补：这两个是 M50 第一批加的（「既有模块补缺」），当时只做了
@@ -892,7 +892,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             let n = display_width(&s);
             if n >= w {
-                return Ok(Val::Str(s));
+                return Ok(Val::Str(s.into()));
             }
             let total = w - n;
             // ⚠️ 居中**不是**「左右各一半」：CPython `str.center` 是
@@ -902,7 +902,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             for _ in 0..left { out.push(fchars[0]); }
             out.push_str(&s);
             for _ in 0..(total - left) { out.push(fchars[0]); }
-            Ok(Val::Str(out))
+            Ok(Val::Str(out.into()))
         },
         "截断" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("截断", args, 2, 3)?;
@@ -916,15 +916,15 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let w = w as usize;
             let chars: Vec<char> = s.chars().collect();
             if chars.len() <= w {
-                return Ok(Val::Str(s));
+                return Ok(Val::Str(s.into()));
             }
             let ech: Vec<char> = e.chars().collect();
             if w <= ech.len() {
-                return Ok(Val::Str(ech[..w].iter().collect()));
+                return Ok(Val::Str(ech[..w].iter().collect::<String>().into()));
             }
             let mut out: String = chars[..w - ech.len()].iter().collect();
             out.push_str(&e);
-            Ok(Val::Str(out))
+            Ok(Val::Str(out.into()))
         },
     }
 }

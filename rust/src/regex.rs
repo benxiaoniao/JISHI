@@ -935,7 +935,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             Ok(Val::Str(带上限(|| match search(&prog, &text) {
                 Some((a, b, _)) => text.chars().collect::<Vec<char>>()[a..b].iter().collect(),
                 None => String::new(),
-            })?))
+            })?.into()))
         },
         "查找全部" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("查找全部", args, 2)?;
@@ -948,13 +948,13 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .iter()
                 .map(|(_, _, caps)| {
                     if n == 0 {
-                        Val::Str(slice(&inp, caps[0]))
+                        Val::Str(slice(&inp, caps[0]).into())
                     } else if n == 1 {
-                        Val::Str(slice(&inp, caps[1]))
+                        Val::Str(slice(&inp, caps[1]).into())
                     } else {
                         // 两个以上分组：Python 的 findall 给元组，这边给列表
                         crate::list_new(
-                            (1..=n).map(|g| Val::Str(slice(&inp, caps[g]))).collect(),
+                            (1..=n).map(|g| Val::Str(slice(&inp, caps[g]).into())).collect(),
                         )
                     }
                 })
@@ -978,7 +978,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             if last < inp.len() {
                 out.extend(inp[last..].iter());
             }
-            Ok(Val::Str(out))
+            Ok(Val::Str(out.into()))
         },
         "拆分" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("拆分", args, 2)?;
@@ -989,17 +989,17 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let mut out: Vec<Val> = Vec::new();
             let mut last = 0usize;
             for (a, b, caps) in &found {
-                out.push(Val::Str(slice(&inp, Some((last, *a)))));
+                out.push(Val::Str(slice(&inp, Some((last, *a))).into()));
                 // Python 的 `re.split` 会把捕获组的内容也放进结果里
                 for g in 1..=prog.ngroups {
                     let piece = slice(&inp, caps[g]);
                     if !piece.is_empty() || caps[g].is_some() {
-                        out.push(Val::Str(piece));
+                        out.push(Val::Str(piece.into()));
                     }
                 }
                 last = *b;
             }
-            out.push(Val::Str(slice(&inp, Some((last, inp.len())))));
+            out.push(Val::Str(slice(&inp, Some((last, inp.len()))).into()));
             Ok(crate::list_new(out))
         },
         "分组" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -1009,7 +1009,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let inp = chars_of(&text);
             match 带上限(|| search(&prog, &text))? {
                 Some((_, _, caps)) => Ok(crate::list_new(
-                    (1..=prog.ngroups).map(|g| Val::Str(slice(&inp, caps[g]))).collect(),
+                    (1..=prog.ngroups).map(|g| Val::Str(slice(&inp, caps[g]).into())).collect(),
                 )),
                 None => Ok(crate::list_new(Vec::new())),
             }

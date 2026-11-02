@@ -306,15 +306,15 @@ pub(crate) fn module() -> HashMap<String, Val> {
     table! { "系统";
         "系统名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("系统名", args, 0)?;
-            Ok(Val::Str(os_name()))
+            Ok(Val::Str(os_name().into()))
         },
         "系统版本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("系统版本", args, 0)?;
-            Ok(Val::Str(ver::version()))
+            Ok(Val::Str(ver::version().into()))
         },
         "机器架构" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("机器架构", args, 0)?;
-            Ok(Val::Str(machine()))
+            Ok(Val::Str(machine().into()))
         },
         // M120：逻辑核数。用 `available_parallelism`（**不是**自己数 `/proc`）——
         // 它会尊重 cgroup / 亲和性掩码，也就是「真能并行的路数」。
@@ -328,13 +328,13 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "处理器" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("处理器", args, 0)?;
             let p = processor();
-            Ok(Val::Str(if p.is_empty() { "未知".to_string() } else { p }))
+            Ok(Val::Str(if p.is_empty() { "未知".to_string() } else { p }.into()))
         },
         "当前目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("当前目录", args, 0)?;
             let d = std::env::current_dir()
                 .map_err(|e| err("运行期错误", format!("取当前目录失败：{e}")))?;
-            Ok(Val::Str(d.to_string_lossy().to_string()))
+            Ok(Val::Str(d.to_string_lossy().to_string().into()))
         },
         "改目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("改目录", args, 1)?;
@@ -346,13 +346,13 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("运行期错误", format!("切换到「{p}」失败：{e}")))?;
             let d = std::env::current_dir()
                 .map_err(|e| err("运行期错误", format!("取当前目录失败：{e}")))?;
-            Ok(Val::Str(d.to_string_lossy().to_string()))
+            Ok(Val::Str(d.to_string_lossy().to_string().into()))
         },
         "环境变量" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("环境变量", args, 1, 2)?;
             let name = as_text(&args[0]);
             let default = if args.len() > 1 { as_text(&args[1]) } else { String::new() };
-            Ok(Val::Str(std::env::var(&name).unwrap_or(default)))
+            Ok(Val::Str(std::env::var(&name).unwrap_or(default).into()))
         },
         "设环境变量" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("设环境变量", args, 2)?;
@@ -364,7 +364,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let t = timeout_of(args.get(1))?;
             let (_code, out, errout) = run_capture(&args[0], t)?;
             // Python 侧是 `(r.stdout or "") + (r.stderr or "")`
-            Ok(Val::Str(format!("{out}{errout}")))
+            Ok(Val::Str(format!("{out}{errout}").into()))
         },
         // M133：**两条流分开**返回。`执行` 是老接口（stdout+stderr 拼一起），
         // 对拍要分开比 —— 「用户看到什么」是两条流加起来，合并了就只比了一半。
@@ -373,8 +373,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let t = timeout_of(args.get(1))?;
             let (code, out, errout) = run_capture(&args[0], t)?;
             Ok(crate::dict_new(vec![
-                (Val::Str("输出".into()), Val::Str(out)),
-                (Val::Str("错误".into()), Val::Str(errout)),
+                (Val::Str("输出".into()), Val::Str(out.into())),
+                (Val::Str("错误".into()), Val::Str(errout.into())),
                 (Val::Str("退出码".into()), Val::Int(code as i128)),
             ]))
         },
@@ -398,8 +398,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // 回来再包成 Val（主线程）
             let 列表: Vec<Val> = 结果们.into_iter().map(|(code, out, errout)| {
                 crate::dict_new(vec![
-                    (Val::Str("输出".into()), Val::Str(out)),
-                    (Val::Str("错误".into()), Val::Str(errout)),
+                    (Val::Str("输出".into()), Val::Str(out.into())),
+                    (Val::Str("错误".into()), Val::Str(errout.into())),
                     (Val::Str("退出码".into()), Val::Int(code as i128)),
                 ])
             }).collect();
@@ -413,7 +413,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         },
         "主机名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("主机名", args, 0)?;
-            Ok(Val::Str(hostname()))
+            Ok(Val::Str(hostname().into()))
         },
         "打开" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("打开", args, 1)?;
@@ -422,7 +422,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         },
         "参数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("参数", args, 0)?;
-            let items: Vec<Val> = script_args().into_iter().map(Val::Str).collect();
+            let items: Vec<Val> = script_args().into_iter().map(|s| Val::Str(s.into())).collect();
             Ok(crate::list_new(items))
         },
     }

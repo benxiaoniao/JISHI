@@ -78,7 +78,7 @@ fn attrs_str(v: Option<&Val>) -> Result<String, crate::JishiError> {
 
 fn check_tag(name: &str, v: &Val) -> Result<String, crate::JishiError> {
     match v {
-        Val::Str(s) if !s.is_empty() => Ok(s.clone()),
+        Val::Str(s) if !s.is_empty() => Ok(s.to_string()),
         _ => Err(err(
             "类型错误",
             format!("「{name}」的第一个参数要是标签名（非空文本）"),
@@ -348,7 +348,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
     table! { "html";
         "转义" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("转义", args, 1, 1)?;
-            Ok(Val::Str(escape_html(&crate::display(&args[0]))))
+            Ok(Val::Str(escape_html(&crate::display(&args[0])).into()))
         },
         "原样" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("原样", args, 1, 1)?;
@@ -360,15 +360,15 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "标签" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("标签", args, 1, 3)?;
             let tag = check_tag("标签", &args[0])?;
-            let c = args.get(1).cloned().unwrap_or(Val::Str(String::new()));
+            let c = args.get(1).cloned().unwrap_or(Val::Str(String::new().into()));
             let a = attrs_str(args.get(2))?;
-            Ok(Val::Str(format!("<{tag}{a}>{}</{tag}>", content(&c))))
+            Ok(Val::Str(format!("<{tag}{a}>{}</{tag}>", content(&c)).into()))
         },
         "空元素" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("空元素", args, 1, 2)?;
             let tag = check_tag("空元素", &args[0])?;
             let a = attrs_str(args.get(1))?;
-            Ok(Val::Str(format!("<{tag}{a} />")))
+            Ok(Val::Str(format!("<{tag}{a} />").into()))
         },
         "链接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("链接", args, 2, 3)?;
@@ -380,25 +380,25 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 let s = attrs_str(Some(extra))?;
                 a.push_str(&s);
             }
-            Ok(Val::Str(format!("<a{a}>{}</a>", content(&text))))
+            Ok(Val::Str(format!("<a{a}>{}</a>", content(&text)).into()))
         },
         "属性文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("属性文本", args, 1, 1)?;
-            Ok(Val::Str(escape_html(&crate::display(&args[0]))))
+            Ok(Val::Str(escape_html(&crate::display(&args[0])).into()))
         },
         "有序列表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("有序列表", args, 1, 2)?;
-            Ok(Val::Str(list_html("ol", &args[0], args.get(1))?))
+            Ok(Val::Str(list_html("ol", &args[0], args.get(1))?.into()))
         },
         "无序列表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("无序列表", args, 1, 2)?;
-            Ok(Val::Str(list_html("ul", &args[0], args.get(1))?))
+            Ok(Val::Str(list_html("ul", &args[0], args.get(1))?.into()))
         },
         // M107：解析方向
         "取文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取文本", args, 1, 1)?;
             let s = crate::display(&args[0]);
-            Ok(Val::Str(文本节点(&扫(&s))))
+            Ok(Val::Str(文本节点(&扫(&s)).into()))
         },
         "取链接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取链接", args, 1, 1)?;
@@ -421,8 +421,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
                             j += 1;
                         }
                         出.push(crate::list_new(vec![
-                            Val::Str(文本节点(&块)),
-                            Val::Str(地址),
+                            Val::Str(文本节点(&块).into()),
+                            Val::Str(地址.into()),
                         ]));
                         i = j + 1;
                         continue;
@@ -461,7 +461,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     格块 = Vec::new();
                 } else if *类型 == 2 && (名 == "td" || 名 == "th") {
                     if 在一格 {
-                        行.push(Val::Str(文本节点(&格块)));
+                        行.push(Val::Str(文本节点(&格块).into()));
                     }
                     在一格 = false;
                 } else if 在一格 && *类型 == 0 {

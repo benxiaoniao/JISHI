@@ -23,14 +23,14 @@ const NOT_GIVEN: &str = "\u{0}未给\u{0}";
 fn is_given(v: Option<&Val>) -> bool {
     match v {
         None => false,
-        Some(Val::Str(s)) => s != NOT_GIVEN,
+        Some(Val::Str(s)) => s.as_ref() != NOT_GIVEN,
         Some(_) => true,
     }
 }
 
 fn as_path(name: &str, v: &Val) -> Result<String, crate::JishiError> {
     match v {
-        Val::Str(s) => Ok(s.clone()),
+        Val::Str(s) => Ok(s.to_string()),
         other => Ok(crate::display(other)),
     }
 }
@@ -142,14 +142,14 @@ pub(crate) fn module() -> HashMap<String, Val> {
             };
             let text = super::jsonmod::to_text(&args[1], Some(indent))?;
             write_file(&p, &format!("{text}\n"))?;
-            Ok(Val::Str(p))
+            Ok(Val::Str(p.into()))
         },
         "读键值" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("读键值", args, 1, 3)?;
             let p = as_path("读键值", &args[0])?;
             let sep = match args.get(2) {
                 None => "=".to_string(),
-                Some(Val::Str(s)) if !s.is_empty() => s.clone(),
+                Some(Val::Str(s)) if !s.is_empty() => s.to_string(),
                 Some(_) => return Err(err("类型错误", "「分隔符」要传非空文本")),
             };
             let text = match read_file(&p)? {
@@ -183,7 +183,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                                 format!("配置文件「{p}」第 {} 行的键是空的", idx + 1),
                             ));
                         }
-                        out.push((Val::Str(k.to_string()), Val::Str(v)));
+                        out.push((Val::Str(k.to_string().into()), Val::Str(v.into())));
                     }
                 }
             }
@@ -196,7 +196,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|_| err("类型错误", "「写键值」的第二个参数要传字典"))?;
             let sep = match args.get(2) {
                 None => " = ".to_string(),
-                Some(Val::Str(s)) => s.clone(),
+                Some(Val::Str(s)) => s.to_string(),
                 Some(_) => return Err(err("类型错误", "「分隔符」要传文本")),
             };
             let mut lines: Vec<String> = Vec::new();
@@ -212,7 +212,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 text.push('\n');
             }
             write_file(&p, &text)?;
-            Ok(Val::Str(p))
+            Ok(Val::Str(p.into()))
         },
         "取" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取", args, 2, 3)?;
@@ -272,7 +272,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // 逐层建（从里往外），保持「不改原字典」的语义
             let mut value = args[2].clone();
             for seg in segs[1..].iter().rev() {
-                let mut m: Vec<(Val, Val)> = vec![(Val::Str(seg.to_string()), value)];
+                let mut m: Vec<(Val, Val)> = vec![(Val::Str(seg.to_string().into()), value)];
                 value = dict_new(std::mem::take(&mut m));
             }
             let mut out = pairs;
@@ -288,7 +288,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             }
             if !replaced {
-                out.push((Val::Str(top.to_string()), value));
+                out.push((Val::Str(top.to_string().into()), value));
             }
             Ok(dict_new(out))
         },
@@ -307,8 +307,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
                         if matches!(v, Val::Dict(_)) && matches!(out[i].1, Val::Dict(_)) {
                             let sub = module();
                             let f = &sub["合并"];
-                            if let Val::Builtin(_, bf) = f {
-                                out[i].1 = bf(&[out[i].1.clone(), v], _vm)?;
+                            if let Val::Builtin(bd) = f {
+                                out[i].1 = (bd.f)(&[out[i].1.clone(), v], _vm)?;
                             }
                         } else {
                             out[i].1 = v;
@@ -325,7 +325,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|_| err("类型错误", "「展开」的第一个参数要传字典"))?;
             let prefix = match args.get(1) {
                 None => String::new(),
-                Some(Val::Str(s)) => s.clone(),
+                Some(Val::Str(s)) => s.to_string(),
                 Some(_) => return Err(err("类型错误", "「展开」的前缀要传文本")),
             };
             let mut out: Vec<(Val, Val)> = Vec::new();
@@ -334,19 +334,19 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 match &v {
                     Val::Dict(d) => {
                         if d.borrow().is_empty() {
-                            out.push((Val::Str(key), v.clone()));
+                            out.push((Val::Str(key.into()), v.clone()));
                         } else {
                             let sub = module();
-                            if let Val::Builtin(_, bf) = &sub["展开"] {
+                            if let Val::Builtin(bd) = &sub["展开"] {
                                 if let Val::Dict(inner) =
-                                    bf(&[v.clone(), Val::Str(format!("{key}."))], _vm)?
+                                    (bd.f)(&[v.clone(), Val::Str(format!("{key}.").into())], _vm)?
                                 {
                                     out.extend(inner.borrow().clone());
                                 }
                             }
                         }
                     }
-                    _ => out.push((Val::Str(key), v.clone())),
+                    _ => out.push((Val::Str(key.into()), v.clone())),
                 }
             }
             Ok(dict_new(out))

@@ -161,7 +161,7 @@ pub(crate) fn 解析请求字典(原始: &str) -> Result<Val, JishiError> {
             Some(i) => (&片段[..i], &片段[i + 1..]),
             None => (片段, ""),
         };
-        查询对.push((Val::Str(百分号解码(k)), Val::Str(百分号解码(v))));
+        查询对.push((Val::Str(百分号解码(k).into()), Val::Str(百分号解码(v).into())));
     }
     let mut 头对: Vec<(Val, Val)> = Vec::new();
     for 行 in 行们 {
@@ -176,17 +176,17 @@ pub(crate) fn 解析请求字典(原始: &str) -> Result<Val, JishiError> {
             }
         };
         头对.push((
-            Val::Str(名.to_ascii_lowercase()),
-            Val::Str(值.to_string()),
+            Val::Str(名.to_ascii_lowercase().into()),
+            Val::Str(值.to_string().into()),
         ));
     }
     Ok(dict_new(vec![
-        (Val::Str("方法".into()), Val::Str(方法)),
-        (Val::Str("路径".into()), Val::Str(百分号解码(路径))),
+        (Val::Str("方法".into()), Val::Str(方法.into())),
+        (Val::Str("路径".into()), Val::Str(百分号解码(路径).into())),
         (Val::Str("查询".into()), dict_new(查询对)),
-        (Val::Str("版本".into()), Val::Str(版本)),
+        (Val::Str("版本".into()), Val::Str(版本.into())),
         (Val::Str("请求头".into()), dict_new(头对)),
-        (Val::Str("正文".into()), Val::Str(正文.to_string())),
+        (Val::Str("正文".into()), Val::Str(正文.to_string().into())),
     ]))
 }
 
@@ -435,7 +435,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Some(v) => 要文本(v, "「构造响应」的内容类型")?,
             };
             let 头 = args.get(3).filter(|v| !matches!(v, Val::None_));
-            Ok(Val::Str(构造响应文本(码, &正文, &类型, 头)?))
+            Ok(Val::Str(构造响应文本(码, &正文, &类型, 头)?.into()))
         },
         "空闲端口" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("空闲端口", args, 0, 0)?;
@@ -464,7 +464,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let 处理函数 = args[1].clone();
             if !matches!(
                 处理函数,
-                Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_, _) | Val::BoundMethod(_)
+                Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_) | Val::BoundMethod(_)
             ) {
                 return Err(err(
                     "类型错误",

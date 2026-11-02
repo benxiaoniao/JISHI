@@ -929,7 +929,7 @@ impl Walker {
         let r = match kind(n) {
             "Num" => self.eval_num(n),
             "Str" => Ok(Val::Str(
-                field(n, "value")?.as_str().unwrap_or("").to_string())),
+                field(n, "value")?.as_str().unwrap_or("").to_string().into())),
             "Name" => self.eval_name(n),
             "BinOp" => self.eval_binop(n),
             "Compare" => self.eval_compare(n),
@@ -1210,13 +1210,13 @@ impl Walker {
             // 内建：走**共用**的那一张表（`new_builtins`）—— 「内建调用接上」这一步的
             // 全部意义就在这里：`长度` / `范围` / `最大` / `打印` … 都只有一份实现，
             // 字节码 VM 与树遍历执行器**不能**各写一套。
-            Val::Builtin(_, f) => {
+            Val::Builtin(bd) => {
                 // 内建（除宿主内部 `map_kwargs` 那几个）不接受关键字实参 ——
                 // 明确报，不静默丢。
                 if !knames.is_empty() {
                     return Err(self.unimpl("给内建传关键字实参", n));
                 }
-                f(&args, self)
+                (bd.f)(&args, self)
             }
             // 内建类型的方法（列表 / 文本 / 字典 / 集合 / 文件 / 精确小数）：
             // **走共用的那张方法表**（`call_builtin_method` 是自由函数）——
@@ -1250,7 +1250,7 @@ impl Walker {
                 // ⚠️ **构造**异常对象，不是立刻抛（R7.4 修；与字节码 VM 同一分支
                 // 逐字同源 —— 详见 `lib.rs` 那段注释）。
                 Ok(Val::Exc(Rc::new(ExcValue {
-                    type_name: t.clone(),
+                    type_name: t.to_string(),
                     message: msg,
                     code: crate::error_code(&t).map(|s| s.to_string()),
                     line: None,
@@ -1482,7 +1482,7 @@ impl Walker {
         }
         let m = get_attr(v.clone(), "文本", 0, 0)?;
         match self.call_value(m, Vec::new())? {
-            Val::Str(s) => Ok(Some(s)),
+            Val::Str(s) => Ok(Some(s.to_string())),
             other => {
                 let cls = inst.borrow().class.name.clone();
                 Err(err("类型错误", format!(
@@ -1591,7 +1591,7 @@ impl BuiltinHost for Walker {
                 BoundMethod::User { name, .. } => Err(err("运行期错误", format!(
                     "树遍历参考执行器拿到了字节码的方法值「{name}」（内部错误）"))),
             },
-            Val::Builtin(_, f) => f(&args, self),
+            Val::Builtin(b) => (b.f)(&args, self),
             other => Err(err("类型错误",
                 format!("「{}」不能当函数调用", display(&other)))),
         }

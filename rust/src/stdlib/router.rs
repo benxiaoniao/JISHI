@@ -88,8 +88,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             }
             表.borrow_mut().push(dict_new(vec![
-                (Val::Str("方法".into()), Val::Str(方法)),
-                (Val::Str("路径".into()), Val::Str(路径)),
+                (Val::Str("方法".into()), Val::Str(方法.into())),
+                (Val::Str("路径".into()), Val::Str(路径.into())),
                 (Val::Str("处理".into()), args[3].clone()),
             ]));
             // 返回表本身（方便连着写）
@@ -120,7 +120,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     Some(Val::Str(s)) => s,
                     _ => continue,
                 };
-                if 路由方法 != "*" && 路由方法 != 方法 {
+                if 路由方法.as_ref() != "*" && 路由方法.as_ref() != 方法.as_str() {
                     continue;
                 }
                 let 路由路径 = match dict_get(&d.borrow(), &Val::Str("路径".into())) {
@@ -141,7 +141,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                             能匹配 = false;
                             break;
                         }
-                        对.push((Val::Str(名.to_string()), Val::Str(实际.clone())));
+                        对.push((Val::Str(名.to_string().into()), Val::Str(实际.clone().into())));
                     } else if 模式 != 实际 {
                         能匹配 = false;
                         break;
@@ -184,7 +184,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     let m = dict_get(&d, &Val::Str("方法".into()));
                     let p = dict_get(&d, &Val::Str("路径".into()));
                     if let (Some(Val::Str(m)), Some(Val::Str(p))) = (m, p) {
-                        出.push(Val::Str(format!("{m} {p}")));
+                        出.push(Val::Str(format!("{m} {p}").into()));
                     }
                 }
             }

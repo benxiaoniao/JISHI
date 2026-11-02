@@ -514,12 +514,13 @@ fn 头表(headers: &[(String, String)]) -> Val {
     for (k, v) in headers {
         match 出.iter_mut().find(|(kk, _)| crate::display(kk) == *k) {
             Some((_, val)) => {
+                // 🔴 M165b：`Val::Str` 里面是 `Rc<str>`（不可变），要拼接只能重造一个
                 if let Val::Str(s) = val {
-                    s.push_str(", ");
-                    s.push_str(v);
+                    let 合 = format!("{s}, {v}");
+                    *val = Val::Str(合.into());
                 }
             }
-            None => 出.push((Val::Str(k.clone()), Val::Str(v.clone()))),
+            None => 出.push((Val::Str(k.clone().into()), Val::Str(v.clone().into()))),
         }
     }
     crate::dict_new(出)
@@ -532,7 +533,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let raw = as_text(&args[0]);
             let t = timeout_of(args, 1)?;
             let h = 请求头(args.get(2))?;
-            Ok(Val::Str(取正文参数(&raw, t, &h)?))
+            Ok(Val::Str(取正文参数(&raw, t, &h)?.into()))
         },
         "提交" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("提交", args, 1, 4)?;
@@ -552,7 +553,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let r = client::request(&url, "POST", Some(&body), t, &h)
                 .map_err(|e| err("运行期错误", format!("提交到「{raw}」失败：{}", e.message)))?;
             let r = 要成功(r, "提交到", &raw)?;
-            Ok(Val::Str(String::from_utf8_lossy(&r.body).to_string()))
+            Ok(Val::Str(String::from_utf8_lossy(&r.body).to_string().into()))
         },
         "提交JSON" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("提交JSON", args, 2, 4)?;
@@ -568,7 +569,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let r = client::request(&url, "POST", Some(&body), t, &h)
                 .map_err(|e| err("运行期错误", format!("提交到「{raw}」失败：{}", e.message)))?;
             let r = 要成功(r, "提交到", &raw)?;
-            Ok(Val::Str(String::from_utf8_lossy(&r.body).to_string()))
+            Ok(Val::Str(String::from_utf8_lossy(&r.body).to_string().into()))
         },
         "获取JSON" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("获取JSON", args, 1, 3)?;
@@ -591,10 +592,10 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let r = client::request(&url, "GET", None, t, &h)
                 .map_err(|e| err("运行期错误", format!("访问「{raw}」失败：{}", e.message)))?;
             Ok(crate::dict_new(vec![
-                (Val::Str("状态".to_string()), Val::Int(r.status as i128)),
-                (Val::Str("响应头".to_string()), 头表(&r.headers)),
-                (Val::Str("正文".to_string()),
-                 Val::Str(String::from_utf8_lossy(&r.body).to_string())),
+                (Val::Str("状态".to_string().into()), Val::Int(r.status as i128)),
+                (Val::Str("响应头".to_string().into()), 头表(&r.headers)),
+                (Val::Str("正文".to_string().into()),
+                 Val::Str(String::from_utf8_lossy(&r.body).to_string().into())),
             ]))
         },
         "下载" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {

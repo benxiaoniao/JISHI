@@ -357,7 +357,7 @@ fn val_to_jv(v: &Val) -> Result<Jv, String> {
             }
         }
         Val::Float(f) => Jv::Float(*f),
-        Val::Str(s) => Jv::Str(s.clone()),
+        Val::Str(s) => Jv::Str(s.to_string()),
         Val::List(l) => {
             let mut out: Vec<Jv> = Vec::new();
             // 借用的活必须短：`val_to_jv` 是递归的，`borrow()` 只要还在手上
@@ -396,7 +396,7 @@ fn non_json_name(v: &Val) -> &'static str {
         Val::Table(_) => "_Table",
         Val::File(_) => "_FileHandle",
         Val::Slice(_) => "slice",
-        Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_, _) | Val::BoundMethod(_) =>
+        Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_) | Val::BoundMethod(_) =>
             "function",
         Val::Class(_) => "type",
         Val::Instance(_) => "_Instance",
@@ -420,7 +420,7 @@ fn non_json_name(v: &Val) -> &'static str {
 /// int/float 会把键**转成字符串**（`{1: 'a'}` → `{"1": "a"}`）。
 fn dict_key_text(k: &Val) -> Result<String, String> {
     match k {
-        Val::Str(s) => Ok(s.clone()),
+        Val::Str(s) => Ok(s.to_string()),
         Val::Int(i) => Ok(i.to_string()),
         Val::Float(f) => Ok(jishi_frontend::serialize::py_repr_float(*f)),
         Val::Bool(b) => Ok(if *b { "true" } else { "false" }.to_string()),

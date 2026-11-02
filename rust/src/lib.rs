@@ -103,7 +103,7 @@ enum DictKey {
     /// 归一到一起的判据是 `Val::eq`：`1 == 1.0`、`真 == 1`、`假 == 0`
     /// 都是真 → 它们的哈希键必须相同（哈希与相等必须一致）。
     Int(i128),
-    Str(String),
+    Str(Rc<str>),
     /// 字节（M113）：与 `Val::Bytes` 一一对应，**可以当字典键 / 集合成员**。
     Bytes(Vec<u8>),
     /// **非整数浮点**（`1.5` / `±inf`）。存 `to_bits()`，`-0.0` 已归一成正零。
@@ -324,6 +324,23 @@ type JInst = Rc<RefCell<Instance>>;
 /// 详见 `docs/设计决策.md` D46。
 pub(crate) type JCell = Rc<RefCell<Cell>>;
 
+/// 内建的「名字 + 函数指针」打包（M165b）。
+///
+/// 见 `Val::Builtin` 的注释：`&'static str` 是胖指针，两个字段并排会把 `Val`
+/// 顶在 32 字节；打包后 `Val` 是 24（`Int(i128)` 与 `Rc<str>` 都正好 16）。
+#[derive(Clone)]
+pub(crate) struct BuiltinDef {
+    pub name: &'static str,
+    pub f: fn(&[Val], &mut dyn BuiltinHost) -> Result<Val, JishiError>,
+}
+
+/// 造一个内建值。所有内建表都用它 —— 免得 33 处各自写
+/// `Val::Builtin(Rc::new(BuiltinDef { … }))` 时括号配错。
+pub(crate) fn builtin(name: &'static str,
+                      f: fn(&[Val], &mut dyn BuiltinHost) -> Result<Val, JishiError>) -> Val {
+    Val::Builtin(Rc::new(BuiltinDef { name, f }))
+}
+
 #[derive(Clone)]
 pub(crate) enum Val {
     None_,
@@ -334,7 +351,17 @@ pub(crate) enum Val {
     // 真正的任意精度整数留待需要时再做（Python/JS 侧是任意精度的）。
     Int(i128),
     Float(f64),
-    Str(String),
+    /// 🔴 M165b：**`Rc<str>` 而不是 `String`**。
+    ///
+    /// 原来 `String` 是 24 字节，把 `Val` 顶到 32；更糟的是 `Val::clone()`
+    /// 对它**深拷贝整串** —— `LOAD_FAST` 每读一次字符串变量就 malloc + memcpy
+    /// 一遍。实测读一个 5 字的串要 **387 ns**、1000 字要 **655 ns**，
+    /// 而读一个整数只要 124 ns（CPython 这里几乎为 0，它只是引用计数 +1）。
+    ///
+    /// 换成 `Rc<str>`：克隆变 O(1)，`Val` 从 32 字节降到 24（`Int(i128)` 也是 16）。
+    /// `Rc<str>` 有 `Deref<Target = str>` ⇒ 绝大多数 `s.len()` / `s.chars()` /
+    /// `&*s` 不用改；要 `String` 的地方显式 `.to_string()`。
+    Str(Rc<str>),
     /// 字节（M113）：**不可变的字节串**。见 `docs/设计决策.md` D79。
     ///
     /// 显示成 `字节(0C FF 00)`，`类型()` 给「字节」。**故意没有字面量**——
@@ -389,8 +416,12 @@ pub(crate) enum Val {
     /// 这样**树遍历参考执行器**（`walk.rs`）能跑**同一张**内建表
     /// （R6 主体；见 `BuiltinHost` 的文档注释）。内建只通过这个接口碰宿主，
     /// 于是「内建语义」只有一份实现，不会在两个执行器之间漂。
-    Builtin(&'static str, fn(&[Val], &mut dyn BuiltinHost) -> Result<Val, JishiError>),
-    ExcType(String),
+    /// 🔴 M165b：**打包成一个 `Box`**。原来是 `(&'static str, fn)` ——
+    /// `&'static str` 是**胖指针**（16 字节）+ 函数指针 8 = 24，把 `Val` 顶在 32。
+    /// 打包后 8 字节，`Val` 降到 24。分配只发生在**建内建表时**（每个模块导入一次），
+    /// 不在每次调用上。
+    Builtin(Rc<BuiltinDef>),
+    ExcType(Rc<str>),
     /// `html.原样` 的标记（M50）：这段内容是**已经生成好的 HTML**，
     /// 放进标签里时不再转义。
     ///
@@ -687,7 +718,7 @@ pub(crate) fn set_push(s: &mut Set, v: Val) -> Result<(), JishiError> {
                 format!("「{}」不能放进集合", display(&v)),
                 "集合的元素要是不可变的（数字、文本…）；列表和字典放不进去".to_string()))
         }
-        Val::Func(_) | Val::WalkFn(_) | Val::Class(_) | Val::Builtin(_, _)
+        Val::Func(_) | Val::WalkFn(_) | Val::Class(_) | Val::Builtin(_)
         | Val::BoundMethod(_) | Val::Cell(_) => {
             return Err(err("类型错误",
                 format!("「{}」不能放进集合（Rust 宿主没有可用的身份）", display(&v))))
@@ -1145,14 +1176,14 @@ fn file_call(name: &str, f: Rc<RefCell<FileHandle>>,
             };
             let mut h = f.borrow_mut();
             h.check_read(name)?;
-            Ok(Val::Str(h.read_n(n)?))
+            Ok(Val::Str(h.read_n(n)?.into()))
         }
         "读行" => {
             need_args(name, args, 0, 0)?;
             let mut h = f.borrow_mut();
             h.check_read(name)?;
             Ok(match h.read_line()? {
-                Some(l) => Val::Str(l),
+                Some(l) => Val::Str(l.into()),
                 None => Val::None_,      // 读到末尾给「空」，便于判断
             })
         }
@@ -1162,14 +1193,14 @@ fn file_call(name: &str, f: Rc<RefCell<FileHandle>>,
             h.check_read(name)?;
             let mut out = Vec::new();
             while let Some(l) = h.read_line()? {
-                out.push(Val::Str(l));
+                out.push(Val::Str(l.into()));
             }
             Ok(list_new(out))
         }
         "写" | "写行" => {
             need_args(name, args, 1, 1)?;
             let text = match &args[0] {
-                Val::Str(s) => s.clone(),
+                Val::Str(s) => s.to_string(),
                 other => return Err(err("类型错误", format!(
                     "「{name}」需要文本，得到了「{}」", type_label(other)))),
             };
@@ -2396,12 +2427,12 @@ impl VM {
                             instrs = &module.codes[code_idx].instrs;
                             continue;
                         }
-                        Val::Builtin(name, bfn) => {
+                        Val::Builtin(bd) => {
                             // 命名参数在这里映射回位置参数（M51）。以前是直接
                             // `bfn(&args, self)` —— kwargs 被**静默丢掉**：
                             // `加密.摘要("abc", 算法="md5")` 会悄悄用 sha256。
-                            let mapped = map_kwargs(name, &args, &knames, &kwvals)?;
-                            let out = bfn(&mapped, self)?;
+                            let mapped = map_kwargs(bd.name, &args, &knames, &kwvals)?;
+                            let out = (bd.f)(&mapped, self)?;
                             self.stack.push(out);
                         }
                         Val::Class(c) => {
@@ -2478,7 +2509,7 @@ impl VM {
                             // 压栈而不是 `return` —— 与上面 `builtin =>` 那条一样，
                             // 调用完继续跑当前帧。
                             self.stack.push(Val::Exc(Rc::new(ExcValue {
-                                type_name: t.clone(),
+                                type_name: t.to_string(),
                                 message: msg,
                                 code: error_code(&t).map(|s| s.to_string()),
                                 // ⚠️ **不带位置**：与 Python `ExcType.__call__`
@@ -3032,7 +3063,7 @@ impl VM {
     /// `stop_at` 就返回，错误顺着 `?` 传回调用方。
     fn call_value(&mut self, callee: Val, args: Vec<Val>) -> Result<Val, JishiError> {
         match callee {
-            Val::Builtin(_, f) => f(&args, self),
+            Val::Builtin(b) => (b.f)(&args, self),
             Val::Func(func) => self.call_frame(*func, args, None),
             Val::BoundMethod(bm) => match *bm {
                 BoundMethod::User { func, instance, .. } =>
@@ -3157,7 +3188,7 @@ impl VM {
         }
         let m = self.get_attr_on(v.clone(), "文本")?;
         match self.call_value(m, Vec::new())? {
-            Val::Str(s) => Ok(Some(s)),
+            Val::Str(s) => Ok(Some(s.to_string())),
             other => {
                 let cls = inst_rc.borrow().class.name.clone();
                 Err(err("类型错误", format!(
@@ -3396,7 +3427,7 @@ pub(crate) fn display(v: &Val) -> String {
         Val::Bool(false) => "假".to_string(),
         Val::Int(i) => i.to_string(),
         Val::Float(f) => format_float(*f),
-        Val::Str(s) => s.clone(),
+        Val::Str(s) => s.to_string(),
         // 字节（M113）：`字节(0C FF 00)` —— 见下面的 `bytes_display`
         Val::Bytes(b) => bytes_display(b),
         // 原样片段显示成它本身（与 Python 侧 `_Raw.__str__` 同行为）
@@ -3449,7 +3480,7 @@ pub(crate) fn display(v: &Val) -> String {
         // `<异常类型 值错误>`）—— 2026-10-07 修：宿主以前给 `<内建函数 打印>` /
         // 裸的 `值错误`。旧测试没覆盖到（`test_m32` 的 `_agree` 只比 Python VM
         // 与 Node，没算上 Rust），是「调试器 `变量 全部` 对拍」照出来的。
-        Val::Builtin(n, _) => format!("<内建 {n}>"),
+        Val::Builtin(b) => format!("<内建 {}>", b.name),
         Val::ExcType(t) => format!("<异常类型 {t}>"),
         // 只在「信号穿过 finally」的内部流程里短暂出现，用户看不到
         Val::LoopSignal(c) => if *c == 1 { "中断".to_string() } else { "继续".to_string() },
@@ -3699,7 +3730,7 @@ fn numeric_add(a: Val, b: Val) -> Result<Val, JishiError> {
     match (a, b) {
         (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x as f64 + y)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x + y)),
-        (Val::Str(x), Val::Str(y)) => Ok(Val::Str(x + &y)),
+        (Val::Str(x), Val::Str(y)) => Ok(Val::Str(format!("{x}{y}").into())),
         // 字节（M113）：只能字节拼字节 —— 与文本拼会掉到 `_` 那条报错（D79 §三）
         (Val::Bytes(x), Val::Bytes(y)) => {
             let mut out = x.as_ref().clone();
@@ -3729,7 +3760,7 @@ fn numeric_mul(a: Val, b: Val) -> Result<Val, JishiError> {
     match (a, b) {
         (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x as f64 * y)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x * y)),
-        (Val::Str(s), Val::Int(n)) | (Val::Int(n), Val::Str(s)) => Ok(Val::Str(s.repeat(n as usize))),
+        (Val::Str(s), Val::Int(n)) | (Val::Int(n), Val::Str(s)) => Ok(Val::Str(s.repeat(n as usize).into())),
         // 字节（M113）：重复 n 遍，n <= 0 给空字节（与 `文本 * n` 同口径）
         (Val::Bytes(b), Val::Int(n)) | (Val::Int(n), Val::Bytes(b)) => {
             let mut out: Vec<u8> = Vec::new();
@@ -3882,7 +3913,7 @@ fn dec_call(name: &str, d: &Dec, args: &[Val]) -> Result<Val, JishiError> {
             Ok(Val::Dec(Rc::new(back)))
         }
         "绝对值" => { need_args(name, args, 0, 0)?; Ok(Val::Dec(Rc::new(d.abs()))) }
-        "转文本" => { need_args(name, args, 0, 0)?; Ok(Val::Str(d.to_string())) }
+        "转文本" => { need_args(name, args, 0, 0)?; Ok(Val::Str(d.to_string().into())) }
         _ => Err(err("类型错误", format!("「{name}」方法调用未实现"))),
     }
 }
@@ -3960,7 +3991,7 @@ fn contains(container: &Val, item: &Val) -> Result<bool, JishiError> {
         Val::List(l) => Ok(l.borrow().iter().any(|x| x == item)),
         Val::Dict(d) => Ok(d.borrow().iter().any(|(k, _)| k == item)),
         Val::Str(s) => {
-            let needle = match item { Val::Str(t) => t.clone(), other => display(other) };
+            let needle = match item { Val::Str(t) => t.to_string(), other => display(other) };
             Ok(s.contains(&needle))
         }
         Val::Set(s) => Ok(s.borrow().contains(item)),
@@ -4015,14 +4046,14 @@ fn identity_key(v: &Val) -> Result<IdKey, JishiError> {
         Val::WalkFn(f) if f.self_val.is_some() => Err(err("运行期错误",
             format!("Rust 宿主暂不支持对「{}」用「是 / 不是」", display(v)))),
         Val::WalkFn(f) => Ok(IdKey::Identity(f.id)),
-        Val::Builtin(_, fp) => Ok(IdKey::Identity(*fp as usize)),
-        Val::ExcType(n) => Ok(IdKey::Value("异常类型".into(), n.clone())),
+        Val::Builtin(b) => Ok(IdKey::Identity(b.f as usize)),
+        Val::ExcType(n) => Ok(IdKey::Value("异常类型".into(), n.to_string())),
         Val::Module(n, _) => Ok(IdKey::Value("模块".into(), n.as_str().to_string())),
         Val::None_ => Ok(IdKey::Singleton(true, false)),
         Val::Bool(b) => Ok(IdKey::Singleton(false, *b)),
         Val::Int(i) => Ok(IdKey::Value("整数".into(), i.to_string())),
         Val::Float(f) => Ok(IdKey::Value("小数".into(), f.to_string())),
-        Val::Str(s) => Ok(IdKey::Value("文本".into(), s.clone())),
+        Val::Str(s) => Ok(IdKey::Value("文本".into(), s.to_string())),
         // 字节按**值**比（M113）：不可变标量，与「文本」「数字」同一条规矩
         // （对齐 Python 侧 `_identity_snapshot`）
         Val::Bytes(b) => Ok(IdKey::Value("字节".into(), format!("{:?}", b))),
@@ -4156,7 +4187,7 @@ fn shift_count(v: &Val, func: &str) -> Result<i128, JishiError> {
 
 pub(crate) fn new_builtins() -> HashMap<String, Val> {
     let mut m = HashMap::new();
-    m.insert("打印".to_string(), Val::Builtin("打印", |args, vm| {
+    m.insert("打印".to_string(), crate::builtin("打印", |args, vm| {
         // 走 format_value（不是 display）：顶层文本**不带引号**、空/真/假中文，
         // 而且自定义对象的「文本()」方法在这儿才跑得起来（需要 VM）。
         let mut parts = Vec::with_capacity(args.len());
@@ -4177,7 +4208,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         vm.write_output("\n");
         Ok(Val::None_)
     }));
-    m.insert("输入".to_string(), Val::Builtin("输入", |args, vm| {
+    m.insert("输入".to_string(), crate::builtin("输入", |args, vm| {
         need_builtin_args("输入", args, 0, 1)?;
         // 提示语写到输出流（不换行），与 Python 的 `input(prompt)` 一致
         if let Some(p) = args.first() {
@@ -4209,7 +4240,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                 if let Some(余) = 行.strip_prefix('\u{feff}') {
                     行 = 余;
                 }
-                Ok(Val::Str(行.to_string()))
+                Ok(Val::Str(行.to_string().into()))
             }
             Err(e) if e.kind() == std::io::ErrorKind::InvalidData => Err(
                 err_coded_hint("编码错误", "E2011",
@@ -4220,7 +4251,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                                         INPUT_END_HINT.to_string())),
         }
     }));
-    m.insert("整数".to_string(), Val::Builtin("整数", |args, _vm| {
+    m.insert("整数".to_string(), crate::builtin("整数", |args, _vm| {
         need_builtin_args("整数", args, 1, 1)?;
         // 归类与 Python 侧 `_b_int` 一致（M41）：文本转不动 → **值错误**；
         // 类型本身不对（列表/字典/集合）→ **类型错误**。
@@ -4243,7 +4274,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             )),
         }
     }));
-    m.insert("小数".to_string(), Val::Builtin("小数", |args, _vm| {
+    m.insert("小数".to_string(), crate::builtin("小数", |args, _vm| {
         need_builtin_args("小数", args, 1, 1)?;
         match &args[0] {
             Val::Int(i) => Ok(Val::Float(*i as f64)),
@@ -4259,27 +4290,27 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             )),
         }
     }));
-    m.insert("文本".to_string(), Val::Builtin("文本", |args, vm| {
+    m.insert("文本".to_string(), crate::builtin("文本", |args, vm| {
         need_builtin_args("文本", args, 1, 1)?;
         // 同样走 format_value：`文本(空)` 给「空」，`文本(对象)` 用「文本()」方法
         let mut out = String::new();
         for a in args {
             out.push_str(&vm.format_value(a, true)?);
         }
-        Ok(Val::Str(out))
+        Ok(Val::Str(out.into()))
     }));
     // 文本插值脱糖的目标（M40）：**内部保留名**，用户写不出（Python 侧词法器
     // 不认 `$`），所以不会被 `导入 文本` 遮蔽。与 jishi/parser.py 的
     // INTERP_TO_TEXT 同名，语义与 `文本` 一致。
-    m.insert("$文本".to_string(), Val::Builtin("$文本", |args, vm| {
+    m.insert("$文本".to_string(), crate::builtin("$文本", |args, vm| {
         need_builtin_args("$文本", args, 1, 1)?;
         let mut out = String::new();
         for a in args {
             out.push_str(&vm.format_value(a, true)?);
         }
-        Ok(Val::Str(out))
+        Ok(Val::Str(out.into()))
     }));
-    m.insert("长度".to_string(), Val::Builtin("长度", |args, vm| {
+    m.insert("长度".to_string(), crate::builtin("长度", |args, vm| {
         need_builtin_args("长度", args, 1, 1)?;
         match &args[0] {
             Val::Str(s) => Ok(Val::Int(s.chars().count() as i128)),
@@ -4307,7 +4338,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                          format!("「{}」没有长度", display(&args[0])))),
         }
     }));
-    m.insert("范围".to_string(), Val::Builtin("范围", |args, _vm| {
+    m.insert("范围".to_string(), crate::builtin("范围", |args, _vm| {
         // M56：改用统一检查 —— 以前这里自己写了一句「范围需要 1 到 3 个参数」，
         // 没书名号、也少了「但传了 N 个」，与另两个宿主对不上。
         // ⚠️ 这个内建**不走**通用的 `need_builtin_args` 文案：Python 侧
@@ -4329,14 +4360,14 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     // M41：`带下标` / `配对`（Python 的 enumerate / zip 同语义）。
     // 用 `seq_of` 而不是 `to_vec`——前者认得「定义了 `迭代` 的自定义对象」，
     // 与 Python 侧 `_as_iterable` 的口径一致。
-    m.insert("带下标".to_string(), Val::Builtin("带下标", |args, vm| {
+    m.insert("带下标".to_string(), crate::builtin("带下标", |args, vm| {
         if args.is_empty() || args.len() > 2 {
             return Err(err("类型错误", "「带下标」需要 1 到 2 个参数，例如 带下标(列表)"));
         }
         let seq = match seq_of(&args[..1], vm)? {
             Some(s) => s,
             None => match &args[0] {
-                Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string())).collect(),
+                Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string().into())).collect(),
                 other => {
                     return Err(err(
                         "类型错误",
@@ -4356,7 +4387,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             .collect();
         Ok(list_new(out))
     }));
-    m.insert("配对".to_string(), Val::Builtin("配对", |args, vm| {
+    m.insert("配对".to_string(), crate::builtin("配对", |args, vm| {
         if args.is_empty() {
             return Err(err("类型错误", "「配对」至少要给一个可迭代对象"));
         }
@@ -4367,7 +4398,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                 Some(s) => seqs.push(s),
                 None => match a {
                     Val::Str(s) => {
-                        seqs.push(s.chars().map(|c| Val::Str(c.to_string())).collect());
+                        seqs.push(s.chars().map(|c| Val::Str(c.to_string().into())).collect());
                     }
                     other => {
                         return Err(err(
@@ -4386,42 +4417,42 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     }));
     // 变参：至少 1 个（M55 补检查 —— 以前 0 个参数走各自的兜底，
     // 文案与另两个引擎对不上）
-    m.insert("最大".to_string(), Val::Builtin("最大", |args, vm| {
+    m.insert("最大".to_string(), crate::builtin("最大", |args, vm| {
         need_at_least_args("最大", args, 1)?;
         b_max(args, vm)
     }));
-    m.insert("最小".to_string(), Val::Builtin("最小", |args, vm| {
+    m.insert("最小".to_string(), crate::builtin("最小", |args, vm| {
         need_at_least_args("最小", args, 1)?;
         b_min(args, vm)
     }));
-    m.insert("总和".to_string(), Val::Builtin("总和", |args, vm| {
+    m.insert("总和".to_string(), crate::builtin("总和", |args, vm| {
         need_builtin_args("总和", args, 1, 1)?;
         b_sum(args, vm)
     }));
-    m.insert("类型".to_string(), Val::Builtin("类型", |args, _vm| {
+    m.insert("类型".to_string(), crate::builtin("类型", |args, _vm| {
         need_builtin_args("类型", args, 1, 1)?;
-        Ok(Val::Str(type_label(&args[0])))
+        Ok(Val::Str(type_label(&args[0]).into()))
     }));
     // 位运算内建（M36）：Python 侧**不做 `& | ^ << >>` 语法**（日常罕见，
     // 加运算符要动三执行器 + 两宿主 + 词法器），改成一小组内建。
-    m.insert("位与".to_string(), Val::Builtin("位与", |args, _vm| {
+    m.insert("位与".to_string(), crate::builtin("位与", |args, _vm| {
         need_builtin_args("位与", args, 2, 2)?;
         Ok(Val::Int(as_bit_int(&args[0], "位与")? & as_bit_int(&args[1], "位与")?))
     }));
-    m.insert("位或".to_string(), Val::Builtin("位或", |args, _vm| {
+    m.insert("位或".to_string(), crate::builtin("位或", |args, _vm| {
         need_builtin_args("位或", args, 2, 2)?;
         Ok(Val::Int(as_bit_int(&args[0], "位或")? | as_bit_int(&args[1], "位或")?))
     }));
-    m.insert("位异或".to_string(), Val::Builtin("位异或", |args, _vm| {
+    m.insert("位异或".to_string(), crate::builtin("位异或", |args, _vm| {
         need_builtin_args("位异或", args, 2, 2)?;
         Ok(Val::Int(as_bit_int(&args[0], "位异或")? ^ as_bit_int(&args[1], "位异或")?))
     }));
-    m.insert("位取反".to_string(), Val::Builtin("位取反", |args, _vm| {
+    m.insert("位取反".to_string(), crate::builtin("位取反", |args, _vm| {
         need_builtin_args("位取反", args, 1, 1)?;
         // `!a`（补码取反）= `-a - 1`，与 Python 的 `~a` 一致
         Ok(Val::Int(!as_bit_int(&args[0], "位取反")?))
     }));
-    m.insert("左移".to_string(), Val::Builtin("左移", |args, _vm| {
+    m.insert("左移".to_string(), crate::builtin("左移", |args, _vm| {
         need_builtin_args("左移", args, 2, 2)?;
         let a = as_bit_int(&args[0], "左移")?;
         let n = shift_count(&args[1], "左移")?;
@@ -4435,7 +4466,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             err("类型错误", "「左移」的结果超出整数范围（Rust 宿主整数到 i128 就到边界）")
         })
     }));
-    m.insert("右移".to_string(), Val::Builtin("右移", |args, _vm| {
+    m.insert("右移".to_string(), crate::builtin("右移", |args, _vm| {
         need_builtin_args("右移", args, 2, 2)?;
         let a = as_bit_int(&args[0], "右移")?;
         let n = shift_count(&args[1], "右移")?;
@@ -4448,14 +4479,14 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     }));
     // 类型标注的参数校验（M24.3）：编译器把校验发射成函数自己的前导字节码，
     // 宿主实现这个内建就自动获得这项能力（M32 补齐，JS 侧是 M30 补的）。
-    m.insert("检查实参".to_string(), Val::Builtin("检查实参", |args, _vm| {
+    m.insert("检查实参".to_string(), crate::builtin("检查实参", |args, _vm| {
         need_builtin_args("检查实参", args, 3, 3)?;
         check_args(&args[0], &args[1], &args[2])
     }));
-    m.insert("反转".to_string(), Val::Builtin("反转", |args, _vm| {
+    m.insert("反转".to_string(), crate::builtin("反转", |args, _vm| {
         need_builtin_args("反转", args, 1, 1)?;
         match &args[0] {
-            Val::Str(s) => Ok(Val::Str(s.chars().rev().collect())),
+            Val::Str(s) => Ok(Val::Str(s.chars().rev().collect::<String>().into())),
             Val::List(l) => { let mut x = l.borrow().clone(); x.reverse(); Ok(list_new(x)) }
             _ => Err(err("类型错误", "「反转」需要列表或文本")),
         }
@@ -4464,7 +4495,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     //
     // 口径：**「一个字符」= 一个 Unicode 码点**。Rust 的 `String` 是 UTF-8，
     // 所以不能按字节也不能按 `.len()` —— 一律走 `chars()`（迭代即码点）。
-    m.insert("序数".to_string(), Val::Builtin("序数", |args, _vm| {
+    m.insert("序数".to_string(), crate::builtin("序数", |args, _vm| {
         need_builtin_args("序数", args, 1, 1)?;
         let s = match &args[0] {
             Val::Str(s) => s,
@@ -4482,7 +4513,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         }
         Ok(Val::Int(first as i128))
     }));
-    m.insert("字符".to_string(), Val::Builtin("字符", |args, _vm| {
+    m.insert("字符".to_string(), crate::builtin("字符", |args, _vm| {
         need_builtin_args("字符", args, 1, 1)?;
         // 不收布尔（与位运算内建同一取舍）
         let n = match &args[0] {
@@ -4494,16 +4525,16 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             .and_then(char::from_u32)
             .ok_or_else(|| err("值错误", format!(
                 "码点 {n} 超出范围，合法范围是 0 到 1114111")))?;
-        Ok(Val::Str(cp.to_string()))
+        Ok(Val::Str(cp.to_string().into()))
     }));
     // -- 精确小数（M29）--
-    m.insert("精确".to_string(), Val::Builtin("精确", |args, _vm| {
+    m.insert("精确".to_string(), crate::builtin("精确", |args, _vm| {
         // M56：改用统一检查（以前少「，但传了 N 个」）
         need_builtin_args("精确", args, 1, 1)?;
         Ok(Val::Dec(Rc::new(to_dec(&args[0])?)))
     }));
     // -- 集合 / 文件 / 上下文（M29）--
-    m.insert("集合".to_string(), Val::Builtin("集合", |args, _vm| {
+    m.insert("集合".to_string(), crate::builtin("集合", |args, _vm| {
         if args.len() > 1 {
             return Err(err("类型错误", format!(
                 "「集合」最多接受 1 个参数，但传了 {} 个", args.len())));
@@ -4512,7 +4543,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         let items = as_iterable(&args[0], "集合的初始内容")?;
         set_new(items)
     }));
-    m.insert("打开".to_string(), Val::Builtin("打开", |args, _vm| {
+    m.insert("打开".to_string(), crate::builtin("打开", |args, _vm| {
         // M55：改用统一的检查 —— 文案与 Python / Node 侧逐字对齐
         need_builtin_args("打开", args, 1, 2)?;
         let path = match &args[0] {
@@ -4522,13 +4553,13 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         };
         let mode = match args.get(1) {
             None => "读".to_string(),
-            Some(Val::Str(s)) => s.clone(),
+            Some(Val::Str(s)) => s.to_string(),
             Some(other) => return Err(err("类型错误", format!(
                 "「打开」的第二个参数（模式）要是文本，得到了「{}」", type_label(other)))),
         };
         Ok(Val::File(open_file(&path, &mode)?))
     }));
-    m.insert("$造模块".to_string(), Val::Builtin("$造模块", |args, _vm| {
+    m.insert("$造模块".to_string(), crate::builtin("$造模块", |args, _vm| {
         // 内部用（M52）：把「用基石写的标准库」的导出字典包成模块对象。
         // 与 Python 侧 `_b_make_module` 同义 —— `统计.求和(...)` 的语法
         // 因此一个字都不用改，`打印(统计)` 也还是 `<模块 统计>`。
@@ -4536,13 +4567,13 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         if args.len() != 2 {
             return Err(err("类型错误", "$造模块 需要 2 个参数"));
         }
-        let name = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
+        let name = match &args[0] { Val::Str(s) => s.to_string(), o => display(o) };
         match &args[1] {
             Val::Dict(d) => {
                 // 本宿主的字典是**有序 Vec**（保插入顺序），模块表要 HashMap
                 let mut table: HashMap<String, Val> = HashMap::new();
                 for (k, v) in d.borrow().iter() {
-                    let key = match k { Val::Str(s) => s.clone(), o => display(o) };
+                    let key = match k { Val::Str(s) => s.to_string(), o => display(o) };
                     table.insert(key, v.clone());
                 }
                 Ok(Val::Module(Box::new(name), Box::new(table)))
@@ -4551,7 +4582,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                 format!("$造模块 的第二个参数要传字典，得到了「{}」", display(o)))),
         }
     }));
-    m.insert("进入上下文".to_string(), Val::Builtin("进入上下文", |args, vm| {
+    m.insert("进入上下文".to_string(), crate::builtin("进入上下文", |args, vm| {
         // M56：改用统一检查（以前是「进入上下文 需要 1 个参数」—— 有空格、无书名号）
         need_builtin_args("进入上下文", args, 1, 1)?;
         let obj = args[0].clone();
@@ -4569,7 +4600,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             "「{}」不能当上下文管理器用；它既没有「进入」也没有「退出/关闭」方法",
             type_label(&obj))))
     }));
-    m.insert("退出上下文".to_string(), Val::Builtin("退出上下文", |args, vm| {
+    m.insert("退出上下文".to_string(), crate::builtin("退出上下文", |args, vm| {
         // M56：改用统一检查（同「进入上下文」）
         need_builtin_args("退出上下文", args, 1, 1)?;
         let obj = args[0].clone();
@@ -4588,10 +4619,10 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     // 同宽 —— M55 补 `断言错误` 时发现它一直缺着（`捕获 断言错误` 在 Rust 上
     // 报「找不到名字」）。lang-spec 的 `exceptions` 节是权威清单。
     for t in EXCEPTION_NAMES {
-        m.insert(t.to_string(), Val::ExcType(t.to_string()));
+        m.insert(t.to_string(), Val::ExcType(t.to_string().into()));
     }
     // -- M55 补的两个内建（以前 Rust 侧根本没有，`--dump-builtins` 抓出来的）--
-    m.insert("断言".to_string(), Val::Builtin("断言", |args, _vm| {
+    m.insert("断言".to_string(), crate::builtin("断言", |args, _vm| {
         need_builtin_args("断言", args, 1, 2)?;
         if truthy(args[0].clone()) {
             return Ok(Val::None_);
@@ -4601,7 +4632,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                   else { "条件不成立".to_string() };
         Err(err("断言错误", msg))
     }));
-    m.insert("是实例".to_string(), Val::Builtin("是实例", |args, _vm| {
+    m.insert("是实例".to_string(), crate::builtin("是实例", |args, _vm| {
         need_builtin_args("是实例", args, 2, 2)?;
         let cls = match &args[1] {
             Val::Class(c) => c,
@@ -4621,7 +4652,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     // `超()`（M56 补）：编译器把 `超().方法(x)` 脱糖成 `超(自身, "定义类名")`，
     // 于是它是个**运行期内建** —— 两个宿主以前都没注册它，`超()` 在宿主上
     // 一直报「找不到名字「超」」。
-    m.insert("超".to_string(), Val::Builtin("超", |args, _vm| {
+    m.insert("超".to_string(), crate::builtin("超", |args, _vm| {
         need_builtin_args("超", args, 2, 2)?;
         let inst = match &args[0] {
             Val::Instance(i) => i.clone(),
@@ -5103,8 +5134,8 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
         // 被捕获的异常（M56）：`e.类型` / `e.消息` 可读 —— 与 Python 侧
         // `JishiError` 的属性、Node 侧 `getAttr` 的 `JishiError` 分支一致。
         Val::Exc(e) => match attr {
-            "类型" => Ok(Val::Str(e.type_name.clone())),
-            "消息" => Ok(Val::Str(e.message.clone())),
+            "类型" => Ok(Val::Str(e.type_name.clone().into())),
+            "消息" => Ok(Val::Str(e.message.clone().into())),
             // M148：`e.原因`（上一层）/ `e.根因`（链最底下），与 Python 侧同名同义
             "原因" => Ok(match &e.cause {
                 Some(c) => Val::Exc(c.clone()),
@@ -5196,7 +5227,7 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
                     if st == 1 {
                         let s0 = a.max(0) as usize;
                         let e0 = b.max(0) as usize;
-                        return Ok(Val::Str(text[s0..e0.max(s0)].to_string()));
+                        return Ok(Val::Str(text[s0..e0.max(s0)].to_string().into()));
                     }
                     let bytes = text.as_bytes();
                     return Ok(Val::Str(
@@ -5204,8 +5235,7 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
                             .into_iter()
                             .filter_map(|i| bytes.get(i as usize))
                             .map(|&c| c as char)
-                            .collect(),
-                    ));
+                            .collect::<String>().into()));
                 }
                 let n = text.chars().count();
                 let (a, b, st) = slice_indices(sl, n)?;
@@ -5214,16 +5244,14 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
                     let s0 = a.max(0) as usize;
                     let e0 = b.max(0) as usize;
                     return Ok(Val::Str(
-                        text.chars().skip(s0).take(e0.saturating_sub(s0)).collect(),
-                    ));
+                        text.chars().skip(s0).take(e0.saturating_sub(s0)).collect::<String>().into()));
                 }
                 let chars: Vec<char> = text.chars().collect();
                 Ok(Val::Str(
                     slice_positions(a, b, st)
                         .into_iter()
                         .filter_map(|i| chars.get(i as usize))
-                        .collect(),
-                ))
+                        .collect::<String>().into()))
             }
             Val::Bytes(b) => {
                 let (a, bb, st) = slice_indices(sl, b.len())?;
@@ -5263,13 +5291,13 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
             // 扫描更贵）。本项目的老规矩：**通了再留，不通就删**。
             if i >= 0 {
                 return match s.chars().nth(i as usize) {
-                    Some(c) => Ok(Val::Str(c.to_string())),
+                    Some(c) => Ok(Val::Str(c.to_string().into())),
                     None => Err(err("索引错误", STR_INDEX_MSG)),
                 };
             }
             let n = s.chars().count();
             match norm_index(i, n) {
-                Some(j) => Ok(Val::Str(s.chars().nth(j).unwrap().to_string())),
+                Some(j) => Ok(Val::Str(s.chars().nth(j).unwrap().to_string().into())),
                 None => Err(err("索引错误", STR_INDEX_MSG)),
             }
         }
@@ -5579,7 +5607,7 @@ pub fn builtin_names() -> Vec<String> {
     let mut names: Vec<String> = table.iter()
         .filter(|(n, v)| !n.starts_with('$')
             && !INTERNAL_BUILTIN_NAMES.contains(&n.as_str())
-            && matches!(v, Val::Builtin(_, _)))
+            && matches!(v, Val::Builtin(_)))
         .map(|(n, _)| n.clone())
         .collect();
     names.sort();
@@ -5617,7 +5645,7 @@ pub(crate) const EXCEPTION_NAMES: [&str; 9] = [
 
 /// 检查一个参数确实可调用（`映射`/`过滤`/`排序按`/`归约` 的报错要说清是哪个方法）。
 fn ensure_callable(v: &Val, name: &str) -> Result<Val, JishiError> {
-    let ok = matches!(v, Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_, _)
+    let ok = matches!(v, Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_)
                       | Val::BoundMethod(_));
     if !ok {
         return Err(err("类型错误", format!(
@@ -5631,7 +5659,7 @@ fn as_iterable(v: &Val, what: &str) -> Result<Vec<Val>, JishiError> {
     match v {
         Val::List(l) => Ok(l.borrow().clone()),
         Val::Set(s) => Ok(s.borrow().to_items()),
-        Val::Str(s) => Ok(s.chars().map(|c| Val::Str(c.to_string())).collect()),
+        Val::Str(s) => Ok(s.chars().map(|c| Val::Str(c.to_string().into())).collect()),
         // 字节（M113）：逐个给**整数** 0-255（与 Python 的 `list(b"abc")` 一致）。
         // ⚠️ 这一点务必记牢：`总和(字节)` 会因此**静默**变成「字节值之和」——
         // 所以 `b_sum` / `b_max` / `b_min` 里各有一条显式拦截（D79 §三）。
@@ -5648,7 +5676,7 @@ pub(crate) fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, Jis
     // 不该把原列表搬空。
     let seq: Vec<Val> = match v {
         Val::List(l) => l.borrow().clone(),
-        Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string())).collect(),
+        Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string().into())).collect(),
         // 字典解出来的是键（与 Python 侧一致）
         Val::Dict(d) => d.borrow().iter().map(|(k, _)| k.clone()).collect(),
         other => return Err(err_with_hint(
@@ -5690,7 +5718,7 @@ pub(crate) fn make_exception(v: Val, cause: Option<&Val>) -> JishiError {
         // 否则一路丢成「错误（类型错误）：」（M56）。
         // M148：连同它自己的「起因」链一起带过来（`ExcValue::to_error`）。
         Val::Exc(x) => ExcValue::to_error(x),
-        Val::Str(s) => err("异常", s.clone()),
+        Val::Str(s) => err("异常", s.to_string()),
         other => err("异常", display(other)),
     };
     // 挂「起因」（M148）：与 Python `runtime.make_exception` 同两条规则 ——
@@ -5717,14 +5745,14 @@ pub(crate) fn exception_matches(exc: &Val, cond: &Val) -> Result<bool, JishiErro
     };
     // 左边可能是类型本身，也可能是**捕获住的异常对象**（M56 起压的是后者）
     let t: &str = match exc {
-        Val::ExcType(t) => t,
+        Val::ExcType(t) => t.as_ref(),
         Val::Exc(e) => &e.type_name,
         _ => return Ok(false),
     };
-    if c == "异常" { return Ok(true); }
+    if c.as_ref() == "异常" { return Ok(true); }
     let mut cur = t;
     loop {
-        if cur == c { return Ok(true); }
+        if cur == c.as_ref() { return Ok(true); }
         match EXC_PARENT.iter().find(|(child, _)| *child == cur) {
             Some((_, parent)) => cur = parent,
             None => return Ok(false),
@@ -5882,7 +5910,7 @@ pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
                 items, idx: 0, src: Val::Set(s), expect }))))
         }
         Val::Str(s) => Ok(reversed_iter(
-            s.chars().map(|c| Val::Str(c.to_string())).collect())),
+            s.chars().map(|c| Val::Str(c.to_string().into())).collect())),
         // 字节（M113）：**快照**就行 —— 字节本来就不可变，不存在
         // 「遍历中改大小」那种问题。逐个给整数 0-255。
         Val::Bytes(b) => Ok(reversed_iter(
@@ -5956,7 +5984,7 @@ pub(crate) fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
         Val::File(f) => {
             let mut h = f.borrow_mut();
             h.check_read("遍历")?;
-            Ok(h.read_line()?.map(Val::Str))
+            Ok(h.read_line()?.map(|s| Val::Str(s.into())))
         }
         _ => Err(err("类型错误", "迭代器错误"))
     }
@@ -6094,13 +6122,13 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
             }
             (Val::Dict(d), "清空") => { need_args(&name, args, 0, 0)?; d.borrow_mut().clear(); Ok(Val::None_) }
             // -- 字符串方法 --
-            (Val::Str(s), "大写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_uppercase())) }
-            (Val::Str(s), "小写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_lowercase())) }
-            (Val::Str(s), "去空白") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.trim().to_string())) }
+            (Val::Str(s), "大写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_uppercase().into())) }
+            (Val::Str(s), "小写") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.to_lowercase().into())) }
+            (Val::Str(s), "去空白") => { need_args(&name, args, 0, 0)?; Ok(Val::Str(s.trim().to_string().into())) }
             (Val::Str(s), "拆分") => {
                 need_args(&name, args, 0, 1)?;
                 let sep = args.first().map(display).unwrap_or_default();
-                Ok(list_new(s.split(&sep).map(|p| Val::Str(p.to_string())).collect()))
+                Ok(list_new(s.split(&sep).map(|p| Val::Str(p.to_string().into())).collect()))
             }
             (Val::Str(s), "查找") => {
                 // M54 补：以前 Rust 宿主**根本没有这个方法**（`文本` 少这一个，
@@ -6114,12 +6142,12 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
                 // ⚠️ `str::find` 给的是**字节**偏移，而基石/Python 的口径是
                 // **字符**偏移（`"你好吗".查找("吗") == 2`）。含中文时两者不等，
                 // 得把前缀的字符数出来。
-                Ok(Val::Int(match s.find(&needle) {
+                Ok(Val::Int(match s.find(needle.as_ref()) {
                     Some(b) => s[..b].chars().count() as i128,
                     None => -1,
                 }))
             }
-            (Val::Str(s), "替换") => { need_args(&name, args, 2, 2)?; let a = display(&args[0]); let b = display(&args[1]); Ok(Val::Str(s.replace(&a, &b))) }
+            (Val::Str(s), "替换") => { need_args(&name, args, 2, 2)?; let a = display(&args[0]); let b = display(&args[1]); Ok(Val::Str(s.replace(&a, &b).into())) }
             (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
             (Val::Str(s), "开头是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.starts_with(&display(&args[0])))) }
             (Val::Str(s), "结尾是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.ends_with(&display(&args[0])))) }
@@ -6298,7 +6326,7 @@ pub(crate) fn bind_params_into(buf: &mut Vec<Option<Val>>, name: &str, params: &
         if let Some(pi) = params[..npos].iter().position(|p| p == k) {
             buf[pi] = Some(v.clone());
         } else if let Some(dp) = dstar_pos {
-            extra.push((Val::Str(k.clone()), v.clone()));
+            extra.push((Val::Str(k.clone().into()), v.clone()));
         } else {
             // 照 Python 的 `vm._bind_args`：要说清是**哪个函数**、以及
             // **它有哪些参数**（只报「没有参数」等于让用户去翻定义）。
@@ -6527,7 +6555,7 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
                 })?)
             }
             "float" => Val::Float(c.get("v").and_then(|x| x.as_f64()).unwrap_or(0.0)),
-            "str" => Val::Str(c.get("v").and_then(|x| x.as_str()).unwrap_or("").to_string()),
+            "str" => Val::Str(c.get("v").and_then(|x| x.as_str()).unwrap_or("").to_string().into()),
             _ => return Err(format!("未知常量类型 {t}")),
         };
         consts.push(v);

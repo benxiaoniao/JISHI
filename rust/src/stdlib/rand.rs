@@ -124,7 +124,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             for _ in 0..n {
                 出.push(字符们[below(字符们.len() as u64) as usize]);
             }
-            Ok(Val::Str(出))
+            Ok(Val::Str(出.into()))
         },
         "按权重" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("按权重", args, 2)?;

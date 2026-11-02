@@ -54,7 +54,7 @@ fn 相等(a: &Val, b: &Val) -> bool {
 
 fn 取连接(库: &Val) -> Result<String, crate::JishiError> {
     let 键 = match 库 {
-        Val::Str(s) => s.clone(),
+        Val::Str(s) => s.to_string(),
         o => {
             return Err(err(
                 "类型错误",
@@ -94,7 +94,7 @@ fn 用连接<T>(
 /// 表名 / 字段名 → SQL 标识符（内部双引号翻倍，防注入）。
 fn 名(x: &Val) -> Result<String, crate::JishiError> {
     let s = match x {
-        Val::Str(s) => s.clone(),
+        Val::Str(s) => s.to_string(),
         o => display(o),
     };
     if s.is_empty() {
@@ -140,7 +140,7 @@ fn 名们(x: &Val, 谁: &str) -> Result<Vec<String>, crate::JishiError> {
 /// 裸字段名（不带引号）—— 给 `PRAGMA table_info` 比对用。
 fn 裸名(x: &Val) -> String {
     match x {
-        Val::Str(s) => s.clone(),
+        Val::Str(s) => s.to_string(),
         o => display(o),
     }
 }
@@ -187,7 +187,7 @@ fn 读值(v: rusqlite::types::ValueRef<'_>, 列: &str) -> Result<Val, crate::Jis
         VR::Integer(i) => Val::Int(i as i128),
         VR::Real(f) => Val::Float(f),
         VR::Text(t) => match std::str::from_utf8(t) {
-            Ok(s) => Val::Str(s.to_string()),
+            Ok(s) => Val::Str(s.to_string().into()),
             Err(_) => {
                 return Err(err(
                     "运行期错误",
@@ -216,7 +216,7 @@ fn 存值(v: &Val, 字段: &str) -> Result<rusqlite::types::Value, crate::JishiE
             RV::Integer(*i as i64)
         }
         Val::Float(f) => RV::Real(*f),
-        Val::Str(s) => RV::Text(s.clone()),
+        Val::Str(s) => RV::Text(s.to_string()),
         Val::Date(_) => RV::Text(display(v)), // 与 Python 的 str(datetime) 同口径
         // M113：字节 ↔ BLOB 原样往返
         Val::Bytes(b) => RV::Blob(b.as_ref().clone()),
@@ -297,7 +297,7 @@ fn 行们成记录(结果: &结果) -> Result<Val, crate::JishiError> {
             .列
             .iter()
             .zip(一行.iter())
-            .map(|(c, v)| (Val::Str(c.clone()), v.clone()))
+            .map(|(c, v)| (Val::Str(c.clone().into()), v.clone()))
             .collect();
         out.push(dict_new(pairs));
     }
@@ -479,10 +479,10 @@ pub(crate) fn module() -> HashMap<String, Val> {
     table! { "数据库";
         "打开" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("打开", args, 1, 1)?;
-            let 路径 = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
+            let 路径 = match &args[0] { Val::Str(s) => s.to_string(), o => display(o) };
             let 已有 = 库们.with(|m| m.borrow().contains_key(&路径));
             if 已有 {
-                return Ok(Val::Str(路径));
+                return Ok(Val::Str(路径.into()));
             }
             if 路径 != ":memory:" {
                 let p = std::path::Path::new(&路径);
@@ -501,11 +501,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // ⚠️ 三个引擎都显式设一次（node:sqlite 默认是开的，python/rusqlite 默认关）
             c.execute_batch("PRAGMA foreign_keys = ON").map_err(库错)?;
             库们.with(|m| { m.borrow_mut().insert(路径.clone(), c); });
-            Ok(Val::Str(路径))
+            Ok(Val::Str(路径.into()))
         },
         "关闭" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("关闭", args, 1, 1)?;
-            let 键 = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
+            let 键 = match &args[0] { Val::Str(s) => s.to_string(), o => display(o) };
             库们.with(|m| { m.borrow_mut().remove(&键); });
             Ok(Val::None_)
         },
@@ -901,7 +901,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "执行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("执行", args, 2, 2)?;
             let 键 = 取连接(&args[0])?;
-            let sql = match &args[1] { Val::Str(s) => s.clone(), o => display(o) };
+            let sql = match &args[1] { Val::Str(s) => s.to_string(), o => display(o) };
             if 像查询(&sql) {
                 return Err(err_with_hint(
                     "值错误",
@@ -916,7 +916,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "执行查询" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("执行查询", args, 2, 2)?;
             let 键 = 取连接(&args[0])?;
-            let sql = match &args[1] { Val::Str(s) => s.clone(), o => display(o) };
+            let sql = match &args[1] { Val::Str(s) => s.to_string(), o => display(o) };
             if !像查询(&sql) {
                 return Err(err_with_hint(
                     "值错误",

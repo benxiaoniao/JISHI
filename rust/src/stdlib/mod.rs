@@ -227,7 +227,9 @@ macro_rules! table {
     ($modname:literal; $( $name:literal => $f:expr ),* $(,)?) => {{
         let mut m: HashMap<String, Val> = HashMap::new();
         $( m.insert($name.to_string(),
-                    Val::Builtin(concat!($modname, ".", $name), $f)); )*
+                    Val::Builtin(std::rc::Rc::new(crate::BuiltinDef {
+                        name: concat!($modname, ".", $name), f: $f,
+                    }))); )*
         m
     }};
 }
@@ -337,7 +339,7 @@ pub(crate) fn as_list(v: &Val) -> Result<crate::JList, JishiError> {
 pub(crate) fn to_vec(v: &Val) -> Result<Vec<Val>, JishiError> {
     match v {
         Val::List(l) => Ok(l.borrow().clone()),
-        Val::Str(s) => Ok(s.chars().map(|c| Val::Str(c.to_string())).collect()),
+        Val::Str(s) => Ok(s.chars().map(|c| Val::Str(c.to_string().into())).collect()),
         Val::Dict(d) => Ok(d.borrow().iter().map(|(k, _)| k.clone()).collect()),
         Val::Set(s) => Ok(s.borrow().to_items()),
         _ => Err(err(

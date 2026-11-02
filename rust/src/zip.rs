@@ -476,7 +476,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             fs::write(&zip_path, out.finish())
                 .map_err(|e| err("运行期错误", format!("打包到「{zip_path}」失败：{e}")))?;
-            Ok(Val::Str(zip_path))
+            Ok(Val::Str(zip_path.into()))
         },
         "解压" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("解压", args, 1, 2)?;
@@ -536,7 +536,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 fs::write(&dest, &content)
                     .map_err(|x| err("运行期错误", format!("写「{dest}」失败：{x}")))?;
             }
-            Ok(Val::Str(target))
+            Ok(Val::Str(target.into()))
         },
         // 🔴 M118（台账 R301）：只取包里**一个成员**。`解压` 会把整棵树铺到磁盘上，
         // 而「备份包里我只想要那一份配置」只需要在内存里取一件。
@@ -576,7 +576,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             fs::write(&gz_path, &bytes)
                 .map_err(|e| err("运行错误", format!("压缩到「{gz_path}」失败：{e}")))?;
-            Ok(Val::Str(gz_path))
+            Ok(Val::Str(gz_path.into()))
         },
         "解压文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("解压文件", args, 1)?;
@@ -589,7 +589,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let out = gunzip(&bytes)
                 .map_err(|e| err("运行错误", format!("解压「{gz_path}」失败：{e}")))?;
             match String::from_utf8(out) {
-                Ok(s) => Ok(Val::Str(s)),
+                Ok(s) => Ok(Val::Str(s.into())),
                 Err(_) => Err(err(
                     "运行错误",
                     format!("「{gz_path}」解出来的不是 UTF-8 文本，没法按文本返回"),
@@ -606,7 +606,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("运行期错误", format!("读「{zip_path}」失败：{e}")))?;
             let entries = read_entries(&data)?;
             Ok(crate::list_new(
-                entries.into_iter().map(|e| Val::Str(e.name)).collect(),
+                entries.into_iter().map(|e| Val::Str(e.name.into())).collect(),
             ))
         },
     }

@@ -48,7 +48,7 @@ fn to_bytes(name: &str, v: &Val) -> Result<Vec<u8>, crate::JishiError> {
 /// 解码类函数的输入：必须是 ASCII 文本（base64 / 十六进制都是）。
 fn want_ascii(name: &str, v: &Val) -> Result<String, crate::JishiError> {
     let raw = match v {
-        Val::Str(s) => s.clone(),
+        Val::Str(s) => s.to_string(),
         // 字节 / 0-255 的整数列表：先摊成字节再当 ASCII 文本看
         _ => {
             let bs = to_bytes(name, v)?;
@@ -168,7 +168,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
     table! { "编码";
         "base64编码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("base64编码", args, 1, 1)?;
-            Ok(Val::Str(b64_encode(&to_bytes("base64编码", &args[0])?)))
+            Ok(Val::Str(b64_encode(&to_bytes("base64编码", &args[0])?).into()))
         },
         "base64解码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("base64解码", args, 1, 1)?;
@@ -183,7 +183,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .iter()
                 .map(|b| format!("{:02x}", b))
                 .collect();
-            Ok(Val::Str(if upper { h.to_uppercase() } else { h }))
+            Ok(Val::Str(if upper { h.to_uppercase() } else { h }.into()))
         },
         "十六进制解码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("十六进制解码", args, 1, 1)?;
@@ -222,12 +222,12 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "url编码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("url编码", args, 1, 2)?;
             let keep = !matches!(args.get(1), Some(Val::Bool(false)));
-            Ok(Val::Str(url_quote(&crate::display(&args[0]), keep)))
+            Ok(Val::Str(url_quote(&crate::display(&args[0]), keep).into()))
         },
         "url解码" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("url解码", args, 1, 1)?;
             match &args[0] {
-                Val::Str(s) => Ok(Val::Str(url_unquote(s)?)),
+                Val::Str(s) => Ok(Val::Str(url_unquote(s)?.into())),
                 v => Err(err(
                     "值错误",
                     "「url解码」要传文本",
@@ -259,7 +259,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     "这些字节不是合法的 GBK 文本（可能有截断，或其实是别的编码）",
                 ));
             }
-            Ok(Val::Str(text.into_owned()))
+            Ok(Val::Str(text.into_owned().into()))
         },
         "文本GBK" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("文本GBK", args, 1, 1)?;
@@ -279,7 +279,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "字节文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("字节文本", args, 1, 1)?;
             let bs = to_bytes("字节文本", &args[0])?;
-            String::from_utf8(bs).map(Val::Str).map_err(|_| {
+            String::from_utf8(bs).map(|s| Val::Str(s.into())).map_err(|_| {
                 err(
                     "值错误",
                     "这些字节不是合法的 UTF-8 文本（可能被截断或本来就是二进制）",

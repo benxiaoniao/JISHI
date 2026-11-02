@@ -65,11 +65,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
     table! { "日志";
         "级别们" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("级别们", args, 0, 0)?;
-            Ok(list_new(级别顺序.iter().map(|s| Val::Str(s.to_string())).collect()))
+            Ok(list_new(级别顺序.iter().map(|s| Val::Str(s.to_string().into())).collect()))
         },
         "设级别" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设级别", args, 1, 1)?;
-            let 名 = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
+            let 名 = match &args[0] { Val::Str(s) => s.to_string(), o => display(o) };
             if 级别序号(&名).is_none() {
                 return Err(err(
                     "值错误",
@@ -81,11 +81,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
         },
         "取级别" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("取级别", args, 0, 0)?;
-            Ok(Val::Str(取状态(|s| s.0.clone())))
+            Ok(Val::Str(取状态(|s| s.0.clone()).into()))
         },
         "设前缀" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设前缀", args, 1, 1)?;
-            let 名 = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
+            let 名 = match &args[0] { Val::Str(s) => s.to_string(), o => display(o) };
             取状态(|s| s.1 = 名);
             Ok(Val::None_)
         },

@@ -292,10 +292,10 @@ pub(crate) fn module() -> HashMap<String, Val> {
             if rows.is_empty() {
                 return Err(err("文件错误", format!("文件「{p}」是空的，没有表头")));
             }
-            let headers: Vec<Val> = rows[0].iter().map(|s| Val::Str(s.clone())).collect();
+            let headers: Vec<Val> = rows[0].iter().map(|s| Val::Str(s.clone().into())).collect();
             let data: Vec<Vec<Val>> = rows[1..]
                 .iter()
-                .map(|r| r.iter().map(|s| Val::Str(s.clone())).collect())
+                .map(|r| r.iter().map(|s| Val::Str(s.clone().into())).collect())
                 .collect();
             Ok(table_new(headers, data))
         },
@@ -363,8 +363,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 let mut pairs: Vec<(Val, Val)> = Vec::new();
                 for (i, h) in headers.iter().enumerate() {
                     pairs.push((
-                        Val::Str(h.clone()),
-                        Val::Str(r.get(i).cloned().unwrap_or_default()),
+                        Val::Str(h.clone().into()),
+                        Val::Str(r.get(i).cloned().unwrap_or_default().into()),
                     ));
                 }
                 out.push(crate::dict_new(pairs));
@@ -608,12 +608,12 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "转文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("转文本", args, 1, 1)?;
             let t = 取表格(&args[0], "转文本")?;
-            Ok(Val::Str(转对齐文本(&t)))
+            Ok(Val::Str(转对齐文本(&t).into()))
         },
         "转TSV" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("转TSV", args, 1, 1)?;
             let t = 取表格(&args[0], "转TSV")?;
-            Ok(Val::Str(转TSV文本(&t)?))
+            Ok(Val::Str(转TSV文本(&t)?.into()))
         },
         "转置" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("转置", args, 1)?;
@@ -659,7 +659,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
                 dicts.push(d);
             }
-            let headers: Vec<Val> = cols.iter().map(|k| Val::Str(as_text(k))).collect();
+            let headers: Vec<Val> = cols.iter().map(|k| Val::Str(as_text(k).into())).collect();
             let mut rows: Vec<Vec<Val>> = Vec::with_capacity(dicts.len());
             for d in &dicts {
                 let mut row: Vec<Val> = Vec::with_capacity(cols.len());

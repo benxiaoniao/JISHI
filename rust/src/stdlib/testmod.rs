@@ -99,7 +99,7 @@ fn 文本(vm: &mut dyn BuiltinHost, v: &Val) -> String {
 /// 可选的第 3 个参数（说明），缺省空串。
 fn 说明参数(args: &[Val]) -> String {
     match args.get(2) {
-        Some(Val::Str(s)) => s.clone(),
+        Some(Val::Str(s)) => s.to_string(),
         _ => String::new(),
     }
 }
@@ -192,17 +192,17 @@ fn 跑一条(vm: &mut dyn BuiltinHost, 名字: String, 函数: Val, 参数们: V
 
     let 条 = 取(|s| s.记录.get(下标).cloned().unwrap_or_default());
     let 失败: Vec<Val> = 条.失败.iter()
-        .map(|(a, b)| list_new(vec![Val::Str(a.clone()), Val::Str(b.clone())]))
+        .map(|(a, b)| list_new(vec![Val::Str(a.clone().into()), Val::Str(b.clone().into())]))
         .collect();
     dict_new(vec![
-        (Val::Str("名字".to_string()), Val::Str(条.名字)),
-        (Val::Str("失败".to_string()), list_new(失败)),
-        (Val::Str("异常".to_string()), match 条.异常 {
-            Some(s) => Val::Str(s),
+        (Val::Str("名字".to_string().into()), Val::Str(条.名字.into())),
+        (Val::Str("失败".to_string().into()), list_new(失败)),
+        (Val::Str("异常".to_string().into()), match 条.异常 {
+            Some(s) => Val::Str(s.into()),
             None => Val::None_,
         }),
-        (Val::Str("跳过".to_string()), match 条.跳过 {
-            Some(s) => Val::Str(s),
+        (Val::Str("跳过".to_string().into()), match 条.跳过 {
+            Some(s) => Val::Str(s.into()),
             None => Val::None_,
         }),
     ])
@@ -392,11 +392,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 (s.记录.len(), 通过, 失败, 出错, 跳过)
             });
             Ok(dict_new(vec![
-                (Val::Str("用例".to_string()), Val::Int(用例 as i128)),
-                (Val::Str("通过".to_string()), Val::Int(通过 as i128)),
-                (Val::Str("失败".to_string()), Val::Int(失败 as i128)),
-                (Val::Str("出错".to_string()), Val::Int(出错 as i128)),
-                (Val::Str("跳过".to_string()), Val::Int(跳过 as i128)),
+                (Val::Str("用例".to_string().into()), Val::Int(用例 as i128)),
+                (Val::Str("通过".to_string().into()), Val::Int(通过 as i128)),
+                (Val::Str("失败".to_string().into()), Val::Int(失败 as i128)),
+                (Val::Str("出错".to_string().into()), Val::Int(出错 as i128)),
+                (Val::Str("跳过".to_string().into()), Val::Int(跳过 as i128)),
             ]))
         },
         "汇总" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {

@@ -59,7 +59,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "读文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("读文本", args, 1)?;
             let p = as_text(&args[0]);
-            Ok(Val::Str(read_utf8(&p, || format!("找不到文件「{p}」，没法读取"))?))
+            Ok(Val::Str(read_utf8(&p, || format!("找不到文件「{p}」，没法读取"))?.into()))
         },
         // M113：读整个文件成**字节**（不做任何编码转换）
         "读字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -141,7 +141,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need("按行读", args, 1)?;
             let p = as_text(&args[0]);
             let text = read_utf8(&p, || format!("找不到文件「{p}」，没法读取"))?;
-            let items: Vec<Val> = split_lines(&text).into_iter().map(Val::Str).collect();
+            let items: Vec<Val> = split_lines(&text).into_iter().map(|s| Val::Str(s.into())).collect();
             Ok(crate::list_new(items))
         },
         "文件存在" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -171,7 +171,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 names.push(entry.file_name().to_string_lossy().to_string());
             }
             names.sort();
-            Ok(crate::list_new(names.into_iter().map(Val::Str).collect()))
+            Ok(crate::list_new(names.into_iter().map(|s| Val::Str(s.into())).collect()))
         },
         "创建目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("创建目录", args, 1)?;
@@ -223,7 +223,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             复制目录树(Path::new(&src), Path::new(&dst))
                 .map_err(|e| err("文件错误", format!("复制目录「{src}」到「{dst}」失败：{e}")))?;
-            Ok(Val::Str(dst))
+            Ok(Val::Str(dst.into()))
         },
         "文件大小" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("文件大小", args, 1)?;
@@ -263,15 +263,15 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // 对齐 Python 侧：用的是 `PurePosixPath`，**总是 `/`**。
             // ⚠️ 它不只是「用 `/` 连起来」—— 见 `pure_posix_join` 的注释。
             let parts: Vec<String> = args.iter().map(as_text).collect();
-            Ok(Val::Str(pure_posix_join(&parts)))
+            Ok(Val::Str(pure_posix_join(&parts).into()))
         },
         "文件名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("文件名", args, 1)?;
-            Ok(Val::Str(file_name_of(&as_text(&args[0]))))
+            Ok(Val::Str(file_name_of(&as_text(&args[0])).into()))
         },
         "扩展名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("扩展名", args, 1)?;
-            Ok(Val::Str(suffix_of(&file_name_of(&as_text(&args[0])))))
+            Ok(Val::Str(suffix_of(&file_name_of(&as_text(&args[0]))).into()))
         },
     }
 }

@@ -52,7 +52,7 @@ fn lines(name: &str, v: &Val) -> Result<Vec<String>, crate::JishiError> {
             let mut out = Vec::with_capacity(items.len());
             for (i, x) in items.iter().enumerate() {
                 match x {
-                    Val::Str(s) => out.push(s.clone()),
+                    Val::Str(s) => out.push(s.to_string()),
                     other => {
                         return Err(err(
                             "类型错误",
@@ -150,9 +150,9 @@ pub(crate) fn module() -> HashMap<String, Val> {
             for (tag, i1, i2, j1, j2) in opcodes(&a, &b) {
                 let item = |mark: &str, no: usize, s: &str| {
                     list_new(vec![
-                        Val::Str(mark.to_string()),
+                        Val::Str(mark.to_string().into()),
                         Val::Int(no as i128),
-                        Val::Str(s.to_string()),
+                        Val::Str(s.to_string().into()),
                     ])
                 };
                 match tag.as_str() {
@@ -250,7 +250,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     }
                 }
             }
-            Ok(Val::Str(out.join("\n")))
+            Ok(Val::Str(out.join("\n").into()))
         },
         "并排" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("并排", args, 2, 3)?;
@@ -308,7 +308,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     }
                 }
             }
-            Ok(Val::Str(out.join("\n")))
+            Ok(Val::Str(out.join("\n").into()))
         },
         "相似度" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("相似度", args, 2, 2)?;
@@ -332,7 +332,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             };
             let items = lines("最相似", &args[1])?;
             if items.is_empty() {
-                return Ok(Val::Str(String::new()));
+                return Ok(Val::Str(String::new().into()));
             }
             // 按**字符**比（与 Python 侧一致：那边传进来的是字符串，按字符算）
             let tc: Vec<String> = target.chars().map(|c| c.to_string()).collect();
@@ -352,7 +352,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     best_r = r;
                 }
             }
-            Ok(Val::Str(best))
+            Ok(Val::Str(best.into()))
         },
     }
 }

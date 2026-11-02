@@ -489,23 +489,23 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("摘要", args, 1, 2)?;
             let algo = if args.len() > 1 { normalize(&args[1])? } else { "sha256".to_string() };
             let data = as_text(&args[0]);
-            Ok(Val::Str(digest(&algo, data.as_bytes())))
+            Ok(Val::Str(digest(&algo, data.as_bytes()).into()))
         },
         "md5" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("md5", args, 1)?;
-            Ok(Val::Str(md5(as_text(&args[0]).as_bytes())))
+            Ok(Val::Str(md5(as_text(&args[0]).as_bytes()).into()))
         },
         "sha1" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("sha1", args, 1)?;
-            Ok(Val::Str(sha1(as_text(&args[0]).as_bytes())))
+            Ok(Val::Str(sha1(as_text(&args[0]).as_bytes()).into()))
         },
         "sha256" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("sha256", args, 1)?;
-            Ok(Val::Str(sha256(as_text(&args[0]).as_bytes())))
+            Ok(Val::Str(sha256(as_text(&args[0]).as_bytes()).into()))
         },
         "sha512" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("sha512", args, 1)?;
-            Ok(Val::Str(sha512(as_text(&args[0]).as_bytes())))
+            Ok(Val::Str(sha512(as_text(&args[0]).as_bytes()).into()))
         },
         "文件摘要" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("文件摘要", args, 1, 2)?;
@@ -513,19 +513,19 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let p = as_text(&args[0]);
             let data = std::fs::read(&p)
                 .map_err(|e| err("值错误", format!("读文件「{p}」失败：{e}")))?;
-            Ok(Val::Str(digest(&algo, &data)))
+            Ok(Val::Str(digest(&algo, &data).into()))
         },
         "支持的算法" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("支持的算法", args, 0)?;
             let names = ["md5", "sha1", "sha256", "sha512"];
-            Ok(crate::list_new(names.iter().map(|s| Val::Str(s.to_string())).collect()))
+            Ok(crate::list_new(names.iter().map(|s| Val::Str(s.to_string().into())).collect()))
         },
         "HMAC" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("HMAC", args, 2, 3)?;
             let algo = if args.len() > 2 { normalize(&args[2])? } else { "sha256".to_string() };
             let key = 字节(&args[0]);
             let msg = 字节(&args[1]);
-            Ok(Val::Str(hex(&hmac(&algo, &key, &msg))))
+            Ok(Val::Str(hex(&hmac(&algo, &key, &msg)).into()))
         },
         "口令摘要" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("口令摘要", args, 2, 4)?;
@@ -543,7 +543,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let algo = if args.len() > 3 { normalize(&args[3])? } else { "sha256".to_string() };
             let pwd = 字节(&args[0]);
             let salt = 字节(&args[1]);
-            Ok(Val::Str(hex(&pbkdf2(&algo, &pwd, &salt, iters))))
+            Ok(Val::Str(hex(&pbkdf2(&algo, &pwd, &salt, iters)).into()))
         },
         "安全随机字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("安全随机字节", args, 1)?;

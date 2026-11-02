@@ -629,7 +629,7 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
         "今天" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("今天", args, 0)?;
             let now = local_now();
-            Ok(Val::Str(format!("{:04}-{:02}-{:02}", now.year, now.month, now.day)))
+            Ok(Val::Str(format!("{:04}-{:02}-{:02}", now.year, now.month, now.day).into()))
         },
         "解析" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("解析", args, 1)?;
@@ -640,31 +640,31 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
             need_range("格式化", args, 1, 2)?;
             let (y, m, d) = parse_date(&args[0])?;
             let fmt = if args.len() > 1 { as_text(&args[1]) } else { "%Y-%m-%d".to_string() };
-            Ok(Val::Str(strftime(&date_dt(y, m, d), &fmt)))
+            Ok(Val::Str(strftime(&date_dt(y, m, d), &fmt).into()))
         },
         "加天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("加天数", args, 2)?;
             let n = as_intish(&args[0])?;
-            Ok(Val::Str(shift_days(&args[1], n as i64)?))
+            Ok(Val::Str(shift_days(&args[1], n as i64)?.into()))
         },
         "减天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("减天数", args, 2)?;
             let n = as_intish(&args[0])?;
-            Ok(Val::Str(shift_days(&args[1], -(n as i64))?))
+            Ok(Val::Str(shift_days(&args[1], -(n as i64))?.into()))
         },
         "加月" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("加月", args, 2)?;
             let n = as_intish(&args[0])?;
-            Ok(Val::Str(shift_months(n as i64, &args[1])?))
+            Ok(Val::Str(shift_months(n as i64, &args[1])?.into()))
         },
         "加年" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("加年", args, 2)?;
             let n = as_intish(&args[0])?;
-            Ok(Val::Str(shift_months((n as i64) * 12, &args[1])?))
+            Ok(Val::Str(shift_months((n as i64) * 12, &args[1])?.into()))
         },
         "解析ISO" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("解析ISO", args, 1)?;
-            Ok(Val::Str(parse_iso_date(&args[0])?))
+            Ok(Val::Str(parse_iso_date(&args[0])?.into()))
         },
         "相差天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("相差天数", args, 2)?;
@@ -694,7 +694,7 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
         },
         "星期名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("星期名", args, 1)?;
-            Ok(Val::Str(weekday_name(&args[0])?))
+            Ok(Val::Str(weekday_name(&args[0])?.into()))
         },
         "今年" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("今年", args, 0)?;
@@ -719,12 +719,12 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
             Ok(Val::Str(format!(
                 "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
                 n.year, n.month, n.day, n.hour, n.minute, n.second
-            )))
+            ).into()))
         },
         "今天" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("今天", args, 0)?;
             let n = local_now();
-            Ok(Val::Str(format!("{:04}-{:02}-{:02}", n.year, n.month, n.day)))
+            Ok(Val::Str(format!("{:04}-{:02}-{:02}", n.year, n.month, n.day).into()))
         },
         "此刻" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("此刻", args, 0)?;
@@ -736,14 +736,14 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
                 (Val::Str("时".into()), Val::Int(n.hour as i128)),
                 (Val::Str("分".into()), Val::Int(n.minute as i128)),
                 (Val::Str("秒".into()), Val::Int(n.second as i128)),
-                (Val::Str("星期".into()), Val::Str(WD_CN[n.weekday as usize].to_string())),
+                (Val::Str("星期".into()), Val::Str(WD_CN[n.weekday as usize].to_string().into())),
             ];
             Ok(crate::dict_new(pairs))
         },
         // M120：**偏移**而不是时区名 —— 时区名三家拿到的口径完全不同，永远对不齐。
         "时区偏移" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("时区偏移", args, 0)?;
-            Ok(Val::Str(格式化偏移(local_offset_minutes())))
+            Ok(Val::Str(格式化偏移(local_offset_minutes()).into()))
         },
         "时间戳" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("时间戳", args, 0)?;
@@ -756,7 +756,7 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
         "格式化时间戳" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("格式化时间戳", args, 1)?;
             let ts = super::as_num(&args[0])?;
-            Ok(Val::Str(local_from_unix(ts).to_display()))
+            Ok(Val::Str(local_from_unix(ts).to_display().into()))
         },
         "睡眠" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("睡眠", args, 1)?;
@@ -772,12 +772,12 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
         },
         "星期名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("星期名", args, 1)?;
-            Ok(Val::Str(weekday_name(&args[0])?))
+            Ok(Val::Str(weekday_name(&args[0])?.into()))
         },
         "加天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("加天数", args, 2)?;
             let n = as_intish(&args[0])?;
-            Ok(Val::Str(shift_days(&args[1], n as i64)?))
+            Ok(Val::Str(shift_days(&args[1], n as i64)?.into()))
         },
     }
 }

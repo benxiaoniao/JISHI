@@ -175,7 +175,7 @@ fn 单元格(片段: &str, 共享: &[String]) -> Val {
                 拼.push_str(&还原实体(体));
             }
         }
-        return Val::Str(拼);
+        return Val::Str(拼.into());
     }
 
     let Some(v) = 首个内容(片段, "v") else {
@@ -186,28 +186,28 @@ fn 单元格(片段: &str, 共享: &[String]) -> Val {
         "s" => match 值.trim().parse::<usize>() {
             Ok(序) => 共享
                 .get(序)
-                .map(|s| Val::Str(s.clone()))
-                .unwrap_or_else(|| Val::Str(String::new())),
-            Err(_) => Val::Str(值),
+                .map(|s| Val::Str(s.clone().into()))
+                .unwrap_or_else(|| Val::Str(String::new().into())),
+            Err(_) => Val::Str(值.into()),
         },
         "b" => {
             let t = 值.trim();
             Val::Bool(!(t == "0" || t.is_empty() || t.eq_ignore_ascii_case("false")))
         }
-        "str" | "e" => Val::Str(值),
+        "str" | "e" => Val::Str(值.into()),
         _ => {
             // 数字：整数给整数（`42` 不该变 `42.0`），否则小数
             if 值.contains('.') || 值.contains('e') || 值.contains('E') {
                 match 值.trim().parse::<f64>() {
                     Ok(f) => Val::Float(f),
-                    Err(_) => Val::Str(值),
+                    Err(_) => Val::Str(值.into()),
                 }
             } else {
                 match 值.trim().parse::<i128>() {
                     Ok(i) => Val::Int(i),
                     Err(_) => match 值.trim().parse::<f64>() {
                         Ok(f) => Val::Float(f),
-                        Err(_) => Val::Str(值),
+                        Err(_) => Val::Str(值.into()),
                     },
                 }
             }
@@ -301,9 +301,9 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     "「{p}」不是一个 .xlsx。Excel 的 .xlsx 其实是 zip 包，老的 .xls 是二进制格式、读不了 —— 用 Excel 打开它「另存为」.xlsx 再试")))?;
             let 表们 = 工作表们(&条们).map_err(|m| err("值错误", m))?;
             Ok(crate::dict_new(vec![
-                (Val::Str("路径".into()), Val::Str(p)),
+                (Val::Str("路径".into()), Val::Str(p.into())),
                 (Val::Str("工作表们".into()),
-                 crate::list_new(表们.into_iter().map(|(n, _)| Val::Str(n)).collect())),
+                 crate::list_new(表们.into_iter().map(|(n, _)| Val::Str(n.into())).collect())),
             ]))
         },
 
@@ -319,7 +319,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 _ => return Err(err("类型错误", "「簿」要是 `读工作簿(…)` 的返回值".to_string())),
             };
             let 名 = as_text(&args[1]);
-            let 字节 = std::fs::read(&路径)
+            let 字节 = std::fs::read(&*路径)
                 .map_err(|_| err("运行错误", format!("找不到文件「{路径}」")))?;
             let 条们 = crate::zip::read_all(&字节)
                 .map_err(|_| err("值错误", format!("「{路径}」不是一个 .xlsx")))?;
@@ -391,7 +391,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let 表头: Vec<Val> = 数据行们[0]
                 .iter()
                 .map(|v| match v {
-                    Val::None_ => Val::Str(String::new()),
+                    Val::None_ => Val::Str(String::new().into()),
                     other => other.clone(),
                 })
                 .collect();
@@ -416,7 +416,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 return Err(err("值错误", "「表名」不能是空文本".to_string()));
             }
             写包(&p, &[(名, t)]).map_err(|m| err("运行错误", m))?;
-            Ok(Val::Str(p))
+            Ok(Val::Str(p.into()))
         },
 
         "写多表" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -440,7 +440,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             }
             写包(&p, &表们).map_err(|m| err("运行错误", m))?;
-            Ok(Val::Str(p))
+            Ok(Val::Str(p.into()))
         },
     }
 }

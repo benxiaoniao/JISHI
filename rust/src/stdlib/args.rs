@@ -82,7 +82,7 @@ fn 解析列表(p: &Parser, list: Vec<Val>) -> Result<Val, crate::JishiError> {
     let mut 结果: Vec<(Val, Val)> = p
         .specs
         .iter()
-        .map(|s| (Val::Str(s.name.clone()), s.default.clone()))
+        .map(|s| (Val::Str(s.name.clone().into()), s.default.clone()))
         .collect();
     let 找 = |名: &str| p.specs.iter().position(|s| s.name == 名);
 
@@ -91,7 +91,7 @@ fn 解析列表(p: &Parser, list: Vec<Val>) -> Result<Val, crate::JishiError> {
     let mut i = 0usize;
     while i < list.len() {
         let 文本 = match &list[i] {
-            Val::Str(s) => s.clone(),
+            Val::Str(s) => s.to_string(),
             other => display(other),
         };
         if 文本 == "--" {
@@ -105,7 +105,7 @@ fn 解析列表(p: &Parser, list: Vec<Val>) -> Result<Val, crate::JishiError> {
                         if p.specs[k].flag {
                             return Err(err("运行期错误", format!("「--{名}」是个开关，不该给值")));
                         }
-                        结果[k].1 = Val::Str(值.to_string());
+                        结果[k].1 = Val::Str(值.to_string().into());
                     }
                     None => return Err(err("运行期错误", 未知选项(p, 名))),
                 }
@@ -136,8 +136,8 @@ fn 解析列表(p: &Parser, list: Vec<Val>) -> Result<Val, crate::JishiError> {
         }
         i += 1;
     }
-    结果.push((Val::Str("命令".to_string()), Val::Str(命令)));
-    结果.push((Val::Str("位置".to_string()), list_new(位置)));
+    结果.push((Val::Str("命令".to_string().into()), Val::Str(命令.into())));
+    结果.push((Val::Str("位置".to_string().into()), list_new(位置)));
     Ok(dict_new(结果))
 }
 
@@ -145,9 +145,9 @@ pub(crate) fn module() -> HashMap<String, Val> {
     table! { "参数";
         "新建" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("新建", args, 1, 2)?;
-            let 名 = match &args[0] { Val::Str(s) => s.clone(), o => display(o) };
+            let 名 = match &args[0] { Val::Str(s) => s.to_string(), o => display(o) };
             let 说明 = if args.len() == 2 {
-                match &args[1] { Val::Str(s) => s.clone(), o => display(o) }
+                match &args[1] { Val::Str(s) => s.to_string(), o => display(o) }
             } else {
                 String::new()
             };
@@ -160,10 +160,10 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "选项" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("选项", args, 2, 4)?;
             let idx = 取下标(&args[0])?;
-            let 名 = match &args[1] { Val::Str(s) => s.clone(), o => display(o) };
+            let 名 = match &args[1] { Val::Str(s) => s.to_string(), o => display(o) };
             let 默认 = args[2].clone();
             let 说明 = if args.len() == 4 {
-                match &args[3] { Val::Str(s) => s.clone(), o => display(o) }
+                match &args[3] { Val::Str(s) => s.to_string(), o => display(o) }
             } else {
                 String::new()
             };
@@ -177,9 +177,9 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "标志" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("标志", args, 2, 3)?;
             let idx = 取下标(&args[0])?;
-            let 名 = match &args[1] { Val::Str(s) => s.clone(), o => display(o) };
+            let 名 = match &args[1] { Val::Str(s) => s.to_string(), o => display(o) };
             let 说明 = if args.len() == 3 {
-                match &args[2] { Val::Str(s) => s.clone(), o => display(o) }
+                match &args[2] { Val::Str(s) => s.to_string(), o => display(o) }
             } else {
                 String::new()
             };
@@ -195,7 +195,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let idx = 取下标(&args[0])?;
             表(|t| {
                 let p = t.get(idx).ok_or_else(|| err("运行期错误", "参数解析器已失效"))?;
-                Ok(Val::Str(用法文本(p)))
+                Ok(Val::Str(用法文本(p).into()))
             })
         },
         "解析" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -214,7 +214,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 };
                 let mut specs: Vec<Spec> = Vec::new();
                 for (k, v) in decl {
-                    let 名 = match &k { Val::Str(s) => s.clone(), o => display(o) };
+                    let 名 = match &k { Val::Str(s) => s.to_string(), o => display(o) };
                     let 是标志 = matches!(v, Val::Bool(_));
                     specs.push(Spec { name: 名, default: v, desc: String::new(), flag: 是标志 });
                 }

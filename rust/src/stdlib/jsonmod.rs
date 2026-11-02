@@ -95,7 +95,7 @@ pub(crate) fn float_repr(x: f64) -> String {
 /// 键转成 JSON 的键（Python 允许 str/int/float/bool/None）。
 fn key_text(k: &Val) -> String {
     match k {
-        Val::Str(s) => s.clone(),
+        Val::Str(s) => s.to_string(),
         Val::Int(i) => i.to_string(),
         Val::Float(f) => float_repr(*f),
         Val::Bool(b) => if *b { "true" } else { "false" }.to_string(),
@@ -220,7 +220,7 @@ impl<'a> P<'a> {
         match self.b[self.i] {
             b'{' => self.object(),
             b'[' => self.array(),
-            b'"' => Ok(Val::Str(self.string()?)),
+            b'"' => Ok(Val::Str(self.string()?.into())),
             b't' => self.literal("true", Val::Bool(true)),
             b'f' => self.literal("false", Val::Bool(false)),
             b'n' => self.literal("null", Val::None_),
@@ -405,11 +405,11 @@ impl<'a> P<'a> {
             let v = self.value()?;
             // 重复键：保留首次出现的位置、用最后一次的值（Python 的 dict 行为）
             if let Some(slot) = pairs.iter_mut().find(|(pk, _)| {
-                matches!(pk, Val::Str(s) if *s == k)
+                matches!(pk, Val::Str(s) if s.as_ref() == k.as_str())
             }) {
                 slot.1 = v;
             } else {
-                pairs.push((Val::Str(k), v));
+                pairs.push((Val::Str(k.into()), v));
             }
             self.ws();
             if self.i >= self.b.len() {
@@ -479,7 +479,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "转文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("转文本", args, 1, 2)?;
             let ind = indent_of(args, 1);
-            Ok(Val::Str(to_text(&args[0], ind)?))
+            Ok(Val::Str(to_text(&args[0], ind)?.into()))
         },
         "解析" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("解析", args, 1)?;

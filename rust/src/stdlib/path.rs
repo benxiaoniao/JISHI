@@ -245,12 +245,12 @@ pub(crate) fn module() -> HashMap<String, Val> {
         // 所以语料里只能钉「长度是 1 且是这两种之一」，不能钉具体字符。
         "分隔符" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("分隔符", args, 0)?;
-            Ok(Val::Str(std::path::MAIN_SEPARATOR.to_string()))
+            Ok(Val::Str(std::path::MAIN_SEPARATOR.to_string().into()))
         },
         "连接" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             // ⚠️ 不能直接 `PathBuf::push` —— 见 `pathlike_join`。
             let parts: Vec<String> = args.iter().map(as_text).collect();
-            Ok(Val::Str(pathlike_join(&parts)))
+            Ok(Val::Str(pathlike_join(&parts).into()))
         },
         "存在" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("存在", args, 1)?;
@@ -271,7 +271,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // Windows 的 `\\?\` 前缀），是与 Python `resolve()` 最接近的
             let abs = std::path::absolute(&p)
                 .map_err(|e| err("值错误", format!("「{p}」转不成绝对路径：{e}")))?;
-            Ok(Val::Str(norm_sep(&abs)))
+            Ok(Val::Str(norm_sep(&abs).into()))
         },
         "父目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("父目录", args, 1)?;
@@ -284,29 +284,29 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Some(q) if !q.is_empty() => q.replace('/', "\\"),
                 _ => ".".to_string(),
             };
-            Ok(Val::Str(if cfg!(windows) { out } else { out.replace('\\', "/") }))
+            Ok(Val::Str(if cfg!(windows) { out } else { out.replace('\\', "/") }.into()))
         },
         "文件名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("文件名", args, 1)?;
-            Ok(Val::Str(file_name_of(&as_text(&args[0]))))
+            Ok(Val::Str(file_name_of(&as_text(&args[0])).into()))
         },
         "后缀" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("后缀", args, 1)?;
-            Ok(Val::Str(suffix_of(&file_name_of(&as_text(&args[0])))))
+            Ok(Val::Str(suffix_of(&file_name_of(&as_text(&args[0]))).into()))
         },
         "无后缀名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("无后缀名", args, 1)?;
-            Ok(Val::Str(stem_of(&file_name_of(&as_text(&args[0])))))
+            Ok(Val::Str(stem_of(&file_name_of(&as_text(&args[0]))).into()))
         },
         "当前目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("当前目录", args, 0)?;
             let d = std::env::current_dir()
                 .map_err(|e| err("文件错误", format!("取当前目录失败：{e}")))?;
-            Ok(Val::Str(norm_sep(&d)))
+            Ok(Val::Str(norm_sep(&d).into()))
         },
         "主目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("主目录", args, 0)?;
-            Ok(Val::Str(home_dir()))
+            Ok(Val::Str(home_dir().into()))
         },
         "创建目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("创建目录", args, 1, 2)?;
@@ -321,8 +321,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // 返回值要规范化分隔符：Python 的 `str(p)` 给 `build\\_m33\\sub`
             let shown = norm_sep(Path::new(&p));
             match r {
-                Ok(()) => Ok(Val::Str(shown)),
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(Val::Str(shown)),
+                Ok(()) => Ok(Val::Str(shown.into())),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(Val::Str(shown.into())),
                 Err(e) => Err(err("文件错误", format!("创建目录「{p}」失败：{e}"))),
             }
         },
@@ -378,7 +378,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 names.push(entry.file_name().to_string_lossy().to_string());
             }
             names.sort();
-            Ok(crate::list_new(names.into_iter().map(Val::Str).collect()))
+            Ok(crate::list_new(names.into_iter().map(|s| Val::Str(s.into())).collect()))
         },
         "递归列出" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("递归列出", args, 1, 2)?;
@@ -391,7 +391,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let mut out: Vec<String> = Vec::new();
             递归收(path, Path::new(""), &suffix, &mut out)?;
             out.sort();
-            Ok(list_new(out.into_iter().map(Val::Str).collect()))
+            Ok(list_new(out.into_iter().map(|s| Val::Str(s.into())).collect()))
         },
         "按模式找" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("按模式找", args, 1, 3)?;
@@ -408,7 +408,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let mut out: Vec<String> = Vec::new();
             按模式收(path, Path::new(""), &pat, recursive, &mut out)?;
             out.sort();
-            Ok(list_new(out.into_iter().map(Val::Str).collect()))
+            Ok(list_new(out.into_iter().map(|s| Val::Str(s.into())).collect()))
         },
         "重命名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("重命名", args, 2)?;
@@ -419,7 +419,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             fs::rename(&old, &new)
                 .map_err(|e| err("文件错误", format!("把「{old}」重命名成「{new}」失败：{e}")))?;
-            Ok(Val::Str(new))
+            Ok(Val::Str(new.into()))
         },
         "大小" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("大小", args, 1)?;
@@ -439,25 +439,25 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let mtime = meta
                 .modified()
                 .map_err(|e| err("文件错误", format!("读「{p}」的修改时间失败：{e}")))?;
-            Ok(Val::Str(format_system_time(mtime)))
+            Ok(Val::Str(format_system_time(mtime).into()))
         },
         "系统临时目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("系统临时目录", args, 0)?;
-            Ok(Val::Str(norm_sep(&std::env::temp_dir())))
+            Ok(Val::Str(norm_sep(&std::env::temp_dir()).into()))
         },
         "临时目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("临时目录", args, 0, 1)?;
             let 前缀 = if args.is_empty() { String::new() } else { as_text(&args[0]) };
             let p = std::env::temp_dir().join(format!("{前缀}{}", 唯一名()));
             fs::create_dir(&p).map_err(|e| err("文件错误", format!("建不了临时目录：{e}")))?;
-            Ok(Val::Str(norm_sep(&p)))
+            Ok(Val::Str(norm_sep(&p).into()))
         },
         "临时文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("临时文件", args, 0, 1)?;
             let 后缀 = if args.is_empty() { String::new() } else { as_text(&args[0]) };
             let p = std::env::temp_dir().join(format!("{}{后缀}", 唯一名()));
             fs::File::create(&p).map_err(|e| err("文件错误", format!("建不了临时文件：{e}")))?;
-            Ok(Val::Str(norm_sep(&p)))
+            Ok(Val::Str(norm_sep(&p).into()))
         },
     }
 }

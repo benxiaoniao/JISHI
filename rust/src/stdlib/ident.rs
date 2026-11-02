@@ -71,7 +71,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let b = uuid4_bytes();
             let hex: String = b.iter().map(|x| format!("{:02x}", x)).collect();
             if no_dash {
-                return Ok(Val::Str(hex));
+                return Ok(Val::Str(hex.into()));
             }
             Ok(Val::Str(format!(
                 "{}-{}-{}-{}-{}",
@@ -80,11 +80,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 &hex[12..16],
                 &hex[16..20],
                 &hex[20..32]
-            )))
+            ).into()))
         },
         "唯一标识短" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("唯一标识短", args, 0, 0)?;
-            Ok(Val::Str(b64url(&uuid4_bytes())))
+            Ok(Val::Str(b64url(&uuid4_bytes()).into()))
         },
         "唯一标识字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("唯一标识字节", args, 0, 0)?;
