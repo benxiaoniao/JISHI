@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>待办清单 · 基石浏览器交互示例</title>
+<!--
+  M167 的交付物：一个**真能点**的网页，逻辑全部用基石写。
+
+  页面上的每一件东西都是 `html` 模块拼出来的；「点按钮加一条」走的是
+  `浏览器.绑定` → 事件 → **重新进 VM 跑那个函数**；「刷新还在」靠 localStorage。
+
+  ⚠️ 必须用 HTTP 打开（`file://` 下 wasm 的 fetch 会被浏览器的同源策略挡）：
+      cd 仓库根 && python -m http.server 8000
+      然后打开 http://localhost:8000/examples/browser/待办.html
+-->
+<style>
+  body { margin: 0; padding: 2rem 1rem; font: 16px/1.6 system-ui, -apple-system, "Noto Sans SC", sans-serif; color: #1f2328; }
+  .包 { max-width: 36rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+  .行 { display: flex; gap: .5rem; margin-bottom: 1rem; }
+  input { flex: 1; padding: .6rem .75rem; border: 1px solid #e5e7eb; border-radius: .375rem; font: inherit; }
+  button { padding: .6rem 1.1rem; border: 0; border-radius: .375rem; background: #2563eb; color: #fff; font: inherit; cursor: pointer; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { display: flex; justify-content: space-between; align-items: center; padding: .6rem .75rem; border-bottom: 1px solid #e5e7eb; }
+  li.空 { color: #6b7280; border: 0; }
+  li button { padding: .15rem .6rem; background: #fee2e2; color: #b91c1c; font-size: .875rem; }
+  .注释 { margin-top: 1.5rem; padding: .75rem 1rem; border-left: 4px solid #16a34a; background: #f0fdf4; border-radius: .375rem; font-size: .875rem; }
+</style>
+</head>
+<body>
+<div class="包">
+  <h1>待办清单</h1>
+  <div class="行">
+    <input id="输入" placeholder="要做什么？" autocomplete="off" />
+    <button id="加">加一条</button>
+  </div>
+  <div id="清单"></div>
+  <div id="提示" style="display:none"></div>
+  <div class="注释">
+    逻辑全在下面的基石源码里：<code>重绘()</code> 拼 HTML、<code>加一条()</code> 存 localStorage。
+    点按钮时浏览器会把程序**重跑一遍**再执行处理函数 —— 所以状态放在 localStorage，
+    刷新页面也还在。
+  </div>
+</div>
+
+<script>
+// ===== 基石源码（页面上的行为全在这段里）=====
+const 源码 = `导入 浏览器
+导入 json
+导入 html
+
+函数 读清单()：
+    令 原 = 浏览器.读本地("待办")
+    如果 原 == 空：
+        返回 []
+    令 解 = json.解析(原)
+    如果 类型(解) != "列表"：
+        返回 []
+    返回 解
+
+函数 存清单(列)：
+    浏览器.存本地("待办", json.转文本(列))
+
+函数 重绘()：
+    令 列 = 读清单()
+    令 行们 = ""
+    # ⚠️ 用下标走，不用 `遍历 i, 项 在 列` —— 后者在基石里是「把元素**解包**成
+    #    两个值」（要求元素本身是二元组），不是 enumerate。
+    令 i = 0
+    当 i < 长度(列)：
+        令 叉 = html.标签("button", "删", {"type": "button", "data_序": 文本(i)})
+        令 内 = html.标签("span", 文本(列[i])) + 叉
+        行们 = 行们 + html.标签("li", html.原样(内))
+        i = i + 1
+    如果 行们 == ""：
+        行们 = html.标签("li", "还没记任何事", {"类名": "空"})
+    浏览器.设HTML("#清单", html.标签("ul", html.原样(行们)))
+
+函数 加一条()：
+    令 内容 = 浏览器.取值("#输入")
+    如果 内容 == ""：
+        返回
+    令 列 = 读清单()
+    列.追加(内容)
+    存清单(列)
+    浏览器.设值("#输入", "")
+    重绘()
+
+# `删一条` 带一个参数：点的是哪个【删】按钮，它的 `数据_序` 就是第几条。
+# 事件委托到 #清单 上，所以列表重画之后不用重新绑定。
+函数 删一条(序)：
+    如果 序 == ""：
+        返回
+    令 列 = 读清单()
+    列.弹出(整数(序))
+    存清单(列)
+    重绘()
+
+# 页面一进来：先把已有的画出来，再挂上监听
+重绘()
+浏览器.绑定("#加", "点击", 加一条)
+浏览器.绑定("#清单", "点击", 删一条)
+`;
+
+// ===== 启动 =====
+(async () => {
+  const 提示 = document.getElementById("提示");
+  try {
+    const JishiWasm = (await import("../../site/jishi-wasm.js")).default || window.JishiWasm;
+    const j = await JishiWasm.load("../../site/jishi_wasm.wasm");
+    const r = j.run(源码);
+    if (!r.ok) {
+      提示.style.display = "block";
+      提示.textContent = "基石报错：" + r.error.title + " —— " + r.error.message
+        + (r.error.line ? "（第 " + r.error.line + " 行）" : "");
+    }
+  } catch (e) {
+    提示.style.display = "block";
+    提示.textContent = "加载失败：" + (e && e.message || e)
+      + "。这个页面要用 HTTP 打开（file:// 下浏览器不让读 wasm）。";
+  }
+})();
+</script>
+</body>
+</html>
