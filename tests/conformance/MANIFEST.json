@@ -53,7 +53,7 @@
   ],
   "格式版本": 3,
   "生成环境": {
-    "jishi": "0.2.10",
+    "jishi": "0.3.0",
     "python": "3.13.14"
   },
   "类别计数": {
@@ -373,8 +373,8 @@
     },
     {
       "id": "oracle__jishi__stdlib-jishi__参数",
-      "产物哈希": "sha256:450ac3e158655ba0",
-      "内容哈希": "sha256:21e3acc6595ef03e",
+      "产物哈希": "sha256:4e5e3b974e317b36",
+      "内容哈希": "sha256:8b5549ec4e72f839",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/参数.jsh"
     },

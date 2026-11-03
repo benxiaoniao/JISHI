@@ -16,6 +16,7 @@ r"""R8.4b-2：**改名** —— `jishi` 留给单二进制，Python 实现退成
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -64,7 +65,11 @@ def test_Python_实现仍然可用_只是换了名字():
     r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "--version"],
                        capture_output=True, cwd=str(ROOT), timeout=120)
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:300]
-    assert "0.2" in r.stdout.decode("utf-8", "replace") + r.stderr.decode("utf-8", "replace")
+    出 = r.stdout.decode("utf-8", "replace") + r.stderr.decode("utf-8", "replace")
+    # ⚠️ **别写死版本号前缀**（M169 踩）：原来是 `assert "0.2" in 出`，
+    # 于是 0.3.0 一发版这条就红 —— 而它想验的是「这条路还在」，
+    # 不是「版本号还是 0.2」。改成「形状对」：`基石 jishi X.Y.Z`。
+    assert re.search(r"基石 jishi \d+\.\d+\.\d+", 出), 出
 
 
 @pytest.mark.skipif(not EXE.is_file(),

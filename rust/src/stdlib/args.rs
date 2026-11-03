@@ -13,7 +13,7 @@ use crate::BuiltinHost;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use super::{need_range, table, to_vec, R};
+use super::{need_range, script_args, table, to_vec, R};
 use crate::{dict_new, display, err, list_new, Val};
 
 /// 一个选项的声明。
@@ -199,10 +199,26 @@ pub(crate) fn module() -> HashMap<String, Val> {
             })
         },
         "解析" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("解析", args, 2, 2)?;
-            // 一次式：第一个参数不是句柄（是列表）时，第二个是「选项 → 默认值」字典
-            if !matches!(&args[0], Val::Int(i) if *i >= 1) {
-                let decl = match &args[1] {
+            // M169：`参数们` **真的可省**（语言卡写着 `解析(句柄, 参数们=空)`，
+            // 那就得真能省）。省了就用本进程的命令行参数 —— 与 Python 侧
+            // `_本进程参数()`、Node 侧 `process.argv.slice(2)` 同一条口径。
+            need_range("解析", args, 1, 2)?;
+            let 是句柄 = matches!(&args[0], Val::Int(i) if *i >= 1);
+            let 省了 = args.len() == 1;
+            if !是句柄 {
+                let 参 = match args.get(1) {
+                    Some(v) => v,
+                    None => {
+                        // 一次式**必须给两个参数**。给能照着改的话，不是「参数不够」。
+                        return Err(err(
+                            "运行期错误",
+                            "「参数.解析」的一次式需要两个参数（参数列表 + \
+                             「选项 → 默认值」字典），例如 参数.解析(系统.参数(), \
+                             {\"数据\": \"默认.json\"})；只有传句柄那种用法才能省略第二个参数",
+                        ));
+                    }
+                };
+                let decl = match 参 {
                     Val::Dict(d) => d.borrow().clone(),
                     other => {
                         return Err(err(
@@ -223,7 +239,16 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 return 解析列表(&p, list);
             }
             let idx = 取下标(&args[0])?;
-            let list = to_vec(&args[1])?;
+            let list = if 省了 {
+                // `script_args()` 给的是 `Vec<String>`（`系统.参数` 用的那份），
+                // 这里要 `Vec<Val>` —— 包一层，别为了省事去改 `script_args` 的返回类型。
+                script_args()
+                    .into_iter()
+                    .map(|s| Val::Str(s.into()))
+                    .collect()
+            } else {
+                to_vec(&args[1])?
+            };
             表(|t| {
                 let p = t.get(idx).ok_or_else(|| err("运行期错误", "参数解析器已失效"))?;
                 解析列表(p, list)

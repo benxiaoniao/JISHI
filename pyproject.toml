@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jishi"
-version = "0.2.10"
+version = "0.3.0"
 description = "基石 —— 一门像 Python 一样简单易用的中文编程语言"
 readme = "README.md"
 # 只测一个版本（2026-10-10 作者定）：Python 侧已退役（只作判据基准），

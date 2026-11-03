@@ -3211,6 +3211,12 @@ const ARG_FUNCS = {
   '解析': new R.Builtin('解析', (a, b) => {
     // 一次式：第一个参数不是句柄（是列表），第二个是「选项 → 默认值」字典
     if (typeof a !== 'number' || !Number.isInteger(a) || a < 1) {
+      if (b === undefined) {
+        // M169：一次式**必须给两个参数**。给能照着改的话，不是「参数不够」。
+        throw R.runErr('「参数.解析」的一次式需要两个参数（参数列表 + 「选项 → 默认值」字典），'
+          + '例如 参数.解析(系统.参数(), {"数据": "默认.json"})；'
+          + '只有传句柄那种用法才能省略第二个参数');
+      }
       if (!(b instanceof Map)) {
         throw R.runErr('「参数.解析」的第二个参数要是字典（选项名 → 默认值）');
       }
@@ -3221,10 +3227,10 @@ const ARG_FUNCS = {
       }
       return _parseList(specs, a);
     }
-    if (b === undefined) {
-      throw R.runErr('「参数.解析」还要一个参数列表，通常写 参数.解析(解析器, 系统.参数())');
-    }
-    return _parseList(_parserOf(a).specs, b);
+    // M169：`参数们` **真的可省**（语言卡写着 `解析(句柄, 参数们=空)`）。
+    // 省了就用本进程的命令行参数 —— 与 `系统.参数()` 同一份（`argv.slice(3)`）。
+    const 列表 = (b === undefined) ? process.argv.slice(3) : b;
+    return _parseList(_parserOf(a).specs, 列表);
   }),
 };
 
