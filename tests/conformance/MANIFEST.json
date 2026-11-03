@@ -57,9 +57,9 @@
     "python": "3.13.14"
   },
   "类别计数": {
-    "examples": 43,
+    "examples": 44,
     "frontend": 1,
-    "lang": 127,
+    "lang": 128,
     "stdlib": 4
   },
   "语料": [
@@ -128,8 +128,8 @@
     },
     {
       "id": "examples__projects__基石自述站__生成",
-      "产物哈希": "sha256:eee187dfd21a1566",
-      "内容哈希": "sha256:d7827faf7447c108",
+      "产物哈希": "sha256:7a81693b29619efa",
+      "内容哈希": "sha256:42e609bdf5fba932",
       "类别": "examples",
       "路径": "examples/projects/基石自述站/生成.jsh"
     },
@@ -279,6 +279,13 @@
       "内容哈希": "sha256:f6b7b8348deb02e0",
       "类别": "examples",
       "路径": "examples/tutorial/14_网页.jsh"
+    },
+    {
+      "id": "examples__tutorial__15_建站",
+      "产物哈希": "sha256:348c59d4c90ec6b8",
+      "内容哈希": "sha256:ad7070f51bbb2b31",
+      "类别": "examples",
+      "路径": "examples/tutorial/15_建站.jsh"
     },
     {
       "id": "examples__科学计算__01_两点距离",
@@ -713,6 +720,13 @@
       "内容哈希": "sha256:3628acd4336aa771",
       "类别": "lang",
       "路径": "tests/cases/45_html页面构件.jsh"
+    },
+    {
+      "id": "tests__cases__46_站点",
+      "产物哈希": "sha256:cdb6bb73cdddbc1a",
+      "内容哈希": "sha256:8d097d1fc68d0231",
+      "类别": "lang",
+      "路径": "tests/cases/46_站点.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -1289,5 +1303,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 175
+  "语料数": 177
 }

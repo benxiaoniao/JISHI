@@ -569,6 +569,18 @@ fn main() -> ExitCode {
             }
         }
     }
+    // M168：`建站` —— 生成静态站脚手架并立刻跑一遍。
+    if args[1] == "建站" || args[1] == "--site" {
+        match args.get(2) {
+            Some(n) if !n.starts_with('-') => {
+                return jishi_ffi::tools::run_new_site(n);
+            }
+            _ => {
+                eprintln!("用法：jishi 建站 <名字>");
+                return ExitCode::from(2);
+            }
+        }
+    }
     if args[1] == "教程" || args[1] == "--tutorial" {
         return jishi_ffi::tools::run_tutorial();
     }

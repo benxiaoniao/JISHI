@@ -72,9 +72,10 @@ def test_generator_writes_pages_from_real_repo_data(tmp_path):
     assert "正在读仓库数据" in log
     assert "已写出 4 个页面" in log
 
+    # M168：落盘改走标准库 `站点.写站`，**多出一个 sitemap.xml**（新能力，不是回归）。
     names = {p.name for p in out_dir.glob("*")}
     assert names == {"index.html", "上手.html", "style.css",
-                     "规模.html", "里程碑.html"}
+                     "规模.html", "里程碑.html", "sitemap.xml"}, names
 
     index = _read(out_dir / "index.html")
     # 版本号不是写死的：它来自 pyproject.toml
@@ -158,12 +159,18 @@ def test_same_output_in_c_vm(tmp_path):
 # 3. 生成器本身要「长得像个基石程序」
 # ---------------------------------------------------------------------------
 
-def test_generator_uses_alias_import_to_keep_builtin_text():
-    """生成器用 `导入 文本 为 …`：模块「文本」会遮蔽内建 `文本(...)`，
-    而 f-string 插值正是靠它把值转成文本（这是个真坑，代码里也有注释）。"""
+def test_generator_does_not_shadow_builtin_text():
+    """生成器**不许** `导入 文本`：模块「文本」会遮蔽内建 `文本(...)`，
+    而 f-string 插值正是靠它把值转成文本。
+
+    📌 M168 起这条不再是「用别名躲开」，而是**根本不用那个模块** ——
+    页面骨架交给标准库 `站点`，生成器自己不再需要 `文本.格式化`。
+    所以判据也改了：既不许 `导入 文本`，也不许再出现别名导入（那说明有人绕回去了）。
+    """
     src = _read(SCRIPT)
-    assert "导入 文本 为" in src
     assert "导入 文本\n" not in src
+    assert "导入 文本 为" not in src
+    assert "导入 站点" in src, "M168：页面骨架/落盘应当交给标准库 `站点`"
 
 
 def test_generator_is_formatted_and_parses():

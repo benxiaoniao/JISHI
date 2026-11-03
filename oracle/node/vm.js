@@ -4089,6 +4089,220 @@ const BROWSER_FUNCS = {
   '请求': _noBrowser('请求'),
 };
 
+// ---------------------------------------------------------------------------
+// M168：`站点` 模块 —— 把一堆页面写成一个能直接传服务器的静态站
+//
+// 四条规矩（可复现 / 资源指纹 / 不引框架 / 五引擎逐字一致）见 Python 侧模块头。
+// 这里只说 Node 这份的两处实现选择：
+//
+// 1. 指纹用 **FNV-1a 32 位**（不是 SHA-256）：三份实现必须逐位一致，
+//    FNV 三行写完，不会跑偏。
+// 2. ⚠️ **默认样式表这份字符串是从 Python 侧 `json.dumps` 导出的**，不是手抄 ——
+//    M166 踩过：手抄 CSS 漏一个引号，页面照样能看，只有逐字比才抓得住。
+// ---------------------------------------------------------------------------
+
+const SITE_默认样式 = "/* 基石站点的默认样式（由「站点」模块写出） */\n:root {\n  --bg: #f7f8fa; --fg: #1f2430; --muted: #5c6370; --line: #e4e7ec;\n  --card: #ffffff; --accent: #1a5fb4; --accent-soft: #eaf1fb;\n}\n* { box-sizing: border-box; }\nbody {\n  margin: 0; background: var(--bg); color: var(--fg);\n  font: 16px/1.75 \"Segoe UI\", \"Microsoft YaHei\", -apple-system, sans-serif;\n}\na { color: var(--accent); text-decoration: none; }\na:hover { text-decoration: underline; }\nheader.top {\n  background: var(--card); border-bottom: 1px solid var(--line);\n  padding: 14px 28px; display: flex; align-items: center; gap: 28px;\n  position: sticky; top: 0; z-index: 2;\n}\n.brand { font-size: 20px; font-weight: 700; letter-spacing: .04em; }\n.brand span { color: var(--muted); font-size: 13px; font-weight: 400; margin-left: 6px; }\nnav a { margin-right: 18px; color: var(--muted); font-size: 15px; }\nnav a.now { color: var(--accent); font-weight: 600; }\nmain { max-width: 960px; margin: 0 auto; padding: 32px 28px 64px; }\nh1 { font-size: 30px; margin: 8px 0 6px; }\nh2 { font-size: 20px; margin: 34px 0 12px; padding-bottom: 6px;\n     border-bottom: 1px solid var(--line); }\n.lead { color: var(--muted); font-size: 17px; margin: 0 0 26px; }\n.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));\n         gap: 14px; }\n.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;\n        padding: 16px 18px; }\n.card .k { color: var(--muted); font-size: 13px; }\n.card .v { font-size: 26px; font-weight: 700; margin-top: 4px; }\ntable { width: 100%; border-collapse: collapse; background: var(--card);\n        border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }\nth, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line);\n         vertical-align: top; font-size: 15px; }\nth { background: var(--accent-soft); font-weight: 600; }\ntr:last-child td { border-bottom: none; }\ntd.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }\ncode { background: #eef1f5; padding: 1px 5px; border-radius: 4px;\n       font-family: \"Cascadia Code\", Consolas, monospace; font-size: 14px; }\npre { background: #1f2430; color: #e6e9ef; padding: 14px 16px; border-radius: 8px;\n      overflow-x: auto; }\npre code { background: none; color: inherit; padding: 0; }\nfooter { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px;\n         padding: 18px 28px 40px; max-width: 960px; margin: 0 auto; }\n";
+
+/** 要一个文本参数（只收文本，不收数字 —— 三个宿主要说一样的话）。 */
+function _siteStr(name, v) {
+  if (typeof v === 'string') return v;
+  throw R.typeErr(`「${name}」要传文本，但给的是${R.typeName(v)}（要拼数字请写 文本(值)）`);
+}
+
+/** 字典取键（没有就 undefined）。非字典直接报错。 */
+function _siteGet(d, key) {
+  if (!(d instanceof Map)) {
+    throw R.typeErr(`要传字典，但给的是${R.typeName(d)}`);
+  }
+  return d.has(key) ? d.get(key) : undefined;
+}
+
+function _siteGetStr(d, key, 默认) {
+  const v = _siteGet(d, key);
+  if (v === undefined || v === null) return 默认;
+  return _siteStr(key, v);
+}
+
+function _sitePairs(v, 谁) {
+  const out = [];
+  for (const it of v) {
+    if (!Array.isArray(it) || it.length < 2) {
+      throw R.typeErr(`「${谁}」要是 ["地址", "文字"] 这样的对，但有一项不是`);
+    }
+    out.push([_siteStr('导航项的地址', it[0]), _siteStr('导航项的文字', it[1])]);
+  }
+  return out;
+}
+
+const SITE_布局默认 = {
+  '标题分隔': ' · ', '标题后缀': '', '品牌': '', '品牌副': '',
+  '导航项': [], '脚注': '', '语言': 'zh-CN', '样式文件': 'style.css',
+  '样式': SITE_默认样式, '网址前缀': '', '指纹': true,
+};
+
+function _site布局(opt) {
+  if (opt !== undefined && opt !== null && !(opt instanceof Map)) {
+    throw R.typeErr(`「布局」的选项要传字典，但给的是${R.typeName(opt)}`);
+  }
+  const 取 = (k) => (opt && opt.has(k) ? opt.get(k) : undefined);
+  const 取文 = (k) => {
+    const v = 取(k);
+    if (v === undefined || v === null) return SITE_布局默认[k];
+    return _siteStr(k, v);
+  };
+  const 项们 = 取('导航项');
+  return new Map([
+    ['标题分隔', 取文('标题分隔')],
+    ['标题后缀', 取文('标题后缀')],
+    ['品牌', 取文('品牌')],
+    ['品牌副', 取文('品牌副')],
+    ['导航项', (项们 === undefined || 项们 === null) ? [] : _sitePairs(项们, '导航项')],
+    ['脚注', 取文('脚注')],
+    ['语言', 取文('语言')],
+    ['样式文件', 取文('样式文件')],
+    ['样式', 取文('样式')],
+    ['网址前缀', 取文('网址前缀')],
+    ['指纹', (取('指纹') === undefined || 取('指纹') === null) ? true : R.truthy(取('指纹'))],
+  ]);
+}
+
+function _siteNav(项们, 当前) {
+  let out = '';
+  for (const [址, 字] of _sitePairs(项们, '导航')) {
+    const 类 = (址 === 当前) ? ' class="now"' : '';
+    out += `<a${类} href="${_escapeHtml(址)}">${_escapeHtml(字)}</a>`;
+  }
+  return out;
+}
+
+function _sitePage(页, 表) {
+  if (!(页 instanceof Map)) {
+    throw R.typeErr(`「页面」要传字典，但给的是${R.typeName(页)}`);
+  }
+  const 标题 = _siteGetStr(页, '标题', '');
+  const 正文 = _siteGetStr(页, '正文', '');
+  const 路径 = _siteGetStr(页, '路径', '');
+  const 页脚注 = _siteGet(页, '脚注');
+  const 脚注 = (页脚注 === undefined || 页脚注 === null)
+    ? _siteGetStr(表, '脚注', '') : _siteStr('脚注', 页脚注);
+  const 后缀 = _siteGetStr(表, '标题后缀', '');
+  const 分隔 = _siteGetStr(表, '标题分隔', ' · ');
+  const 全标题 = 后缀 ? `${标题}${分隔}${后缀}` : 标题;
+  const 品牌副 = _siteGetStr(表, '品牌副', '');
+  const 牌子 = 品牌副 ? `<span>${_escapeHtml(品牌副)}</span>` : '';
+  const 导航项 = _siteGet(表, '导航项') || [];
+  return '<!DOCTYPE html>\n'
+    + `<html lang="${_escapeHtml(_siteGetStr(表, '语言', 'zh-CN'))}">\n`
+    + '<head>\n'
+    + '<meta charset="utf-8">\n'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+    + `<title>${_escapeHtml(全标题)}</title>\n`
+    + `<link rel="stylesheet" href="${_escapeHtml(_siteGetStr(表, '样式文件', 'style.css'))}">\n`
+    + '</head>\n'
+    + '<body>\n'
+    + '<header class="top">\n'
+    + `  <div class="brand">${_escapeHtml(_siteGetStr(表, '品牌', ''))}${牌子}</div>\n`
+    + `  <nav>${_siteNav(导航项, 路径)}</nav>\n`
+    + '</header>\n'
+    + '<main>\n'
+    + `${正文}\n`
+    + '</main>\n'
+    + `<footer>${_escapeHtml(脚注)}</footer>\n`
+    + '</body>\n'
+    + '</html>\n';
+}
+
+/** FNV-1a 32 位，按 UTF-8 字节算 —— 与 Python / Rust 逐位一致。 */
+function _siteFingerprint(s) {
+  let h = 2166136261;
+  const b = Buffer.from(s, 'utf8');
+  for (let i = 0; i < b.length; i++) {
+    h ^= b[i];
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+function _siteUrl(前缀, 路径) {
+  if (!前缀) return 路径;
+  return `${前缀.replace(/\/+$/, '')}/${路径.replace(/^\/+/, '')}`;
+}
+
+function _siteSitemap(页们, 前缀) {
+  const 址 = new Set();
+  for (const it of 页们) {
+    if (it instanceof Map) 址.add(_siteGetStr(it, '路径', ''));
+    else 址.add(_siteStr('页的路径', it));
+  }
+  // 🔴 按 **UTF-8 字节** 排（不是 JS 默认的 UTF-16 单元序）：Python / Rust 那边
+  // 也是按字节，三家口径必须一致 —— emoji 文件名在两种序下位置不同。
+  const 排 = Array.from(址).sort((a, b) => Buffer.compare(Buffer.from(a, 'utf8'),
+                                                          Buffer.from(b, 'utf8')));
+  let out = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+  for (const 一 of 排) out += `  <url><loc>${_escapeHtml(_siteUrl(前缀, 一))}</loc></url>\n`;
+  return out + '</urlset>\n';
+}
+
+const SITE_FUNCS = {
+  '布局': new R.Builtin('布局', (opt) => _site布局(opt)),
+  '导航': new R.Builtin('导航', (项们, 当前) => {
+    if (!Array.isArray(项们)) throw R.typeErr(`「导航」要传列表，但给的是${R.typeName(项们)}`);
+    return _siteNav(项们, 当前 === undefined || 当前 === null ? '' : _siteStr('当前地址', 当前));
+  }),
+  '页面': new R.Builtin('页面', (页, 表) => _sitePage(页, 表)),
+  '资源指纹': new R.Builtin('资源指纹', (内容) => _siteFingerprint(_siteStr('内容', 内容))),
+  '渲染': new R.Builtin('渲染', (页们, 表) => {
+    if (!Array.isArray(页们)) throw R.typeErr(`「渲染」要传页列表，但给的是${R.typeName(页们)}`);
+    return 页们.map((页) => [_siteGetStr(页, '路径', ''), _sitePage(页, 表)]);
+  }),
+  'sitemap': new R.Builtin('sitemap', (页们, 前缀) => _siteSitemap(
+    页们, 前缀 === undefined || 前缀 === null ? '' : _siteStr('前缀', 前缀))),
+  '写站': new R.Builtin('写站', (输出目录, 页们, 表) => {
+    const 目录 = _siteStr('输出目录', 输出目录);
+    if (!Array.isArray(页们)) throw R.typeErr(`「写站」要传页列表，但给的是${R.typeName(页们)}`);
+    const 样式 = _siteGetStr(表, '样式', '');
+    const 样式文件 = _siteGetStr(表, '样式文件', 'style.css');
+    const 指针 = (() => {
+      const v = _siteGet(表, '指纹');
+      return (v === undefined || v === null) ? true : R.truthy(v);
+    })();
+    let 真名 = '';
+    let 印 = '';
+    if (样式) {
+      印 = _siteFingerprint(样式);
+      if (指针) {
+        const i = 样式文件.lastIndexOf('.');
+        真名 = (i > 0)
+          ? `${样式文件.slice(0, i)}.${印}${样式文件.slice(i)}`
+          : `${样式文件}.${印}`;
+      } else {
+        // 留在原文件名上（有人按固定名字引用它），见 `布局` 里 `指纹` 的说明
+        真名 = 样式文件;
+      }
+    }
+    fs.mkdirSync(目录, { recursive: true });
+    let 页数 = 0;
+    for (const 页 of 页们) {
+      const 路径 = _siteGetStr(页, '路径', '');
+      if (!路径) throw R.typeErr('「写站」的每一页都要有「路径」（如 index.html）');
+      let 内容 = _sitePage(页, 表);
+      if (真名 && 真名 !== 样式文件) {
+        内容 = 内容.split(`href="${样式文件}"`).join(`href="${真名}"`);
+      }
+      const 全 = require('path').join(目录, 路径);
+      fs.mkdirSync(require('path').dirname(全), { recursive: true });
+      fs.writeFileSync(全, 内容, 'utf8');
+      页数 += 1;
+    }
+    if (真名) fs.writeFileSync(require('path').join(目录, 真名), 样式, 'utf8');
+    fs.writeFileSync(require('path').join(目录, 'sitemap.xml'),
+      _siteSitemap(页们, _siteGetStr(表, '网址前缀', '')), 'utf8');
+    return new Map([['页面数', 页数], ['样式文件', 真名], ['指纹', 印],
+                    ['sitemap', 'sitemap.xml']]);
+  }),
+};
+
 const HTML_FUNCS = {
   '转义': new R.Builtin('转义', (v) => _escapeHtml(v)),
   '原样': new R.Builtin('原样', (v) => (v instanceof RawHtml ? v : new RawHtml(v))),
@@ -6384,6 +6598,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '编码': new R.Module('编码', ENCODE_FUNCS),
   '配置': new R.Module('配置', CFG_FUNCS),
   '浏览器': new R.Module('浏览器', BROWSER_FUNCS),
+  '站点': new R.Module('站点', SITE_FUNCS),
   'html': new R.Module('html', HTML_FUNCS),
   '对比': new R.Module('对比', DIFF_FUNCS),
   '标识': new R.Module('标识', ID_FUNCS),

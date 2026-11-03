@@ -1212,6 +1212,92 @@ def _cmd_new_project(args) -> int:
     return 0
 
 
+def _cmd_new_site(args) -> int:
+    """`jishi 建站 名字`：生成一个**能直接传服务器**的静态站（M168）。
+
+    做三件事：写 `站点.jsh` + `说明.md`，然后**立刻跑一遍**，产出 `名字/_站/`。
+    「立刻跑」不是炫技 —— 用户第一次建站最想知道的是「生成出来长什么样」，
+    让他自己再敲一条命令纯属多一步。
+    """
+    import os
+    name = args.name
+    target = os.path.join(os.getcwd(), name)
+    if os.path.exists(target):
+        print(f"目录「{name}」已存在，换个名字吧", file=sys.stderr)
+        return 1
+    os.makedirs(target)
+
+    out = os.path.join(target, "_站")
+    site = f"""# {name} —— 用基石写的站点
+#
+# 跑：jishi 站点.jsh          → 生成 _站/
+# 传服务器：把 _站/ 里的文件整个传上去就行（纯静态，不需要后端）。
+
+导入 站点
+导入 html
+导入 系统
+
+令 布局表 = 站点.布局({{
+    "标题后缀": "{name}",
+    "品牌": "{name}",
+    "导航项": [["index.html", "首页"], ["关于.html", "关于"]],
+    "脚注": "由基石生成",
+    # 真上线时把绝对地址填上，sitemap 里才给得出完整网址：
+    # "网址前缀": "https://你的域名",
+}})
+
+令 页们 = [
+    {{"路径": "index.html", "标题": "首页", "正文":
+        html.标签("h1", "你好，{name}")
+        + html.标签("p", "这一页是基石写出来的。改这里的正文，重跑一次就更新。",
+                    {{"类名": "lead"}})}},
+    {{"路径": "关于.html", "标题": "关于", "正文":
+        html.标签("h1", "关于")
+        + html.标签("p", "布局、导航高亮、样式指纹、sitemap 都由「站点」模块包了。")}},
+]
+
+令 参数 = 系统.参数()
+令 输出 = "_站"
+如果 长度(参数) > 0：
+    输出 = 参数[0]
+令 统计 = 站点.写站(输出, 页们, 布局表)
+打印(`已生成 {{统计["页面数"]}} 个页面 → {{输出}}`)
+打印(`样式表 {{统计["样式文件"]}}　站点地图 {{统计["sitemap"]}}`)
+打印("把这个目录整个传上去就能访问。")
+"""
+    readme = f"""# {name}
+
+用基石写的静态站。
+
+```bash
+jishi 站点.jsh          # 生成 _站/
+```
+
+生成的 `_站/` 是纯静态文件（HTML + CSS + sitemap.xml），
+丢进 Nginx / 对象存储 / GitHub Pages 都能跑。
+
+改内容就改 `站点.jsh` 里的 `页们`（每页一个字典：路径 / 标题 / 正文）。
+"""
+    for file, text in (("站点.jsh", site), ("说明.md", readme)):
+        # ⚠️ **不传 `newline="\n"`**：与 `_cmd_new_project`（以及 Rust 的
+        # `write_text_like_python`）保持同一条口径 —— 用平台默认换行。
+        # 传了就变成「Python 写 LF、Rust 写 CRLF」，两个宿主的脚手架字节不同。
+        with open(os.path.join(target, file), "w", encoding="utf-8") as f:
+            f.write(text)
+
+    print(f"已创建站点「{name}」：")
+    print(f"  {os.path.join(target, '站点.jsh')}")
+    print(f"  {os.path.join(target, '说明.md')}")
+    # 立刻跑一遍，让用户第一眼就看到产物（失败就把退出码带出去）
+    code = run_file(os.path.join(target, "站点.jsh"), argv=[out])
+    if code != 0:
+        print("生成失败了 —— 上面那条错误就是要改的地方。", file=sys.stderr)
+        return code
+    print()
+    print(f"下一步：改 {os.path.join(name, '站点.jsh')} 里的正文，然后 jishi 站点.jsh")
+    return 0
+
+
 def _cmd_tutorial(args) -> int:
     """`jishi 教程`：打印本地教程索引（M16.5）。"""
     print("== 基石教程（13 章）==")
@@ -1859,6 +1945,10 @@ def _run_tool_cmd(argv: list[str]) -> int:
     p_new.add_argument("name", help="项目名")
     p_new.set_defaults(func=_cmd_new_project)
 
+    p_site = sub.add_parser("建站", help="生成一个能直接传服务器的静态站（M168）")
+    p_site.add_argument("name", help="站点名（也是目录名）")
+    p_site.set_defaults(func=_cmd_new_site)
+
     sub.add_parser("教程", help="打印本地教程索引").set_defaults(
         func=_cmd_tutorial)
 
@@ -2022,7 +2112,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         return _run_package_cmd(argv)
     # 工具子命令（医生/新项目/教程/格式化/lsp/调试/dap/源码静态检查，
     # M16 / M21 / M37 / M43 / M44）
-    if argv and argv[0] in ("医生", "新项目", "教程", "错误", "格式化", "lsp", "调试",
+    if argv and argv[0] in ("医生", "新项目", "建站", "教程", "错误", "格式化", "lsp", "调试",
                             "dap", "源码静态检查", "静态检查", "测试", "自测"):
         return _run_tool_cmd(argv)
 

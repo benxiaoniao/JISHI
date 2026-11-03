@@ -117,6 +117,115 @@ pub fn run_new_project(name: &str) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// `jishi 建站 名字`：生成一个**能直接传服务器**的静态站（M168）。
+///
+/// 与 Python 侧 `_cmd_new_site` **逐字一致**（文字、顺序、退出码），
+/// 差别只有一处实现细节：那边用 `run_file()`，这边用 `run::main_cli()`
+/// —— 反正都是「把刚生成的脚本立刻跑一遍」。
+pub fn run_new_site(name: &str) -> ExitCode {
+    let cwd = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("拿不到当前目录：{e}");
+            return ExitCode::from(1);
+        }
+    };
+    let target = cwd.join(name);
+    if target.exists() {
+        eprintln!("目录「{name}」已存在，换个名字吧");
+        return ExitCode::from(1);
+    }
+    if let Err(e) = std::fs::create_dir(&target) {
+        eprintln!("建目录失败：{e}");
+        return ExitCode::from(1);
+    }
+
+    // ⚠️ 模板里的花括号要**原样**写进生成的文件（那是基石代码，不是 Rust 格式串），
+    //    所以这里用 `__名字__` 占位再替换，不走 `format!` —— 否则满屏 `{{` `}}`。
+    let site = SITE_TEMPLATE.replace("__名字__", name);
+    let readme = README_TEMPLATE.replace("__名字__", name);
+    for (file, text) in [("站点.jsh", site), ("说明.md", readme)] {
+        if let Err(e) = write_text_like_python(&target.join(file), &text) {
+            eprintln!("写文件失败：{e}");
+            return ExitCode::from(1);
+        }
+    }
+
+    println!("已创建站点「{name}」：");
+    println!("  {}", target.join("站点.jsh").display());
+    println!("  {}", target.join("说明.md").display());
+
+    // 立刻跑一遍，让用户第一眼就看到产物（失败就把退出码带出去）
+    let script = target.join("站点.jsh");
+    let out = target.join("_站");
+    let code = crate::run::main_cli(&[
+        script.display().to_string(),
+        out.display().to_string(),
+    ]);
+    if code != ExitCode::SUCCESS {
+        eprintln!("生成失败了 —— 上面那条错误就是要改的地方。");
+        return code;
+    }
+    println!();
+    println!(
+        "下一步：改 {} 里的正文，然后 jishi 站点.jsh",
+        std::path::Path::new(name).join("站点.jsh").display()
+    );
+    ExitCode::SUCCESS
+}
+
+const SITE_TEMPLATE: &str = r#"# __名字__ —— 用基石写的站点
+#
+# 跑：jishi 站点.jsh          → 生成 _站/
+# 传服务器：把 _站/ 里的文件整个传上去就行（纯静态，不需要后端）。
+
+导入 站点
+导入 html
+导入 系统
+
+令 布局表 = 站点.布局({
+    "标题后缀": "__名字__",
+    "品牌": "__名字__",
+    "导航项": [["index.html", "首页"], ["关于.html", "关于"]],
+    "脚注": "由基石生成",
+    # 真上线时把绝对地址填上，sitemap 里才给得出完整网址：
+    # "网址前缀": "https://你的域名",
+})
+
+令 页们 = [
+    {"路径": "index.html", "标题": "首页", "正文":
+        html.标签("h1", "你好，__名字__")
+        + html.标签("p", "这一页是基石写出来的。改这里的正文，重跑一次就更新。",
+                    {"类名": "lead"})},
+    {"路径": "关于.html", "标题": "关于", "正文":
+        html.标签("h1", "关于")
+        + html.标签("p", "布局、导航高亮、样式指纹、sitemap 都由「站点」模块包了。")},
+]
+
+令 参数 = 系统.参数()
+令 输出 = "_站"
+如果 长度(参数) > 0：
+    输出 = 参数[0]
+令 统计 = 站点.写站(输出, 页们, 布局表)
+打印(`已生成 {统计["页面数"]} 个页面 → {输出}`)
+打印(`样式表 {统计["样式文件"]}　站点地图 {统计["sitemap"]}`)
+打印("把这个目录整个传上去就能访问。")
+"#;
+
+const README_TEMPLATE: &str = r#"# __名字__
+
+用基石写的静态站。
+
+```bash
+jishi 站点.jsh          # 生成 _站/
+```
+
+生成的 `_站/` 是纯静态文件（HTML + CSS + sitemap.xml），
+丢进 Nginx / 对象存储 / GitHub Pages 都能跑。
+
+改内容就改 `站点.jsh` 里的 `页们`（每页一个字典：路径 / 标题 / 正文）。
+"#;
+
 // ---------------------------------------------------------------------------
 // 医生
 // ---------------------------------------------------------------------------

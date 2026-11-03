@@ -41,6 +41,7 @@ use crate::{display, err, JishiError, Val};
 
 pub(crate) mod browser;
 pub(crate) mod datetime;
+pub(crate) mod site;
 mod files;
 pub(crate) mod jsonmod;
 mod math;
@@ -92,6 +93,7 @@ pub(crate) type R = Result<Val, JishiError>;
 pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, Val>)] {
     &[
         ("浏览器", browser::module),
+        ("站点", site::module),
         ("数学", math::module),
         ("文本", text::module),
         ("随机", rand::module),
