@@ -105,15 +105,29 @@ def _cleanup_tmp_bytecode():
     但 `.gitignore` 已挡 `_tmp_*.json`。
     """
     yield
+    # 🔴 **只清自己这一路的**（文件名尾巴 `_<pid>.json`），M169 修。
+    #
+    #    原来这里是「把临时目录里所有 `jishi_m*.json` 全删掉」——
+    #    单进程跑没问题，但 CI 用 `-n 4`（xdist **多进程**）：某个 worker 先跑完
+    #    就执行本夹具，把**别的还在跑的 worker** 正在用的临时字节码删了，
+    #    那一路的 Node / Rust 宿主立刻 `ENOENT`（CI 上表现为
+    #    `test_m140_vector_speed.py::test_错误路径五引擎也一致` 偶发红，
+    #    本地单进程永远复现不了）。
+    #    ⇒ 判据：**清理不许有跨进程副作用**。自己那几个（带本进程 pid 的）才删。
+    自己 = f"_{os.getpid()}"
     for 目录 in (Path(tempfile.gettempdir()), ROOT):
         for pattern in ("_tmp_*.json", "jishi_m*.json"):
             for f in 目录.glob(pattern):
+                if not f.stem.endswith(自己):
+                    continue
                 try:
                     f.unlink()
                 except OSError:
                     pass
     # test_m33 等写进 build/（`.gitignore` 已挡，但也清一下）
     for f in (ROOT / "build").glob("_m33_bc_*.json"):
+        if not f.stem.endswith(自己):
+            continue
         try:
             f.unlink()
         except OSError:

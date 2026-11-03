@@ -45,7 +45,10 @@ sys.path.insert(0, ".")
 from conftest import ROOT, rust_exe_path                            # noqa: E402
 
 WASM = ROOT / "site" / "jishi_wasm.wasm"
-SHIM = ROOT / "site" / "jishi-wasm.js"
+#: ⚠️ **读源码那份，不读 `site/` 的拷贝**（M169 CI 红过一次）：
+#: `site/` 是 `.gitignore` 掉的**构建产物**，CI 上根本没有 ⇒ 判据会
+#: `FileNotFoundError`。判据要跑在「刚 clone 下来」的仓库上，只许依赖**被跟踪的文件**。
+SHIM = ROOT / "wasm" / "jishi-wasm.js"
 
 #: `浏览器` 的 13 个函数（**三宿主一个都不能少** —— `test_m51` 从另一头盯着）。
 函数们 = [
@@ -229,10 +232,17 @@ def test_wasm里真能用(tmp_path):
     assert 出["类"] is False, "`加类` 之后 `切类` 应当把它去掉"
 
 
+@pytest.mark.skipif(not (ROOT / "site" / "jishi-wasm.js").is_file(),
+                    reason="还没构建 wasm（`site/` 是构建产物，CI 上没有）")
 def test_shim的语法自检():
     """`wasm/jishi-wasm.js` 与 `site/` 那份必须**同源**（构建时是拷贝）。
 
     改了一边忘了另一边，站点上跑的就是旧逻辑 —— 那类问题在浏览器里极难查。
+
+    📌 **只在构建过（`site/` 存在）时才比**：`site/` 是 `.gitignore` 掉的产物，
+    CI 的干净 checkout 里没有它 —— 早先这里无条件读，CI 直接
+    `FileNotFoundError`（M169 修）。判据的口径是「**只要拷过去了，就必须一样**」，
+    而不是「每个环境都必须有一份拷贝」。
     """
     源 = (ROOT / "wasm" / "jishi-wasm.js").read_text(encoding="utf-8")
     站点 = (ROOT / "site" / "jishi-wasm.js").read_text(encoding="utf-8")
