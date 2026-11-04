@@ -4736,6 +4736,277 @@ const PACK_FUNCS = {
   }),
 };
 
+// ---------------------------------------------------------------------------
+// M173：`窗口` —— 把程序开成一个窗口（应用模式，无地址栏）
+//
+// 设计意图与三条边界见 Python 侧 `jishi/stdlib/窗口.py` 模块头。JS 这份有一个
+// **宿主特有的问题**：本宿主的 VM 是同步的，`窗口.等` 必须**阻塞主线程**，
+// 可阻塞了事件循环，同进程里的 HTTP 服务就再也 accept 不了 —— 页面根本加载不出来。
+//
+// ⇒ 服务放到**子进程**（`node -e <一段服务代码>`），主线程只负责等浏览器进程。
+// 等效于别的宿主里的「服务线程」，只是这边用了进程。
+// ---------------------------------------------------------------------------
+
+const WINDOW_引擎前缀 = '/__jishi/';
+
+//: 子进程里跑的那段服务代码。参数：`目录 引擎目录 端口文件`。
+//: 端口由子进程自己挑（0 = 系统分配），写进端口文件，父进程轮询读。
+const WINDOW_服务代码 = `
+const http = require('http'), fs = require('fs'), path = require('path');
+const dir = process.argv[1], eng = process.argv[2] || '', out = process.argv[3];
+const MIME = { '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
+  '.wasm': 'application/wasm', '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8' };
+const 根 = path.resolve(dir), 引擎根 = eng ? path.resolve(eng) : '';
+const srv = http.createServer((req, res) => {
+  let 路;
+  try { 路 = decodeURIComponent(req.url.split('?')[0].split('#')[0]); }
+  catch (e) { res.writeHead(400); res.end('路径解码失败'); return; }
+  let 文件;
+  if (引擎根 && 路.startsWith('${WINDOW_引擎前缀}')) {
+    文件 = path.resolve(引擎根, 路.slice('${WINDOW_引擎前缀}'.length));
+    if (!文件.startsWith(引擎根)) { res.writeHead(404); res.end('找不到'); return; }
+  } else {
+    const 相对 = 路.replace(/^\\/+/, '') || 'index.html';
+    文件 = path.resolve(根, 相对);
+    if (!文件.startsWith(根)) { res.writeHead(404); res.end('找不到'); return; }
+  }
+  fs.readFile(文件, (e, 数据) => {
+    if (e) {
+      if (文件.endsWith('favicon.ico')) { res.writeHead(204); res.end(); return; }
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('找不到');
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': MIME[path.extname(文件).toLowerCase()] || 'application/octet-stream',
+      'Content-Length': 数据.length,
+      'Cache-Control': 'no-store',
+    });
+    res.end(数据);
+  });
+});
+srv.listen(0, '127.0.0.1', () => { fs.writeFileSync(out, String(srv.address().port)); });
+`;
+
+const _win服务 = new Map();     // 目录 -> { 子, 端口 }
+const _win表 = [];              // 序号-1 -> { 子, 目录, 网址 }
+
+function _win引擎() {
+  const 候选 = [];
+  try {
+    候选.push(_path.join(_path.dirname(process.execPath), 'site'));
+    候选.push(_path.join(_path.dirname(process.execPath), 'wasm'));
+  } catch (e) { /* 忽略 */ }
+  for (const d of 候选) {
+    try {
+      if (fs.statSync(_path.join(d, 'jishi-wasm.js')).isFile()
+          && fs.statSync(_path.join(d, 'jishi_wasm.wasm')).isFile()) return d;
+    } catch (e) { /* 继续找 */ }
+  }
+  return '';
+}
+
+function _win浏览器(指定) {
+  if (Array.isArray(指定)) {
+    if (!指定.length) throw R.valueErr('「浏览器」给了个空列表');
+    const 命令 = 指定.map((x) => String(x));
+    if (!命令[0].trim()) throw R.valueErr('「浏览器」的第一项不能是空的（那应该是可执行文件或命令）');
+    return 命令;
+  }
+  if (typeof 指定 === 'string' && 指定.trim()) {
+    if (!fs.existsSync(指定)) throw R.valueErr(`「浏览器」指向的文件不存在：${指定}`);
+    return [指定];
+  }
+  const 候选 = [];
+  if (process.platform === 'win32') {
+    const 基 = [process.env.PROGRAMFILES || 'C:\\Program Files',
+      process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)',
+      process.env.LOCALAPPDATA || ''];
+    for (const b of 基) {
+      if (!b) continue;
+      候选.push(_path.join(b, 'Microsoft', 'Edge', 'Application', 'msedge.exe'));
+      候选.push(_path.join(b, 'Google', 'Chrome', 'Application', 'chrome.exe'));
+    }
+  } else if (process.platform === 'darwin') {
+    候选.push('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium');
+  } else {
+    for (const 名 of ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge']) {
+      const p = whichBin(名);
+      if (p) 候选.push(p);
+    }
+  }
+  for (const p of 候选) {
+    try { if (fs.statSync(p).isFile()) return [p]; } catch (e) { /* 下一个 */ }
+  }
+  throw R.valueErr('找不到能开应用窗口的浏览器（要 Edge / Chrome / Chromium 这类）',
+    undefined, undefined,
+    '装一个 Chromium 内核的浏览器，或者用「浏览器」选项指定它的可执行文件路径');
+}
+
+function whichBin(名) {
+  const 路径 = (process.env.PATH || '').split(process.platform === 'win32' ? ';' : ':');
+  for (const d of 路径) {
+    if (!d) continue;
+    const p = _path.join(d, 名);
+    try { if (fs.statSync(p).isFile()) return p; } catch (e) { /* 继续 */ }
+  }
+  return '';
+}
+
+/** 起（或复用）一个目录上的服务，返回端口。服务跑在**子进程**里。 */
+function _win起服务(目录) {
+  const 键 = _path.resolve(目录).toLowerCase();
+  const 有 = _win服务.get(键);
+  if (有) return 有.端口;
+  const 端口文件 = _path.join(_os.tmpdir(), `jishi-win-${process.pid}-${_win服务.size}.port`);
+  try { fs.unlinkSync(端口文件); } catch (e) { /* 本来就没有 */ }
+  const 子 = _cp.spawn(process.execPath,
+    ['-e', WINDOW_服务代码, 目录, _win引擎(), 端口文件],
+    { stdio: 'ignore', windowsHide: true });
+  // 等子进程把端口写出来（同步宿主不能 await，只能小睡轮询）
+  const 缓冲 = new Int32Array(new SharedArrayBuffer(4));
+  for (let i = 0; i < 100; i += 1) {
+    try {
+      const 文 = fs.readFileSync(端口文件, 'utf8').trim();
+      if (文) {
+        const 端口 = Number(文);
+        _win服务.set(键, { 子, 端口 });
+        return 端口;
+      }
+    } catch (e) { /* 还没写出来 */ }
+    Atomics.wait(缓冲, 0, 0, 50);
+  }
+  try { 子.kill(); } catch (e) { /* 已经没了 */ }
+  throw R.runErr('本地服务起不来（子进程没给出端口）');
+}
+
+function _win停服务(目录) {
+  const 键 = _path.resolve(目录).toLowerCase();
+  const 有 = _win服务.get(键);
+  if (!有) return;
+  _win服务.delete(键);
+  try { 有.子.kill(); } catch (e) { /* 已经没了 */ }
+}
+
+const WINDOW_FUNCS = {
+  '打开': new R.Builtin('打开', (选项) => {
+    if (!(选项 instanceof Map)) {
+      throw R.typeErr('「窗口.打开」要一个字典', undefined, undefined,
+        '例如 {"标题": "计算器", "页面": "计算器.html"}');
+    }
+    const 取文 = (k, 默认) => {
+      const v = 选项.has(k) ? 选项.get(k) : undefined;
+      if (v === undefined || v === null) return 默认;
+      if (typeof v !== 'string') throw R.valueErr(`「${k}」要传文本`);
+      return v;
+    };
+    const 取数 = (k, 默认) => {
+      const v = 选项.has(k) ? 选项.get(k) : undefined;
+      if (v === undefined || v === null) return 默认;
+      if (typeof v !== 'number' || !Number.isInteger(v)) {
+        throw R.valueErr(`「${k}」要传整数（像素）`);
+      }
+      return v;
+    };
+    const 页面 = 取文('页面', '');
+    const 服务 = 取文('服务', '');
+    const 宽 = 取数('宽', 900);
+    const 高 = 取数('高', 640);
+    if (页面 && 服务) {
+      throw R.valueErr('「页面」和「服务」只能给一个：页面我们自己起服务，服务是你已经有的地址');
+    }
+    let 网址;
+    let 目录 = '';
+    if (服务) {
+      网址 = 服务;
+    } else if (页面) {
+      const 全 = _path.resolve(页面);
+      let 是文件 = false;
+      try { 是文件 = fs.statSync(全).isFile(); } catch (e) { 是文件 = false; }
+      if (!是文件) throw R.valueErr(`找不到页面：${页面}`);
+      目录 = _path.dirname(全);
+      const 端口 = _win起服务(目录);
+      网址 = `http://127.0.0.1:${端口}/${encodeURIComponent(_path.basename(全))}`;
+    } else {
+      throw R.valueErr('「窗口.打开」要指定「页面」或「服务」');
+    }
+    const 命令 = _win浏览器(选项.has('浏览器') ? 选项.get('浏览器') : undefined);
+    const 配置 = _path.join(_os.homedir(), '.jishi', 'windows',
+      _crypto.createHash('sha256').update(页面 || 网址, 'utf8').digest('hex').slice(0, 16));
+    try { fs.mkdirSync(配置, { recursive: true }); } catch (e) { /* 有就算了 */ }
+    命令.push(`--app=${网址}`, `--window-size=${宽},${高}`, `--user-data-dir=${配置}`,
+      '--no-first-run', '--no-default-browser-check', '--disable-features=TranslateUI');
+    const 子 = _cp.spawn(命令[0], 命令.slice(1), { stdio: 'ignore', windowsHide: true });
+    _win表.push({ 子, 目录, 网址 });
+    return _win表.length;
+  }),
+
+  '关闭': new R.Builtin('关闭', (句柄) => {
+    const 记录 = _win记录(句柄);
+    if (!记录) return false;
+    try { 记录.子.kill(); } catch (e) { /* 已经没了 */ }
+    return true;
+  }),
+
+  '在运行': new R.Builtin('在运行', (句柄) => {
+    const 记录 = _win记录(句柄);
+    return !!记录 && _win活着(记录);
+  }),
+
+  '等': new R.Builtin('等', (句柄) => {
+    const 记录 = _win记录(句柄);
+    if (!记录) return 0;      // 已经关掉了：等一个关掉的窗口 = 立刻返回
+    // 同步宿主只能**轮询 OS**：`process.kill(pid, 0)` 是系统调用，不依赖事件循环。
+    // 服务在子进程里，所以主线程阻塞不影响页面加载。
+    const 缓冲 = new Int32Array(new SharedArrayBuffer(4));
+    while (_win活着(记录)) Atomics.wait(缓冲, 0, 0, 50);
+    const 码 = 记录.子.exitCode === null ? 0 : Number(记录.子.exitCode);
+    _win收尾(句柄);
+    return 码;
+  }),
+
+  '全部关闭': new R.Builtin('全部关闭', () => {
+    let 数 = 0;
+    for (let i = 0; i < _win表.length; i += 1) {
+      if (!_win表[i]) continue;
+      if (WINDOW_FUNCS["关闭"].fn(i + 1)) 数 += 1;
+      _win收尾(i + 1);
+    }
+    return 数;
+  }),
+};
+
+function _win记录(句柄) {
+  if (typeof 句柄 !== 'number' || !Number.isInteger(句柄) || 句柄 < 1) return null;
+  return _win表[句柄 - 1] || null;
+}
+
+function _win活着(记录) {
+  try {
+    // 信号 0 = 只检查进程在不在
+    process.kill(记录.子.pid, 0);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function _win收尾(句柄) {
+  const 记录 = _win记录(句柄);
+  if (!记录) return;
+  _win表[句柄 - 1] = null;
+  if (记录.目录 && !_win表.some((x) => x && x.目录 === 记录.目录)) {
+    _win停服务(记录.目录);
+  }
+}
+
 const HTML_FUNCS = {
   '转义': new R.Builtin('转义', (v) => _escapeHtml(v)),
   '原样': new R.Builtin('原样', (v) => (v instanceof RawHtml ? v : new RawHtml(v))),
@@ -7062,6 +7333,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '浏览器': new R.Module('浏览器', BROWSER_FUNCS),
   '站点': new R.Module('站点', SITE_FUNCS),
   '打包': new R.Module('打包', PACK_FUNCS),
+  '窗口': new R.Module('窗口', WINDOW_FUNCS),
   'html': new R.Module('html', HTML_FUNCS),
   '对比': new R.Module('对比', DIFF_FUNCS),
   '标识': new R.Module('标识', ID_FUNCS),

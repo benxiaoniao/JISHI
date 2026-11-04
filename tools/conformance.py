@@ -302,6 +302,11 @@ def collect_corpus() -> list[tuple[str, str]]:
             #    不该让「示例文件」去触发它，也不该把它悄悄冻进基线里当标准。
             if p.name.endswith("_test.jsh"):
                 continue
+            # ⚠️ **`examples/desktop/` 不是语料**（M173）：那里的程序会**开一个窗口**
+            #    然后 `窗口.等` 阻塞到人把窗口关掉 —— 自动跑就是**永久卡住**。
+            #    它的判据在 `tests/test_m173_window.py`（假浏览器 + 真 wasm 引擎）。
+            if "examples/desktop/" in p.relative_to(ROOT).as_posix():
+                continue
             rel = p.relative_to(ROOT).as_posix()
             seen.setdefault(rel, category)
     return [(seen[rel], rel) for rel in sorted(seen)]

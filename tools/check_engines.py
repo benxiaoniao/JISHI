@@ -330,7 +330,11 @@ def _corpora() -> list[str]:
     out: list[str] = []
     for pat in SOURCES:
         out += sorted(glob.glob(str(ROOT / pat), recursive=True))
-    return [p for p in out if not _是包自带测试(p)]
+    # ⚠️ `examples/desktop/` 不是语料（M173）：那里的程序会开窗口并阻塞到
+    #    **人把窗口关掉**，自动跑就是永久卡住。判据在 `test_m173_window.py`。
+    return [p for p in out
+            if not _是包自带测试(p)
+            and "examples/desktop/" not in Path(p).relative_to(ROOT).as_posix()]
 
 
 def main(argv: "list[str] | None" = None) -> int:
