@@ -560,9 +560,44 @@ def __基石新建__() -> dict:
             s = s.lstrip()
         return s[:7].lower() in ("select ", "select\n", "select\r")
 
-    def 执行(库: str, SQL: str) -> int:
+    def _绑参(参数们) -> tuple:
+        """把基石的列表变成 SQLite 能按**值**绑的参数（M170）。
+
+        只转能进 SQLite 的六种：空 / 布尔 / 整数 / 小数 / 文本 / 字节。
+        别的（列表、字典…）**明确报错**，不静默转成字符串 —— 静默转会把
+        「用户输入变成 SQL 的一部分」这个坑重新埋回来。
+        """
+        if 参数们 is None:
+            return ()
+        if isinstance(参数们, (str, bytes)):
+            raise RunValueError(
+                "「参数们」要一个**列表**（每个 `?` 对应一项）",
+                hint='例如 数据库.执行(库, "删除 由 成绩 当 名字 = ?", ["小明"])')
+        try:
+            项们 = list(参数们)
+        except TypeError:
+            raise RunValueError("「参数们」要一个列表（每个 `?` 对应一项）") from None
+        出 = []
+        for i, v in enumerate(项们):
+            if isinstance(v, bool):
+                出.append(1 if v else 0)
+            elif v is None or isinstance(v, (int, float, str, bytes)):
+                出.append(v)
+            else:
+                from ..runtime import jishi_repr
+                raise RunValueError(
+                    f"「参数们」第 {i + 1} 个值放不进 SQL（{jishi_repr(v, top=True)}）",
+                    hint="SQL 参数只认 文本/整数/小数/布尔/空/字节；"
+                         "结构化数据请先 `json.转文本` 成文本")
+        return tuple(出)
+
+    def 执行(库: str, SQL: str, 参数们=None) -> int:
         """直接跑**一句写操作的 SQL**（INSERT / UPDATE / DELETE / CREATE …），
         返回改动的行数。
+
+        **有值时用 `?` 占位，值放进 `参数们`**（M170）：
+        `数据库.执行(库, "删除 由 成绩 当 名字 = ?", ["小明"])`
+        —— 拼字符串会让用户输入直接变成 SQL 的一部分。
 
         ⚠️ 这是逃生口：**结果顺序、类型转换都得你自己负责**。
         SELECT 请用 `执行查询`。
@@ -573,12 +608,15 @@ def __基石新建__() -> dict:
             raise RunValueError(
                 "「执行」只跑写操作的 SQL；你给的是 SELECT",
                 hint="要取回记录用 数据库.执行查询(库, SQL)")
-        游标 = _翻(连接, 连接.execute, 文本)
+        游标 = _翻(连接, 连接.execute, 文本, _绑参(参数们))
         n = 游标.rowcount
         return n if n and n > 0 else 0
 
-    def 执行查询(库: str, SQL: str) -> list:
+    def 执行查询(库: str, SQL: str, 参数们=None) -> list:
         """直接跑一句 SELECT，返回**记录列表**。
+
+        **有值时用 `?` 占位**（M170）：
+        `数据库.执行查询(库, "SELECT * FROM 成绩 WHERE 名字 = ?", ["小明"])`
 
         ⚠️ 这是逃生口：**顺序由你的 SQL 决定** —— 想让五个执行器结果一致，
         SQL 里必须自己写 `ORDER BY`。
@@ -589,7 +627,7 @@ def __基石新建__() -> dict:
             raise RunValueError(
                 "「执行查询」只跑 SELECT；你给的不是 SELECT",
                 hint="写操作用 数据库.执行(库, SQL)")
-        游标 = _翻(连接, 连接.execute, 文本)
+        游标 = _翻(连接, 连接.execute, 文本, _绑参(参数们))
         return [_行(游标, r) for r in 游标.fetchall()]
 
     return {

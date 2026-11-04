@@ -85,6 +85,11 @@ function iterSizeErr(line, col) {
                         line, col, ITER_SIZE_CHANGED_HINT);
 }
 
+/** 库层行号带（M170）—— 与 Python `errors.库层行号带`、Rust `lib.rs` 同名常量
+ * 必须一致（1_000_000）。基石库层编译期展开进主程序，行号被抬进这一带；
+ * 渲染前换回用户的调用点（见 `显示位置()`）。 */
+const 库层行号带 = 1_000_000;
+
 class JishiError extends Error {
   constructor(typeName, title, message, line, col, hint) {
     super(message);
@@ -198,6 +203,24 @@ class JishiError extends Error {
     return parts.join('\n');
   }
 
+  /** 渲染该显示哪个位置：落在库层带里就换成**调用点**（M170）。
+   *
+   * 取「最后一个不在带里的帧」而不是最内层：库函数会互相调用
+   * （`参数.解析` → `_逐项解析`），最内层帧的调用点也在库文件里。
+   * 与 Python `JishiError._把库层位置换成调用点`、Rust `显示位置()` 同一条规则。
+   */
+  显示位置() {
+    if (this.line == null) return null;
+    if (this.line < 库层行号带) return [this.line, this.col || 1];
+    const tr = this.trace || [];
+    for (let i = tr.length - 1; i >= 0; i -= 1) {
+      const fr = tr[i];
+      if (fr && fr.line != null && fr.line < 库层行号带) return [fr.line, fr.col || 1];
+    }
+    // 连调用点都没有（库的顶层就炸了）：宁可不指，也别指错。
+    return null;
+  }
+
   /** 只渲染**这一层**（不带起因链）；`render` 拿它拼整条链。
    *
    * `withTrace=false` 时不印调用链 —— 起因层只用位置说话。 */
@@ -210,16 +233,17 @@ class JishiError extends Error {
       if (this.message) head += `（${this.message}）`;
     }
     const parts = [];
-    if (this.line == null) {
+    const pos = this.显示位置();
+    if (pos == null) {
       parts.push(head);
     } else {
-      const col = this.col || 1;
+      const [line, col] = pos;
       parts.push(head);
-      parts.push(`  ┌─ ${this.filename || '<输入>'}:${this.line}:${col}`);
+      parts.push(`  ┌─ ${this.filename || '<输入>'}:${line}:${col}`);
       parts.push('  │');
       if (this.sourceLine) {
         const src = this.sourceLine.replace(/\n$/, '').replace(/\r$/, '');
-        parts.push(`${String(this.line).padStart(3)} │ ${src}`);
+        parts.push(`${String(line).padStart(3)} │ ${src}`);
         const [start, end] = this.underline || [col, col];
         const caretCol = Math.max(1, start == null ? col : start);
         const stop = end == null ? caretCol : end;
@@ -240,10 +264,14 @@ class JishiError extends Error {
     const frames = this.trace.length > 20 ? this.trace.slice(-20) : this.trace;
     const lines = ['调用链（从外到内）：'];
     for (const fr of frames) {
+      // ⚠️ 跳过调用点落在库层带里的帧（M170）：那是库函数的内部调用
+      // （`参数.解析` → `_逐项解析`），对用户没意义，还会印出 `第 1000241 行`。
+      if (fr.line != null && fr.line >= 库层行号带) continue;
       const where = fr.line == null ? '未知位置' : `第 ${fr.line} 行`;
       lines.push(`  ${fr.func} ← ${where}`);
     }
-    return lines.join('\n');
+    // 全被过滤掉就别印一个空标题（与 Python `_render_trace` 同口径）
+    return lines.length > 1 ? lines.join('\n') : '';
   }
 
   toString() {

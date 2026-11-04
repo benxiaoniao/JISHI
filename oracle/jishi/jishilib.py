@@ -188,35 +188,50 @@ def shell_def(name: str) -> A.FuncDef:
     ⚠️ **行号要整体减 1**：外壳源码比模块源码多了一行函数头，不减的话
     `统计.jsh` 里第 2 行的错误会被报成第 3 行 —— 中文报错的行列是这项目的
     立身之本之一，不能差一行。
+
+    ⚠️ **再抬进「库层行号带」**（M170，`errors.库层行号带`）：展开后库代码和
+    用户代码在**同一份程序**里、共用一套行号，光看行号分不出谁是谁 ——
+    于是用户写两行的文件会被告知「第 237 行出错」。
+    抬进保留带之后，「在库层」变成结构性可判定，渲染前换回调用点。
     """
+    from .errors import 库层行号带
+
     path = module_path(name)
     program = _parse(shell_source(name), path or f"{name}.jsh")
     for node in program.body:
         if isinstance(node, A.FuncDef) and node.name == shell_name(name):
-            _shift_lines(node, -1)
+            _shift_lines(node, 库层行号带 - 1)
             return node
     raise AssertionError(f"外壳函数没生成出来：{name}")     # pragma: no cover
 
 
 def _shift_lines(node, delta: int) -> None:
-    """递归把所有节点的行号加上 `delta`（最小 1）。"""
+    """递归把所有节点的行号加上 `delta`（最小 1）。
+
+    ⚠️ **必须钻进「块体」**（M170 修）：`如果` / `循环` / `尝试` 的块体存在
+    `branches` 那种 `(条件, [语句…])` 的**元组套列表**里。老实现只认
+    「Node / list / tuple 里的 Node」，遇到 `tuple 里的 list` 就停下 ——
+    于是**嵌套块里的行号从来没被移过**：库层里 `如果` 内的一句 `抛出`，
+    报出来比真实行号少 1（外壳那行），而且这次（M170）连「进保留带」也漏了。
+    ⇒ 改成**通用递归**：list / tuple / dict 都往下走，别枚举形状。
+    """
     import dataclasses
 
-    line = getattr(node, "line", None)
-    if isinstance(line, int):
-        node.line = max(1, line + delta)
-    for f in dataclasses.fields(node):
-        v = getattr(node, f.name)
-        if isinstance(v, A.Node):
-            _shift_lines(v, delta)
-        elif isinstance(v, list):
-            for x in v:
-                if isinstance(x, A.Node):
-                    _shift_lines(x, delta)
-                elif isinstance(x, tuple):
-                    for y in x:
-                        if isinstance(y, A.Node):
-                            _shift_lines(y, delta)
+    def walk(x) -> None:
+        if isinstance(x, A.Node):
+            line = getattr(x, "line", None)
+            if isinstance(line, int):
+                x.line = max(1, line + delta)
+            for f in dataclasses.fields(x):
+                walk(getattr(x, f.name))
+        elif isinstance(x, (list, tuple)):
+            for y in x:
+                walk(y)
+        elif isinstance(x, dict):
+            for y in x.values():
+                walk(y)
+
+    walk(node)
 
 
 # ---------------------------------------------------------------------------

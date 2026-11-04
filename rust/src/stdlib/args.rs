@@ -161,7 +161,10 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("选项", args, 2, 4)?;
             let idx = 取下标(&args[0])?;
             let 名 = match &args[1] { Val::Str(s) => s.to_string(), o => display(o) };
-            let 默认 = args[2].clone();
+            // ⚠️ `默认` 是**可选参数**（语言卡：`选项(句柄, 名, 默认=空, 说明='')`）。
+            // 以前这里无条件 `args[2]`，于是 `参数.选项(p, "名字")` —— 完全合法的写法
+            // —— 直接 panic（`index out of bounds`，进程崩）。M170 修。
+            let 默认 = match args.get(2) { Some(v) => v.clone(), None => Val::None_ };
             let 说明 = if args.len() == 4 {
                 match &args[3] { Val::Str(s) => s.to_string(), o => display(o) }
             } else {

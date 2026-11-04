@@ -6917,6 +6917,36 @@ pub(crate) fn render_error_with(
     out
 }
 
+/// 库层行号带（M170）—— **必须与 Python 侧 `errors.库层行号带` 相同**（1_000_000）。
+///
+/// 基石库层（`stdlib-jishi/*.jsh`）在编译期展开进主程序，节点带的是**库文件**的
+/// 行号；展开时它们被抬进这个带。于是「这个位置在库内部」是结构性可判定的。
+/// 宿主自己编源码时走原生标准库（不展开库层），本来就不会出现带内行号；
+/// 但**跑 Python 编好的字节码**（`--load-bytecode` / 对拍）时会出现 ——
+/// 渲染前换回用户的调用点，两边才逐字一致。
+pub const 库层行号带: i64 = 1_000_000;
+
+/// 渲染时该显示哪个位置：落在库层带里就换成**调用点**（M170）。
+///
+/// 取「最后一个不在带里的帧」而不是最内层：库函数会互相调用
+/// （`参数.解析` → `_逐项解析`），最内层帧的调用点也在库文件里。
+/// 与 Python 侧 `JishiError._把库层位置换成调用点` 同一条规则。
+fn 显示位置(e: &JishiError) -> Option<(i64, i64)> {
+    let line = e.line?;
+    if line < 库层行号带 {
+        return Some((line, e.col.unwrap_or(1)));
+    }
+    for fr in e.trace.iter().rev() {
+        if let Some(l) = fr.line {
+            if l < 库层行号带 {
+                return Some((l, fr.col.unwrap_or(1)));
+            }
+        }
+    }
+    // 连调用点都没有（库的顶层就炸了）：宁可不指，也别指错。
+    None
+}
+
 /// 只渲染**这一层**（不带起因链、不带结尾换行）。与 Python `render_one` 逐字同源。
 fn render_error_one(
     e: &JishiError,
@@ -6925,8 +6955,7 @@ fn render_error_one(
     with_trace: bool,
 ) -> String {
     let mut out = error_head(e);
-    if let Some(line) = e.line {
-        let col = e.col.unwrap_or(1);
+    if let Some((line, col)) = 显示位置(e) {
         out.push_str(&format!("\n  ┌─ {filename}:{line}:{col}"));
         out.push_str("\n  │");
         // ⚠️ **源码行是空串就整段不印**（不是「印一个空的 `  2 │ ` 出来」）——
@@ -6951,13 +6980,29 @@ fn render_error_one(
         out.push_str("\n  │");
     }
     if with_trace && !e.trace.is_empty() {
-        out.push_str("\n调用链（从外到内）：");
-        for fr in e.trace.iter().rev().take(20).rev() {
-            let where_ = match fr.line {
-                Some(l) => format!("第 {l} 行"),
-                None => "未知位置".to_string(),
-            };
-            out.push_str(&format!("\n  {} ← {}", fr.func, where_));
+        // ⚠️ **跳过调用点落在库层带里的帧**（M170）：那是库函数之间的内部调用
+        // （`参数.解析` → `_逐项解析`），对用户没意义，还会把 `第 1000241 行`
+        // 这种数字印出来。与 Python `_render_trace` 同一条规则。
+        let 帧: Vec<&TraceFrame> = e
+            .trace
+            .iter()
+            .rev()
+            .take(20)
+            .rev()
+            .filter(|fr| match fr.line {
+                Some(l) => l < 库层行号带,
+                None => true,
+            })
+            .collect();
+        if !帧.is_empty() {
+            out.push_str("\n调用链（从外到内）：");
+            for fr in 帧 {
+                let where_ = match fr.line {
+                    Some(l) => format!("第 {l} 行"),
+                    None => "未知位置".to_string(),
+                };
+                out.push_str(&format!("\n  {} ← {}", fr.func, where_));
+            }
         }
     }
     if let Some(hint) = &e.hint {

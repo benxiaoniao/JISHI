@@ -126,12 +126,23 @@ fn shell_source(lib_dir: &str, name: &str) -> String {
             shell_name(name), body.join("\n"), pairs.join(", "))
 }
 
+/// 库层行号带（M170）—— **必须与 Python `errors.库层行号带`、`rust/src/lib.rs`
+/// 里的同名常量一致**（1_000_000）。展开库层时行号整体抬进这一带，
+/// 于是「这个位置来自库内部」变成结构性可判定，渲染前再换回调用点。
+pub const 库层行号带: i64 = 1_000_000;
+
 /// 递归把所有节点的行号加上 `delta`（最小 1）。
 ///
-/// ⚠️ **下探范围要与 Python 的 `_shift_lines` 逐字相同**：它只看「列表里的节点」
-/// 和「元组里的节点」，**嵌套列表不进去**。所以 `如果` 的 `branches`（列表套元组）
-/// 里，`test` 会挪、**块体那半不会**。多下探一层就会让模块里的行号整体差一行
-/// （实测抓到过：`统计.jsh` 的 `计数` 里第 35 行被挪成了 34）。
+/// ## M170：这里曾经的「与 Python 逐字相同」是个**误判**
+///
+/// 老实现只挪「列表里的节点」和「元组里**第一个**是节点的那个」，`如果` 的
+/// `branches`（列表套元组套列表）里**块体的那半不进去**。当时的注释说
+/// 「多下探一层就整体差一行（`统计.jsh` 的 `计数` 第 35 行被挪成 34）」——
+/// 其实那说明**Python 那边本来就少挪了一行**：外壳函数比模块源码多一行函数头，
+/// 减 1 对**所有**节点都成立，块体也不例外。两边都漏，于是「一致」了，但都是错的
+/// （库层嵌套块里的报错行号少 1）。
+///
+/// M170 把两边一起改成**通用递归**：`Node` / `List` / 元组（也是 `List`）都往下走。
 pub(crate) fn shift_lines(node: &mut Node, delta: i64) {
     if let Some(J::Int(line)) = field(node, "line").cloned() {
         for (k, v) in node.fields.iter_mut() {
@@ -140,45 +151,19 @@ pub(crate) fn shift_lines(node: &mut Node, delta: i64) {
             }
         }
     }
-    for (k, v) in node.fields.iter_mut() {
-        match *k {
-            // 列表套元组：只挪元组里那个「是节点的」元素
-            "branches" => {
-                if let J::List(items) = v {
-                    for br in items.iter_mut() {
-                        if let J::List(pair) = br {
-                            if let Some(J::Node(n)) = pair.get_mut(0) {
-                                shift_lines(n, delta);
-                            }
-                        }
-                    }
-                }
-            }
-            "keywords" => {
-                if let J::List(items) = v {
-                    for kw in items.iter_mut() {
-                        if let J::List(pair) = kw {
-                            if let Some(J::Node(n)) = pair.get_mut(1) {
-                                shift_lines(n, delta);
-                            }
-                        }
-                    }
-                }
-            }
-            _ => shift_j(v, delta),
-        }
+    for (_k, v) in node.fields.iter_mut() {
+        shift_j(v, delta);
     }
 }
 
 fn shift_j(v: &mut J, delta: i64) {
     match v {
         J::Node(n) => shift_lines(n, delta),
-        // Python 的列表分支只认「节点」；嵌套列表既不进也不挪
+        // 列表里既可能是节点，也可能是「元组」（这里同样是 `J::List`）——
+        // 一律往下走，别枚举形状。
         J::List(items) => {
             for it in items.iter_mut() {
-                if let J::Node(n) = it {
-                    shift_lines(n, delta);
-                }
+                shift_j(it, delta);
             }
         }
         _ => {}
@@ -197,7 +182,7 @@ fn shell_def(lib_dir: &str, name: &str) -> Node {
         if let J::Node(n) = node {
             if n.kind == "FuncDef" && as_jstr(field(n, "name")) == want {
                 let mut def = n.as_ref().clone();
-                shift_lines(&mut def, -1);
+                shift_lines(&mut def, 库层行号带 - 1);
                 return def;
             }
         }

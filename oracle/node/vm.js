@@ -5003,6 +5003,33 @@ function _dbRun(conn, sql, params) {
   return { cols, rows: out };
 }
 
+/** SQL 的**值绑定**（M170）：可选的第三个参数 → node:sqlite 的绑定值列表。
+ *
+ * 🔴 **整数必须给 BigInt**：`node:sqlite` 把 JS number 一律按 REAL 绑，
+ *    于是 `WHERE 编号 = ?` 传 `1` 会绑成 `1.0`，跟 INTEGER 列比不上
+ *    （MEMORY 里记着的 M112 三坑之一）。
+ * 只认六种能被绑的值（空/布尔/整数/小数/文本/字节），别的**明确报错**，
+ * 不静默转成字符串 —— 那就等于又把用户输入拼回 SQL 了。
+ */
+function _dbBind(参数们) {
+  if (参数们 === undefined || 参数们 === null) return [];
+  if (typeof 参数们 === 'string' || 参数们 instanceof Uint8Array) {
+    throw R.typeErr('「参数们」要一个**列表**（每个 `?` 对应一项）', undefined, undefined,
+      '例如 数据库.执行(库, "删除 由 成绩 当 名字 = ?", ["小明"])');
+  }
+  const 项们 = Array.from(参数们);
+  return 项们.map((v, i) => {
+    if (typeof v === 'boolean') return v ? 1n : 0n;
+    if (typeof v === 'bigint') return v;
+    if (typeof v === 'number') return Number.isInteger(v) ? BigInt(v) : v;
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'string') return v;
+    if (v instanceof Uint8Array) return v;
+    throw R.typeErr(`「参数们」第 ${i + 1} 个值放不进 SQL（${R.pyStr(v)}）`, undefined, undefined,
+      'SQL 参数只认 文本/整数/小数/布尔/空/字节；结构化数据请先 `json.转文本` 成文本');
+  });
+}
+
 /** node:sqlite 的报错 → 那句 SQLite 自己的话（与另两个引擎尽量同口径）。 */
 function _dbMsg(e) {
   const m = e && e.message ? String(e.message) : String(e);
@@ -5365,29 +5392,31 @@ const DB_FUNCS = {
     }
     return Number(out.changes);
   }),
-  '执行': new R.Builtin('执行', (库, SQL) => {
+  '执行': new R.Builtin('执行', (库, SQL, 参数们) => {
     const conn = _dbConn(库);
     const sql = _dbRaw(SQL);
     if (_dbLikeSelect(sql)) {
       throw R.valueErr('「执行」只跑写操作的 SQL；你给的是 SELECT', undefined, undefined,
         '要取回记录用 数据库.执行查询(库, SQL)');
     }
+    const 参 = _dbBind(参数们);
     let out;
     try {
-      out = conn.prepare(sql).run();
+      const st = conn.prepare(sql);
+      out = 参.length ? st.run(...参) : st.run();
     } catch (e) {
       throw R.runErr(`数据库操作失败：${_dbMsg(e)}`);
     }
     return Number(out.changes);
   }),
-  '执行查询': new R.Builtin('执行查询', (库, SQL) => {
+  '执行查询': new R.Builtin('执行查询', (库, SQL, 参数们) => {
     const conn = _dbConn(库);
     const sql = _dbRaw(SQL);
     if (!_dbLikeSelect(sql)) {
       throw R.valueErr('「执行查询」只跑 SELECT；你给的不是 SELECT', undefined, undefined,
         '写操作用 数据库.执行(库, SQL)');
     }
-    return _dbRecords(_dbRun(conn, sql, []));
+    return _dbRecords(_dbRun(conn, sql, _dbBind(参数们)));
   }),
 };
 

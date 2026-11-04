@@ -20,6 +20,18 @@ from typing import Optional
 # 调用帧（M17.2 调用栈回溯）
 # ---------------------------------------------------------------------------
 
+#: 基石库层的**行号保留带**起点（M170）。
+#:
+#: 库层（`stdlib-jishi/*.jsh`）在编译期被展开进主程序，节点上带的是**库文件**
+#: 的行号。抬进这个带之后，「这个位置在库内部」就是**结构性可判定**的：
+#: `行号 >= 库层行号带` ⇒ 库层；渲染前换成用户的调用点（见
+#: `JishiError._把库层位置换成调用点`）。
+#:
+#: ⚠️ 这个常量**三个引擎必须一致**（Python / Rust / Node 的渲染都按它判），
+#: 改它对 Rust 侧 `rust/src/errors.rs` 与 Node 侧 `oracle/node/index.js` 都要同步。
+库层行号带 = 1_000_000
+
+
 @dataclass
 class Frame:
     """调用栈里的一帧：当前正在执行的函数，以及「它在第几行被调用」。"""
@@ -144,7 +156,12 @@ class JishiError(Exception):
         """只渲染**这一层**（不带起因链）；`render` 拿它拼整条链。
 
         `trace=False` 时不印调用链 —— 起因层只用位置说话。
+
+        ⚠️ **这里也要做一次库层位置规整**（M170）：`with_source` 只在 CLI 出口被
+        调用，而程序里 `打印(e)` 走的是**渲染**这条路 —— 少了这一步，用户会在
+        自己的输出里看到 `1000236` 这种行号。
         """
+        self._把库层位置换成调用点()
         head = f"错误 {self.code}：{self.title}"
         if self.message:
             head += f"（{self.message}）"
@@ -182,16 +199,23 @@ class JishiError(Exception):
         return _safe_text("\n".join(parts))
 
     def _render_trace(self) -> str:
-        """把调用链渲染成「从外到内」的文本块；无回溯返回空串。"""
+        """把调用链渲染成「从外到内」的文本块；无回溯返回空串。
+
+        ⚠️ **跳过调用点落在库层带里的帧**（M170）：那是库函数之间的内部调用
+        （`参数.解析` → `_逐项解析`），对用户没有意义，而且它会把
+        `第 1000241 行` 这种数字直接印出来。链的意义是「**你的**调用路径」。
+        """
         if not self.trace:
             return ""
         # 取最近若干帧（从外到内，限制长度防刷屏）
         frames = self.trace[-20:] if len(self.trace) > 20 else self.trace
         lines = ["调用链（从外到内）："]
         for fr in frames:
+            if fr.line is not None and fr.line >= 库层行号带:
+                continue
             where = f"第 {fr.line} 行" if fr.line is not None else "未知位置"
             lines.append(f"  {fr.func} ← {where}")
-        return "\n".join(lines)
+        return "\n".join(lines) if len(lines) > 1 else ""
 
     def __str__(self) -> str:
         return self.render()
@@ -252,14 +276,43 @@ class JishiError(Exception):
         ⚠️ **要顺着「起因」链一路补**（M148）：只补最外层的话，链上每一层
         都只剩「错误 E2007：…”」这一行、没有源码行和 `^` —— 而链的价值
         恰恰是「看到根子发生在**哪一行**」。
+
+        📌 **M170 起先做一次「库层位置 → 调用点」的规整**（见
+        `_把库层位置换成调用点`）：基石库层的代码是在**编译期展开**进来的，
+        它带着**自己文件**的行号；不做这一步，用户写两行的文件会被告知
+        「第 237 行出错」—— 而这项目里报错定位是立身之本。
         """
         cur, seen = self, set()
         while cur is not None and id(cur) not in seen:
             seen.add(id(cur))
+            cur._把库层位置换成调用点()
             if cur.line is not None and 1 <= cur.line <= len(source_lines):
                 cur.source_line = source_lines[cur.line - 1]
             cur = cur.cause
         return self
+
+    def _把库层位置换成调用点(self) -> None:
+        """行号落在「库层带」里 ⇒ 换成**调用点**（M170）。
+
+        背景：`参数` / `容器` / `统计` / `迭代` 四个模块的实现就在
+        `stdlib-jishi/*.jsh` 里，编译期被展开进主程序（见 `jishilib`）。
+        展开时把它们的行号整体抬进一个**保留带**（`库层行号带` 起），于是
+        「这个位置来自库内部」变成**结构性可判定**的事，不用靠猜。
+        用户看到的必须是**自己文件的那一行** —— 也就是 `trace` 里
+        「最后一个不在库层带里的调用点」。
+
+        为什么取「最后一个不在带里的」而不是最内层：库函数可能**互相调用**
+        （`参数.解析` → `_逐项解析`），最内层帧的调用点在**库文件**里，
+        拿它等于又指回库。
+        """
+        if self.line is None or self.line < 库层行号带:
+            return
+        for fr in reversed(self.trace or []):
+            if fr.line and fr.line < 库层行号带:
+                self.line, self.col = fr.line, fr.col or 1
+                return
+        # 连调用点都没有（比如在库的**顶层**就炸了）：宁可不指，也别指错。
+        self.line, self.col = None, None
 
 
 # ---------------------------------------------------------------------------

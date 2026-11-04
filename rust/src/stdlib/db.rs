@@ -199,6 +199,27 @@ fn 读值(v: rusqlite::types::ValueRef<'_>, 列: &str) -> Result<Val, crate::Jis
     })
 }
 
+/// SQL 的**值绑定**（M170）：把可选的第三个参数转成 SQLite 参数列表。
+///
+/// 为什么要有它：`执行(库, SQL)` 只能拼字符串，用户输入一拼进来就是注入面。
+/// `?` 占位 + 按值绑定是 SQL 的标准做法，SQLite 三个宿主都原生支持。
+///
+/// **只认六种能被绑的值**（空/布尔/整数/小数/文本/字节）—— 别的明确报错，
+/// 不静默 `display` 成字符串（那就等于又把用户输入拼回 SQL 里了）。
+fn 取绑参(v: Option<&Val>) -> Result<Vec<rusqlite::types::Value>, crate::JishiError> {
+    let Some(v) = v else { return Ok(Vec::new()) };
+    let 列表 = as_list(v).map_err(|_| err_with_hint(
+        "类型错误",
+        "「参数们」要一个**列表**（每个 `?` 对应一项）",
+        "例如 数据库.执行(库, \"删除 由 成绩 当 名字 = ?\", [\"小明\"])".into()))?;
+    let 项们 = 列表.borrow().clone();
+    let mut 出 = Vec::with_capacity(项们.len());
+    for (i, it) in 项们.iter().enumerate() {
+        出.push(存值(it, &format!("参数们第 {} 个", i + 1))?);
+    }
+    Ok(出)
+}
+
 /// 基石的值 → 能进 SQLite 的值。**进不去就明确报错**，不静默。
 fn 存值(v: &Val, 字段: &str) -> Result<rusqlite::types::Value, crate::JishiError> {
     use rusqlite::types::Value as RV;
@@ -899,7 +920,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             })
         },
         "执行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("执行", args, 2, 2)?;
+            need_range("执行", args, 2, 3)?;
             let 键 = 取连接(&args[0])?;
             let sql = match &args[1] { Val::Str(s) => s.to_string(), o => display(o) };
             if 像查询(&sql) {
@@ -908,13 +929,15 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     "「执行」只跑写操作的 SQL；你给的是 SELECT",
                     "要取回记录用 数据库.执行查询(库, SQL)".into()));
             }
+            let 参 = 取绑参(args.get(2))?;
             用连接(&键, |c| {
-                let n = c.execute(&sql, []).map_err(库错)?;
+                let n = c.execute(&sql, rusqlite::params_from_iter(参.iter()))
+                    .map_err(库错)?;
                 Ok(Val::Int(n as i128))
             })
         },
         "执行查询" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("执行查询", args, 2, 2)?;
+            need_range("执行查询", args, 2, 3)?;
             let 键 = 取连接(&args[0])?;
             let sql = match &args[1] { Val::Str(s) => s.to_string(), o => display(o) };
             if !像查询(&sql) {
@@ -923,8 +946,9 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     "「执行查询」只跑 SELECT；你给的不是 SELECT",
                     "写操作用 数据库.执行(库, SQL)".into()));
             }
+            let 参 = 取绑参(args.get(2))?;
             用连接(&键, |c| {
-                let r = 跑(c, &sql, &[])?;
+                let r = 跑(c, &sql, &参)?;
                 行们成记录(&r)
             })
         },
