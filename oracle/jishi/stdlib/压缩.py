@@ -18,7 +18,7 @@ from ..errors import RunError, RunValueError
 from ..runtime import jishi_repr, JishiBytes
 
 __all__ = [
-    "打包", "解压", "列出内容", "压缩文件", "解压文件", "解压成员",
+    "打包", "打包确定", "解压", "列出内容", "压缩文件", "解压文件", "解压成员",
 ]
 
 
@@ -82,6 +82,71 @@ def _条目名问题(名: str) -> str:
         if 段 == "..":
             return "条目名里有「..」（会往上跳到目标目录之外）"
     return ""
+
+
+#: 「可复现打包」里统一的条目时间（zip 存的是 DOS 时间，1980-01-01 是它的零点）。
+#: 定死它——否则同一个目录打两次，字节就不一样了（文件 mtime 每次都参与）。
+_确定时间 = (1980, 1, 1, 0, 0, 0)
+
+
+def 打包确定(zip路径, 来源, 基础: str = "") -> str:
+    """**可复现**的 zip：同一个目录打两次，字节完全相同。
+
+    和 `打包` 的差别只有三点，但每一点都必须定死，否则字节就会漂：
+
+    | 会漂的东西 | `打包` | `打包确定` |
+    |---|---|---|
+    | 条目时间 | 取文件 mtime | 一律 1980-01-01 00:00 |
+    | 条目顺序 | 走目录的顺序 | 按条目名**排序** |
+    | 权限 / 制作系统 | 跟着平台走 | 一律 `0o600`、MS-DOS |
+
+    ⚠️ **跨引擎不保证逐字节相同**：三个宿主用的压缩算法不同（Python/Node 用
+    deflate，Rust 侧只实现了 stored）。可复现的口径是「**同一台机器、同一个
+    引擎、同样的输入 ⇒ 同样的字节**」—— 发版产物要的是这个。
+
+    `来源` 给目录就递归收录（条目名是相对 `基础` 的路径）；给文件列表就必须
+    同时给 `基础`，否则算不出条目名。
+    """
+    if not _os.path.isdir(str(来源)) and not isinstance(来源, (list, tuple)):
+        raise RunValueError(f"「{来源}」既不是目录也不是列表，无法确定要打包什么")
+
+    项们 = []
+    if isinstance(来源, (list, tuple)):
+        if not 基础:
+            raise RunValueError(
+                "传文件列表时必须给「基础」目录 —— 否则算不出 zip 里的条目名",
+                hint='例如 压缩.打包确定("包.zip", ["bin/jishi.exe"], 基础="发布")')
+        for one in 来源:
+            full = str(one)
+            项们.append((_os.path.relpath(full, 基础), full))
+    else:
+        root = str(来源)
+        基础 = 基础 or root
+        for dirpath, dirnames, filenames in _os.walk(root):
+            dirnames.sort()
+            for fn in sorted(filenames):
+                full = _os.path.join(dirpath, fn)
+                项们.append((_os.path.relpath(full, 基础), full))
+
+    if not 项们:
+        raise RunValueError(f"「{来源}」里没有文件，打出来的包会是空的")
+
+    项们.sort(key=lambda x: x[0].replace(_os.sep, "/"))
+    try:
+        with _py_zip.ZipFile(str(zip路径), "w", _py_zip.ZIP_DEFLATED) as zf:
+            for arc, full in 项们:
+                info = _py_zip.ZipInfo(arc.replace(_os.sep, "/"), date_time=_确定时间)
+                info.compress_type = _py_zip.ZIP_DEFLATED
+                info.external_attr = 0o600 << 16
+                # ⚠️ **制作系统也要定死**：ZipInfo 的默认值跟着平台走
+                #    （Unix=3 / Windows=0），不定的话同一份代码在两台机器上
+                #    打出来的 zip 头就不一样。
+                info.create_system = 0
+                with open(full, "rb") as f:
+                    zf.writestr(info, f.read())
+    except OSError as e:
+        raise RunError(f"写 zip 失败：{e}") from None
+    return str(zip路径)
 
 
 def 解压(zip路径, 目标目录: str = "") -> str:

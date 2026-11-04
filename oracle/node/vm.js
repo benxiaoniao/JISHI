@@ -2397,6 +2397,19 @@ function walkFiles(dir) {
 }
 
 /** 写一条本地文件头 + 数据，返回中央目录项要用的元信息。 */
+
+/** `full` 相对 `base` 的 zip 条目名（M171）。算不出就报错，不猜。 */
+function _arcName(full, base) {
+  const f = String(full).replace(/\\/g, '/');
+  const b = String(base).replace(/\\/g, '/').replace(/\/+$/, '');
+  if (f === b) return '';
+  const pre = b + '/';
+  if (!f.startsWith(pre)) {
+    throw R.valueErr(`「${full}」不在基础目录「${base}」里面 —— 算不出条目名`);
+  }
+  return f.slice(pre.length);
+}
+
 function writeZipEntry(push, rawName, data, localOffset, mtimeMs) {
   // zip 规范要求条目名用 `/` 分隔（Python 的 zipfile 也会把 `\` 换掉），
   // 而 Windows 上 `path.relative` 给的是 `\`——不换就会出现
@@ -2526,6 +2539,56 @@ function zipBytes(zipPath) {
 }
 
 const ZIP_FUNCS = {
+  // **可复现**的打包（M171）：同一个目录打两次，字节完全相同。
+  // 差别：条目排序 + 时间定死 1980-01-01。⚠️ 跨引擎不保证逐字节相同
+  // （这边用 deflate，Rust 侧是 stored）。
+  '打包确定': new R.Builtin('打包确定', (zipPath, src, base = '') => {
+    const out = pText(zipPath);
+    const 基础 = base ? pText(base) : '';
+    let files = [];                        // [full, arc]
+    if (Array.isArray(src)) {
+      if (!基础) {
+        throw R.valueErr('传文件列表时必须给「基础」目录 —— 否则算不出 zip 里的条目名',
+          undefined, undefined, '例如 压缩.打包确定("包.zip", ["bin/jishi.exe"], 基础="发布")');
+      }
+      files = src.map((one) => {
+        const full = pText(one);
+        return [full, _arcName(full, 基础)];
+      });
+    } else {
+      const root = pText(src);
+      if (!statOf(root) || !statOf(root).isDirectory()) {
+        throw R.valueErr(`「${root}」既不是目录也不是列表，无法确定要打包什么`);
+      }
+      const b = 基础 || root;
+      for (const full of walkFiles(root)) files.push([full, _arcName(full, b)]);
+    }
+    if (!files.length) throw R.valueErr(`「${pText(src)}」里没有文件，打出来的包会是空的`);
+    files.sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+    const chunks = [];
+    const central = [];
+    let offset = 0;
+    const push = (x) => { chunks.push(x); offset += x.length; };
+    // 本地时间的 1980-01-01 00:00 —— dosDateTime 走的是本地时间，
+    // 这样跨时区打出来的日期字段一样（Python 侧写的就是这个字面量）。
+    const 定死 = new Date(1980, 0, 1, 0, 0, 0).getTime();
+    for (const [full, arc] of files) {
+      const localOff = offset;
+      central.push(writeZipEntry(push, arc, fs.readFileSync(full), localOff, 定死));
+    }
+    const cd = Buffer.concat(central.map(centralEntry));
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(0, 4);
+    eocd.writeUInt16LE(0, 6);
+    eocd.writeUInt16LE(central.length, 8);
+    eocd.writeUInt16LE(central.length, 10);
+    eocd.writeUInt32LE(cd.length, 12);
+    eocd.writeUInt32LE(offset, 16);
+    eocd.writeUInt16LE(0, 20);
+    fs.writeFileSync(out, Buffer.concat([...chunks, cd, eocd]));
+    return out;
+  }),
   '打包': new R.Builtin('打包', (zipPath, ...items) => {
     let list = items;
     if (list.length === 1 && Array.isArray(list[0])) list = list[0];

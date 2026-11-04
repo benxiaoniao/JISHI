@@ -199,7 +199,7 @@ def test_独立判据_lang_spec结构与关键事实():
     # ⇒ 360 → 367，模块 33 → 34。等一下，实测是 368 ——
     # `站点` 是 7 个函数（前面 `360` 那次统计里 `浏览器` 是 14 个）：
     # 361 + 7 = 368。数字以实测为准，别照着「计划」写。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 368
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 369
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

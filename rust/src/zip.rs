@@ -25,7 +25,7 @@ use std::path::Path;
 
 use crate::inflate::inflate_raw;
 use crate::stdlib::{as_text, need, need_range, table, R};
-use crate::{err, JishiError, Val};
+use crate::{err, err_with_hint, JishiError, Val};
 
 // ---------------------------------------------------------------------------
 // CRC-32
@@ -254,6 +254,24 @@ fn walk(dir: &str, prefix: &str, out: &mut Vec<(String, String)>) {
     }
 }
 
+
+/// `full` 相对 `base` 的条目名（M171 用）。给不出就报错 —— 猜一个出来比报错糟。
+fn 条目名(full: &str, base: &str) -> Result<String, crate::JishiError> {
+    let f = full.replace('\\', "/");
+    let b = base.replace('\\', "/");
+    let b = b.trim_end_matches('/');
+    if f == b {
+        return Ok(String::new());
+    }
+    match f.strip_prefix(&format!("{b}/")) {
+        Some(rel) => Ok(rel.to_string()),
+        None => Err(err(
+            "值错误",
+            format!("「{full}」不在基础目录「{base}」里面 —— 算不出条目名"),
+        )),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // 包管理复用的两个底层能力（R7.6）
 // ---------------------------------------------------------------------------
@@ -431,6 +449,66 @@ pub(crate) fn gunzip(data: &[u8]) -> Result<Vec<u8>, String> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "压缩";
+        //: **可复现**的打包（M171）：同一个目录打两次，字节完全相同。
+        //:
+        //: 和 `打包` 的差别：条目**排序**、时间固定（`Out::add` 里写死 1980-01-01）、
+        //: 权限固定 —— 这三样只要有一处跟着磁盘走，字节就会漂。
+        //: ⚠️ 跨引擎**不保证**逐字节相同（Python/Node 用 deflate，这边是 stored）。
+        "打包确定" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("打包确定", args, 2, 3)?;
+            let zip_path = as_text(&args[0]);
+            let base_arg = args.get(2).map(as_text).unwrap_or_default();
+            let mut files: Vec<(String, String)> = Vec::new();
+            if let Val::List(_) = &args[1] {
+                if base_arg.is_empty() {
+                    return Err(err_with_hint(
+                        "值错误",
+                        "传文件列表时必须给「基础」目录 —— 否则算不出 zip 里的条目名",
+                        "例如 压缩.打包确定(\"包.zip\", [\"bin/jishi.exe\"], 基础=\"发布\")"
+                            .into()));
+                }
+                for it in crate::stdlib::to_vec(&args[1])? {
+                    let full = as_text(&it);
+                    files.push((full.clone(), 条目名(&full, &base_arg)?));
+                }
+            } else {
+                let root = as_text(&args[1]);
+                if !Path::new(&root).is_dir() {
+                    return Err(err(
+                        "值错误",
+                        format!("「{root}」既不是目录也不是列表，无法确定要打包什么"),
+                    ));
+                }
+                let base = if base_arg.is_empty() { root.clone() } else { base_arg };
+                let mut 内: Vec<(String, String)> = Vec::new();
+                walk(&root, "", &mut 内);
+                for (full, arc_rel) in 内 {
+                    let arc = format!("{}/{}", 条目名(&root, &base)?, arc_rel)
+                        .trim_start_matches('/')
+                        .to_string();
+                    files.push((full, arc));
+                }
+            }
+            if files.is_empty() {
+                return Err(err(
+                    "值错误",
+                    format!("「{}」里没有文件，打出来的包会是空的", as_text(&args[1])),
+                ));
+            }
+            files.sort_by(|a, b| a.1.cmp(&b.1));
+            let mut out = Out::new();
+            for (full, arc) in &files {
+                let data = fs::read(full).map_err(|e| {
+                    err("运行期错误", format!("读「{full}」失败：{e}"))
+                })?;
+                out.add(arc, &data);
+            }
+            let bytes = out.finish();
+            fs::write(&zip_path, &bytes).map_err(|e| {
+                err("运行期错误", format!("写「{zip_path}」失败：{e}"))
+            })?;
+            Ok(Val::Str(zip_path.into()))
+        },
         "打包" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("打包", args, 2, usize::MAX)?;
             let zip_path = as_text(&args[0]);
