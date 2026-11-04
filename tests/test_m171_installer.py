@@ -19,6 +19,7 @@ import os
 import struct
 import sys
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -106,11 +107,21 @@ def _注册表有(名字):
 
 
 def _注册表删(名字):
+    """测试收尾：卸载项 + 开始菜单快捷方式都清掉。
+
+    ⚠️ 这两样**是写到用户真实环境里的**（HKCU 与 `%APPDATA%\\…\\Start Menu`），
+    所以每个用例的 `finally` 都必须调它 —— 判据把自己造成的痕迹收拾干净，
+    否则跑几轮测试，用户的开始菜单里会攒一排「基石自检…」。
+    """
     import winreg
 
     try:
         winreg.DeleteKey(winreg.HKEY_CURRENT_USER,
                          rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{名字}")
+    except OSError:
+        pass
+    try:
+        _快捷方式路径(名字).unlink()
     except OSError:
         pass
 
@@ -265,3 +276,60 @@ def test_不是安装包要说清楚(tmp_path):
     出, 码 = _存根(STUB)
     assert 码 == 1, 出[:300]
     assert "没有安装内容" in 出, 出[:300]
+
+
+# ---------------------------------------------------------------------------
+# 四、开始菜单快捷方式（M172 补上 M171 的欠账）
+# ---------------------------------------------------------------------------
+
+def _快捷方式路径(名字):
+    import os as _os
+    基 = _os.environ.get("APPDATA") or str(
+        __import__("pathlib").Path.home() / "AppData" / "Roaming")
+    return (__import__("pathlib").Path(基) / "Microsoft" / "Windows"
+            / "Start Menu" / "Programs" / f"{名字}.lnk")
+
+
+@pytest.mark.skipif(os.name != "nt", reason="开始菜单只有 Windows 有")
+def test_装完开始菜单里有快捷方式且指得准(tmp_path):
+    """`.lnk` 是调系统 `IShellLink` 写的，再用同一个接口读回来 —— 验的是
+    「**系统自己认不认**」，而不是「我们写进去的字节像不像」。"""
+    名字 = "基石自检快捷方式"
+    装 = tmp_path / "装"
+    setup = _造安装包(tmp_path, 名字)
+    lnk = _快捷方式路径(名字)
+    try:
+        出, 码 = _存根(setup, "--目标", str(装))
+        assert 码 == 0, 出[:500]
+        assert lnk.is_file(), f"开始菜单里没有 {lnk}"
+        读回, 码2 = _存根(setup, "--解析快捷方式", str(lnk))
+        assert 码2 == 0, 读回[:300]
+        目标 = Path(读回.split("目标：")[-1].strip())
+        assert 目标 == 装 / "bin" / "演示.exe", 读回
+    finally:
+        if os.name == "nt":
+            _注册表删(名字)
+            try:
+                lnk.unlink()
+            except OSError:
+                pass
+
+
+@pytest.mark.skipif(os.name != "nt", reason="开始菜单只有 Windows 有")
+def test_卸载会收走快捷方式(tmp_path):
+    名字 = "基石自检快捷方式卸"
+    装 = tmp_path / "装"
+    setup = _造安装包(tmp_path, 名字)
+    lnk = _快捷方式路径(名字)
+    try:
+        _存根(setup, "--目标", str(装))
+        assert lnk.is_file()
+        出, 码 = _存根(装 / "uninstall.exe", "--卸载")
+        assert 码 == 0, 出[:400]
+        assert not lnk.exists(), "卸载后开始菜单里还留着一个点了没反应的图标"
+    finally:
+        _注册表删(名字)
+        try:
+            lnk.unlink()
+        except OSError:
+            pass

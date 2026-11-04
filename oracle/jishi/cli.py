@@ -1928,6 +1928,13 @@ def _run_tool_cmd(argv: list[str]) -> int:
     if argv and argv[0] == "自测":
         return _cmd_selfrun(list(argv[1:]))
 
+    # M172：`打包` 也自己解析 —— 它有一堆「中文长选项」（`--出` / `--入口` / `--目标`），
+    # 而且参数以后还会变（图标、签名位）。走独立模块，别把 argparse 铺满这里。
+    if argv and argv[0] == "打包":
+        from .packcmd import 打包命令
+
+        return 打包命令(list(argv[1:]))
+
     parser = argparse.ArgumentParser(
         prog="jishi", description="基石工具")
     sub = parser.add_subparsers(dest="subcommand", metavar="命令", required=True)
@@ -2114,8 +2121,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return _run_package_cmd(argv)
     # 工具子命令（医生/新项目/教程/格式化/lsp/调试/dap/源码静态检查，
     # M16 / M21 / M37 / M43 / M44）
-    if argv and argv[0] in ("医生", "新项目", "建站", "教程", "错误", "格式化", "lsp", "调试",
-                            "dap", "源码静态检查", "静态检查", "测试", "自测"):
+    if argv and argv[0] in ("医生", "新项目", "建站", "打包", "教程", "错误", "格式化", "lsp",
+                            "调试", "dap", "源码静态检查", "静态检查", "测试", "自测"):
         return _run_tool_cmd(argv)
 
     parser = argparse.ArgumentParser(

@@ -357,6 +357,59 @@ fn 校验结果(通过: bool, 问题们: Vec<String>, 清单: Val) -> Val {
 
 // ---------------------------------------------------------------------------
 
+/// 打一个包（`打包.生成` 的实现体）。
+///
+/// 单独抽出来的理由：`jishi 打包`（M172）要给四个产物各打一个包（清单里的
+/// 「平台」得跟产物名对得上），而 CLI 不在 VM 里 —— 直接把实现体暴露成
+/// `pub(crate)`，命令行调的与语言里调的**是同一段代码**，不会各写一份清单格式。
+pub(crate) fn 建包(
+    来源: &Val,
+    输出目录: &str,
+    选项: Option<&Val>,
+) -> Result<String, crate::JishiError> {
+    let 选 = 读选项(选项)?;
+    let mut 项们 = 摊开(来源, &选.基础)?;
+    if 项们.is_empty() {
+        return Err(err(
+            "值错误",
+            format!("「{}」里没有文件，打出来的包会是空的", super::as_text(来源)),
+        ));
+    }
+    if 项们.iter().any(|(arc, _)| arc == 清单名) {
+        return Err(err_with_hint(
+            "值错误",
+            format!("「{清单名}」是打包自己用的名字，不能当程序文件"),
+            "改个名（例如 说明.json）；包根上那份是清单，会被覆盖".into(),
+        ));
+    }
+    let (列, 总) = 建清单(&项们, &选)?;
+    let 名 = 包文件名(&列, &选)?;
+    fs::create_dir_all(输出目录)
+        .map_err(|e| err("运行期错误", format!("建输出目录「{输出目录}」失败：{e}")))?;
+    let 包 = format!("{}/{}", 输出目录.trim_end_matches(['/', '\\']), 名);
+
+    // 条目顺序 = 清单顺序（清单.json 在第一个）—— 顺序定死是包字节可复现的
+    // 一半（另一半是时间/权限，`Out::add` 里已写死）。
+    let 序号: HashMap<String, usize> = 列
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (t.路径.clone(), i))
+        .collect();
+    项们.sort_by_key(|(arc, _)| 序号.get(arc).copied().unwrap_or(usize::MAX));
+
+    let mut 条目: Vec<(String, Vec<u8>)> = Vec::with_capacity(项们.len() + 1);
+    条目.push((清单名.to_string(), 清单文本(&列, &选, 总).into_bytes()));
+    for (arc, full) in &项们 {
+        let data =
+            fs::read(full).map_err(|e| err("运行期错误", format!("读「{full}」失败：{e}")))?;
+        条目.push((arc.clone(), data));
+    }
+    let bytes = crate::zip::build_stored(&条目);
+    fs::write(&包, &bytes)
+        .map_err(|e| err("运行期错误", format!("写包「{包}」失败：{e}")))?;
+    Ok(包)
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "打包";
         "清单" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -368,52 +421,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         },
         "生成" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("生成", args, 2, 3)?;
-            let 选 = 读选项(args.get(2))?;
-            let mut 项们 = 摊开(&args[0], &选.基础)?;
-            if 项们.is_empty() {
-                return Err(err(
-                    "值错误",
-                    format!("「{}」里没有文件，打出来的包会是空的", super::as_text(&args[0])),
-                ));
-            }
-            if 项们.iter().any(|(arc, _)| arc == 清单名) {
-                return Err(err_with_hint(
-                    "值错误",
-                    format!("「{清单名}」是打包自己用的名字，不能当程序文件"),
-                    "改个名（例如 说明.json）；包根上那份是清单，会被覆盖".into(),
-                ));
-            }
-            let (列, 总) = 建清单(&项们, &选)?;
-            let 名 = 包文件名(&列, &选)?;
-            let 出目录 = super::as_text(&args[1]);
-            fs::create_dir_all(&出目录).map_err(|e| {
-                err("运行期错误", format!("建输出目录「{出目录}」失败：{e}"))
-            })?;
-            let 包 = format!("{}/{}", 出目录.trim_end_matches(['/', '\\']), 名);
-
-            // 条目顺序 = 清单顺序（清单.json 在第一个）—— 顺序定死是
-            // 包字节可复现的一半（另一半是时间/权限，`Out::add` 里已写死）。
-            let 序号: HashMap<String, usize> = 列
-                .iter()
-                .enumerate()
-                .map(|(i, t)| (t.路径.clone(), i))
-                .collect();
-            项们.sort_by_key(|(arc, _)| 序号.get(arc).copied().unwrap_or(usize::MAX));
-
-            let mut 条目: Vec<(String, Vec<u8>)> =
-                Vec::with_capacity(项们.len() + 1);
-            条目.push((
-                清单名.to_string(),
-                清单文本(&列, &选, 总).into_bytes(),
-            ));
-            for (arc, full) in &项们 {
-                let data = fs::read(full)
-                    .map_err(|e| err("运行期错误", format!("读「{full}」失败：{e}")))?;
-                条目.push((arc.clone(), data));
-            }
-            let bytes = crate::zip::build_stored(&条目);
-            fs::write(&包, &bytes)
-                .map_err(|e| err("运行期错误", format!("写包「{包}」失败：{e}")))?;
+            let 包 = 建包(&args[0], &super::as_text(&args[1]), args.get(2))?;
             Ok(Val::Str(包.into()))
         },
         "安装包" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {

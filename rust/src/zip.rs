@@ -372,7 +372,7 @@ pub(crate) const MAX_UNPACK_BYTES: usize = 512 * 1024 * 1024;
 ///
 /// 头里的 `MTIME` 写 **0**（不写当前时间）：同一份内容每次压出来字节相同，
 /// 否则「内容一样」的两份产物永远不一样。
-fn gzip_stored(data: &[u8]) -> Vec<u8> {
+pub(crate) fn gzip_stored(data: &[u8]) -> Vec<u8> {
     // 1f 8b | CM=8(deflate) | FLG=0 | MTIME=0 | XFL=0 | OS=255(未知)
     let mut out: Vec<u8> = vec![0x1f, 0x8b, 0x08, 0x00, 0, 0, 0, 0, 0x00, 0xff];
     if data.is_empty() {

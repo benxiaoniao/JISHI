@@ -28,6 +28,7 @@
 //! setup.exe --加PATH           顺手把安装目录加进用户 PATH（默认**不加**）
 //! setup.exe --查看             只打印清单，不动盘
 //! setup.exe --校验             只逐份核对 zip 里的内容，不动盘
+//! setup.exe --解析快捷方式 路径  把一个 .lnk 读回来（查「点了没反应」用）
 //! setup.exe --卸载             卸载（读注册表里的安装位置）
 //! ```
 //!
@@ -376,6 +377,260 @@ fn 减path(_: &str) -> Result<bool, String> {
 }
 
 // ---------------------------------------------------------------------------
+// 开始菜单快捷方式（.lnk）
+// ---------------------------------------------------------------------------
+
+/// 写一个 `.lnk` —— **不是手拼二进制，是调系统的 `IShellLink`**。
+///
+/// ## 为什么不自己拼字节
+///
+/// `.lnk` 是「看起来简单、实际上要 oracle」的典型：网上流传的最小实现只写
+/// 相对路径，能生成文件、图标也对，但**能不能双击打开要看 Explorer 的解析路径**
+/// —— 而那条路径没有测试可依，坏了也只会表现为「用户点了没反应」。
+/// 让系统自己写，就永远不会写出它认不出的东西。
+///
+/// ## 为什么零依赖也要写这段
+///
+/// COM 的 ABI 就是「对象指针 + 虚表」，`extern "system"` 调虚表函数不需要任何
+/// crate。代价是这一小片 `unsafe`：**虚表下标写错会静默调错函数**，所以每个下标
+/// 都注了名（`IShellLinkW` 的顺序见 Windows SDK 的 `shobjidl.h`）。
+#[cfg(windows)]
+mod lnk {
+    use std::ffi::c_void;
+
+    #[repr(C)]
+    struct Guid {
+        d1: u32,
+        d2: u16,
+        d3: u16,
+        d4: [u8; 8],
+    }
+
+    const CLSID_SHELLLINK: Guid = Guid {
+        d1: 0x0002_1401,
+        d2: 0,
+        d3: 0,
+        d4: [0xC0, 0, 0, 0, 0, 0, 0, 0x46],
+    };
+    const IID_ISHELLLINKW: Guid = Guid {
+        d1: 0x0002_14F9,
+        d2: 0,
+        d3: 0,
+        d4: [0xC0, 0, 0, 0, 0, 0, 0, 0x46],
+    };
+    const IID_IPERSISTFILE: Guid = Guid {
+        d1: 0x0000_010b,
+        d2: 0,
+        d3: 0,
+        d4: [0xC0, 0, 0, 0, 0, 0, 0, 0x46],
+    };
+    const CLSCTX_INPROC_SERVER: u32 = 1;
+    const COINIT_APARTMENTTHREADED: u32 = 2;
+
+    /// `IShellLinkW` 的虚表下标（IUnknown 占 0–2）。
+    const 取路径: usize = 3;
+    const 设说明: usize = 7;
+    const 设工作目录: usize = 9;
+    const 设图标: usize = 17;
+    const 设路径: usize = 20;
+    /// `IPersistFile`：IUnknown 0–2，GetClassID 3，IsDirty 4，Load 5，**Save 6**。
+    const 存盘: usize = 6;
+
+    #[link(name = "ole32")]
+    extern "system" {
+        fn CoInitializeEx(reserved: *mut c_void, mode: u32) -> i32;
+        fn CoCreateInstance(
+            clsid: *const Guid,
+            outer: *mut c_void,
+            ctx: u32,
+            iid: *const Guid,
+            out: *mut *mut c_void,
+        ) -> i32;
+        fn CoUninitialize();
+    }
+
+    fn 宽(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    /// 取虚表里第 `n` 个函数指针。
+    unsafe fn 虚函数(对象: *mut c_void, n: usize) -> *const usize {
+        let 表 = *(对象 as *mut *const *const usize);
+        *表.add(n)
+    }
+
+    pub fn 建(lnk路径: &str, 目标: &str, 工作目录: &str, 说明: &str) -> Result<(), String> {
+        unsafe {
+            // 已经初始化过（RPC_E_CHANGED_MODE = 0x8001_0106）不算错
+            let hr = CoInitializeEx(std::ptr::null_mut(), COINIT_APARTMENTTHREADED);
+            if hr < 0 && hr as u32 != 0x8001_0106 {
+                return Err(format!("COM 初始化失败（0x{:08x}）", hr as u32));
+            }
+            let mut 链接: *mut c_void = std::ptr::null_mut();
+            let hr = CoCreateInstance(
+                &CLSID_SHELLLINK,
+                std::ptr::null_mut(),
+                CLSCTX_INPROC_SERVER,
+                &IID_ISHELLLINKW,
+                &mut 链接,
+            );
+            if hr < 0 || 链接.is_null() {
+                return Err(format!("建 ShellLink 失败（0x{:08x}）", hr as u32));
+            }
+
+            let 目标宽 = 宽(目标);
+            let 目录宽 = 宽(工作目录);
+            let 说明宽 = 宽(说明);
+            let mut 错 = String::new();
+
+            type 一参 = unsafe extern "system" fn(*mut c_void, *const u16) -> i32;
+            type 图标参 = unsafe extern "system" fn(*mut c_void, *const u16, i32) -> i32;
+
+            let f: 一参 = std::mem::transmute(虚函数(链接, 设路径));
+            let hr = f(链接, 目标宽.as_ptr());
+            if hr < 0 {
+                错 = format!("设目标失败（0x{:08x}）", hr as u32);
+            }
+            if 错.is_empty() {
+                let f: 一参 = std::mem::transmute(虚函数(链接, 设工作目录));
+                let _ = f(链接, 目录宽.as_ptr());
+                let f: 一参 = std::mem::transmute(虚函数(链接, 设说明));
+                let _ = f(链接, 说明宽.as_ptr());
+                let f: 图标参 = std::mem::transmute(虚函数(链接, 设图标));
+                let _ = f(链接, 目标宽.as_ptr(), 0);
+
+                let mut 文件: *mut c_void = std::ptr::null_mut();
+                let qi: unsafe extern "system" fn(
+                    *mut c_void,
+                    *const Guid,
+                    *mut *mut c_void,
+                ) -> i32 = std::mem::transmute(虚函数(链接, 0));
+                let hr = qi(链接, &IID_IPERSISTFILE, &mut 文件);
+                if hr < 0 || 文件.is_null() {
+                    错 = format!("拿 IPersistFile 失败（0x{:08x}）", hr as u32);
+                } else {
+                    let 路径宽 = 宽(lnk路径);
+                    let 存: unsafe extern "system" fn(*mut c_void, *const u16, i32) -> i32 =
+                        std::mem::transmute(虚函数(文件, 存盘));
+                    let hr = 存(文件, 路径宽.as_ptr(), 1);
+                    if hr < 0 {
+                        错 = format!("写 .lnk 失败（0x{:08x}）", hr as u32);
+                    }
+                    let 释放: unsafe extern "system" fn(*mut c_void) -> u32 =
+                        std::mem::transmute(虚函数(文件, 2));
+                    释放(文件);
+                }
+            }
+            let 释放: unsafe extern "system" fn(*mut c_void) -> u32 =
+                std::mem::transmute(虚函数(链接, 2));
+            释放(链接);
+            CoUninitialize();
+            if 错.is_empty() {
+                Ok(())
+            } else {
+                Err(错)
+            }
+        }
+    }
+
+    /// 读回一个 `.lnk` 的目标 —— 给 `--解析快捷方式` 用（排查「点了没反应」）。
+    pub fn 读(lnk路径: &str) -> Result<String, String> {
+        unsafe {
+            let hr = CoInitializeEx(std::ptr::null_mut(), COINIT_APARTMENTTHREADED);
+            if hr < 0 && hr as u32 != 0x8001_0106 {
+                return Err(format!("COM 初始化失败（0x{:08x}）", hr as u32));
+            }
+            let mut 链接: *mut c_void = std::ptr::null_mut();
+            let hr = CoCreateInstance(
+                &CLSID_SHELLLINK,
+                std::ptr::null_mut(),
+                CLSCTX_INPROC_SERVER,
+                &IID_ISHELLLINKW,
+                &mut 链接,
+            );
+            if hr < 0 || 链接.is_null() {
+                return Err(format!("建 ShellLink 失败（0x{:08x}）", hr as u32));
+            }
+            let mut 错 = String::new();
+            let mut 目标 = String::new();
+            let mut 文件: *mut c_void = std::ptr::null_mut();
+            let qi: unsafe extern "system" fn(
+                *mut c_void,
+                *const Guid,
+                *mut *mut c_void,
+            ) -> i32 = std::mem::transmute(虚函数(链接, 0));
+            let hr = qi(链接, &IID_IPERSISTFILE, &mut 文件);
+            if hr < 0 || 文件.is_null() {
+                错 = format!("拿 IPersistFile 失败（0x{:08x}）", hr as u32);
+            } else {
+                let 路径宽 = 宽(lnk路径);
+                let 载: unsafe extern "system" fn(*mut c_void, *const u16, u32) -> i32 =
+                    std::mem::transmute(虚函数(文件, 5));
+                let hr = 载(文件, 路径宽.as_ptr(), 0);
+                if hr < 0 {
+                    错 = format!("读 .lnk 失败（0x{:08x}）", hr as u32);
+                } else {
+                    let mut 缓冲 = vec![0u16; 1024];
+                    let 取: unsafe extern "system" fn(
+                        *mut c_void,
+                        *mut u16,
+                        i32,
+                        *mut c_void,
+                        u32,
+                    ) -> i32 = std::mem::transmute(虚函数(链接, 取路径));
+                    let hr = 取(链接, 缓冲.as_mut_ptr(), 1024, std::ptr::null_mut(), 0);
+                    if hr < 0 {
+                        错 = format!("取目标失败（0x{:08x}）", hr as u32);
+                    } else {
+                        let 长 = 缓冲.iter().position(|c| *c == 0).unwrap_or(缓冲.len());
+                        目标 = String::from_utf16_lossy(&缓冲[..长]);
+                    }
+                }
+                let 释放: unsafe extern "system" fn(*mut c_void) -> u32 =
+                    std::mem::transmute(虚函数(文件, 2));
+                释放(文件);
+            }
+            let 释放: unsafe extern "system" fn(*mut c_void) -> u32 =
+                std::mem::transmute(虚函数(链接, 2));
+            释放(链接);
+            CoUninitialize();
+            if 错.is_empty() {
+                Ok(目标)
+            } else {
+                Err(错)
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+mod lnk {
+    pub fn 建(_: &str, _: &str, _: &str, _: &str) -> Result<(), String> {
+        Err("开始菜单快捷方式只有 Windows 有".to_string())
+    }
+    pub fn 读(_: &str) -> Result<String, String> {
+        Err("开始菜单快捷方式只有 Windows 有".to_string())
+    }
+}
+
+/// 开始菜单里的那个 `.lnk` 的完整路径（`%APPDATA%\Microsoft\Windows\Start Menu\Programs\`）。
+fn 快捷方式路径(名字: &str) -> PathBuf {
+    let 基 = env::var("APPDATA")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            let home = env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
+            format!("{home}\\AppData\\Roaming")
+        });
+    Path::new(&基)
+        .join("Microsoft")
+        .join("Windows")
+        .join("Start Menu")
+        .join("Programs")
+        .join(format!("{名字}.lnk"))
+}
+
+// ---------------------------------------------------------------------------
 // 动作
 // ---------------------------------------------------------------------------
 
@@ -485,6 +740,31 @@ fn 安装(自身: &[u8], 包: &包, 目标: &Path, 静默: bool, 要path: bool) 
         }
     }
 
+    // 开始菜单快捷方式（M172 补上 M171 的欠账）。**指到程序，不是指到卸载器**。
+    let 快捷方式 = 快捷方式路径(&包.名字);
+    let 快捷目标 = if 包.入口.is_empty() {
+        卸载路径.display().to_string()
+    } else {
+        目标
+            .join(包.入口.replace('/', std::path::MAIN_SEPARATOR_STR))
+            .display()
+            .to_string()
+    };
+    let mut 快捷问题: Option<String> = None;
+    if !包.名字.is_empty() {
+        if let Some(父) = 快捷方式.parent() {
+            let _ = fs::create_dir_all(父);
+        }
+        if let Err(e) = lnk::建(
+            &快捷方式.display().to_string(),
+            &快捷目标,
+            &目录文,
+            &format!("{} 命令", 包.名字),
+        ) {
+            快捷问题 = Some(e);
+        }
+    }
+
     if !静默 {
         println!("安装到：{目录文}");
         println!("  共 {} 个文件", 包.文件们.len());
@@ -493,6 +773,13 @@ fn 安装(自身: &[u8], 包: &包, 目标: &Path, 静默: bool, 要path: bool) 
             // 注册表写不进去**不算失败**：文件已经装好了，程序能用。
             // 但必须说出来 —— 否则用户以为「装了」，却在「应用」里找不到。
             Some(e) => println!("  ⚠️ 卸载项没写上：{e}（文件已装好，程序能用）"),
+        }
+        match &快捷问题 {
+            None if !包.名字.is_empty() => {
+                println!("  开始菜单里有了：{}", 快捷方式.display())
+            }
+            Some(e) => println!("  ⚠️ 开始菜单快捷方式没建成：{e}"),
+            _ => {}
         }
         if 加了path {
             println!("  已加入 PATH（新开的终端里能直接敲程序名）");
@@ -588,6 +875,8 @@ fn 卸载(目标: &Path, 静默: bool) -> Result<(), String> {
             "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{名字}"
         );
         reg::删键(&键)?;
+        // 开始菜单那个 .lnk 也要收走 —— 否则卸载完还留一个点了没反应的图标。
+        let _ = fs::remove_file(快捷方式路径(&名字));
     }
     let _ = 减path(&目标.display().to_string());
 
@@ -617,6 +906,7 @@ fn main() -> ExitCode {
     let mut 静默 = false;
     let mut 要path = false;
     let mut 目标参数: Option<String> = None;
+    let mut 快捷参数: Option<String> = None;
     let mut 动作 = "安装";
     let mut i = 0;
     while i < args.len() {
@@ -627,6 +917,11 @@ fn main() -> ExitCode {
             "--查看" | "--info" => 动作 = "查看",
             "--校验" | "--verify" => 动作 = "校验",
             "--卸载" | "--uninstall" => 动作 = "卸载",
+            "--解析快捷方式" | "--lnk" => {
+                i += 1;
+                动作 = "解析快捷方式";
+                快捷参数 = args.get(i).cloned();
+            }
             "--目标" | "--target" => {
                 i += 1;
                 目标参数 = args.get(i).cloned();
@@ -656,6 +951,24 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+
+    // 解析快捷方式也走早退：它跟载荷无关（用户可能拿它查一个坏掉的 .lnk）
+    if 动作 == "解析快捷方式" {
+        let Some(路径) = 快捷参数 else {
+            eprintln!("用法：jishi-pack-stub --解析快捷方式 <路径.lnk>");
+            return ExitCode::from(2);
+        };
+        return match lnk::读(&路径) {
+            Ok(目标) => {
+                println!("目标：{目标}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("错误：{e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
 
     // 卸载走另一条路：它不该依赖载荷（卸载程序是截短的存根，没有 zip）
     if 动作 == "卸载" {

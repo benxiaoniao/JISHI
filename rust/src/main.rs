@@ -570,6 +570,11 @@ fn main() -> ExitCode {
         }
     }
     // M168：`建站` —— 生成静态站脚手架并立刻跑一遍。
+    // M172：`打包` —— 一条命令出四类产物。参数**原样**交给实现（它自己解析，
+    // 与 Python 侧 `cli.py` 的分派一致：中文长选项太多，不值得铺进 argparse）。
+    if args[1] == "打包" || args[1] == "--pack" {
+        return jishi_ffi::packcmd::run_pack(&args[2..]);
+    }
     if args[1] == "建站" || args[1] == "--site" {
         match args.get(2) {
             Some(n) if !n.starts_with('-') => {
