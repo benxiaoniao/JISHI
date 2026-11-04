@@ -4372,6 +4372,370 @@ const SITE_FUNCS = {
   }),
 };
 
+// ---------------------------------------------------------------------------
+// M171：`打包` —— 把「一个程序」打成**一个带清单的 zip**（清单 / 生成 / 校验）
+//
+// 设计意图与三条硬规矩见 Python 侧 `jishi/stdlib/打包.py` 模块头。这里只说
+// JS 这份的两处实现选择：
+//
+// 1. **`清单.json` 的文本是手写拼出来的**，不用 `JSON.stringify`：那个的键序
+//    跟着对象走、转义规则也各有说法，而这份文本是**三宿主的契约**（同一个
+//    目录在哪跑都得同字节）。
+// 2. **zip 走 `writeZipEntry` + 定死的时间**（与 `压缩.打包确定` 同源）。
+//    跨引擎本来就**不**逐字节相同（这边 deflate、Rust 侧 stored），口径是
+//    「同一个引擎、同样输入 ⇒ 同样的字节」+「条目清单一致」。
+// ---------------------------------------------------------------------------
+
+const PACK_清单名 = '清单.json';
+
+/** 选项里的一个文本键。没给（或空）就是空串。 */
+function _packOpt(选项, 键) {
+  if (选项 === undefined || 选项 === null) return '';
+  if (!(选项 instanceof Map)) {
+    throw R.valueErr('「选项」要传字典，例如 {"名字": "记账", "版本": "1.0.0"}');
+  }
+  const v = 选项.has(键) ? 选项.get(键) : undefined;
+  if (v === undefined || v === null) return '';
+  if (typeof v !== 'string') {
+    throw R.valueErr(`选项「${键}」要传文本，给的是 ${R.pyStr(v)}`);
+  }
+  return v;
+}
+
+/** 把「来源」摊成 `[[条目名, 磁盘路径]]`。口径与 `压缩.打包确定` 相同。 */
+function _packFiles(来源, 基础) {
+  const out = [];
+  if (Array.isArray(来源)) {
+    if (!基础) {
+      throw R.valueErr('传文件列表时必须给「基础」目录 —— 否则算不出包里的条目名',
+        undefined, undefined,
+        '例如 打包.清单(["发布/记账.exe"], {"名字": "记账", "基础": "发布"})');
+    }
+    for (const one of 来源) {
+      const full = pText(one);
+      out.push([_arcName(full, 基础), full]);
+    }
+  } else {
+    const root = pText(来源);
+    const st = statOf(root);
+    if (!st || !st.isDirectory()) {
+      throw R.valueErr(`「${root}」既不是目录也不是列表，无法确定要打包什么`);
+    }
+    const b = 基础 || root;
+    for (const full of walkFiles(root)) out.push([_arcName(full, b), full]);
+  }
+  for (const [arc] of out) {
+    if (!arc || arc.endsWith('/')) throw R.valueErr(`「${arc}」不是有效的包内路径`);
+  }
+  return out;
+}
+
+/** UTF-8 字节序比较（Python 默认按码点、JS 按 UTF-16 单元 ⇒ 遇 emoji 会分叉）。 */
+function _packCmp(a, b) {
+  return Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'));
+}
+
+/** 收集 + 摘要。返回 `{文件们, 总, 内容}`；`内容` 给 `生成` 写 zip 用（不重读）。 */
+function _packScan(项们) {
+  const 文件们 = [];
+  const 内容 = new Map();
+  let 总 = 0;
+  for (const [arc, full] of 项们) {
+    let data;
+    try {
+      data = fs.readFileSync(full);
+    } catch (e) {
+      throw R.runErr(`读「${full}」失败：${e.message}`);
+    }
+    总 += data.length;
+    文件们.push({
+      路径: arc,
+      大小: data.length,
+      sha256: _crypto.createHash('sha256').update(data).digest('hex'),
+    });
+    内容.set(arc, data);
+  }
+  文件们.sort((a, b) => _packCmp(a.路径, b.路径));
+  return { 文件们, 总, 内容 };
+}
+
+function _packManifestValue(选, 文件们, 总) {
+  return new Map([
+    ['名字', 选['名字']],
+    ['版本', 选['版本']],
+    ['平台', 选['平台']],
+    ['入口', 选['入口']],
+    ['文件数', 文件们.length],
+    ['字节数', 总],
+    ['文件们', 文件们.map((f) => new Map([
+      ['路径', f.路径], ['大小', f.大小], ['sha256', f.sha256],
+    ]))],
+  ]);
+}
+
+/** JSON 字符串转义 —— 与 Python `_转义` / Rust `转义` 逐字一致。 */
+function _packEsc(s) {
+  let out = '';
+  for (const ch of String(s)) {
+    const o = ch.codePointAt(0);
+    if (ch === '"') out += '\\"';
+    else if (ch === '\\') out += '\\\\';
+    else if (o < 0x20) out += `\\u${o.toString(16).padStart(4, '0')}`;
+    else out += ch;
+  }
+  return out;
+}
+
+/** 清单 → `清单.json` 的文本。**格式是契约**，改它等于换包格式。 */
+function _packJsonText(选, 文件们, 总) {
+  const L = ['{'];
+  L.push(`  "名字": "${_packEsc(选['名字'])}",`);
+  L.push(`  "版本": "${_packEsc(选['版本'])}",`);
+  L.push(`  "平台": "${_packEsc(选['平台'])}",`);
+  L.push(`  "入口": "${_packEsc(选['入口'])}",`);
+  L.push(`  "文件数": ${文件们.length},`);
+  L.push(`  "字节数": ${总},`);
+  if (!文件们.length) {
+    L.push('  "文件们": []');
+  } else {
+    L.push('  "文件们": [');
+    for (let i = 0; i < 文件们.length; i += 1) {
+      const f = 文件们[i];
+      L.push(`    {"路径": "${_packEsc(f.路径)}", "大小": ${f.大小}, `
+        + `"sha256": "${_packEsc(f.sha256)}"}${i < 文件们.length - 1 ? ',' : ''}`);
+    }
+    L.push('  ]');
+  }
+  L.push('}');
+  return `${L.join('\n')}\n`;
+}
+
+function _packZipName(选) {
+  if (!选['名字']) {
+    throw R.valueErr('「名字」不能空 —— 它是产物的文件名，也是安装后在开始菜单里显示的名字');
+  }
+  for (const [段, 键] of [[选['名字'], '名字'], [选['版本'], '版本'], [选['平台'], '平台']]) {
+    for (const bad of ['/', '\\', ':', '*', '?', '"', '<', '>', '|']) {
+      if (段.includes(bad)) {
+        throw R.valueErr(`选项「${键}」里不能有「${bad}」—— 它要当文件名用`);
+      }
+    }
+  }
+  const 部 = [选['名字']];
+  if (选['版本']) 部.push(选['版本']);
+  if (选['平台']) 部.push(选['平台']);
+  return `${部.join('-')}.zip`;
+}
+
+/** 写一个 zip（条目顺序 = 给定顺序，时间定死 1980-01-01）—— 与 `打包确定` 同源。 */
+function _packWriteZip(包, 条目) {
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  const push = (x) => { chunks.push(x); offset += x.length; };
+  const 定死 = new Date(1980, 0, 1, 0, 0, 0).getTime();
+  for (const [name, data] of 条目) {
+    const localOff = offset;
+    central.push(writeZipEntry(push, name, data, localOff, 定死));
+  }
+  const cd = Buffer.concat(central.map(centralEntry));
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(central.length, 8);
+  eocd.writeUInt16LE(central.length, 10);
+  eocd.writeUInt32LE(cd.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  eocd.writeUInt16LE(0, 20);
+  fs.writeFileSync(包, Buffer.concat([...chunks, cd, eocd]));
+}
+
+function _packResult(通过, 问题们, 清单) {
+  return new Map([['通过', 通过], ['问题们', 问题们], ['清单', 清单]]);
+}
+
+const PACK_FUNCS = {
+  '清单': new R.Builtin('清单', (来源, 选项) => {
+    const 选 = {
+      名字: _packOpt(选项, '名字'),
+      版本: _packOpt(选项, '版本'),
+      平台: _packOpt(选项, '平台'),
+      入口: _packOpt(选项, '入口'),
+      基础: _packOpt(选项, '基础'),
+    };
+    const 项们 = _packFiles(来源, 选.基础);
+    const { 文件们, 总 } = _packScan(项们);
+    return _packManifestValue(选, 文件们, 总);
+  }),
+
+  '生成': new R.Builtin('生成', (来源, 输出目录, 选项) => {
+    const 选 = {
+      名字: _packOpt(选项, '名字'),
+      版本: _packOpt(选项, '版本'),
+      平台: _packOpt(选项, '平台'),
+      入口: _packOpt(选项, '入口'),
+      基础: _packOpt(选项, '基础'),
+    };
+    const 项们 = _packFiles(来源, 选.基础);
+    if (!项们.length) {
+      throw R.valueErr(`「${pText(来源)}」里没有文件，打出来的包会是空的`);
+    }
+    if (项们.some((x) => x[0] === PACK_清单名)) {
+      throw R.valueErr(`「${PACK_清单名}」是打包自己用的名字，不能当程序文件`,
+        undefined, undefined, '改个名（例如 说明.json）；包根上那份是清单，会被覆盖');
+    }
+    const { 文件们, 总, 内容 } = _packScan(项们);
+    const 名 = _packZipName(选);
+    const 出目录 = pText(输出目录);
+    try {
+      fs.mkdirSync(出目录, { recursive: true });
+    } catch (e) {
+      throw R.runErr(`建输出目录「${出目录}」失败：${e.message}`);
+    }
+    const 包 = _path.join(出目录, 名);
+    const 条目 = [[PACK_清单名, Buffer.from(_packJsonText(选, 文件们, 总), 'utf8')]];
+    for (const f of 文件们) 条目.push([f.路径, 内容.get(f.路径)]);
+    try {
+      _packWriteZip(包, 条目);
+    } catch (e) {
+      throw R.runErr(`写包「${包}」失败：${e.message}`);
+    }
+    return 包;
+  }),
+
+  '安装包': new R.Builtin('安装包', (包路径, 存根路径, 输出路径) => {
+    const 包 = pText(包路径);
+    const 存根 = pText(存根路径);
+    let 包字节;
+    let 存根字节;
+    try {
+      包字节 = fs.readFileSync(包);
+      存根字节 = fs.readFileSync(存根);
+    } catch (e) {
+      throw R.runErr(`读文件失败：${e.message}`);
+    }
+    let 条目们;
+    try {
+      条目们 = readZipEntries(包字节, false);
+    } catch (e) {
+      throw R.valueErr(`「${包}」不是「打包.生成」造的包，接不成安装包：${e.message}`,
+        undefined, undefined, '先 打包.生成(来源, 目录, 选项) 出一个包，再接安装包');
+    }
+    const 清 = 条目们.find((e) => e.name === PACK_清单名);
+    if (!清) {
+      throw R.valueErr(`「${包}」里没有「${PACK_清单名}」，接不成安装包`,
+        undefined, undefined, '先 打包.生成(来源, 目录, 选项) 出一个包，再接安装包');
+    }
+    let m;
+    try {
+      m = JSON.parse(清.data.toString('utf8'));
+    } catch (e) {
+      throw R.valueErr(`「${PACK_清单名}」解析失败：${e.message}`);
+    }
+    const 名 = (typeof m['名字'] === 'string' && m['名字']) ? m['名字'] : '程序';
+    let 出 = (输出路径 === undefined || 输出路径 === null) ? '' : pText(输出路径);
+    if (!出) {
+      const 部 = [名];
+      for (const k of ['版本', '平台']) {
+        if (typeof m[k] === 'string' && m[k]) 部.push(m[k]);
+      }
+      出 = _path.join(_path.dirname(包), `${部.join('-')}-setup.exe`);
+    }
+    const 尾 = Buffer.alloc(24);
+    尾.writeUInt32LE(存根字节.length >>> 0, 0);
+    尾.writeUInt32LE(Math.floor(存根字节.length / 4294967296), 4);
+    尾.writeUInt32LE(包字节.length >>> 0, 8);
+    尾.writeUInt32LE(Math.floor(包字节.length / 4294967296), 12);
+    尾.write('JISHIPK1', 16, 'latin1');
+    try {
+      fs.mkdirSync(_path.dirname(出), { recursive: true });
+      fs.writeFileSync(出, Buffer.concat([存根字节, 包字节, 尾]));
+    } catch (e) {
+      throw R.runErr(`写安装包「${出}」失败：${e.message}`);
+    }
+    return 出;
+  }),
+
+  '校验': new R.Builtin('校验', (包路径) => {
+    const 路径 = pText(包路径);
+    let buf;
+    try {
+      buf = fs.readFileSync(路径);
+    } catch (e) {
+      return _packResult(false, [`打不开包「${路径}」：${e.message}`], new Map());
+    }
+    let 条目们;
+    try {
+      条目们 = readZipEntries(buf, false);
+    } catch (e) {
+      return _packResult(false, [`打不开包「${路径}」：${e.message}`], new Map());
+    }
+    const 清 = 条目们.find((e) => e.name === PACK_清单名);
+    if (!清) {
+      return _packResult(false,
+        [`包里没有「${PACK_清单名}」—— 这不是「打包.生成」造的包（或者是老包）`],
+        new Map());
+    }
+    let m;
+    try {
+      m = JSON.parse(清.data.toString('utf8'));
+    } catch (e) {
+      return _packResult(false, [`「${PACK_清单名}」读不出来：${e.message}`], new Map());
+    }
+    if (!m || !Array.isArray(m['文件们'])) {
+      return _packResult(false, [`「${PACK_清单名}」格式不对：缺「文件们」那一项`], new Map());
+    }
+    const 应有 = [];
+    for (const f of m['文件们']) {
+      if (!f || typeof f['路径'] !== 'string') {
+        return _packResult(false, [`「${PACK_清单名}」里有一条不认识（缺「路径」）`], new Map());
+      }
+      应有.push([f['路径'], f['大小'], f['sha256']]);
+    }
+    应有.sort((a, b) => _packCmp(a[0], b[0]));
+
+    const 实测 = new Map();
+    for (const e of 条目们) {
+      if (e.name === PACK_清单名 || e.name.endsWith('/')) continue;
+      实测.set(e.name, e.data);
+    }
+
+    const 问题们 = [];
+    for (const [名, 应该大小, 应该摘要] of 应有) {
+      if (!实测.has(名)) { 问题们.push(`缺文件：${名}`); continue; }
+      const data = 实测.get(名);
+      if (typeof 应该大小 === 'number' && data.length !== 应该大小) {
+        问题们.push(`大小不对：${名}（清单 ${应该大小}，实际 ${data.length}）`);
+        continue;
+      }
+      if (typeof 应该摘要 === 'string'
+          && _crypto.createHash('sha256').update(data).digest('hex') !== 应该摘要) {
+        问题们.push(`内容不对：${名}（sha256 与清单不符）`);
+      }
+    }
+    const 应有名 = new Set(应有.map((x) => x[0]));
+    const 多出 = [...实测.keys()].filter((n) => !应有名.has(n))
+      .sort((a, b) => _packCmp(a, b));
+    for (const 名 of 多出) 问题们.push(`清单外多出：${名}`);
+
+    const 清单值 = new Map([
+      ['名字', typeof m['名字'] === 'string' ? m['名字'] : ''],
+      ['版本', typeof m['版本'] === 'string' ? m['版本'] : ''],
+      ['平台', typeof m['平台'] === 'string' ? m['平台'] : ''],
+      ['入口', typeof m['入口'] === 'string' ? m['入口'] : ''],
+      ['文件数', typeof m['文件数'] === 'number' ? m['文件数'] : 0],
+      ['字节数', typeof m['字节数'] === 'number' ? m['字节数'] : 0],
+      ['文件们', 应有.map((x) => new Map([
+        ['路径', x[0]],
+        ['大小', typeof x[1] === 'number' ? x[1] : 0],
+        ['sha256', typeof x[2] === 'string' ? x[2] : ''],
+      ]))],
+    ]);
+    return _packResult(问题们.length === 0, 问题们, 清单值);
+  }),
+};
+
 const HTML_FUNCS = {
   '转义': new R.Builtin('转义', (v) => _escapeHtml(v)),
   '原样': new R.Builtin('原样', (v) => (v instanceof RawHtml ? v : new RawHtml(v))),
@@ -6697,6 +7061,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '配置': new R.Module('配置', CFG_FUNCS),
   '浏览器': new R.Module('浏览器', BROWSER_FUNCS),
   '站点': new R.Module('站点', SITE_FUNCS),
+  '打包': new R.Module('打包', PACK_FUNCS),
   'html': new R.Module('html', HTML_FUNCS),
   '对比': new R.Module('对比', DIFF_FUNCS),
   '标识': new R.Module('标识', ID_FUNCS),

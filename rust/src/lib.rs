@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 mod crypto;
 mod http;
 mod inflate;
-mod json;
+pub mod json;
 mod regex;
 mod stdlib;
 // M51：标准库函数签名表（由 `tools/gen_stdlib_sigs.py` 从 Python 侧
@@ -5011,6 +5011,29 @@ pub(crate) fn check_import_guard(name: &str, from_python: bool, from_local: bool
 ///
 /// 用途只有一个：给 `tests/test_m51_consistency.py` 当事实源。「Python 侧有、
 /// 宿主没有」这种漂移以前是**静默**的 —— M50 第一批的宿主缺失就是手工测出来的。
+// ---------------------------------------------------------------------------
+// 给**自解压存根**用的公开小接口（M171）
+//
+// 存根是独立 bin（`src/bin/packstub.rs`），编出来要能**脱离基石运行** ——
+// 用户还没装基石时它得能跑。它不该把整个引擎拖进来，只要这三件事：
+// 解 zip、判条目名安不安全、算 sha256。都在 lib 里，各自包一层 pub 就够。
+// ---------------------------------------------------------------------------
+
+/// 解一个 zip，返回 `(条目名, 内容)`（顺序 = 中央目录顺序）。
+pub fn zip_read_all(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
+    zip::read_all(data).map_err(|e| e.message)
+}
+
+/// 条目名能不能安全地当相对路径用（`..` / 绝对路径 / 盘符都要拦）。
+pub fn zip_entry_name_ok(name: &str) -> Result<(), String> {
+    zip::check_entry_name(name)
+}
+
+/// 字节的 sha256 十六进制串（存根按清单核对文件内容）。
+pub fn sha256_hex(data: &[u8]) -> String {
+    crypto::sha256(data)
+}
+
 pub fn dump_stdlib() -> String {
     stdlib::dump()
 }

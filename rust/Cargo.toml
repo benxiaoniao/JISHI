@@ -40,6 +40,13 @@ rusqlite = { version = "0.40", features = ["bundled"], optional = true }
 name = "jishi-rs"
 path = "src/main.rs"
 
+# M171：自解压安装器的存根。**独立 bin**，因为它要能脱离基石运行
+# （用户下载 setup.exe 时机器上还没有基石）。它只调 lib 里三个公开小接口
+# （解 zip / 判条目名 / 算 sha256），不把整个引擎拖进来。
+[[bin]]
+name = "jishi-pack-stub"
+path = "src/bin/packstub.rs"
+
 [lib]
 name = "jishi_ffi"
 path = "src/lib.rs"
