@@ -31,8 +31,24 @@ from conftest import rust_exe_path                                # noqa: E402
 STUB = rust_exe_path().with_name(
     "jishi-pack-stub" + (".exe" if os.name == "nt" else ""))
 
+#: 🔴 **自解压安装器是 Windows 专属**（M174 修）。
+#:
+#: 这一整份判据验的是「双击 setup.exe → 装进 %LOCALAPPDATA% → 写注册表卸载项 →
+#: 开始菜单快捷方式 → 卸载干净」——**每一样都是 Windows 概念**：
+#: 存根是 PE 文件、卸载项在 `HKCU\\...\\Uninstall`、快捷方式是 `.lnk`。
+#:
+#: Linux / macOS 上 `jishi-pack-stub` 也会被编出来（同一个 `cargo build`），
+#: 所以光判「存根在不在」放不住 —— 那边的产物是 ELF / Mach-O，
+#: 判据跑到「存根不是 PE 文件？」和「跑 .exe」就挂了。
+#: 那两平台的安装方式是 `tar.gz` + `install.sh`，由 `test_m172_pack_cmd` 覆盖。
+#:
+#: ⚠️ 教训（和 `packstub.rs` 的 cfg 是同一类）：**本地只验 Windows ⇒ 平台专属的
+#: 判据没加平台门槛**，Linux/macOS 的 CI 就一直红。凡是「只在一个平台成立」的判据，
+#: 都要把它说在 `skipif` 里。
 pytestmark = pytest.mark.skipif(
-    not STUB.is_file(), reason="没编 jishi-pack-stub（cargo build --release）")
+    not STUB.is_file() or sys.platform != "win32",
+    reason="自解压安装器只在 Windows 上有意义（Linux/macOS 用 tar.gz + install.sh）；"
+           "没编 jishi-pack-stub 时也跳过（cargo build --release）")
 
 选项 = '{"名字": "%s", "版本": "1.0.0", "平台": "windows-x64", "入口": "bin/演示.exe"}'
 

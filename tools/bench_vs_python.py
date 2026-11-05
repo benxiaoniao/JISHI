@@ -35,7 +35,9 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXE = ROOT / "rust" / "target" / "release" / "jishi-rs.exe"
+# ⚠️ 分平台（M174）：Windows 是 `jishi-rs.exe`，Linux / macOS 是 `jishi-rs`。
+EXE = ROOT / "rust" / "target" / "release" / (
+    "jishi-rs.exe" if os.name == "nt" else "jishi-rs")
 #: 🔴 用 `-S` 跑 CPython：**这台机器的 site/sitecustomize 带约 350 ms 开销**
 #: （WorkBuddy 的 shim 注入），默认启动要 416 ms、`-S` 只要 73 ms。
 #: 那是**测量环境**的加料，不是 CPython 本身 —— 不排掉的话每个场景都在比「谁启动快」。

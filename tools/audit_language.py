@@ -42,7 +42,11 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXE = ROOT / "rust" / "target" / "release" / "jishi-rs.exe"
+# ⚠️ 名字要**分平台**（M174 修）：Windows 是 `jishi-rs.exe`，Linux / macOS 是
+# `jishi-rs`。写死 `.exe` 的后果是 Linux/macOS 上这里永远说「先构建宿主」，
+# 而那条判据（`test_m170_sql_params::test_审计里的_SQL_一条已经转绿`）就一直红。
+EXE = ROOT / "rust" / "target" / "release" / (
+    "jishi-rs.exe" if os.name == "nt" else "jishi-rs")
 
 安全, 缺口, 危险 = "✅", "🟡", "🔴"
 

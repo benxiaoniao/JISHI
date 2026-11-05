@@ -135,6 +135,21 @@ wry 不是一个轻依赖：
 ⚠️ **CI 上这 4 条要跳过**（`JISHI_NO_GUI=1`）：runner 没有桌面。
 **跳过不等于验过** —— 这块能力在 CI 上是空白，只能本机手验。如实记在这里。
 
+#### 五·五、顺手修掉三处「只验了 Windows」的债
+
+M174 第一次把 Linux/macOS 的 CI 跑到底（之前从 M172 起就红着，一直没查），
+暴露出三类**平台专属的东西没加门槛**：
+
+| 问题 | 哪一站的债 | 症状 |
+|---|---|---|
+| `packstub.rs` 的 `加path`/`减path` 漏了 `#[cfg(windows)]` | M172 | Linux/macOS **编不过**（`E0428` 重复定义） |
+| `test_m171_installer` 整套没加平台门槛 | M171 | Linux 上「存根不是 PE 文件？」+ 跑 `.exe` 的 `PermissionError` |
+| `audit_language` / `audit_security` / `bench_vs_python` 把 `jishi-rs.exe` 写死 | 早期 | Linux/macOS 永远说「先构建宿主」 |
+
+共同点：**这些代码只在 Windows 上验过**。教训写进 AGENTS 了 ——
+凡是「只在一个平台成立」的判据，都要把它说在 `skipif` 里；
+凡是带 `.exe` 的路径，都要分平台取。
+
 #### 六、明确没做的
 
 - **原生菜单 / 托盘 / 拖放 / 多窗口**：`tao` 都能做，但要一个个平台调，

@@ -29,12 +29,15 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import os
 import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXE = ROOT / "rust" / "target" / "release" / "jishi-rs.exe"
+# ⚠️ 分平台（M174）：Windows 是 `jishi-rs.exe`，Linux / macOS 是 `jishi-rs`。
+EXE = ROOT / "rust" / "target" / "release" / (
+    "jishi-rs.exe" if os.name == "nt" else "jishi-rs")
 
 #: 受害文件：随便挑一个「本来不该被沙箱读到」的真实文件
 受害者 = "D:/code/基石/README.md"
