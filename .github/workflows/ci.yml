@@ -104,6 +104,18 @@ jobs:
             frontend -> target
           cache-on-failure: true
 
+      # 🔴 M174：**Linux 编 wry 要系统库**（WebKitGTK + GTK 开发头）。
+      #    runner 是干净 Ubuntu，一个都没有 —— 不装这一步 `cargo build` 直接挂在
+      #    `webkit2gtk-sys` 的 pkg-config 上（报「找不到 webkit2gtk-4.1」）。
+      #    包名里的 `-4.1` 不是笔误：wry 0.47 要的是 WebKitGTK **4.1**（GTK3 那套是 4.0）。
+      #    Windows / macOS 不需要：前者用 WebView2（系统组件），后者用 WKWebView（系统框架）。
+      - name: 装 Linux 的窗口系统库（M174）
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev
+
       - name: 构建 Rust 宿主（测试要用）
         run: cargo build --release --manifest-path rust/Cargo.toml
 
