@@ -727,9 +727,12 @@ fn 弹右键菜单(x: i32, y: i32) {
             //    &ApplicationWindow`）。这也是我们要在 Linux 目标段里显式依赖
             //    `gtk 0.18` 的唯一原因。
             use gtk::prelude::Cast;
-            let 窗 = w.gtk_window().upcast_ref::<gtk::Window>();
+            // ⚠️ 局部变量**不能叫 `窗`**：那会撞上本文件的 thread_local `static 窗`
+            //    —— Rust 在 `let` 的模式位置把它当成**常量模式**，于是报
+            //    「expected &Window, found LocalKey<RefCell<...>>」（CI 抓到）。
+            let gtk窗 = w.gtk_window().upcast_ref::<gtk::Window>();
             菜单.show_context_menu_for_gtk_window(
-                窗,
+                gtk窗,
                 Some(muda::dpi::Position::Physical(
                     muda::dpi::PhysicalPosition::new(x, y),
                 )),
