@@ -721,8 +721,15 @@ fn 弹右键菜单(x: i32, y: i32) {
         {
             use muda::ContextMenu;
             use tao::platform::unix::WindowExtUnix;
+            // ⚠️ tao 给的是 `&gtk::ApplicationWindow`，而 muda 要 `&gtk::Window`
+            //    —— gtk-rs 里前者不是后者的 Deref 目标，必须显式 `upcast_ref`
+            //    （CI 的 Linux job 就是这么报的 `expected &Window, found
+            //    &ApplicationWindow`）。这也是我们要在 Linux 目标段里显式依赖
+            //    `gtk 0.18` 的唯一原因。
+            use gtk::prelude::Cast;
+            let 窗 = w.gtk_window().upcast_ref::<gtk::Window>();
             菜单.show_context_menu_for_gtk_window(
-                w.gtk_window(),
+                窗,
                 Some(muda::dpi::Position::Physical(
                     muda::dpi::PhysicalPosition::new(x, y),
                 )),

@@ -743,6 +743,10 @@ fn 菜单json(定义: &Val) -> Result<String, crate::JishiError> {
 }
 
 /// 「只能在脚本里做」的统一报错：页面（wasm）里没有窗口控制权。
+///
+/// `allow(dead_code)`：只有 wasm 构建才调它（原生构建走另一条分支），
+/// 而反过来 `没有原生窗口` 只在关掉 `native-window` 的构建里用得上。
+#[allow(dead_code)]
 fn 只在脚本里(名: &str, 提示: &str) -> crate::JishiError {
     err_with_hint(
         "运行期错误",
@@ -752,6 +756,7 @@ fn 只在脚本里(名: &str, 提示: &str) -> crate::JishiError {
 }
 
 /// 这个构建没有原生窗口能力（`--no-default-features`）时的统一报错。
+#[allow(dead_code)]
 fn 没有原生窗口(名: &str) -> crate::JishiError {
     err_with_hint(
         "运行期错误",
@@ -760,8 +765,9 @@ fn 没有原生窗口(名: &str) -> crate::JishiError {
     )
 }
 
+/// 把文本写成 JSON 字符串字面量（`esc` 自带引号，别再补一层 —— M175 踩过）。
+#[allow(dead_code)]
 fn json串(s: &str) -> String {
-    // `esc` 自带引号
     crate::jsonw::esc(s)
 }
 
@@ -953,7 +959,8 @@ fn 当(事件: &str, 函数: &str) -> Result<bool, crate::JishiError> {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let _ = 函数;
+        // 原生构建里这两个参数都用不上（这条分支只会报错），但报错文案要指名道姓
+        let _ = (事件, 函数);
         Err(err_with_hint(
             "运行期错误",
             "「窗口.当」只在**页面里**有效 —— 脚本这会儿正阻塞在 窗口.等 上，接不了事件",

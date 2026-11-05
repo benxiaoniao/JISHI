@@ -14,7 +14,11 @@ sqlite = ["dep:rusqlite"]
 # M174：原生窗口。**放在默认里** —— 用户装的就是这个发行版，`窗口.打开` 默认
 # 就该给他一个真窗口。要「小一点、只要应用模式」的可以
 # `--no-default-features --features sqlite`（判据里试的正是这一档能编过）。
-native-window = ["dep:wry", "dep:tao", "dep:muda", "dep:tray-icon", "dep:rfd", "dep:png"]
+# `dep:gtk` 只声明在 Linux 目标段里 —— 在 Windows/macOS 上它是空操作（Cargo 按目标
+# 解析可选依赖），不会去编 gtk。
+native-window = [
+    "dep:wry", "dep:tao", "dep:muda", "dep:tray-icon", "dep:rfd", "dep:png", "dep:gtk",
+]
 # **wasm 的 playground 专用**：给 VM 加「步数预算」（防死循环，见 `lib.rs` 的
 # `budget_tick`）。⚠️ **默认关** —— 开了它指令循环的回跳处会多一次判断，
 # 实测在循环密集负载上 **+6%**（8M 次迭代、交错 A/B、稳定复现）。
@@ -85,6 +89,12 @@ rfd = { version = "0.15", default-features = false, features = ["gtk3"], optiona
 # 右键菜单在 Linux 上走 GTK 的那条路（`show_context_menu_for_gtk_window` 带
 # `cfg(feature = "gtk")`）。显式开，不蹭 tray-icon 的。
 muda = { version = "0.17", default-features = false, features = ["gtk"], optional = true }
+# 🔴 `show_context_menu_for_gtk_window` 要 `&gtk::Window`，而 tao 给的是
+#    `&gtk::ApplicationWindow` —— gtk-rs 里前者**不是**后者的 Deref 目标，
+#    得 `upcast_ref`，而那需要能指名 gtk 这个 crate。
+#    版本必须与 tao / muda 用的**同一个**（0.18），否则是两个不同的 crate，类型对不上。
+#    ⚠️ 只能放在这个 Linux 目标段里：gtk 在 Windows / macOS 上根本编不了。
+gtk = { version = "0.18", optional = true }
 
 [[bin]]
 name = "jishi-rs"
