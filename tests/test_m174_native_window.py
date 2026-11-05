@@ -244,6 +244,65 @@ def test_wasm里带句柄的关闭要明确报错(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# 三·四、引擎素材：发行包必须带，缺了要**明确报错**（不能白窗口）
+# ---------------------------------------------------------------------------
+
+_缺素材 = "找不到 wasm 引擎素材（jishi-wasm.js + jishi_wasm.wasm）"
+
+
+def test_缺引擎素材时两个宿主都给同一句中文报错():
+    """素材缺失时必须在**开窗之前**报错。
+
+    🔴 这是 M174 抓出来的产品 bug（M173 起就存在）：`窗口` 打开页面时要把
+    `jishi-wasm.js` + `jishi_wasm.wasm` 喂给浏览器/WebView，而**发行包没带**
+    这两份 ⇒ 页面里的 `import "/__jishi/…"` 全部 404 ⇒ **白窗口、一行报错都没有**。
+
+    修了两处：
+    1. `build_release.py` 现编 wasm 并放进 `bin/`（和 jishi 可执行文件同目录，
+       也正是 `窗口` 找素材的第一站）；
+    2. 两宿主的 `打开` 里，**起服务之前**就检查素材。
+
+    这条判据钉第 2 点，而且要求两边**文案逐字相同**（用户不该看到两个版本的话）。
+    """
+    py = (ROOT / "oracle" / "jishi" / "stdlib" / "窗口.py").read_text(encoding="utf-8")
+    assert _缺素材 in py, "Python 侧的 `窗口.打开` 没在起服务前检查引擎素材"
+
+    rs = (ROOT / "rust" / "src" / "stdlib" / "window.rs").read_text(encoding="utf-8")
+    assert _缺素材 in rs, "Rust 侧的 `窗口.打开` 没在起服务前检查引擎素材"
+
+    # 提示里要点明「和可执行文件同目录」—— 这是用户唯一能自己动手的地方
+    for 源 in (py, rs):
+        assert "同一目录" in 源, "提示没说素材该放哪"
+
+
+def test_发行包会把引擎素材带上():
+    """`build_release.py` 必须把两份素材放进 `bin/`。
+
+    这条是纯源码判据 —— 但少了它，上面那条「明确报错」反而会把**用户挡在门外**：
+    报错说「找不到素材」，可发行包本来就没带，用户没有任何办法。**两条必须成对**。
+    """
+    源 = (ROOT / "tools" / "build_release.py").read_text(encoding="utf-8")
+    assert "_build_wasm_into" in 源, "build_release.py 没有收集 wasm 素材的步骤"
+    assert "_build_wasm_into(bin_dir)" in 源, "收集步骤没有被调用"
+    for 名 in ("jishi-wasm.js", "jishi_wasm.wasm"):
+        assert 名 in 源, f"收集逻辑里没有 `{名}`"
+    # 缺 wasm target 是最常见的原因，错误信息要能指过去
+    assert "rustup target add" in 源, "构建 wasm 失败时没提示 `rustup target add`"
+
+
+def test_CI会构建wasm素材():
+    """CI 的两个 workflow 都得装 wasm target 并构建素材。
+
+    `site/` 是 gitignore 的构建产物，干净检出里没有 —— 不现编的话，
+    「服务能把页面和引擎素材喂出去」那条判据会 404（M173 起 CI 上一直红着）。
+    """
+    for 名 in ("ci.yml", "release.yml"):
+        t = (ROOT / ".github" / "workflows" / 名).read_text(encoding="utf-8")
+        assert "wasm32-unknown-unknown" in t, f"{名} 没装 wasm target"
+        assert "tools/build_wasm.py" in t, f"{名} 没构建 wasm 素材"
+
+
+# ---------------------------------------------------------------------------
 # 三·五、示例页面的脚本必须真的能被解析
 # ---------------------------------------------------------------------------
 

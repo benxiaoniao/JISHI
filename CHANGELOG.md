@@ -90,6 +90,17 @@ Linux 用 WebKitGTK）：
    修法：`rust/build.rs` 在构建后把 `webview2-com-sys` 产出的那份按架构拷到
    `target/<profile>/`；`tools/build_release.py` 再把它收进 `bin/`。
    ⚠️ **自己分发基石程序时也要带上它** —— 少了就是「双击没反应、还没报错」。
+7. 🔴 **发行包从来没带过 wasm 引擎素材**（M173 起的**产品 bug**，不是新引入的）。
+   `窗口` 打开页面时要把 `jishi-wasm.js` + `jishi_wasm.wasm` 喂给浏览器/WebView，
+   而 `build_release.py` **完全不管**这两份 ⇒ 装了基石的用户开出来的窗口是**白的**，
+   而且**一行报错都没有**（只有 devtools 里一条 404）。
+
+   暴露路径：M173 那条判据 `test_服务能把页面和引擎素材喂出去` 在 CI 上 404 ——
+   CI 是干净检出，`site/` 不存在。**「CI 红了」这次不是在烦人，是在报丧。**
+
+   修法三处：① `build_release.py` 现编 wasm 并放进 `bin/`（和 jishi 可执行文件同目录，
+   也正是 `窗口` 找素材的第一站）；② 两宿主的 `打开` 在**起服务之前**检查素材，
+   缺了就报一句能照着改的话；③ CI 两个 workflow 都装 `wasm32-unknown-unknown` 并构建。
 
 #### 四、代价（如实记，这是第三个第三方依赖）
 

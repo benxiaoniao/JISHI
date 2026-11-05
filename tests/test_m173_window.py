@@ -130,8 +130,16 @@ def test_开窗时URL能取到页面和引擎素材(tmp_path):
     assert "--user-data-dir=" in 参数, 参数
 
 
+@pytest.mark.skipif(not (ROOT / "site" / "jishi_wasm.wasm").is_file(),
+                    reason="还没构建 wasm（跑 tools/build_wasm.py）—— CI 会先构建它，"
+                           "所以那边这条**真的跑了**")
 def test_服务能把页面和引擎素材喂出去(tmp_path):
-    """这一条才是「窗口里不会是白页」的真正判据。"""
+    """这一条才是「窗口里不会是白页」的真正判据。
+
+    ⚠️ 它依赖 `site/jishi_wasm.wasm`（`build_wasm.py` 的产出）。按 `AGENTS.md` §1 ④
+    的口径，构建产物一般不许硬依赖 —— 但这一份是**发行必需的**（`窗口` 靠它喂页面），
+    CI 两个 workflow 都会先构建，所以这里允许；本地没构建时跳过而不是报错。
+    """
     import time
 
     假 = _假浏览器(tmp_path)

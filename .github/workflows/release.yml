@@ -53,6 +53,11 @@ jobs:
       # 但显式钉一下 stable，免得哪天镜像变了。
       - name: 准备 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
+        with:
+          # 🔴 M174：`窗口` 要的 wasm 引擎素材得**现编**（`site/` 是 gitignore 的
+          #    构建产物，干净检出里没有）。少了它，窗口判据会 404 ——
+          #    那正是 M173 起 CI 上一直红着的那条。
+          targets: wasm32-unknown-unknown
 
       # 实测 Rust 构建 ~1.8 分钟 ⇒ 这条省 1~2 分钟（不是传说中的 5 分钟）。
       # ⚠️ 三个 workspace 必须显式列，默认只在根找 Cargo.toml（这里没有）。
@@ -111,6 +116,11 @@ jobs:
 
       - name: 构建 Rust 宿主（测试要用）
         run: cargo build --release --manifest-path rust/Cargo.toml
+
+      # 🔴 M174：wasm 引擎素材（`窗口` 要把它喂给页面/WebView）。
+      #    建到 `site/`；发行时 `build_release.py` 会把它放进 `bin/`。
+      - name: 构建 wasm 引擎（窗口要用）
+        run: python tools/build_wasm.py
 
       # ⚠️ 用 bash 包一层：cargo 失败时只在 job 日志里留痕（而日志要登录网页才看得到），
       #    这里顺手把它写成 Actions 注解 —— 2026-10-09 macos 上这一步退出码 101、

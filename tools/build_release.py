@@ -221,6 +221,45 @@ def _build_rust_into(bin_dir: Path) -> None:
             print("  ⚠️ 没找到 WebView2Loader.dll —— 原生窗口在用户机器上会启动失败")
 
 
+def _build_wasm_into(bin_dir: Path) -> None:
+    """构建 wasm 引擎并把两份素材放进 `bin/`（M174）。
+
+    ## 为什么发行包必须带它
+
+    `窗口` 打开页面时，页面要 `import "/__jishi/jishi-wasm.js"` 再
+    `JishiWasm.load("/__jishi/jishi_wasm.wasm")` —— 那两样由 `窗口` 的小服务
+    从**本机目录**喂出去。缺了它们页面一片空白，而且**一行报错都没有**
+    （浏览器只会在 devtools 里记一条 404）。
+
+    ⚠️ 在此之前（M173 起）发行包是**不带**这两份的 —— 也就是说装了基石的用户
+    开出来的窗口是白的。判据里那条 `test_服务能把页面和引擎素材喂出去` 在 CI 上
+    404，把这个洞暴露了出来。
+
+    ## 为什么先构建而不是拷 `site/`
+
+    `site/` 是 `.gitignore` 掉的构建产物，CI 的干净检出里没有。
+    所以这里**现编**（本机约 30 秒）—— 顺带保证发行包里的 wasm 与这版源码一致，
+    而不是某个陈旧副本。
+    """
+    print("  构建 wasm 引擎（窗口要用）...")
+    r = subprocess.run([sys.executable, str(ROOT / "tools" / "build_wasm.py")],
+                       cwd=str(ROOT), capture_output=True, text=True)
+    if r.returncode != 0:
+        # 缺 wasm target 是最常见的原因，把 build_wasm 自己的提示带出来
+        print(r.stdout[-800:])
+        print(r.stderr[-800:], file=sys.stderr)
+        raise SystemExit("构建 wasm 失败（上面有原因；多半是 `rustup target add wasm32-unknown-unknown`）")
+
+    n = 0
+    for 名 in ("jishi-wasm.js", "jishi_wasm.wasm"):
+        源 = ROOT / "site" / 名
+        if not 源.is_file():
+            raise SystemExit(f"wasm 构建完了却没有 {源} —— build_wasm.py 的行为变了？")
+        shutil.copy2(源, bin_dir / 名)
+        n += 源.stat().st_size
+    print(f"  已放入 bin/jishi-wasm.js + bin/jishi_wasm.wasm（{n:,} 字节）")
+
+
 def _build_python_into(bin_dir: Path, work: Path) -> None:
     """PyInstaller onedir → `bin/oracle/jishi/` + `bin/jishi-mcp/`（**R8.4 前保留**）。
 
@@ -324,6 +363,11 @@ def build(argv: list[str]) -> int:
         _build_rust_into(bin_dir)
     else:
         _build_python_into(bin_dir, work)
+    # 🔴 **引擎素材跟着发行包走**（M174）：`窗口` 打开页面时要把
+    # `jishi-wasm.js` + `jishi_wasm.wasm` 喂给浏览器/WebView。少了它，
+    # 窗口照样能开，但页面里的 `import "/__jishi/…"` 全部 404 ⇒ **白窗口、没报错**。
+    # 位置放在 `bin/`（也就是 jishi 可执行文件旁边）—— `窗口` 找素材的第一站。
+    _build_wasm_into(bin_dir)
 
     # share/ 资源
     share = out / "share"

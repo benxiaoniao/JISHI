@@ -459,6 +459,21 @@ fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
             .parent()
             .map(|p| p.display().to_string())
             .unwrap_or_default();
+        // 🔴 起服务**之前**就把素材查清楚：找不到就别开窗。
+        //
+        // 素材缺失时窗口照样能打开，但页面里的 `import "/__jishi/jishi-wasm.js"`
+        // 会 404 ⇒ **白窗口、一行报错都没有**。那种「看起来开了、其实什么都没跑」
+        // 是最难查的故障。（M173 起就是坏的：发行包没带素材。）
+        if 找引擎().is_none() {
+            return Err(err_with_hint(
+                "运行期错误",
+                "找不到 wasm 引擎素材（jishi-wasm.js + jishi_wasm.wasm）——\
+                 窗口里的基石代码跑不起来",
+                "它们应当和 jishi 可执行文件在**同一目录**（发行包会自动带上）；\
+                 在源码仓库里先跑 `python tools/build_wasm.py` 生成到 site/"
+                    .into(),
+            ));
+        }
         let 端口 = 起服务(&目录)?;
         let 名 = 全
             .file_name()

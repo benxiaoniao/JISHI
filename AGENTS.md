@@ -88,7 +88,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **4296 项**；其中 126 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
+3. **测试命令**：`python -m pytest tests/`（当前 **4299 项**；其中 126 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
    .venv/Scripts/python.exe tools/test_all.py          # **两节一条命令**（见下）
@@ -123,6 +123,11 @@
    （M169 实测：`test_m167_browser` 读 `site/jishi-wasm.js`，三平台全红）。
    ⇒ 要么改读源码那份（`wasm/…`），要么 `skipif not 产物.is_file()`，
    口径写成「**产物在，就必须一致**」而不是「每个环境都得有一份产物」。
+   ⚠️ **一个例外（M174 起）**：`site/jishi_wasm.wasm`（`tools/build_wasm.py` 的产出）。
+   它不是「本机顺手编的缓存」，而是**发行包的一部分**（`窗口` 靠它喂页面）。
+   所以 CI 的两个 workflow 都先跑 `python tools/build_wasm.py`，
+   判据可以**硬依赖**它 —— 前提是**构建步骤真的在**（`test_CI会构建wasm素材` 钉着）。
+   判断标准：**这个产物是发行必需的，还是只在本地构建过？** 前者让 CI 编，后者 `skipif`。
    ⑤ **清理夹具不许有跨进程副作用**：session 结束的清理只删**文件名带本进程 pid** 的
    （`_<pid>.json`）。全量 `glob("_tmp_*.json")` 全删会误伤 xdist 的**其它 worker**
    正在用的文件 —— 症状是别的用例 `ENOENT`、单跑必过（M169 实测）。

@@ -294,6 +294,19 @@ def 打开(选项) -> int:
         if not os.path.isfile(全):
             raise RunValueError(f"找不到页面：{页面}")
         目录 = os.path.dirname(全)
+        # 🔴 起服务**之前**就把素材查清楚：找不到就别开窗。
+        #
+        # 为什么在这查：素材缺失时窗口照样能打开，但页面里的 `import
+        # "/__jishi/jishi-wasm.js"` 会 404 ⇒ **白窗口、一行报错都没有**。
+        # 那种「看起来开了、其实什么都没跑」是最难查的故障。
+        # （M173 起就是坏的：发行包没带素材，用户装了基石也开不出能用的窗口。）
+        if not _找引擎():
+            raise RunError(
+                "找不到 wasm 引擎素材（jishi-wasm.js + jishi_wasm.wasm）——"
+                "窗口里的基石代码跑不起来",
+                hint="它们应当和 jishi 可执行文件在**同一目录**（发行包会自动带上）；"
+                     "在源码仓库里先跑 `python tools/build_wasm.py` 生成到 site/",
+            )
         端口 = _起服务(目录)
         # ⚠️ 文件名要**百分号编码**：中文文件名直接塞进 URL 是非法请求行
         #    （HTTP 只认 ASCII），浏览器会自己编码、但别的东西（比如判据里
