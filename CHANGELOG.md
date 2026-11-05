@@ -44,6 +44,12 @@ M174 把外壳换成了真窗口。但真窗口光能开还不够 —— 用户�
 实测代价：crate 数 **302 → 348**（+46）、冷构建 **+28 秒**、`jishi-rs` **6.9 → 7.25 MB**。
 全部 `optional` + 挂在 `native-window` 特性下（判据钉着，防止有人弄成硬依赖把 wasm 编挂）。
 
+🔴 **Linux 上还多一个 `gtk 0.18`**（只声明在 Linux 目标段、同样 optional）：tao 的
+`gtk_window()` 给 `&gtk::ApplicationWindow`，而 muda 的
+`show_context_menu_for_gtk_window` 要 `&gtk::Window` —— gtk-rs 里前者**不是**后者的
+Deref 目标（`expected &Window, found &ApplicationWindow`，CI 的 ubuntu job 抓到的）。
+必须 `upcast_ref`，而那需要能指名 gtk 这个 crate。版本必须与 tao/muda 用的**同一个**。
+
 🔴 **`rfd` 必须 `default-features = false`**：它的默认特性 `xdg-portal` 会拉
 `ashpd` + `zbus`（一整套异步 D-Bus，几十个 crate）。Linux 改走 `gtk3` —— 而 GTK3
 本来就在（webkit2gtk 依赖它），等于零成本。判据 `test_rfd不许拉ashpd` 钉着。
