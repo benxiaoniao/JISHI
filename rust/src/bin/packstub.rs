@@ -316,6 +316,12 @@ mod reg {
 }
 
 /// 把 `目录` 追加到用户 PATH（已存在就不重复加）。返回「是不是新加的」。
+///
+/// ⚠️ **`#[cfg(windows)]` 不能少**（M174 修）：下面是 `reg` 模块（也是 Windows 专用），
+/// 而文件末尾还有一对 `#[cfg(not(windows))]` 的同名兜底函数。漏了这个 cfg，
+/// 在 Linux/macOS 上**两个版本都参与编译** ⇒ `error[E0428] 已定义多次` ⇒
+/// 整个 crate 编不过（M172 起 Linux/macOS 的 CI 一直是红的，本地只验了 Windows）。
+#[cfg(windows)]
 fn 加path(目录: &str) -> Result<bool, String> {
     let 键 = "Environment";
     let 旧 = reg::读值(键, "Path").unwrap_or_default();
@@ -333,6 +339,7 @@ fn 加path(目录: &str) -> Result<bool, String> {
 }
 
 /// 从用户 PATH 里去掉 `目录`。返回「是不是真的去掉了」。
+#[cfg(windows)]
 fn 减path(目录: &str) -> Result<bool, String> {
     let 键 = "Environment";
     let 旧 = reg::读值(键, "Path").unwrap_or_default();

@@ -114,21 +114,34 @@ pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<(), Stri
     // IPC 处理器：**在主线程被调用**（WebView2 的 WebMessageReceived 就在 UI 线程），
     // 所以里面可以放心走 thread_local。
     let 代理2 = 代理.clone();
-    let 网页 = WebViewBuilder::new()
+    let 构建 = WebViewBuilder::new()
         .with_url(网址)
         .with_ipc_handler(move |请求: wry::http::Request<String>| {
             if let Some(ev) = 处理命令(请求.body()) {
                 let _ = 代理2.send_event(ev);
             }
-        })
-        .build(&*窗口)
-        .map_err(|e| {
-            format!(
-                "建 WebView 失败：{e}\n\
-                 （Windows 要 WebView2 运行时：Win11 自带、Win10 装过 Edge 就有；\
-                 Linux 要 libwebkit2gtk-4.1）"
-            )
-        })?;
+        });
+
+    // ⚠️ **平台分叉在这儿**：Windows / macOS 用统一的 `build(&window)`；
+    //    Linux 必须用 `build_gtk(容器)` —— wry 在 Linux 上把 webview 塞进一个
+    //    GTK 容器里，`build()` 那个签名在 Linux 上根本不存在（**编译期**就挂，
+    //    不是运行时）。照 `wry/examples/simple.rs` 的写法。
+    //
+    //    代价如实记：Linux 这条分支是照官方示例写的，CI 只能验「编得过」，
+    //    **验不了「窗口真能开」**（runner 没有桌面）—— 见 CHANGELOG。
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    let 网页 = 构建.build(&*窗口).map_err(|e| 建网页失败(e.to_string()))?;
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let 网页 = {
+        use tao::platform::unix::WindowExtUnix;
+        use wry::WebViewBuilderExtUnix;
+        let 容器 = 窗口
+            .default_vbox()
+            .ok_or_else(|| "Linux 上窗口没有默认容器（GTK 没初始化？）".to_string())?
+            .clone();
+        构建.build_gtk(&容器).map_err(|e| 建网页失败(e.to_string()))?
+    };
 
     // 窗口指针**打开时就登记**：`打开` 与 `等` 之间也可能要改标题。
     窗.with(|c| {
@@ -148,6 +161,15 @@ pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<(), Stri
         });
     });
     Ok(())
+}
+
+/// 建 WebView 失败时给一句**能照着改**的话（三个平台的缺东西各不相同）。
+fn 建网页失败(原因: String) -> String {
+    format!(
+        "建 WebView 失败：{原因}\n\
+         （Windows 要 WebView2 运行时：Win11 自带、Win10 装过 Edge 就有；\
+         Linux 要 libwebkit2gtk-4.1；macOS 自带 WKWebView）"
+    )
 }
 
 /// 跑事件循环，**阻塞到窗口关掉**。返回退出码（这一版恒 0）。
