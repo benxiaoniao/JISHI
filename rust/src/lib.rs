@@ -25,6 +25,14 @@ pub mod errcodes;   // R7.1-b：错误码表 + `jishi 错误 [码]` 的渲染（
 pub mod checker;    // R7.1-c：源码静态检查（checker.py + scope.py 的移植）
 pub mod formatter;  // R7.1-d：代码格式化（formatter.py 的移植）
 pub mod jsonw;      // R7.2 起：保序 JSON 写出器（--lang-spec 与 LSP 共用）
+// M174：原生窗口（wry + 系统 WebView）。**可选特性** —— wasm 构建
+// （`default-features = false`）里整个模块不存在，`窗口.打开({原生:真})` 会
+// 明确报「这个构建没有原生窗口」，而不是含糊地失败。
+#[cfg(feature = "native-window")]
+pub mod native_window;
+// M174：ABI 3 —— 页面里的基石代码 → 宿主（单向命令）。
+// 不依赖 `native-window`：wasm 构建里也要有（它就是给 wasm 用的）。
+pub mod abi3;
 pub mod packcmd;    // M172：`jishi 打包`（四类产物）
 pub mod scope;      // R7.3：AST 作用域分析（scope.py 的移植，checker 与 LSP 共用）
 pub mod lsp;        // R7.3：语言服务器（lsp.py 的移植，`jishi-rs lsp`）

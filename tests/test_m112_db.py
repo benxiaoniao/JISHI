@@ -344,7 +344,11 @@ def test_wasm_关掉了_sqlite_特性():
     assert "default-features = false" in wasm, "wasm 没关掉 `sqlite` 特性 —— 链不了 sqlite3.c"
 
     rust = (ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8")
-    assert 'default = ["sqlite"]' in rust, "`sqlite` 应当是默认开着的特性"
+    # ⚠️ 别写死整行：`default` 里**还会加别的特性**（M174 就加了 `native-window`）。
+    #    这条要钉的是「sqlite 在默认里」，不是「默认只有 sqlite」。
+    默认行 = [ln for ln in rust.splitlines() if ln.startswith("default = [")]
+    assert 默认行, "Cargo.toml 里没有 `default = [...]`"
+    assert '"sqlite"' in 默认行[0], f"`sqlite` 应当是默认开着的特性：{默认行[0]}"
     assert "optional = true" in rust, "rusqlite 应当是可选依赖"
 
     mod = (ROOT / "rust" / "src" / "stdlib" / "mod.rs").read_text(encoding="utf-8")

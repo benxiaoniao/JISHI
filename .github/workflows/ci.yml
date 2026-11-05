@@ -156,6 +156,14 @@ jobs:
 
       - name: 全量测试
         shell: bash
+        env:
+          # 🔴 `JISHI_NO_GUI=1`（M174）：runner 是**无桌面**的（Windows runner 能建
+          #    窗口句柄，但 WebView2 的渲染进程起不来；Linux/macOS 更不用说）。
+          #    真开原生窗口的那几条判据会挂 —— 跳过它们，**并且如实承认这一块
+          #    在 CI 上没验**（CHANGELOG 里写了「本机手验」）。
+          #    ⚠️ 跳过不是通过：那些能力只能靠本地
+          #    `pytest tests/test_m174_native_window.py` 在有桌面的机器上验。
+          JISHI_NO_GUI: "1"
         run: |
           set -o pipefail
           # ⚠️ `--tb=short`（不是 `--tb=line`）：`--tb=line` **每次失败只给一行**，
@@ -176,6 +184,13 @@ jobs:
           # 🔴 `--dist loadfile` 不是可选项（2026-10-20）：xdist 默认的 `load`
           #    （按测试分发）在本题量下会**死锁** —— 表现「跑到 98% 就不动」，
           #    所有 worker 在 wait、主进程在 join，**没人失败**。按文件分发才稳。
+          #
+          # 🔴 `JISHI_NO_GUI=1`（M174）：runner 是**无桌面**的（Windows runner 能建
+          #    窗口句柄，但 WebView2 的渲染进程起不来；Linux/macOS 更不用说）。
+          #    真开原生窗口的那几条判据会挂 —— 跳过它们，**并且如实承认这一块
+          #    在 CI 上没验**（CHANGELOG 里写了「本机手验」）。
+          #    ⚠️ 跳过不是通过：那些能力只能靠本地 `pytest tests/test_m174_native_window.py`
+          #    在有桌面的机器上验。（开关在 step 的 `env:` 里）
           python -m pytest tests/ -q --tb=short -rf -m "not 计时" -n 4 --dist loadfile 2>&1 | tee pytest.log
 
       # 🧪 **基石自测**（M138）：用**基石自己写的黑盒运行器**（`tools/自测.jsh`）

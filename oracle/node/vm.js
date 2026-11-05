@@ -4901,6 +4901,21 @@ const WINDOW_FUNCS = {
       throw R.typeErr('「窗口.打开」要一个字典', undefined, undefined,
         '例如 {"标题": "计算器", "页面": "计算器.html"}');
     }
+    // M174：`原生` 三态。缺省 = 自动（本宿主永远没有原生能力 ⇒ 应用模式）；
+    // `真` = 一定要原生 ⇒ 明确报错（不静默降级，那是欺骗）；`假` = 应用模式。
+    if (选项.has('原生')) {
+      const 原 = 选项.get('原生');
+      if (原 !== undefined && 原 !== null && typeof 原 !== 'boolean') {
+        throw R.valueErr(`「原生」要传真或假，给的是「${R.display(原)}」`,
+          undefined, undefined,
+          '不写就是自动：宿主能开原生窗口就开，不能就用浏览器应用模式');
+      }
+      if (原 === true) {
+        throw R.runErr('这个宿主没有原生窗口能力（只有 Rust 发行版有）',
+          undefined, undefined,
+          '去掉「原生: 真」，或写「原生: 假」用浏览器应用模式');
+      }
+    }
     const 取文 = (k, 默认) => {
       const v = 选项.has(k) ? 选项.get(k) : undefined;
       if (v === undefined || v === null) return 默认;
@@ -4949,10 +4964,24 @@ const WINDOW_FUNCS = {
   }),
 
   '关闭': new R.Builtin('关闭', (句柄) => {
+    // M174：省略句柄 = 「关掉我自己所在的窗口」，那条路是给**页面里的代码**用的
+    // （走 ABI 3）。脚本里省略就是误用 —— 报错比关掉一个猜出来的窗口好。
+    if (句柄 === undefined || 句柄 === null) {
+      throw R.runErr('「窗口.关闭()」省略句柄是给**页面里的代码**用的（关掉自己所在的窗口）',
+        undefined, undefined, '脚本里请写 窗口.关闭(句柄)；页面里（跑在 wasm 里）才用无参形式');
+    }
     const 记录 = _win记录(句柄);
     if (!记录) return false;
     try { 记录.子.kill(); } catch (e) { /* 已经没了 */ }
     return true;
+  }),
+
+  '设标题': new R.Builtin('设标题', () => {
+    // 这个宿主做不到（M174）—— 明确报错，不静默返回假。
+    throw R.runErr('这个宿主改不了窗口标题（只有 Rust 侧的原生窗口能。）',
+      undefined, undefined,
+      '页面里改 document.title 即可（--app 窗口的标题栏显示的就是它）；'
+      + '或者在 Rust 发行版里用 窗口.打开({原生: 真})');
   }),
 
   '在运行': new R.Builtin('在运行', (句柄) => {

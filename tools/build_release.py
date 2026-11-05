@@ -205,6 +205,21 @@ def _build_rust_into(bin_dir: Path) -> None:
     n = dst.stat().st_size
     print(f"  已放入 bin/{dst_name}（{n:,} 字节 = {n / 1024 / 1024:.2f} MB）")
 
+    # 🔴 M174：**必须带上 `WebView2Loader.dll`**。
+    #
+    # wry 在 Windows 上链的是 `WebView2Loader.dll.lib`（导入库）⇒ exe 里有一条
+    # 对 `WebView2Loader.dll` 的**动态**依赖，而它既不在 exe 旁边、也不在 System32。
+    # 少了它，用户装完双击就是「没反应、也没有报错」（进程一启动就 0xC0000135）。
+    #
+    # DLL 由 `rust/build.rs` 在构建后拷到 `target/release/`，这里跟着一起进包。
+    if sys.platform == "win32":
+        带 = crate / "target" / "release" / "WebView2Loader.dll"
+        if 带.is_file():
+            shutil.copy2(带, bin_dir / "WebView2Loader.dll")
+            print(f"  已放入 bin/WebView2Loader.dll（{带.stat().st_size:,} 字节）")
+        else:
+            print("  ⚠️ 没找到 WebView2Loader.dll —— 原生窗口在用户机器上会启动失败")
+
 
 def _build_python_into(bin_dir: Path, work: Path) -> None:
     """PyInstaller onedir → `bin/oracle/jishi/` + `bin/jishi-mcp/`（**R8.4 前保留**）。

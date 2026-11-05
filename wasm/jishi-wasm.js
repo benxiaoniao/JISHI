@@ -27,7 +27,7 @@
   "use strict";
 
   /** ABI 版本：与 `wasm/src/lib.rs` 的 `ABI_VERSION` 必须一致。 */
-  var ABI_VERSION = 2;   // M167：加 jishi_call / jishi_host_respond
+  var ABI_VERSION = 3;   // M167 加 jishi_call / jishi_host_respond；M174 加 jishi_native
 
   function Jishi(instance, opts) {
     opts = opts || {};
@@ -211,6 +211,39 @@
     return this._respond(应答);
   };
 
+  /**
+   * M174（ABI 3）：宿主命令。`操作\0参数`，**单向** —— 发出去就不管了。
+   *
+   * 为什么不返回结果：基石的 wasm 执行是同步的，而 IPC 天生异步。要「等宿主
+   * 回话」得把整个执行模型改成异步续体 —— 而真正要的两个命令（改标题、关窗）
+   * 恰好都是单向的。MVP 不为了对称去改执行模型。
+   *
+   * 两代外壳都照顾到了：
+   * - **原生窗口**（wry）：`root.ipc.postMessage(...)` → Rust 的 ipc_handler
+   * - **应用模式**（浏览器 `--app`）：改 `document.title` / `window.close()`
+   *   —— `--app` 窗口的标题栏显示的就是页面 title，所以**同一句代码都生效**
+   */
+  Jishi.prototype._native = function (opPtr, opLen, argPtr, argLen) {
+    var 操作 = this._dec.decode(new Uint8Array(this.memory.buffer, opPtr, opLen));
+    var 参数 = this._dec.decode(new Uint8Array(this.memory.buffer, argPtr, argLen));
+    var ipc = root.ipc;
+    var 有ipc = !!(ipc && typeof ipc.postMessage === "function");
+    // ⚠️ **用 JSON，不要用 `操作\0参数`**：NUL 会在 WebView2 那一层被当终止符，
+    //    宿主只收到 `"标题"`，参数整段消失（M174 实测踩过）。
+    switch (操作) {
+      case "标题":
+        if (this._doc) this._doc.title = 参数;
+        if (有ipc) ipc.postMessage(JSON.stringify({ op: "标题", arg: 参数 }));
+        return 1;
+      case "关闭":
+        if (有ipc) { ipc.postMessage(JSON.stringify({ op: "关闭" })); return 1; }
+        if (typeof root.close === "function") { root.close(); return 1; }
+        return 0;
+      default:
+        return 0;
+    }
+  };
+
   Jishi.prototype._respond = function (obj) {
     var bytes = this._enc.encode(JSON.stringify(obj));
     var p = this._ex.jishi_alloc(bytes.length);
@@ -344,6 +377,12 @@
           jishi: {
             jishi_host_call: function (ptr, len) {
               return holder.inst ? holder.inst._hostCall(ptr, len) : 0;
+            },
+            // M174（ABI 3）：页面里的基石代码 → 宿主（窗口）的单向命令。
+            // wasm 那边是 `#[link(wasm_import_module = "jishi")]` 的 extern "C"，
+            // **必须挂在这个模块名下**（写成 env.xxx 就找不到）。
+            jishi_native: function (opPtr, opLen, argPtr, argLen) {
+              return holder.inst ? holder.inst._native(opPtr, opLen, argPtr, argLen) : 0;
             },
           },
         });

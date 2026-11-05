@@ -33,7 +33,7 @@ use std::cell::RefCell;
 
 use jishi_ffi::sandbox::{self, SandboxOpts};
 
-const ABI_VERSION: i32 = 2;   // M167：加 jishi_call / jishi_host_respond
+const ABI_VERSION: i32 = 3;   // M167 加 jishi_call / jishi_host_respond；M174 加 jishi_native
 
 thread_local! {
     /// 上一次调用的结果（**协议 JSON 文本**，与原生 `--json-result` 同形）。

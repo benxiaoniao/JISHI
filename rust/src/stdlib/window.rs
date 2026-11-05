@@ -33,6 +33,11 @@ struct 记录 {
     子: Option<Child>,
     目录: String,
     网址: String,
+    /// M174：这个窗口是**原生窗口**（wry）还是浏览器应用模式。
+    ///
+    /// 两者的 `子` / `目录` 语义不同：原生的 `子` 是 `None`（窗口在本进程里），
+    /// 而且它的生命周期跟着**事件循环**走，不跟着子进程走。
+    原生: bool,
 }
 
 struct 服务 {
@@ -197,6 +202,18 @@ fn 取数(d: &Val, key: &str, 默认: i128) -> Result<i128, crate::JishiError> {
         Some(other) => Err(err(
             "值错误",
             format!("「{key}」要传整数（像素），给的是{}", crate::type_label(&other)),
+        )),
+    }
+}
+
+/// 取一个真假选项。**只认真假**（不搞「非空即真」—— 那样 `"假"` 会被当成真）。
+fn 取布(d: &Val, key: &str, 默认: bool) -> Result<bool, crate::JishiError> {
+    match 取(d, key)? {
+        None | Some(Val::None_) => Ok(默认),
+        Some(Val::Bool(b)) => Ok(b),
+        Some(other) => Err(err(
+            "值错误",
+            format!("「{key}」要传真或假，给的是{}", crate::type_label(&other)),
         )),
     }
 }
@@ -402,6 +419,17 @@ fn 配置目录(键: &str) -> PathBuf {
 // ---------------------------------------------------------------------------
 
 fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
+    // 页面里（wasm）不能再开窗口：它自己就在一个窗口里，而且沙箱里没有
+    // 进程、没有端口。要给它一句能照着改的话，不是「起服务失败」那种。
+    #[cfg(target_arch = "wasm32")]
+    {
+        return Err(err_with_hint(
+            "运行期错误",
+            "页面里不能再开窗口（你已经在窗口里了）",
+            "开窗要在脚本里 窗口.打开；页面里可以用 窗口.设标题 / 窗口.关闭()".into(),
+        ));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
     if !matches!(选项, Val::Dict(_)) {
         return Err(err_with_hint(
             "类型错误",
@@ -441,6 +469,44 @@ fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
         return Err(err("值错误", "「窗口.打开」要指定「页面」或「服务」"));
     };
 
+    // ── M174：原生窗口 ──────────────────────────────────────────────────
+    //
+    // 默认就走原生：用户装的是完整发行版，`窗口.打开` 该给他一个**真窗口**
+    // （标题、任务栏、关闭都由我们说了算）。`原生: 假` 退回 M173 的应用模式
+    // —— 那条路在没装 WebView2 的机器上仍然可用，也是这一站之前的全部世界。
+    if 取布(选项, "原生", true)? {
+        #[cfg(feature = "native-window")]
+        {
+            let 标题 = {
+                let t = 取文(选项, "标题", "")?;
+                if t.is_empty() {
+                    "基石程序".to_string()
+                } else {
+                    t
+                }
+            };
+            crate::native_window::打开(&标题, 宽 as f64, 高 as f64, &网址)
+                .map_err(|e| err("运行期错误", e))?;
+            let mut 表 = 表().lock().unwrap();
+            let 号 = 表.len() as i128 + 1;
+            表.push(Some(记录 {
+                子: None,
+                目录,
+                网址,
+                原生: true,
+            }));
+            return Ok(号);
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            return Err(err_with_hint(
+                "运行期错误",
+                "这个构建没有原生窗口能力（编译时没开 `native-window` 特性）",
+                "用「原生: 假」走浏览器应用模式，或换完整发行版".into(),
+            ));
+        }
+    }
+
     let mut 命令 = 浏览器命令(Some(选项))?;
     let 配置 = 配置目录(if 页面.is_empty() { &网址 } else { &页面 });
     命令.push(format!("--app={网址}"));
@@ -464,6 +530,7 @@ fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
         子: Some(子),
         目录,
         网址,
+        原生: false,
     }));
     Ok(号)
 }
@@ -496,6 +563,20 @@ fn 关闭(句柄: i128) -> bool {
     let Some(记录) = 取记录(句柄, &mut 表) else {
         return false;
     };
+    if 记录.原生 {
+        // 原生窗口杀不了进程（它就在本进程里）—— 发个事件让事件循环退。
+        // 真实收尾在 `等` 里做，这里**不许** `take` 记录：`等` 还要靠它
+        // 判断「这是原生窗口，该跑事件循环」。
+        drop(表);
+        #[cfg(feature = "native-window")]
+        {
+            return crate::native_window::请求关闭();
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            return false;
+        }
+    }
     if let Some(mut 子) = 记录.子.take() {
         let _ = 子.kill();
         let _ = 子.wait();
@@ -524,17 +605,37 @@ fn 收尾(句柄: i128) {
 }
 
 fn 等(句柄: i128) -> i128 {
-    // 把子进程**取出来**再等：不能拿着锁阻塞（别的窗口还要用表）
-    let 子 = {
+    enum 等谁 {
+        原生,
+        子(Child),
+        无,
+    }
+    // 把子进程 / 记录**取出来**再等：不能拿着锁阻塞（别的窗口还要用表）
+    let 谁 = {
         let mut 表 = 表().lock().unwrap();
         match 取记录(句柄, &mut 表) {
-            None => return 0,          // 已经关掉了：等一个关掉的窗口 = 立刻返回
-            Some(记录) => 记录.子.take(),
+            // 已经关掉了：等一个关掉的窗口 = 立刻返回
+            None => 等谁::无,
+            Some(记录) if 记录.原生 => 等谁::原生,
+            Some(记录) => match 记录.子.take() {
+                Some(c) => 等谁::子(c),
+                None => 等谁::无,
+            },
         }
     };
-    let 码 = match 子 {
-        None => 0,
-        Some(mut c) => c.wait().map(|s| s.code().unwrap_or(0) as i128).unwrap_or(0),
+    let 码: i128 = match 谁 {
+        等谁::原生 => {
+            #[cfg(feature = "native-window")]
+            {
+                crate::native_window::等() as i128
+            }
+            #[cfg(not(feature = "native-window"))]
+            {
+                0
+            }
+        }
+        等谁::子(mut c) => c.wait().map(|s| s.code().unwrap_or(0) as i128).unwrap_or(0),
+        等谁::无 => 0,
     };
     收尾(句柄);
     码
@@ -549,12 +650,37 @@ pub(crate) fn module() -> HashMap<String, Val> {
             Ok(Val::Int(打开(&args[0])?))
         },
         "关闭" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            // M174：**省略句柄 = 关掉「自己所在的那个窗口」**。
+            // 这个形状是给**页面里的代码**用的：网页里的基石代码不知道句柄
+            // （它跑在 wasm 里，窗口是宿主的事），但它确实需要「点一下就关窗」。
+            if args.is_empty() {
+                return Ok(Val::Bool(无参关闭()?));
+            }
+            // 页面里没有「句柄」这回事 —— 传个数字进来要明确报错，
+            // 别让它去找一张空的表然后返回假（那看起来像「窗口不存在」，
+            // 其实是「你这个参数在页面里根本没有意义」）。
+            #[cfg(target_arch = "wasm32")]
+            {
+                return Err(err_with_hint(
+                    "运行期错误",
+                    "页面里没有窗口句柄（你就在窗口里）",
+                    "页面里写 `窗口.关闭()`，不要传句柄".into(),
+                ));
+            }
             need_range("关闭", args, 1, 1)?;
             let 句柄 = match &args[0] {
                 Val::Int(i) => *i,
                 other => return Err(err("类型错误", format!("「关闭」要窗口句柄（整数），给的是{}", crate::type_label(other)))),
             };
             Ok(Val::Bool(关闭(句柄)))
+        },
+        "设标题" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设标题", args, 1, 1)?;
+            let 新 = match &args[0] {
+                Val::Str(s) => s.to_string(),
+                other => return Err(err("类型错误", format!("「设标题」要文本，给的是{}", crate::type_label(other)))),
+            };
+            Ok(Val::Bool(设标题(&新)?))
         },
         "在运行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("在运行", args, 1, 1)?;
@@ -564,6 +690,17 @@ pub(crate) fn module() -> HashMap<String, Val> {
             };
             let mut 表 = 表().lock().unwrap();
             let 活着 = match 取记录(句柄, &mut 表) {
+                Some(记录) if 记录.原生 => {
+                    drop(表);
+                    #[cfg(feature = "native-window")]
+                    {
+                        crate::native_window::在运行()
+                    }
+                    #[cfg(not(feature = "native-window"))]
+                    {
+                        false
+                    }
+                }
                 Some(记录) => match 记录.子.as_mut() {
                     // try_wait 会顺手把已退出的子进程状态收掉
                     Some(c) => !matches!(c.try_wait(), Ok(Some(_))),
@@ -593,10 +730,84 @@ pub(crate) fn module() -> HashMap<String, Val> {
             };
             let 数 = 号们.len();
             for 号 in 号们 {
+                // 原生窗口的记录**不能**在这里 take 掉：`等` 还要靠它决定
+                // 「该跑事件循环」，take 早了 = 循环永远不跑 = WebView2 泄漏。
                 关闭(号);
-                收尾(号);
+                if !是原生(号) {
+                    收尾(号);
+                }
             }
             Ok(Val::Int(数 as i128))
         },
+    }
+}
+
+/// 这个句柄是不是原生窗口（已关掉 / 不存在都算「不是」）。
+fn 是原生(句柄: i128) -> bool {
+    let mut 表 = 表().lock().unwrap();
+    取记录(句柄, &mut 表).map(|r| r.原生).unwrap_or(false)
+}
+
+/// 省略句柄的 `窗口.关闭()`：关掉「**自己所在的那个窗口**」。
+///
+/// - **wasm（页面里）**：走 ABI 3 的 `jishi_native("关闭")`，宿主收到就关窗。
+///   浏览器应用模式下 shim 退化成 `window.close()`。
+/// - **原生脚本里**：请求关掉本进程那个原生窗口。事件循环还没跑也能请求
+///   （事件会被排住，`等` 一进循环就收到）。
+fn 无参关闭() -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        return Ok(crate::abi3::发("关闭", "") > 0);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            return Ok(crate::native_window::请求关闭());
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            return Err(err_with_hint(
+                "运行期错误",
+                "这个构建没有原生窗口能力：`窗口.关闭()` 省略句柄只在原生窗口或页面里有效",
+                "写全参数：窗口.关闭(句柄)".into(),
+            ));
+        }
+    }
+}
+
+/// `窗口.设标题(新标题)`：改窗口标题。
+///
+/// - **wasm（页面里）**：走 ABI 3。原生窗口改真标题；浏览器应用模式下 shim
+///   改 `document.title`（`--app` 窗口的标题栏显示的就是它）—— 同一句代码
+///   在两代外壳下都生效，这正是 ABI 3 想要的效果。
+/// - **原生脚本里**：直接改本进程那个窗口。
+fn 设标题(新: &str) -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        return Ok(crate::abi3::发("标题", 新) > 0);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            if crate::native_window::设标题(新) {
+                return Ok(true);
+            }
+            return Err(err_with_hint(
+                "运行期错误",
+                "现在没有原生窗口可以改标题",
+                "先 窗口.打开({原生: 真}) 再改；不想用原生窗口的话，页面里改 document.title 就行"
+                    .into(),
+            ));
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            return Err(err_with_hint(
+                "运行期错误",
+                "这个构建没有原生窗口能力",
+                "用完整发行版，或者在页面里改 document.title".into(),
+            ));
+        }
     }
 }

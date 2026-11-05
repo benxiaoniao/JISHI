@@ -88,7 +88,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **4276 项**；其中 126 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
+3. **测试命令**：`python -m pytest tests/`（当前 **4296 项**；其中 126 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
    .venv/Scripts/python.exe tools/test_all.py          # **两节一条命令**（见下）
@@ -126,6 +126,12 @@
    ⑤ **清理夹具不许有跨进程副作用**：session 结束的清理只删**文件名带本进程 pid** 的
    （`_<pid>.json`）。全量 `glob("_tmp_*.json")` 全删会误伤 xdist 的**其它 worker**
    正在用的文件 —— 症状是别的用例 `ENOENT`、单跑必过（M169 实测）。
+   ⑥ **要图形界面的判据必须能被 `JISHI_NO_GUI=1` 显式跳过**（M174 起）：真开窗口的
+   用例（原生窗口 / 真浏览器）在无桌面的 runner 上必红。做法是
+   `@pytest.mark.skipif(无界面 or not sys.platform.startswith("win"), …)`，
+   CI 的「全量测试」step 里给 `env: JISHI_NO_GUI: "1"`。
+   🔴 **跳过不等于验过** —— 这类判据在 CI 上是空白，只能在有桌面的机器上跑；
+   哪些能力因此没被 CI 覆盖，必须写进 CHANGELOG。
    📌 **CI 只跑 `-m "not 计时"`**（2026-10-10 定）：`计时` 断言的是**墙上时间**
    （如「20 万次调用 < 300ms」），共享 runner 的负载能把同一份代码抬到 2~3 倍
    （实测本机 202ms、CI Windows 386ms）—— 绝对耗时阈值**在 CI 上没有判别力**，

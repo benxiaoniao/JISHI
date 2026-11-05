@@ -45,7 +45,13 @@ class SandboxOpts:
              "对比", "参数", "标识",
              # M168：`站点` 除 `写站` 外全是纯运算，网页里拼页面用得上；
              # `写站` 在 wasm 上没有文件系统，会明确报错（不是静默失败）。
-             "站点"}))
+             "站点",
+             # M174：`窗口` 在页面里只有两条路有用 —— `设标题` 与 `关闭()`
+             # （走 ABI 3 的 `jishi_native`，浏览器里退化成 document.title /
+             # window.close）。**其余函数在 wasm 里会明确报错**：
+             # `打开` 说「你已经在窗口里了」，`等/在运行/关闭(句柄)` 说
+             # 「页面里没有窗口句柄」—— 不是静默返回假。
+             "窗口"}))
     extra_stdlib: frozenset = field(default_factory=frozenset)
 
 

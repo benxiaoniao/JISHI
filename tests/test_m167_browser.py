@@ -218,7 +218,9 @@ def test_wasm里真能用(tmp_path):
     assert r.returncode == 0, (r.stdout + r.stderr).decode("utf-8", "replace")[-1200:]
     出 = json.loads(r.stdout.decode("utf-8").strip().splitlines()[-1])
 
-    assert 出["abi"] == 2, f"wasm 的 ABI 版本是 {出['abi']}，应当是 2（M167 加的）"
+    # ⚠️ 这个数字**跟着 `wasm/src/lib.rs` 的 `ABI_VERSION` 走**：
+    #    M167 加的（=2），M174 加 `jishi_native` 之后 =3。改 ABI 要一起改这里。
+    assert 出["abi"] == 3, f"wasm 的 ABI 版本是 {出['abi']}，应当是 3（M174 之后）"
     assert 出["初始"] == "还没点"
     assert 出["跑"] == ["跑了 1 次", "跑了 2 次", "跑了 3 次"], (
         f"无状态重放没成立：{出['跑']}（localStorage 该累加，说明「状态没持久化」"
