@@ -204,7 +204,9 @@ def test_独立判据_lang_spec结构与关键事实():
     # M173 加 `窗口` 模块 5 个函数（打开/关闭/等/在运行/全部关闭）⇒ 373 → 378，
     # 模块 35 → 36。
     # M174 加 `设标题`（ABI 3 的落地）⇒ 378 → 379。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 379
+    # M175 加 `窗口` 的八个桌面集成函数（设菜单/设右键菜单/设托盘/关托盘/
+    # 单实例/选文件/存文件/当）⇒ 379 → 387。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 387
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

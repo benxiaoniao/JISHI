@@ -46,6 +46,10 @@
     //: 为什么幂等：事件回调会**重跑整个程序**，顶层那句 `绑定` 会再执行一次 ——
     //: 不幂等的话每点一次就多挂一个监听，点三次跑三遍。
     this._bound = new WeakMap();
+    //: M175：宿主事件（菜单 / 拖放 / 托盘 / 再次启动）→ 基石函数名。
+    this._当 = {};
+    //: 有没有已经告诉宿主「可以派发事件了」（每次 run 会重新登记，别重复报）。
+    this._当已报 = false;
   }
 
   /** 把一段字符串写进 wasm 内存，返回 `{ptr, len}`。调用方负责 `free`。 */
@@ -239,6 +243,45 @@
         if (有ipc) { ipc.postMessage(JSON.stringify({ op: "关闭" })); return 1; }
         if (typeof root.close === "function") { root.close(); return 1; }
         return 0;
+      // M175：页面里登记「宿主事件 → 基石函数」（`窗口.当`）。
+      //
+      // 🔴 这一条**不发给宿主**：宿主只需要知道「点了什么动作」，由页面自己
+      //    决定哪个函数接（动作名 → 函数名的对应表留在页面里）。这样
+      //    「换个页面 / 改个函数名」都不用动宿主，也不会多一轮 IPC。
+      case "当": {
+        var 单 = null;
+        try { 单 = JSON.parse(参数); } catch (_) { return 0; }
+        if (!单 || !单.事件 || !单.函数) return 0;
+        this._当[单.事件] = 单.函数;
+        // 第一次登记时告诉宿主「我可以接事件了」—— 宿主会把之前排队的事件
+        // 补发过来（比如「第二个实例带着参数来了」，那可能发生在页面加载之前）。
+        if (!this._当已报) {
+          this._当已报 = true;
+          if (有ipc) ipc.postMessage(JSON.stringify({ op: "宿主事件就绪" }));
+        }
+        var 自 = this;
+        // 宿主用 `evaluate_script` 调这个（见 native_window.rs 的 `派发`）。
+        // 走 `call` 而不是自己去碰导出函数：那是「一次事件 = 一次完整执行」
+        // 的唯一入口（重跑源码 → 再调函数），与 DOM 事件同一条路。
+        root.__jishiWin = function (事件名, 值) {
+          var 名 = 自._当[事件名];
+          if (!名) return;
+          var 结果 = 自.call(名, 值 == null ? "" : String(值));
+          // 🔴 事件通道最容易**吞错**（M167 的教训）：处理函数报错时人只会看到
+          //    「点了没反应」。所以这里必须把错误显式吐出来 —— 控制台一份、
+          //    宿主一份（宿主会打到调试通道上）。
+          if (结果 && 结果.ok === false) {
+            var 错 = 结果.error || {};
+            var 文 = (错.title || "出错") + "：" + (错.message || "");
+            try { console.error("[基石] 处理「" + 事件名 + "」出错：" + 文); } catch (_) {}
+            // 现场读 `root.ipc`（注册那会儿可能还没有；而且页面可能被复用）
+            if (root.ipc && root.ipc.postMessage) {
+              root.ipc.postMessage(JSON.stringify({ op: "引擎失败", arg: 文 }));
+            }
+          }
+        };
+        return 1;
+      }
       default:
         return 0;
     }

@@ -14,7 +14,7 @@ sqlite = ["dep:rusqlite"]
 # M174：原生窗口。**放在默认里** —— 用户装的就是这个发行版，`窗口.打开` 默认
 # 就该给他一个真窗口。要「小一点、只要应用模式」的可以
 # `--no-default-features --features sqlite`（判据里试的正是这一档能编过）。
-native-window = ["dep:wry", "dep:tao"]
+native-window = ["dep:wry", "dep:tao", "dep:muda", "dep:tray-icon", "dep:rfd", "dep:png"]
 # **wasm 的 playground 专用**：给 VM 加「步数预算」（防死循环，见 `lib.rs` 的
 # `budget_tick`）。⚠️ **默认关** —— 开了它指令循环的回跳处会多一次判断，
 # 实测在循环密集负载上 **+6%**（8M 次迭代、交错 A/B、稳定复现）。
@@ -48,12 +48,43 @@ rusqlite = { version = "0.40", features = ["bundled"], optional = true }
 # Cocoa / GTK），自己写等于把整个 GUI 工具链重造一遍 —— 那不是在写语言。
 #
 # ⚠️ 代价（如实记）：
-#   ① 依赖树很宽（实测 **272 个 crate**，空壳 exe 就有 1.2 MB）；
+#   ① 依赖树很宽（M174 实测 **302 个 crate**，空壳 exe 就有 1.2 MB）；
 #   ② **Linux 要系统库** `libwebkit2gtk-4.1-dev`（CI 得装，发行说明要写）；
 #   ③ 所以它是**可选特性**：`--no-default-features` 时整个模块不存在，
 #      wasm（`wasm/Cargo.toml` 用 `default-features = false`）自动躲开。
 wry = { version = "0.47", optional = true }
 tao = { version = "0.34", optional = true }
+
+# M175：**桌面集成**要的三样（用户 2026-11-06 拍板）。
+#
+# 🔴 `tao 0.34` 里**已经没有**菜单和托盘模块了（tauri 生态把它们拆成独立 crate），
+#    所以这三样只能外部来 —— 理由同 D104：GUI 的平台差异自己写成本远高于收益。
+#      · `muda`        菜单栏 / 右键菜单（Win32 HMENU · NSMenu · GTK）
+#      · `tray-icon`   托盘（Shell_NotifyIcon · NSStatusItem · libayatana-appindicator）
+#      · `rfd`         文件对话框（IFileDialog · NSOpenPanel · GTK）
+#      · `png`         托盘图标解码（纯 Rust，只有几千行；不解码就得让用户传 RGBA）
+#
+# ⚠️ 代价实测：crate 数 302 → **348**（+46）、冷构建 +28 秒。
+#
+# 🔴 **两个都关掉默认特性**：
+#    · tray-icon 默认带 `libxdo`（Linux 的系统库，我们不接 X11 那套）⇒ 关掉，
+#      否则 CI 还得装 `libxdo-dev`；
+#    · muda 默认也带 `libxdo` + `gtk`。`gtk` 我们在 Linux 上要（右键菜单要用
+#      `show_context_menu_for_gtk_window`），所以在下面的 `[target.'cfg(...)']`
+#      里**显式**开，而不是指望 tray-icon 替我们开（那属于「蹭别人的特性」）。
+muda = { version = "0.17", default-features = false, optional = true }
+tray-icon = { version = "0.21", default-features = false, optional = true }
+png = { version = "0.17", optional = true }
+# 🔴 `rfd` 必须 `default-features = false`：它的默认特性 `xdg-portal` 会拉
+#    `ashpd` + `zbus`（一整套异步 D-Bus，几十个 crate）。Linux 改走 `gtk3` ——
+#    而 GTK3 本来就在（webkit2gtk 依赖它），等于零成本。见下方 `[target.'cfg(...)']`。
+rfd = { version = "0.15", default-features = false, optional = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+rfd = { version = "0.15", default-features = false, features = ["gtk3"], optional = true }
+# 右键菜单在 Linux 上走 GTK 的那条路（`show_context_menu_for_gtk_window` 带
+# `cfg(feature = "gtk")`）。显式开，不蹭 tray-icon 的。
+muda = { version = "0.17", default-features = false, features = ["gtk"], optional = true }
 
 [[bin]]
 name = "jishi-rs"

@@ -658,6 +658,327 @@ fn 等(句柄: i128) -> i128 {
 
 // ---------------------------------------------------------------------------
 
+/// 把基石的值转成 JSON 文本（菜单定义 / 托盘选项 / 对话框选项要用）。
+///
+/// 只支持标量 + 列表 + 字典 —— 这几样配置本来就长这样。别的类型（日期、表格、
+/// 原生对象）明确报错，而不是悄悄变成 `null`（那会让菜单项莫名其妙消失）。
+fn 转json(v: &Val, out: &mut String) -> Result<(), crate::JishiError> {
+    match v {
+        Val::None_ => out.push_str("null"),
+        Val::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        Val::Int(i) => out.push_str(&i.to_string()),
+        Val::Float(f) => {
+            if f.is_finite() {
+                out.push_str(&f.to_string());
+            } else {
+                out.push_str("null");
+            }
+        }
+        // ⚠️ `jsonw::esc` **自带前后引号** —— 再加一层就成了 `""甲的""`（M175 踩过）
+        Val::Str(s) => out.push_str(&crate::jsonw::esc(s)),
+        Val::List(列) => {
+            out.push('[');
+            for (i, 项) in 列.borrow().iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                转json(项, out)?;
+            }
+            out.push(']');
+        }
+        Val::Dict(d) => {
+            out.push('{');
+            for (i, (k, v)) in d.borrow().iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                match k {
+                    Val::Str(s) => out.push_str(&crate::jsonw::esc(s)),
+                    other => {
+                        return Err(err(
+                            "类型错误",
+                            format!("字典的键要传文本，给的是{}", crate::type_label(other)),
+                        ))
+                    }
+                }
+                out.push(':');
+                转json(v, out)?;
+            }
+            out.push('}');
+        }
+        other => {
+            return Err(err(
+                "类型错误",
+                format!("{}没法转成菜单/选项（要文本、数字、真假、列表、字典）", crate::type_label(other)),
+            ))
+        }
+    }
+    Ok(())
+}
+
+fn 选项json(选项: &Val, 名: &str) -> Result<String, crate::JishiError> {
+    if !matches!(选项, Val::Dict(_)) {
+        return Err(err_with_hint(
+            "类型错误",
+            format!("「窗口.{名}」要一个字典"),
+            "例如 {\"标题\": \"选一个文件\", \"类型\": [[\"图片\", \"png,jpg\"]]}".into(),
+        ));
+    }
+    let mut s = String::new();
+    转json(选项, &mut s)?;
+    Ok(s)
+}
+
+fn 菜单json(定义: &Val) -> Result<String, crate::JishiError> {
+    if !matches!(定义, Val::List(_)) {
+        return Err(err_with_hint(
+            "类型错误",
+            "菜单定义要一个列表",
+            "例如 [{\"标签\": \"文件\", \"子项\": [{\"标签\": \"退出\", \"动作\": \"退出\"}]}]".into(),
+        ));
+    }
+    let mut s = String::new();
+    转json(定义, &mut s)?;
+    Ok(s)
+}
+
+/// 「只能在脚本里做」的统一报错：页面（wasm）里没有窗口控制权。
+fn 只在脚本里(名: &str, 提示: &str) -> crate::JishiError {
+    err_with_hint(
+        "运行期错误",
+        format!("页面里不能用「窗口.{名}」—— 它要操作宿主窗口，而页面跑在沙箱里"),
+        format!("{提示}；这类调用写在脚本里（窗口.等 之前）"),
+    )
+}
+
+/// 这个构建没有原生窗口能力（`--no-default-features`）时的统一报错。
+fn 没有原生窗口(名: &str) -> crate::JishiError {
+    err_with_hint(
+        "运行期错误",
+        format!("这个构建没有原生窗口能力，「窗口.{名}」用不了（编译时没开 native-window 特性）"),
+        "用完整发行版；或者退回应用模式（窗口.打开({原生: 假})）—— 那条路没有菜单/托盘".into(),
+    )
+}
+
+fn json串(s: &str) -> String {
+    // `esc` 自带引号
+    crate::jsonw::esc(s)
+}
+
+// -- M175 的八个函数 --------------------------------------------------------
+
+fn 设菜单(定义: &Val) -> Result<bool, crate::JishiError> {
+    let 文 = 菜单json(定义)?;
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 文;
+        return Err(只在脚本里("设菜单", "页面里要接菜单点击，用 窗口.当(\"菜单\", 函数)"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            crate::native_window::设菜单(&文).map_err(|e| err("运行期错误", e))?;
+            Ok(true)
+        }
+        #[cfg(not(feature = "native-window"))]
+        Err(没有原生窗口("设菜单"))
+    }
+}
+
+fn 设右键菜单(定义: &Val) -> Result<bool, crate::JishiError> {
+    let 文 = 菜单json(定义)?;
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 文;
+        return Err(只在脚本里("设右键菜单", "页面自己的右键菜单，用网页的 contextmenu 事件就行"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            crate::native_window::设右键菜单(&文).map_err(|e| err("运行期错误", e))?;
+            Ok(true)
+        }
+        #[cfg(not(feature = "native-window"))]
+        Err(没有原生窗口("设右键菜单"))
+    }
+}
+
+fn 设托盘(选项: &Val) -> Result<bool, crate::JishiError> {
+    let 文 = 选项json(选项, "设托盘")?;
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 文;
+        return Err(只在脚本里("设托盘", "页面里要接托盘点击，用 窗口.当(\"托盘\", 函数)"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            crate::native_window::设托盘(&文).map_err(|e| err("运行期错误", e))?;
+            Ok(true)
+        }
+        #[cfg(not(feature = "native-window"))]
+        Err(没有原生窗口("设托盘"))
+    }
+}
+
+fn 关托盘() -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        return Err(只在脚本里("关托盘", "托盘归宿主管"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            Ok(crate::native_window::关托盘())
+        }
+        #[cfg(not(feature = "native-window"))]
+        Err(没有原生窗口("关托盘"))
+    }
+}
+
+fn 单实例(名: &str) -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 名;
+        return Err(只在脚本里("单实例", "单实例是「同一台机器别开两份」，归脚本管"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            crate::native_window::单实例(名).map_err(|e| err("运行期错误", e))
+        }
+        #[cfg(not(feature = "native-window"))]
+        Err(没有原生窗口("单实例"))
+    }
+}
+
+fn 选文件(选项: &Val) -> Result<Val, crate::JishiError> {
+    let 多选 = if matches!(选项, Val::Dict(_)) {
+        取布(选项, "多选", false)?
+    } else {
+        false
+    };
+    let 文 = if matches!(选项, Val::None_) {
+        "{}".to_string()
+    } else {
+        选项json(选项, "选文件")?
+    };
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 文;
+        return Err(只在脚本里(
+            "选文件",
+            "页面里选文件用网页的 <input type=\"file\">（浏览器自己会给文件选择框）",
+        ));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 路们 = crate::native_window::选文件(&文).map_err(|e| err("运行期错误", e))?;
+            Ok(if 多选 {
+                Val::List(std::rc::Rc::new(std::cell::RefCell::new(
+                    路们.into_iter().map(|p| Val::Str(p.into())).collect(),
+                )))
+            } else {
+                路们.into_iter().next().map(|p| Val::Str(p.into())).unwrap_or(Val::None_)
+            })
+        }
+        #[cfg(not(feature = "native-window"))]
+        Err(没有原生窗口("选文件"))
+    }
+}
+
+fn 存文件(选项: &Val) -> Result<Val, crate::JishiError> {
+    let 文 = if matches!(选项, Val::None_) {
+        "{}".to_string()
+    } else {
+        选项json(选项, "存文件")?
+    };
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 文;
+        return Err(只在脚本里("存文件", "页面里存文件用网页的下载（<a download>）"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 路 = crate::native_window::存文件(&文).map_err(|e| err("运行期错误", e))?;
+            Ok(路.map(|p| Val::Str(p.into())).unwrap_or(Val::None_))
+        }
+        #[cfg(not(feature = "native-window"))]
+        Err(没有原生窗口("存文件"))
+    }
+}
+
+/// 取 `窗口.当` 的第一个参数：必须是下面四个之一。
+///
+/// 先校验它、再去取函数名：用户把事件名写错时，应该看到「没有这个事件」
+/// 而不是「函数不是具名的」（后者会把人引到错的方向）。
+fn 事件名(v: &Val) -> Result<String, crate::JishiError> {
+    let 名 = match v {
+        Val::Str(s) => s.to_string(),
+        other => {
+            return Err(err(
+                "类型错误",
+                format!("「当」的第一个参数要事件名（文本），给的是{}", crate::type_label(other)),
+            ))
+        }
+    };
+    match 名.as_str() {
+        "菜单" | "拖放" | "托盘" | "再次启动" => Ok(名),
+        other => Err(err_with_hint(
+            "值错误",
+            format!("没有「{other}」这个宿主事件"),
+            "能接的是：菜单 / 拖放 / 托盘 / 再次启动".into(),
+        )),
+    }
+}
+
+/// `窗口.当(事件名, 函数)`：页面里登记「宿主事件 → 基石函数」。
+///
+/// 事件有四个：`菜单`（参数 = 动作名）、`拖放`（参数 = 路径，多个用换行分隔）、
+/// `托盘`（参数 = "点击"）、`再次启动`（参数 = 第二个实例的命令行参数）。
+fn 当(事件: &str, 函数: &str) -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let 文 = format!("{{\"事件\":{},\"函数\":{}}}", json串(事件), json串(函数));
+        Ok(crate::abi3::发("当", &文) > 0)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = 函数;
+        Err(err_with_hint(
+            "运行期错误",
+            "「窗口.当」只在**页面里**有效 —— 脚本这会儿正阻塞在 窗口.等 上，接不了事件",
+            "把 窗口.当 写进页面的基石代码里".into(),
+        ))
+    }
+}
+
+/// `窗口.当` 的第二个参数：要**具名函数**。
+///
+/// 与 `浏览器.绑定` 同一个理由（M167）：事件来的时候是**另一次执行回合**，
+/// 手里只有名字，没有上一次那个 VM 里的函数对象。
+fn 当函数名(v: &Val) -> Result<String, crate::JishiError> {
+    match v {
+        Val::Str(s) if !s.is_empty() => Ok(s.to_string()),
+        Val::Func(f) => Ok(f.name.clone()),
+        Val::WalkFn(f) => Ok(f.name.clone()),
+        _ => Err(err(
+            "类型错误",
+            "「窗口.当」的第二个参数要传**具名函数**（比如 `处理菜单`）—— 事件来的时候\
+             是另一次执行回合，手里只有名字；匿名函数找不到。",
+        )),
+    }
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "窗口";
         "打开" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -732,6 +1053,55 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 other => return Err(err("类型错误", format!("「等」要窗口句柄（整数），给的是{}", crate::type_label(other)))),
             };
             Ok(Val::Int(等(句柄)))
+        },
+        // -- M175：桌面集成（菜单 / 托盘 / 单实例 / 文件对话框 / 页面事件） --
+        //
+        // 这八个分两类：
+        //   · **脚本侧**（设菜单 / 设右键菜单 / 设托盘 / 关托盘 / 单实例 /
+        //     选文件 / 存文件）—— 它们操作的是宿主窗口，页面（wasm）里明确报错；
+        //   · **页面侧**（当）—— 登记「宿主事件 → 基石函数」，脚本里明确报错。
+        "设菜单" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设菜单", args, 1, 1)?;
+            Ok(Val::Bool(设菜单(&args[0])?))
+        },
+        "设右键菜单" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设右键菜单", args, 1, 1)?;
+            Ok(Val::Bool(设右键菜单(&args[0])?))
+        },
+        "设托盘" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设托盘", args, 1, 1)?;
+            Ok(Val::Bool(设托盘(&args[0])?))
+        },
+        "关托盘" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("关托盘", args, 0, 0)?;
+            Ok(Val::Bool(关托盘()?))
+        },
+        "单实例" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("单实例", args, 1, 1)?;
+            match &args[0] {
+                Val::Str(s) if !s.trim().is_empty() => Ok(Val::Bool(单实例(s)?)),
+                Val::Str(_) => Err(err("值错误", "「单实例」的名字不能是空文本")),
+                other => Err(err(
+                    "类型错误",
+                    format!("「单实例」要名字（文本），给的是{}", crate::type_label(other)),
+                )),
+            }
+        },
+        "选文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("选文件", args, 0, 1)?;
+            let 空 = Val::None_;
+            Ok(选文件(args.first().unwrap_or(&空))?)
+        },
+        "存文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("存文件", args, 0, 1)?;
+            let 空 = Val::None_;
+            Ok(存文件(args.first().unwrap_or(&空))?)
+        },
+        "当" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("当", args, 2, 2)?;
+            let 事件 = 事件名(&args[0])?;
+            let 函数 = 当函数名(&args[1])?;
+            Ok(Val::Bool(当(&事件, &函数)?))
         },
         "全部关闭" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("全部关闭", args, 0, 0)?;

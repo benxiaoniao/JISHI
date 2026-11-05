@@ -30,6 +30,10 @@ pub mod jsonw;      // R7.2 起：保序 JSON 写出器（--lang-spec 与 LSP �
 // 明确报「这个构建没有原生窗口」，而不是含糊地失败。
 #[cfg(feature = "native-window")]
 pub mod native_window;
+// M175：单实例（锁文件 + 本地端口）。挂在 `native-window` 下面 ——
+// 单实例的用途是「别开第二个窗口」，没有窗口就没有意义。
+#[cfg(feature = "native-window")]
+pub mod single_instance;
 // M174：ABI 3 —— 页面里的基石代码 → 宿主（单向命令）。
 // 不依赖 `native-window`：wasm 构建里也要有（它就是给 wasm 用的）。
 pub mod abi3;
