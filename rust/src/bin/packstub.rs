@@ -52,6 +52,12 @@ const 魔数: &[u8; 8] = b"JISHIPK1";
 const 尾部长: usize = 24;
 /// 包里那份清单的名字。
 const 清单名: &str = "清单.json";
+/// M177：自带运行时的包根上那份「怎么启动」的说明。
+///
+/// **它不是清单的一部分**：`清单.json` 只说「包里有哪些文件」，
+/// 「双击时该执行什么」是另一件事 —— 分成两份，清单的格式就不用动
+/// （那是三个宿主都在守的契约）。
+const 运行名: &str = "运行时.json";
 /// 卸载时用的程序名（安装时写进安装目录）。
 const 卸载名: &str = "uninstall.exe";
 
@@ -87,6 +93,9 @@ struct 包 {
     入口: String,
     文件们: Vec<(String, i64, String)>, // (路径, 大小, sha256)
     条目们: Vec<(String, Vec<u8>)>,
+    /// M177：引擎在包内的路径（例如 `bin/jishi.exe`）。空 = 这个包不自带运行时
+    /// （老包，或者用户只打了自己的文件）。
+    引擎: String,
 }
 
 fn 取文(j: &Json, k: &str) -> String {
@@ -117,6 +126,16 @@ fn 读包(载荷: &[u8]) -> Result<包, String> {
             ))
         })
         .collect();
+    // M177：有 `运行时.json` 就说明这个包自带引擎 ⇒ 快捷方式要指向引擎、
+    // 并把入口当**参数**传进去（不是指向 .jsh —— 那玩意儿没有文件关联）。
+    // 读不动就当没有（老包照样装，只是双击开不了）。
+    let 引擎 = 条目们
+        .iter()
+        .find(|(n, _)| n == 运行名)
+        .and_then(|(_, d)| String::from_utf8(d.clone()).ok())
+        .and_then(|t| jishi_ffi::json::parse(&t).ok())
+        .map(|r| 取文(&r, "引擎"))
+        .unwrap_or_default();
     Ok(包 {
         名字: 取文(&j, "名字"),
         版本: 取文(&j, "版本"),
@@ -124,6 +143,7 @@ fn 读包(载荷: &[u8]) -> Result<包, String> {
         入口: 取文(&j, "入口"),
         文件们,
         条目们,
+        引擎,
     })
 }
 
@@ -436,8 +456,15 @@ mod lnk {
 
     /// `IShellLinkW` 的虚表下标（IUnknown 占 0–2）。
     const 取路径: usize = 3;
+    /// `GetArguments`（读回参数，查「快捷方式带没带程序文件」用）。
+    const 取参数: usize = 10;
     const 设说明: usize = 7;
     const 设工作目录: usize = 9;
+    /// M177：**命令行参数**（`"app\\计算器.jsh"`）。
+    ///
+    /// 自带运行时的包里，快捷方式指向 `bin\\jishi.exe`，程序文件是**参数** ——
+    /// 不能指望 `.jsh` 有文件关联（那要在注册表里抢全局，装两个基石程序就打架）。
+    const 设参数: usize = 11;
     const 设图标: usize = 17;
     const 设路径: usize = 20;
     /// `IPersistFile`：IUnknown 0–2，GetClassID 3，IsDirty 4，Load 5，**Save 6**。
@@ -466,7 +493,13 @@ mod lnk {
         *表.add(n)
     }
 
-    pub fn 建(lnk路径: &str, 目标: &str, 工作目录: &str, 说明: &str) -> Result<(), String> {
+    pub fn 建(
+        lnk路径: &str,
+        目标: &str,
+        工作目录: &str,
+        说明: &str,
+        参数: &str,
+    ) -> Result<(), String> {
         unsafe {
             // 已经初始化过（RPC_E_CHANGED_MODE = 0x8001_0106）不算错
             let hr = CoInitializeEx(std::ptr::null_mut(), COINIT_APARTMENTTHREADED);
@@ -503,6 +536,14 @@ mod lnk {
                 let _ = f(链接, 目录宽.as_ptr());
                 let f: 一参 = std::mem::transmute(虚函数(链接, 设说明));
                 let _ = f(链接, 说明宽.as_ptr());
+                if !参数.is_empty() {
+                    let 参数宽 = 宽(参数);
+                    let f: 一参 = std::mem::transmute(虚函数(链接, 设参数));
+                    let hr = f(链接, 参数宽.as_ptr());
+                    if hr < 0 {
+                        错 = format!("设参数失败（0x{:08x}）", hr as u32);
+                    }
+                }
                 let f: 图标参 = std::mem::transmute(虚函数(链接, 设图标));
                 let _ = f(链接, 目标宽.as_ptr(), 0);
 
@@ -540,8 +581,11 @@ mod lnk {
         }
     }
 
-    /// 读回一个 `.lnk` 的目标 —— 给 `--解析快捷方式` 用（排查「点了没反应」）。
-    pub fn 读(lnk路径: &str) -> Result<String, String> {
+    /// 读回一个 `.lnk` 的 `(目标, 参数)` —— 给 `--解析快捷方式` 用。
+    ///
+    /// M177 起**参数也要读**：自带运行时的包里快捷方式指向引擎、程序文件是参数，
+    /// 只报目标看不出「双击之后到底跑哪个程序」。
+    pub fn 读(lnk路径: &str) -> Result<(String, String), String> {
         unsafe {
             let hr = CoInitializeEx(std::ptr::null_mut(), COINIT_APARTMENTTHREADED);
             if hr < 0 && hr as u32 != 0x8001_0106 {
@@ -560,6 +604,7 @@ mod lnk {
             }
             let mut 错 = String::new();
             let mut 目标 = String::new();
+            let mut 参数 = String::new();
             let mut 文件: *mut c_void = std::ptr::null_mut();
             let qi: unsafe extern "system" fn(
                 *mut c_void,
@@ -591,6 +636,20 @@ mod lnk {
                     } else {
                         let 长 = 缓冲.iter().position(|c| *c == 0).unwrap_or(缓冲.len());
                         目标 = String::from_utf16_lossy(&缓冲[..长]);
+                        // 参数（GetArguments = 10）：跟 GetPath 同一个签名
+                        let mut 参缓冲 = vec![0u16; 2048];
+                        let 取参: unsafe extern "system" fn(
+                            *mut c_void,
+                            *mut u16,
+                            i32,
+                            *mut c_void,
+                            u32,
+                        ) -> i32 = std::mem::transmute(虚函数(链接, 取参数));
+                        if 取参(链接, 参缓冲.as_mut_ptr(), 2048, std::ptr::null_mut(), 0) >= 0 {
+                            let 参长 =
+                                参缓冲.iter().position(|c| *c == 0).unwrap_or(参缓冲.len());
+                            参数 = String::from_utf16_lossy(&参缓冲[..参长]);
+                        }
                     }
                 }
                 let 释放: unsafe extern "system" fn(*mut c_void) -> u32 =
@@ -602,7 +661,7 @@ mod lnk {
             释放(链接);
             CoUninitialize();
             if 错.is_empty() {
-                Ok(目标)
+                Ok((目标, 参数))
             } else {
                 Err(错)
             }
@@ -741,22 +800,49 @@ fn 安装(自身: &[u8], 包: &包, 目标: &Path, 静默: bool, 要path: bool) 
     let mut path问题: Option<String> = None;
     let mut 加了path = false;
     if 要path {
-        match 加path(&目录文) {
+        // M177：PATH 要加**能敲出程序名**的那个目录 —— 带运行时时可执行在 bin/。
+        let path目录 = if 包.引擎.is_empty() {
+            目录文.clone()
+        } else {
+            目标
+                .join("bin")
+                .display()
+                .to_string()
+        };
+        match 加path(&path目录) {
             Ok(v) => 加了path = v,
             Err(e) => path问题 = Some(e),
         }
     }
 
     // 开始菜单快捷方式（M172 补上 M171 的欠账）。**指到程序，不是指到卸载器**。
-    let 快捷方式 = 快捷方式路径(&包.名字);
-    let 快捷目标 = if 包.入口.is_empty() {
-        卸载路径.display().to_string()
+    //
+    // M177：自带运行时的包（有 `bin/` 引擎）—— 快捷方式指**引擎**，
+    // 用户的程序文件当**命令行参数**。为什么不直接指向 `.jsh`：那要注册全局
+    // 文件关联，装两个基石程序就互相覆盖；而快捷方式带参数是每个程序独立的。
+    let 入口盘 = 目标
+        .join(包.入口.replace('/', std::path::MAIN_SEPARATOR_STR))
+        .display()
+        .to_string();
+    let (快捷目标, 快捷参数) = if !包.引擎.is_empty() {
+        (
+            目标
+                .join(包.引擎.replace('/', std::path::MAIN_SEPARATOR_STR))
+                .display()
+                .to_string(),
+            if 包.入口.is_empty() {
+                String::new()
+            } else {
+                // 带引号：安装路径里可能有空格
+                format!("\"{入口盘}\"")
+            },
+        )
+    } else if 包.入口.is_empty() {
+        (卸载路径.display().to_string(), String::new())
     } else {
-        目标
-            .join(包.入口.replace('/', std::path::MAIN_SEPARATOR_STR))
-            .display()
-            .to_string()
+        (入口盘.clone(), String::new())
     };
+    let 快捷方式 = 快捷方式路径(&包.名字);
     let mut 快捷问题: Option<String> = None;
     if !包.名字.is_empty() {
         if let Some(父) = 快捷方式.parent() {
@@ -767,6 +853,7 @@ fn 安装(自身: &[u8], 包: &包, 目标: &Path, 静默: bool, 要path: bool) 
             &快捷目标,
             &目录文,
             &format!("{} 命令", 包.名字),
+            &快捷参数,
         ) {
             快捷问题 = Some(e);
         }
@@ -793,12 +880,17 @@ fn 安装(自身: &[u8], 包: &包, 目标: &Path, 静默: bool, 要path: bool) 
         } else if let Some(e) = &path问题 {
             println!("  ⚠️ PATH 没改成：{e}");
         }
-        if !包.入口.is_empty() {
+        if !包.引擎.is_empty() && !包.入口.is_empty() {
+            // 自带运行时：告诉用户「双击开始菜单里那个就行」，别让他对着路径发呆
             println!(
-                "完成：{}",
-                目标.join(包.入口.replace('/', std::path::MAIN_SEPARATOR_STR))
-                    .display()
+                "完成：开始菜单里点「{}」就能打开（引擎 {} + 程序 {}）",
+                包.名字,
+                目标.join(包.引擎.replace('/', std::path::MAIN_SEPARATOR_STR))
+                    .display(),
+                入口盘
             );
+        } else if !包.入口.is_empty() {
+            println!("完成：{}", 入口盘);
         } else {
             println!("完成（这个包没标「入口」，去安装目录里找）");
         }
@@ -966,8 +1058,11 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         };
         return match lnk::读(&路径) {
-            Ok(目标) => {
+            Ok((目标, 参数)) => {
                 println!("目标：{目标}");
+                if !参数.is_empty() {
+                    println!("参数：{参数}");
+                }
                 ExitCode::SUCCESS
             }
             Err(e) => {

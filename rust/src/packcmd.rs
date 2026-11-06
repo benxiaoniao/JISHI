@@ -304,18 +304,28 @@ fn 拷树(从: &Path, 到: &Path) -> Result<(), String> {
 }
 
 /// 打一个包（调语言层那份实现，`基础` = 源目录，来源 = 显式文件列表）。
+#[allow(clippy::too_many_arguments)]
 fn 打一个包(文件们: &[String], 源: &str, 临时: &Path, 名字: &str, 版本: &str,
-            入口: &str, 平台值: &str) -> Result<String, JishiError> {
+            入口: &str, 平台值: &str, 带运行时: bool,
+            引擎: &str) -> Result<String, JishiError> {
     let 列表 = crate::list_new(
         文件们.iter().map(|p| Val::Str(p.clone().into())).collect(),
     );
-    let 选项 = crate::dict_new(vec![
+    let mut 对 = vec![
         (Val::Str("名字".into()), Val::Str(名字.to_string().into())),
         (Val::Str("版本".into()), Val::Str(版本.to_string().into())),
         (Val::Str("平台".into()), Val::Str(平台值.to_string().into())),
         (Val::Str("入口".into()), Val::Str(入口.to_string().into())),
         (Val::Str("基础".into()), Val::Str(源.to_string().into())),
-    ]);
+    ];
+    // M177：自带运行时（包内布局 app/ + bin/ 由 `打包.生成` 负责）
+    if 带运行时 {
+        对.push((Val::Str("运行时".into()), Val::Bool(true)));
+        if !引擎.is_empty() {
+            对.push((Val::Str("引擎".into()), Val::Str(引擎.to_string().into())));
+        }
+    }
+    let 选项 = crate::dict_new(对);
     crate::stdlib::pack::建包(&列表, &临时.display().to_string(), Some(&选项))
 }
 
@@ -354,6 +364,9 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
     let (mut 出, mut 名字, mut 版本, mut 入口, mut 存根, mut 目标们) =
         (String::new(), String::new(), String::new(), String::new(), String::new(), String::new());
     let mut 安静 = false;
+    // M177：自带运行时
+    let mut 带运行时 = false;
+    let mut 引擎 = String::new();
     let mut i = 0;
     while i < argv.len() {
         let a = argv[i].as_str();
@@ -369,6 +382,9 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             "--存根" | "--stub" => 存根 = 取值(&mut i),
             "--目标" | "--targets" => 目标们 = 取值(&mut i),
             "--安静" | "-q" | "--quiet" => 安静 = true,
+            // M177：把引擎打进包里，装到没装过基石的机器上双击就能用
+            "--自带运行时" | "--with-runtime" => 带运行时 = true,
+            "--引擎" | "--engine" => 引擎 = 取值(&mut i),
             "-h" | "--help" => {
                 print!("{}", 用法());
                 return ExitCode::SUCCESS;
@@ -413,6 +429,14 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             }
             if 入口.is_empty() {
                 入口 = 取("入口");
+            }
+            // M177：`打包.json` 里也能开自带运行时（命令行优先 —— 命令行只能"打开"，
+            // 没有"关掉"的开关，因为写配置的人本来就知道自己要什么）
+            if !带运行时 {
+                带运行时 = j.get("运行时").and_then(|v| v.as_bool()).unwrap_or(false);
+            }
+            if 引擎.is_empty() {
+                引擎 = 取("引擎");
             }
         }
     }
@@ -474,14 +498,14 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
     let mut 成品: Vec<(String, String)> = Vec::new();
     let 结果 = (|| -> Result<(), String> {
         if 要哪些.iter().any(|t| t == "便携") {
-            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("便携"))
+            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("便携"), 带运行时, &引擎)
                 .map_err(|e| e.message)?;
             let 目标 = format!("{出}/{}", 文件名(&包));
             fs::copy(&包, &目标).map_err(|e| format!("复制便携包失败：{e}"))?;
             成品.push(("便携".to_string(), 目标));
         }
         if 要哪些.iter().any(|t| t == "安装包") {
-            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("安装包"))
+            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("安装包"), 带运行时, &引擎)
                 .map_err(|e| e.message)?;
             let 目标 = format!("{出}/{名字}-{版本}-windows-x64-setup.exe");
             let 包字节 = fs::read(&包).map_err(|e| format!("读包失败：{e}"))?;
@@ -497,7 +521,7 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             成品.push(("安装包".to_string(), 目标));
         }
         if 要哪些.iter().any(|t| t == "应用") {
-            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("应用"))
+            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("应用"), 带运行时, &引擎)
                 .map_err(|e| e.message)?;
             let 字节 = fs::read(&包).map_err(|e| format!("读包失败：{e}"))?;
             let 束 = 临时.join(format!("{名字}.app"));
@@ -519,7 +543,7 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             成品.push(("应用".to_string(), tar));
         }
         if 要哪些.iter().any(|t| t == "压缩包") {
-            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("压缩包"))
+            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("压缩包"), 带运行时, &引擎)
                 .map_err(|e| e.message)?;
             let 字节 = fs::read(&包).map_err(|e| format!("读包失败：{e}"))?;
             let 顶层 = format!("{名字}-{版本}-linux-x64");

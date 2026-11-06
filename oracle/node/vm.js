@@ -4402,6 +4402,108 @@ function _packOpt(选项, 键) {
   return v;
 }
 
+/** 选项里的一个真假键。**只认真布尔**（M177：`运行时` 用它）。 */
+function _packOptBool(选项, 键, 默认) {
+  if (选项 === undefined || 选项 === null) return 默认;
+  if (!(选项 instanceof Map)) {
+    throw R.valueErr('「选项」要传字典，例如 {"名字": "记账", "版本": "1.0.0"}');
+  }
+  const v = 选项.has(键) ? 选项.get(键) : undefined;
+  if (v === undefined || v === null) return 默认;
+  if (typeof v === 'boolean') return v;
+  throw R.valueErr(`选项「${键}」要传 真 或 假，给的是 ${R.pyStr(v)}`);
+}
+
+/** M177：包里那份「怎么启动」的说明。**只有带运行时的包才有它。** */
+const PACK_运行名 = '运行时.json';
+/** 带运行时时的包内布局：用户文件进 `app/`，引擎进 `bin/`。 */
+const PACK_用户前缀 = 'app/';
+const PACK_引擎前缀 = 'bin/';
+
+/**
+ * 收「引擎四件套」→ `[[包内文件名, 磁盘路径]]`，**可执行排第一**。
+ *
+ * `路径` 给目录或可执行文件本身都行（开发树里叫 `jishi-rs.exe`）。
+ * 🔴 缺一件就报错，不许出包 —— 少带 `jishi_wasm.wasm` 时窗口是**白屏、零报错**。
+ */
+function _packEngine(路径) {
+  if (!路径) {
+    throw R.valueErr('「运行时: 真」还要给「引擎」—— jishi 可执行文件（或它所在的目录）',
+      undefined, undefined,
+      'Node 宿主自己不是引擎，必须指定；Rust 发行版里跑打包可以不给');
+  }
+  let 目录 = '';
+  let 可执行 = '';
+  let st = null;
+  try { st = fs.statSync(路径); } catch (e) { st = null; }
+  if (st && st.isFile()) {
+    目录 = _path.dirname(路径);
+    可执行 = _path.basename(路径);
+  } else if (st && st.isDirectory()) {
+    目录 = 路径;
+    for (const 名 of ['jishi.exe', 'jishi']) {
+      if (fs.existsSync(_path.join(目录, 名))) { 可执行 = 名; break; }
+    }
+    if (!可执行) {
+      throw R.valueErr(`「${目录}」里没有 jishi 可执行文件（jishi.exe 或 jishi）`,
+        undefined, undefined, '要么指向可执行文件本身，要么指向装好基石的那个目录');
+    }
+  } else {
+    throw R.valueErr(`「引擎」指的「${路径}」不存在`);
+  }
+  const 要的 = [可执行];
+  for (const 名 of ['jishi-wasm.js', 'jishi_wasm.wasm']) {
+    if (!fs.existsSync(_path.join(目录, 名))) {
+      throw R.valueErr(`「${目录}」里少了引擎素材「${名}」—— 少了它窗口是白屏，还不报错`,
+        undefined, undefined, '这两份与 jishi 可执行文件在同一个目录（发行版自带）');
+    }
+    要的.push(名);
+  }
+  if (fs.existsSync(_path.join(目录, 'WebView2Loader.dll'))) 要的.push('WebView2Loader.dll');
+  return 要的.map((名) => [名, _path.join(目录, 名)]);
+}
+
+/** `运行时.json` 的文本。**格式是契约**（三宿主逐字一致）。 */
+function _packRunText(引擎名, 入口, 随行) {
+  const L = ['{'];
+  L.push(`  "引擎": "${_packEsc(PACK_引擎前缀 + 引擎名)}",`);
+  L.push(`  "入口": "${_packEsc(入口)}",`);
+  if (!随行.length) {
+    L.push('  "随行": []');
+  } else {
+    L.push('  "随行": [');
+    for (let i = 0; i < 随行.length; i += 1) {
+      L.push(`    "${_packEsc(PACK_引擎前缀 + 随行[i])}"${i < 随行.length - 1 ? ',' : ''}`);
+    }
+    L.push('  ]');
+  }
+  L.push('}');
+  return `${L.join('\n')}\n`;
+}
+
+/** 把「来源」摊成最终要进包的条目 → `{项们, 选, 运行文本}`（`清单`/`生成` 共用）。 */
+function _packPrepare(来源, 选) {
+  let 项们 = _packFiles(来源, 选.基础);
+  if (!项们.length) {
+    throw R.valueErr(`「${pText(来源)}」里没有文件，打出来的包会是空的`);
+  }
+  if (项们.some((x) => x[0] === PACK_清单名)) {
+    throw R.valueErr(`「${PACK_清单名}」是打包自己用的名字，不能当程序文件`,
+      undefined, undefined, '改个名（例如 说明.json）；包根上那份是清单，会被覆盖');
+  }
+  if (!选.运行时) return { 项们, 选, 运行文本: null };
+  if (项们.some((x) => x[0] === PACK_运行名)) {
+    throw R.valueErr(`「${PACK_运行名}」是自带运行时自己写的名字，不能当程序文件`,
+      undefined, undefined, '改个名（例如 启动说明.json）');
+  }
+  项们 = 项们.map(([arc, full]) => [PACK_用户前缀 + arc, full]);
+  const 引擎 = _packEngine(选.引擎);
+  for (const [名, full] of 引擎) 项们.push([PACK_引擎前缀 + 名, full]);
+  if (选.入口) 选 = { ...选, 入口: PACK_用户前缀 + 选.入口 };
+  const 随行 = 引擎.slice(1).map(([n]) => n);
+  return { 项们, 选, 运行文本: _packRunText(引擎[0][0], 选.入口, 随行) };
+}
+
 /** 把「来源」摊成 `[[条目名, 磁盘路径]]`。口径与 `压缩.打包确定` 相同。 */
 function _packFiles(来源, 基础) {
   const out = [];
@@ -4563,10 +4665,13 @@ const PACK_FUNCS = {
       平台: _packOpt(选项, '平台'),
       入口: _packOpt(选项, '入口'),
       基础: _packOpt(选项, '基础'),
+      运行时: _packOptBool(选项, '运行时', false),
+      引擎: _packOpt(选项, '引擎'),
     };
-    const 项们 = _packFiles(来源, 选.基础);
-    const { 文件们, 总 } = _packScan(项们);
-    return _packManifestValue(选, 文件们, 总);
+    // 与 `生成` 走同一处 `_packPrepare`：带不带运行时，预览和真打必须一致
+    const p = _packPrepare(来源, 选);
+    const { 文件们, 总 } = _packScan(p.项们);
+    return _packManifestValue(p.选, 文件们, 总);
   }),
 
   '生成': new R.Builtin('生成', (来源, 输出目录, 选项) => {
@@ -4576,17 +4681,12 @@ const PACK_FUNCS = {
       平台: _packOpt(选项, '平台'),
       入口: _packOpt(选项, '入口'),
       基础: _packOpt(选项, '基础'),
+      运行时: _packOptBool(选项, '运行时', false),
+      引擎: _packOpt(选项, '引擎'),
     };
-    const 项们 = _packFiles(来源, 选.基础);
-    if (!项们.length) {
-      throw R.valueErr(`「${pText(来源)}」里没有文件，打出来的包会是空的`);
-    }
-    if (项们.some((x) => x[0] === PACK_清单名)) {
-      throw R.valueErr(`「${PACK_清单名}」是打包自己用的名字，不能当程序文件`,
-        undefined, undefined, '改个名（例如 说明.json）；包根上那份是清单，会被覆盖');
-    }
-    const { 文件们, 总, 内容 } = _packScan(项们);
-    const 名 = _packZipName(选);
+    const p = _packPrepare(来源, 选);
+    const { 文件们, 总, 内容 } = _packScan(p.项们);
+    const 名 = _packZipName(p.选);
     const 出目录 = pText(输出目录);
     try {
       fs.mkdirSync(出目录, { recursive: true });
@@ -4594,7 +4694,9 @@ const PACK_FUNCS = {
       throw R.runErr(`建输出目录「${出目录}」失败：${e.message}`);
     }
     const 包 = _path.join(出目录, 名);
-    const 条目 = [[PACK_清单名, Buffer.from(_packJsonText(选, 文件们, 总), 'utf8')]];
+    const 条目 = [[PACK_清单名, Buffer.from(_packJsonText(p.选, 文件们, 总), 'utf8')]];
+    // 运行时.json 排在清单后面（顺序定死是可复现的一半）
+    if (p.运行文本 !== null) 条目.push([PACK_运行名, Buffer.from(p.运行文本, 'utf8')]);
     for (const f of 文件们) 条目.push([f.路径, 内容.get(f.路径)]);
     try {
       _packWriteZip(包, 条目);

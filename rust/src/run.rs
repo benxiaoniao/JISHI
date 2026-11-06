@@ -179,6 +179,18 @@ pub fn main_cli(args: &[String]) -> ExitCode {
 }
 
 fn run_file(o: &Opts) -> ExitCode {
+    // M177：告诉 `窗口` 脚本在哪儿 —— 装好的程序工作目录是安装目录，
+    // 而页面文件跟脚本放一起（`app/`）。见 `window::绝对路径` 的说明。
+    if let Some(f) = o.file.as_deref() {
+        if let Some(父) = std::path::Path::new(f).parent() {
+            let 父 = if 父.as_os_str().is_empty() { std::path::Path::new(".") } else { 父 };
+            if let Ok(全) = std::fs::canonicalize(父) {
+                let s = 全.display().to_string();
+                let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
+                crate::stdlib::window::设脚本目录(s);
+            }
+        }
+    }
     let (text, filename) = if o.stdin {
         (read_stdin(), "<stdin>".to_string())
     } else {

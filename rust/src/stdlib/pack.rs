@@ -31,6 +31,11 @@ struct 选项 {
     平台: String,
     入口: String,
     基础: String,
+    /// M177：把引擎（`jishi` 可执行 + wasm 素材 + WebView2Loader.dll）也打进包。
+    运行时: bool,
+    /// 引擎在**磁盘上**的位置（可执行文件本身或它所在的目录）。
+    /// 空 = 用「当前这个进程自己的可执行文件」所在目录（Rust 宿主默认可行）。
+    引擎: String,
 }
 
 fn 取(d: &Val, key: &str) -> Result<Option<Val>, crate::JishiError> {
@@ -59,6 +64,18 @@ fn 取文(选: &Option<Val>, 键: &str) -> Result<String, crate::JishiError> {
     }
 }
 
+/// 取一个真假选项。**只认真假**（不搞「非空即真」—— 那样 `"假"` 会被当成真）。
+fn 取布(d: &Val, key: &str, 默认: bool) -> Result<bool, crate::JishiError> {
+    match 取(d, key)? {
+        None | Some(Val::None_) => Ok(默认),
+        Some(Val::Bool(b)) => Ok(b),
+        Some(other) => Err(err(
+            "值错误",
+            format!("「{key}」要传真或假，给的是{}", crate::type_label(&other)),
+        )),
+    }
+}
+
 fn 读选项(v: Option<&Val>) -> Result<选项, crate::JishiError> {
     let 源 = match v {
         None | Some(Val::None_) => None,
@@ -79,6 +96,12 @@ fn 读选项(v: Option<&Val>) -> Result<选项, crate::JishiError> {
         平台: 取文(&源, "平台")?,
         入口: 取文(&源, "入口")?,
         基础: 取文(&源, "基础")?,
+        // M177：自带运行时
+        运行时: match &源 {
+            Some(d) => 取布(d, "运行时", false)?,
+            None => false,
+        },
+        引擎: 取文(&源, "引擎")?,
     })
 }
 
@@ -362,12 +385,127 @@ fn 校验结果(通过: bool, 问题们: Vec<String>, 清单: Val) -> Val {
 /// 单独抽出来的理由：`jishi 打包`（M172）要给四个产物各打一个包（清单里的
 /// 「平台」得跟产物名对得上），而 CLI 不在 VM 里 —— 直接把实现体暴露成
 /// `pub(crate)`，命令行调的与语言里调的**是同一段代码**，不会各写一份清单格式。
-pub(crate) fn 建包(
+// ---------------------------------------------------------------------------
+// M177：自带运行时（包里带引擎，装到没装过基石的机器上也能跑）
+// ---------------------------------------------------------------------------
+
+/// 包里那份「怎么启动」的说明。**只有带运行时的包才有它。**
+const 运行名: &str = "运行时.json";
+
+/// 带运行时时的包内布局：用户文件进 `app/`，引擎进 `bin/`。
+///
+/// 为什么分两层：`bin/` 是「装进来就能执行的东西」，`app/` 是「用户的程序」。
+/// 卸载、查问题、以后想「多个程序共用一份引擎」时，一眼就能分清谁是谁。
+const 用户前缀: &str = "app/";
+const 引擎前缀: &str = "bin/";
+
+/// 收「引擎四件套」→ `[(包内文件名, 磁盘路径)]`，**可执行排第一**。
+///
+/// `路径` 给**目录**（发行版解压开就是那个）或**可执行文件本身**都行 ——
+/// 开发树里它叫 `jishi-rs.exe`，发行版里叫 `jishi.exe`，逼用户改名太蠢。
+/// 包内**保留原文件名**：装完之后叫什么由 `运行时.json` 说了算，不靠猜。
+///
+/// 不给 `路径` 时用**当前进程自己**（Rust 宿主跑 `jishi 打包` 的正常情形）。
+///
+/// 🔴 **缺一件就报错，不许出包**（M176 的教训）：发行包少带 `jishi_wasm.wasm`
+/// 时窗口是**白的、一行报错都没有** —— 那种「看起来开了、其实什么都没跑」
+/// 是最难查的故障，不能在**打包**这一层再造一次。
+fn 引擎文件(路径: &str) -> Result<Vec<(String, String)>, crate::JishiError> {
+    let 全 = if 路径.is_empty() {
+        std::env::current_exe()
+            .map_err(|e| err("运行期错误", format!("拿不到当前可执行文件：{e}")))?
+            .display()
+            .to_string()
+    } else {
+        路径.to_string()
+    };
+    let p = std::path::Path::new(&全);
+    let (目录, 可执行) = if p.is_file() {
+        (
+            p.parent().map(|x| x.display().to_string()).unwrap_or_default(),
+            p.file_name().map(|x| x.to_string_lossy().to_string()).unwrap_or_default(),
+        )
+    } else if p.is_dir() {
+        let mut 名 = String::new();
+        for 候选 in ["jishi.exe", "jishi"] {
+            if p.join(候选).is_file() {
+                名 = 候选.to_string();
+                break;
+            }
+        }
+        if 名.is_empty() {
+            return Err(err_with_hint(
+                "值错误",
+                format!("「{全}」里没有 jishi 可执行文件（jishi.exe 或 jishi）"),
+                "要么指向可执行文件本身，要么指向装好基石的那个目录".into(),
+            ));
+        }
+        (全.clone(), 名)
+    } else {
+        return Err(err("值错误", format!("「引擎」指的「{全}」不存在")));
+    };
+
+    let mut 要的 = vec![可执行];
+    for 名 in ["jishi-wasm.js", "jishi_wasm.wasm"] {
+        if !std::path::Path::new(&目录).join(名).is_file() {
+            return Err(err_with_hint(
+                "值错误",
+                format!("「{目录}」里少了引擎素材「{名}」—— 少了它窗口是白屏，还不报错"),
+                "这两份与 jishi 可执行文件在同一个目录（发行版自带）".into(),
+            ));
+        }
+        要的.push(名.to_string());
+    }
+    // Windows 上这个必须跟 exe 放一起，否则 WebView2 根本起不来。别的平台没有它。
+    if std::path::Path::new(&目录).join("WebView2Loader.dll").is_file() {
+        要的.push("WebView2Loader.dll".to_string());
+    }
+    Ok(要的
+        .into_iter()
+        .map(|名| {
+            let 盘 = std::path::Path::new(&目录).join(&名).display().to_string();
+            (名, 盘)
+        })
+        .collect())
+}
+
+/// `运行时.json` 的文本。**格式是契约**（三宿主逐字一致），手写序列化。
+///
+/// 它回答一个问题：**这个包装完之后，双击时到底该执行什么？**
+/// `清单.json` 只说「包里有哪些文件」，它不含「怎么启动」—— 两件事分开，
+/// 清单的格式就不用动（那是三个宿主都在守的契约）。
+fn 运行文本(引擎名: &str, 入口: &str, 随行: &[String]) -> String {
+    let mut L = vec!["{".to_string()];
+    L.push(format!("  \"引擎\": {},", crate::jsonw::esc(&format!("{引擎前缀}{引擎名}"))));
+    L.push(format!("  \"入口\": {},", crate::jsonw::esc(入口)));
+    if 随行.is_empty() {
+        L.push("  \"随行\": []".to_string());
+    } else {
+        L.push("  \"随行\": [".to_string());
+        for (i, 名) in 随行.iter().enumerate() {
+            let 尾 = if i + 1 < 随行.len() { "," } else { "" };
+            L.push(format!(
+                "    {}{}",
+                crate::jsonw::esc(&format!("{引擎前缀}{名}")),
+                尾
+            ));
+        }
+        L.push("  ]".to_string());
+    }
+    L.push("}".to_string());
+    let mut s = L.join("\n");
+    s.push('\n');
+    s
+}
+
+/// 把「来源」摊成最终要进包的条目 → `(项们, 选, 运行文本或 None)`。
+///
+/// `清单` 与 `建包` **都走这一处** —— 否则「预览的清单」和「真打的包」
+/// 会在带不带运行时这件事上各说各话。
+fn 准备(
     来源: &Val,
-    输出目录: &str,
-    选项: Option<&Val>,
-) -> Result<String, crate::JishiError> {
-    let 选 = 读选项(选项)?;
+    选: 选项,
+) -> Result<(Vec<(String, String)>, 选项, Option<String>), crate::JishiError> {
     let mut 项们 = 摊开(来源, &选.基础)?;
     if 项们.is_empty() {
         return Err(err(
@@ -382,6 +520,42 @@ pub(crate) fn 建包(
             "改个名（例如 说明.json）；包根上那份是清单，会被覆盖".into(),
         ));
     }
+    if !选.运行时 {
+        return Ok((项们, 选, None));
+    }
+    if 项们.iter().any(|(arc, _)| arc == 运行名) {
+        return Err(err_with_hint(
+            "值错误",
+            format!("「{运行名}」是自带运行时自己写的名字，不能当程序文件"),
+            "改个名（例如 启动说明.json）".into(),
+        ));
+    }
+
+    // 用户文件进 app/，引擎进 bin/
+    项们 = 项们
+        .into_iter()
+        .map(|(arc, full)| (format!("{用户前缀}{arc}"), full))
+        .collect();
+    let 引擎 = 引擎文件(&选.引擎)?;
+    for (名, full) in &引擎 {
+        项们.push((format!("{引擎前缀}{名}"), full.clone()));
+    }
+    let mut 选 = 选;
+    if !选.入口.is_empty() {
+        选.入口 = format!("{用户前缀}{}", 选.入口);
+    }
+    let 随行: Vec<String> = 引擎.iter().skip(1).map(|(n, _)| n.clone()).collect();
+    let 文本 = 运行文本(&引擎[0].0, &选.入口, &随行);
+    Ok((项们, 选, Some(文本)))
+}
+
+pub(crate) fn 建包(
+    来源: &Val,
+    输出目录: &str,
+    选项: Option<&Val>,
+) -> Result<String, crate::JishiError> {
+    let 选 = 读选项(选项)?;
+    let (mut 项们, 选, 运行文本) = 准备(来源, 选)?;
     let (列, 总) = 建清单(&项们, &选)?;
     let 名 = 包文件名(&列, &选)?;
     fs::create_dir_all(输出目录)
@@ -397,8 +571,12 @@ pub(crate) fn 建包(
         .collect();
     项们.sort_by_key(|(arc, _)| 序号.get(arc).copied().unwrap_or(usize::MAX));
 
-    let mut 条目: Vec<(String, Vec<u8>)> = Vec::with_capacity(项们.len() + 1);
+    let mut 条目: Vec<(String, Vec<u8>)> = Vec::with_capacity(项们.len() + 2);
     条目.push((清单名.to_string(), 清单文本(&列, &选, 总).into_bytes()));
+    // 运行时.json 排在清单后面（**顺序定死**是可复现的一半）
+    if let Some(t) = 运行文本 {
+        条目.push((运行名.to_string(), t.into_bytes()));
+    }
     for (arc, full) in &项们 {
         let data =
             fs::read(full).map_err(|e| err("运行期错误", format!("读「{full}」失败：{e}")))?;
@@ -415,7 +593,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "清单" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("清单", args, 1, 2)?;
             let 选 = 读选项(args.get(1))?;
-            let 项们 = 摊开(&args[0], &选.基础)?;
+            // 与 `建包` 走同一处 `准备`：带不带运行时，预览和真打必须一致
+            let (项们, 选, _) = 准备(&args[0], 选)?;
             let (列, 总) = 建清单(&项们, &选)?;
             Ok(清单成值(&列, &选, 总))
         },

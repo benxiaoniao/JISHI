@@ -570,6 +570,30 @@ fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
     Ok(号)
 }
 
+/// 当前**脚本文件所在目录**（M177）。
+///
+/// ## 为什么要有它
+///
+/// 用户写 `窗口.打开({"页面": "计算器.html"})` 时，脑子里想的是「跟我的脚本放一起」。
+/// 而 `jishi 打包` 装出来的程序，跑起来时**工作目录是安装目录**（快捷方式定的），
+/// 页面却在 `app/` 下 —— 只按 cwd 找就会「装完双击，报找不到页面」。
+///
+/// 解析顺序：**绝对 → 相对 cwd → 相对脚本目录**。前两者不变（不破坏现有用法），
+/// 脚本目录只是**兜底**：cwd 里找到了就用 cwd 的，找不到才往脚本那边看一眼。
+static 脚本目录: std::sync::OnceLock<std::sync::Mutex<Option<String>>> =
+    std::sync::OnceLock::new();
+
+fn 脚本目录槽() -> &'static std::sync::Mutex<Option<String>> {
+    脚本目录.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// 由宿主在跑脚本**之前**设置（`run::main_cli` 调的）。
+pub(crate) fn 设脚本目录(目录: &str) {
+    if let Ok(mut g) = 脚本目录槽().lock() {
+        *g = Some(目录.to_string());
+    }
+}
+
 fn 绝对路径(p: &Path) -> PathBuf {
     if let Ok(v) = std::fs::canonicalize(p) {
         let s = v.display().to_string();
@@ -580,6 +604,22 @@ fn 绝对路径(p: &Path) -> PathBuf {
     }
     if p.is_absolute() {
         return p.to_path_buf();
+    }
+    // M177：cwd 里没有 ⇒ 再看脚本所在目录（装好的程序就是这样跑的）
+    if let Ok(g) = 脚本目录槽().lock() {
+        if let Some(d) = g.as_deref() {
+            let j = Path::new(d).join(p);
+            if j.exists() {
+                if let Ok(v) = std::fs::canonicalize(&j) {
+                    let s = v.display().to_string();
+                    if let Some(rest) = s.strip_prefix(r"\\?\") {
+                        return PathBuf::from(rest);
+                    }
+                    return v;
+                }
+                return j;
+            }
+        }
     }
     std::env::current_dir()
         .map(|c| c.join(p))
