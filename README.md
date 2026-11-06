@@ -869,6 +869,66 @@ tools/           自测.jsh **用基石自己写的**黑盒运行器（M135；CI
 > 📌 记账：每个依赖的**代价**（crate 数、冷构建秒数、exe 体积）都写在
 > `docs/设计决策.md` 里；改依赖要连那张表一起改。
 
+## 开发环境（想改这门语言，先装这些）
+
+> 这一节讲的是**参与开发本语言**要装什么。只想**用**基石跑程序的话，
+> 下载发行版就行（见上面「安装」），**下面这些一个都不用装**。
+
+| 工具 | 版本 | 干什么 | 少了它会怎样 |
+|---|---|---|---|
+| **Python** | **≥ 3.13**（`pyproject.toml` 的 `requires-python`） | 判据基准（`oracle/`）、全部工具脚本（`tools/`）、pytest | 跑不了测试与构建脚本 |
+| **Rust**（cargo） | stable，edition 2021（实测 1.98） | 主体实现：`rust/`（宿主）· `frontend/`（前端）· `core/`（pyo3 扩展）· `wasm/`（引擎） | 没有 Rust 宿主 ⇒ 窗口 / 打包 / CLI 都编不出来 |
+| **C 编译器** | gcc / clang（Windows 走 MSYS2 mingw） | 编 C 虚拟机 `cvm/` | 五执行器少一个，对拍覆盖面变小 |
+| **Node.js** | 18+（CI 用 runner 自带的，本机实测 v22） | Node 宿主（第五执行器）+ 浏览器判据 | 少一路对拍 |
+| **wasm 目标** | `rustup target add wasm32-unknown-unknown` | 编 `site/jishi_wasm.wasm`（原生窗口喂给页面的引擎） | 窗口是**白屏**（而且零报错） |
+| **Inno Setup** | 6.x（要有 `ISCC.exe`，**仅 Windows**） | 出 `setup.exe` | 只能出便携 zip / tar.gz |
+
+### 最短上手（Windows）
+
+```bash
+git clone https://github.com/benxiaoniao/JISHI.git
+cd JISHI
+python -m venv .venv
+.venv/Scripts/pip install -e . pytest pytest-xdist
+
+.venv/Scripts/python cvm/build.py                                   # C 虚拟机
+cargo build --release --locked --manifest-path rust/Cargo.toml       # Rust 宿主
+.venv/Scripts/python tools/build_wasm.py                            # wasm 引擎素材
+.venv/Scripts/python core/build.py                                  # pyo3 扩展 _core.pyd
+
+.venv/Scripts/python -m pytest tests/ -q                            # 跑测试
+```
+
+macOS / Linux 把 `.venv/Scripts/` 换成 `.venv/bin/`。
+
+📌 **为什么这几步有先后**：`build_wasm.py` 要有 Rust 工具链；`core/build.py` 要 Python 头文件；
+窗口与打包都依赖前两步的产物。全量回归的标准入口是 `tools/test_all.py`
+（两节：并行 → 串行，见 `AGENTS.md` §1）。
+
+### 各平台额外要装的系统库
+
+| 平台 | 装什么 | 为什么 |
+|---|---|---|
+| **Linux** | `build-essential` · `libwebkit2gtk-4.1-dev` · `libgtk-3-dev` · `libayatana-appindicator3-dev` | 编 C 虚拟机 + 原生窗口 / 托盘 / 菜单 |
+| **Windows** | WebView2 运行时（Win11 自带；Win10 装过 Edge 就有）· MSYS2 mingw（编 `cvm`） | 运行原生窗口 / 编 C 虚拟机 |
+| **macOS** | Xcode Command Line Tools（提供 clang） | 编 C 虚拟机 |
+
+Ubuntu 一次装齐：
+
+```bash
+sudo apt install -y build-essential libwebkit2gtk-4.1-dev libgtk-3-dev \
+                    libayatana-appindicator3-dev
+```
+
+### 装坏了怎么查
+
+`.github/workflows/ci.yml` 把上面每一步在 ubuntu / windows / macos 三个 runner 上
+**原样跑了一遍** —— 本地哪一步报错，对着那个文件比最快。另外 `jishi 医生`
+会自检运行时环境（不是开发环境）。
+
+⚠️ 想跑**真开窗口**的判据，得在有桌面的机器上（CI 的 runner 没桌面，
+那些用例被 `JISHI_NO_GUI=1` 跳过 —— **跳过不等于验过**，见 `docs/测试跳过说明.md`）。
+
 ## 开发：运行与测试
 
 ```bash

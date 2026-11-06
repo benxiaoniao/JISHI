@@ -19,13 +19,16 @@
                                                # 构建三平台发行包 + 建 Release）
     python tools/publish_github.py -m "自定义提交信息"   # 覆盖默认提交信息
 
-自动屏蔽项（隐私界定，2026-09-04 与作者确认；2026-09-23 更新）：
+自动屏蔽项（隐私界定，2026-09-04 与作者确认；2026-09-23 / 2026-11-07 更新）：
 - `cvm/build.py` / `docs/设计决策.md` / `README.md`：个人机器路径（CLion 等）
   按行屏蔽或通用化；
 - 令牌等敏感串绝不入库；
-- **`docs/路线图.md` 整个不上传**（2026-09-23 作者定）：里面有自建分发服务器的
-  实例 ID / 公网 IP / 地域与规格等运行细节。**文件直接删掉**，其余文档里指向它的
-  链接与提及一并抹成中性表述（否则公开仓库里全是死链）；
+- **`docs/内部运维.md` 整个不上传**（2026-11-07 作者定）：自建站点的实例 ID、
+  公网地址、私钥路径、部署权限都在里面。**文件直接删掉**，其余文档里指向它的
+  引用抹成中性表述（否则公开仓库里全是死链）。
+- ✅ **`docs/路线图*.md` 现在会公开上传**（2026-11-07 改）：以前因为混着服务器地址
+  整份不上传，代价是所有指向路线图的链接都成死链、新开发者看不到规划。现在把
+  隐私挪进 `docs/内部运维.md`、路线图里模糊化，**规划本身对开发者有价值，就该公开**。
 - 终检：快照里若仍出现 `CLion` / 个人路径片段 / 令牌环境变量名 / 服务器地址，直接中止发布。
 """
 
@@ -49,11 +52,14 @@ BRANCH = "master"
 
 #: **不上传的内部文档**：`(文件名, 抹引用时用的中性标签)`。
 #: 为什么不上传：它们含未定稿的规划与决策，过早公开会绑住手脚；
-#: 其中路线图还含自建分发服务器的实例 ID / 公网 IP。
+#: 其中 `内部运维.md` 还含自建站点的实例 ID / 公网地址 / 私钥路径。
 #: ⚠️ **按名字长度降序**排（长的先替换），否则短的会把长名字切掉一半。
 #: ⚠️ **按文件名匹配、且递归查找**（2026-10-08 起这些文档归档在
 #: `docs/版本历史/`）—— 改了名字或再搬位置，这里必须跟着改，否则会推到公开仓库。
 INTERNAL_DOCS = (
+    # 2026-11-07 作者定：站点运维信息从路线图里**搬出来单独一份**，
+    # 路线图本身改为公开（规划对开发者有价值）。这个文件是唯一的隐私落点。
+    ("内部运维.md", "内部运维文档（未公开）"),
     ("架构迁移评估.md", "内部架构迁移评估（未公开）"),
     ("架构迁移路径.md", "内部架构迁移路径（未公开）"),
     ("架构评估.md", "内部架构评估（未公开）"),
@@ -341,9 +347,9 @@ def _export_packages(snapshot: Path) -> None:
 def _sanitize(snapshot: Path) -> None:
     """隐私屏蔽（每步幂等，重复运行安全）。
 
-    2026-09-23 调整：**`docs/路线图.md` 不再上传**（作者定）——删文件 + 抹掉
-    指向它的引用（理由见模块 docstring）。个人机器路径 / CLion / 令牌 /
-    服务器地址等照旧屏蔽。
+    2026-11-07 调整：**`docs/内部运维.md` 不上传**（作者定）——删文件 + 抹掉
+    指向它的引用（理由见模块 docstring）；**路线图从此公开**，隐私已挪进
+    `内部运维.md`。个人机器路径 / CLion / 令牌 / 服务器地址等照旧屏蔽。
     """
     # 1. 构建脚本：移除个人机器的 CLion gcc 路径条目
     #    ⚠️ **在这里集中列出**（2026-10-01 R2 起）：下次新加一个 crate
@@ -379,22 +385,18 @@ def _sanitize(snapshot: Path) -> None:
         out.append(l)
     io.open(p, "w", encoding="utf-8", newline="\n").write("\n".join(out))
 
-    # 4. 内部规划文档不上传（2026-09-23 / 2026-09-25 作者定）：整个文件删掉
+    # 4. 内部文档不上传（2026-09-23 / 2026-09-25 作者定）：整个文件删掉
     #    + 抹掉指向它的引用。删文件会让其余文档里的引用变成死链，
     #    所以一并换成中性表述。
-    #    - `docs/路线图*.md`（2026-09-23 定，2026-09-29 扩成通配）：含自建分发
-    #      服务器的实例 ID / 公网 IP / 地域与规格。**按版本期归档的
-    #      `路线图-归档-*.md` 同样含这些信息**，所以这里用通配一网打尽，
-    #      以后再加归档文件也不会漏。
+    #    - `docs/内部运维.md`（2026-11-07 作者定）：自建站点的实例 ID / 公网地址 /
+    #      私钥路径 / 部署目录权限。**路线图改为公开**，隐私全部搬到这里。
     #    - `docs/架构评估.md`（2026-09-25）：含里程碑编号规划（M51–M53）与
     #      「哪些不砍、哪些要迁移」的**未定稿**技术决策——属内部讨论材料，
     #      对外过早公开会绑住手脚（用户还没拍板）。
     # ⚠️ 2026-10-08：内部文档**归档进了 `docs/版本历史/`**，所以匹配一律要**递归**
     #    （`rglob`）—— 否则排不掉，而排不掉就是**把服务器实例信息推到公开仓库**。
-    for rm in sorted(snapshot.rglob("路线图*.md")):
-        rm.unlink()
     # ⚠️ 内部文档一律**两手**：删文件 + 抹掉别处指向它的引用（否则公开仓库里全是
-    #    死链）。以后新增内部文档**只改这一处**，别再散落着写正则。
+    #    死链）。以后新增内部文档**只改 `INTERNAL_DOCS` 一处**，别再散落着写正则。
     #    路径前缀同时允许 `docs/`、`../`、`docs/版本历史/` 三种写法。
     _PREFIX = r"(?:\.\./|docs/)?(?:版本历史/)?"
     _targets = []
@@ -407,12 +409,9 @@ def _sanitize(snapshot: Path) -> None:
             re.compile(r"`+" + _PREFIX + _stem + r"\.md`+"),
             re.compile(_PREFIX + _stem + r"\.md"),
             _label))
-    # ⚠️ 字符类里**必须允许 `.`**：归档文件名是 `路线图-归档-0.1.md`，
-    #    只写 `[\w\-]*` 匹配不到 `0.1` 那一段 ⇒ 引用抹不掉，公开仓库里留死链。
-    _R = r"路线图[\w.\-]*\.md"
-    _link = re.compile(r"\[[^\]]*?路线图[^\]]*?\]\(" + _PREFIX + _R + r"\)")
-    _code = re.compile(r"`+" + _PREFIX + _R + r"`+")
-    _plain = re.compile(_PREFIX + _R)
+    # ⚠️ 字符类里**必须允许 `.`**：归档文件名是 `路线图-归档-0.1.md` 这种，
+    #    只写 `[\w\-]*` 匹配不到 `0.1` 那一段。（这一条现在由 INTERNAL_DOCS 的
+    #    `_stem` 正则表达式负责，留此注释是为了记住当年的坑。）
     for f in sorted(snapshot.rglob("*")):
         if not f.is_file() or f.name.startswith("publish_"):
             continue
@@ -430,9 +429,7 @@ def _sanitize(snapshot: Path) -> None:
         except (UnicodeDecodeError, OSError):
             continue
         # 顺序：先整条链接 → 再去内联代码 → 最后兜底裸路径
-        new = _plain.sub("内部路线图（未公开）",
-                         _code.sub("内部路线图（未公开）",
-                                   _link.sub("内部路线图（未公开）", s)))
+        new = s
         # _targets 按名字长度降序（长的先替换，避免短的把长名字切走）
         for _link_re, _code_re, _plain_re, _label in _targets:
             new = _plain_re.sub(_label, _code_re.sub(_label, _link_re.sub(_label, new)))
@@ -450,7 +447,7 @@ def _sanitize(snapshot: Path) -> None:
     for _name, _label in INTERNAL_DOCS:
         for _p in sorted(snapshot.rglob(_name)):
             bad.append(f"{_p.relative_to(snapshot)} 仍在快照里（本文件不上传）")
-    for _p in sorted(snapshot.rglob("路线图*.md")):
+    for _p in sorted(snapshot.rglob("内部运维*.md")):
         bad.append(f"{_p.relative_to(snapshot)} 仍在快照里（含服务器实例信息，不上传）")
     # 5.0b README 的「项目结构」是文件清单，不该混进替代标签
     _readme = snapshot / "README.md"
@@ -467,8 +464,11 @@ def _sanitize(snapshot: Path) -> None:
             text = io.open(f, encoding="utf-8").read()
         except (UnicodeDecodeError, OSError):
             continue
+        # `内部运维.md` 里那几样：实例 ID / 公网地址 / 私钥所在目录。
+        # ⚠️ 只加 `私人文件` 这个**词组**，不加裸 `.pem` —— 文档里有
+        #    `JISHI_SSH_KEY=/path/key.pem` 这种**示例**，加裸后缀会误伤。
         for pat in ("17719", "CLion", "GITEE_TOKEN", "gitee.com",
-                    "lhins-", "111.229."):
+                    "lhins-", "111.229.", "私人文件"):
             if pat in text:
                 bad.append(f"{f} 含 {pat!r}")
     if bad:
