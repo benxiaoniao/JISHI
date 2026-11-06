@@ -204,7 +204,15 @@ def _exe_for(pkg: Path) -> str:
 
 @has_pkg
 def test_产物_包内_bin_是平铺的():
-    """**R8.3 的核心判据**：cargo 打的包里，`bin/` 下只有一个可执行文件、没有中间目录。"""
+    """**R8.3 的核心判据**：cargo 打的包里，`bin/` 下**没有中间目录**（平铺）。
+
+    ⚠️ M176 修：这条原来写成「`bin/` 下**只有一个**可执行文件」——那是 M172 时的
+    事实，M174 起 `bin/` 还要带 `WebView2Loader.dll` 与两份 wasm 素材（**少了就是
+    白窗口**）。判据要钉的是「**平铺**」（`bin/<名字>`，不再往下嵌套），
+    不是「只有一个文件」—— 否则一加素材它就红，而那种红是**错的**。
+    """
+    from oracle.jishi.version import VERSION as 当前版本
+
     checked, skipped = 0, 0
     for z in ZIPS:
         names = _zip_names(z)
@@ -212,7 +220,18 @@ def test_产物_包内_bin_是平铺的():
             skipped += 1
             continue
         tops = _bin_entries(names)
-        assert tops == [f"bin/{_exe_for(z)}"], f"{z.name} 的 bin/ 不是平铺的：{tops[:6]}"
+        assert tops, f"{z.name} 的 bin/ 是空的"
+        # ① 每个条目都必须是 `bin/<名字>`（没有 `bin/x/jishi` 这种中间目录）
+        for 条 in tops:
+            assert 条.count("/") == 1, f"{z.name} 的 bin/ 里有中间目录：{条}"
+        # ② 可执行文件必须在
+        assert f"bin/{_exe_for(z)}" in tops, f"{z.name} 的 bin/ 里没有可执行文件：{tops[:6]}"
+        # ③ M174 起：引擎素材必须跟着走（**少了就是白窗口**）。
+        #    只对**当前版本**的包要求 —— dist 里还留着 0.2.x 的老包，
+        #    那时候确实没带素材，拿今天的规矩去要求它们没意义。
+        if 当前版本 in z.name:
+            assert "bin/jishi-wasm.js" in tops, f"{z.name} 没带 jishi-wasm.js：{tops[:6]}"
+            assert "bin/jishi_wasm.wasm" in tops, f"{z.name} 没带 jishi_wasm.wasm：{tops[:6]}"
         checked += 1
     for t in TARS:
         names = _tar_names(t)

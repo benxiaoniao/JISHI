@@ -465,21 +465,56 @@ def _write_install_scripts(out: Path) -> None:
         (out / name).write_text(text, encoding="utf-8")
 
 
-def _make_archive(out: Path, pkg_name: str) -> None:
+#: 归档里所有条目的时间戳**写死**（2020-01-01）。
+#:
+#: 🔴 两个理由（M176 实测踩过第一个）：
+#: ① `zipfile.write` 会照抄文件的 mtime，而我们的 `WebView2Loader.dll` 是从
+#:    cargo 的产物目录复制过来的，mtime 落在 1970 年代 ⇒
+#:    `ValueError: ZIP does not support timestamps before 1980`，**整个打包当场挂**。
+#: ② 交付物要**可复现**：同一个版本打两次，字节应当一样（M109 / M168 / M171 的老规矩）。
+_归档时间 = (2020, 1, 1, 0, 0, 0)
+
+
+def _遍历(out: Path):
+    """按**固定顺序**列出 `out` 下的所有文件（相对 `out.parent`）。
+
+    排序是为了可复现：`os.walk` 的顺序取决于文件系统。
+    """
+    for root, dirs, files in os.walk(out):
+        dirs.sort()
+        for f in sorted(files):
+            full = Path(root) / f
+            yield full, str(full.relative_to(out.parent)).replace(os.sep, "/")
+
+
+def _make_archive(out: Path, pkg_name: str, 用zip: bool = None) -> None:
+    """把 `out` 打包成 zip（Windows）或 tar.gz（其他平台）。
+
+    `用zip` 只给判据用（两个分支都要能测到 —— tar 那条在 Windows 上跑不到）。
+    """
+    if 用zip is None:
+        用zip = sys.platform == "win32"
     parent = out.parent
-    if sys.platform == "win32":
+    if 用zip:
         arc = parent / f"{pkg_name}.zip"
         with zipfile.ZipFile(arc, "w", zipfile.ZIP_DEFLATED) as zf:
-            for root, _, files in os.walk(out):
-                for f in files:
-                    full = Path(root) / f
-                    rel = full.relative_to(parent)
-                    zf.write(full, str(rel))
+            for full, rel in _遍历(out):
+                info = zipfile.ZipInfo(rel, _归档时间)
+                info.compress_type = zipfile.ZIP_DEFLATED
+                # 644；可执行文件给 755（解压后还能直接跑）
+                info.external_attr = (
+                    0o755 if full.suffix in (".sh", ".exe") or full.stat().st_mode & 0o111
+                    else 0o644) << 16
+                zf.writestr(info, full.read_bytes())
         print(f"  已打包：{arc}")
     else:
         arc = parent / f"{pkg_name}.tar.gz"
         with tarfile.open(arc, "w:gz") as tf:
-            tf.add(out, arcname=pkg_name)
+            for full, rel in _遍历(out):
+                info = tf.gettarinfo(str(full), arcname=rel)
+                info.mtime = 0            # tar 不限制 1980，但同样为了可复现
+                with open(full, "rb") as fh:
+                    tf.addfile(info, fh)
         print(f"  已打包：{arc}")
 
 

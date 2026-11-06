@@ -353,13 +353,33 @@ fn 规范化(p: &Path) -> PathBuf {
     出
 }
 
+/// 这个页面目录「应该」用哪个端口（39000–40999）。
+///
+/// 为什么固定：`浏览器.存本地` 落在浏览器的 localStorage 里，而 localStorage 按
+/// **origin**（协议 + 主机 + 端口）隔离。端口每次随机 = 每次都是个新 origin =
+/// 上次存的东西读不到。固定端口让「同一个程序」永远同一个 origin。
+fn 想要端口(键: &str) -> u16 {
+    let 印 = crate::sha256_hex(键.as_bytes());
+    let 数 = u32::from_str_radix(&印[..4], 16).unwrap_or(0) % 2000;
+    (39000 + 数) as u16
+}
+
 fn 起服务(目录: &str) -> Result<u16, crate::JishiError> {
     let 键 = 目录.replace('\\', "/").to_lowercase();
     if let Some(s) = 服务表().lock().unwrap().get(&键) {
         return Ok(s.端口);
     }
-    let 监听 = TcpListener::bind(("127.0.0.1", 0))
-        .map_err(|e| err("运行期错误", format!("起不了本地服务：{e}")))?;
+    // 🔴 **端口要可预测，不能每次随机**（M176 演练抓到的真缺陷）：
+    //    页面的 origin 是 `http://127.0.0.1:<端口>`，而浏览器按 **origin** 隔离
+    //    localStorage —— 端口一变，`浏览器.存本地` 写进去的东西下次就读不到了。
+    //    症状是「计算器每次启动都回到 0」，而用户以为程序没记住他上次算到哪。
+    //    做法：按**页面目录**散列出一个固定端口（39000–40999），占了再退回系统分配
+    //    （那种情况下这一次的本地存储会是空的 —— 罕见，且不会破坏已有数据）。
+    let 监听 = match TcpListener::bind(("127.0.0.1", 想要端口(&键))) {
+        Ok(l) => l,
+        Err(_) => TcpListener::bind(("127.0.0.1", 0))
+            .map_err(|e| err("运行期错误", format!("起不了本地服务：{e}")))?,
+    };
     let 端口 = 监听
         .local_addr()
         .map_err(|e| err("运行期错误", format!("拿不到端口：{e}")))?

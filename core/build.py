@@ -160,7 +160,8 @@ def main(argv: "list[str] | None" = None) -> int:
 
     env = cargo_env()
     print(f"🔧 构建 {CORE.name}/（pyo3 → {EXT_DST.name}）…")
-    proc = subprocess.run([cargo, "build", "--release"], cwd=str(CORE), env=env)
+    # 🔴 `--locked`（M176）：`Cargo.lock` 已进仓库，扩展的依赖版本也要钉死。
+    proc = subprocess.run([cargo, "build", "--release", "--locked"], cwd=str(CORE), env=env)
     if proc.returncode != 0:
         # 兜底：**不喂 PYO3_CONFIG_FILE**，让 pyo3 自己去探测当前解释器。
         #
@@ -175,7 +176,7 @@ def main(argv: "list[str] | None" = None) -> int:
         env2 = dict(env)
         env2.pop("PYO3_CONFIG_FILE", None)
         env2["PYO3_PYTHON"] = sys.executable
-        proc = subprocess.run([cargo, "build", "--release"], cwd=str(CORE), env=env2)
+        proc = subprocess.run([cargo, "build", "--release", "--locked"], cwd=str(CORE), env=env2)
     if proc.returncode != 0:
         print("❌ 构建失败（上面是 cargo 的输出）", file=sys.stderr)
         return proc.returncode

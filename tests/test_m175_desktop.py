@@ -424,6 +424,79 @@ def test_真点菜单能把动作送到页面里的基石函数(tmp_path):
     assert "系统里现在是「菜单→新建」" in 日志文, 日志文[:1200]
 
 
+_存本地页 = """<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+<script>
+(async () => {
+  function 报(op, arg) { if (window.ipc && window.ipc.postMessage) window.ipc.postMessage(JSON.stringify({op: op, arg: arg || ""})); }
+  try {
+    const JishiWasm = (await import("/__jishi/jishi-wasm.js")).default || window.JishiWasm;
+    const j = await JishiWasm.load("/__jishi/jishi_wasm.wasm");
+    const 源码 = [
+      "导入 浏览器",
+      "导入 窗口",
+      "令 旧 = 浏览器.读本地(\\"计数\\")",
+      "如果 旧 == 空：",
+      "    窗口.设标题(\\"第一次\\")",
+      "否则：",
+      "    窗口.设标题(\\"上次读到:\\" + 旧)",
+      "浏览器.存本地(\\"计数\\", \\"有值\\")",
+    ].join("\\n");
+    const r = j.run(源码);
+    报(r.ok ? "引擎就绪" : "引擎失败", r.ok ? "" : JSON.stringify(r.error));
+  } catch (e) { 报("引擎失败", String((e && e.message) || e)); }
+  setTimeout(() => 报("关闭"), 900);
+})();
+</script></body></html>
+"""
+
+
+@需要原生
+def test_存本地跨次还在_同一个程序永远同一个端口(tmp_path):
+    """`浏览器.存本地` 写的东西，**下次启动还读得到**。
+
+    🔴 M176 演练抓到的真缺陷：页面的 origin 是 `http://127.0.0.1:<端口>`，
+    而浏览器按 **origin** 隔离 localStorage。端口每次随机 ⇒ 每次都是新 origin
+    ⇒ 上次存的读不到。用户看到的是「计算器每次启动都回到 0」。
+
+    修法：按页面目录散列出一个固定端口（39001–40989），占了才退回系统分配。
+    这条判据开两次窗：第一次写、第二次读，**第二次必须读到**。
+    """
+    import time
+
+    exe = rust_exe_path()
+    if not exe.is_file():
+        pytest.skip("没有 jishi-rs（先 cargo build --release）")
+    if not WASM.is_file():
+        pytest.skip("还没构建 wasm（tools/build_wasm.py）")
+
+    (tmp_path / "页.html").write_text(_存本地页, encoding="utf-8", newline="\n")
+    标题 = f"M176 存本地 {os.getpid()}"
+    (tmp_path / "程序.jsh").write_text(
+        f'导入 窗口\n令 窗 = 窗口.打开({{"标题": "{标题}", "页面": "页.html"}})\n窗口.等(窗)\n',
+        encoding="utf-8", newline="\n")
+
+    def 跑一次(序号):
+        日志 = tmp_path / f"run{序号}.log"
+        with open(日志, "w", encoding="utf-8") as f:
+            码 = subprocess.call([str(exe), "程序.jsh"], cwd=str(tmp_path),
+                                stdout=f, stderr=subprocess.STDOUT, timeout=180,
+                                env={**os.environ, "JISHI_WINDOW_DEBUG": "1"})
+        assert 码 == 0, 日志.read_text(encoding="utf-8", errors="replace")[:800]
+        return 日志.read_text(encoding="utf-8", errors="replace")
+
+    一 = 跑一次(1)
+    assert "第一次" in 一, f"第一次应当是空的：{一[:600]}"
+    # 端口必须**两次一样**，那是「同一个 origin」的前提
+    端口1 = [ln for ln in 一.splitlines() if "窗口指向" in ln]
+    二 = 跑一次(2)
+    端口2 = [ln for ln in 二.splitlines() if "窗口指向" in ln]
+    assert 端口1 and 端口2, f"没拿到端口日志：{一[:400]} / {二[:400]}"
+    址1 = 端口1[0].split("窗口指向")[-1].strip()
+    址2 = 端口2[0].split("窗口指向")[-1].strip()
+    assert 址1.split("/")[2] == 址2.split("/")[2], f"两次端口不一样：{址1} vs {址2}"
+    assert "上次读到:有值" in 二, f"第二次没读到上次存的值（存本地丢了）：{二[:600]}"
+
+
 @需要原生
 def test_第二个实例立刻退出并唤醒第一个(tmp_path):
     """单实例：第二个进程**不开第二个窗口**，把参数交给第一个，自己退出。

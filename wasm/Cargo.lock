@@ -38,7 +38,7 @@ dependencies = [
 
 [[package]]
 name = "jishi-frontend"
-version = "0.3.0"
+version = "0.3.1"
 
 [[package]]
 name = "jishi-wasm"

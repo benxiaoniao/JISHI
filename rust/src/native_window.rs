@@ -190,8 +190,18 @@ pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<(), Stri
 
     // IPC 处理器：**在主线程被调用**（WebView2 的 WebMessageReceived 就在 UI 线程），
     // 所以里面可以放心走 thread_local。
+    // 🔴 M176 演练抓到的真问题：WebView2 的**用户数据目录默认落在 exe 旁边**
+    //    （`<exe>.WebView2/`）。装到 `C://Program Files\…` 时那里不可写，
+    //    窗口直接起不来 —— 用户看到的是「双击没反应」。wry 的注释原话就是
+    //    「useful in Windows when a bundled application can't have the webview
+    //    data inside Program Files」。所以显式指到用户目录下。
+    let mut 网页上下文 = wry::WebContext::new(网页数据目录());
+
     let 代理2 = 代理.clone();
-    let 构建 = WebViewBuilder::new()
+    // ⚠️ `with_web_context` 是**关联函数**（构造函数），不是链式方法 ——
+    //    `WebViewBuilder::new().with_web_context(..)` 编不过（CI 会告诉你
+    //    「this is an associated function, not a method」）。
+    let 构建 = WebViewBuilder::with_web_context(&mut 网页上下文)
         .with_url(网址)
         .with_ipc_handler(move |请求: wry::http::Request<String>| {
             if let Some(ev) = 处理命令(请求.body()) {
@@ -264,6 +274,23 @@ pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<(), Stri
         });
     });
     Ok(())
+}
+
+/// WebView 的用户数据目录（缓存 / Cookie / localStorage）。
+///
+/// 放 `~/.jishi/webview`：与「应用模式」的 `~/.jishi/windows/…` 同一个家。
+/// 拿不到家目录时返回 `None`（退回 wry 的默认行为 —— 至少不会因为这里失败而不开窗）。
+fn 网页数据目录() -> Option<std::path::PathBuf> {
+    let 基 = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .ok()?;
+    if 基.trim().is_empty() {
+        return None;
+    }
+    let d = std::path::Path::new(&基).join(".jishi").join("webview");
+    std::fs::create_dir_all(&d).ok()?;
+    调试(&format!("WebView 数据目录：{}", d.display()));
+    Some(d)
 }
 
 /// 建 WebView 失败时给一句**能照着改**的话（三个平台的缺东西各不相同）。
