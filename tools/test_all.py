@@ -141,7 +141,12 @@ def main(argv: list[str]) -> int:
             分块 = max(1, int(argv[i + 1]))
 
     并行参数 = ["tests/", "-q", "-n", 并发, "--dist", "loadfile", "-m", "not 计时",
-                "--tb=line", "-rf"]
+                "--tb=line", "-rf",
+                # 🔴 `-rs`（M176 加）：**把「跳过」的理由打出来**。
+                #    以前只有 `827 passed, 2 skipped` 这种数字，没人知道那 2 个是什么
+                #    —— 用户看到「4319 项，4316 通过」就直接问「剩下 3 个是不是没修好」。
+                #    跳过（skipped）和失败（failed）是两件事，日志必须自己说清楚。
+                "-rs"]
     if 超时 != "0":
         并行参数 += ["--timeout", 超时, "--timeout-method", "thread"]
 
@@ -167,7 +172,8 @@ def main(argv: list[str]) -> int:
                 成功, 用时 = _跑(
                     f"  第 1 节 · 第 {i + 1}/{分块} 批（{批[0]} … {批[-1]}）",
                     [f"tests/{f}" for f in 批] + ["-q", "-n", 并发,
-                     "--dist", "loadfile", "-m", "not 计时", "--tb=line", "-rf"]
+                     "--dist", "loadfile", "-m", "not 计时", "--tb=line", "-rf",
+                     "-rs"]      # 跳过理由要打出来（见上面 `并行参数` 那段注释）
                     + (["--timeout", 超时, "--timeout-method", "thread"] if 超时 != "0" else []),
                     "", 节超时=1200)
                 全过 = 全过 and 成功
@@ -183,7 +189,7 @@ def main(argv: list[str]) -> int:
     if not 只并行:
         结果["第 2 节（串行）"] = _跑(
             "第 2 节：串行（`计时`）",
-            ["tests/", "-q", "-m", "计时", "--tb=short", "-rf"],
+            ["tests/", "-q", "-m", "计时", "--tb=short", "-rf", "-rs"],
             "  · 这些断言**墙上时间**，必须独占 —— 并行时的负载会把它们抬成假红",
             节超时=1800)
 
