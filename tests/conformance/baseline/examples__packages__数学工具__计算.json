@@ -1,0 +1,1026 @@
+{
+  "ast": {
+    "body": [
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 3,
+            "value": {
+              "col": 18,
+              "left": {
+                "args": [
+                  {
+                    "col": 15,
+                    "id": "x",
+                    "line": 3,
+                    "类型": "Name"
+                  }
+                ],
+                "col": 14,
+                "func": {
+                  "attr": "平方",
+                  "col": 11,
+                  "line": 3,
+                  "obj": {
+                    "col": 8,
+                    "id": "基础库",
+                    "line": 3,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 3,
+                "类型": "Call"
+              },
+              "line": 3,
+              "op": "*",
+              "right": {
+                "col": 20,
+                "id": "x",
+                "line": 3,
+                "类型": "Name"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 2,
+        "name": "立方",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "x"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 6,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "总",
+              "line": 6,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 11,
+              "line": 6,
+              "value": 0,
+              "类型": "Num"
+            },
+            "类型": "Assign"
+          },
+          {
+            "body": [
+              {
+                "col": 9,
+                "line": 8,
+                "op": "=",
+                "target": {
+                  "col": 9,
+                  "id": "总",
+                  "line": 8,
+                  "类型": "Name"
+                },
+                "value": {
+                  "col": 15,
+                  "left": {
+                    "col": 13,
+                    "id": "总",
+                    "line": 8,
+                    "类型": "Name"
+                  },
+                  "line": 8,
+                  "op": "+",
+                  "right": {
+                    "args": [
+                      {
+                        "col": 24,
+                        "id": "项",
+                        "line": 8,
+                        "类型": "Name"
+                      }
+                    ],
+                    "col": 23,
+                    "func": {
+                      "attr": "平方",
+                      "col": 20,
+                      "line": 8,
+                      "obj": {
+                        "col": 17,
+                        "id": "基础库",
+                        "line": 8,
+                        "类型": "Name"
+                      },
+                      "类型": "Attr"
+                    },
+                    "keywords": [],
+                    "line": 8,
+                    "类型": "Call"
+                  },
+                  "类型": "BinOp"
+                },
+                "类型": "Assign"
+              }
+            ],
+            "col": 5,
+            "iter": {
+              "col": 12,
+              "id": "列表",
+              "line": 7,
+              "类型": "Name"
+            },
+            "line": 7,
+            "target": {
+              "col": 8,
+              "id": "项",
+              "line": 7,
+              "类型": "Name"
+            },
+            "类型": "For"
+          },
+          {
+            "col": 5,
+            "line": 9,
+            "value": {
+              "col": 8,
+              "id": "总",
+              "line": 9,
+              "类型": "Name"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 5,
+        "name": "平方和",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "列表"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "fceba7217c269ec26abe34d0db31ff215976ddb5bb4c295549c461ba07092f5f",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            22,
+            1,
+            0,
+            0,
+            2,
+            1,
+            3,
+            3,
+            0,
+            0,
+            2,
+            1,
+            22,
+            2,
+            0,
+            0,
+            5,
+            1,
+            3,
+            5,
+            0,
+            0,
+            5,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 2,
+          "freevars": [],
+          "instrs": [
+            2,
+            1,
+            0,
+            0,
+            3,
+            8,
+            25,
+            2,
+            0,
+            0,
+            3,
+            11,
+            4,
+            0,
+            0,
+            0,
+            3,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            3,
+            14,
+            4,
+            0,
+            0,
+            0,
+            3,
+            20,
+            13,
+            2,
+            0,
+            0,
+            3,
+            18,
+            21,
+            0,
+            0,
+            0,
+            3,
+            5,
+            1,
+            0,
+            0,
+            0,
+            2,
+            1,
+            21,
+            0,
+            0,
+            0,
+            2,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "x"
+          ],
+          "name": "立方",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            0
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "x"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 5,
+          "freevars": [],
+          "instrs": [
+            1,
+            1,
+            0,
+            0,
+            6,
+            11,
+            5,
+            1,
+            0,
+            0,
+            6,
+            5,
+            4,
+            0,
+            0,
+            0,
+            7,
+            12,
+            29,
+            0,
+            0,
+            0,
+            7,
+            5,
+            34,
+            5,
+            17,
+            0,
+            7,
+            5,
+            30,
+            15,
+            0,
+            0,
+            7,
+            5,
+            5,
+            2,
+            0,
+            0,
+            7,
+            5,
+            4,
+            1,
+            0,
+            0,
+            8,
+            13,
+            2,
+            1,
+            0,
+            0,
+            8,
+            17,
+            25,
+            2,
+            0,
+            0,
+            8,
+            20,
+            4,
+            2,
+            0,
+            0,
+            8,
+            24,
+            20,
+            1,
+            -1,
+            0,
+            8,
+            23,
+            13,
+            0,
+            0,
+            0,
+            8,
+            15,
+            5,
+            1,
+            0,
+            0,
+            8,
+            9,
+            16,
+            5,
+            0,
+            0,
+            7,
+            5,
+            35,
+            0,
+            0,
+            0,
+            7,
+            5,
+            16,
+            19,
+            0,
+            0,
+            7,
+            5,
+            9,
+            0,
+            0,
+            0,
+            7,
+            5,
+            35,
+            0,
+            0,
+            0,
+            7,
+            5,
+            4,
+            1,
+            0,
+            0,
+            9,
+            8,
+            21,
+            0,
+            0,
+            0,
+            9,
+            5,
+            1,
+            0,
+            0,
+            0,
+            5,
+            1,
+            21,
+            0,
+            0,
+            0,
+            5,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "列表",
+            "总",
+            "项"
+          ],
+          "name": "平方和",
+          "nlocals": 3,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            4
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "列表"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "none"
+        },
+        {
+          "t": "int",
+          "v": 0
+        }
+      ],
+      "filename": "examples/packages/数学工具/计算.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "x",
+        "基础库",
+        "平方",
+        "立方",
+        "列表",
+        "平方和"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 2,
+      "source_line": "函数 立方(x):",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 2,
+      "source_line": "函数 立方(x):",
+      "type": "NAME",
+      "value": "立方",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 2,
+      "source_line": "函数 立方(x):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 2,
+      "source_line": "函数 立方(x):",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 2,
+      "source_line": "函数 立方(x):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 2,
+      "source_line": "函数 立方(x):",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "函数 立方(x):",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "NAME",
+      "value": "基础库",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "NAME",
+      "value": "平方",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "OP",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 20,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 3,
+      "source_line": "    返回 基础库.平方(x) * x",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "函数 平方和(列表):",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 5,
+      "source_line": "函数 平方和(列表):",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 5,
+      "source_line": "函数 平方和(列表):",
+      "type": "NAME",
+      "value": "平方和",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 5,
+      "source_line": "函数 平方和(列表):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 5,
+      "source_line": "函数 平方和(列表):",
+      "type": "NAME",
+      "value": "列表",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 5,
+      "source_line": "函数 平方和(列表):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 5,
+      "source_line": "函数 平方和(列表):",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 5,
+      "source_line": "函数 平方和(列表):",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "    令 总 = 0",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 6,
+      "source_line": "    令 总 = 0",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 6,
+      "source_line": "    令 总 = 0",
+      "type": "NAME",
+      "value": "总",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 6,
+      "source_line": "    令 总 = 0",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 6,
+      "source_line": "    令 总 = 0",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "    令 总 = 0",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 7,
+      "source_line": "    遍历 项 在 列表:",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 7,
+      "source_line": "    遍历 项 在 列表:",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 7,
+      "source_line": "    遍历 项 在 列表:",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 7,
+      "source_line": "    遍历 项 在 列表:",
+      "type": "NAME",
+      "value": "列表",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 7,
+      "source_line": "    遍历 项 在 列表:",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "    遍历 项 在 列表:",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "INDENT",
+      "value": 8,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "NAME",
+      "value": "总",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "NAME",
+      "value": "总",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 19,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "NAME",
+      "value": "基础库",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "NAME",
+      "value": "平方",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 24,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "NAME",
+      "value": "项",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "        总 = 总 + 基础库.平方(项)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "    返回 总",
+      "type": "DEDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 9,
+      "source_line": "    返回 总",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 9,
+      "source_line": "    返回 总",
+      "type": "NAME",
+      "value": "总",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "    返回 总",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:bbc5fd61581c46ba",
+  "语料": "examples/packages/数学工具/计算.jsh"
+}

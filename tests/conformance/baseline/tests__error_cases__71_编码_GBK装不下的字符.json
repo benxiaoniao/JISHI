@@ -1,0 +1,293 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 2,
+        "name": "编码",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "line": 4,
+                  "value": "😀",
+                  "类型": "Str"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "文本GBK",
+                "col": 6,
+                "line": 4,
+                "obj": {
+                  "col": 4,
+                  "id": "编码",
+                  "line": 4,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 4,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 4,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 4,
+          "类型": "Call"
+        },
+        "line": 4,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "6eaf9693b85482ee1d88e1bdac89cdfafaf90f151687f8c330ec45269dd53b8d",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            2,
+            1,
+            3,
+            0,
+            0,
+            0,
+            2,
+            1,
+            2,
+            1,
+            0,
+            0,
+            4,
+            1,
+            2,
+            0,
+            0,
+            0,
+            4,
+            4,
+            25,
+            2,
+            0,
+            0,
+            4,
+            6,
+            1,
+            0,
+            0,
+            0,
+            4,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            3,
+            38,
+            0,
+            0,
+            0,
+            4,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "😀"
+        }
+      ],
+      "filename": "tests/error_cases/71_编码_GBK装不下的字符.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "编码",
+        "打印",
+        "文本GBK"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 2,
+      "source_line": "导入 编码",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 2,
+      "source_line": "导入 编码",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "导入 编码",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 11,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "NAME",
+      "value": "文本GBK",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 15,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "STRING",
+      "value": "😀",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "打印(编码.文本GBK(\"😀\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:581562488be5247a",
+  "语料": "tests/error_cases/71_编码_GBK装不下的字符.jsh"
+}

@@ -1,0 +1,104 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": [
+      7,
+      8
+    ],
+    "修正": null,
+    "列": 7,
+    "提示": "例如：\n如果 真：\n    打印(1)",
+    "标题": "这个语句需要一个代码块",
+    "消息": "冒号后面必须换行，然后缩进写代码块",
+    "渲染": "错误 E0202：这个语句需要一个代码块（冒号后面必须换行，然后缩进写代码块）\n  ┌─ tests/error_cases/09_块缺失.jsh:1:7\n  │\n  1 │ 如果 真： 打印(1)\n    │       ~^\n  │\n  提示：例如：\n如果 真：\n    打印(1)",
+    "码": "E0202",
+    "行": 1,
+    "阶段": "语法"
+  },
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 1,
+      "source_line": "如果 真： 打印(1)",
+      "type": "KEYWORD",
+      "value": "如果",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 1,
+      "source_line": "如果 真： 打印(1)",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "如果 真： 打印(1)",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 1,
+      "source_line": "如果 真： 打印(1)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "如果 真： 打印(1)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "如果 真： 打印(1)",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 1,
+      "source_line": "如果 真： 打印(1)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "如果 真： 打印(1)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:a34aff59da179627",
+  "语料": "tests/error_cases/09_块缺失.jsh"
+}

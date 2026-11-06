@@ -1,0 +1,282 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 1,
+        "op": "=",
+        "target": {
+          "col": 1,
+          "line": 1,
+          "names": [
+            {
+              "col": 3,
+              "id": "a",
+              "line": 1,
+              "类型": "Name"
+            },
+            {
+              "col": 6,
+              "id": "b",
+              "line": 1,
+              "类型": "Name"
+            },
+            {
+              "col": 9,
+              "id": "c",
+              "line": 1,
+              "类型": "Name"
+            }
+          ],
+          "star_index": null,
+          "类型": "TargetList"
+        },
+        "value": {
+          "col": 13,
+          "elements": [
+            {
+              "col": 14,
+              "line": 1,
+              "value": 1,
+              "类型": "Num"
+            },
+            {
+              "col": 17,
+              "line": 1,
+              "value": 2,
+              "类型": "Num"
+            }
+          ],
+          "line": 1,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "a585632354a2da44eb4971eba981b05819cfb0532b74969de4a58dd4ddccb141",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            14,
+            1,
+            1,
+            0,
+            0,
+            1,
+            17,
+            23,
+            2,
+            0,
+            0,
+            1,
+            13,
+            46,
+            3,
+            -1,
+            0,
+            1,
+            1,
+            3,
+            0,
+            0,
+            0,
+            1,
+            1,
+            3,
+            1,
+            0,
+            0,
+            1,
+            1,
+            3,
+            2,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "int",
+          "v": 2
+        }
+      ],
+      "filename": "tests/error_cases/27_解包数目不符.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "a",
+        "b",
+        "c"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "NAME",
+      "value": "b",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "NAME",
+      "value": "c",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 14,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 a, b, c = [1, 2]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:9d00c02616626648",
+  "语料": "tests/error_cases/27_解包数目不符.jsh"
+}

@@ -1,0 +1,5873 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 6,
+        "name": "html",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 7,
+        "name": "表格",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "line": 10,
+                  "value": "金额",
+                  "类型": "Str"
+                },
+                {
+                  "col": 19,
+                  "line": 10,
+                  "value": "金额",
+                  "类型": "Str"
+                },
+                {
+                  "col": 25,
+                  "line": 10,
+                  "value": "number",
+                  "类型": "Str"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "输入框",
+                "col": 8,
+                "line": 10,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 10,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 10,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 10,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 10,
+          "类型": "Call"
+        },
+        "line": 10,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "line": 11,
+                  "value": "备注",
+                  "类型": "Str"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "输入框",
+                "col": 8,
+                "line": 11,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 11,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 11,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 11,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 11,
+          "类型": "Call"
+        },
+        "line": 11,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "line": 12,
+                  "value": "甲",
+                  "类型": "Str"
+                },
+                {
+                  "col": 18,
+                  "line": 12,
+                  "value": "",
+                  "类型": "Str"
+                },
+                {
+                  "col": 22,
+                  "line": 12,
+                  "value": "text",
+                  "类型": "Str"
+                },
+                {
+                  "col": 30,
+                  "line": 12,
+                  "value": "初值",
+                  "类型": "Str"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "输入框",
+                "col": 8,
+                "line": 12,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 12,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 12,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 12,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 12,
+          "类型": "Call"
+        },
+        "line": 12,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 14,
+                  "line": 13,
+                  "value": "说明",
+                  "类型": "Str"
+                },
+                {
+                  "col": 20,
+                  "line": 13,
+                  "value": "说明",
+                  "类型": "Str"
+                },
+                {
+                  "col": 26,
+                  "line": 13,
+                  "value": "写字",
+                  "类型": "Str"
+                },
+                {
+                  "col": 32,
+                  "line": 13,
+                  "value": 6,
+                  "类型": "Num"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "多行文本",
+                "col": 8,
+                "line": 13,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 13,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 13,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 13,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 13,
+          "类型": "Call"
+        },
+        "line": 13,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 14,
+                  "value": "类别",
+                  "类型": "Str"
+                },
+                {
+                  "col": 18,
+                  "elements": [
+                    {
+                      "col": 19,
+                      "line": 14,
+                      "value": "餐饮",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 25,
+                      "line": 14,
+                      "value": "交通",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 14,
+                  "类型": "List"
+                },
+                {
+                  "col": 32,
+                  "line": 14,
+                  "value": "类别",
+                  "类型": "Str"
+                },
+                {
+                  "col": 38,
+                  "line": 14,
+                  "value": "交通",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "下拉",
+                "col": 8,
+                "line": 14,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 14,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 14,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 14,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 14,
+          "类型": "Call"
+        },
+        "line": 14,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 15,
+                  "value": "标签",
+                  "类型": "Str"
+                },
+                {
+                  "col": 18,
+                  "elements": [
+                    {
+                      "col": 19,
+                      "line": 15,
+                      "value": "工作",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 25,
+                      "line": 15,
+                      "value": "生活",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 15,
+                  "类型": "List"
+                },
+                {
+                  "col": 32,
+                  "line": 15,
+                  "value": "分类",
+                  "类型": "Str"
+                },
+                {
+                  "col": 38,
+                  "elements": [
+                    {
+                      "col": 39,
+                      "line": 15,
+                      "value": "生活",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 15,
+                  "类型": "List"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "多选",
+                "col": 8,
+                "line": 15,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 15,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 15,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 15,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 15,
+          "类型": "Call"
+        },
+        "line": 15,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 16,
+                  "value": "保存",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "按钮",
+                "col": 8,
+                "line": 16,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 16,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 16,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 16,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 16,
+          "类型": "Call"
+        },
+        "line": 16,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 17,
+                  "value": "清空",
+                  "类型": "Str"
+                },
+                {
+                  "col": 18,
+                  "line": 17,
+                  "value": "reset",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "按钮",
+                "col": 8,
+                "line": 17,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 17,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 17,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 17,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 17,
+          "类型": "Call"
+        },
+        "line": 17,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "elements": [
+                    {
+                      "args": [
+                        {
+                          "col": 22,
+                          "line": 18,
+                          "value": "金额",
+                          "类型": "Str"
+                        },
+                        {
+                          "col": 28,
+                          "line": 18,
+                          "value": "金额",
+                          "类型": "Str"
+                        }
+                      ],
+                      "col": 21,
+                      "func": {
+                        "attr": "输入框",
+                        "col": 17,
+                        "line": 18,
+                        "obj": {
+                          "col": 13,
+                          "id": "html",
+                          "line": 18,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 18,
+                      "类型": "Call"
+                    },
+                    {
+                      "args": [
+                        {
+                          "col": 43,
+                          "line": 18,
+                          "value": "记一笔",
+                          "类型": "Str"
+                        }
+                      ],
+                      "col": 42,
+                      "func": {
+                        "attr": "按钮",
+                        "col": 39,
+                        "line": 18,
+                        "obj": {
+                          "col": 35,
+                          "id": "html",
+                          "line": 18,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 18,
+                      "类型": "Call"
+                    }
+                  ],
+                  "line": 18,
+                  "类型": "List"
+                },
+                {
+                  "col": 52,
+                  "line": 18,
+                  "value": "/新建",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "表单",
+                "col": 8,
+                "line": 18,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 18,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 18,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 18,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 18,
+          "类型": "Call"
+        },
+        "line": 18,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 21,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "账",
+          "line": 21,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 14,
+              "elements": [
+                {
+                  "col": 5,
+                  "keys": [
+                    {
+                      "col": 6,
+                      "line": 22,
+                      "value": "日期",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 21,
+                      "line": 22,
+                      "value": "项目",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 33,
+                      "line": 22,
+                      "value": "金额",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 22,
+                  "values": [
+                    {
+                      "col": 12,
+                      "line": 22,
+                      "value": "11-01",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 27,
+                      "line": 22,
+                      "value": "早餐",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 39,
+                      "line": 22,
+                      "value": "12",
+                      "类型": "Str"
+                    }
+                  ],
+                  "类型": "Dict"
+                },
+                {
+                  "col": 5,
+                  "keys": [
+                    {
+                      "col": 6,
+                      "line": 23,
+                      "value": "日期",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 21,
+                      "line": 23,
+                      "value": "项目",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 33,
+                      "line": 23,
+                      "value": "金额",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 23,
+                  "values": [
+                    {
+                      "col": 12,
+                      "line": 23,
+                      "value": "11-02",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 27,
+                      "line": 23,
+                      "value": "地铁",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 39,
+                      "line": 23,
+                      "value": "3",
+                      "类型": "Str"
+                    }
+                  ],
+                  "类型": "Dict"
+                }
+              ],
+              "line": 21,
+              "类型": "List"
+            }
+          ],
+          "col": 13,
+          "func": {
+            "attr": "从记录",
+            "col": 9,
+            "line": 21,
+            "obj": {
+              "col": 7,
+              "id": "表格",
+              "line": 21,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 21,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "id": "账",
+                  "line": 25,
+                  "类型": "Name"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "由表格",
+                "col": 8,
+                "line": 25,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 25,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 25,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 25,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 25,
+          "类型": "Call"
+        },
+        "line": 25,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "id": "账",
+                  "line": 26,
+                  "类型": "Name"
+                },
+                {
+                  "col": 16,
+                  "line": 26,
+                  "value": true,
+                  "类型": "Num"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "由表格",
+                "col": 8,
+                "line": 26,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 26,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 26,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 26,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 26,
+          "类型": "Call"
+        },
+        "line": 26,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 29,
+                  "value": "本月支出",
+                  "类型": "Str"
+                },
+                {
+                  "args": [
+                    {
+                      "col": 29,
+                      "id": "账",
+                      "line": 29,
+                      "类型": "Name"
+                    }
+                  ],
+                  "col": 28,
+                  "func": {
+                    "attr": "由表格",
+                    "col": 24,
+                    "line": 29,
+                    "obj": {
+                      "col": 20,
+                      "id": "html",
+                      "line": 29,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 29,
+                  "类型": "Call"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "卡片",
+                "col": 8,
+                "line": 29,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 29,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 29,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 29,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 29,
+          "类型": "Call"
+        },
+        "line": 29,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 30,
+                  "value": "成功",
+                  "类型": "Str"
+                },
+                {
+                  "col": 18,
+                  "line": 30,
+                  "value": "已保存",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "提示",
+                "col": 8,
+                "line": 30,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 30,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 30,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 30,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 30,
+          "类型": "Call"
+        },
+        "line": 30,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 31,
+                  "value": "警告",
+                  "类型": "Str"
+                },
+                {
+                  "col": 18,
+                  "line": 31,
+                  "value": "余额不足",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "提示",
+                "col": 8,
+                "line": 31,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 31,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 31,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 31,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 31,
+          "类型": "Call"
+        },
+        "line": 31,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 32,
+                  "value": "错误",
+                  "类型": "Str"
+                },
+                {
+                  "col": 18,
+                  "line": 32,
+                  "value": "金额要填正数",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "提示",
+                "col": 8,
+                "line": 32,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 32,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 32,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 32,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 32,
+          "类型": "Call"
+        },
+        "line": 32,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 35,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "页",
+          "line": 35,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 15,
+              "line": 35,
+              "value": "记账",
+              "类型": "Str"
+            },
+            {
+              "col": 21,
+              "elements": [
+                {
+                  "args": [
+                    {
+                      "col": 30,
+                      "line": 35,
+                      "value": "本月",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 36,
+                      "line": 35,
+                      "value": "内容",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 29,
+                  "func": {
+                    "attr": "卡片",
+                    "col": 26,
+                    "line": 35,
+                    "obj": {
+                      "col": 22,
+                      "id": "html",
+                      "line": 35,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 35,
+                  "类型": "Call"
+                }
+              ],
+              "line": 35,
+              "类型": "List"
+            },
+            {
+              "col": 44,
+              "elements": [
+                {
+                  "col": 45,
+                  "elements": [
+                    {
+                      "col": 46,
+                      "line": 35,
+                      "value": "首页",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 52,
+                      "line": 35,
+                      "value": "/",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 35,
+                  "类型": "List"
+                },
+                {
+                  "col": 58,
+                  "elements": [
+                    {
+                      "col": 59,
+                      "line": 35,
+                      "value": "关于",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 65,
+                      "line": 35,
+                      "value": "/关于",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 35,
+                  "类型": "List"
+                }
+              ],
+              "line": 35,
+              "类型": "List"
+            }
+          ],
+          "col": 14,
+          "func": {
+            "attr": "页面",
+            "col": 11,
+            "line": 35,
+            "obj": {
+              "col": 7,
+              "id": "html",
+              "line": 35,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 35,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "id": "页",
+                  "line": 36,
+                  "类型": "Name"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "取文本",
+                "col": 8,
+                "line": 36,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 36,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 36,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 36,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 36,
+          "类型": "Call"
+        },
+        "line": 36,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 13,
+                  "line": 39,
+                  "value": "<坏>",
+                  "类型": "Str"
+                },
+                {
+                  "col": 20,
+                  "line": 39,
+                  "value": "<标签>",
+                  "类型": "Str"
+                }
+              ],
+              "col": 12,
+              "func": {
+                "attr": "输入框",
+                "col": 8,
+                "line": 39,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 39,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 39,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 39,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 39,
+          "类型": "Call"
+        },
+        "line": 39,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 40,
+                  "value": "成功",
+                  "类型": "Str"
+                },
+                {
+                  "col": 18,
+                  "line": 40,
+                  "value": "<script>alert(1)</script>",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "提示",
+                "col": 8,
+                "line": 40,
+                "obj": {
+                  "col": 4,
+                  "id": "html",
+                  "line": 40,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 40,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 40,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 40,
+          "类型": "Call"
+        },
+        "line": 40,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "accbc3340c8d7c34fdcc6058382aa4970690f2f11a91b371895f55ce41158180",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            6,
+            1,
+            3,
+            0,
+            0,
+            0,
+            6,
+            1,
+            31,
+            1,
+            0,
+            -1,
+            7,
+            1,
+            3,
+            1,
+            0,
+            0,
+            7,
+            1,
+            2,
+            2,
+            0,
+            0,
+            10,
+            1,
+            2,
+            0,
+            0,
+            0,
+            10,
+            4,
+            25,
+            3,
+            0,
+            0,
+            10,
+            8,
+            1,
+            0,
+            0,
+            0,
+            10,
+            13,
+            1,
+            0,
+            0,
+            0,
+            10,
+            19,
+            1,
+            1,
+            0,
+            0,
+            10,
+            25,
+            20,
+            3,
+            -1,
+            0,
+            10,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            10,
+            3,
+            38,
+            0,
+            0,
+            0,
+            10,
+            1,
+            2,
+            2,
+            0,
+            0,
+            11,
+            1,
+            2,
+            0,
+            0,
+            0,
+            11,
+            4,
+            25,
+            3,
+            0,
+            0,
+            11,
+            8,
+            1,
+            2,
+            0,
+            0,
+            11,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            11,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            11,
+            3,
+            38,
+            0,
+            0,
+            0,
+            11,
+            1,
+            2,
+            2,
+            0,
+            0,
+            12,
+            1,
+            2,
+            0,
+            0,
+            0,
+            12,
+            4,
+            25,
+            3,
+            0,
+            0,
+            12,
+            8,
+            1,
+            3,
+            0,
+            0,
+            12,
+            13,
+            1,
+            4,
+            0,
+            0,
+            12,
+            18,
+            1,
+            5,
+            0,
+            0,
+            12,
+            22,
+            1,
+            6,
+            0,
+            0,
+            12,
+            30,
+            20,
+            4,
+            -1,
+            0,
+            12,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            12,
+            3,
+            38,
+            0,
+            0,
+            0,
+            12,
+            1,
+            2,
+            2,
+            0,
+            0,
+            13,
+            1,
+            2,
+            0,
+            0,
+            0,
+            13,
+            4,
+            25,
+            4,
+            0,
+            0,
+            13,
+            8,
+            1,
+            7,
+            0,
+            0,
+            13,
+            14,
+            1,
+            7,
+            0,
+            0,
+            13,
+            20,
+            1,
+            8,
+            0,
+            0,
+            13,
+            26,
+            1,
+            9,
+            0,
+            0,
+            13,
+            32,
+            20,
+            4,
+            -1,
+            0,
+            13,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            13,
+            3,
+            38,
+            0,
+            0,
+            0,
+            13,
+            1,
+            2,
+            2,
+            0,
+            0,
+            14,
+            1,
+            2,
+            0,
+            0,
+            0,
+            14,
+            4,
+            25,
+            5,
+            0,
+            0,
+            14,
+            8,
+            1,
+            10,
+            0,
+            0,
+            14,
+            12,
+            1,
+            11,
+            0,
+            0,
+            14,
+            19,
+            1,
+            12,
+            0,
+            0,
+            14,
+            25,
+            23,
+            2,
+            0,
+            0,
+            14,
+            18,
+            1,
+            10,
+            0,
+            0,
+            14,
+            32,
+            1,
+            12,
+            0,
+            0,
+            14,
+            38,
+            20,
+            4,
+            -1,
+            0,
+            14,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            14,
+            3,
+            38,
+            0,
+            0,
+            0,
+            14,
+            1,
+            2,
+            2,
+            0,
+            0,
+            15,
+            1,
+            2,
+            0,
+            0,
+            0,
+            15,
+            4,
+            25,
+            6,
+            0,
+            0,
+            15,
+            8,
+            1,
+            13,
+            0,
+            0,
+            15,
+            12,
+            1,
+            14,
+            0,
+            0,
+            15,
+            19,
+            1,
+            15,
+            0,
+            0,
+            15,
+            25,
+            23,
+            2,
+            0,
+            0,
+            15,
+            18,
+            1,
+            16,
+            0,
+            0,
+            15,
+            32,
+            1,
+            15,
+            0,
+            0,
+            15,
+            39,
+            23,
+            1,
+            0,
+            0,
+            15,
+            38,
+            20,
+            4,
+            -1,
+            0,
+            15,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            15,
+            3,
+            38,
+            0,
+            0,
+            0,
+            15,
+            1,
+            2,
+            2,
+            0,
+            0,
+            16,
+            1,
+            2,
+            0,
+            0,
+            0,
+            16,
+            4,
+            25,
+            7,
+            0,
+            0,
+            16,
+            8,
+            1,
+            17,
+            0,
+            0,
+            16,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            16,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            16,
+            3,
+            38,
+            0,
+            0,
+            0,
+            16,
+            1,
+            2,
+            2,
+            0,
+            0,
+            17,
+            1,
+            2,
+            0,
+            0,
+            0,
+            17,
+            4,
+            25,
+            7,
+            0,
+            0,
+            17,
+            8,
+            1,
+            18,
+            0,
+            0,
+            17,
+            12,
+            1,
+            19,
+            0,
+            0,
+            17,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            17,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            17,
+            3,
+            38,
+            0,
+            0,
+            0,
+            17,
+            1,
+            2,
+            2,
+            0,
+            0,
+            18,
+            1,
+            2,
+            0,
+            0,
+            0,
+            18,
+            4,
+            25,
+            8,
+            0,
+            0,
+            18,
+            8,
+            2,
+            0,
+            0,
+            0,
+            18,
+            13,
+            25,
+            3,
+            0,
+            0,
+            18,
+            17,
+            1,
+            0,
+            0,
+            0,
+            18,
+            22,
+            1,
+            0,
+            0,
+            0,
+            18,
+            28,
+            20,
+            2,
+            -1,
+            0,
+            18,
+            21,
+            2,
+            0,
+            0,
+            0,
+            18,
+            35,
+            25,
+            7,
+            0,
+            0,
+            18,
+            39,
+            1,
+            20,
+            0,
+            0,
+            18,
+            43,
+            20,
+            1,
+            -1,
+            0,
+            18,
+            42,
+            23,
+            2,
+            0,
+            0,
+            18,
+            12,
+            1,
+            21,
+            0,
+            0,
+            18,
+            52,
+            20,
+            2,
+            -1,
+            0,
+            18,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            18,
+            3,
+            38,
+            0,
+            0,
+            0,
+            18,
+            1,
+            2,
+            1,
+            0,
+            0,
+            21,
+            7,
+            25,
+            9,
+            0,
+            0,
+            21,
+            9,
+            1,
+            22,
+            0,
+            0,
+            22,
+            6,
+            1,
+            23,
+            0,
+            0,
+            22,
+            12,
+            1,
+            24,
+            0,
+            0,
+            22,
+            21,
+            1,
+            25,
+            0,
+            0,
+            22,
+            27,
+            1,
+            0,
+            0,
+            0,
+            22,
+            33,
+            1,
+            26,
+            0,
+            0,
+            22,
+            39,
+            24,
+            3,
+            0,
+            0,
+            22,
+            5,
+            1,
+            22,
+            0,
+            0,
+            23,
+            6,
+            1,
+            27,
+            0,
+            0,
+            23,
+            12,
+            1,
+            24,
+            0,
+            0,
+            23,
+            21,
+            1,
+            28,
+            0,
+            0,
+            23,
+            27,
+            1,
+            0,
+            0,
+            0,
+            23,
+            33,
+            1,
+            29,
+            0,
+            0,
+            23,
+            39,
+            24,
+            3,
+            0,
+            0,
+            23,
+            5,
+            23,
+            2,
+            0,
+            0,
+            21,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            21,
+            13,
+            3,
+            10,
+            0,
+            0,
+            21,
+            1,
+            2,
+            2,
+            0,
+            0,
+            25,
+            1,
+            2,
+            0,
+            0,
+            0,
+            25,
+            4,
+            25,
+            11,
+            0,
+            0,
+            25,
+            8,
+            2,
+            10,
+            0,
+            0,
+            25,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            25,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            25,
+            3,
+            38,
+            0,
+            0,
+            0,
+            25,
+            1,
+            2,
+            2,
+            0,
+            0,
+            26,
+            1,
+            2,
+            0,
+            0,
+            0,
+            26,
+            4,
+            25,
+            11,
+            0,
+            0,
+            26,
+            8,
+            2,
+            10,
+            0,
+            0,
+            26,
+            13,
+            1,
+            30,
+            0,
+            0,
+            26,
+            16,
+            20,
+            2,
+            -1,
+            0,
+            26,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            26,
+            3,
+            38,
+            0,
+            0,
+            0,
+            26,
+            1,
+            2,
+            2,
+            0,
+            0,
+            29,
+            1,
+            2,
+            0,
+            0,
+            0,
+            29,
+            4,
+            25,
+            12,
+            0,
+            0,
+            29,
+            8,
+            1,
+            31,
+            0,
+            0,
+            29,
+            12,
+            2,
+            0,
+            0,
+            0,
+            29,
+            20,
+            25,
+            11,
+            0,
+            0,
+            29,
+            24,
+            2,
+            10,
+            0,
+            0,
+            29,
+            29,
+            20,
+            1,
+            -1,
+            0,
+            29,
+            28,
+            20,
+            2,
+            -1,
+            0,
+            29,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            29,
+            3,
+            38,
+            0,
+            0,
+            0,
+            29,
+            1,
+            2,
+            2,
+            0,
+            0,
+            30,
+            1,
+            2,
+            0,
+            0,
+            0,
+            30,
+            4,
+            25,
+            13,
+            0,
+            0,
+            30,
+            8,
+            1,
+            32,
+            0,
+            0,
+            30,
+            12,
+            1,
+            33,
+            0,
+            0,
+            30,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            30,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            30,
+            3,
+            38,
+            0,
+            0,
+            0,
+            30,
+            1,
+            2,
+            2,
+            0,
+            0,
+            31,
+            1,
+            2,
+            0,
+            0,
+            0,
+            31,
+            4,
+            25,
+            13,
+            0,
+            0,
+            31,
+            8,
+            1,
+            34,
+            0,
+            0,
+            31,
+            12,
+            1,
+            35,
+            0,
+            0,
+            31,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            31,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            31,
+            3,
+            38,
+            0,
+            0,
+            0,
+            31,
+            1,
+            2,
+            2,
+            0,
+            0,
+            32,
+            1,
+            2,
+            0,
+            0,
+            0,
+            32,
+            4,
+            25,
+            13,
+            0,
+            0,
+            32,
+            8,
+            1,
+            36,
+            0,
+            0,
+            32,
+            12,
+            1,
+            37,
+            0,
+            0,
+            32,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            32,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            32,
+            3,
+            38,
+            0,
+            0,
+            0,
+            32,
+            1,
+            2,
+            0,
+            0,
+            0,
+            35,
+            7,
+            25,
+            14,
+            0,
+            0,
+            35,
+            11,
+            1,
+            38,
+            0,
+            0,
+            35,
+            15,
+            2,
+            0,
+            0,
+            0,
+            35,
+            22,
+            25,
+            12,
+            0,
+            0,
+            35,
+            26,
+            1,
+            39,
+            0,
+            0,
+            35,
+            30,
+            1,
+            40,
+            0,
+            0,
+            35,
+            36,
+            20,
+            2,
+            -1,
+            0,
+            35,
+            29,
+            23,
+            1,
+            0,
+            0,
+            35,
+            21,
+            1,
+            41,
+            0,
+            0,
+            35,
+            46,
+            1,
+            42,
+            0,
+            0,
+            35,
+            52,
+            23,
+            2,
+            0,
+            0,
+            35,
+            45,
+            1,
+            43,
+            0,
+            0,
+            35,
+            59,
+            1,
+            44,
+            0,
+            0,
+            35,
+            65,
+            23,
+            2,
+            0,
+            0,
+            35,
+            58,
+            23,
+            2,
+            0,
+            0,
+            35,
+            44,
+            20,
+            3,
+            -1,
+            0,
+            35,
+            14,
+            3,
+            15,
+            0,
+            0,
+            35,
+            1,
+            2,
+            2,
+            0,
+            0,
+            36,
+            1,
+            2,
+            0,
+            0,
+            0,
+            36,
+            4,
+            25,
+            16,
+            0,
+            0,
+            36,
+            8,
+            2,
+            15,
+            0,
+            0,
+            36,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            36,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            36,
+            3,
+            38,
+            0,
+            0,
+            0,
+            36,
+            1,
+            2,
+            2,
+            0,
+            0,
+            39,
+            1,
+            2,
+            0,
+            0,
+            0,
+            39,
+            4,
+            25,
+            3,
+            0,
+            0,
+            39,
+            8,
+            1,
+            45,
+            0,
+            0,
+            39,
+            13,
+            1,
+            46,
+            0,
+            0,
+            39,
+            20,
+            20,
+            2,
+            -1,
+            0,
+            39,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            39,
+            3,
+            38,
+            0,
+            0,
+            0,
+            39,
+            1,
+            2,
+            2,
+            0,
+            0,
+            40,
+            1,
+            2,
+            0,
+            0,
+            0,
+            40,
+            4,
+            25,
+            13,
+            0,
+            0,
+            40,
+            8,
+            1,
+            32,
+            0,
+            0,
+            40,
+            12,
+            1,
+            47,
+            0,
+            0,
+            40,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            40,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            40,
+            3,
+            38,
+            0,
+            0,
+            0,
+            40,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "金额"
+        },
+        {
+          "t": "str",
+          "v": "number"
+        },
+        {
+          "t": "str",
+          "v": "备注"
+        },
+        {
+          "t": "str",
+          "v": "甲"
+        },
+        {
+          "t": "str",
+          "v": ""
+        },
+        {
+          "t": "str",
+          "v": "text"
+        },
+        {
+          "t": "str",
+          "v": "初值"
+        },
+        {
+          "t": "str",
+          "v": "说明"
+        },
+        {
+          "t": "str",
+          "v": "写字"
+        },
+        {
+          "t": "int",
+          "v": 6
+        },
+        {
+          "t": "str",
+          "v": "类别"
+        },
+        {
+          "t": "str",
+          "v": "餐饮"
+        },
+        {
+          "t": "str",
+          "v": "交通"
+        },
+        {
+          "t": "str",
+          "v": "标签"
+        },
+        {
+          "t": "str",
+          "v": "工作"
+        },
+        {
+          "t": "str",
+          "v": "生活"
+        },
+        {
+          "t": "str",
+          "v": "分类"
+        },
+        {
+          "t": "str",
+          "v": "保存"
+        },
+        {
+          "t": "str",
+          "v": "清空"
+        },
+        {
+          "t": "str",
+          "v": "reset"
+        },
+        {
+          "t": "str",
+          "v": "记一笔"
+        },
+        {
+          "t": "str",
+          "v": "/新建"
+        },
+        {
+          "t": "str",
+          "v": "日期"
+        },
+        {
+          "t": "str",
+          "v": "11-01"
+        },
+        {
+          "t": "str",
+          "v": "项目"
+        },
+        {
+          "t": "str",
+          "v": "早餐"
+        },
+        {
+          "t": "str",
+          "v": "12"
+        },
+        {
+          "t": "str",
+          "v": "11-02"
+        },
+        {
+          "t": "str",
+          "v": "地铁"
+        },
+        {
+          "t": "str",
+          "v": "3"
+        },
+        {
+          "t": "true"
+        },
+        {
+          "t": "str",
+          "v": "本月支出"
+        },
+        {
+          "t": "str",
+          "v": "成功"
+        },
+        {
+          "t": "str",
+          "v": "已保存"
+        },
+        {
+          "t": "str",
+          "v": "警告"
+        },
+        {
+          "t": "str",
+          "v": "余额不足"
+        },
+        {
+          "t": "str",
+          "v": "错误"
+        },
+        {
+          "t": "str",
+          "v": "金额要填正数"
+        },
+        {
+          "t": "str",
+          "v": "记账"
+        },
+        {
+          "t": "str",
+          "v": "本月"
+        },
+        {
+          "t": "str",
+          "v": "内容"
+        },
+        {
+          "t": "str",
+          "v": "首页"
+        },
+        {
+          "t": "str",
+          "v": "/"
+        },
+        {
+          "t": "str",
+          "v": "关于"
+        },
+        {
+          "t": "str",
+          "v": "/关于"
+        },
+        {
+          "t": "str",
+          "v": "<坏>"
+        },
+        {
+          "t": "str",
+          "v": "<标签>"
+        },
+        {
+          "t": "str",
+          "v": "<script>alert(1)</script>"
+        }
+      ],
+      "filename": "tests/cases/45_html页面构件.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "html",
+        "表格",
+        "打印",
+        "输入框",
+        "多行文本",
+        "下拉",
+        "多选",
+        "按钮",
+        "表单",
+        "从记录",
+        "账",
+        "由表格",
+        "卡片",
+        "提示",
+        "页面",
+        "页",
+        "取文本"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 6,
+      "source_line": "导入 html",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 6,
+      "source_line": "导入 html",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 6,
+      "source_line": "导入 html",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 7,
+      "source_line": "导入 表格",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 7,
+      "source_line": "导入 表格",
+      "type": "NAME",
+      "value": "表格",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 7,
+      "source_line": "导入 表格",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "NAME",
+      "value": "输入框",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 16,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "STRING",
+      "value": "金额",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "STRING",
+      "value": "金额",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 32,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "STRING",
+      "value": "number",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "打印(html.输入框(\"金额\", \"金额\", \"number\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "NAME",
+      "value": "输入框",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 16,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "STRING",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "打印(html.输入框(\"备注\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "NAME",
+      "value": "输入框",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 15,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "STRING",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "STRING",
+      "value": "",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 27,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "STRING",
+      "value": "text",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "STRING",
+      "value": "初值",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "打印(html.输入框(\"甲\", \"\", \"text\", \"初值\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 12,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "NAME",
+      "value": "多行文本",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 17,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "STRING",
+      "value": "说明",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 23,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "STRING",
+      "value": "说明",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 29,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "STRING",
+      "value": "写字",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 32,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "NUMBER",
+      "value": 6,
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "打印(html.多行文本(\"说明\", \"说明\", \"写字\", 6))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "NAME",
+      "value": "下拉",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "STRING",
+      "value": "餐饮",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 28,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "STRING",
+      "value": "交通",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 35,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 41,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "STRING",
+      "value": "交通",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 44,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "打印(html.下拉(\"类别\", [\"餐饮\", \"交通\"], \"类别\", \"交通\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "NAME",
+      "value": "多选",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "STRING",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "STRING",
+      "value": "工作",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 28,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "STRING",
+      "value": "生活",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 35,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "STRING",
+      "value": "分类",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 42,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "STRING",
+      "value": "生活",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 44,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 45,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 46,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "打印(html.多选(\"标签\", [\"工作\", \"生活\"], \"分类\", [\"生活\"]))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "NAME",
+      "value": "按钮",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "STRING",
+      "value": "保存",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "打印(html.按钮(\"保存\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "NAME",
+      "value": "按钮",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "STRING",
+      "value": "清空",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 24,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "STRING",
+      "value": "reset",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "打印(html.按钮(\"清空\", \"reset\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "NAME",
+      "value": "表单",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 16,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 20,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "NAME",
+      "value": "输入框",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 25,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "STRING",
+      "value": "金额",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 31,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "STRING",
+      "value": "金额",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 38,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "NAME",
+      "value": "按钮",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 47,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "STRING",
+      "value": "记一笔",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 49,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 49,
+      "end_col": 50,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 50,
+      "end_col": 51,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 56,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "STRING",
+      "value": "/新建",
+      "类型": "Token"
+    },
+    {
+      "col": 57,
+      "end_col": 58,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 58,
+      "end_col": 59,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 18,
+      "source_line": "打印(html.表单([html.输入框(\"金额\", \"金额\"), html.按钮(\"记一笔\")], \"/新建\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "令 账 = 表格.从记录([",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 21,
+      "source_line": "令 账 = 表格.从记录([",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 21,
+      "source_line": "令 账 = 表格.从记录([",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 21,
+      "source_line": "令 账 = 表格.从记录([",
+      "type": "NAME",
+      "value": "表格",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 21,
+      "source_line": "令 账 = 表格.从记录([",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 12,
+      "line": 21,
+      "source_line": "令 账 = 表格.从记录([",
+      "type": "NAME",
+      "value": "从记录",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 21,
+      "source_line": "令 账 = 表格.从记录([",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 21,
+      "source_line": "令 账 = 表格.从记录([",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "STRING",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 18,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "STRING",
+      "value": "11-01",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 24,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "STRING",
+      "value": "项目",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 30,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "STRING",
+      "value": "早餐",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 36,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "STRING",
+      "value": "金额",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 42,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "STRING",
+      "value": "12",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 44,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 45,
+      "line": 22,
+      "source_line": "    {\"日期\": \"11-01\", \"项目\": \"早餐\", \"金额\": \"12\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "STRING",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 18,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "STRING",
+      "value": "11-02",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 24,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "STRING",
+      "value": "项目",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 30,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "STRING",
+      "value": "地铁",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 36,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "STRING",
+      "value": "金额",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 41,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "STRING",
+      "value": "3",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 44,
+      "line": 23,
+      "source_line": "    {\"日期\": \"11-02\", \"项目\": \"地铁\", \"金额\": \"3\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 24,
+      "source_line": "])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 24,
+      "source_line": "])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "NAME",
+      "value": "由表格",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "打印(html.由表格(账))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "NAME",
+      "value": "由表格",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "打印(html.由表格(账, 真))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "NAME",
+      "value": "卡片",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 17,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "STRING",
+      "value": "本月支出",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 23,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 27,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "NAME",
+      "value": "由表格",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 29,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "打印(html.卡片(\"本月支出\", html.由表格(账)))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "NAME",
+      "value": "提示",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "STRING",
+      "value": "成功",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 22,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "STRING",
+      "value": "已保存",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 30,
+      "source_line": "打印(html.提示(\"成功\", \"已保存\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "NAME",
+      "value": "提示",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "STRING",
+      "value": "警告",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 23,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "STRING",
+      "value": "余额不足",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 31,
+      "source_line": "打印(html.提示(\"警告\", \"余额不足\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "NAME",
+      "value": "提示",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "STRING",
+      "value": "错误",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 25,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "STRING",
+      "value": "金额要填正数",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 32,
+      "source_line": "打印(html.提示(\"错误\", \"金额要填正数\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "NAME",
+      "value": "页",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 10,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "NAME",
+      "value": "页面",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 18,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "STRING",
+      "value": "记账",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 25,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "NAME",
+      "value": "卡片",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "STRING",
+      "value": "本月",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 39,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "STRING",
+      "value": "内容",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 45,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 46,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 49,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "STRING",
+      "value": "首页",
+      "类型": "Token"
+    },
+    {
+      "col": 50,
+      "end_col": 51,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 54,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "STRING",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 55,
+      "end_col": 56,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 56,
+      "end_col": 57,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 58,
+      "end_col": 59,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 59,
+      "end_col": 62,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "STRING",
+      "value": "关于",
+      "类型": "Token"
+    },
+    {
+      "col": 63,
+      "end_col": 64,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 65,
+      "end_col": 69,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "STRING",
+      "value": "/关于",
+      "类型": "Token"
+    },
+    {
+      "col": 70,
+      "end_col": 71,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 71,
+      "end_col": 72,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 72,
+      "end_col": 73,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 35,
+      "source_line": "令 页 = html.页面(\"记账\", [html.卡片(\"本月\", \"内容\")], [[\"首页\", \"/\"], [\"关于\", \"/关于\"]])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "NAME",
+      "value": "取文本",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "NAME",
+      "value": "页",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 36,
+      "source_line": "打印(html.取文本(页))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "NAME",
+      "value": "输入框",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 17,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "STRING",
+      "value": "<坏>",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 25,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "STRING",
+      "value": "<标签>",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 39,
+      "source_line": "打印(html.输入框(\"<坏>\", \"<标签>\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "NAME",
+      "value": "提示",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "STRING",
+      "value": "成功",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 44,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "STRING",
+      "value": "<script>alert(1)</script>",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 46,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "打印(html.提示(\"成功\", \"<script>alert(1)</script>\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:3628acd4336aa771",
+  "语料": "tests/cases/45_html页面构件.jsh"
+}

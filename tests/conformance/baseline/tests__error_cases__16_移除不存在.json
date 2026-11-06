@@ -1,0 +1,335 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 1,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "a",
+          "line": 1,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 7,
+          "elements": [
+            {
+              "col": 8,
+              "line": 1,
+              "value": 1,
+              "类型": "Num"
+            },
+            {
+              "col": 11,
+              "line": 1,
+              "value": 2,
+              "类型": "Num"
+            }
+          ],
+          "line": 1,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 6,
+              "line": 2,
+              "value": 9,
+              "类型": "Num"
+            }
+          ],
+          "col": 5,
+          "func": {
+            "attr": "移除",
+            "col": 2,
+            "line": 2,
+            "obj": {
+              "col": 1,
+              "id": "a",
+              "line": 2,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 2,
+          "类型": "Call"
+        },
+        "line": 2,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "73d2008d4a24d106b9ef181ba8b18867dd177d6480fd9f32ba1eca5e4158ca27",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            8,
+            1,
+            1,
+            0,
+            0,
+            1,
+            11,
+            23,
+            2,
+            0,
+            0,
+            1,
+            7,
+            3,
+            0,
+            0,
+            0,
+            1,
+            1,
+            2,
+            0,
+            0,
+            0,
+            2,
+            1,
+            25,
+            1,
+            0,
+            0,
+            2,
+            2,
+            1,
+            2,
+            0,
+            0,
+            2,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            2,
+            5,
+            38,
+            0,
+            0,
+            0,
+            2,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "int",
+          "v": 2
+        },
+        {
+          "t": "int",
+          "v": 9
+        }
+      ],
+      "filename": "tests/error_cases/16_移除不存在.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "a",
+        "移除"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 a = [1, 2]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "令 a = [1, 2]",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "令 a = [1, 2]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 1,
+      "source_line": "令 a = [1, 2]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 1,
+      "source_line": "令 a = [1, 2]",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "令 a = [1, 2]",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 1,
+      "source_line": "令 a = [1, 2]",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 1,
+      "source_line": "令 a = [1, 2]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 a = [1, 2]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "a.移除(9)",
+      "type": "NAME",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 2,
+      "source_line": "a.移除(9)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 2,
+      "source_line": "a.移除(9)",
+      "type": "NAME",
+      "value": "移除",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "a.移除(9)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 2,
+      "source_line": "a.移除(9)",
+      "type": "NUMBER",
+      "value": 9,
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 2,
+      "source_line": "a.移除(9)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "a.移除(9)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:64c75ead85c7b6fb",
+  "语料": "tests/error_cases/16_移除不存在.jsh"
+}

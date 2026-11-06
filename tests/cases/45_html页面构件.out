@@ -1,0 +1,18 @@
+<label><span>金额</span><input type="number" name="金额" /></label>
+<input type="text" name="备注" />
+<input type="text" name="甲" value="初值" />
+<label><span>说明</span><textarea name="说明" rows="6">写字</textarea></label>
+<label><span>类别</span><select name="类别"><option value="餐饮">餐饮</option><option value="交通" selected>交通</option></select></label>
+<fieldset class="字段组"><legend>分类</legend><label><input type="checkbox" name="标签" value="工作" />工作</label><label><input type="checkbox" name="标签" value="生活" checked />生活</label></fieldset>
+<button type="submit">保存</button>
+<button type="reset">清空</button>
+<form action="/新建" method="post"><label><span>金额</span><input type="text" name="金额" /></label><button type="submit">记一笔</button></form>
+<table class="基石表格"><thead><tr><th>日期</th><th>项目</th><th>金额</th></tr></thead><tbody><tr><td>11-01</td><td>早餐</td><td>12</td></tr><tr><td>11-02</td><td>地铁</td><td>3</td></tr></tbody></table>
+<table class="基石表格 斑马纹"><thead><tr><th>日期</th><th>项目</th><th>金额</th></tr></thead><tbody><tr><td>11-01</td><td>早餐</td><td>12</td></tr><tr><td>11-02</td><td>地铁</td><td>3</td></tr></tbody></table>
+<section class="卡片"><h2>本月支出</h2><table class="基石表格"><thead><tr><th>日期</th><th>项目</th><th>金额</th></tr></thead><tbody><tr><td>11-01</td><td>早餐</td><td>12</td></tr><tr><td>11-02</td><td>地铁</td><td>3</td></tr></tbody></table></section>
+<div class="提示 提示-成功">已保存</div>
+<div class="提示 提示-警告">余额不足</div>
+<div class="提示 提示-错误">金额要填正数</div>
+记账 记账首页关于 本月内容 由基石生成
+<label><span>&lt;标签&gt;</span><input type="text" name="&lt;坏&gt;" /></label>
+<div class="提示 提示-成功">&lt;script&gt;alert(1)&lt;/script&gt;</div>

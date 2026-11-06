@@ -1,0 +1,1422 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 8,
+        "name": "文件",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 9,
+        "name": "路径",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "line": 11,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "根",
+          "line": 11,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "args": [],
+              "col": 22,
+              "func": {
+                "attr": "系统临时目录",
+                "col": 15,
+                "line": 11,
+                "obj": {
+                  "col": 13,
+                  "id": "路径",
+                  "line": 11,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 11,
+              "类型": "Call"
+            },
+            {
+              "col": 26,
+              "line": 11,
+              "value": "_jishi_m118_68",
+              "类型": "Str"
+            }
+          ],
+          "col": 12,
+          "func": {
+            "attr": "连接",
+            "col": 9,
+            "line": 11,
+            "obj": {
+              "col": 7,
+              "id": "路径",
+              "line": 11,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 11,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 9,
+              "id": "根",
+              "line": 12,
+              "类型": "Name"
+            },
+            {
+              "col": 12,
+              "line": 12,
+              "value": true,
+              "类型": "Num"
+            }
+          ],
+          "col": 8,
+          "func": {
+            "attr": "创建目录",
+            "col": 3,
+            "line": 12,
+            "obj": {
+              "col": 1,
+              "id": "路径",
+              "line": 12,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 12,
+          "类型": "Call"
+        },
+        "line": 12,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 13,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "源",
+          "line": 13,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 13,
+              "id": "根",
+              "line": 13,
+              "类型": "Name"
+            },
+            {
+              "col": 16,
+              "line": 13,
+              "value": "源",
+              "类型": "Str"
+            }
+          ],
+          "col": 12,
+          "func": {
+            "attr": "连接",
+            "col": 9,
+            "line": 13,
+            "obj": {
+              "col": 7,
+              "id": "路径",
+              "line": 13,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 13,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 9,
+              "id": "源",
+              "line": 14,
+              "类型": "Name"
+            },
+            {
+              "col": 12,
+              "line": 14,
+              "value": true,
+              "类型": "Num"
+            }
+          ],
+          "col": 8,
+          "func": {
+            "attr": "创建目录",
+            "col": 3,
+            "line": 14,
+            "obj": {
+              "col": 1,
+              "id": "路径",
+              "line": 14,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 14,
+          "类型": "Call"
+        },
+        "line": 14,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 15,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "抄",
+          "line": 15,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 13,
+              "id": "根",
+              "line": 15,
+              "类型": "Name"
+            },
+            {
+              "col": 16,
+              "line": 15,
+              "value": "抄",
+              "类型": "Str"
+            }
+          ],
+          "col": 12,
+          "func": {
+            "attr": "连接",
+            "col": 9,
+            "line": 15,
+            "obj": {
+              "col": 7,
+              "id": "路径",
+              "line": 15,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 15,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 9,
+              "id": "抄",
+              "line": 16,
+              "类型": "Name"
+            },
+            {
+              "col": 12,
+              "line": 16,
+              "value": true,
+              "类型": "Num"
+            }
+          ],
+          "col": 8,
+          "func": {
+            "attr": "创建目录",
+            "col": 3,
+            "line": 16,
+            "obj": {
+              "col": 1,
+              "id": "路径",
+              "line": 16,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 16,
+          "类型": "Call"
+        },
+        "line": 16,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 9,
+              "id": "源",
+              "line": 17,
+              "类型": "Name"
+            },
+            {
+              "col": 12,
+              "id": "抄",
+              "line": 17,
+              "类型": "Name"
+            }
+          ],
+          "col": 8,
+          "func": {
+            "attr": "复制目录",
+            "col": 3,
+            "line": 17,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 17,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 17,
+          "类型": "Call"
+        },
+        "line": 17,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "476481879220f6dbff246b4d84a8bbeadab02f1dc000bc899f97b713021bf446",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            8,
+            1,
+            3,
+            0,
+            0,
+            0,
+            8,
+            1,
+            31,
+            1,
+            0,
+            -1,
+            9,
+            1,
+            3,
+            1,
+            0,
+            0,
+            9,
+            1,
+            2,
+            1,
+            0,
+            0,
+            11,
+            7,
+            25,
+            2,
+            0,
+            0,
+            11,
+            9,
+            2,
+            1,
+            0,
+            0,
+            11,
+            13,
+            25,
+            3,
+            0,
+            0,
+            11,
+            15,
+            20,
+            0,
+            -1,
+            0,
+            11,
+            22,
+            1,
+            0,
+            0,
+            0,
+            11,
+            26,
+            20,
+            2,
+            -1,
+            0,
+            11,
+            12,
+            3,
+            4,
+            0,
+            0,
+            11,
+            1,
+            2,
+            1,
+            0,
+            0,
+            12,
+            1,
+            25,
+            5,
+            0,
+            0,
+            12,
+            3,
+            2,
+            4,
+            0,
+            0,
+            12,
+            9,
+            1,
+            1,
+            0,
+            0,
+            12,
+            12,
+            20,
+            2,
+            -1,
+            0,
+            12,
+            8,
+            38,
+            0,
+            0,
+            0,
+            12,
+            1,
+            2,
+            1,
+            0,
+            0,
+            13,
+            7,
+            25,
+            2,
+            0,
+            0,
+            13,
+            9,
+            2,
+            4,
+            0,
+            0,
+            13,
+            13,
+            1,
+            2,
+            0,
+            0,
+            13,
+            16,
+            20,
+            2,
+            -1,
+            0,
+            13,
+            12,
+            3,
+            6,
+            0,
+            0,
+            13,
+            1,
+            2,
+            1,
+            0,
+            0,
+            14,
+            1,
+            25,
+            5,
+            0,
+            0,
+            14,
+            3,
+            2,
+            6,
+            0,
+            0,
+            14,
+            9,
+            1,
+            1,
+            0,
+            0,
+            14,
+            12,
+            20,
+            2,
+            -1,
+            0,
+            14,
+            8,
+            38,
+            0,
+            0,
+            0,
+            14,
+            1,
+            2,
+            1,
+            0,
+            0,
+            15,
+            7,
+            25,
+            2,
+            0,
+            0,
+            15,
+            9,
+            2,
+            4,
+            0,
+            0,
+            15,
+            13,
+            1,
+            3,
+            0,
+            0,
+            15,
+            16,
+            20,
+            2,
+            -1,
+            0,
+            15,
+            12,
+            3,
+            7,
+            0,
+            0,
+            15,
+            1,
+            2,
+            1,
+            0,
+            0,
+            16,
+            1,
+            25,
+            5,
+            0,
+            0,
+            16,
+            3,
+            2,
+            7,
+            0,
+            0,
+            16,
+            9,
+            1,
+            1,
+            0,
+            0,
+            16,
+            12,
+            20,
+            2,
+            -1,
+            0,
+            16,
+            8,
+            38,
+            0,
+            0,
+            0,
+            16,
+            1,
+            2,
+            0,
+            0,
+            0,
+            17,
+            1,
+            25,
+            8,
+            0,
+            0,
+            17,
+            3,
+            2,
+            6,
+            0,
+            0,
+            17,
+            9,
+            2,
+            7,
+            0,
+            0,
+            17,
+            12,
+            20,
+            2,
+            -1,
+            0,
+            17,
+            8,
+            38,
+            0,
+            0,
+            0,
+            17,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "_jishi_m118_68"
+        },
+        {
+          "t": "true"
+        },
+        {
+          "t": "str",
+          "v": "源"
+        },
+        {
+          "t": "str",
+          "v": "抄"
+        }
+      ],
+      "filename": "tests/error_cases/68_文件_复制目录目标已存在.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "文件",
+        "路径",
+        "连接",
+        "系统临时目录",
+        "根",
+        "创建目录",
+        "源",
+        "抄",
+        "复制目录"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 8,
+      "source_line": "导入 文件",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 8,
+      "source_line": "导入 文件",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 8,
+      "source_line": "导入 文件",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 9,
+      "source_line": "导入 路径",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 9,
+      "source_line": "导入 路径",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "导入 路径",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "NAME",
+      "value": "根",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 21,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "NAME",
+      "value": "系统临时目录",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 41,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "STRING",
+      "value": "_jishi_m118_68",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "令 根 = 路径.连接(路径.系统临时目录(), \"_jishi_m118_68\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 12,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 12,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 12,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "NAME",
+      "value": "创建目录",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 12,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 12,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "NAME",
+      "value": "根",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 12,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 12,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 12,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "路径.创建目录(根, 真)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "NAME",
+      "value": "源",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "NAME",
+      "value": "根",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 18,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "STRING",
+      "value": "源",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "令 源 = 路径.连接(根, \"源\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 14,
+      "source_line": "路径.创建目录(源, 真)",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 14,
+      "source_line": "路径.创建目录(源, 真)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 14,
+      "source_line": "路径.创建目录(源, 真)",
+      "type": "NAME",
+      "value": "创建目录",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 14,
+      "source_line": "路径.创建目录(源, 真)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 14,
+      "source_line": "路径.创建目录(源, 真)",
+      "type": "NAME",
+      "value": "源",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 14,
+      "source_line": "路径.创建目录(源, 真)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 14,
+      "source_line": "路径.创建目录(源, 真)",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 14,
+      "source_line": "路径.创建目录(源, 真)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "路径.创建目录(源, 真)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "NAME",
+      "value": "抄",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "NAME",
+      "value": "连接",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 13,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "NAME",
+      "value": "根",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 18,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "STRING",
+      "value": "抄",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "令 抄 = 路径.连接(根, \"抄\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 16,
+      "source_line": "路径.创建目录(抄, 真)",
+      "type": "NAME",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 16,
+      "source_line": "路径.创建目录(抄, 真)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 16,
+      "source_line": "路径.创建目录(抄, 真)",
+      "type": "NAME",
+      "value": "创建目录",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 16,
+      "source_line": "路径.创建目录(抄, 真)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 16,
+      "source_line": "路径.创建目录(抄, 真)",
+      "type": "NAME",
+      "value": "抄",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 16,
+      "source_line": "路径.创建目录(抄, 真)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 16,
+      "source_line": "路径.创建目录(抄, 真)",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 16,
+      "source_line": "路径.创建目录(抄, 真)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "路径.创建目录(抄, 真)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 17,
+      "source_line": "文件.复制目录(源, 抄)",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 17,
+      "source_line": "文件.复制目录(源, 抄)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 17,
+      "source_line": "文件.复制目录(源, 抄)",
+      "type": "NAME",
+      "value": "复制目录",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 17,
+      "source_line": "文件.复制目录(源, 抄)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 17,
+      "source_line": "文件.复制目录(源, 抄)",
+      "type": "NAME",
+      "value": "源",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 17,
+      "source_line": "文件.复制目录(源, 抄)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 17,
+      "source_line": "文件.复制目录(源, 抄)",
+      "type": "NAME",
+      "value": "抄",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 17,
+      "source_line": "文件.复制目录(源, 抄)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "文件.复制目录(源, 抄)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:ac724947d66a3417",
+  "语料": "tests/error_cases/68_文件_复制目录目标已存在.jsh"
+}

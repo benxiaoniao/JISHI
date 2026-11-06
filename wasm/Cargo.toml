@@ -1,0 +1,18 @@
+[package]
+name = "jishi-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "基石（jishi）的 wasm 入口 —— 给网页 playground 用。**零第三方依赖**（裸 C ABI + 手写 JS shim，不上 wasm-bindgen）。"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# ⚠️ `budget` 特征**只在这里开**：wasm 上没有线程，`sandbox` 的超时（另起线程 +
+# recv_timeout）用不了，只能靠**步数预算**兜死循环。原生宿主不开（那边的热路径
+# 不想为它多付一次判断，实测 +6%）。
+# ⚠️ **关掉默认特性**（`sqlite`）：浏览器里链不了 sqlite3.c。
+# 于是 playground 的 `导入 数据库` 会明确报「这个平台没有内置 SQLite」——
+# 那是**如实的边界**，不是静默少一个模块。见 `docs/设计决策.md` D78。
+jishi-ffi = { path = "../rust", default-features = false, features = ["budget"] }
+jishi-frontend = { path = "../frontend" }
