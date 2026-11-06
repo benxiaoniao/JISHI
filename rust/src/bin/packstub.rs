@@ -669,12 +669,18 @@ mod lnk {
     }
 }
 
+/// 非 Windows 的**同签名桩**：Linux / macOS 上这两件事本来就不存在，
+/// 但调用点必须编得过。
+///
+/// 🔴 **签名要和 Windows 那边一字不差**（M177 踩过）：给 `建` 加了「参数」
+/// 那一维之后忘了改这里 ⇒ Linux / macOS 的 CI 三平台一起红，
+/// 而 Windows 本地全绿。这就是 AGENTS 里「`#[cfg(windows)]` 必须配对」的意思。
 #[cfg(not(windows))]
 mod lnk {
-    pub fn 建(_: &str, _: &str, _: &str, _: &str) -> Result<(), String> {
+    pub fn 建(_: &str, _: &str, _: &str, _: &str, _: &str) -> Result<(), String> {
         Err("开始菜单快捷方式只有 Windows 有".to_string())
     }
-    pub fn 读(_: &str) -> Result<String, String> {
+    pub fn 读(_: &str) -> Result<(String, String), String> {
         Err("开始菜单快捷方式只有 Windows 有".to_string())
     }
 }

@@ -355,3 +355,40 @@ def test_装到别的目录_双击快捷方式能开窗(tmp_path):
     assert not (装目录 / "bin").exists(), (
         "卸载后 bin/ 还在：\n"
         + (tmp_path / "un.log").read_text(encoding="utf-8", errors="replace")[:400])
+
+
+# ---------------------------------------------------------------------------
+# 五、`#[cfg]` 两边的签名必须配（M177 用血换的一条）
+# ---------------------------------------------------------------------------
+
+def test_非windows的快捷方式桩签名要与windows一致():
+    """🔴 **M177 踩过**：给 `lnk::建` 加了「参数」那一维，只改了 Windows 那份，
+    忘了 `#[cfg(not(windows))]` 的同名桩 ⇒ **Linux / macOS 的 CI 一起红，
+    而 Windows 本地全绿**（AGENTS §1「`#[cfg(windows)]` 必须配对」）。
+
+    编译期能不能发现取决于你在哪个平台上编 —— 所以这里用**文本比对**盯住：
+    两个 `mod lnk` 里每个 `pub fn` 的**名字集合与参数个数**必须一致。
+    """
+    import re
+
+    src = (ROOT / "rust" / "src" / "bin" / "packstub.rs").read_text(encoding="utf-8")
+    段们 = re.split(r"(?m)^#\[cfg\((not\()?windows\)?\)\]\s*$", src)
+    # 按出现顺序取两个 lnk 模块：windows 版在前、非 windows 版在后
+    模块 = re.findall(r"(?ms)^mod lnk \{(.*?)^\}", src)
+    assert len(模块) == 2, f"没找到两段 `mod lnk`（找到 {len(模块)} 段）"
+
+    def 签名们(体: str):
+        出 = {}
+        for m in re.finditer(r"pub fn (\w+)\s*\(([^)]*)\)", 体):
+            参 = [x for x in m.group(2).split(",") if x.strip()]
+            出[m.group(1)] = len(参)
+        return 出
+
+    win, 非 = 签名们(模块[0]), 签名们(模块[1])
+    assert win, "Windows 那份 `mod lnk` 里没找到 pub fn？"
+    assert set(win) == set(非), (
+        f"两边的函数名不一样：Windows {sorted(win)} vs 非 Windows {sorted(非)}")
+    for 名 in win:
+        assert win[名] == 非[名], (
+            f"`lnk::{名}` 的**参数个数**两边不一致：Windows {win[名]} 个、"
+            f"非 Windows {非[名]} 个 —— Linux/macOS 会编不过（M177 真踩过）")
