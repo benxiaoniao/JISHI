@@ -30,6 +30,15 @@
   整份不上传，代价是所有指向路线图的链接都成死链、新开发者看不到规划。现在把
   隐私挪进 `docs/内部运维.md`、路线图里模糊化，**规划本身对开发者有价值，就该公开**。
 - 终检：快照里若仍出现 `CLion` / 个人路径片段 / 令牌环境变量名 / 服务器地址，直接中止发布。
+
+🔴 **改这个文件之后必须跑那三条判据**（2026-11-07 用血换的教训）：
+
+    .venv/Scripts/python.exe -m pytest tests/test_m104_publish_sanitize.py \
+        tests/test_m105_detour_ledger.py tests/test_m58_frontend_contract.py -q
+
+理由：**屏蔽名单本身被写进了测试断言**（m104 验「哪个文件被删」、m105 验「引用被抹」、
+m58 验「哪个文件被当成内部文档」）。改完不跑，本地全绿、CI 三平台同时红
+——那三条判据在 CI 上跑的是**公开 checkout**，对不上就炸。
 """
 
 from __future__ import annotations

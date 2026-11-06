@@ -316,10 +316,12 @@ def test_发布脚本确实会抹掉内部文档的引用(tmp_path):
     (snap / "README.md").write_text("# 基石\n", encoding="utf-8")
     (snap / "docs" / "设计决策.md").write_text("# 设计决策\n", encoding="utf-8")
     (snap / "docs" / "某文档.md").write_text(
-        "见 `docs/路线图.md` §12。\n", encoding="utf-8")
+        "见 `docs/内部运维.md` §12。\n", encoding="utf-8")
 
     pg._sanitize(snap)
 
     改后 = (snap / "docs" / "某文档.md").read_text(encoding="utf-8")
-    assert "路线图.md" not in 改后, f"抹引用没生效？{改后!r}"
-    assert "内部路线图（未公开）" in 改后, 改后
+    # ⚠️ 例子从「路线图.md」换成「内部运维.md」（2026-11-07）：路线图现在**公开**，
+    #    不再是「指向内部文档的引用」的例子了。
+    assert "内部运维.md" not in 改后, f"抹引用没生效？{改后!r}"
+    assert "内部运维文档（未公开）" in 改后, 改后

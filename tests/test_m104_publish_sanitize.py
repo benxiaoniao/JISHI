@@ -48,6 +48,8 @@ def _make_min_snapshot(tmp: Path) -> Path:
     (tmp / "docs" / "设计决策.md").write_text("# 设计决策\n", encoding="utf-8")
     # 内部文档：应被整个删掉
     (tmp / "docs" / "前端契约.md").write_text("# 前端契约\n", encoding="utf-8")
+    (tmp / "docs" / "内部运维.md").write_text("# 内部运维\n", encoding="utf-8")
+    # ✅ **路线图是公开的**（2026-11-07 起）：它必须原样活下来
     (tmp / "docs" / "路线图.md").write_text("# 路线图\n", encoding="utf-8")
     # 公开文档里指向内部文档的引用：应被中性化
     (tmp / "docs" / "语言规格.md").write_text(
@@ -63,7 +65,11 @@ def test_只中性化_md_源码与测试原样不动(tmp_path):
 
     # 1. 内部文档删干净了
     assert not (snap / "docs" / "前端契约.md").exists()
-    assert not (snap / "docs" / "路线图.md").exists()
+    assert not (snap / "docs" / "内部运维.md").exists()
+    # ✅ **路线图是公开的**（2026-11-07 用户定）：谁把它加回屏蔽名单，
+    #    公开仓库里就又只剩死链了 —— 这条反向断言钉住新策略
+    assert (snap / "docs" / "路线图.md").exists(), (
+        "路线图应当公开（2026-11-07 起）：它不该再被发布脚本删掉")
 
     # 2. 公开文档里的引用被中性化了
     spec = (snap / "docs" / "语言规格.md").read_text(encoding="utf-8")

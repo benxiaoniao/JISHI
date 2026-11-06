@@ -294,9 +294,19 @@ _发布快照 = not (ROOT / "docs" / "路线图.md").is_file()
 
 @pytest.mark.skipif(_发布快照, reason="发布快照：内部文档被 publish_github.py 剔掉了")
 def test_契约文档在且带版本号():
-    """R1 的交付之一是**带版本号的 schema 文档** —— 钉住它在。"""
+    """R1 的交付之一是**带版本号的 schema 文档** —— 钉住它在。
+
+    🔴 **M177 修**：这份文档在 `INTERNAL_DOCS` 里（不上传公开仓库），
+    所以在 **CI 的 checkout** 上它根本不存在 —— 原来这里直接 `assert`，
+    结果 CI 上必红（2026-11-07 三平台同时炸）。
+
+    ⇒ 口径改成「**文件在，就必须对**」：本地有就逐字验；公开 checkout 里没有
+    就跳过，并在 `docs/测试跳过说明.md` 里记一条（**跳过不等于验过**，
+    这条判据在 CI 上是空白，只有本地能守）。
+    """
     doc = ROOT / "docs" / "前端契约.md"
-    assert doc.is_file(), "R1 的契约文档不见了"
+    if not doc.is_file():
+        pytest.skip("内部文档（不上传公开仓库）⇒ 公开 checkout 里没有，只在本地验")
     t = doc.read_text(encoding="utf-8")
     for key in ("FORMAT_VERSION", "tokens", "ast", "bytecode", "diagnostics",
                 "compare", "码点", "LF"):
