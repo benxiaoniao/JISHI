@@ -37,7 +37,9 @@ SHIM_DEST = SITE / "jishi-wasm.js"
 
 def build() -> int:
     r = subprocess.run(
-        ["cargo", "build", "--target", TARGET, "--release"],
+        # 🔴 `--locked`（M176）：wasm 也要与仓库里的锁一致（否则打出来的
+        #    引擎跟测过的那份不是同一套依赖）。
+        ["cargo", "build", "--target", TARGET, "--release", "--locked"],
         cwd=WASM_CRATE, capture_output=True, text=True,
         encoding="utf-8", errors="replace")
     if r.returncode != 0:

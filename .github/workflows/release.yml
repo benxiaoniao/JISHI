@@ -115,7 +115,9 @@ jobs:
           fi
 
       - name: 构建 Rust 宿主（测试要用）
-        run: cargo build --release --manifest-path rust/Cargo.toml
+        # 🔴 `--locked`（M176）：依赖版本钉死在仓库里的 `Cargo.lock`。
+        #    不加的话 CI 悄悄拉到新的补丁版，本地与 CI 跑的不是同一套依赖。
+        run: cargo build --release --locked --manifest-path rust/Cargo.toml
 
       # 🔴 M174：wasm 引擎素材（`窗口` 要把它喂给页面/WebView）。
       #    建到 `site/`；发行时 `build_release.py` 会把它放进 `bin/`。

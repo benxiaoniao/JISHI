@@ -192,8 +192,11 @@ def _build_rust_into(bin_dir: Path) -> None:
     等 R8.4 做完，仓库里的名字也会跟着换。
     """
     crate = ROOT / "rust"
-    print("  运行 cargo build --release ...")
-    subprocess.run(["cargo", "build", "--release"], cwd=str(crate), check=True)
+    print("  运行 cargo build --release --locked ...")
+    # 🔴 `--locked`（M176）：**发行包里的依赖版本必须钉死**。`Cargo.lock` 已经
+    #    进仓库了，加上这个参数，锁与 `Cargo.toml` 对不上会当场报错 —— 而不是
+    #    在用户机器上装到一个没人测过的补丁版。
+    subprocess.run(["cargo", "build", "--release", "--locked"], cwd=str(crate), check=True)
     src = crate / "target" / "release" / _rust_exe_name()
     if not src.exists():
         raise SystemExit(f"cargo 产物不存在：{src}")

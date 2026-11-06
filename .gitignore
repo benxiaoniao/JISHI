@@ -49,8 +49,13 @@ oracle/jishi/_native/*.dylib
 .jishi/
 
 # Rust 编译产物
+#
+# 🔴 **`Cargo.lock` 要进仓库**（M176 用户拍板）。以前当编译产物忽略掉了，
+#    结果 CI / 发行包的依赖版本**每次都可能不同**：同一份源码在不同机器上
+#    拉到不同的补丁版，出了问题无法复现。加了 wry/muda/tray-icon/rfd 之后
+#    这个风险变得不能接受（0.47.x 的补丁版也可能改 API）。
+#    现在 CI 用 `--locked` 构建：锁与 `Cargo.toml` 对不上会**当场报错**。
 rust/target/
-rust/Cargo.lock
 
 # R 线（R2 起）：前端核心（core/）的构建产物
 # ⚠️ `oracle/jishi/_core.pyd` 是**按当前 Python 的 ABI 编的扩展模块**，换 Python 就得重编，
@@ -58,12 +63,12 @@ rust/Cargo.lock
 # `JISHI_FRONTEND=rust` 会明确报错，不会静默回落。
 core/target/
 frontend/target/
-# R8.1：wasm 入口（`wasm/`）—— 与 `rust/` 同为**应用** crate，产物与锁文件都不进仓库。
+# R8.1：wasm 入口（`wasm/`）—— 与 `rust/` 同为**应用** crate，产物不进仓库。
+# （锁文件**要进**：理由同 `rust/Cargo.lock`。`frontend/` 零依赖、它的 lock 只有
+#   自己一行，也一起收进来 —— 少一个「这个 crate 是例外」的心智负担。）
 # ⚠️ 不写这条的话 `git add wasm/` 会把整个 `target/` 拖进来（`frontend/target/`
 # 当年就是这么差点进去的）。
 wasm/target/
-wasm/Cargo.lock
-core/Cargo.lock
 oracle/jishi/_core*.pyd
 oracle/jishi/_core*.so
 oracle/jishi/_core*.dylib
