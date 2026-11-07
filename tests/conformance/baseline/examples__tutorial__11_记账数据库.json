@@ -1,0 +1,8954 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 10,
+        "name": "数据库",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 11,
+        "name": "文件",
+        "类型": "Import"
+      },
+      {
+        "alias": "文本库",
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 14,
+        "name": "文本",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "line": 16,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "库文件",
+          "line": 16,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 9,
+          "line": 16,
+          "value": "账目.db",
+          "类型": "Str"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 17,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "库",
+          "line": 17,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 14,
+              "id": "库文件",
+              "line": 17,
+              "类型": "Name"
+            }
+          ],
+          "col": 13,
+          "func": {
+            "attr": "打开",
+            "col": 10,
+            "line": 17,
+            "obj": {
+              "col": 7,
+              "id": "数据库",
+              "line": 17,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 17,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 8,
+              "id": "库",
+              "line": 21,
+              "类型": "Name"
+            },
+            {
+              "col": 11,
+              "line": 21,
+              "value": "账目",
+              "类型": "Str"
+            },
+            {
+              "col": 17,
+              "elements": [
+                {
+                  "col": 18,
+                  "line": 21,
+                  "value": "日期",
+                  "类型": "Str"
+                },
+                {
+                  "col": 24,
+                  "line": 21,
+                  "value": "类别",
+                  "类型": "Str"
+                },
+                {
+                  "col": 30,
+                  "line": 21,
+                  "value": "金额分",
+                  "类型": "Str"
+                },
+                {
+                  "col": 37,
+                  "line": 21,
+                  "value": "备注",
+                  "类型": "Str"
+                }
+              ],
+              "line": 21,
+              "类型": "List"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "建表",
+            "col": 4,
+            "line": 21,
+            "obj": {
+              "col": 1,
+              "id": "数据库",
+              "line": 21,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 21,
+          "类型": "Call"
+        },
+        "line": 21,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 9,
+              "id": "库",
+              "line": 22,
+              "类型": "Name"
+            },
+            {
+              "col": 12,
+              "line": 22,
+              "value": "账目",
+              "类型": "Str"
+            },
+            {
+              "col": 18,
+              "elements": [
+                {
+                  "col": 19,
+                  "line": 22,
+                  "value": "类别",
+                  "类型": "Str"
+                }
+              ],
+              "line": 22,
+              "类型": "List"
+            }
+          ],
+          "col": 8,
+          "func": {
+            "attr": "建索引",
+            "col": 4,
+            "line": 22,
+            "obj": {
+              "col": 1,
+              "id": "数据库",
+              "line": 22,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 22,
+          "类型": "Call"
+        },
+        "line": 22,
+        "类型": "ExprStmt"
+      },
+      {
+        "annotations": [
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "line": 26,
+            "value": {
+              "args": [
+                {
+                  "col": 18,
+                  "left": {
+                    "col": 16,
+                    "id": "分",
+                    "line": 26,
+                    "类型": "Name"
+                  },
+                  "line": 26,
+                  "op": "/",
+                  "right": {
+                    "col": 20,
+                    "line": 26,
+                    "value": 100,
+                    "类型": "Num"
+                  },
+                  "类型": "BinOp"
+                },
+                {
+                  "col": 25,
+                  "line": 26,
+                  "value": 2,
+                  "类型": "Num"
+                }
+              ],
+              "col": 15,
+              "func": {
+                "attr": "小数位",
+                "col": 11,
+                "line": 26,
+                "obj": {
+                  "col": 8,
+                  "id": "文本库",
+                  "line": 26,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 26,
+              "类型": "Call"
+            },
+            "类型": "Return"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null
+        ],
+        "line": 25,
+        "name": "元",
+        "param_kind": [
+          0
+        ],
+        "params": [
+          "分"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "annotations": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "body": [
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 12,
+                  "id": "库",
+                  "line": 30,
+                  "类型": "Name"
+                },
+                {
+                  "col": 15,
+                  "line": 30,
+                  "value": "账目",
+                  "类型": "Str"
+                },
+                {
+                  "col": 21,
+                  "keys": [
+                    {
+                      "col": 9,
+                      "line": 31,
+                      "value": "日期",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 9,
+                      "line": 32,
+                      "value": "类别",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 9,
+                      "line": 33,
+                      "value": "金额分",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 9,
+                      "line": 34,
+                      "value": "备注",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 30,
+                  "values": [
+                    {
+                      "col": 14,
+                      "id": "日期",
+                      "line": 31,
+                      "类型": "Name"
+                    },
+                    {
+                      "col": 14,
+                      "id": "类别",
+                      "line": 32,
+                      "类型": "Name"
+                    },
+                    {
+                      "args": [
+                        {
+                          "col": 25,
+                          "left": {
+                            "args": [
+                              {
+                                "col": 21,
+                                "id": "金额",
+                                "line": 33,
+                                "类型": "Name"
+                              }
+                            ],
+                            "col": 20,
+                            "func": {
+                              "col": 18,
+                              "id": "精确",
+                              "line": 33,
+                              "类型": "Name"
+                            },
+                            "keywords": [],
+                            "line": 33,
+                            "类型": "Call"
+                          },
+                          "line": 33,
+                          "op": "*",
+                          "right": {
+                            "col": 27,
+                            "line": 33,
+                            "value": 100,
+                            "类型": "Num"
+                          },
+                          "类型": "BinOp"
+                        }
+                      ],
+                      "col": 17,
+                      "func": {
+                        "col": 15,
+                        "id": "整数",
+                        "line": 33,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 33,
+                      "类型": "Call"
+                    },
+                    {
+                      "col": 14,
+                      "id": "备注",
+                      "line": 34,
+                      "类型": "Name"
+                    }
+                  ],
+                  "类型": "Dict"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "插入",
+                "col": 8,
+                "line": 30,
+                "obj": {
+                  "col": 5,
+                  "id": "数据库",
+                  "line": 30,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 30,
+              "类型": "Call"
+            },
+            "line": 30,
+            "类型": "ExprStmt"
+          }
+        ],
+        "col": 1,
+        "defaults": [
+          null,
+          null,
+          null,
+          {
+            "col": 25,
+            "line": 29,
+            "value": "",
+            "类型": "Str"
+          }
+        ],
+        "line": 29,
+        "name": "记一笔",
+        "param_kind": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "params": [
+          "日期",
+          "类别",
+          "金额",
+          "备注"
+        ],
+        "returns": null,
+        "类型": "FuncDef"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 5,
+              "line": 37,
+              "value": "2026-10-01",
+              "类型": "Str"
+            },
+            {
+              "col": 19,
+              "line": 37,
+              "value": "餐饮",
+              "类型": "Str"
+            },
+            {
+              "col": 25,
+              "line": 37,
+              "value": 8.5,
+              "类型": "Num"
+            },
+            {
+              "col": 30,
+              "line": 37,
+              "value": "早餐",
+              "类型": "Str"
+            }
+          ],
+          "col": 4,
+          "func": {
+            "col": 1,
+            "id": "记一笔",
+            "line": 37,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 37,
+          "类型": "Call"
+        },
+        "line": 37,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 5,
+              "line": 38,
+              "value": "2026-10-01",
+              "类型": "Str"
+            },
+            {
+              "col": 19,
+              "line": 38,
+              "value": "交通",
+              "类型": "Str"
+            },
+            {
+              "col": 25,
+              "line": 38,
+              "value": 4,
+              "类型": "Num"
+            },
+            {
+              "col": 28,
+              "line": 38,
+              "value": "地铁",
+              "类型": "Str"
+            }
+          ],
+          "col": 4,
+          "func": {
+            "col": 1,
+            "id": "记一笔",
+            "line": 38,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 38,
+          "类型": "Call"
+        },
+        "line": 38,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 41,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "新记的",
+          "line": 41,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 18,
+              "id": "库",
+              "line": 41,
+              "类型": "Name"
+            },
+            {
+              "col": 21,
+              "line": 41,
+              "value": "账目",
+              "类型": "Str"
+            },
+            {
+              "col": 27,
+              "elements": [
+                {
+                  "col": 5,
+                  "keys": [
+                    {
+                      "col": 6,
+                      "line": 42,
+                      "value": "日期",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 25,
+                      "line": 42,
+                      "value": "类别",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 36,
+                      "line": 42,
+                      "value": "金额分",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 48,
+                      "line": 42,
+                      "value": "备注",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 42,
+                  "values": [
+                    {
+                      "col": 11,
+                      "line": 42,
+                      "value": "2026-10-02",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 30,
+                      "line": 42,
+                      "value": "餐饮",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 42,
+                      "line": 42,
+                      "value": 1500,
+                      "类型": "Num"
+                    },
+                    {
+                      "col": 53,
+                      "line": 42,
+                      "value": "午饭",
+                      "类型": "Str"
+                    }
+                  ],
+                  "类型": "Dict"
+                },
+                {
+                  "col": 5,
+                  "keys": [
+                    {
+                      "col": 6,
+                      "line": 43,
+                      "value": "日期",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 25,
+                      "line": 43,
+                      "value": "类别",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 36,
+                      "line": 43,
+                      "value": "金额分",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 48,
+                      "line": 43,
+                      "value": "备注",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 43,
+                  "values": [
+                    {
+                      "col": 11,
+                      "line": 43,
+                      "value": "2026-10-02",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 30,
+                      "line": 43,
+                      "value": "购物",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 42,
+                      "line": 43,
+                      "value": 8990,
+                      "类型": "Num"
+                    },
+                    {
+                      "col": 53,
+                      "line": 43,
+                      "value": "键盘",
+                      "类型": "Str"
+                    }
+                  ],
+                  "类型": "Dict"
+                },
+                {
+                  "col": 5,
+                  "keys": [
+                    {
+                      "col": 6,
+                      "line": 44,
+                      "value": "日期",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 25,
+                      "line": 44,
+                      "value": "类别",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 36,
+                      "line": 44,
+                      "value": "金额分",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 48,
+                      "line": 44,
+                      "value": "备注",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 44,
+                  "values": [
+                    {
+                      "col": 11,
+                      "line": 44,
+                      "value": "2026-10-03",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 30,
+                      "line": 44,
+                      "value": "餐饮",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 42,
+                      "line": 44,
+                      "value": 2200,
+                      "类型": "Num"
+                    },
+                    {
+                      "col": 53,
+                      "line": 44,
+                      "value": "聚餐",
+                      "类型": "Str"
+                    }
+                  ],
+                  "类型": "Dict"
+                }
+              ],
+              "line": 41,
+              "类型": "List"
+            }
+          ],
+          "col": 17,
+          "func": {
+            "attr": "批量插入",
+            "col": 12,
+            "line": 41,
+            "obj": {
+              "col": 9,
+              "id": "数据库",
+              "line": 41,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 41,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 46,
+              "value": "新记了",
+              "类型": "Str"
+            },
+            {
+              "col": 11,
+              "id": "新记的",
+              "line": 46,
+              "类型": "Name"
+            },
+            {
+              "col": 16,
+              "line": 46,
+              "value": "笔；一共",
+              "类型": "Str"
+            },
+            {
+              "args": [
+                {
+                  "col": 31,
+                  "id": "库",
+                  "line": 46,
+                  "类型": "Name"
+                },
+                {
+                  "col": 34,
+                  "line": 46,
+                  "value": "账目",
+                  "类型": "Str"
+                }
+              ],
+              "col": 30,
+              "func": {
+                "attr": "条数",
+                "col": 27,
+                "line": 46,
+                "obj": {
+                  "col": 24,
+                  "id": "数据库",
+                  "line": 46,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 46,
+              "类型": "Call"
+            },
+            {
+              "col": 41,
+              "line": 46,
+              "value": "笔",
+              "类型": "Str"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 46,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 46,
+          "类型": "Call"
+        },
+        "line": 46,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 49,
+              "value": "---- 最近两笔 ----",
+              "类型": "Str"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 49,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 49,
+          "类型": "Call"
+        },
+        "line": 49,
+        "类型": "ExprStmt"
+      },
+      {
+        "body": [
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 9,
+                  "index": {
+                    "col": 10,
+                    "line": 51,
+                    "value": "日期",
+                    "类型": "Str"
+                  },
+                  "line": 51,
+                  "obj": {
+                    "col": 8,
+                    "id": "账",
+                    "line": 51,
+                    "类型": "Name"
+                  },
+                  "类型": "Subscript"
+                },
+                {
+                  "col": 18,
+                  "index": {
+                    "col": 19,
+                    "line": 51,
+                    "value": "类别",
+                    "类型": "Str"
+                  },
+                  "line": 51,
+                  "obj": {
+                    "col": 17,
+                    "id": "账",
+                    "line": 51,
+                    "类型": "Name"
+                  },
+                  "类型": "Subscript"
+                },
+                {
+                  "args": [
+                    {
+                      "col": 29,
+                      "index": {
+                        "col": 30,
+                        "line": 51,
+                        "value": "金额分",
+                        "类型": "Str"
+                      },
+                      "line": 51,
+                      "obj": {
+                        "col": 28,
+                        "id": "账",
+                        "line": 51,
+                        "类型": "Name"
+                      },
+                      "类型": "Subscript"
+                    }
+                  ],
+                  "col": 27,
+                  "func": {
+                    "col": 26,
+                    "id": "元",
+                    "line": 51,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 51,
+                  "类型": "Call"
+                },
+                {
+                  "col": 39,
+                  "line": 51,
+                  "value": "元",
+                  "类型": "Str"
+                },
+                {
+                  "col": 45,
+                  "index": {
+                    "col": 46,
+                    "line": 51,
+                    "value": "备注",
+                    "类型": "Str"
+                  },
+                  "line": 51,
+                  "obj": {
+                    "col": 44,
+                    "id": "账",
+                    "line": 51,
+                    "类型": "Name"
+                  },
+                  "类型": "Subscript"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 5,
+                "id": "打印",
+                "line": 51,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 51,
+              "类型": "Call"
+            },
+            "line": 51,
+            "类型": "ExprStmt"
+          }
+        ],
+        "col": 1,
+        "iter": {
+          "args": [
+            {
+              "col": 15,
+              "id": "库",
+              "line": 50,
+              "类型": "Name"
+            },
+            {
+              "col": 18,
+              "line": 50,
+              "value": "账目",
+              "类型": "Str"
+            },
+            {
+              "col": 24,
+              "id": "空",
+              "line": 50,
+              "类型": "Name"
+            },
+            {
+              "col": 27,
+              "line": 50,
+              "value": "id",
+              "类型": "Str"
+            },
+            {
+              "col": 33,
+              "line": 50,
+              "value": true,
+              "类型": "Num"
+            },
+            {
+              "col": 36,
+              "line": 50,
+              "value": 2,
+              "类型": "Num"
+            }
+          ],
+          "col": 14,
+          "func": {
+            "attr": "查询",
+            "col": 11,
+            "line": 50,
+            "obj": {
+              "col": 8,
+              "id": "数据库",
+              "line": 50,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 50,
+          "类型": "Call"
+        },
+        "line": 50,
+        "target": {
+          "col": 4,
+          "id": "账",
+          "line": 50,
+          "类型": "Name"
+        },
+        "类型": "For"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 54,
+              "value": "---- 超过 50 元的（从贵到便宜）----",
+              "类型": "Str"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 54,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 54,
+          "类型": "Call"
+        },
+        "line": 54,
+        "类型": "ExprStmt"
+      },
+      {
+        "body": [
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 9,
+                  "index": {
+                    "col": 10,
+                    "line": 56,
+                    "value": "日期",
+                    "类型": "Str"
+                  },
+                  "line": 56,
+                  "obj": {
+                    "col": 8,
+                    "id": "账",
+                    "line": 56,
+                    "类型": "Name"
+                  },
+                  "类型": "Subscript"
+                },
+                {
+                  "col": 18,
+                  "index": {
+                    "col": 19,
+                    "line": 56,
+                    "value": "类别",
+                    "类型": "Str"
+                  },
+                  "line": 56,
+                  "obj": {
+                    "col": 17,
+                    "id": "账",
+                    "line": 56,
+                    "类型": "Name"
+                  },
+                  "类型": "Subscript"
+                },
+                {
+                  "args": [
+                    {
+                      "col": 29,
+                      "index": {
+                        "col": 30,
+                        "line": 56,
+                        "value": "金额分",
+                        "类型": "Str"
+                      },
+                      "line": 56,
+                      "obj": {
+                        "col": 28,
+                        "id": "账",
+                        "line": 56,
+                        "类型": "Name"
+                      },
+                      "类型": "Subscript"
+                    }
+                  ],
+                  "col": 27,
+                  "func": {
+                    "col": 26,
+                    "id": "元",
+                    "line": 56,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 56,
+                  "类型": "Call"
+                },
+                {
+                  "col": 39,
+                  "line": 56,
+                  "value": "元",
+                  "类型": "Str"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 5,
+                "id": "打印",
+                "line": 56,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 56,
+              "类型": "Call"
+            },
+            "line": 56,
+            "类型": "ExprStmt"
+          }
+        ],
+        "col": 1,
+        "iter": {
+          "args": [
+            {
+              "col": 15,
+              "id": "库",
+              "line": 55,
+              "类型": "Name"
+            },
+            {
+              "col": 18,
+              "line": 55,
+              "value": "账目",
+              "类型": "Str"
+            },
+            {
+              "col": 24,
+              "keys": [
+                {
+                  "col": 25,
+                  "line": 55,
+                  "value": "金额分",
+                  "类型": "Str"
+                }
+              ],
+              "line": 55,
+              "values": [
+                {
+                  "col": 31,
+                  "keys": [
+                    {
+                      "col": 32,
+                      "line": 55,
+                      "value": ">",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 55,
+                  "values": [
+                    {
+                      "col": 36,
+                      "line": 55,
+                      "value": 5000,
+                      "类型": "Num"
+                    }
+                  ],
+                  "类型": "Dict"
+                }
+              ],
+              "类型": "Dict"
+            },
+            {
+              "col": 44,
+              "line": 55,
+              "value": "金额分",
+              "类型": "Str"
+            },
+            {
+              "col": 51,
+              "line": 55,
+              "value": true,
+              "类型": "Num"
+            }
+          ],
+          "col": 14,
+          "func": {
+            "attr": "查询",
+            "col": 11,
+            "line": 55,
+            "obj": {
+              "col": 8,
+              "id": "数据库",
+              "line": 55,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 55,
+          "类型": "Call"
+        },
+        "line": 55,
+        "target": {
+          "col": 4,
+          "id": "账",
+          "line": 55,
+          "类型": "Name"
+        },
+        "类型": "For"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 59,
+              "value": "---- 分类汇总 ----",
+              "类型": "Str"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 59,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 59,
+          "类型": "Call"
+        },
+        "line": 59,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 60,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "各类",
+          "line": 60,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 15,
+              "id": "库",
+              "line": 60,
+              "类型": "Name"
+            },
+            {
+              "col": 18,
+              "line": 60,
+              "value": "账目",
+              "类型": "Str"
+            },
+            {
+              "col": 24,
+              "line": 60,
+              "value": "类别",
+              "类型": "Str"
+            },
+            {
+              "col": 30,
+              "line": 60,
+              "value": "金额分",
+              "类型": "Str"
+            }
+          ],
+          "col": 14,
+          "func": {
+            "attr": "汇总",
+            "col": 11,
+            "line": 60,
+            "obj": {
+              "col": 8,
+              "id": "数据库",
+              "line": 60,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 60,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "body": [
+          {
+            "col": 5,
+            "line": 62,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "统",
+              "line": 62,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 13,
+              "index": {
+                "col": 14,
+                "id": "类别",
+                "line": 62,
+                "类型": "Name"
+              },
+              "line": 62,
+              "obj": {
+                "col": 11,
+                "id": "各类",
+                "line": 62,
+                "类型": "Name"
+              },
+              "类型": "Subscript"
+            },
+            "类型": "Assign"
+          },
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 8,
+                  "id": "类别",
+                  "line": 63,
+                  "类型": "Name"
+                },
+                {
+                  "col": 13,
+                  "index": {
+                    "col": 14,
+                    "line": 63,
+                    "value": "个数",
+                    "类型": "Str"
+                  },
+                  "line": 63,
+                  "obj": {
+                    "col": 12,
+                    "id": "统",
+                    "line": 63,
+                    "类型": "Name"
+                  },
+                  "类型": "Subscript"
+                },
+                {
+                  "col": 21,
+                  "line": 63,
+                  "value": "笔，合计",
+                  "类型": "Str"
+                },
+                {
+                  "args": [
+                    {
+                      "col": 32,
+                      "index": {
+                        "col": 33,
+                        "line": 63,
+                        "value": "总和",
+                        "类型": "Str"
+                      },
+                      "line": 63,
+                      "obj": {
+                        "col": 31,
+                        "id": "统",
+                        "line": 63,
+                        "类型": "Name"
+                      },
+                      "类型": "Subscript"
+                    }
+                  ],
+                  "col": 30,
+                  "func": {
+                    "col": 29,
+                    "id": "元",
+                    "line": 63,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 63,
+                  "类型": "Call"
+                },
+                {
+                  "col": 41,
+                  "line": 63,
+                  "value": "元，平均",
+                  "类型": "Str"
+                },
+                {
+                  "args": [
+                    {
+                      "col": 52,
+                      "index": {
+                        "col": 53,
+                        "line": 63,
+                        "value": "平均",
+                        "类型": "Str"
+                      },
+                      "line": 63,
+                      "obj": {
+                        "col": 51,
+                        "id": "统",
+                        "line": 63,
+                        "类型": "Name"
+                      },
+                      "类型": "Subscript"
+                    }
+                  ],
+                  "col": 50,
+                  "func": {
+                    "col": 49,
+                    "id": "元",
+                    "line": 63,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 63,
+                  "类型": "Call"
+                },
+                {
+                  "col": 61,
+                  "line": 63,
+                  "value": "元",
+                  "类型": "Str"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 5,
+                "id": "打印",
+                "line": 63,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 63,
+              "类型": "Call"
+            },
+            "line": 63,
+            "类型": "ExprStmt"
+          }
+        ],
+        "col": 1,
+        "iter": {
+          "col": 9,
+          "id": "各类",
+          "line": 61,
+          "类型": "Name"
+        },
+        "line": 61,
+        "target": {
+          "col": 4,
+          "id": "类别",
+          "line": 61,
+          "类型": "Name"
+        },
+        "类型": "For"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 66,
+              "value": "改备注 →",
+              "类型": "Str"
+            },
+            {
+              "args": [
+                {
+                  "col": 20,
+                  "id": "库",
+                  "line": 66,
+                  "类型": "Name"
+                },
+                {
+                  "col": 23,
+                  "line": 66,
+                  "value": "账目",
+                  "类型": "Str"
+                },
+                {
+                  "col": 29,
+                  "keys": [
+                    {
+                      "col": 30,
+                      "line": 66,
+                      "value": "备注",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 66,
+                  "values": [
+                    {
+                      "col": 35,
+                      "line": 66,
+                      "value": "早餐",
+                      "类型": "Str"
+                    }
+                  ],
+                  "类型": "Dict"
+                },
+                {
+                  "col": 42,
+                  "keys": [
+                    {
+                      "col": 43,
+                      "line": 66,
+                      "value": "备注",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 66,
+                  "values": [
+                    {
+                      "col": 48,
+                      "line": 66,
+                      "value": "早餐（豆浆+包子）",
+                      "类型": "Str"
+                    }
+                  ],
+                  "类型": "Dict"
+                }
+              ],
+              "col": 19,
+              "func": {
+                "attr": "修改",
+                "col": 16,
+                "line": 66,
+                "obj": {
+                  "col": 13,
+                  "id": "数据库",
+                  "line": 66,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 66,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 66,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 66,
+          "类型": "Call"
+        },
+        "line": 66,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 69,
+              "value": "删掉地铁 →",
+              "类型": "Str"
+            },
+            {
+              "args": [
+                {
+                  "col": 21,
+                  "id": "库",
+                  "line": 69,
+                  "类型": "Name"
+                },
+                {
+                  "col": 24,
+                  "line": 69,
+                  "value": "账目",
+                  "类型": "Str"
+                },
+                {
+                  "col": 30,
+                  "keys": [
+                    {
+                      "col": 31,
+                      "line": 69,
+                      "value": "类别",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 42,
+                      "line": 69,
+                      "value": "金额分",
+                      "类型": "Str"
+                    }
+                  ],
+                  "line": 69,
+                  "values": [
+                    {
+                      "col": 36,
+                      "line": 69,
+                      "value": "交通",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 48,
+                      "line": 69,
+                      "value": 400,
+                      "类型": "Num"
+                    }
+                  ],
+                  "类型": "Dict"
+                }
+              ],
+              "col": 20,
+              "func": {
+                "attr": "删除",
+                "col": 17,
+                "line": 69,
+                "obj": {
+                  "col": 14,
+                  "id": "数据库",
+                  "line": 69,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 69,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 69,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 69,
+          "类型": "Call"
+        },
+        "line": 69,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 72,
+              "value": "---- 手写 SQL：每类几笔 ----",
+              "类型": "Str"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 72,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 72,
+          "类型": "Call"
+        },
+        "line": 72,
+        "类型": "ExprStmt"
+      },
+      {
+        "body": [
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "col": 9,
+                  "index": {
+                    "col": 10,
+                    "line": 74,
+                    "value": "类别",
+                    "类型": "Str"
+                  },
+                  "line": 74,
+                  "obj": {
+                    "col": 8,
+                    "id": "行",
+                    "line": 74,
+                    "类型": "Name"
+                  },
+                  "类型": "Subscript"
+                },
+                {
+                  "col": 18,
+                  "index": {
+                    "col": 19,
+                    "line": 74,
+                    "value": "笔数",
+                    "类型": "Str"
+                  },
+                  "line": 74,
+                  "obj": {
+                    "col": 17,
+                    "id": "行",
+                    "line": 74,
+                    "类型": "Name"
+                  },
+                  "类型": "Subscript"
+                }
+              ],
+              "col": 7,
+              "func": {
+                "col": 5,
+                "id": "打印",
+                "line": 74,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 74,
+              "类型": "Call"
+            },
+            "line": 74,
+            "类型": "ExprStmt"
+          }
+        ],
+        "col": 1,
+        "iter": {
+          "args": [
+            {
+              "col": 17,
+              "id": "库",
+              "line": 73,
+              "类型": "Name"
+            },
+            {
+              "col": 20,
+              "line": 73,
+              "value": "SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)",
+              "类型": "Str"
+            }
+          ],
+          "col": 16,
+          "func": {
+            "attr": "执行查询",
+            "col": 11,
+            "line": 73,
+            "obj": {
+              "col": 8,
+              "id": "数据库",
+              "line": 73,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 73,
+          "类型": "Call"
+        },
+        "line": 73,
+        "target": {
+          "col": 4,
+          "id": "行",
+          "line": 73,
+          "类型": "Name"
+        },
+        "类型": "For"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 8,
+              "id": "库",
+              "line": 77,
+              "类型": "Name"
+            }
+          ],
+          "col": 7,
+          "func": {
+            "attr": "关闭",
+            "col": 4,
+            "line": 77,
+            "obj": {
+              "col": 1,
+              "id": "数据库",
+              "line": 77,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 77,
+          "类型": "Call"
+        },
+        "line": 77,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 9,
+              "id": "库文件",
+              "line": 78,
+              "类型": "Name"
+            }
+          ],
+          "col": 8,
+          "func": {
+            "attr": "删除文件",
+            "col": 3,
+            "line": 78,
+            "obj": {
+              "col": 1,
+              "id": "文件",
+              "line": 78,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 78,
+          "类型": "Call"
+        },
+        "line": 78,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 79,
+              "value": "演示完成（账目.db 已清理）",
+              "类型": "Str"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 79,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 79,
+          "类型": "Call"
+        },
+        "line": 79,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "1e8c10731cd0bc82ce849f31c586f8002da6877583d82c1f10429903fc3d812c",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            10,
+            1,
+            3,
+            0,
+            0,
+            0,
+            10,
+            1,
+            31,
+            1,
+            0,
+            -1,
+            11,
+            1,
+            3,
+            1,
+            0,
+            0,
+            11,
+            1,
+            31,
+            3,
+            0,
+            2,
+            14,
+            1,
+            3,
+            2,
+            0,
+            0,
+            14,
+            1,
+            1,
+            0,
+            0,
+            0,
+            16,
+            9,
+            3,
+            4,
+            0,
+            0,
+            16,
+            1,
+            2,
+            0,
+            0,
+            0,
+            17,
+            7,
+            25,
+            5,
+            0,
+            0,
+            17,
+            10,
+            2,
+            4,
+            0,
+            0,
+            17,
+            14,
+            20,
+            1,
+            -1,
+            0,
+            17,
+            13,
+            3,
+            6,
+            0,
+            0,
+            17,
+            1,
+            2,
+            0,
+            0,
+            0,
+            21,
+            1,
+            25,
+            7,
+            0,
+            0,
+            21,
+            4,
+            2,
+            6,
+            0,
+            0,
+            21,
+            8,
+            1,
+            1,
+            0,
+            0,
+            21,
+            11,
+            1,
+            2,
+            0,
+            0,
+            21,
+            18,
+            1,
+            3,
+            0,
+            0,
+            21,
+            24,
+            1,
+            4,
+            0,
+            0,
+            21,
+            30,
+            1,
+            5,
+            0,
+            0,
+            21,
+            37,
+            23,
+            4,
+            0,
+            0,
+            21,
+            17,
+            20,
+            3,
+            -1,
+            0,
+            21,
+            7,
+            38,
+            0,
+            0,
+            0,
+            21,
+            1,
+            2,
+            0,
+            0,
+            0,
+            22,
+            1,
+            25,
+            8,
+            0,
+            0,
+            22,
+            4,
+            2,
+            6,
+            0,
+            0,
+            22,
+            9,
+            1,
+            1,
+            0,
+            0,
+            22,
+            12,
+            1,
+            3,
+            0,
+            0,
+            22,
+            19,
+            23,
+            1,
+            0,
+            0,
+            22,
+            18,
+            20,
+            3,
+            -1,
+            0,
+            22,
+            8,
+            38,
+            0,
+            0,
+            0,
+            22,
+            1,
+            22,
+            1,
+            0,
+            0,
+            25,
+            1,
+            3,
+            11,
+            0,
+            0,
+            25,
+            1,
+            1,
+            9,
+            0,
+            0,
+            29,
+            25,
+            22,
+            2,
+            0,
+            1,
+            29,
+            1,
+            3,
+            19,
+            0,
+            0,
+            29,
+            1,
+            2,
+            19,
+            0,
+            0,
+            37,
+            1,
+            1,
+            10,
+            0,
+            0,
+            37,
+            5,
+            1,
+            11,
+            0,
+            0,
+            37,
+            19,
+            1,
+            12,
+            0,
+            0,
+            37,
+            25,
+            1,
+            13,
+            0,
+            0,
+            37,
+            30,
+            20,
+            4,
+            -1,
+            0,
+            37,
+            4,
+            38,
+            0,
+            0,
+            0,
+            37,
+            1,
+            2,
+            19,
+            0,
+            0,
+            38,
+            1,
+            1,
+            10,
+            0,
+            0,
+            38,
+            5,
+            1,
+            14,
+            0,
+            0,
+            38,
+            19,
+            1,
+            15,
+            0,
+            0,
+            38,
+            25,
+            1,
+            16,
+            0,
+            0,
+            38,
+            28,
+            20,
+            4,
+            -1,
+            0,
+            38,
+            4,
+            38,
+            0,
+            0,
+            0,
+            38,
+            1,
+            2,
+            0,
+            0,
+            0,
+            41,
+            9,
+            25,
+            20,
+            0,
+            0,
+            41,
+            12,
+            2,
+            6,
+            0,
+            0,
+            41,
+            18,
+            1,
+            1,
+            0,
+            0,
+            41,
+            21,
+            1,
+            2,
+            0,
+            0,
+            42,
+            6,
+            1,
+            17,
+            0,
+            0,
+            42,
+            11,
+            1,
+            3,
+            0,
+            0,
+            42,
+            25,
+            1,
+            11,
+            0,
+            0,
+            42,
+            30,
+            1,
+            4,
+            0,
+            0,
+            42,
+            36,
+            1,
+            18,
+            0,
+            0,
+            42,
+            42,
+            1,
+            5,
+            0,
+            0,
+            42,
+            48,
+            1,
+            19,
+            0,
+            0,
+            42,
+            53,
+            24,
+            4,
+            0,
+            0,
+            42,
+            5,
+            1,
+            2,
+            0,
+            0,
+            43,
+            6,
+            1,
+            17,
+            0,
+            0,
+            43,
+            11,
+            1,
+            3,
+            0,
+            0,
+            43,
+            25,
+            1,
+            20,
+            0,
+            0,
+            43,
+            30,
+            1,
+            4,
+            0,
+            0,
+            43,
+            36,
+            1,
+            21,
+            0,
+            0,
+            43,
+            42,
+            1,
+            5,
+            0,
+            0,
+            43,
+            48,
+            1,
+            22,
+            0,
+            0,
+            43,
+            53,
+            24,
+            4,
+            0,
+            0,
+            43,
+            5,
+            1,
+            2,
+            0,
+            0,
+            44,
+            6,
+            1,
+            23,
+            0,
+            0,
+            44,
+            11,
+            1,
+            3,
+            0,
+            0,
+            44,
+            25,
+            1,
+            11,
+            0,
+            0,
+            44,
+            30,
+            1,
+            4,
+            0,
+            0,
+            44,
+            36,
+            1,
+            24,
+            0,
+            0,
+            44,
+            42,
+            1,
+            5,
+            0,
+            0,
+            44,
+            48,
+            1,
+            25,
+            0,
+            0,
+            44,
+            53,
+            24,
+            4,
+            0,
+            0,
+            44,
+            5,
+            23,
+            3,
+            0,
+            0,
+            41,
+            27,
+            20,
+            3,
+            -1,
+            0,
+            41,
+            17,
+            3,
+            21,
+            0,
+            0,
+            41,
+            1,
+            2,
+            22,
+            0,
+            0,
+            46,
+            1,
+            1,
+            26,
+            0,
+            0,
+            46,
+            4,
+            2,
+            21,
+            0,
+            0,
+            46,
+            11,
+            1,
+            27,
+            0,
+            0,
+            46,
+            16,
+            2,
+            0,
+            0,
+            0,
+            46,
+            24,
+            25,
+            23,
+            0,
+            0,
+            46,
+            27,
+            2,
+            6,
+            0,
+            0,
+            46,
+            31,
+            1,
+            1,
+            0,
+            0,
+            46,
+            34,
+            20,
+            2,
+            -1,
+            0,
+            46,
+            30,
+            1,
+            28,
+            0,
+            0,
+            46,
+            41,
+            20,
+            5,
+            -1,
+            0,
+            46,
+            3,
+            38,
+            0,
+            0,
+            0,
+            46,
+            1,
+            2,
+            22,
+            0,
+            0,
+            49,
+            1,
+            1,
+            29,
+            0,
+            0,
+            49,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            49,
+            3,
+            38,
+            0,
+            0,
+            0,
+            49,
+            1,
+            2,
+            0,
+            0,
+            0,
+            50,
+            8,
+            25,
+            24,
+            0,
+            0,
+            50,
+            11,
+            2,
+            6,
+            0,
+            0,
+            50,
+            15,
+            1,
+            1,
+            0,
+            0,
+            50,
+            18,
+            1,
+            8,
+            0,
+            0,
+            50,
+            24,
+            1,
+            30,
+            0,
+            0,
+            50,
+            27,
+            1,
+            31,
+            0,
+            0,
+            50,
+            33,
+            1,
+            7,
+            0,
+            0,
+            50,
+            36,
+            20,
+            6,
+            -1,
+            0,
+            50,
+            14,
+            29,
+            0,
+            0,
+            0,
+            50,
+            1,
+            34,
+            112,
+            135,
+            0,
+            50,
+            1,
+            30,
+            133,
+            0,
+            0,
+            50,
+            1,
+            3,
+            25,
+            0,
+            0,
+            50,
+            1,
+            2,
+            22,
+            0,
+            0,
+            51,
+            5,
+            2,
+            25,
+            0,
+            0,
+            51,
+            8,
+            1,
+            2,
+            0,
+            0,
+            51,
+            10,
+            27,
+            0,
+            0,
+            0,
+            51,
+            9,
+            2,
+            25,
+            0,
+            0,
+            51,
+            17,
+            1,
+            3,
+            0,
+            0,
+            51,
+            19,
+            27,
+            0,
+            0,
+            0,
+            51,
+            18,
+            2,
+            11,
+            0,
+            0,
+            51,
+            26,
+            2,
+            25,
+            0,
+            0,
+            51,
+            28,
+            1,
+            4,
+            0,
+            0,
+            51,
+            30,
+            27,
+            0,
+            0,
+            0,
+            51,
+            29,
+            20,
+            1,
+            -1,
+            0,
+            51,
+            27,
+            1,
+            32,
+            0,
+            0,
+            51,
+            39,
+            2,
+            25,
+            0,
+            0,
+            51,
+            44,
+            1,
+            5,
+            0,
+            0,
+            51,
+            46,
+            27,
+            0,
+            0,
+            0,
+            51,
+            45,
+            20,
+            5,
+            -1,
+            0,
+            51,
+            7,
+            38,
+            0,
+            0,
+            0,
+            51,
+            5,
+            16,
+            112,
+            0,
+            0,
+            50,
+            1,
+            35,
+            0,
+            0,
+            0,
+            50,
+            1,
+            16,
+            137,
+            0,
+            0,
+            50,
+            1,
+            9,
+            0,
+            0,
+            0,
+            50,
+            1,
+            35,
+            0,
+            0,
+            0,
+            50,
+            1,
+            2,
+            22,
+            0,
+            0,
+            54,
+            1,
+            1,
+            33,
+            0,
+            0,
+            54,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            54,
+            3,
+            38,
+            0,
+            0,
+            0,
+            54,
+            1,
+            2,
+            0,
+            0,
+            0,
+            55,
+            8,
+            25,
+            24,
+            0,
+            0,
+            55,
+            11,
+            2,
+            6,
+            0,
+            0,
+            55,
+            15,
+            1,
+            1,
+            0,
+            0,
+            55,
+            18,
+            1,
+            4,
+            0,
+            0,
+            55,
+            25,
+            1,
+            34,
+            0,
+            0,
+            55,
+            32,
+            1,
+            35,
+            0,
+            0,
+            55,
+            36,
+            24,
+            1,
+            0,
+            0,
+            55,
+            31,
+            24,
+            1,
+            0,
+            0,
+            55,
+            24,
+            1,
+            4,
+            0,
+            0,
+            55,
+            44,
+            1,
+            31,
+            0,
+            0,
+            55,
+            51,
+            20,
+            5,
+            -1,
+            0,
+            55,
+            14,
+            29,
+            0,
+            0,
+            0,
+            55,
+            1,
+            34,
+            155,
+            175,
+            0,
+            55,
+            1,
+            30,
+            173,
+            0,
+            0,
+            55,
+            1,
+            3,
+            25,
+            0,
+            0,
+            55,
+            1,
+            2,
+            22,
+            0,
+            0,
+            56,
+            5,
+            2,
+            25,
+            0,
+            0,
+            56,
+            8,
+            1,
+            2,
+            0,
+            0,
+            56,
+            10,
+            27,
+            0,
+            0,
+            0,
+            56,
+            9,
+            2,
+            25,
+            0,
+            0,
+            56,
+            17,
+            1,
+            3,
+            0,
+            0,
+            56,
+            19,
+            27,
+            0,
+            0,
+            0,
+            56,
+            18,
+            2,
+            11,
+            0,
+            0,
+            56,
+            26,
+            2,
+            25,
+            0,
+            0,
+            56,
+            28,
+            1,
+            4,
+            0,
+            0,
+            56,
+            30,
+            27,
+            0,
+            0,
+            0,
+            56,
+            29,
+            20,
+            1,
+            -1,
+            0,
+            56,
+            27,
+            1,
+            32,
+            0,
+            0,
+            56,
+            39,
+            20,
+            4,
+            -1,
+            0,
+            56,
+            7,
+            38,
+            0,
+            0,
+            0,
+            56,
+            5,
+            16,
+            155,
+            0,
+            0,
+            55,
+            1,
+            35,
+            0,
+            0,
+            0,
+            55,
+            1,
+            16,
+            177,
+            0,
+            0,
+            55,
+            1,
+            9,
+            0,
+            0,
+            0,
+            55,
+            1,
+            35,
+            0,
+            0,
+            0,
+            55,
+            1,
+            2,
+            22,
+            0,
+            0,
+            59,
+            1,
+            1,
+            36,
+            0,
+            0,
+            59,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            59,
+            3,
+            38,
+            0,
+            0,
+            0,
+            59,
+            1,
+            2,
+            0,
+            0,
+            0,
+            60,
+            8,
+            25,
+            26,
+            0,
+            0,
+            60,
+            11,
+            2,
+            6,
+            0,
+            0,
+            60,
+            15,
+            1,
+            1,
+            0,
+            0,
+            60,
+            18,
+            1,
+            3,
+            0,
+            0,
+            60,
+            24,
+            1,
+            4,
+            0,
+            0,
+            60,
+            30,
+            20,
+            4,
+            -1,
+            0,
+            60,
+            14,
+            3,
+            27,
+            0,
+            0,
+            60,
+            1,
+            2,
+            27,
+            0,
+            0,
+            61,
+            9,
+            29,
+            0,
+            0,
+            0,
+            61,
+            1,
+            34,
+            192,
+            221,
+            0,
+            61,
+            1,
+            30,
+            219,
+            0,
+            0,
+            61,
+            1,
+            3,
+            13,
+            0,
+            0,
+            61,
+            1,
+            2,
+            27,
+            0,
+            0,
+            62,
+            11,
+            2,
+            13,
+            0,
+            0,
+            62,
+            14,
+            27,
+            0,
+            0,
+            0,
+            62,
+            13,
+            3,
+            28,
+            0,
+            0,
+            62,
+            5,
+            2,
+            22,
+            0,
+            0,
+            63,
+            5,
+            2,
+            13,
+            0,
+            0,
+            63,
+            8,
+            2,
+            28,
+            0,
+            0,
+            63,
+            12,
+            1,
+            37,
+            0,
+            0,
+            63,
+            14,
+            27,
+            0,
+            0,
+            0,
+            63,
+            13,
+            1,
+            38,
+            0,
+            0,
+            63,
+            21,
+            2,
+            11,
+            0,
+            0,
+            63,
+            29,
+            2,
+            28,
+            0,
+            0,
+            63,
+            31,
+            1,
+            39,
+            0,
+            0,
+            63,
+            33,
+            27,
+            0,
+            0,
+            0,
+            63,
+            32,
+            20,
+            1,
+            -1,
+            0,
+            63,
+            30,
+            1,
+            40,
+            0,
+            0,
+            63,
+            41,
+            2,
+            11,
+            0,
+            0,
+            63,
+            49,
+            2,
+            28,
+            0,
+            0,
+            63,
+            51,
+            1,
+            41,
+            0,
+            0,
+            63,
+            53,
+            27,
+            0,
+            0,
+            0,
+            63,
+            52,
+            20,
+            1,
+            -1,
+            0,
+            63,
+            50,
+            1,
+            32,
+            0,
+            0,
+            63,
+            61,
+            20,
+            7,
+            -1,
+            0,
+            63,
+            7,
+            38,
+            0,
+            0,
+            0,
+            63,
+            5,
+            16,
+            192,
+            0,
+            0,
+            61,
+            1,
+            35,
+            0,
+            0,
+            0,
+            61,
+            1,
+            16,
+            223,
+            0,
+            0,
+            61,
+            1,
+            9,
+            0,
+            0,
+            0,
+            61,
+            1,
+            35,
+            0,
+            0,
+            0,
+            61,
+            1,
+            2,
+            22,
+            0,
+            0,
+            66,
+            1,
+            1,
+            42,
+            0,
+            0,
+            66,
+            4,
+            2,
+            0,
+            0,
+            0,
+            66,
+            13,
+            25,
+            29,
+            0,
+            0,
+            66,
+            16,
+            2,
+            6,
+            0,
+            0,
+            66,
+            20,
+            1,
+            1,
+            0,
+            0,
+            66,
+            23,
+            1,
+            5,
+            0,
+            0,
+            66,
+            30,
+            1,
+            13,
+            0,
+            0,
+            66,
+            35,
+            24,
+            1,
+            0,
+            0,
+            66,
+            29,
+            1,
+            5,
+            0,
+            0,
+            66,
+            43,
+            1,
+            43,
+            0,
+            0,
+            66,
+            48,
+            24,
+            1,
+            0,
+            0,
+            66,
+            42,
+            20,
+            4,
+            -1,
+            0,
+            66,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            66,
+            3,
+            38,
+            0,
+            0,
+            0,
+            66,
+            1,
+            2,
+            22,
+            0,
+            0,
+            69,
+            1,
+            1,
+            44,
+            0,
+            0,
+            69,
+            4,
+            2,
+            0,
+            0,
+            0,
+            69,
+            14,
+            25,
+            30,
+            0,
+            0,
+            69,
+            17,
+            2,
+            6,
+            0,
+            0,
+            69,
+            21,
+            1,
+            1,
+            0,
+            0,
+            69,
+            24,
+            1,
+            3,
+            0,
+            0,
+            69,
+            31,
+            1,
+            14,
+            0,
+            0,
+            69,
+            36,
+            1,
+            4,
+            0,
+            0,
+            69,
+            42,
+            1,
+            45,
+            0,
+            0,
+            69,
+            48,
+            24,
+            2,
+            0,
+            0,
+            69,
+            30,
+            20,
+            3,
+            -1,
+            0,
+            69,
+            20,
+            20,
+            2,
+            -1,
+            0,
+            69,
+            3,
+            38,
+            0,
+            0,
+            0,
+            69,
+            1,
+            2,
+            22,
+            0,
+            0,
+            72,
+            1,
+            1,
+            46,
+            0,
+            0,
+            72,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            72,
+            3,
+            38,
+            0,
+            0,
+            0,
+            72,
+            1,
+            2,
+            0,
+            0,
+            0,
+            73,
+            8,
+            25,
+            31,
+            0,
+            0,
+            73,
+            11,
+            2,
+            6,
+            0,
+            0,
+            73,
+            17,
+            1,
+            47,
+            0,
+            0,
+            73,
+            20,
+            20,
+            2,
+            -1,
+            0,
+            73,
+            16,
+            29,
+            0,
+            0,
+            0,
+            73,
+            1,
+            34,
+            263,
+            277,
+            0,
+            73,
+            1,
+            30,
+            275,
+            0,
+            0,
+            73,
+            1,
+            3,
+            32,
+            0,
+            0,
+            73,
+            1,
+            2,
+            22,
+            0,
+            0,
+            74,
+            5,
+            2,
+            32,
+            0,
+            0,
+            74,
+            8,
+            1,
+            3,
+            0,
+            0,
+            74,
+            10,
+            27,
+            0,
+            0,
+            0,
+            74,
+            9,
+            2,
+            32,
+            0,
+            0,
+            74,
+            17,
+            1,
+            48,
+            0,
+            0,
+            74,
+            19,
+            27,
+            0,
+            0,
+            0,
+            74,
+            18,
+            20,
+            2,
+            -1,
+            0,
+            74,
+            7,
+            38,
+            0,
+            0,
+            0,
+            74,
+            5,
+            16,
+            263,
+            0,
+            0,
+            73,
+            1,
+            35,
+            0,
+            0,
+            0,
+            73,
+            1,
+            16,
+            279,
+            0,
+            0,
+            73,
+            1,
+            9,
+            0,
+            0,
+            0,
+            73,
+            1,
+            35,
+            0,
+            0,
+            0,
+            73,
+            1,
+            2,
+            0,
+            0,
+            0,
+            77,
+            1,
+            25,
+            33,
+            0,
+            0,
+            77,
+            4,
+            2,
+            6,
+            0,
+            0,
+            77,
+            8,
+            20,
+            1,
+            -1,
+            0,
+            77,
+            7,
+            38,
+            0,
+            0,
+            0,
+            77,
+            1,
+            2,
+            1,
+            0,
+            0,
+            78,
+            1,
+            25,
+            34,
+            0,
+            0,
+            78,
+            3,
+            2,
+            4,
+            0,
+            0,
+            78,
+            9,
+            20,
+            1,
+            -1,
+            0,
+            78,
+            8,
+            38,
+            0,
+            0,
+            0,
+            78,
+            1,
+            2,
+            22,
+            0,
+            0,
+            79,
+            1,
+            1,
+            49,
+            0,
+            0,
+            79,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            79,
+            3,
+            38,
+            0,
+            0,
+            0,
+            79,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 25,
+          "freevars": [],
+          "instrs": [
+            2,
+            2,
+            0,
+            0,
+            26,
+            8,
+            25,
+            10,
+            0,
+            0,
+            26,
+            11,
+            4,
+            0,
+            0,
+            0,
+            26,
+            16,
+            1,
+            6,
+            0,
+            0,
+            26,
+            20,
+            13,
+            3,
+            0,
+            0,
+            26,
+            18,
+            1,
+            7,
+            0,
+            0,
+            26,
+            25,
+            20,
+            2,
+            -1,
+            0,
+            26,
+            15,
+            21,
+            0,
+            0,
+            0,
+            26,
+            5,
+            1,
+            8,
+            0,
+            0,
+            25,
+            1,
+            21,
+            0,
+            0,
+            0,
+            25,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [
+            "分"
+          ],
+          "name": "元",
+          "nlocals": 1,
+          "param_cell": [
+            -1
+          ],
+          "param_idx": [
+            9
+          ],
+          "param_kind": [
+            0
+          ],
+          "param_local": [
+            0
+          ],
+          "params": [
+            "分"
+          ]
+        },
+        {
+          "cellvars": [],
+          "firstlineno": 29,
+          "freevars": [],
+          "instrs": [
+            2,
+            0,
+            0,
+            0,
+            30,
+            5,
+            25,
+            16,
+            0,
+            0,
+            30,
+            8,
+            2,
+            6,
+            0,
+            0,
+            30,
+            12,
+            1,
+            1,
+            0,
+            0,
+            30,
+            15,
+            1,
+            2,
+            0,
+            0,
+            31,
+            9,
+            4,
+            0,
+            0,
+            0,
+            31,
+            14,
+            1,
+            3,
+            0,
+            0,
+            32,
+            9,
+            4,
+            1,
+            0,
+            0,
+            32,
+            14,
+            1,
+            4,
+            0,
+            0,
+            33,
+            9,
+            2,
+            17,
+            0,
+            0,
+            33,
+            15,
+            2,
+            18,
+            0,
+            0,
+            33,
+            18,
+            4,
+            2,
+            0,
+            0,
+            33,
+            21,
+            20,
+            1,
+            -1,
+            0,
+            33,
+            20,
+            1,
+            6,
+            0,
+            0,
+            33,
+            27,
+            13,
+            2,
+            0,
+            0,
+            33,
+            25,
+            20,
+            1,
+            -1,
+            0,
+            33,
+            17,
+            1,
+            5,
+            0,
+            0,
+            34,
+            9,
+            4,
+            3,
+            0,
+            0,
+            34,
+            14,
+            24,
+            4,
+            0,
+            0,
+            30,
+            21,
+            20,
+            3,
+            -1,
+            0,
+            30,
+            11,
+            9,
+            0,
+            0,
+            0,
+            30,
+            5,
+            1,
+            8,
+            0,
+            0,
+            29,
+            1,
+            21,
+            0,
+            0,
+            0,
+            29,
+            1
+          ],
+          "local_hints": {
+            "1": "外层也有一个叫「类别」的变量。在这个函数里给它赋过值，它就成了这个函数的局部变量，赋值之前不能读取"
+          },
+          "local_names": [
+            "日期",
+            "类别",
+            "金额",
+            "备注"
+          ],
+          "name": "记一笔",
+          "nlocals": 4,
+          "param_cell": [
+            -1,
+            -1,
+            -1,
+            -1
+          ],
+          "param_idx": [
+            12,
+            13,
+            14,
+            15
+          ],
+          "param_kind": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "param_local": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "params": [
+            "日期",
+            "类别",
+            "金额",
+            "备注"
+          ]
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "账目.db"
+        },
+        {
+          "t": "str",
+          "v": "账目"
+        },
+        {
+          "t": "str",
+          "v": "日期"
+        },
+        {
+          "t": "str",
+          "v": "类别"
+        },
+        {
+          "t": "str",
+          "v": "金额分"
+        },
+        {
+          "t": "str",
+          "v": "备注"
+        },
+        {
+          "t": "int",
+          "v": 100
+        },
+        {
+          "t": "int",
+          "v": 2
+        },
+        {
+          "t": "none"
+        },
+        {
+          "t": "str",
+          "v": ""
+        },
+        {
+          "t": "str",
+          "v": "2026-10-01"
+        },
+        {
+          "t": "str",
+          "v": "餐饮"
+        },
+        {
+          "t": "float",
+          "v": 8.5
+        },
+        {
+          "t": "str",
+          "v": "早餐"
+        },
+        {
+          "t": "str",
+          "v": "交通"
+        },
+        {
+          "t": "int",
+          "v": 4
+        },
+        {
+          "t": "str",
+          "v": "地铁"
+        },
+        {
+          "t": "str",
+          "v": "2026-10-02"
+        },
+        {
+          "t": "int",
+          "v": 1500
+        },
+        {
+          "t": "str",
+          "v": "午饭"
+        },
+        {
+          "t": "str",
+          "v": "购物"
+        },
+        {
+          "t": "int",
+          "v": 8990
+        },
+        {
+          "t": "str",
+          "v": "键盘"
+        },
+        {
+          "t": "str",
+          "v": "2026-10-03"
+        },
+        {
+          "t": "int",
+          "v": 2200
+        },
+        {
+          "t": "str",
+          "v": "聚餐"
+        },
+        {
+          "t": "str",
+          "v": "新记了"
+        },
+        {
+          "t": "str",
+          "v": "笔；一共"
+        },
+        {
+          "t": "str",
+          "v": "笔"
+        },
+        {
+          "t": "str",
+          "v": "---- 最近两笔 ----"
+        },
+        {
+          "t": "str",
+          "v": "id"
+        },
+        {
+          "t": "true"
+        },
+        {
+          "t": "str",
+          "v": "元"
+        },
+        {
+          "t": "str",
+          "v": "---- 超过 50 元的（从贵到便宜）----"
+        },
+        {
+          "t": "str",
+          "v": ">"
+        },
+        {
+          "t": "int",
+          "v": 5000
+        },
+        {
+          "t": "str",
+          "v": "---- 分类汇总 ----"
+        },
+        {
+          "t": "str",
+          "v": "个数"
+        },
+        {
+          "t": "str",
+          "v": "笔，合计"
+        },
+        {
+          "t": "str",
+          "v": "总和"
+        },
+        {
+          "t": "str",
+          "v": "元，平均"
+        },
+        {
+          "t": "str",
+          "v": "平均"
+        },
+        {
+          "t": "str",
+          "v": "改备注 →"
+        },
+        {
+          "t": "str",
+          "v": "早餐（豆浆+包子）"
+        },
+        {
+          "t": "str",
+          "v": "删掉地铁 →"
+        },
+        {
+          "t": "int",
+          "v": 400
+        },
+        {
+          "t": "str",
+          "v": "---- 手写 SQL：每类几笔 ----"
+        },
+        {
+          "t": "str",
+          "v": "SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)"
+        },
+        {
+          "t": "str",
+          "v": "笔数"
+        },
+        {
+          "t": "str",
+          "v": "演示完成（账目.db 已清理）"
+        }
+      ],
+      "filename": "examples/tutorial/11_记账数据库.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "数据库",
+        "文件",
+        "文本库",
+        "文本",
+        "库文件",
+        "打开",
+        "库",
+        "建表",
+        "建索引",
+        "分",
+        "小数位",
+        "元",
+        "日期",
+        "类别",
+        "金额",
+        "备注",
+        "插入",
+        "整数",
+        "精确",
+        "记一笔",
+        "批量插入",
+        "新记的",
+        "打印",
+        "条数",
+        "查询",
+        "账",
+        "汇总",
+        "各类",
+        "统",
+        "修改",
+        "删除",
+        "执行查询",
+        "行",
+        "关闭",
+        "删除文件"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 10,
+      "source_line": "导入 数据库",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 10,
+      "source_line": "导入 数据库",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "导入 数据库",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "导入 文件",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 11,
+      "source_line": "导入 文件",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "导入 文件",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 14,
+      "source_line": "导入 文本 为 文本库",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 14,
+      "source_line": "导入 文本 为 文本库",
+      "type": "NAME",
+      "value": "文本",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 14,
+      "source_line": "导入 文本 为 文本库",
+      "type": "KEYWORD",
+      "value": "为",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 14,
+      "source_line": "导入 文本 为 文本库",
+      "type": "NAME",
+      "value": "文本库",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "导入 文本 为 文本库",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "令 库文件 = \"账目.db\"",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 5,
+      "line": 16,
+      "source_line": "令 库文件 = \"账目.db\"",
+      "type": "NAME",
+      "value": "库文件",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 16,
+      "source_line": "令 库文件 = \"账目.db\"",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 15,
+      "line": 16,
+      "source_line": "令 库文件 = \"账目.db\"",
+      "type": "STRING",
+      "value": "账目.db",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "令 库文件 = \"账目.db\"",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "NAME",
+      "value": "打开",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 16,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "NAME",
+      "value": "库文件",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "令 库 = 数据库.打开(库文件)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 3,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "NAME",
+      "value": "建表",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "STRING",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 27,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 34,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 40,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "STRING",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 21,
+      "source_line": "数据库.建表(库, \"账目\", [\"日期\", \"类别\", \"金额分\", \"备注\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 3,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 7,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "NAME",
+      "value": "建索引",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 22,
+      "source_line": "数据库.建索引(库, \"账目\", [\"类别\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 25,
+      "source_line": "函数 元(分)：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 25,
+      "source_line": "函数 元(分)：",
+      "type": "NAME",
+      "value": "元",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 25,
+      "source_line": "函数 元(分)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 25,
+      "source_line": "函数 元(分)：",
+      "type": "NAME",
+      "value": "分",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 25,
+      "source_line": "函数 元(分)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 25,
+      "source_line": "函数 元(分)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 25,
+      "source_line": "函数 元(分)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "KEYWORD",
+      "value": "返回",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "NAME",
+      "value": "文本库",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 14,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "NAME",
+      "value": "小数位",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 16,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "NAME",
+      "value": "分",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "OP",
+      "value": "/",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 22,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "NUMBER",
+      "value": 100,
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 25,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 26,
+      "source_line": "    返回 文本库.小数位(分 / 100, 2)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "KEYWORD",
+      "value": "函数",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "NAME",
+      "value": "记一笔",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "NAME",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "NAME",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "NAME",
+      "value": "金额",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "NAME",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "STRING",
+      "value": "",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 29,
+      "source_line": "函数 记一笔(日期, 类别, 金额, 备注 = \"\")：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 7,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "NAME",
+      "value": "插入",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 18,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 30,
+      "source_line": "    数据库.插入(库, \"账目\", {",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 12,
+      "line": 31,
+      "source_line": "        \"日期\"：日期,",
+      "type": "STRING",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 31,
+      "source_line": "        \"日期\"：日期,",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 31,
+      "source_line": "        \"日期\"：日期,",
+      "type": "NAME",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 31,
+      "source_line": "        \"日期\"：日期,",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 12,
+      "line": 32,
+      "source_line": "        \"类别\"：类别,",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 32,
+      "source_line": "        \"类别\"：类别,",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 32,
+      "source_line": "        \"类别\"：类别,",
+      "type": "NAME",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 32,
+      "source_line": "        \"类别\"：类别,",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 13,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "NAME",
+      "value": "整数",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "NAME",
+      "value": "精确",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "NAME",
+      "value": "金额",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "OP",
+      "value": "*",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 29,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "NUMBER",
+      "value": 100,
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 33,
+      "source_line": "        \"金额分\"：整数(精确(金额) * 100),",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 12,
+      "line": 34,
+      "source_line": "        \"备注\"：备注,",
+      "type": "STRING",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 34,
+      "source_line": "        \"备注\"：备注,",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 34,
+      "source_line": "        \"备注\"：备注,",
+      "type": "NAME",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 34,
+      "source_line": "        \"备注\"：备注,",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 35,
+      "source_line": "    })",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 35,
+      "source_line": "    })",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 35,
+      "source_line": "    })",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 3,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "NAME",
+      "value": "记一笔",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 16,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "STRING",
+      "value": "2026-10-01",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "STRING",
+      "value": "餐饮",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 27,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "NUMBER",
+      "value": 8.5,
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "STRING",
+      "value": "早餐",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "记一笔(\"2026-10-01\", \"餐饮\", 8.5, \"早餐\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 3,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "NAME",
+      "value": "记一笔",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 16,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "STRING",
+      "value": "2026-10-01",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "STRING",
+      "value": "交通",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 25,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "NUMBER",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 31,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "STRING",
+      "value": "地铁",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 38,
+      "source_line": "记一笔(\"2026-10-01\", \"交通\", 4, \"地铁\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 5,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "NAME",
+      "value": "新记的",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 16,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "NAME",
+      "value": "批量插入",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 18,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 24,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 41,
+      "source_line": "令 新记的 = 数据库.批量插入(库, \"账目\", [",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "STRING",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 22,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "STRING",
+      "value": "2026-10-02",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 28,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "STRING",
+      "value": "餐饮",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 40,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 45,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "NUMBER",
+      "value": 1500,
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 51,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "STRING",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 53,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 56,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "STRING",
+      "value": "午饭",
+      "类型": "Token"
+    },
+    {
+      "col": 57,
+      "end_col": 58,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 58,
+      "end_col": 59,
+      "line": 42,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"餐饮\", \"金额分\"：1500, \"备注\"：\"午饭\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "STRING",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 22,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "STRING",
+      "value": "2026-10-02",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 28,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "STRING",
+      "value": "购物",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 40,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 45,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "NUMBER",
+      "value": 8990,
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 51,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "STRING",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 53,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 56,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "STRING",
+      "value": "键盘",
+      "类型": "Token"
+    },
+    {
+      "col": 57,
+      "end_col": 58,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 58,
+      "end_col": 59,
+      "line": 43,
+      "source_line": "    {\"日期\"：\"2026-10-02\", \"类别\"：\"购物\", \"金额分\"：8990, \"备注\"：\"键盘\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "STRING",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 22,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "STRING",
+      "value": "2026-10-03",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 28,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "STRING",
+      "value": "餐饮",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 40,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 45,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "NUMBER",
+      "value": 2200,
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 51,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "STRING",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 53,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 56,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "STRING",
+      "value": "聚餐",
+      "类型": "Token"
+    },
+    {
+      "col": 57,
+      "end_col": 58,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 58,
+      "end_col": 59,
+      "line": 44,
+      "source_line": "    {\"日期\"：\"2026-10-03\", \"类别\"：\"餐饮\", \"金额分\"：2200, \"备注\"：\"聚餐\"},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 45,
+      "source_line": "])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 45,
+      "source_line": "])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 45,
+      "source_line": "])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 8,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "STRING",
+      "value": "新记了",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 13,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "NAME",
+      "value": "新记的",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 21,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "STRING",
+      "value": "笔；一共",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 26,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "NAME",
+      "value": "条数",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 31,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 37,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 43,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "STRING",
+      "value": "笔",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 45,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 46,
+      "source_line": "打印(\"新记了\", 新记的, \"笔；一共\", 数据库.条数(库, \"账目\"), \"笔\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 49,
+      "source_line": "打印(\"---- 最近两笔 ----\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 49,
+      "source_line": "打印(\"---- 最近两笔 ----\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 19,
+      "line": 49,
+      "source_line": "打印(\"---- 最近两笔 ----\")",
+      "type": "STRING",
+      "value": "---- 最近两笔 ----",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 49,
+      "source_line": "打印(\"---- 最近两笔 ----\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 49,
+      "source_line": "打印(\"---- 最近两笔 ----\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "NAME",
+      "value": "查询",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 24,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "KEYWORD",
+      "value": "空",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 30,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "STRING",
+      "value": "id",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 33,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 36,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "NUMBER",
+      "value": 2,
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 50,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", 空, \"id\", 真, 2)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "STRING",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 26,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "NAME",
+      "value": "元",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 28,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 34,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 41,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "STRING",
+      "value": "元",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 44,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 46,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 49,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "STRING",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 50,
+      "end_col": 51,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 51,
+      "end_col": 52,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 51,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\", 账[\"备注\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 54,
+      "source_line": "打印(\"---- 超过 50 元的（从贵到便宜）----\")",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 54,
+      "source_line": "打印(\"---- 超过 50 元的（从贵到便宜）----\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 54,
+      "source_line": "打印(\"---- 超过 50 元的（从贵到便宜）----\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 29,
+      "line": 54,
+      "source_line": "打印(\"---- 超过 50 元的（从贵到便宜）----\")",
+      "type": "STRING",
+      "value": "---- 超过 50 元的（从贵到便宜）----",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 54,
+      "source_line": "打印(\"---- 超过 50 元的（从贵到便宜）----\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 54,
+      "source_line": "打印(\"---- 超过 50 元的（从贵到便宜）----\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "NAME",
+      "value": "查询",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 29,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 34,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "STRING",
+      "value": ">",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 39,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "NUMBER",
+      "value": 5000,
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 48,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 49,
+      "end_col": 50,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 51,
+      "end_col": 51,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 53,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 54,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 55,
+      "source_line": "遍历 账 在 数据库.查询(库, \"账目\", {\"金额分\"：{\">\"：5000}}, \"金额分\", 真)：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "STRING",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 26,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "NAME",
+      "value": "元",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 28,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "NAME",
+      "value": "账",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 34,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 41,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "STRING",
+      "value": "元",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 56,
+      "source_line": "    打印(账[\"日期\"], 账[\"类别\"], 元(账[\"金额分\"]), \"元\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "打印(\"---- 分类汇总 ----\")",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 59,
+      "source_line": "打印(\"---- 分类汇总 ----\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 59,
+      "source_line": "打印(\"---- 分类汇总 ----\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 19,
+      "line": 59,
+      "source_line": "打印(\"---- 分类汇总 ----\")",
+      "type": "STRING",
+      "value": "---- 分类汇总 ----",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 59,
+      "source_line": "打印(\"---- 分类汇总 ----\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "打印(\"---- 分类汇总 ----\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "NAME",
+      "value": "各类",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "NAME",
+      "value": "汇总",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 27,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 34,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 60,
+      "source_line": "令 各类 = 数据库.汇总(库, \"账目\", \"类别\", \"金额分\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 61,
+      "source_line": "遍历 类别 在 各类：",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 61,
+      "source_line": "遍历 类别 在 各类：",
+      "type": "NAME",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 61,
+      "source_line": "遍历 类别 在 各类：",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 61,
+      "source_line": "遍历 类别 在 各类：",
+      "type": "NAME",
+      "value": "各类",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 61,
+      "source_line": "遍历 类别 在 各类：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 61,
+      "source_line": "遍历 类别 在 各类：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 62,
+      "source_line": "    令 统 = 各类[类别]",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 62,
+      "source_line": "    令 统 = 各类[类别]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 62,
+      "source_line": "    令 统 = 各类[类别]",
+      "type": "NAME",
+      "value": "统",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 62,
+      "source_line": "    令 统 = 各类[类别]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 62,
+      "source_line": "    令 统 = 各类[类别]",
+      "type": "NAME",
+      "value": "各类",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 62,
+      "source_line": "    令 统 = 各类[类别]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 62,
+      "source_line": "    令 统 = 各类[类别]",
+      "type": "NAME",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 62,
+      "source_line": "    令 统 = 各类[类别]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 62,
+      "source_line": "    令 统 = 各类[类别]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "NAME",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 12,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "NAME",
+      "value": "统",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 17,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "STRING",
+      "value": "个数",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 26,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "STRING",
+      "value": "笔，合计",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 29,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "NAME",
+      "value": "元",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 31,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "NAME",
+      "value": "统",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 36,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "STRING",
+      "value": "总和",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 39,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 46,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "STRING",
+      "value": "元，平均",
+      "类型": "Token"
+    },
+    {
+      "col": 47,
+      "end_col": 48,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 49,
+      "end_col": 49,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "NAME",
+      "value": "元",
+      "类型": "Token"
+    },
+    {
+      "col": 50,
+      "end_col": 51,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 51,
+      "end_col": 51,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "NAME",
+      "value": "统",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 53,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 56,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "STRING",
+      "value": "平均",
+      "类型": "Token"
+    },
+    {
+      "col": 57,
+      "end_col": 58,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 58,
+      "end_col": 59,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 59,
+      "end_col": 60,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 61,
+      "end_col": 63,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "STRING",
+      "value": "元",
+      "类型": "Token"
+    },
+    {
+      "col": 64,
+      "end_col": 65,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 63,
+      "source_line": "    打印(类别, 统[\"个数\"], \"笔，合计\", 元(统[\"总和\"]), \"元，平均\", 元(统[\"平均\"]), \"元\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 10,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "STRING",
+      "value": "改备注 →",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 15,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "NAME",
+      "value": "修改",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 20,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 26,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 33,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "STRING",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 38,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "STRING",
+      "value": "早餐",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 43,
+      "end_col": 46,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "STRING",
+      "value": "备注",
+      "类型": "Token"
+    },
+    {
+      "col": 47,
+      "end_col": 48,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 58,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "STRING",
+      "value": "早餐（豆浆+包子）",
+      "类型": "Token"
+    },
+    {
+      "col": 59,
+      "end_col": 60,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 60,
+      "end_col": 61,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 61,
+      "end_col": 62,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 66,
+      "source_line": "打印(\"改备注 →\", 数据库.修改(库, \"账目\", {\"备注\"：\"早餐\"}, {\"备注\"：\"早餐（豆浆+包子）\"}))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 11,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "STRING",
+      "value": "删掉地铁 →",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 16,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "NAME",
+      "value": "删除",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 21,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 27,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "STRING",
+      "value": "账目",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 34,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 39,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "STRING",
+      "value": "交通",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 41,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 46,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "STRING",
+      "value": "金额分",
+      "类型": "Token"
+    },
+    {
+      "col": 47,
+      "end_col": 48,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 50,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "NUMBER",
+      "value": 400,
+      "类型": "Token"
+    },
+    {
+      "col": 51,
+      "end_col": 52,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 53,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 54,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 69,
+      "source_line": "打印(\"删掉地铁 →\", 数据库.删除(库, \"账目\", {\"类别\"：\"交通\", \"金额分\"：400}))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 72,
+      "source_line": "打印(\"---- 手写 SQL：每类几笔 ----\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 72,
+      "source_line": "打印(\"---- 手写 SQL：每类几笔 ----\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 26,
+      "line": 72,
+      "source_line": "打印(\"---- 手写 SQL：每类几笔 ----\")",
+      "type": "STRING",
+      "value": "---- 手写 SQL：每类几笔 ----",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 72,
+      "source_line": "打印(\"---- 手写 SQL：每类几笔 ----\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 72,
+      "source_line": "打印(\"---- 手写 SQL：每类几笔 ----\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "NAME",
+      "value": "行",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "NAME",
+      "value": "执行查询",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 86,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "STRING",
+      "value": "SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)",
+      "类型": "Token"
+    },
+    {
+      "col": 87,
+      "end_col": 88,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 88,
+      "end_col": 89,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 73,
+      "source_line": "遍历 行 在 数据库.执行查询(库, \"SELECT 类别, COUNT(*) AS 笔数 FROM 账目 GROUP BY 类别 ORDER BY MIN(rowid)\")：",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "NAME",
+      "value": "行",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "STRING",
+      "value": "类别",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 17,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "NAME",
+      "value": "行",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "STRING",
+      "value": "笔数",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 74,
+      "source_line": "    打印(行[\"类别\"], 行[\"笔数\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 77,
+      "source_line": "数据库.关闭(库)",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 3,
+      "line": 77,
+      "source_line": "数据库.关闭(库)",
+      "type": "NAME",
+      "value": "数据库",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 77,
+      "source_line": "数据库.关闭(库)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 77,
+      "source_line": "数据库.关闭(库)",
+      "type": "NAME",
+      "value": "关闭",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 77,
+      "source_line": "数据库.关闭(库)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 8,
+      "line": 77,
+      "source_line": "数据库.关闭(库)",
+      "type": "NAME",
+      "value": "库",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 77,
+      "source_line": "数据库.关闭(库)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 77,
+      "source_line": "数据库.关闭(库)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 78,
+      "source_line": "文件.删除文件(库文件)",
+      "type": "NAME",
+      "value": "文件",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 78,
+      "source_line": "文件.删除文件(库文件)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 78,
+      "source_line": "文件.删除文件(库文件)",
+      "type": "NAME",
+      "value": "删除文件",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 78,
+      "source_line": "文件.删除文件(库文件)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 11,
+      "line": 78,
+      "source_line": "文件.删除文件(库文件)",
+      "type": "NAME",
+      "value": "库文件",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 78,
+      "source_line": "文件.删除文件(库文件)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 78,
+      "source_line": "文件.删除文件(库文件)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 79,
+      "source_line": "打印(\"演示完成（账目.db 已清理）\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 79,
+      "source_line": "打印(\"演示完成（账目.db 已清理）\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 20,
+      "line": 79,
+      "source_line": "打印(\"演示完成（账目.db 已清理）\")",
+      "type": "STRING",
+      "value": "演示完成（账目.db 已清理）",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 79,
+      "source_line": "打印(\"演示完成（账目.db 已清理）\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 79,
+      "source_line": "打印(\"演示完成（账目.db 已清理）\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 79,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:ad02c4a9b1fba9e7",
+  "语料": "examples/tutorial/11_记账数据库.jsh"
+}

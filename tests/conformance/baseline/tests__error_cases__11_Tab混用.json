@@ -1,0 +1,19 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": null,
+    "修正": null,
+    "列": 1,
+    "提示": null,
+    "标题": "缩进混用了 Tab 和空格",
+    "消息": "同一行缩进里混用了 Tab 和空格，请统一",
+    "渲染": "错误 E0102：缩进混用了 Tab 和空格（同一行缩进里混用了 Tab 和空格，请统一）\n  ┌─ tests/error_cases/11_Tab混用.jsh:2:1\n  │\n  2 │  \t打印(1)\n    │ ^\n  │",
+    "码": "E0102",
+    "行": 2,
+    "阶段": "词法"
+  },
+  "tokens": null,
+  "内容哈希": "sha256:52acf1b91d80e215",
+  "语料": "tests/error_cases/11_Tab混用.jsh"
+}
