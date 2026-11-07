@@ -42,6 +42,8 @@ pub mod scope;      // R7.3：AST 作用域分析（scope.py 的移植，checker
 pub mod lsp;        // R7.3：语言服务器（lsp.py 的移植，`jishi-rs lsp`）
 pub mod run;        // R7.4：CLI 主入口（cli.py 的移植）
 pub mod sandbox;    // R7.4：沙箱（sandbox.py 的移植）
+#[cfg(feature = "jit")]
+pub mod jit;        // M180：整数循环的 JIT（x86-64；编不了就退回解释器）
 pub mod mcp;        // R7.4：MCP 服务器（mcp_server.py 的移植，`jishi-rs mcp`）
 pub mod debugger;   // R7.5：调试会话（debugger.py 的移植）
 pub mod dap;        // R7.5：DAP 适配器（dap.py 的移植，`jishi-rs dap`）
@@ -1392,7 +1394,7 @@ pub(crate) enum BoundMethod {
 // 指令号
 // ---------------------------------------------------------------------------
 
-mod op {
+pub(crate) mod op {
     pub const LOAD_CONST: i64 = 1;
     pub const LOAD_GLOBAL: i64 = 2;
     pub const STORE_GLOBAL: i64 = 3;
@@ -1451,11 +1453,11 @@ mod op {
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Debug)]
-struct Instr {
-    op: i64,
-    a: i64,
-    b: i64,
-    c: i64,
+pub(crate) struct Instr {
+    pub(crate) op: i64,
+    pub(crate) a: i64,
+    pub(crate) b: i64,
+    pub(crate) c: i64,
     /// 源码位置（M56）。字节码里**一直带着**（每条指令是 6 个数字：
     /// `op,a,b,c,line,col`），但这里原来只解前 4 个、把位置丢了 ——
     /// 那是「宿主报错说不出哪一行」的第二个根因（第一个是 `JishiError`
@@ -2062,6 +2064,12 @@ pub struct VM {
     /// 已记的步数（= 回跳次数）。
     #[cfg(feature = "budget")]
     steps: u64,
+    /// M180：JIT 的状态（热度计数 / 编好的循环 / 开关）。
+    ///
+    /// 关掉 `jit` 特征时这个字段**整个不存在** —— wasm 那边 `default-features = false`，
+    /// 于是一个字节的发射器都不会进 wasm 包。
+    #[cfg(feature = "jit")]
+    jit: crate::jit::状态,
 }
 
 /// 建全局表：长度 = 名字个数，**内建按名字预填**，其余留 `None`。
@@ -2097,7 +2105,24 @@ impl VM {
             step_limit: u64::MAX,
             #[cfg(feature = "budget")]
             steps: 0,
+            #[cfg(feature = "jit")]
+            jit: crate::jit::状态::new(),
         }
+    }
+
+    /// 运行时开关 JIT（`--不用jit`）。
+    ///
+    /// 关掉之后**已经编好的也不再进** —— 判据靠它做「同一条脚本、同一个进程、
+    /// 只差这一个开关」的 A/B，那份对比才说明问题。
+    #[cfg(feature = "jit")]
+    pub fn 设jit(&mut self, 开: bool) {
+        self.jit.设开(开);
+    }
+
+    /// 这个 VM 编了几个循环（判据 / 统计用）。
+    #[cfg(feature = "jit")]
+    pub fn jit已编数(&self) -> usize {
+        self.jit.已编数()
     }
 
     pub fn run(&mut self) -> Result<(), JishiError> {
@@ -2231,6 +2256,135 @@ impl VM {
             chain.push(TraceFrame { func: name, line: fr.call_line, col: fr.call_col });
         }
         e.trace = chain;
+    }
+
+    /// 试着用 JIT 把 `[抬头, 回跳]` 这个循环**整个跑完**（M180）。
+    ///
+    /// - `Some(出口)` = 跑完了，调用方把 `ip` 设成它接着解释；
+    /// - `None` = 没跑（编不了 / 类型对不上 / 中途溢出），调用方照常 `ip = 抬头`
+    ///   走解释器 —— **语义完全不变**，只是慢。
+    ///
+    /// ## 三道闸的顺序是有讲究的
+    ///
+    /// 1. **编**：只在这一条回边第一次到阈值时做，之后查表；
+    /// 2. **类型守卫**：进来之前查一遍，对不上就**原地退回**（此时什么都没改）；
+    /// 3. **跑**：机器码里溢出会自己跳去「不写回」的出口 ⇒ 局部变量还是进 JIT
+    ///    之前的样子，解释器从头重跑这个循环。（用 `i128` 的它不会溢出。）
+    ///
+    /// ⚠️ **去优化时不写回**这一点是整个设计的地基：只要写回了一半，解释器
+    /// 拿到的就是一个「跑到中间」的状态，而它会从抬头重跑 —— 那就把已经做过的
+    /// 加法做第二遍了。宁可整段丢掉。
+    #[cfg(feature = "jit")]
+    fn 试jit(
+        &mut self,
+        fi: usize,
+        code_idx: usize,
+        抬头: usize,
+        回跳: usize,
+        module: &Module,
+    ) -> Result<Option<usize>, JishiError> {
+        // —— 1. 编（只在这一条回边第一次到阈值时真的编）——
+        if self.jit.取(code_idx, 抬头).is_none() {
+            let 码 = module.codes.get(code_idx);
+            let r = 码.and_then(|c| {
+                crate::jit::编译(&c.instrs, &module.consts, 抬头, 回跳)
+            });
+            if self.jit.调试么() {
+                let 名 = 码.map(|c| c.name.as_str()).unwrap_or("?");
+                eprintln!(
+                    "[jit] 代码 {}（{}）抬头 {} 回跳 {}：{}",
+                    code_idx, 名, 抬头, 回跳,
+                    match &r { Some(_) => "编好了".to_string(), None => "编不了（形态不认识 / 平台不支持）".to_string() }
+                );
+            }
+            self.jit.存(code_idx, 抬头, r);
+        }
+        if matches!(self.jit.取(code_idx, 抬头), Some(None)) {
+            // 形态不认识 / 平台不支持 / 拿不到内存：**这条路以后不再走**。
+            self.jit.封存(code_idx, 回跳);
+            return Ok(None);
+        }
+
+        // —— 2. 类型守卫 + 3. 跑（借用收在一个块里，出来才好动 `self.frames`）——
+        let 跑果 = {
+            let 已 = match self.jit.取(code_idx, 抬头) {
+                Some(Some(x)) => x,
+                _ => return Ok(None),
+            };
+            let 槽们 = 已.槽们().to_vec();
+            let 出口 = 已.出口();
+            let mut 值: Vec<i64> = Vec::with_capacity(槽们.len());
+            {
+                let fr = &self.frames[fi];
+                for 槽 in &槽们 {
+                    // 取值：局部槽在帧里，全局槽在 `globals` 里。
+                    // 两边的「有没有值」判断也要各自照原样 —— 没赋过值时解释器
+                    // 会报「赋值之前被用到」/「找不到名字」，那是**必须照原样发生**
+                    // 的错误，不能让 JIT 替它决定。
+                    let 取到: Option<&Val> = match 槽 {
+                        crate::jit::槽位::局部(号) => {
+                            if !fr.locals_set.get(*号).copied().unwrap_or(false) {
+                                if self.jit.调试么() {
+                                    eprintln!("[jit] 抬头 {抬头}：局部槽 {号} 还没赋过值，这次不跑 JIT");
+                                }
+                                return Ok(None);
+                            }
+                            fr.locals.get(*号)
+                        }
+                        crate::jit::槽位::全局(号) => self.globals.get(*号).and_then(|x| x.as_ref()),
+                    };
+                    match 取到 {
+                        Some(Val::Int(x)) => match i64::try_from(*x) {
+                            Ok(y) => 值.push(y),
+                            // 超出 i64：机器码只做 64 位算术，这一圈交给解释器
+                            Err(_) => {
+                                if self.jit.调试么() {
+                                    eprintln!("[jit] 抬头 {抬头}：{槽:?} 的整数超出 i64，这次不跑 JIT");
+                                }
+                                return Ok(None);
+                            }
+                        },
+                        // 浮点 / 文本 / 空 / 没赋过值的全局：JIT 只管整数
+                        别 => {
+                            if self.jit.调试么() {
+                                let 型 = 别.map(crate::type_label).unwrap_or_else(|| "未赋值".to_string());
+                                eprintln!("[jit] 抬头 {抬头}：{槽:?} 不是整数（{型}），这次不跑 JIT");
+                            }
+                            return Ok(None);
+                        }
+                    }
+                }
+            }
+            let 成 = 已.跑(&mut 值);
+            (槽们, 出口, 值, 成)
+        };
+
+        let (槽们, 出口, 值, 成) = 跑果;
+        if !成 {
+            // 溢出（去优化）：`值` 没被写回 ⇒ 局部变量还是进 JIT 之前的样子。
+            // 解释器会从抬头把这个循环**重跑一遍**（它用 i128，不会溢出）。
+            // 这个循环以后不再进 JIT —— 同一个地方卡两次只是白烧 CPU。
+            if self.jit.调试么() {
+                eprintln!("[jit] 抬头 {抬头}：中途溢出（i64），已去优化，这个循环以后走解释器");
+            }
+            self.jit.封存(code_idx, 回跳);
+            return Ok(None);
+        }
+        for (k, 槽) in 槽们.iter().enumerate() {
+            let 新值 = Val::Int(值[k] as i128);
+            match 槽 {
+                crate::jit::槽位::局部(号) => {
+                    self.frames[fi].locals[*号] = 新值;
+                    self.frames[fi].locals_set[*号] = true;
+                }
+                crate::jit::槽位::全局(号) => {
+                    if let Some(格) = self.globals.get_mut(*号) {
+                        *格 = Some(新值);
+                    }
+                }
+            }
+        }
+        Ok(Some(出口))
     }
 
     fn execute_frame(&mut self, start_fi: usize) -> Result<Flow, JishiError> {
@@ -2444,6 +2598,22 @@ impl VM {
                     let t = ins.a as usize;
                     #[cfg(feature = "budget")]
                     if t < ip { budget_tick!(); }   // 回跳 ⇒ 记一步
+                    // M180：**回边**就是唯一的「热点信号」。
+                    //
+                    // 为什么只认回跳：JIT 编的是「循环」，而循环在字节码里的唯一
+                    // 特征就是「有一条跳回去的 `JUMP`」。函数调用次数、指令条数
+                    // 那些信号都要额外的计数点（每条指令都过一遍）—— M163 量过，
+                    // 那会把解释器拖慢 6%。
+                    //
+                    // ⚠️ 计数的**下标**是这条回跳指令本身（`ip - 1`，因为上面
+                    // 已经 `ip += 1` 了），抬头就是它跳回去的地方。
+                    #[cfg(feature = "jit")]
+                    if t < ip && self.jit.开着() && self.jit.记一步(code_idx, ip - 1) {
+                        if let Some(新ip) = self.试jit(fi, code_idx, t, ip - 1, &module)? {
+                            ip = 新ip;
+                            continue;
+                        }
+                    }
                     ip = t;
                 }
                 op::POP_JUMP_IF_FALSE => {

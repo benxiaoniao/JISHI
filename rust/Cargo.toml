@@ -9,7 +9,7 @@ description = "基石（jishi）中文编程语言的 Rust 字节码解释器，
 #    **wasm（浏览器试玩页）必须关掉它**（`default-features = false`）—— 那边链不了
 #    sqlite3.c。关掉之后 `导入 数据库` 会报一句**准确**的话（「这个平台没有内置 SQLite」），
 #    而不是含糊的「没有找到标准库模块」。
-default = ["sqlite", "native-window"]
+default = ["sqlite", "native-window", "jit"]
 sqlite = ["dep:rusqlite"]
 # M174：原生窗口。**放在默认里** —— 用户装的就是这个发行版，`窗口.打开` 默认
 # 就该给他一个真窗口。要「小一点、只要应用模式」的可以
@@ -24,6 +24,13 @@ native-window = [
 # 实测在循环密集负载上 **+6%**（8M 次迭代、交错 A/B、稳定复现）。
 # 原生宿主（CLI/MCP/对拍/benchmark）**不需要**它：那边有「另起线程 + 超时」。
 budget = []
+
+# M180：**整数循环的 JIT**（x86-64；别的架构自动等于关）。
+#
+# 为什么是个特征而不是无条件编进来：wasm 那边 `default-features = false`，
+# 而 JIT 在 wasm 上**永远用不了**（`target_arch` 不是 x86_64）—— 让它编进去
+# 只是白白多几 KB 的发射器。关掉特征时指令循环里那条回边判断**整个消失**。
+jit = []
 
 [dependencies]
 # R7.1-c 起：宿主自己做前端（静态检查 / 格式化 / 后面的 LSP 都要 AST）。

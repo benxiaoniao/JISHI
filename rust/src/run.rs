@@ -56,6 +56,11 @@ struct Opts {
     load_bytecode: bool,
     dump_bytecode: bool,
     timeout: f64,
+    /// `--不用jit`：关掉 M180 的 JIT，全程走解释器。
+    ///
+    /// 为什么要有：① 判据要「同一条脚本、同一个二进制、只差这一个开关」的对照；
+    /// ② JIT 是**内存安全级**的东西，出事是段错误 —— 排障时第一件事就是关掉它看看。
+    不用jit: bool,
     version: bool,
     rest: Vec<String>,
 }
@@ -90,6 +95,7 @@ pub fn main_cli(args: &[String]) -> ExitCode {
             "--统计" => o.统计 = true,
             "--lang-spec" => o.lang_spec = true,
             "--sandbox" => o.sandbox = true,
+            "--不用jit" | "--no-jit" => o.不用jit = true,
             "--json-result" => o.json_result = true,
             "--stdin" => o.stdin = true,
             "--load-bytecode" => o.load_bytecode = true,
@@ -260,6 +266,8 @@ fn run_file(o: &Opts) -> ExitCode {
     // 于是 `打印("请输入")` + `输入()` 在用户眼里就是死机（提示语要等进程退出才出）。
     // `--json-result` / `--sandbox` 在上面已经 return 了（它们要捕获进 JSON），
     // DAP 走 `crate::dap`，都不经过这里。
+    #[cfg(feature = "jit")]
+    vm.设jit(!o.不用jit);
     crate::set_stream_output(&mut vm, true);
     match vm.run() {
         // 输出已经随写随到终端，这里**不再补打**（否则会重复一遍）。
@@ -279,6 +287,8 @@ fn run_bytecode(text: &str, o: &Opts) -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    #[cfg(feature = "jit")]
+    vm.设jit(!o.不用jit);
     // M150：与脚本路径同一条边界（见上面那段注释）。
     crate::set_stream_output(&mut vm, true);
     match vm.run() {
