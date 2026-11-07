@@ -43,7 +43,10 @@ pub mod lsp;        // R7.3：语言服务器（lsp.py 的移植，`jishi-rs lsp
 pub mod run;        // R7.4：CLI 主入口（cli.py 的移植）
 pub mod sandbox;    // R7.4：沙箱（sandbox.py 的移植）
 #[cfg(feature = "jit")]
-pub mod jit;        // M180：整数循环的 JIT（x86-64；编不了就退回解释器）
+pub(crate) mod jit; // M180：整数循环的 JIT（x86-64；编不了就退回解释器）
+                    // ⚠️ `pub(crate)` 而不是 `pub`：它的接口用 `Instr` / `Val`
+                    // 这些 crate 内部的类型，`pub` 会触发 `private_interfaces`
+                    // 告警（CI 上抓到的）—— 而它本来也不该对外。
 pub mod mcp;        // R7.4：MCP 服务器（mcp_server.py 的移植，`jishi-rs mcp`）
 pub mod debugger;   // R7.5：调试会话（debugger.py 的移植）
 pub mod dap;        // R7.5：DAP 适配器（dap.py 的移植，`jishi-rs dap`）
