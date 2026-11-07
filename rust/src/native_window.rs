@@ -14,8 +14,10 @@
 //!
 //! ## 四条硬约束（都实测过）
 //!
-//! 1. **一个进程只能有一个 `EventLoop`**（Windows 上建第二个会直接 panic）⇒
-//!    M174 只支持**一个**原生窗口，第二个明确报错（多窗口是 M175 的事）。
+//! 1. **一个进程只能有一个 `EventLoop`**（Windows 上建第二个会直接 panic）——
+//!    但**一个 `EventLoop` 可以建多个窗口**（tao 自带的 `multiwindow` 例子就是
+//!    这么干的）。所以 M174 先只做单窗口，**M178 起是「单循环 + 多窗口」**：
+//!    窗口用 `u64` 编号，事件里带着号走（见下）。
 //! 2. **`EventLoop` 必须在同一线程创建并 `run`**：本项目的解释器是单线程的，
 //!    正好满足；这也意味着**不能**把窗口丢给子线程。
 //! 3. ⚠️ **`ControlFlow::WaitUntil` 在 tao/Windows 上不按期唤醒**（实测：设了
@@ -30,6 +32,47 @@
 //!
 //! `run` 的返回类型是 `!`（内部 `process::exit`）。那样 `窗口.等(窗)` 之后的
 //! 清理代码就永远不跑了 —— 而用户的脚本通常还有事要做。`run_return` 会正常返回。
+//!
+//! ## M178：多窗口是怎么做的（三件事）
+//!
+//! ### 一、窗口按 `u64` 编号，每份状态各自一份
+//!
+//! M174 是 `static 全: Option<全局>`（进程里就一份）。现在拆成三张按号索引的表：
+//!
+//! | 表 | 装什么 | 为什么分开 |
+//! |---|---|---|
+//! | `窗们` | `Rc<Window>` + 活着 | 关窗口 = 从表里删掉（官方 `multiwindow` 例子就这么做） |
+//! | `网们` | `wry::WebView` | **必须能单独 drop**：它握着 WebView2 的控制器，比窗口活得久会崩 |
+//! | `待发们` / `就绪们` | 没就绪的宿主事件 / 已就绪的窗口号 | 「页面登记好没」是**每个页面**各自的事 |
+//!
+//! 事件循环只有一份（tao 的硬约束），所以它单独放 `循环槽`，`等` 的时候**借出来**
+//! 跑 —— 借出来而不是拿着借用跑，是因为建窗口 / 建 WebView 中间可能同步回调
+//! 进来，那时 `RefCell` 再被借一次就是 panic（M175 在 `全` 上踩过同款）。
+//!
+//! ### 二、页面 → 宿主不需要「自报窗口号」
+//!
+//! 路线图原本写的是「宿主往页面注入 `window.__jishiWinId`，shim 回传时带上，
+//! ABI 3 → 4」。**实现时发现不用**：`with_ipc_handler` 本来就是**每个窗口一个**
+//! 闭包，宿主当场就知道这条消息来自哪个 WebView —— 让页面自报一遍，等于把
+//! 已知信息绕一圈，还多出「页面没报 / 报错了」两种失败模式。
+//!
+//! 所以 **ABI 仍是 3**，shim 与 wasm 一行没改。需要窗口号的地方（菜单 / 托盘 /
+//! 单实例）都是**宿主侧**的来源，在那里带号就行。
+//!
+//! ### 三、`等` 等的是**所有**窗口（这是唯一一个不完美的地方）
+//!
+//! 一个进程只有一个事件循环，跑起来之后所有窗口一起活着。所以「等某个窗口关掉
+//! 就返回」**做不到** —— 返回了循环就停，其它窗口会假死（画面还在、点了没反应），
+//! 那比报错更糟。定成：
+//!
+//! ```text
+//! 窗口.等(句柄)   →  跑到**最后一个**窗口关闭才返回（不管传的是哪个句柄）
+//! 窗口.等()       →  同上
+//! ```
+//!
+//! ⚠️ 用户得知道这一点，否则会写出「关了 A 之后后面的代码为什么不跑」的 bug
+//! —— 文档（语言规格 / README / AI 卡）都写明了。
+
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -53,17 +96,25 @@ use wry::WebViewBuilder;
 /// 拿不到 `control_flow`，也摸不到 thread_local。所以只能发个事件，
 /// 让循环自己回到主线程上来处理。
 pub enum 事件 {
-    关窗,
-    /// 宿主事件要转给页面：`(事件名, 参数)`。
-    页面(String, String),
+    /// 关掉某个窗口。`0` = 「主窗口」（托盘 / 单实例那种**进程级**来源用它，
+    /// 派发时再解析成当前的主窗口 —— 它们触发时未必知道该找哪个窗口）。
+    关窗(u64),
+    /// 宿主事件要转给页面：`(窗口号, 事件名, 参数)`。`0` = 主窗口。
+    页面(u64, String, String),
 }
 
-struct 全局 {
-    循环: EventLoop<事件>,
-    代理: EventLoopProxy<事件>,
+/// 一个窗口的状态。**关窗口 = 从 `窗们` 里删掉** —— tao 官方的 `multiwindow`
+/// 例子就是这么做的（`windows.remove(&id)`），那一步的 `Drop` 才真正销毁 HWND。
+struct 窗件 {
     窗口: Rc<Window>,
-    活着: bool,
-    /// 事件循环只能跑一次（tao 的约束）。跑过之后再 `等` 就是错的。
+}
+
+/// 事件循环 + 「跑过没」。**一个进程一份**（tao 的硬约束）。
+///
+/// `循环` 是 `Option`：`等` 要把它**借出来**才能 `run_return`（要 `&mut`），
+/// 借出去期间这里是 `None`。跑过之后不再放回去 —— 事件循环只能跑一次。
+struct 循环件 {
+    循环: Option<EventLoop<事件>>,
     跑过: bool,
 }
 
@@ -71,45 +122,46 @@ struct 全局 {
 ///
 /// 它们都不是 `Send`（原生菜单句柄、托盘图标都得在主线程用），所以只能放
 /// thread_local；跨线程的那一半（菜单 id → 动作名）见 `动作表`。
+///
+/// M178：菜单栏 / 右键菜单改成**每窗口一份**；托盘仍然是**一个进程一个** ——
+/// 系统托盘本来就没有「每个窗口一个图标」这个概念。
 #[derive(Default)]
 struct 桌面件 {
-    菜单栏: Option<muda::Menu>,
-    右键: Option<muda::Menu>,
+    菜单栏: HashMap<u64, muda::Menu>,
+    右键: HashMap<u64, muda::Menu>,
     托盘: Option<tray_icon::TrayIcon>,
 }
 
 thread_local! {
-    static 全: RefCell<Option<全局>> = RefCell::new(None);
-    /// 🔴 **页面必须单独放**，不能塞在 `全局` 里。
-    ///
-    /// 原因（M175 踩的）：`等` 要把 `全局` **取出来**才能跑事件循环（`run_return`
-    /// 要 `&mut EventLoop`，而回调里又要访问页面 —— 同一个 RefCell 会 `borrow` 冲突）。
-    /// 取出来之后循环期间 `全` 是 `None`，于是「派发宿主事件给页面」就找不到页面，
-    /// 表现成**菜单点了没反应**（日志还说是「页面已经没了」）。
-    ///
-    /// `Option` 是为了能在收尾时**显式先 drop**（webview 握着 WebView2 的控制器，
-    /// 比窗口活得久会在退出时崩）。
-    static 网: RefCell<Option<wry::WebView>> = RefCell::new(None);
-    /// 给「改标题」用的窗口句柄（`Rc` 克隆，地址稳定）。
-    static 窗: RefCell<Option<Rc<Window>>> = const { RefCell::new(None) };
+    static 循环槽: RefCell<Option<循环件>> = RefCell::new(None);
+    /// 开着的窗口。关掉就从这里删 —— `Rc` 的最后一个引用没了，窗口才真的销毁。
+    static 窗们: RefCell<HashMap<u64, 窗件>> = RefCell::new(HashMap::new());
+    /// WebView **必须能单独 drop**（它握着 WebView2 的控制器，比窗口活得久会在
+    /// 退出时崩），而且 `等` 跑循环期间回调要能摸到它 —— 所以它既不塞进 `窗件`，
+    /// 也不塞进事件循环。
+    static 网们: RefCell<HashMap<u64, wry::WebView>> = RefCell::new(HashMap::new());
+    /// 哪些窗口的页面已经 `窗口.当` 登记过处理函数了（**每个页面各自的事**）。
+    static 就绪们: RefCell<std::collections::HashSet<u64>> =
+        RefCell::new(std::collections::HashSet::new());
+    /// 页面还没就绪时，事件按窗口排队。键 `0` = 「还不知道是哪个窗口」的
+    /// （`单实例` 在开窗之前就到了），派发时按主窗口解析。
+    static 待发们: RefCell<HashMap<u64, Vec<(String, String)>>> = RefCell::new(HashMap::new());
     static 桌面: RefCell<桌面件> = RefCell::new(桌面件::default());
 }
 
-/// 菜单项 id → 用户给的「动作」名。
+/// 菜单项 id → `(窗口号, 动作名)`。
 ///
 /// 🔴 **必须是跨线程的 static**：`muda` 的菜单事件在它自己的线程里回调，
 /// 那里摸不到 thread_local（tray-icon 同理）。id 由我们生成（`jishi0`、`jishi1`…），
 /// 不用「动作名当 id」——那样同一个动作在两个菜单里出现就会撞。
-fn 动作表() -> &'static Mutex<HashMap<String, String>> {
-    static 表: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+///
+/// M178 加窗口号的原因：**菜单是每窗口一套的**，点了必须只送到那个窗口的页面。
+/// 少了这一维就是「点 A 的菜单，B 的标题变了」—— 那种 bug 看起来像随机。
+fn 动作表() -> &'static Mutex<HashMap<String, (u64, String)>> {
+    static 表: OnceLock<Mutex<HashMap<String, (u64, String)>>> = OnceLock::new();
     表.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// 页面**还没有**能力接宿主事件之前，事件在这儿排队。
-///
-/// 为什么需要它：`窗口.单实例` 的正常用法是「开窗之前先问是不是第一个」——
-/// 那时页面还没加载，更没有 `窗口.当` 注册的处理函数。第二个实例叫过来的参数
-/// 不能就这么丢掉，得等页面登记好再送过去（见 `宿主事件就绪`）。
 /// 事件循环的代理，**存成 static 而不是闭包里捕获**。
 ///
 /// 🔴 踩过的坑（M175）：`窗口.单实例` 的正常用法是在 `窗口.打开` **之前**调用 ——
@@ -121,75 +173,150 @@ fn 代理槽() -> &'static Mutex<Option<EventLoopProxy<事件>>> {
     槽.get_or_init(|| Mutex::new(None))
 }
 
-fn 待发() -> &'static Mutex<Vec<(String, String)>> {
-    static 队: OnceLock<Mutex<Vec<(String, String)>>> = OnceLock::new();
-    队.get_or_init(|| Mutex::new(Vec::new()))
+fn 取代理() -> Result<EventLoopProxy<事件>, String> {
+    代理槽()
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "还没有事件循环（先 窗口.打开）".to_string())
 }
 
-/// 页面里 `窗口.当` 至少登记过一个处理函数了吗？
-///
-/// 由页面主动上报（shim 在第一次登记后发一条 `宿主事件就绪`）—— 不能靠
-/// 「页面加载完成」：`<script>` 完了之后还要 fetch wasm、跑一遍源码才登记得上。
-static 页面就绪: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-fn 登记动作(动作: &str) -> String {
+fn 登记动作(窗号: u64, 动作: &str) -> String {
     static 序: AtomicUsize = AtomicUsize::new(0);
     let id = format!("jishi{}", 序.fetch_add(1, Ordering::Relaxed));
     动作表()
         .lock()
         .unwrap()
-        .insert(id.clone(), 动作.to_string());
+        .insert(id.clone(), (窗号, 动作.to_string()));
     id
 }
 
+/// 新窗口的号。**从 1 开始、只增不减**。
+///
+/// 为什么不复用关掉的号：复用了「旧句柄」和「新窗口」就撞在一起 ——
+/// 用户拿一个已经关掉的句柄去操作，会静默打到另一个窗口上。那种 bug
+/// 比「句柄失效」难查得多。
+fn 下一个号() -> u64 {
+    static 序: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    序.fetch_add(1, Ordering::Relaxed)
+}
+
+/// 主窗口 = 还活着的、号最小的那个（= 最先开的）。
+///
+/// 托盘点击 / 单实例 / 文件对话框这些**进程级**的东西都归它 —— 系统里这些
+/// 本来就没有「每窗口一份」的概念。
+fn 主窗号() -> u64 {
+    窗们.with(|c| c.borrow().keys().copied().min().unwrap_or(0))
+}
+
+/// `0` 解析成主窗口；其它号原样返回。
+fn 解析号(窗号: u64) -> u64 {
+    if 窗号 == 0 {
+        主窗号()
+    } else {
+        窗号
+    }
+}
 
 /// 这个构建里有没有原生窗口能力（`--no-default-features` 时整个模块不存在）。
 pub const 可用: bool = true;
 
-/// 这个进程里有没有开着的原生窗口。
-pub fn 在运行() -> bool {
-    全.with(|s| s.borrow().as_ref().is_some_and(|g| g.活着))
+/// 还有开着的原生窗口吗（不看具体哪一个）。
+pub fn 有窗口() -> bool {
+    窗们.with(|c| !c.borrow().is_empty())
+}
+
+/// 这个号的原生窗口还开着吗。
+pub fn 在运行(窗号: u64) -> bool {
+    窗们.with(|c| c.borrow().contains_key(&窗号))
+}
+
+/// 借事件循环出来建窗口。
+///
+/// 为什么「借出来」而不是「拿着借用建」：建窗口 / 建 WebView 会走系统的窗口与
+/// WebView2 / WKWebView 构造，中间**可能同步回调进来**。那时如果 `循环槽` 的
+/// `RefCell` 正被借用，就是一个 `already borrowed` panic —— M175 在 `全` 上踩过
+/// 同款（表现是「菜单点了没反应」）。借出来办事、办完放回，最坏情况只是
+/// 「同时有两个开窗请求，第二个拿到一句报错」。
+fn 借循环() -> Result<EventLoop<事件>, String> {
+    循环槽.with(|c| {
+        let mut 槽 = c.borrow_mut();
+        if 槽.is_none() {
+            // ⚠️ 必须带自定义事件类型：IPC 里要发 `事件::关窗`。
+            //    tao 0.34 的 `build()` 不返回 `Result`（建不出来它会自己 panic）——
+            //    它 panic 的唯一原因是「本线程已经有事件循环了」，这里保证只建一次。
+            let 循环: EventLoop<事件> = EventLoopBuilder::with_user_event().build();
+            let 代理 = 循环.create_proxy();
+            *代理槽().lock().unwrap() = Some(代理.clone());
+            // 菜单与托盘的点击事件在**它们自己的线程**里回调 —— 只能靠 proxy 发回循环。
+            // 一个事件循环只装一次（handler 是全局的，装两次只会留最后一个）。
+            装菜单事件(代理.clone());
+            装托盘事件(代理.clone());
+            *槽 = Some(循环件 { 循环: Some(循环), 跑过: false });
+        }
+        let 件 = 槽.as_mut().expect("上面刚保证过不是 None");
+        if 件.跑过 {
+            return Err(
+                "窗口已经全关过了（事件循环一个进程只跑一次）—— 这一次运行里不能再开窗口"
+                    .to_string(),
+            );
+        }
+        件.循环
+            .take()
+            .ok_or_else(|| "事件循环正忙（上一次开窗还没收尾）".to_string())
+    })
+}
+
+fn 还循环(循环: EventLoop<事件>) {
+    循环槽.with(|c| {
+        if let Some(件) = c.borrow_mut().as_mut() {
+            件.循环 = Some(循环);
+        }
+    });
 }
 
 /// 建一个原生窗口并把它指向 `网址`（那个地址由调用方起的小服务提供）。
 ///
+/// 返回**窗口号**（≥1，只增不减）：脚本侧拿它当「句柄」对外的身份，
+/// 事件与菜单都按它路由。
+///
 /// ⚠️ 返回时窗口还没开始收事件 —— 要等 `等()` 跑事件循环。这跟应用模式
 /// （浏览器进程一起来就响应）不同，但**用户代码的写法一样**：
 /// `打开` → 干活 → `等`，中间那段通常只有毫秒级。
-pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<(), String> {
-    // 新页面还没登记处理函数：把「就绪」标志清掉（宿主事件会先排队，见 `待发`）。
-    页面就绪.store(false, Ordering::Relaxed);
-    // 已经开过一个：直接说清楚，别让用户对着一个不响应的窗口猜。
-    全.with(|s| -> Result<(), String> {
-        if let Some(g) = s.borrow().as_ref() {
-            if g.跑过 {
-                return Err("这个程序的原生窗口已经关掉了 —— 一次运行只能开一个原生窗口".into());
-            }
-            return Err(
-                "一个程序只能有一个原生窗口（多窗口还没做）── 要开第二个请用「原生: 假」".into(),
-            );
-        }
-        Ok(())
-    })?;
+pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<u64, String> {
+    let 窗号 = 下一个号();
+    let 循环 = 借循环()?;
+    let r = 建窗口(窗号, &循环, 标题, 宽, 高, 网址);
+    // ⚠️ 建失败时循环还在，必须放回去 —— 否则后面再 打开 会拿到「正在忙」。
+    还循环(循环);
+    r.map(|_| 窗号)
+}
 
-    // ⚠️ 必须带自定义事件类型：IPC 里要发 `事件::关窗`。
-    //    tao 0.34 的 `build()` 不返回 `Result`（建不出来它会自己 panic）——
-    //    而它 panic 的唯一原因是「本线程已经有事件循环了」，`打开` 开头那道
-    //    「一个程序只能有一个」已经挡住了。
-    let 循环: EventLoop<事件> = EventLoopBuilder::with_user_event().build();
-    let 代理 = 循环.create_proxy();
-    *代理槽().lock().unwrap() = Some(代理.clone());
+fn 建窗口(
+    窗号: u64,
+    循环: &EventLoop<事件>,
+    标题: &str,
+    宽: f64,
+    高: f64,
+    网址: &str,
+) -> Result<(), String> {
+    let 代理 = 取代理()?;
 
     let 窗口 = Rc::new(
         WindowBuilder::new()
             .with_title(标题)
             .with_inner_size(LogicalSize::new(宽, 高))
-            .build(&循环)
+            .build(循环)
             .map_err(|e| format!("建窗口失败：{e}"))?,
     );
 
     // IPC 处理器：**在主线程被调用**（WebView2 的 WebMessageReceived 就在 UI 线程），
     // 所以里面可以放心走 thread_local。
+    //
+    // 🔴 M178：**这个闭包是每个窗口一个**，所以「这条消息来自哪个窗口」当场就知道
+    //    —— 不需要让页面自报窗口号。路线图原来打算注入 `__jishiWinId` 再让 shim
+    //    回传（ABI 3 → 4），实现时发现那是把已知信息绕一圈，ABI 因此**没动**。
+    //
     // 🔴 M176 演练抓到的真问题：WebView2 的**用户数据目录默认落在 exe 旁边**
     //    （`<exe>.WebView2/`）。装到 `C://Program Files\…` 时那里不可写，
     //    窗口直接起不来 —— 用户看到的是「双击没反应」。wry 的注释原话就是
@@ -202,9 +329,12 @@ pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<(), Stri
     //    `WebViewBuilder::new().with_web_context(..)` 编不过（CI 会告诉你
     //    「this is an associated function, not a method」）。
     let 构建 = WebViewBuilder::with_web_context(&mut 网页上下文)
+        // M178：页面里能查到「我是几号窗口」。路由**不**靠它（IPC 闭包已经知道），
+        // 主要是给页面自己写日志 / 判重时用。
+        .with_initialization_script(&format!("window.__jishiWinId = {窗号};"))
         .with_url(网址)
         .with_ipc_handler(move |请求: wry::http::Request<String>| {
-            if let Some(ev) = 处理命令(请求.body()) {
+            if let Some(ev) = 处理命令(窗号, 请求.body()) {
                 let _ = 代理2.send_event(ev);
             }
         })
@@ -219,19 +349,14 @@ pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<(), Stri
                 if let wry::DragDropEvent::Drop { paths, .. } = e {
                     let 列: Vec<String> =
                         paths.iter().map(|p| p.display().to_string()).collect();
-                    调试(&format!("拖进来 {} 个文件", 列.len()));
+                    调试(&format!("窗口 {窗号} 拖进来 {} 个文件", 列.len()));
                     // 多个文件用**换行**分隔：路径里不可能有换行（三个平台都不允许），
                     // 而 wasm 那条通道只能传一个字符串（`jishi_call` 的实参是文本）。
-                    let _ = 代理.send_event(事件::页面("拖放".into(), 列.join("\n")));
+                    let _ = 代理.send_event(事件::页面(窗号, "拖放".into(), 列.join("\n")));
                 }
                 true
             }
         });
-
-    // 菜单与托盘的点击事件在**它们自己的线程**里回调 —— 只能靠 proxy 发回循环。
-    // 这两句是全局的（一个进程只能装一次），重复调用会被覆盖成同一个闭包，无害。
-    装菜单事件(代理.clone());
-    装托盘事件(代理.clone());
 
     // ⚠️ **平台分叉在这儿**：Windows / macOS 用统一的 `build(&window)`；
     //    Linux 必须用 `build_gtk(容器)` —— wry 在 Linux 上把 webview 塞进一个
@@ -254,25 +379,17 @@ pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<(), Stri
         构建.build_gtk(&容器).map_err(|e| 建网页失败(e.to_string()))?
     };
 
-    // 窗口指针**打开时就登记**：`打开` 与 `等` 之间也可能要改标题。
-    窗.with(|c| {
-        let _ = c.borrow_mut().insert(Rc::clone(&窗口));
+    // 窗口**打开时就登记**：`打开` 与 `等` 之间也可能要改标题。
+    窗们.with(|c| {
+        c.borrow_mut().insert(窗号, 窗件 { 窗口 });
     });
-    网.with(|c| {
-        let _ = c.borrow_mut().insert(网页);
+    网们.with(|c| {
+        c.borrow_mut().insert(窗号, 网页);
     });
     // 调试：把 URL 打出来 —— 页面空白、脚本不执行时，第一件事就是拿它 curl 一下。
-    调试(&format!("窗口指向 {网址}"));
-
-    全.with(|s| {
-        let _ = s.borrow_mut().insert(全局 {
-            循环,
-            代理,
-            窗口,
-            活着: true,
-            跑过: false,
-        });
-    });
+    // ⚠️ 「窗口指向」这四个字是**判据在用**的（M176 的「端口两次一样」那条要靠它
+    //    把 URL 抠出来）。多窗口之后加了窗口号，但把这四个字留在原地。
+    调试(&format!("窗口指向 {网址}（窗口 {窗号}）"));
     Ok(())
 }
 
@@ -302,81 +419,159 @@ fn 建网页失败(原因: String) -> String {
     )
 }
 
-/// 跑事件循环，**阻塞到窗口关掉**。返回退出码（这一版恒 0）。
+/// 跑事件循环，**阻塞到所有窗口都关掉**。返回退出码（这一版恒 0）。
+///
+/// 🔴 **`等` 等的是「所有窗口」，不是你传的那个句柄** —— 一个进程只有一个
+/// 事件循环，它一停，其它窗口就假死（画面还在、点了没反应），那比报错更糟。
+/// 所以「窗A 关了但窗B 还开着」时这里**不返回**。文档三处都写明了这一点，
+/// 因为用户最容易在这里写出「关了 A 之后后面的代码为什么不跑」。
 pub fn 等() -> i32 {
-    let Some(mut 全局) = 全.with(|s| s.borrow_mut().take()) else {
+    // 借出事件循环（要 `&mut` 才能 `run_return`）；借不到 = 没开过窗口 / 已经跑过。
+    let Some(mut 循环) = 循环槽.with(|c| c.borrow_mut().as_mut().and_then(|件| 件.循环.take()))
+    else {
         return 0;
     };
-    if 全局.跑过 {
-        全.with(|s| {
-            let _ = s.borrow_mut().insert(全局);
-        });
-        return 0;
-    }
-    全局.跑过 = true;
+    // 从这一刻起就算「跑过」：事件循环只能跑一次（tao 的硬约束）。
+    循环槽.with(|c| {
+        if let Some(件) = c.borrow_mut().as_mut() {
+            件.跑过 = true;
+        }
+    });
 
-    全局.循环.run_return(|事件, _, 控制| {
+    循环.run_return(|事件, _, 控制| {
         *控制 = ControlFlow::Wait;
         match 事件 {
-            Event::UserEvent(事件::关窗) => *控制 = ControlFlow::Exit,
-            // 宿主事件（菜单/托盘/拖放/再次启动）→ 交给页面。
+            Event::UserEvent(事件::关窗(窗号)) => {
+                if 关掉(解析号(窗号)) && !有窗口() {
+                    *控制 = ControlFlow::Exit;
+                }
+            }
+            // 宿主事件（菜单/托盘/拖放/再次启动）→ 交给**对应窗口**的页面。
             // 走到这里说明**已经在主线程**了，thread_local 摸得到。
-            Event::UserEvent(事件::页面(名, 参)) => 派发(&名, &参),
+            Event::UserEvent(事件::页面(窗号, 名, 参)) => 派发(窗号, &名, &参),
+            // 用户点了标题栏的 ×（或 Alt+F4）：只关这一个，别的继续开着。
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
+                window_id,
                 ..
-            } => *控制 = ControlFlow::Exit,
+            } => {
+                if let Some(窗号) = 号由tao(window_id) {
+                    关掉(窗号);
+                }
+                if !有窗口() {
+                    *控制 = ControlFlow::Exit;
+                }
+            }
             _ => {}
         }
     });
 
     // 收尾：webview 必须先 drop（它握着 WebView2 的控制器），再 drop 窗口。
-    网.with(|c| {
-        let _ = c.borrow_mut().take();
+    // 这里的顺序**不能反**，也不能靠 HashMap 的遍历顺序 —— 所以分两步清。
+    调试("收尾：扔页面");
+    网们.with(|c| c.borrow_mut().clear());
+    调试("收尾：扔窗口");
+    窗们.with(|c| c.borrow_mut().clear());
+    调试("收尾：扔队列");
+    就绪们.with(|c| c.borrow_mut().clear());
+    待发们.with(|c| c.borrow_mut().clear());
+    调试("收尾：扔菜单与托盘");
+    桌面.with(|d| {
+        let mut b = d.borrow_mut();
+        b.菜单栏.clear();
+        b.右键.clear();
+        b.托盘 = None;
     });
-    窗.with(|c| {
-        let _ = c.borrow_mut().take();
-    });
-    全局.活着 = false;
-    全.with(|s| {
-        let _ = s.borrow_mut().insert(全局);
-    });
+    调试("收尾完成");
+    // 事件循环本身**不还回去**（跑过的 EventLoop 不能再用，tao 会 panic）。
+    // `循环槽` 里留着 `跑过 = true`，之后再 `打开` 会拿到一句人话。
     0
 }
 
-/// 从外面（脚本）请求关窗：发事件让事件循环退。
+/// 关掉一个窗口：先扔页面，再扔窗口（`Rc` 最后一个引用没了，HWND 才真的销毁）。
 ///
-/// 事件循环**还没跑**时也能请求 —— tao 的 `EventLoopProxy` 会把事件排住，
-/// `等` 一进循环就收到并立刻退。所以「打开 → 关闭 → 等」也是通的。
-pub fn 请求关闭() -> bool {
-    全.with(|s| {
-        let b = s.borrow();
-        match b.as_ref() {
-            Some(g) if g.活着 => g.代理.send_event(事件::关窗).is_ok(),
-            _ => false,
-        }
+/// 返回「本来有没有这个窗口」。调用方靠它 + `有窗口()` 决定要不要退出循环。
+fn 关掉(窗号: u64) -> bool {
+    if 窗号 == 0 {
+        return false;
+    }
+    // 页面里的排队事件跟着窗口一起扔（不然号和事件会留下来「等」新窗口 —— 但号
+    // 是只增不减的，永远等不到，只是白占内存）。
+    就绪们.with(|c| {
+        c.borrow_mut().remove(&窗号);
+    });
+    待发们.with(|c| {
+        c.borrow_mut().remove(&窗号);
+    });
+    let 有页 = 网们.with(|c| c.borrow_mut().remove(&窗号).is_some());
+    let 有窗 = 窗们.with(|c| c.borrow_mut().remove(&窗号).is_some());
+    // 🔴 **菜单必须最后扔**（M178 用崩溃换来的顺序）。
+    //
+    // `muda::Menu::drop` 会对每个挂过的 hwnd 做 `SetMenu(hwnd, NULL)` +
+    // `DrawMenuBar(hwnd)`。我们这时正**在那扇窗的窗口过程里**（CloseRequested /
+    // 关窗事件都在消息处理中途），窗口还活着 —— `DrawMenuBar` 会在一个正在被
+    // 销毁的窗口上重画菜单，实测会把进程打成 `0xC0000409`（fail-fast，没有
+    // panic 消息，日志停在「关掉窗口 N」）。
+    // 窗口先销毁、再 drop 菜单就没事：那时 `SetMenu` 拿到的是失效 hwnd，
+    // 系统直接返回 FALSE，什么也不做（`let _ =` 吞掉）。
+    桌面.with(|d| {
+        let mut b = d.borrow_mut();
+        b.菜单栏.remove(&窗号);
+        b.右键.remove(&窗号);
+    });
+    调试(&format!("关掉窗口 {窗号}"));
+    有页 || 有窗
+}
+
+/// tao 的 `WindowId` → 我们的窗口号（找不到 = 不是我们的窗口）。
+fn 号由tao(要找: tao::window::WindowId) -> Option<u64> {
+    窗们.with(|c| {
+        c.borrow()
+            .iter()
+            .find(|(_, 件)| 件.窗口.id() == 要找)
+            .map(|(号, _)| *号)
     })
 }
 
-/// 改窗口标题（页面的 IPC 与脚本都走这里）。没有窗口时返回 `false`。
+/// 从外面（脚本 / 页面）请求关窗。
+///
+/// 事件循环**还没跑**时也能请求 —— tao 的 `EventLoopProxy` 会把事件排住，
+/// `等` 一进循环就收到并立刻关掉那个窗口。所以「打开 → 关闭 → 等」也是通的。
+/// `窗号` 传 0 表示「主窗口」（脚本里 `窗口.关闭()` 省略句柄就走这条）。
+pub fn 请求关闭(窗号: u64) -> bool {
+    if 窗号 != 0 && !在运行(窗号) {
+        return false;
+    }
+    match 取代理() {
+        Ok(代理) => 代理.send_event(事件::关窗(窗号)).is_ok(),
+        Err(_) => false,
+    }
+}
+
+/// 改某个窗口的标题（页面的 IPC 与脚本都走这里）。找不到那个窗口时返回 `false`。
 ///
 /// 日志放在这里而不是调用方：页面发来的 IPC 和脚本里直接调**都要记**，
-/// 而且记的是 `Window::title()` —— 问系统要回来的那个值。
-pub fn 设标题(新: &str) -> bool {
-    窗.with(|c| match c.borrow().as_ref() {
-        Some(w) => {
-            w.set_title(新);
-            调试(&format!("设标题({新}) → 系统里现在是「{}」", w.title()));
+/// 而且记的是 `Window::title()` —— 问系统要回来的那个值（M178 多窗口后
+/// 这条日志带窗口号，不然三个窗口的日志分不清谁是谁）。
+pub fn 设标题(窗号: u64, 新: &str) -> bool {
+    let 号 = 解析号(窗号);
+    窗们.with(|c| match c.borrow().get(&号) {
+        Some(件) => {
+            件.窗口.set_title(新);
+            调试(&format!(
+                "窗口 {号} 设标题({新}) → 系统里现在是「{}」",
+                件.窗口.title()
+            ));
             true
         }
         None => false,
     })
 }
 
-/// 解析页面发来的命令：`操作\0参数`（用 NUL 分隔，中文不用转义、也不用 JSON）。
-///
-/// 返回 `Some(事件)` 表示「要让事件循环退」。
 /// 解析页面发来的命令（JSON：`{"op":"标题","arg":"已改名"}`）。
+///
+/// `窗号` 是**发这条消息的那个窗口** —— IPC 处理器是每窗口一个，所以调用方
+/// 当场就知道（见 `建窗口` 里的注释）。
 ///
 /// ## 为什么是 JSON 而不是 `操作\0参数`
 ///
@@ -387,7 +582,7 @@ pub fn 设标题(新: &str) -> bool {
 /// 教训：**跨进程/跨 FFI 的消息里不要用 NUL 当分隔符**，它太容易被当终止符。
 /// JSON 虽然要解析，但自带转义、可扩展（以后加字段不用改协议形状），
 /// 而且本仓库已经有 `crate::json`（零依赖自研）。
-fn 处理命令(正文: &str) -> Option<事件> {
+fn 处理命令(窗号: u64, 正文: &str) -> Option<事件> {
     let j = match crate::json::parse(正文) {
         Ok(v) => v,
         Err(_) => {
@@ -399,30 +594,45 @@ fn 处理命令(正文: &str) -> Option<事件> {
     let 参数 = j.get("arg").and_then(|v| v.as_str()).unwrap_or("");
     match 操作 {
         "标题" => {
-            设标题(参数);
+            设标题(窗号, 参数);
             None
         }
-        "关闭" => Some(事件::关窗),
+        // 🔴 M178：页面里的 `窗口.关闭()` 关的是**它自己那个窗口**，不是整个程序。
+        //    靠的就是这里的 `窗号`（来自哪个 WebView 的 IPC）。
+        "关闭" => Some(事件::关窗(窗号)),
         // M175：页面右击（页面里装了监听，见 `设右键菜单`）→ 弹原生菜单。
         // 坐标是页面里的 client 坐标，对 Windows 来说就是窗口内的坐标。
         "右键菜单" => {
             if let Some((x, y)) = 参数.split_once(',') {
                 if let (Ok(x), Ok(y)) = (x.trim().parse::<i32>(), y.trim().parse::<i32>()) {
-                    弹右键菜单(x, y);
+                    弹右键菜单(窗号, x, y);
                 }
             }
             None
         }
-        // 页面说「我登记好处理函数了」—— 把排队的宿主事件一次送过去。
+        // 页面说「我登记好处理函数了」—— 把这个窗口排队的宿主事件一次送过去。
         "宿主事件就绪" => {
-            页面就绪.store(true, Ordering::Relaxed);
-            调试("页面登记好处理函数了");
-            let 积压: Vec<(String, String)> = 待发().lock().unwrap().drain(..).collect();
+            就绪们.with(|c| {
+                c.borrow_mut().insert(窗号);
+            });
+            调试(&format!("窗口 {窗号} 的页面登记好处理函数了"));
+            // 两条队列：这个窗口自己的事件 + 「当时还不知道是哪个窗口」的
+            // （单实例在开窗之前就到了那种）。后者只补给主窗口，别的事件
+            // 已经在 派发 里解析过了。
+            let mut 积压: Vec<(String, String)> = 待发们.with(|c| {
+                c.borrow_mut().remove(&窗号).unwrap_or_default()
+            });
+            if 窗号 == 主窗号() {
+                let 主的: Vec<(String, String)> = 待发们.with(|c| {
+                    c.borrow_mut().remove(&0).unwrap_or_default()
+                });
+                积压.extend(主的);
+            }
             if !积压.is_empty() {
-                调试(&format!("页面就绪，补发 {} 条压住的事件", 积压.len()));
+                调试(&format!("窗口 {窗号} 就绪，补发 {} 条压住的事件", 积压.len()));
             }
             for (名, 参) in 积压 {
-                派发(&名, &参);
+                派发(窗号, &名, &参);
             }
             None
         }
@@ -431,17 +641,17 @@ fn 处理命令(正文: &str) -> Option<事件> {
         // 只验「窗口建出来了」是半个证据。
         // 「页面已加载」与「引擎就绪」分开，是为了区分「脚本没跑」和「引擎没起来」。
         "页面已加载" => {
-            调试("页面到了（脚本开始执行）");
+            调试(&format!("窗口 {窗号} 的页面到了（脚本开始执行）"));
             None
         }
         "引擎就绪" => {
-            调试("页面里的 wasm 引擎起来了");
+            调试(&format!("窗口 {窗号} 的页面里 wasm 引擎起来了"));
             None
         }
         "引擎失败" => {
             // 把页面报上来的原因也打出来 —— 只说「失败了」等于没说，而窗口里
             // 看不到控制台，这条日志往往是人唯一的线索。
-            调试(&format!("页面里的 wasm 引擎失败了：{参数}"));
+            调试(&format!("窗口 {窗号} 的 wasm 引擎失败了：{参数}"));
             None
         }
         _ => {
@@ -469,21 +679,28 @@ fn 调试(行: &str) {
 // 所以 thread_local 随便用；真正的点击事件在**别的线程**回来，那半边只能靠
 // `EventLoopProxy` 发事件、由循环回到主线程后再派发（见 `派发`）。
 
-fn 当前窗口() -> Result<Rc<Window>, String> {
-    窗.with(|c| {
+/// 取某个窗口的句柄。`窗号` 传 0 = 主窗口。
+fn 某窗口(窗号: u64) -> Result<Rc<Window>, String> {
+    let 号 = 解析号(窗号);
+    if 号 == 0 {
+        return Err("现在没有原生窗口（先 窗口.打开）".to_string());
+    }
+    窗们.with(|c| {
         c.borrow()
-            .clone()
-            .ok_or_else(|| "现在没有原生窗口（先 窗口.打开）".to_string())
+            .get(&号)
+            .map(|件| Rc::clone(&件.窗口))
+            .ok_or_else(|| format!("窗口 {号} 已经关掉了"))
     })
 }
 
 /// 在页面里跑一小段 JS。
-fn 执行(js: &str) -> bool {
-    网.with(|c| match c.borrow().as_ref() {
+fn 执行(窗号: u64, js: &str) -> bool {
+    let 号 = 解析号(窗号);
+    网们.with(|c| match c.borrow().get(&号) {
         Some(w) => match w.evaluate_script(js) {
             Ok(()) => true,
             Err(e) => {
-                调试(&format!("执行 JS 失败：{e}"));
+                调试(&format!("窗口 {号} 执行 JS 失败：{e}"));
                 false
             }
         },
@@ -491,15 +708,35 @@ fn 执行(js: &str) -> bool {
     })
 }
 
-/// 把宿主事件交给页面：`window.__jishiWin(事件名, 参数)`。
+/// 把宿主事件交给**某个窗口**的页面：`window.__jishiWin(事件名, 参数)`。
 ///
 /// 为什么是「叫一个页面里的函数」而不是「直接调用户注册的回调」：
 /// 页面里的基石代码跑在 wasm 里，宿主够不着它的函数表；而 shim 里
 /// `窗口.当` 登记过「事件名 → 函数名」，由它去调（见 `wasm/jishi-wasm.js`）。
-fn 派发(事件名: &str, 参数: &str) {
-    if !页面就绪.load(Ordering::Relaxed) {
-        调试(&format!("页面还没登记处理函数，先把「{事件名}」排队"));
-        待发().lock().unwrap().push((事件名.to_string(), 参数.to_string()));
+///
+/// `窗号` 传 0 = 主窗口（托盘 / 单实例那种进程级来源）。**解析只在这里做一次**：
+/// 关掉主窗口之后，后面来的事件会落到新主窗口身上，而不是消失。
+fn 派发(窗号: u64, 事件名: &str, 参数: &str) {
+    let 号 = 解析号(窗号);
+    if 号 == 0 {
+        调试(&format!("还没有窗口，先把「{事件名}」排队"));
+        待发们.with(|c| {
+            c.borrow_mut()
+                .entry(0)
+                .or_default()
+                .push((事件名.to_string(), 参数.to_string()))
+        });
+        return;
+    }
+    let 已就绪 = 就绪们.with(|c| c.borrow().contains(&号));
+    if !已就绪 {
+        调试(&format!("窗口 {号} 的页面还没登记处理函数，先把「{事件名}」排队"));
+        待发们.with(|c| {
+            c.borrow_mut()
+                .entry(号)
+                .or_default()
+                .push((事件名.to_string(), 参数.to_string()))
+        });
         return;
     }
     let js = format!(
@@ -510,7 +747,7 @@ fn 派发(事件名: &str, 参数: &str) {
     // 三种情况要分得开（页面里看不到控制台，这条日志往往是人唯一的线索）：
     //   ① 窗口/页面没了 ② JS 报错 ③ 页面没注册处理函数（`__jishiWin` 不存在，
     //   表达式短路成 `undefined`，**不报错**）。
-    let 情况 = 网.with(|c| match c.borrow().as_ref() {
+    let 情况 = 网们.with(|c| match c.borrow().get(&号) {
         None => "窗口或页面已经没了".to_string(),
         Some(w) => match w.evaluate_script(&js) {
             Ok(()) => String::new(),
@@ -519,10 +756,10 @@ fn 派发(事件名: &str, 参数: &str) {
     });
     if 情况.is_empty() {
         调试(&format!(
-            "派发 {事件名} 了（页面若没反应，多半是没写 窗口.当 或处理函数报错）"
+            "给窗口 {号} 派发 {事件名}（页面若没反应，多半是没写 窗口.当 或处理函数报错）"
         ));
     } else {
-        调试(&format!("页面没接住事件 {事件名}：{情况}"));
+        调试(&format!("窗口 {号} 没接住事件 {事件名}：{情况}"));
     }
 }
 
@@ -561,19 +798,22 @@ fn js文本(s: &str) -> String {
 ///     {"类型": "分隔"},
 ///     {"标签": "退出", "动作": "退出"}]}]
 /// ```
-fn 建菜单(定义: &str) -> Result<muda::Menu, String> {
+fn 建菜单(窗号: u64, 定义: &str) -> Result<muda::Menu, String> {
     let 值 = crate::json::parse(定义).map_err(|e| format!("菜单定义不是合法 JSON：{e}"))?;
     let 项们 = 值
         .as_array()
         .ok_or("菜单定义要是一个列表，例如 [{\"标签\": \"文件\", \"子项\": [...]}]")?;
-    建菜单项(项们)
+    建菜单项(窗号, 项们)
 }
 
 /// 从已经解析好的列表建菜单（托盘菜单要用 —— 它嵌在托盘选项里）。
-fn 建菜单项(项们: &[crate::json::Json]) -> Result<muda::Menu, String> {
+///
+/// `窗号` 会**登记进每个菜单动作**（见 `登记动作`）：点了才知道该送给哪个窗口。
+/// 托盘那种进程级的传 0，派发时解析成主窗口。
+fn 建菜单项(窗号: u64, 项们: &[crate::json::Json]) -> Result<muda::Menu, String> {
     let 菜单 = muda::Menu::new();
     for 项 in 项们 {
-        if let Some(件) = 建项(项)? {
+        if let Some(件) = 建项(窗号, 项)? {
             菜单.append(&*件)
                 .map_err(|e| format!("菜单项加不进去：{e}"))?;
         }
@@ -581,7 +821,7 @@ fn 建菜单项(项们: &[crate::json::Json]) -> Result<muda::Menu, String> {
     Ok(菜单)
 }
 
-fn 建项(值: &crate::json::Json) -> Result<Option<Box<dyn muda::IsMenuItem>>, String> {
+fn 建项(窗号: u64, 值: &crate::json::Json) -> Result<Option<Box<dyn muda::IsMenuItem>>, String> {
     let 取文 = |键: &str| -> String {
         值.get(键)
             .and_then(|v| v.as_str())
@@ -599,7 +839,7 @@ fn 建项(值: &crate::json::Json) -> Result<Option<Box<dyn muda::IsMenuItem>>, 
     if let Some(子项) = 值.get("子项").and_then(|v| v.as_array()) {
         let 子 = muda::Submenu::new(&标签, true);
         for 项 in 子项 {
-            if let Some(件) = 建项(项)? {
+            if let Some(件) = 建项(窗号, 项)? {
                 子.append(&*件)
                     .map_err(|e| format!("子菜单「{标签}」的项加不进去：{e}"))?;
             }
@@ -626,7 +866,7 @@ fn 建项(值: &crate::json::Json) -> Result<Option<Box<dyn muda::IsMenuItem>>, 
             }
         }
     };
-    let id = 登记动作(&动作);
+    let id = 登记动作(窗号, &动作);
     if 取文("类型") == "勾选" {
         let 选中 = 值.get("选中").and_then(|v| v.as_bool()).unwrap_or(false);
         return Ok(Some(Box::new(muda::CheckMenuItem::with_id(
@@ -644,9 +884,11 @@ fn 装菜单事件(代理: EventLoopProxy<事件>) {
         let id = e.id().0.clone();
         let 动作 = 动作表().lock().unwrap().get(&id).cloned();
         match 动作 {
-            Some(a) => {
-                调试(&format!("菜单点了：{a}"));
-                let _ = 代理.send_event(事件::页面("菜单".into(), a));
+            // 🔴 M178：动作里带着**窗口号** —— 菜单是每窗口一套的，点了只能
+            //    送到那个窗口的页面。少了这一维就是「点 A 的菜单，B 变标题」。
+            Some((窗号, a)) => {
+                调试(&format!("窗口 {窗号} 的菜单点了：{a}"));
+                let _ = 代理.send_event(事件::页面(窗号, "菜单".into(), a));
             }
             // 托盘图标的菜单项也走这条路 —— 认不出来说明是别的来源，忽略
             None => 调试(&format!("菜单事件 id={id} 没登记过动作")),
@@ -654,45 +896,67 @@ fn 装菜单事件(代理: EventLoopProxy<事件>) {
     }));
 }
 
-/// 挂菜单栏。三个平台三条路，都是 muda 的入口。
-pub fn 设菜单(定义: &str) -> Result<(), String> {
-    let 菜单 = 建菜单(定义)?;
-    挂菜单栏(&菜单)?;
-    桌面.with(|d| d.borrow_mut().菜单栏 = Some(菜单));
-    调试("菜单栏挂上了");
+/// 给某个窗口挂菜单栏。三个平台三条路，都是 muda 的入口。
+///
+/// `窗号` 传 0 = 主窗口。每个窗口一套菜单（`桌面件.菜单栏` 按号存），
+/// 点了也只送到那个窗口的页面（见 `动作表`）。
+///
+/// ⚠️ **macOS 上菜单栏归应用，不归窗口**：那里调的是 `init_for_nsapp`，
+/// 再给第二个窗口设菜单就是**替换掉整个应用的菜单栏**。多窗口 + 每窗口不同菜单
+/// 在 macOS 上做不到（系统就是这样），如实记在文档里。
+pub fn 设菜单(窗号: u64, 定义: &str) -> Result<(), String> {
+    // 🔴 **顺序有讲究：先解析定义，再报「没有窗口」**。
+    // 菜单写错（少个「动作」、把列表写成字典）跟有没有窗口**无关**，而且更容易
+    // 写错；先报「现在没有原生窗口」会把人引到错误的方向（M175 的判据专门钉住
+    // 这条：没有窗口时也必须先看到定义本身的错）。
+    let 号 = 解析号(窗号);
+    let 菜单 = 建菜单(号, 定义)?;
+    if 号 == 0 {
+        return Err("现在没有原生窗口（先 窗口.打开）".to_string());
+    }
+    挂菜单栏(号, &菜单)?;
+    桌面.with(|d| d.borrow_mut().菜单栏.insert(号, 菜单));
+    调试(&format!("窗口 {号} 的菜单栏挂上了"));
     Ok(())
 }
 
 #[cfg(target_os = "windows")]
-fn 挂菜单栏(菜单: &muda::Menu) -> Result<(), String> {
+fn 挂菜单栏(窗号: u64, 菜单: &muda::Menu) -> Result<(), String> {
     use tao::platform::windows::WindowExtWindows;
-    let w = 当前窗口()?;
+    let w = 某窗口(窗号)?;
     // SAFETY: 窗口还活着（`Rc` 在我们手里），hwnd 有效。
     unsafe { 菜单.init_for_hwnd(w.hwnd()) }.map_err(|e| format!("挂菜单栏失败：{e}"))
 }
 
 #[cfg(target_os = "macos")]
-fn 挂菜单栏(菜单: &muda::Menu) -> Result<(), String> {
+fn 挂菜单栏(_窗号: u64, 菜单: &muda::Menu) -> Result<(), String> {
     // macOS 的菜单栏归**应用**（不在窗口上），所以是 init_for_nsapp。
+    // ⇒ 多窗口下**最后一次设的生效**（系统的限制，不是我们的选择）。
     菜单.init_for_nsapp();
     Ok(())
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-fn 挂菜单栏(菜单: &muda::Menu) -> Result<(), String> {
+fn 挂菜单栏(窗号: u64, 菜单: &muda::Menu) -> Result<(), String> {
     use tao::platform::unix::WindowExtUnix;
-    let w = 当前窗口()?;
+    let w = 某窗口(窗号)?;
     菜单.init_for_gtk_window(w.gtk_window(), w.default_vbox())
         .map_err(|e| format!("挂菜单栏失败：{e}"))
 }
 
-/// 设右键菜单：把菜单交给宿主，并让页面把右击事件让给我们。
-pub fn 设右键菜单(定义: &str) -> Result<(), String> {
-    let 菜单 = 建菜单(定义)?;
-    桌面.with(|d| d.borrow_mut().右键 = Some(菜单));
+/// 设右键菜单（每窗口一份）：把菜单交给宿主，并让页面把右击事件让给我们。
+pub fn 设右键菜单(窗号: u64, 定义: &str) -> Result<(), String> {
+    // 同 `设菜单`：定义错先报，再说窗口的事。
+    let 号 = 解析号(窗号);
+    let 菜单 = 建菜单(号, 定义)?;
+    if 号 == 0 {
+        return Err("现在没有原生窗口（先 窗口.打开）".to_string());
+    }
+    桌面.with(|d| d.borrow_mut().右键.insert(号, 菜单));
     // 页面里装一个监听，右击时把坐标发回来 —— 这样「右键」这件事统一由
     // 宿主弹原生菜单，而不是页面里画一个 HTML 菜单（那在桌面程序里很出戏）。
     执行(
+        号,
         r#"(function(){
   if (window.__jishiCtx) return;
   window.__jishiCtx = 1;
@@ -707,16 +971,17 @@ pub fn 设右键菜单(定义: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 在窗口的 `(x, y)` 处弹出右键菜单（坐标是页面里的 client 坐标）。
-fn 弹右键菜单(x: i32, y: i32) {
+/// 在**那个窗口**的 `(x, y)` 处弹出它自己的右键菜单（坐标是页面里的 client 坐标）。
+fn 弹右键菜单(窗号: u64, x: i32, y: i32) {
+    let 号 = 解析号(窗号);
     桌面.with(|d| {
         let b = d.borrow();
-        let Some(菜单) = b.右键.as_ref() else {
-            调试("收到右键，但没设过右键菜单");
+        let Some(菜单) = b.右键.get(&号) else {
+            调试(&format!("窗口 {号} 收到右键，但它没设过右键菜单"));
             return;
         };
-        let Ok(w) = 当前窗口() else { return };
-        调试(&format!("弹右键菜单 @({x},{y})"));
+        let Ok(w) = 某窗口(号) else { return };
+        调试(&format!("窗口 {号} 弹右键菜单 @({x},{y})"));
         #[cfg(target_os = "windows")]
         {
             use muda::ContextMenu;
@@ -754,7 +1019,7 @@ fn 弹右键菜单(x: i32, y: i32) {
             //    &ApplicationWindow`）。这也是我们要在 Linux 目标段里显式依赖
             //    `gtk 0.18` 的唯一原因。
             use gtk::prelude::Cast;
-            // ⚠️ 局部变量**不能叫 `窗`**：那会撞上本文件的 thread_local `static 窗`
+            // ⚠️ 局部变量**不能叫 `窗`**：那会撞上本文件的 thread_local `static 窗们`
             //    —— Rust 在 `let` 的模式位置把它当成**常量模式**，于是报
             //    「expected &Window, found LocalKey<RefCell<...>>」（CI 抓到）。
             let gtk窗 = w.gtk_window().upcast_ref::<gtk::Window>();
@@ -850,7 +1115,9 @@ fn 装托盘事件(代理: EventLoopProxy<事件>) {
         } = e
         {
             调试("托盘被点了");
-            let _ = 代理.send_event(事件::页面("托盘".into(), "点击".into()));
+            // 托盘是**进程级**的（系统里没有「每窗口一个托盘图标」），
+            // 所以事件送给主窗口 —— `0` 在 `派发` 里解析。
+            let _ = 代理.send_event(事件::页面(0, "托盘".into(), "点击".into()));
         }
     }));
 }
@@ -878,7 +1145,8 @@ pub fn 设托盘(选项: &str) -> Result<(), String> {
         let 项们 = 菜单值
             .as_array()
             .ok_or("托盘选项里的「菜单」要是一个列表（和 窗口.设菜单 一样）")?;
-        let 菜单 = 建菜单项(项们)?;
+        // 托盘菜单的动作也登记在「主窗口」名下（`0` 在派发时解析）。
+        let 菜单 = 建菜单项(0, 项们)?;
         建 = 建.with_menu(Box::new(菜单));
     }
     let 托盘 = 建.build().map_err(|e| {
@@ -921,10 +1189,17 @@ pub fn 单实例(名: &str) -> Result<bool, String> {
         let 代理 = 代理槽().lock().unwrap().clone();
         match 代理 {
             Some(a) => {
-                let _ = a.send_event(事件::页面("再次启动".into(), 正文));
+                let _ = a.send_event(事件::页面(0, "再次启动".into(), 正文));
             }
             // 还没有窗口：先排队，等页面登记好再送（见 `待发`）
-            None => 待发().lock().unwrap().push(("再次启动".into(), 正文)),
+            // 还没有窗口：先排到「0 号队列」（= 还不知道是哪个窗口），
+            // 主窗口页面就绪时会被冲刷出去（见 `处理命令` 的 `宿主事件就绪`）。
+            None => 待发们.with(|c| {
+                c.borrow_mut()
+                    .entry(0)
+                    .or_default()
+                    .push(("再次启动".into(), 正文))
+            }),
         }
     })
 }

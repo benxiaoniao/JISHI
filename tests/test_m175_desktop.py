@@ -129,7 +129,8 @@ def test_拖放接线在源码里():
     """
     rs = (ROOT / "rust" / "src" / "native_window.rs").read_text(encoding="utf-8")
     assert ".with_drag_drop_handler(" in rs, "打开窗口时没接拖放"
-    assert '事件::页面("拖放"' in rs, "拖放进来的路径没有转成页面事件"
+    # M178：事件里多了**窗口号**（拖放只该送到那个窗口的页面）
+    assert '事件::页面(窗号, "拖放"' in rs, "拖放进来的路径没有转成页面事件（或没带窗口号）"
     # 多个文件用换行分隔：wasm 那条通道只能传一个字符串
     assert 'join("\\n")' in rs, "多个拖进来的文件应当用换行分隔"
 

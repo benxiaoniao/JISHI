@@ -38,6 +38,12 @@ struct 记录 {
     /// 两者的 `子` / `目录` 语义不同：原生的 `子` 是 `None`（窗口在本进程里），
     /// 而且它的生命周期跟着**事件循环**走，不跟着子进程走。
     原生: bool,
+    /// M178：原生窗口的号（`native_window` 里的编号，**非原生恒 0**）。
+    ///
+    /// 脚本侧的「句柄」= 这张表的下标 + 1（可以用 1、2、3… 当用户看到的号），
+    /// 而这里记的是**宿主那边的号** —— 两个号不用对齐：句柄是「第几个窗口」，
+    /// 窗号是「哪个原生窗口」（只增不减，关掉的不复用）。
+    窗号: u64,
 }
 
 struct 服务 {
@@ -520,7 +526,7 @@ fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
                     t
                 }
             };
-            crate::native_window::打开(&标题, 宽 as f64, 高 as f64, &网址)
+            let 窗号 = crate::native_window::打开(&标题, 宽 as f64, 高 as f64, &网址)
                 .map_err(|e| err("运行期错误", e))?;
             let mut 表 = 表().lock().unwrap();
             let 号 = 表.len() as i128 + 1;
@@ -529,6 +535,7 @@ fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
                 目录,
                 网址,
                 原生: true,
+                窗号,
             }));
             return Ok(号);
         }
@@ -566,6 +573,7 @@ fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
         目录,
         网址,
         原生: false,
+        窗号: 0,
     }));
     Ok(号)
 }
@@ -639,13 +647,14 @@ fn 关闭(句柄: i128) -> bool {
         return false;
     };
     if 记录.原生 {
-        // 原生窗口杀不了进程（它就在本进程里）—— 发个事件让事件循环退。
+        // 原生窗口杀不了进程（它就在本进程里）—— 发个事件让事件循环**只关那个窗**。
         // 真实收尾在 `等` 里做，这里**不许** `take` 记录：`等` 还要靠它
         // 判断「这是原生窗口，该跑事件循环」。
+        let 窗号 = 记录.窗号;
         drop(表);
         #[cfg(feature = "native-window")]
         {
-            return crate::native_window::请求关闭();
+            return crate::native_window::请求关闭(窗号);
         }
         #[cfg(not(feature = "native-window"))]
         {
@@ -679,30 +688,62 @@ fn 收尾(句柄: i128) {
     }
 }
 
-fn 等(句柄: i128) -> i128 {
+/// `窗口.等(句柄)` / `窗口.等()`：**阻塞到窗口关掉**。
+///
+/// 🔴 **原生窗口这一支等的是「所有窗口」**，不是传进来的那个句柄 ——
+/// 一个进程只有一个事件循环，它一停其它窗口就假死（画面还在、点了没反应），
+/// 比报错更糟。所以「窗A 关了但窗B 还开着」时它**不返回**。
+/// 这是 M178 唯一一处已知的不完美，写进语言规格 / README / AI 卡三处。
+///
+/// 浏览器应用模式（每个窗口一个子进程）仍然是「等那一个」，语义没变。
+fn 等(句柄: Option<i128>) -> i128 {
     enum 等谁 {
         原生,
         子(Child),
         无,
     }
     // 把子进程 / 记录**取出来**再等：不能拿着锁阻塞（别的窗口还要用表）
-    let 谁 = {
-        let mut 表 = 表().lock().unwrap();
-        match 取记录(句柄, &mut 表) {
-            // 已经关掉了：等一个关掉的窗口 = 立刻返回
-            None => 等谁::无,
-            Some(记录) if 记录.原生 => 等谁::原生,
-            Some(记录) => match 记录.子.take() {
-                Some(c) => 等谁::子(c),
+    let 谁 = match 句柄 {
+        None => {
+            // 无参 = 等所有窗口。有原生窗口就跑事件循环；否则把所有子进程等完。
+            let 有原生 = {
+                let 表 = 表().lock().unwrap();
+                表.iter().flatten().any(|x| x.原生)
+            };
+            if 有原生 {
+                等谁::原生
+            } else {
+                let mut 表 = 表().lock().unwrap();
+                let 子们: Vec<Child> =
+                    表.iter_mut().flatten().filter_map(|x| x.子.take()).collect();
+                for mut c in 子们 {
+                    let _ = c.wait();
+                }
+                等谁::无
+            }
+        }
+        Some(h) => {
+            let mut 表 = 表().lock().unwrap();
+            match 取记录(h, &mut 表) {
+                // 已经关掉了：等一个关掉的窗口 = 立刻返回
                 None => 等谁::无,
-            },
+                Some(记录) if 记录.原生 => 等谁::原生,
+                Some(记录) => match 记录.子.take() {
+                    Some(c) => 等谁::子(c),
+                    None => 等谁::无,
+                },
+            }
         }
     };
     let 码: i128 = match 谁 {
         等谁::原生 => {
             #[cfg(feature = "native-window")]
             {
-                crate::native_window::等() as i128
+                let 码 = crate::native_window::等() as i128;
+                // 事件循环退出 = **所有**原生窗口都关了 ⇒ 把这些记录全收掉
+                // （停小服务、腾句柄）。只收传进来的那一个是不够的。
+                收尾所有原生();
+                码
             }
             #[cfg(not(feature = "native-window"))]
             {
@@ -712,8 +753,28 @@ fn 等(句柄: i128) -> i128 {
         等谁::子(mut c) => c.wait().map(|s| s.code().unwrap_or(0) as i128).unwrap_or(0),
         等谁::无 => 0,
     };
-    收尾(句柄);
+    if let Some(h) = 句柄 {
+        收尾(h);
+    }
     码
+}
+
+/// 把所有原生窗口的记录收掉（事件循环退出后调用）。
+///
+/// 只 `take` 记录、不碰子进程：原生窗口没有子进程。目录的服务等最后一个用它的
+/// 记录走了才停（`收尾` 里的判断），所以这里逐个走一遍是对的。
+fn 收尾所有原生() {
+    let 号们: Vec<i128> = {
+        let 表 = 表().lock().unwrap();
+        表.iter()
+            .enumerate()
+            .filter(|(_, x)| x.as_ref().is_some_and(|r| r.原生))
+            .map(|(i, _)| i as i128 + 1)
+            .collect()
+    };
+    for 号 in 号们 {
+        收尾(号);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -833,7 +894,52 @@ fn json串(s: &str) -> String {
 
 // -- M175 的八个函数 --------------------------------------------------------
 
-fn 设菜单(定义: &Val) -> Result<bool, crate::JishiError> {
+/// 把「可选的脚本句柄」解析成「原生窗口号」。
+///
+/// - 不给句柄 → `0`（= 主窗口，宿主那边解析）。**老写法一行不改还是老行为**。
+/// - 给了句柄 → 查表：不存在就报错（别静默当成主窗口 —— 那样用户会以为
+///   自己操作的是 3 号窗，其实改的是 1 号）。非原生（浏览器应用模式）也报错。
+fn 原生窗号(句柄: Option<i128>, 干什么: &str) -> Result<u64, crate::JishiError> {
+    let Some(h) = 句柄 else {
+        return Ok(0);
+    };
+    let mut 表 = 表().lock().unwrap();
+    let Some(记录) = 取记录(h, &mut 表) else {
+        return Err(err_with_hint(
+            "值错误",
+            format!("没有窗口句柄 {h}（可能已经关掉了）"),
+            "句柄是 窗口.打开 的返回值；不写句柄 = 主窗口".into(),
+        ));
+    };
+    if !记录.原生 {
+        return Err(err_with_hint(
+            "运行期错误",
+            format!("窗口 {h} 是浏览器应用模式（原生: 假），{干什么}只有原生窗口能做"),
+            "用 窗口.打开({原生: 真})；应用模式的标题就是页面的 <title>".into(),
+        ));
+    }
+    Ok(记录.窗号)
+}
+
+/// 取「第二个参数当句柄」（可选）—— `设标题` / `设菜单` / `设右键菜单` 共用。
+///
+/// 三个函数的形状一样：`(主体, 句柄?)`。句柄放**末尾**的理由见 `module` 里
+/// `设标题` 那段注释（可选参数必须在末尾，否则签名表表达不了）。
+fn 取句柄参数(args: &[Val], 名: &str) -> Result<Option<i128>, crate::JishiError> {
+    match args.get(1) {
+        None | Some(Val::None_) => Ok(None),
+        Some(Val::Int(i)) => Ok(Some(*i)),
+        Some(other) => Err(err(
+            "类型错误",
+            format!(
+                "「{名}」的第二个参数要窗口句柄（整数），给的是{}",
+                crate::type_label(other)
+            ),
+        )),
+    }
+}
+
+fn 设菜单(定义: &Val, 句柄: Option<i128>) -> Result<bool, crate::JishiError> {
     let 文 = 菜单json(定义)?;
     #[cfg(target_arch = "wasm32")]
     {
@@ -844,7 +950,8 @@ fn 设菜单(定义: &Val) -> Result<bool, crate::JishiError> {
     {
         #[cfg(feature = "native-window")]
         {
-            crate::native_window::设菜单(&文).map_err(|e| err("运行期错误", e))?;
+            let 窗号 = 原生窗号(句柄, "设菜单")?;
+            crate::native_window::设菜单(窗号, &文).map_err(|e| err("运行期错误", e))?;
             Ok(true)
         }
         #[cfg(not(feature = "native-window"))]
@@ -852,7 +959,7 @@ fn 设菜单(定义: &Val) -> Result<bool, crate::JishiError> {
     }
 }
 
-fn 设右键菜单(定义: &Val) -> Result<bool, crate::JishiError> {
+fn 设右键菜单(定义: &Val, 句柄: Option<i128>) -> Result<bool, crate::JishiError> {
     let 文 = 菜单json(定义)?;
     #[cfg(target_arch = "wasm32")]
     {
@@ -863,7 +970,8 @@ fn 设右键菜单(定义: &Val) -> Result<bool, crate::JishiError> {
     {
         #[cfg(feature = "native-window")]
         {
-            crate::native_window::设右键菜单(&文).map_err(|e| err("运行期错误", e))?;
+            let 窗号 = 原生窗号(句柄, "设右键菜单")?;
+            crate::native_window::设右键菜单(窗号, &文).map_err(|e| err("运行期错误", e))?;
             Ok(true)
         }
         #[cfg(not(feature = "native-window"))]
@@ -1077,13 +1185,17 @@ pub(crate) fn module() -> HashMap<String, Val> {
             };
             Ok(Val::Bool(关闭(句柄)))
         },
+        // M178：`设标题(新标题)` / `设标题(新标题, 句柄)` —— **句柄在末尾且可选**。
+        // 为什么不把句柄放前面（跟 关闭/等/在运行 一致）：可选参数必须在末尾，
+        // 否则 `设标题("新标题")` 这一个参数既可能是标题也可能是句柄，
+        // 签名表（从 Python 侧生成）就没法表达「第二个可以不给」。
         "设标题" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("设标题", args, 1, 1)?;
+            need_range("设标题", args, 1, 2)?;
             let 新 = match &args[0] {
                 Val::Str(s) => s.to_string(),
                 other => return Err(err("类型错误", format!("「设标题」要文本，给的是{}", crate::type_label(other)))),
             };
-            Ok(Val::Bool(设标题(&新)?))
+            Ok(Val::Bool(设标题(&新, 取句柄参数(args, "设标题")?)?))
         },
         "在运行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("在运行", args, 1, 1)?;
@@ -1094,10 +1206,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let mut 表 = 表().lock().unwrap();
             let 活着 = match 取记录(句柄, &mut 表) {
                 Some(记录) if 记录.原生 => {
+                    let 窗号 = 记录.窗号;
                     drop(表);
                     #[cfg(feature = "native-window")]
                     {
-                        crate::native_window::在运行()
+                        crate::native_window::在运行(窗号)
                     }
                     #[cfg(not(feature = "native-window"))]
                     {
@@ -1113,11 +1226,16 @@ pub(crate) fn module() -> HashMap<String, Val> {
             };
             Ok(Val::Bool(活着))
         },
+        // M178：`等(句柄)` / `等()` —— 不写句柄 = 等**所有**窗口关掉。
         "等" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("等", args, 1, 1)?;
-            let 句柄 = match &args[0] {
-                Val::Int(i) => *i,
-                other => return Err(err("类型错误", format!("「等」要窗口句柄（整数），给的是{}", crate::type_label(other)))),
+            need_range("等", args, 0, 1)?;
+            let 句柄 = match args.first() {
+                None | Some(Val::None_) => None,
+                Some(Val::Int(i)) => Some(*i),
+                Some(other) => {
+                    return Err(err("类型错误", format!(
+                        "「等」要窗口句柄（整数），给的是{}", crate::type_label(other))))
+                }
             };
             Ok(Val::Int(等(句柄)))
         },
@@ -1127,13 +1245,14 @@ pub(crate) fn module() -> HashMap<String, Val> {
         //   · **脚本侧**（设菜单 / 设右键菜单 / 设托盘 / 关托盘 / 单实例 /
         //     选文件 / 存文件）—— 它们操作的是宿主窗口，页面（wasm）里明确报错；
         //   · **页面侧**（当）—— 登记「宿主事件 → 基石函数」，脚本里明确报错。
+        // M178：`设菜单(定义)` / `设菜单(定义, 句柄)`（右键菜单同形）
         "设菜单" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("设菜单", args, 1, 1)?;
-            Ok(Val::Bool(设菜单(&args[0])?))
+            need_range("设菜单", args, 1, 2)?;
+            Ok(Val::Bool(设菜单(&args[0], 取句柄参数(args, "设菜单")?)?))
         },
         "设右键菜单" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("设右键菜单", args, 1, 1)?;
-            Ok(Val::Bool(设右键菜单(&args[0])?))
+            need_range("设右键菜单", args, 1, 2)?;
+            Ok(Val::Bool(设右键菜单(&args[0], 取句柄参数(args, "设右键菜单")?)?))
         },
         "设托盘" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设托盘", args, 1, 1)?;
@@ -1215,7 +1334,9 @@ fn 无参关闭() -> Result<bool, crate::JishiError> {
     {
         #[cfg(feature = "native-window")]
         {
-            return Ok(crate::native_window::请求关闭());
+            // 脚本里省略句柄 = 关**主窗口**（第一个还开着的）。页面里那条路
+            // 走的是 ABI，宿主按 IPC 来源认定「自己」，不经过这里。
+            return Ok(crate::native_window::请求关闭(0));
         }
         #[cfg(not(feature = "native-window"))]
         {
@@ -1234,16 +1355,26 @@ fn 无参关闭() -> Result<bool, crate::JishiError> {
 ///   改 `document.title`（`--app` 窗口的标题栏显示的就是它）—— 同一句代码
 ///   在两代外壳下都生效，这正是 ABI 3 想要的效果。
 /// - **原生脚本里**：直接改本进程那个窗口。
-fn 设标题(新: &str) -> Result<bool, crate::JishiError> {
+fn 设标题(新: &str, 句柄: Option<i128>) -> Result<bool, crate::JishiError> {
     #[cfg(target_arch = "wasm32")]
     {
+        // 页面里没有「句柄」这个概念（你就在其中一个窗口里），走 ABI 3，
+        // 宿主按「消息从哪个 WebView 来」决定改谁的标题。
+        if 句柄.is_some() {
+            return Err(err_with_hint(
+                "运行期错误",
+                "页面里没有窗口句柄（你就在其中一个窗口里）",
+                "页面里写 窗口.设标题(\"新标题\")，不要传句柄".into(),
+            ));
+        }
         return Ok(crate::abi3::发("标题", 新) > 0);
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
         #[cfg(feature = "native-window")]
         {
-            if crate::native_window::设标题(新) {
+            let 窗号 = 原生窗号(句柄, "改标题")?;
+            if crate::native_window::设标题(窗号, 新) {
                 return Ok(true);
             }
             return Err(err_with_hint(

@@ -5106,13 +5106,26 @@ const WINDOW_FUNCS = {
   }),
 
   '等': new R.Builtin('等', (句柄) => {
-    const 记录 = _win记录(句柄);
-    if (!记录) return 0;      // 已经关掉了：等一个关掉的窗口 = 立刻返回
     // 同步宿主只能**轮询 OS**：`process.kill(pid, 0)` 是系统调用，不依赖事件循环。
     // 服务在子进程里，所以主线程阻塞不影响页面加载。
     const 缓冲 = new Int32Array(new SharedArrayBuffer(4));
-    while (_win活着(记录)) Atomics.wait(缓冲, 0, 0, 50);
-    const 码 = 记录.子.exitCode === null ? 0 : Number(记录.子.exitCode);
+    const 等着 = (记录) => {
+      if (!记录) return 0;    // 已经关掉了：等一个关掉的窗口 = 立刻返回
+      while (_win活着(记录)) Atomics.wait(缓冲, 0, 0, 50);
+      return 记录.子.exitCode === null ? 0 : Number(记录.子.exitCode);
+    };
+    // M178：不写句柄 = 等**所有**窗口关掉（与 Rust 侧「事件循环退出 = 全关」
+    // 的可观察行为一致）。逐个等：它们本来就是各自独立的子进程。
+    if (句柄 === undefined || 句柄 === null) {
+      const 号们 = [];
+      for (let i = 0; i < _win表.length; i += 1) if (_win表[i]) 号们.push(i + 1);
+      for (const 号 of 号们) {
+        等着(_win记录(号));
+        _win收尾(号);
+      }
+      return 0;
+    }
+    const 码 = 等着(_win记录(句柄));
     _win收尾(句柄);
     return 码;
   }),
