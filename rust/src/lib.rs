@@ -2017,6 +2017,15 @@ pub struct VM {
     builtin_names: Vec<String>,
     stack: Vec<Val>,
     frames: Vec<Frame>,
+    /// **实参复用缓冲**（M179）：`CALL` 每次把实参拷进来，用完还回来。
+    ///
+    /// 以前是 `self.stack[..].to_vec()` —— 每次调用一次 malloc + 一次 free。
+    /// 递归场景每次调用实测 266 ns（同机 CPython 约 80 ns），这一对堆操作
+    /// 占其中一成多。缓冲容量温了之后就是**零分配**。
+    ///
+    /// ⚠️ 用完必须还（`self.arg_buf = 参`）：不还只是慢一点，**不会错** ——
+    /// 所以报错路径上丢了它也不算 bug，热路径都还了。
+    arg_buf: Vec<Val>,
     last_value: Val,
     output: String,
     /// 错误流缓冲（目前只有 `测试.汇总` 往里写；见 `write_stderr`）。
@@ -2077,6 +2086,7 @@ impl VM {
             builtin_names,
             stack: Vec::new(),
             frames: Vec::new(),
+            arg_buf: Vec::new(),
             last_value: Val::None_,
             output: String::new(),
             output_err: String::new(),
@@ -2495,15 +2505,27 @@ impl VM {
                     let fn_base = self.stack.len() - (1 + nargs + nkw);
                     // 取 fn 和 args
                     let fn_val = self.stack[fn_base].clone();
-                    let args: Vec<Val> = self.stack[fn_base + 1 .. fn_base + 1 + nargs].to_vec();
+                    // 🔴 M179：实参拷进**复用缓冲**，不再每次 `to_vec()`。
+                    //
+                    // 为什么：`to_vec()` 是每次调用一次 malloc + 一次 free。
+                    // 每次函数调用实测 266 ns（同机 CPython 约 80 ns），
+                    // 这对堆操作占其中一成多；递归场景每次调用都摊这笔钱。
+                    // 缓冲挂在 VM 上（`arg_buf`），进门 `clear()` + `extend_from_slice`
+                    // —— 容量温了就**零分配**。
+                    let mut 参 = std::mem::take(&mut self.arg_buf);
+                    参.clear();
+                    参.extend_from_slice(&self.stack[fn_base + 1 .. fn_base + 1 + nargs]);
                     let kwvals: Vec<Val> = if nkw > 0 { self.stack[fn_base + 1 + nargs ..].to_vec() } else { Vec::new() };
                     // 截栈
                     self.stack.truncate(fn_base);
                     match fn_val {
                         Val::Func(f) => {
-                            self.push_func_frame(Some((fi, ip)), &f, args, &knames,
-                                                 &kwvals, fn_base,
-                                                 (ins.line, ins.col), true)?;
+                            let r = self.push_func_frame(Some((fi, ip)), &f, &参, &knames,
+                                                         &kwvals, fn_base,
+                                                         (ins.line, ins.col), true);
+                            // 先把缓冲还回去再判错 —— 出错也照样复用（热路径不该丢容量）
+                            self.arg_buf = 参;
+                            r?;
                             // M163：**不返回**，在同一个循环里换到新帧继续跑。
                             fi = self.frames.len() - 1;
                             code_idx = self.frames[fi].code_idx;
@@ -2516,13 +2538,25 @@ impl VM {
                             // 命名参数在这里映射回位置参数（M51）。以前是直接
                             // `bfn(&args, self)` —— kwargs 被**静默丢掉**：
                             // `加密.摘要("abc", 算法="md5")` 会悄悄用 sha256。
-                            let mapped = map_kwargs(bd.name, &args, &knames, &kwvals)?;
-                            let out = (bd.f)(&mapped, self)?;
-                            self.stack.push(out);
+                            // M179：**没有命名参数时不要再拷一份**。
+                            // `map_kwargs` 在 `knames` 为空时就是 `args.to_vec()` ——
+                            // 而这份 `args` 上面刚拷过，等于每次内建调用两次堆分配。
+                            // 基准「内建调用密集」实测每次内建调用 146 ns。
+                            let out = if knames.is_empty() {
+                                // 常见情形：没有命名参数 ⇒ **直接用实参缓冲**，
+                                // 不再经 `map_kwargs` 拷一份（那原来是第二次堆分配）
+                                (bd.f)(&参, self)
+                            } else {
+                                let mapped = map_kwargs(bd.name, &参, &knames, &kwvals)?;
+                                (bd.f)(&mapped, self)
+                            };
+                            self.arg_buf = 参;
+                            self.stack.push(out?);
                         }
                         Val::Class(c) => {
                             reject_kwargs(&format!("类「{}」", c.name), &knames)?;
-                            let inst = self.make_instance(*c, &args)?;
+                            let inst = self.make_instance(*c, &参)?;
+                            self.arg_buf = 参;
                             self.stack.push(Val::Instance(inst));
                         }
                         Val::BoundMethod(bm) => {
@@ -2541,17 +2575,19 @@ impl VM {
                                     // 用户方法：把实例放进第一个形参（自身），再压新帧。
                                     // 与「函数」调用共用一条压帧路径——方法不过是个
                                     // 首参被预先绑定的函数。
-                                    let mut all = Vec::with_capacity(args.len() + 1);
-                                    all.push(Val::Instance(instance));
-                                    all.extend(args.into_iter());
+                                    // 实例插到缓冲**最前面**（1~3 个元素的 memmove，
+                                    // 比再分配一个 Vec 便宜）：方法 = 首参预先绑定的函数。
+                                    参.insert(0, Val::Instance(instance));
                                     // ⚠️ **关键字参数要一起传下去**（R6.7）：以前这里
                                     // 写的是 `&[]`，于是 `o.方法(不存在的名=1)` 的 kwargs
                                     // 被**静默丢掉**、报成「缺少参数：x」（看着像另一件事），
                                     // 而 Python / Node 报「函数「方法」没有叫「不存在」的参数」。
                                     // 宿主静默丢参数是本项目最恨的一类 bug（M51 修过同款）。
-                                    self.push_func_frame(Some((fi, ip)), &func, all,
-                                                         &knames, &kwvals, fn_base,
-                                                         (ins.line, ins.col), false)?;
+                                    let r = self.push_func_frame(Some((fi, ip)), &func, &参,
+                                                                 &knames, &kwvals, fn_base,
+                                                                 (ins.line, ins.col), false);
+                                    self.arg_buf = 参;
+                                    r?;
                                     // M163：同「函数调用」——不返回，换帧继续
                                     fi = self.frames.len() - 1;
                                     code_idx = self.frames[fi].code_idx;
@@ -2562,7 +2598,9 @@ impl VM {
                                 }
                                 builtin => {
                                     reject_kwargs("这个方法", &knames)?;
-                                    match self.call_bound(builtin, &args) {
+                                    let bound_out = self.call_bound(builtin, &参);
+                                    self.arg_buf = 参;
+                                    match bound_out {
                                         Ok(out) => self.stack.push(out),
                                         Err(mut e) => {
                                             // 只补「还没填过」的 —— 与 `fill_error_loc`
@@ -2581,7 +2619,7 @@ impl VM {
                         }
                         Val::ExcType(t) => {
                             reject_kwargs("异常类型", &knames)?;
-                            let msg = args.first().map(display).unwrap_or_default();
+                            let msg = 参.first().map(display).unwrap_or_default();
                             // ⚠️ **构造**一个异常对象，**不是**立刻抛（R7.4 修的）。
                             // Python 侧 `ExcType.__call__` 是 `self.cls(message)` —— 造出实例：
                             // `令 e = 值错误("x")` 之后 `类型(e)` 是「异常」、`e.消息` 拿得到，
@@ -3088,8 +3126,10 @@ impl VM {
         }
     }
 
+    /// ⚠️ M179：`args` 改成**切片**（原来是 `Vec<Val>`）—— 调用方用复用缓冲
+    /// `arg_buf` 填好再借进来，一次调用省一对 malloc/free。
     fn push_func_frame(&mut self, set_ip: Option<(usize, usize)>, func: &Func,
-                       args: Vec<Val>, knames: &[String], kwvals: &[Val],
+                       args: &[Val], knames: &[String], kwvals: &[Val],
                        base: usize, call_site: (i64, i64), in_trace: bool)
         -> Result<(), JishiError> {
         // 🔴 M161：**递归深度上限**（Python / Node / C VM 一直有，只有 Rust 缺）。
@@ -3127,7 +3167,7 @@ impl VM {
         nf.cells.extend(func.cells.iter().cloned());
         {
             let sub = &self.module.codes[sub_idx];
-            bind_args(sub, &args, knames, kwvals, func.defaults.as_deref(),
+            bind_args(sub, args, knames, kwvals, func.defaults.as_deref(),
                       &mut nf.cells, &mut nf.locals, &mut nf.locals_set,
                       &mut nf.bind_buf)?;
         }
@@ -3170,7 +3210,7 @@ impl VM {
         let base = self.stack.len();
         // 同步调用（内建里回调基石函数 / 方法 / `初始化`）没有源码位置 —— 记 (0, 0)。
         // 这一帧本来也不会出现在用户看的报错里（它没有对应的源码行）。
-        self.push_func_frame(None, func, all, &[], &[], base, (0, 0), false)?;
+        self.push_func_frame(None, func, &all, &[], &[], base, (0, 0), false)?;
         self.execute(Some(depth))?;
         Ok(if self.stack.len() > base {
             self.stack.pop().unwrap_or(Val::None_)
@@ -4464,7 +4504,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         let seq = match seq_of(&args[..1], vm)? {
             Some(s) => s,
             None => match &args[0] {
-                Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string().into())).collect(),
+                Val::Str(s) => s.chars().map(|c| 单字符(c)).collect(),
                 other => {
                     return Err(err(
                         "类型错误",
@@ -4495,7 +4535,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                 Some(s) => seqs.push(s),
                 None => match a {
                     Val::Str(s) => {
-                        seqs.push(s.chars().map(|c| Val::Str(c.to_string().into())).collect());
+                        seqs.push(s.chars().map(|c| 单字符(c)).collect());
                     }
                     other => {
                         return Err(err(
@@ -5302,6 +5342,44 @@ pub(crate) fn set_attr(obj: Val, attr: &str, val: Val) -> Result<(), JishiError>
     }
 }
 
+/// 单字符的 `Val` **只造一次**（M179 的单态特化）。
+///
+/// ## 为什么值得
+///
+/// `遍历 字 在 文本` 与 `文[i]` 每取一个字符都要 `c.to_string()` +
+/// `Rc<str>` —— **两次堆操作**，用完还要释放。基准「文本下标」实测每次
+/// **179 ns**（同机 CPython 约 90 ns），大头就是这两次分配。
+///
+/// 缓存之后同一个字符只造一次，之后是「一次命中 + `Rc` 计数 +1」。
+///
+/// ## 为什么语义上是安全的
+///
+/// `Val::Str(Rc<str>)` **不可变** —— 共享同一个 `Rc<str>` 与新建一个内容相同的
+/// 完全等价（比较按内容；生产代码里没有任何地方拿 `Rc::ptr_eq` 当语义用）。
+///
+/// ## 为什么不无限长
+///
+/// 256 个槽直接映射（按码点低 8 位），**上限固定**：每项最多一个码点。
+/// 命中率对「同一段文本反复遍历 / 反复下标」很高（基准里 5 个字符 × 15000 次），
+/// 对随机大字符集就是一直不命中 —— 那也只是退回原来的路，不会更慢一个量级。
+fn 单字符(c: char) -> Val {
+    thread_local! {
+        static 槽: RefCell<Vec<Option<(char, Val)>>> = RefCell::new(vec![None; 256]);
+    }
+    槽.with(|k| {
+        let mut k = k.borrow_mut();
+        let i = (c as u32 as usize) & 255;
+        if let Some((c0, v0)) = &k[i] {
+            if *c0 == c {
+                return v0.clone();
+            }
+        }
+        let v = Val::Str(c.to_string().into());
+        k[i] = Some((c, v.clone()));
+        v
+    })
+}
+
 /// **负下标折算**（R6.5）：`列[-1]` 是最后一个元素 —— 与 Python 一致。
 ///
 /// ⚠️ 计数用的是**元素的个数**：文本要按**码点**（`chars().count()`），
@@ -5413,7 +5491,7 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
             // 扫描更贵）。本项目的老规矩：**通了再留，不通就删**。
             if i >= 0 {
                 return match s.chars().nth(i as usize) {
-                    Some(c) => Ok(Val::Str(c.to_string().into())),
+                    Some(c) => Ok(单字符(c)),
                     None => Err(err("索引错误", STR_INDEX_MSG)),
                 };
             }
@@ -5814,7 +5892,7 @@ fn as_iterable(v: &Val, what: &str) -> Result<Vec<Val>, JishiError> {
     match v {
         Val::List(l) => Ok(l.borrow().clone()),
         Val::Set(s) => Ok(s.borrow().to_items()),
-        Val::Str(s) => Ok(s.chars().map(|c| Val::Str(c.to_string().into())).collect()),
+        Val::Str(s) => Ok(s.chars().map(|c| 单字符(c)).collect()),
         // 字节（M113）：逐个给**整数** 0-255（与 Python 的 `list(b"abc")` 一致）。
         // ⚠️ 这一点务必记牢：`总和(字节)` 会因此**静默**变成「字节值之和」——
         // 所以 `b_sum` / `b_max` / `b_min` 里各有一条显式拦截（D79 §三）。
@@ -5831,7 +5909,7 @@ pub(crate) fn unpack_values(v: Val, n: usize, star: i64) -> Result<Vec<Val>, Jis
     // 不该把原列表搬空。
     let seq: Vec<Val> = match v {
         Val::List(l) => l.borrow().clone(),
-        Val::Str(s) => s.chars().map(|c| Val::Str(c.to_string().into())).collect(),
+        Val::Str(s) => s.chars().map(|c| 单字符(c)).collect(),
         // 字典解出来的是键（与 Python 侧一致）
         Val::Dict(d) => d.borrow().iter().map(|(k, _)| k.clone()).collect(),
         other => return Err(err_with_hint(
@@ -6065,7 +6143,7 @@ pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
                 items, idx: 0, src: Val::Set(s), expect }))))
         }
         Val::Str(s) => Ok(reversed_iter(
-            s.chars().map(|c| Val::Str(c.to_string().into())).collect())),
+            s.chars().map(|c| 单字符(c)).collect())),
         // 字节（M113）：**快照**就行 —— 字节本来就不可变，不存在
         // 「遍历中改大小」那种问题。逐个给整数 0-255。
         Val::Bytes(b) => Ok(reversed_iter(

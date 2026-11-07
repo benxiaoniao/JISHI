@@ -22,6 +22,17 @@
     python build/ev/m160/bench_vs_cpython.py            # 默认每档 3 轮
     python build/ev/m160/bench_vs_cpython.py --轮数 5
     python build/ev/m160/bench_vs_cpython.py --只跑 文本
+
+🔴 **要比两个版本，必须先固定规模**（M179 用血换的）：
+    python tools/bench_vs_python.py --json base.json     # 旧二进制 → 存快照（含重复次数）
+    python tools/bench_vs_python.py --用基线 base.json   # 新二进制 → 按同一规模跑
+    # 每档跑 3 轮、看**中位**：单轮噪声有 ±10%，一眼看单轮会得出相反结论。
+
+为什么要这条：不固定规模时，重复次数是按「单轮 ≥0.4 秒」**动态标定**的，
+它随机器负载变 ⇒ 同一份代码两次跑的根本不是同一个规模的程序。M179 实测：
+同一二进制跑出 1.54x / 1.32x / 1.61x；某个场景还从 1.28x 掉到 0.74x
+（而那次改动**让它更快了**）—— 因为重复次数一多，CPython 3.13 的**自适应特化**
+吃到了红利，而解释器没有分层。
 """
 
 from __future__ import annotations
