@@ -5139,6 +5139,23 @@ const WINDOW_FUNCS = {
     }
     return 数;
   }),
+
+  // ---- M185：几何 / 图标 / 进度 / 提示 -------------------------------------
+  //
+  // 这些在 **Rust 宿主 + 原生窗口**上是真功能。本宿主只有浏览器应用模式，
+  // 没有窗口对象可操作 ⇒ 统一报「做不到」。**函数必须在** —— 三个宿主得同宽
+  // （`test_m51_consistency.py` 拿 `--dump-stdlib` 比对）。
+  '设大小': new R.Builtin('设大小', () => _要原生('设大小', '用 Rust 发行版（窗口.打开 默认就是原生窗口）')),
+  '设位置': new R.Builtin('设位置', () => _要原生('设位置', '用 Rust 发行版')),
+  '居中': new R.Builtin('居中', () => _要原生('居中', '用 Rust 发行版')),
+  '最大化': new R.Builtin('最大化', () => _要原生('最大化', '用 Rust 发行版')),
+  '最小化': new R.Builtin('最小化', () => _要原生('最小化', '用 Rust 发行版')),
+  '设全屏': new R.Builtin('设全屏', () => _要原生('设全屏', '用 Rust 发行版')),
+  '设置顶': new R.Builtin('设置顶', () => _要原生('设置顶', '用 Rust 发行版')),
+  '读几何': new R.Builtin('读几何', () => _要原生('读几何', '用 Rust 发行版')),
+  '设图标': new R.Builtin('设图标', () => _要原生('设图标', '用 Rust 发行版')),
+  '进度': new R.Builtin('进度', () => _要原生('进度', '任务栏进度是 Windows 的概念')),
+  '提示': new R.Builtin('提示', () => _要原生('提示', '系统提示这一版只做了 Windows')),
 };
 
 /** M175：这个宿主没有原生窗口 —— 统一报错（不静默返回假）。 */
@@ -7161,6 +7178,32 @@ const TEST_FUNCS = {
   }),
 };
 
+// M185：`托盘` —— 改托盘的菜单 / 提示。本宿主没有原生托盘，两个函数都报错。
+const TRAY_FUNCS = {
+  '设菜单': new R.Builtin('设菜单', () => {
+    throw R.runErr('这个宿主没有原生托盘能力，「托盘.设菜单」用不了'
+      + '（Node 宿主只能走浏览器应用模式）', undefined, undefined, '用 Rust 发行版');
+  }),
+  '设提示': new R.Builtin('设提示', () => {
+    throw R.runErr('这个宿主没有原生托盘能力，「托盘.设提示」用不了'
+      + '（Node 宿主只能走浏览器应用模式）', undefined, undefined, '用 Rust 发行版');
+  }),
+};
+
+// M185：`剪贴板` —— 这一版只在 Windows 的 Rust 宿主上实现。
+const CLIPBOARD_FUNCS = {
+  '读文本': new R.Builtin('读文本', () => {
+    throw R.runErr('这个宿主没有剪贴板能力，「剪贴板.读文本」用不了'
+      + '（剪贴板这一版只在 Windows 的 Rust 宿主上实现）',
+      undefined, undefined, '用 Windows 上的 Rust 发行版');
+  }),
+  '写文本': new R.Builtin('写文本', () => {
+    throw R.runErr('这个宿主没有剪贴板能力，「剪贴板.写文本」用不了'
+      + '（剪贴板这一版只在 Windows 的 Rust 宿主上实现）',
+      undefined, undefined, '用 Windows 上的 Rust 发行版');
+  }),
+};
+
 const STDLIB = {  '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
     '平方': new R.Builtin('平方', (x) => x * x),
@@ -7499,6 +7542,9 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '站点': new R.Module('站点', SITE_FUNCS),
   '打包': new R.Module('打包', PACK_FUNCS),
   '窗口': new R.Module('窗口', WINDOW_FUNCS),
+  // M185
+  '托盘': new R.Module('托盘', TRAY_FUNCS),
+  '剪贴板': new R.Module('剪贴板', CLIPBOARD_FUNCS),
   'html': new R.Module('html', HTML_FUNCS),
   '对比': new R.Module('对比', DIFF_FUNCS),
   '标识': new R.Module('标识', ID_FUNCS),

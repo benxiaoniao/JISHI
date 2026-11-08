@@ -62,6 +62,10 @@ mod ident;
 mod vector;
 // M141 新增（与 Python 侧 jishi/stdlib/矩阵.py 对齐）
 mod matrix;
+// M185：`托盘`（改菜单/改提示）与 `剪贴板`（只有 Windows 真做）。
+// 两个都是「默认构建有：托盘靠 tray-icon / 剪贴板靠裸 Win32」，零新依赖。
+mod tray;
+mod clipboard;
 mod encode;
 mod htmlmod;
 mod diffmod;
@@ -98,6 +102,9 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         ("站点", site::module),
         ("打包", pack::module),
         ("窗口", window::module),
+        // M185
+        ("托盘", tray::module),
+        ("剪贴板", clipboard::module),
         ("数学", math::module),
         ("文本", text::module),
         ("随机", rand::module),

@@ -304,6 +304,26 @@ fn timeout_of(v: Option<&Val>) -> Result<f64, crate::JishiError> {
 
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "系统";
+        // M185：把那件东西交给**系统**去开 —— 默认程序 / 浏览器 / 文件管理器。
+        //
+        // 📌 与 `执行` 的区别：那个是「我起一个子进程、我要它的输出」；
+        //    这个是「你替我打开」，**不等它**（用户会在那个程序里待多久都行）。
+        "打开" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("打开", args, 1)?;
+            let 目标 = match &args[0] {
+                Val::Str(s2) => s2.to_string(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「系统.打开」要路径或网址（文本），给的是{}", crate::type_label(other)),
+                    ))
+                }
+            };
+            // 🔴 **五执行器一致的规矩**（Python 侧 `系统.打开` 的文档写着）：
+            // 目标不存在（且不是网址）⇒ **返回假、什么都不启动**；交给系统失败
+            // 也返回假，**不抛异常**。调用方自己决定怎么办。
+            交给系统打开(&目标).map(Val::Bool)
+        },
         "系统名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("系统名", args, 0)?;
             Ok(Val::Str(os_name().into()))
@@ -425,5 +445,77 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let items: Vec<Val> = script_args().into_iter().map(|s| Val::Str(s.into())).collect();
             Ok(crate::list_new(items))
         },
+    }
+}
+
+/// M185：`系统.打开` 的实现 —— 三平台都**不用第三方 crate**。
+///
+/// | 平台 | 靠什么 | 注意 |
+/// |---|---|---|
+/// | Windows | `ShellExecuteW(NULL, "open", …)` | 返回值 **> 32** 才算成功（≤32 是错误码，0 是内存不足） |
+/// | macOS | `open <目标>` | 起完就走 |
+/// | Linux | `xdg-open <目标>` | 同上；桌面环境不一定装了它，装了也未必能开 |
+///
+/// ⚠️ **不等子进程结束**：用户可能把浏览器开一整天。所以 `spawn` 之后直接放手
+/// —— 代价是 Linux 上会留一个僵尸（系统会在合适的时候回收）。用户不会为了
+/// 打开文件调几千次，这个代价可以接受；真在意的话该用 double-fork，那要 `libc`。
+fn 交给系统打开(目标: &str) -> Result<bool, crate::JishiError> {
+    // 🔴 与另外四个执行器同一条规矩：不是网址、文件又不存在 ⇒ 直接假，
+    //    连 ShellExecute / xdg-open 都不碰（「路径打错却弹个空白窗口」很难查）。
+    if !目标.contains("://") && !std::path::Path::new(目标).exists() {
+        return Ok(false);
+    }
+    #[cfg(windows)]
+    {
+        fn 宽(s: &str) -> Vec<u16> {
+            s.encode_utf16().chain(std::iter::once(0)).collect()
+        }
+        #[link(name = "shell32")]
+        extern "system" {
+            fn ShellExecuteW(
+                hwnd: isize,
+                操作: *const u16,
+                文件: *const u16,
+                参数: *const u16,
+                目录: *const u16,
+                显示: i32,
+            ) -> isize;
+        }
+        let 操 = 宽("open");
+        let 文 = 宽(目标);
+        let r = unsafe {
+            ShellExecuteW(
+                0,
+                操.as_ptr(),
+                文.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1, // SW_SHOWNORMAL
+            )
+        };
+        // `> 32` 才是成功（≤32 是 ShellExecute 的错误码，0 还是「内存不足」）
+        Ok(r > 32)
+    }
+    #[cfg(not(windows))]
+    {
+        #[cfg(target_os = "macos")]
+        let 程序 = "open";
+        #[cfg(not(target_os = "macos"))]
+        let 程序 = "xdg-open";
+        let 子 = std::process::Command::new(程序)
+            .arg(目标)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+        match 子 {
+            Ok(c) => {
+                // 不 wait（见上）；`drop` 让它自己跑。
+                drop(c);
+                Ok(true)
+            }
+            // 起不来（没装 xdg-open 之类）也是「假」，不抛 —— 同 Python 侧的 `except: return False`
+            Err(_) => Ok(false),
+        }
     }
 }

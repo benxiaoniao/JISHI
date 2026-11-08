@@ -571,6 +571,128 @@ pub fn 设标题(窗号: u64, 新: &str) -> bool {
     })
 }
 
+// ---------------------------------------------------------------------------
+// M185：窗口几何（三个平台都走 tao —— **零新依赖**）
+// ---------------------------------------------------------------------------
+//
+// 📌 一律用**逻辑像素**：用户写 `设大小(800, 600)` 指的是「看起来 800×600」，
+//    不是「800 个物理点」。tao 的 `LogicalSize` / `LogicalPosition` 会按这个
+//    窗口的 `scale_factor` 自己换算，`读几何` 再除回去 —— 两边同一个口径，
+//    才不会出现「设 800 读回 816」那种迷糊事。
+
+/// 对某个窗口做一件事 —— 拿不到窗口就 `None`，调用方转成一句人话。
+fn 对窗口<T>(窗号: u64, f: impl FnOnce(&Window) -> T) -> Option<T> {
+    let 号 = 解析号(窗号);
+    窗们.with(|c| c.borrow().get(&号).map(|件| f(&件.窗口)))
+}
+
+pub fn 设大小(窗号: u64, 宽: f64, 高: f64) -> bool {
+    对窗口(窗号, |窗| 窗.set_inner_size(LogicalSize::new(宽, 高))).is_some()
+}
+
+pub fn 设位置(窗号: u64, x: f64, y: f64) -> bool {
+    对窗口(窗号, |窗| {
+        窗.set_outer_position(tao::dpi::LogicalPosition::new(x, y))
+    })
+    .is_some()
+}
+
+/// 居中到**当前显示器**的正中间。
+///
+/// 显示器给的是物理像素（`size` / `position`），窗口尺寸也取物理，最后除回
+/// `scale_factor` 再 `set_outer_position` —— 混着用会让 Retina 上偏一半。
+pub fn 居中(窗号: u64) -> bool {
+    对窗口(窗号, |窗| {
+        if let Some(监) = 窗.current_monitor() {
+            let 屏 = 监.size();
+            let 位 = 监.position();
+            let 窗尺 = 窗.outer_size();
+            let 比 = 窗.scale_factor();
+            let x = 位.x as f64 + (屏.width as f64 - 窗尺.width as f64) / 2.0;
+            let y = 位.y as f64 + (屏.height as f64 - 窗尺.height as f64) / 2.0;
+            窗.set_outer_position(tao::dpi::LogicalPosition::new(x / 比, y / 比));
+        }
+    })
+    .is_some()
+}
+
+pub fn 最大化(窗号: u64, 开: bool) -> bool {
+    对窗口(窗号, |窗| 窗.set_maximized(开)).is_some()
+}
+
+pub fn 最小化(窗号: u64, 开: bool) -> bool {
+    对窗口(窗号, |窗| 窗.set_minimized(开)).is_some()
+}
+
+pub fn 设全屏(窗号: u64, 开: bool) -> bool {
+    对窗口(窗号, |窗| {
+        窗.set_fullscreen(if 开 {
+            Some(tao::window::Fullscreen::Borderless(None))
+        } else {
+            None
+        })
+    })
+    .is_some()
+}
+
+pub fn 设置顶(窗号: u64, 开: bool) -> bool {
+    对窗口(窗号, |窗| 窗.set_always_on_top(开)).is_some()
+}
+
+/// `读几何` 读回来的东西（**逻辑像素**，与 `设大小` / `设位置` 同口径）。
+pub struct 几何 {
+    pub x: f64,
+    pub y: f64,
+    pub 宽: f64,
+    pub 高: f64,
+    pub 最大化: bool,
+    pub 全屏: bool,
+}
+
+pub fn 读几何(窗号: u64) -> Option<几何> {
+    对窗口(窗号, |窗| {
+        let 比 = 窗.scale_factor();
+        // ⚠️ `outer_position` 在某些平台会返回 `Err`（比如 Wayland 不给绝对位置）
+        // —— 那时候 x/y 给 0，而不是整个函数失败：尺寸和状态还是有用的。
+        let 位 = 窗.outer_position().ok();
+        // 报**客户区**尺寸（`inner_size`）：`设大小` 设的也是它，
+        // 两边同一个口径。想要「带边框的外框」是另一个函数，这一版不给。
+        let 内 = 窗.inner_size();
+        几何 {
+            x: 位.map(|p| p.x as f64 / 比).unwrap_or(0.0),
+            y: 位.map(|p| p.y as f64 / 比).unwrap_or(0.0),
+            宽: 内.width as f64 / 比,
+            高: 内.height as f64 / 比,
+            最大化: 窗.is_maximized(),
+            全屏: 窗.fullscreen().is_some(),
+        }
+    })
+}
+
+/// 设窗口图标（`.png`）。解码用 `png` crate —— 它本来就是依赖（托盘图标在用）。
+///
+/// ⚠️ **只收 8 位 RGBA** 的 PNG：`Icon::from_rgba` 要的就是这个格式，
+/// 别的位深/色彩类型要转换，这一版不做（宁可报一句清楚的话）。
+pub fn 设图标(窗号: u64, 路径: &str) -> Result<bool, String> {
+    let 数据 = std::fs::read(路径).map_err(|e| format!("读不到图标文件「{路径}」：{e}"))?;
+    let mut 读 = png::Decoder::new(std::io::Cursor::new(&数据))
+        .read_info()
+        .map_err(|e| format!("「{路径}」不是能读的 PNG：{e}"))?;
+    let mut 缓 = vec![0u8; 读.output_buffer_size()];
+    let 信息 = 读
+        .next_frame(&mut 缓)
+        .map_err(|e| format!("「{路径}」解不开：{e}"))?;
+    if 信息.color_type != png::ColorType::Rgba || 信息.bit_depth != png::BitDepth::Eight {
+        return Err(format!(
+            "「{路径}」的像素格式是 {:?}/{:?} —— 窗口图标只收 **8 位 RGBA** 的 PNG",
+            信息.color_type, 信息.bit_depth
+        ));
+    }
+    let 图 = tao::window::Icon::from_rgba(缓, 信息.width, 信息.height)
+        .map_err(|e| format!("这个 PNG 当不了窗口图标：{e}"))?;
+    Ok(对窗口(窗号, |窗| 窗.set_window_icon(Some(图))).is_some())
+}
+
 /// 解析页面发来的命令（JSON：`{"op":"标题","arg":"已改名"}`）。
 ///
 /// `窗号` 是**发这条消息的那个窗口** —— IPC 处理器是每窗口一个，所以调用方
@@ -1168,6 +1290,261 @@ pub fn 关托盘() -> bool {
         有
     })
 }
+
+// ---------------------------------------------------------------------------
+// M185：托盘能不能「改」（0.3.1 只能建的时候给一次）
+// ---------------------------------------------------------------------------
+
+/// `托盘.设菜单(定义)` —— 换掉托盘的右键菜单。定义格式与 `窗口.设菜单` **完全一样**。
+pub fn 托盘设菜单(定义: &str) -> Result<(), String> {
+    let 值 = crate::json::parse(定义).map_err(|e| format!("托盘菜单不是合法 JSON：{e}"))?;
+    let 项们 = 值
+        .as_array()
+        .ok_or("「托盘.设菜单」要一个列表（和 窗口.设菜单 的格式一样）")?;
+    // 托盘菜单的动作也登记在「主窗口」名下（`0` 在派发时解析）—— 与 `设托盘` 一致。
+    let 菜单 = 建菜单项(0, 项们)?;
+    桌面.with(|d| {
+        let b = d.borrow();
+        let Some(托) = b.托盘.as_ref() else {
+            return Err("还没有托盘 —— 先 窗口.设托盘({...})".to_string());
+        };
+        托.set_menu(Some(Box::new(菜单)));
+        Ok(())
+    })
+}
+
+/// `托盘.设提示(文)` —— 改鼠标悬停时那句话。
+pub fn 托盘设提示(文: &str) -> Result<(), String> {
+    桌面.with(|d| {
+        let b = d.borrow();
+        let Some(托) = b.托盘.as_ref() else {
+            return Err("还没有托盘 —— 先 窗口.设托盘({...})".to_string());
+        };
+        托.set_tooltip(Some(文))
+            .map_err(|e| format!("改托盘提示失败：{e}"))
+    })
+}
+
+// ---------------------------------------------------------------------------
+// M185：任务栏进度（Windows 的 `ITaskbarList3`）—— 手写虚表，零新依赖
+// ---------------------------------------------------------------------------
+
+/// 任务栏进度条。
+///
+/// ## 为什么又是手写 COM
+///
+/// 和 M177 那个 `IShellLinkW` 一个理由：**COM 的 ABI 就是「对象指针 + 虚表」**，
+/// `extern "system"` 调虚表函数不需要任何 crate。代价是虚表下标写错会**静默调错
+/// 函数**（不是崩），所以每个下标都注了名，顺序照 Windows SDK 的 `shobjidl.h`。
+///
+/// ## 两个必须做对的地方
+///
+/// 1. **`HrInit` 不调，后面全返回 `E_UNEXPECTED`**（虚表 3 = `ITaskbarList::HrInit`）；
+/// 2. 比例 **0 = 不显示进度条**，不是「显示 0%」—— 任务栏上不该留一条空槽。
+#[cfg(windows)]
+mod 任务栏 {
+    use std::cell::RefCell;
+    use std::ffi::c_void;
+
+    #[repr(C)]
+    struct Guid {
+        d1: u32,
+        d2: u16,
+        d3: u16,
+        d4: [u8; 8],
+    }
+
+    /// `CLSID_TaskbarList`
+    const CLSID: Guid = Guid {
+        d1: 0x56FD_F344,
+        d2: 0xFD6D,
+        d3: 0x11D0,
+        d4: [0x95, 0x8A, 0x00, 0x60, 0x97, 0xC9, 0xA0, 0x90],
+    };
+    /// `IID_ITaskbarList3`
+    const IID: Guid = Guid {
+        d1: 0xEA1A_FB91,
+        d2: 0x9E28,
+        d3: 0x4B86,
+        d4: [0x90, 0xE9, 0x9E, 0x9F, 0x8A, 0x5E, 0xEA, 0x84],
+    };
+
+    // 虚表下标。IUnknown 占 0–2；ITaskbarList 是 3–7（HrInit/AddTab/DeleteTab/
+    // ActivateTab/SetActiveAlt）；ITaskbarList2 是 8（MarkFullscreenWindow）；
+    // **9 才是 ITaskbarList3 的第一个方法** —— 这里最容易数错。
+    const 虚_初始化: usize = 3;
+    const 虚_设值: usize = 9;
+    const 虚_设态: usize = 10;
+
+    /// `TBPF_NOPROGRESS` —— 收掉进度条
+    const 态_无: i32 = 0;
+    /// `TBPF_NORMAL` —— 绿条
+    const 态_正常: i32 = 2;
+
+    thread_local! {
+        /// COM 对象只建一次。存 `usize` 而不是裸指针：接口指针不是 `Send`，
+        /// 但真正的线程约束由 `thread_local` 保证（它只在这个线程可见）。
+        static 对象: RefCell<Option<usize>> = RefCell::new(None);
+    }
+
+    #[link(name = "ole32")]
+    extern "system" {
+        fn CoInitializeEx(保留: *mut c_void, 模式: u32) -> i32;
+        fn CoCreateInstance(
+            clsid: *const Guid,
+            外: *mut c_void,
+            上下文: u32,
+            iid: *const Guid,
+            出: *mut *mut c_void,
+        ) -> i32;
+    }
+
+    /// 取虚表里第 `n` 个函数指针。
+    ///
+    /// ⚠️ 形参不能叫 `对象` —— 会撞上上面那个 `static 对象`（同名遮蔽，
+    /// 编译报「non-primitive cast」，查起来还挺费劲）。
+    unsafe fn 虚函数(接口: *mut c_void, n: usize) -> *const usize {
+        let 表 = *(接口 as *mut *const *const usize);
+        *表.add(n)
+    }
+
+    fn 取() -> Option<usize> {
+        对象.with(|c| {
+            let mut b = c.borrow_mut();
+            if b.is_none() {
+                unsafe {
+                    // 失败也无妨：wry / WebView2 多半已经在这个线程上初始化过 COM
+                    // （那时返回 `RPC_E_CHANGED_MODE`，对象照样能用）。
+                    CoInitializeEx(std::ptr::null_mut(), 2);
+                    let mut p: *mut c_void = std::ptr::null_mut();
+                    if CoCreateInstance(&CLSID, std::ptr::null_mut(), 1, &IID, &mut p) != 0
+                        || p.is_null()
+                    {
+                        return None;
+                    }
+                    let 初始化: extern "system" fn(*mut c_void) -> i32 =
+                        std::mem::transmute(虚函数(p, 虚_初始化));
+                    if 初始化(p) < 0 {
+                        return None;
+                    }
+                    *b = Some(p as usize);
+                }
+            }
+            *b
+        })
+    }
+
+    /// `比例` 是 0.0–1.0；≤ 0 表示**把进度条收掉**。
+    pub fn 设(hwnd: isize, 比例: f64) -> bool {
+        let Some(地址) = 取() else { return false };
+        let p = 地址 as *mut c_void;
+        let 比例 = 比例.clamp(0.0, 1.0);
+        unsafe {
+            let 置态: extern "system" fn(*mut c_void, isize, i32) -> i32 =
+                std::mem::transmute(虚函数(p, 虚_设态));
+            if 比例 <= 0.0 {
+                return 置态(p, hwnd, 态_无) >= 0;
+            }
+            let 置值: extern "system" fn(*mut c_void, isize, u64, u64) -> i32 =
+                std::mem::transmute(虚函数(p, 虚_设值));
+            // 先设状态再设值：Windows 的文档就是这么要求的顺序（反了会看不到条）。
+            置态(p, hwnd, 态_正常) >= 0 && 置值(p, hwnd, (比例 * 10000.0) as u64, 10000) >= 0
+        }
+    }
+}
+
+/// `窗口.进度(比例, 句柄?)` —— 把进度画在**任务栏图标**上。
+#[cfg(windows)]
+pub fn 进度(窗号: u64, 比例: f64) -> bool {
+    use tao::platform::windows::WindowExtWindows;
+    对窗口(窗号, |窗| 任务栏::设(窗.hwnd(), 比例)).unwrap_or(false)
+}
+
+// ---------------------------------------------------------------------------
+// M185：气泡提示（Windows 的 `Shell_NotifyIconW`）—— 同样是手写的
+// ---------------------------------------------------------------------------
+
+/// 系统通知（托盘气泡）。
+///
+/// ## 实现方式与它的代价（如实写）
+///
+/// `tray-icon` **没有**气泡 API，所以这里直接调 `Shell_NotifyIconW`：借某个窗口的
+/// HWND 挂一个**临时的**托盘图标、带 `NIF_INFO` 让 Shell 弹气泡，然后**立刻撤掉**
+/// 图标 —— 气泡已经排进队列，但图标不必常驻托盘区。
+///
+/// ⚠️ **两个没自动验的点**（`tests/test_m185_desktop.py` 只能验「不报错」）：
+/// 1. 气泡**真的弹出来**要看屏幕 —— 判据没法断言；
+/// 2. 「立刻撤图标」在个别 Windows 版本上可能把气泡一起收掉。真机上如果发现
+///    气泡不出现，把 `NIM_DELETE` 挪到下一次提示之前再删即可（结构体不变）。
+///
+/// ⚠️ `NOTIFYICONDATAW` 的字段顺序/类型必须和 SDK 一字不差：`cbSize` 对不上时
+/// Shell 会拒绝（返回 0），我们报「弹不出来」而不是崩 —— 所以错了也看得见。
+#[cfg(windows)]
+mod 气泡 {
+    #[repr(C)]
+    struct 通知 {
+        cb_size: u32,
+        h_wnd: isize,
+        u_id: u32,
+        u_flags: u32,
+        u_callback: u32,
+        h_icon: isize,
+        sz_tip: [u16; 128],
+        dw_state: u32,
+        dw_state_mask: u32,
+        sz_info: [u16; 256],
+        u_timeout: u32,
+        sz_info_title: [u16; 64],
+        dw_info_flags: u32,
+        guid: [u8; 16],
+        h_balloon: isize,
+    }
+
+    const NIM_ADD: u32 = 0x0000_0000;
+    const NIM_DELETE: u32 = 0x0000_0002;
+    const NIF_INFO: u32 = 0x0000_0010;
+    /// `NIIF_INFO`：信息图标（还有 WARNING / ERROR / USER 可选）
+    const NIIF_INFO: u32 = 0x0000_0001;
+
+    #[link(name = "shell32")]
+    extern "system" {
+        fn Shell_NotifyIconW(消息: u32, 数据: *mut 通知) -> i32;
+    }
+
+    fn 填(目: &mut [u16], 文: &str) {
+        let 宽: Vec<u16> = 文.encode_utf16().take(目.len() - 1).collect();
+        目[..宽.len()].copy_from_slice(&宽);
+        目[宽.len()] = 0;
+    }
+
+    pub fn 提示(hwnd: isize, 标题: &str, 内容: &str) -> bool {
+        unsafe {
+            let mut n: 通知 = std::mem::zeroed();
+            n.cb_size = std::mem::size_of::<通知>() as u32;
+            n.h_wnd = hwnd;
+            // 固定 uID：哪怕 NIM_DELETE 失败，托盘里也最多只留一个我们的图标。
+            n.u_id = 0x4A53_4801;
+            n.u_flags = NIF_INFO;
+            n.dw_info_flags = NIIF_INFO;
+            n.u_timeout = 8000;
+            填(&mut n.sz_info_title, 标题);
+            填(&mut n.sz_info, 内容);
+            if Shell_NotifyIconW(NIM_ADD, &mut n) == 0 {
+                return false;
+            }
+            Shell_NotifyIconW(NIM_DELETE, &mut n);
+        }
+        true
+    }
+}
+
+/// `窗口.提示(标题, 内容, 句柄?)` —— Windows 上走托盘气泡。
+#[cfg(windows)]
+pub fn 提示(窗号: u64, 标题: &str, 内容: &str) -> bool {
+    use tao::platform::windows::WindowExtWindows;
+    对窗口(窗号, |窗| 气泡::提示(窗.hwnd(), 标题, 内容)).unwrap_or(false)
+}
+
 
 // -- 单实例 -----------------------------------------------------------------
 

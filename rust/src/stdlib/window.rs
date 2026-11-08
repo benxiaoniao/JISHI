@@ -850,7 +850,7 @@ fn 选项json(选项: &Val, 名: &str) -> Result<String, crate::JishiError> {
     Ok(s)
 }
 
-fn 菜单json(定义: &Val) -> Result<String, crate::JishiError> {
+pub(crate) fn 菜单json(定义: &Val) -> Result<String, crate::JishiError> {
     if !matches!(定义, Val::List(_)) {
         return Err(err_with_hint(
             "类型错误",
@@ -925,6 +925,29 @@ fn 原生窗号(句柄: Option<i128>, 干什么: &str) -> Result<u64, crate::Jis
 ///
 /// 三个函数的形状一样：`(主体, 句柄?)`。句柄放**末尾**的理由见 `module` 里
 /// `设标题` 那段注释（可选参数必须在末尾，否则签名表表达不了）。
+/// M185：取**末尾**那个可选句柄 —— `必填` 是有几个必填参数。
+///
+/// 为什么不能复用 `取句柄参数`：那个固定读 `args[1]`（为 `设标题(新, 句柄)` 设计）。
+/// `设大小(宽, 高, 句柄?)` 的句柄在**第 3 个**，`读几何()` 一个必填都没有 ——
+/// 一律读 `args[1]` 会把「高」当成句柄，报「没有窗口句柄 540」。
+fn 取末尾句柄(
+    args: &[Val],
+    必填: usize,
+    名: &str,
+) -> Result<Option<i128>, crate::JishiError> {
+    match args.get(必填) {
+        None | Some(Val::None_) => Ok(None),
+        Some(Val::Int(i)) => Ok(Some(*i)),
+        Some(other) => Err(err(
+            "类型错误",
+            format!(
+                "「{名}」的最后一个参数要窗口句柄（整数），给的是{}",
+                crate::type_label(other)
+            ),
+        )),
+    }
+}
+
 fn 取句柄参数(args: &[Val], 名: &str) -> Result<Option<i128>, crate::JishiError> {
     match args.get(1) {
         None | Some(Val::None_) => Ok(None),
@@ -1310,6 +1333,243 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(Val::Int(数 as i128))
         },
+
+        // ---- M185：窗口几何（三平台，纯 tao）-------------------------------
+        //
+        // 📌 参数顺序：**必填的在前面，句柄永远在末尾且可选** —— 这是 M178 定的
+        //    签名表模型（「必填 N + 之后可选」），也保证老脚本一行不用改。
+        "设大小" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设大小", args, 2, 3)?;
+            let 宽 = 数参(&args[0], "设大小", "宽")?;
+            let 高 = 数参(&args[1], "设大小", "高")?;
+            let 号 = 取末尾句柄(args, 2, "设大小")?;
+            Ok(Val::Bool(要原生("设大小", 号, |窗| {
+                Ok(crate::native_window::设大小(窗, 宽, 高))
+            })?))
+        },
+        "设位置" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设位置", args, 2, 3)?;
+            let x = 数参(&args[0], "设位置", "x")?;
+            let y = 数参(&args[1], "设位置", "y")?;
+            let 号 = 取末尾句柄(args, 2, "设位置")?;
+            Ok(Val::Bool(要原生("设位置", 号, |窗| {
+                Ok(crate::native_window::设位置(窗, x, y))
+            })?))
+        },
+        "居中" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("居中", args, 0, 1)?;
+            let 号 = 取末尾句柄(args, 0, "居中")?;
+            Ok(Val::Bool(要原生("居中", 号, |窗| {
+                Ok(crate::native_window::居中(窗))
+            })?))
+        },
+        "最大化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("最大化", args, 0, 1)?;
+            let 号 = 取末尾句柄(args, 0, "最大化")?;
+            Ok(Val::Bool(要原生("最大化", 号, |窗| {
+                Ok(crate::native_window::最大化(窗, true))
+            })?))
+        },
+        "最小化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("最小化", args, 0, 1)?;
+            let 号 = 取末尾句柄(args, 0, "最小化")?;
+            Ok(Val::Bool(要原生("最小化", 号, |窗| {
+                Ok(crate::native_window::最小化(窗, true))
+            })?))
+        },
+        "设全屏" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设全屏", args, 1, 2)?;
+            let 开 = 真假参(&args[0]);
+            let 号 = 取末尾句柄(args, 1, "设全屏")?;
+            Ok(Val::Bool(要原生("设全屏", 号, |窗| {
+                Ok(crate::native_window::设全屏(窗, 开))
+            })?))
+        },
+        "设置顶" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设置顶", args, 1, 2)?;
+            let 开 = 真假参(&args[0]);
+            let 号 = 取末尾句柄(args, 1, "设置顶")?;
+            Ok(Val::Bool(要原生("设置顶", 号, |窗| {
+                Ok(crate::native_window::设置顶(窗, 开))
+            })?))
+        },
+        "读几何" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("读几何", args, 0, 1)?;
+            let 号 = 取末尾句柄(args, 0, "读几何")?;
+            要原生("读几何", 号, |窗| {
+                let Some(几) = crate::native_window::读几何(窗) else {
+                    return Err(err_with_hint(
+                        "运行期错误",
+                        format!("窗口 {窗} 读不到几何（可能已经关掉了）"),
+                        "句柄是 窗口.打开 的返回值；不写句柄 = 主窗口".into(),
+                    ));
+                };
+                let 键 = |s: &str| Val::Str(s.into());
+                Ok(crate::dict_new(vec![
+                    (键("x"), Val::Float(几.x)),
+                    (键("y"), Val::Float(几.y)),
+                    (键("宽"), Val::Float(几.宽)),
+                    (键("高"), Val::Float(几.高)),
+                    (键("最大化"), Val::Bool(几.最大化)),
+                    (键("全屏"), Val::Bool(几.全屏)),
+                ]))
+            })
+        },
+        "设图标" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设图标", args, 1, 2)?;
+            let 路径 = match &args[0] {
+                Val::Str(s) => s.to_string(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「设图标」要文件路径（文本），给的是{}", crate::type_label(other)),
+                    ))
+                }
+            };
+            let 号 = 取末尾句柄(args, 1, "设图标")?;
+            要原生("设图标", 号, |窗| {
+                crate::native_window::设图标(窗, &路径)
+                    .map(Val::Bool)
+                    .map_err(|e| err_with_hint("运行期错误", e, "图标要 8 位 RGBA 的 .png".into()))
+            })
+        },
+        // ---- M185：任务栏进度与系统提示（只有 Windows 真做）----------------
+        "进度" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("进度", args, 1, 2)?;
+            let 比例 = 数参(&args[0], "进度", "比例")?;
+            let 号 = 取末尾句柄(args, 1, "进度")?;
+            要原生("进度", 号, |窗| 进度(窗, 比例))
+        },
+        "提示" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("提示", args, 2, 3)?;
+            let 标题 = match &args[0] {
+                Val::Str(s) => s.to_string(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「提示」的标题要文本，给的是{}", crate::type_label(other)),
+                    ))
+                }
+            };
+            let 内容 = match &args[1] {
+                Val::Str(s) => s.to_string(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「提示」的内容要文本，给的是{}", crate::type_label(other)),
+                    ))
+                }
+            };
+            let 号 = 取末尾句柄(args, 2, "提示")?;
+            要原生("提示", 号, |窗| 提示(窗, &标题, &内容))
+        },
+    }
+}
+
+/// M185：把「数」宽松地收下来（整数与浮点都行，统一成 `f64`）。
+///
+/// 几何/进度这些参数天生是小数（`设大小(800.5, 600)`、`进度(0.35)`），
+/// 所以不像别的函数那样只收 `Int`。
+fn 数参(v: &Val, 名: &str, 位: &str) -> Result<f64, crate::JishiError> {
+    match v {
+        Val::Int(i) => Ok(*i as f64),
+        Val::Float(f) => Ok(*f),
+        other => Err(err(
+            "类型错误",
+            format!("「{名}」的{位}要数，给的是{}", crate::type_label(other)),
+        )),
+    }
+}
+
+/// 开关参数：**只有 `假` 是假**，其余按真处理（与语言的 `truthy` 一致）。
+fn 真假参(v: &Val) -> bool {
+    !matches!(v, Val::Bool(false) | Val::None_)
+}
+
+/// M185：几何 / 图标 / 进度 / 提示 的统一外壳。
+///
+/// 三路分派，**每一路都给一句准确的话**：
+/// - 页面里（wasm）：这些事没有意义 —— 你就在窗口里，几何是宿主的事；
+/// - 这个构建没有 `native-window`：明确说「没有」，不静默降级；
+/// - 有原生窗口：交给 `native_window`，句柄解析（含「这个窗口是应用模式」）在那边。
+fn 要原生<T>(
+    名: &str,
+    句柄: Option<i128>,
+    f: impl FnOnce(u64) -> Result<T, crate::JishiError>,
+) -> Result<T, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = (句柄, f);
+        Err(err_with_hint(
+            "运行期错误",
+            format!("「窗口.{名}」在页面里没有意义（你已经在窗口里了）"),
+            "窗口几何 / 进度 / 提示要在**脚本**里调，不是页面代码里".into(),
+        ))
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 窗 = 原生窗号(句柄, 名)?;
+            f(窗)
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = (句柄, f);
+            Err(err_with_hint(
+                "运行期错误",
+                format!("这个构建没有原生窗口，「窗口.{名}」用不了"),
+                "用默认构建（带 native-window）；wasm 那边这个函数没有意义".into(),
+            ))
+        }
+    }
+}
+
+/// M185：任务栏进度。**只有 Windows 真做**，其它平台报一句明确的平台错。
+fn 进度(窗号: u64, 比例: f64) -> Result<Val, crate::JishiError> {
+    #[cfg(windows)]
+    {
+        if crate::native_window::进度(窗号, 比例) {
+            return Ok(Val::Bool(true));
+        }
+        Err(err_with_hint(
+            "运行期错误",
+            "任务栏进度设不上（COM 的 ITaskbarList3 没起来）",
+            "确认窗口已经开出来了；这个功能只在 Windows 的任务栏上有效".into(),
+        ))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (窗号, 比例);
+        Err(err_with_hint(
+            "运行期错误",
+            "「窗口.进度」只有 Windows 能做（任务栏进度条是那边的概念）",
+            "macOS 用 Dock 图标上的进度是另一套 API，这一版没做".into(),
+        ))
+    }
+}
+
+/// M185：系统提示（托盘气泡）。**只有 Windows 真做**。
+fn 提示(窗号: u64, 标题: &str, 内容: &str) -> Result<Val, crate::JishiError> {
+    #[cfg(windows)]
+    {
+        if crate::native_window::提示(窗号, 标题, 内容) {
+            return Ok(Val::Bool(true));
+        }
+        Err(err_with_hint(
+            "运行期错误",
+            "系统提示发不出去（Shell_NotifyIcon 拒绝了）",
+            "确认窗口还开着；这条功能只在 Windows 上做过".into(),
+        ))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (窗号, 标题, 内容);
+        Err(err_with_hint(
+            "运行期错误",
+            "「窗口.提示」这一版只有 Windows 能做",
+            "mac 要用 UNUserNotificationCenter、Linux 要用 libnotify —— 都要额外绑定，没做".into(),
+        ))
     }
 }
 
