@@ -1334,86 +1334,61 @@ pub(crate) fn module() -> HashMap<String, Val> {
             Ok(Val::Int(数 as i128))
         },
 
-        // ---- M185：窗口几何（三平台，纯 tao）-------------------------------
+        // ---- M185：几何 / 图标 / 进度 / 提示 -------------------------------
         //
         // 📌 参数顺序：**必填的在前面，句柄永远在末尾且可选** —— 这是 M178 定的
         //    签名表模型（「必填 N + 之后可选」），也保证老脚本一行不用改。
+        //
+        // ⚠️ 这里**不直接调 `native_window::*`**：wasm 构建里那个模块整个不存在
+        //    （`default-features = false`），闭包体照样要过类型检查 ——
+        //    M185 直接写闭包时，三平台 CI 全卡在「构建 wasm 引擎」。
+        //    所以改成一个「操作」枚举，真正的调用集中在 `执行几何` 那个
+        //    `#[cfg]` 函数里。
         "设大小" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设大小", args, 2, 3)?;
             let 宽 = 数参(&args[0], "设大小", "宽")?;
             let 高 = 数参(&args[1], "设大小", "高")?;
             let 号 = 取末尾句柄(args, 2, "设大小")?;
-            Ok(Val::Bool(要原生("设大小", 号, |窗| {
-                Ok(crate::native_window::设大小(窗, 宽, 高))
-            })?))
+            要原生("设大小", 号, 几何操作::设大小(宽, 高))
         },
         "设位置" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设位置", args, 2, 3)?;
             let x = 数参(&args[0], "设位置", "x")?;
             let y = 数参(&args[1], "设位置", "y")?;
             let 号 = 取末尾句柄(args, 2, "设位置")?;
-            Ok(Val::Bool(要原生("设位置", 号, |窗| {
-                Ok(crate::native_window::设位置(窗, x, y))
-            })?))
+            要原生("设位置", 号, 几何操作::设位置(x, y))
         },
         "居中" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("居中", args, 0, 1)?;
             let 号 = 取末尾句柄(args, 0, "居中")?;
-            Ok(Val::Bool(要原生("居中", 号, |窗| {
-                Ok(crate::native_window::居中(窗))
-            })?))
+            要原生("居中", 号, 几何操作::居中)
         },
         "最大化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("最大化", args, 0, 1)?;
             let 号 = 取末尾句柄(args, 0, "最大化")?;
-            Ok(Val::Bool(要原生("最大化", 号, |窗| {
-                Ok(crate::native_window::最大化(窗, true))
-            })?))
+            要原生("最大化", 号, 几何操作::最大化)
         },
         "最小化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("最小化", args, 0, 1)?;
             let 号 = 取末尾句柄(args, 0, "最小化")?;
-            Ok(Val::Bool(要原生("最小化", 号, |窗| {
-                Ok(crate::native_window::最小化(窗, true))
-            })?))
+            要原生("最小化", 号, 几何操作::最小化)
         },
         "设全屏" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设全屏", args, 1, 2)?;
             let 开 = 真假参(&args[0]);
             let 号 = 取末尾句柄(args, 1, "设全屏")?;
-            Ok(Val::Bool(要原生("设全屏", 号, |窗| {
-                Ok(crate::native_window::设全屏(窗, 开))
-            })?))
+            要原生("设全屏", 号, 几何操作::设全屏(开))
         },
         "设置顶" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设置顶", args, 1, 2)?;
             let 开 = 真假参(&args[0]);
             let 号 = 取末尾句柄(args, 1, "设置顶")?;
-            Ok(Val::Bool(要原生("设置顶", 号, |窗| {
-                Ok(crate::native_window::设置顶(窗, 开))
-            })?))
+            要原生("设置顶", 号, 几何操作::设置顶(开))
         },
         "读几何" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("读几何", args, 0, 1)?;
             let 号 = 取末尾句柄(args, 0, "读几何")?;
-            要原生("读几何", 号, |窗| {
-                let Some(几) = crate::native_window::读几何(窗) else {
-                    return Err(err_with_hint(
-                        "运行期错误",
-                        format!("窗口 {窗} 读不到几何（可能已经关掉了）"),
-                        "句柄是 窗口.打开 的返回值；不写句柄 = 主窗口".into(),
-                    ));
-                };
-                let 键 = |s: &str| Val::Str(s.into());
-                Ok(crate::dict_new(vec![
-                    (键("x"), Val::Float(几.x)),
-                    (键("y"), Val::Float(几.y)),
-                    (键("宽"), Val::Float(几.宽)),
-                    (键("高"), Val::Float(几.高)),
-                    (键("最大化"), Val::Bool(几.最大化)),
-                    (键("全屏"), Val::Bool(几.全屏)),
-                ]))
-            })
+            要原生("读几何", 号, 几何操作::读几何)
         },
         "设图标" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设图标", args, 1, 2)?;
@@ -1427,18 +1402,13 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             };
             let 号 = 取末尾句柄(args, 1, "设图标")?;
-            要原生("设图标", 号, |窗| {
-                crate::native_window::设图标(窗, &路径)
-                    .map(Val::Bool)
-                    .map_err(|e| err_with_hint("运行期错误", e, "图标要 8 位 RGBA 的 .png".into()))
-            })
+            要原生("设图标", 号, 几何操作::设图标(路径))
         },
-        // ---- M185：任务栏进度与系统提示（只有 Windows 真做）----------------
         "进度" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("进度", args, 1, 2)?;
             let 比例 = 数参(&args[0], "进度", "比例")?;
             let 号 = 取末尾句柄(args, 1, "进度")?;
-            要原生("进度", 号, |窗| 进度(窗, 比例))
+            要原生("进度", 号, 几何操作::进度(比例))
         },
         "提示" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("提示", args, 2, 3)?;
@@ -1461,9 +1431,29 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             };
             let 号 = 取末尾句柄(args, 2, "提示")?;
-            要原生("提示", 号, |窗| 提示(窗, &标题, &内容))
+            要原生("提示", 号, 几何操作::提示(标题, 内容))
         },
     }
+}
+
+/// M185 这些操作要**真的碰窗口** —— 但 wasm / 无 `native-window` 的构建里
+/// `native_window` 模块整个不存在，所以只能用一个枚举把调用**推后**到
+/// `#[cfg]` 里（见 `执行几何`）。
+///
+/// 📌 为什么不用「传闭包」：闭包体在 wasm 构建里照样要过类型检查 ——
+/// M185 第一版就是那么写的，三平台 CI 全卡在「构建 wasm 引擎」。
+enum 几何操作 {
+    设大小(f64, f64),
+    设位置(f64, f64),
+    居中,
+    最大化,
+    最小化,
+    设全屏(bool),
+    设置顶(bool),
+    读几何,
+    设图标(String),
+    进度(f64),
+    提示(String, String),
 }
 
 /// M185：把「数」宽松地收下来（整数与浮点都行，统一成 `f64`）。
@@ -1491,37 +1481,70 @@ fn 真假参(v: &Val) -> bool {
 /// 三路分派，**每一路都给一句准确的话**：
 /// - 页面里（wasm）：这些事没有意义 —— 你就在窗口里，几何是宿主的事；
 /// - 这个构建没有 `native-window`：明确说「没有」，不静默降级；
-/// - 有原生窗口：交给 `native_window`，句柄解析（含「这个窗口是应用模式」）在那边。
-fn 要原生<T>(
-    名: &str,
-    句柄: Option<i128>,
-    f: impl FnOnce(u64) -> Result<T, crate::JishiError>,
-) -> Result<T, crate::JishiError> {
-    #[cfg(target_arch = "wasm32")]
+/// - 有原生窗口：交给 `执行几何`，句柄解析（含「这个窗口是应用模式」）在那边。
+fn 要原生(名: &str, 句柄: Option<i128>, 操作: 几何操作) -> Result<Val, crate::JishiError> {
+    #[cfg(all(not(target_arch = "wasm32"), feature = "native-window"))]
     {
-        let _ = (句柄, f);
-        Err(err_with_hint(
-            "运行期错误",
-            format!("「窗口.{名}」在页面里没有意义（你已经在窗口里了）"),
-            "窗口几何 / 进度 / 提示要在**脚本**里调，不是页面代码里".into(),
-        ))
+        let 窗 = 原生窗号(句柄, 名)?;
+        执行几何(窗, 操作)
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(not(target_arch = "wasm32"), feature = "native-window")))]
     {
-        #[cfg(feature = "native-window")]
+        let _ = (句柄, 操作);
+        #[cfg(target_arch = "wasm32")]
         {
-            let 窗 = 原生窗号(句柄, 名)?;
-            f(窗)
+            Err(err_with_hint(
+                "运行期错误",
+                format!("「窗口.{名}」在页面里没有意义（你已经在窗口里了）"),
+                "窗口几何 / 进度 / 提示要在**脚本**里调，不是页面代码里".into(),
+            ))
         }
-        #[cfg(not(feature = "native-window"))]
+        #[cfg(not(target_arch = "wasm32"))]
         {
-            let _ = (句柄, f);
             Err(err_with_hint(
                 "运行期错误",
                 format!("这个构建没有原生窗口，「窗口.{名}」用不了"),
                 "用默认构建（带 native-window）；wasm 那边这个函数没有意义".into(),
             ))
         }
+    }
+}
+
+/// 真正的窗口操作 —— **只有「原生构建 + 有 native-window」才有这份实现**。
+#[cfg(all(not(target_arch = "wasm32"), feature = "native-window"))]
+fn 执行几何(窗: u64, 操作: 几何操作) -> Result<Val, crate::JishiError> {
+    use crate::native_window as 原;
+    match 操作 {
+        几何操作::设大小(宽, 高) => Ok(Val::Bool(原::设大小(窗, 宽, 高))),
+        几何操作::设位置(x, y) => Ok(Val::Bool(原::设位置(窗, x, y))),
+        几何操作::居中 => Ok(Val::Bool(原::居中(窗))),
+        几何操作::最大化 => Ok(Val::Bool(原::最大化(窗, true))),
+        几何操作::最小化 => Ok(Val::Bool(原::最小化(窗, true))),
+        几何操作::设全屏(开) => Ok(Val::Bool(原::设全屏(窗, 开))),
+        几何操作::设置顶(开) => Ok(Val::Bool(原::设置顶(窗, 开))),
+        几何操作::设图标(路径) => 原::设图标(窗, &路径)
+            .map(Val::Bool)
+            .map_err(|e| err_with_hint("运行期错误", e, "图标要 8 位 RGBA 的 .png".into())),
+        几何操作::读几何 => {
+            let Some(几) = 原::读几何(窗) else {
+                return Err(err_with_hint(
+                    "运行期错误",
+                    format!("窗口 {窗} 读不到几何（可能已经关掉了）"),
+                    "句柄是 窗口.打开 的返回值；不写句柄 = 主窗口".into(),
+                ));
+            };
+            let 键 = |s: &str| Val::Str(s.into());
+            Ok(crate::dict_new(vec![
+                (键("x"), Val::Float(几.x)),
+                (键("y"), Val::Float(几.y)),
+                (键("宽"), Val::Float(几.宽)),
+                (键("高"), Val::Float(几.高)),
+                (键("最大化"), Val::Bool(几.最大化)),
+                (键("全屏"), Val::Bool(几.全屏)),
+            ]))
+        }
+        几何操作::进度(比例) => 进度(窗, 比例),
+        几何操作::提示(标题, 内容) => 提示(窗, &标题, &内容),
     }
 }
 

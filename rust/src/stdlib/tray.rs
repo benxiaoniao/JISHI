@@ -12,6 +12,10 @@
 //! | 有 `native-window` | 真改（`tray-icon` 的 `set_menu` / `set_tooltip`） |
 //! | 没有 `native-window` | 报「这个构建没有原生窗口」 |
 //!
+//! ⚠️ **每条分支都得自己 `return`**：wasm 构建里 `native_window` 模块整个不存在
+//! （`default-features = false`），若把返回只写在 `#[cfg]` 块里，另一边就只剩
+//! `()` —— M185 第一版就是这么错的，**三平台 CI 全卡在「构建 wasm 引擎」**。
+//!
 //! ⚠️ **还没设托盘就改**：报一句「先 窗口.设托盘」—— 不静默返回假，
 //! 那看起来像「改失败了」，其实是用错了顺序。
 
@@ -30,12 +34,18 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // `窗口.设菜单` 那条路**（`菜单json`），格式与行为完全一致：
             // 托盘菜单和菜单栏本来就是同一套格式，抄两份迟早会漂。
             let 文 = super::window::菜单json(&args[0])?;
-            做不到时("设菜单")?;
             #[cfg(all(not(target_arch = "wasm32"), feature = "native-window"))]
             {
                 return crate::native_window::托盘设菜单(&文)
                     .map(|_| Val::Bool(true))
-                    .map_err(|e| crate::err_with_hint("运行期错误", e, "先 窗口.设托盘({...})".into()));
+                    .map_err(|e| {
+                        crate::err_with_hint("运行期错误", e, "先 窗口.设托盘({...})".into())
+                    });
+            }
+            #[cfg(not(all(not(target_arch = "wasm32"), feature = "native-window")))]
+            {
+                let _ = 文;
+                Err(做不到("设菜单"))
             }
         },
         "设提示" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -49,12 +59,18 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     ))
                 }
             };
-            做不到时("设提示")?;
             #[cfg(all(not(target_arch = "wasm32"), feature = "native-window"))]
             {
                 return crate::native_window::托盘设提示(&文)
                     .map(|_| Val::Bool(true))
-                    .map_err(|e| crate::err_with_hint("运行期错误", e, "先 窗口.设托盘({...})".into()));
+                    .map_err(|e| {
+                        crate::err_with_hint("运行期错误", e, "先 窗口.设托盘({...})".into())
+                    });
+            }
+            #[cfg(not(all(not(target_arch = "wasm32"), feature = "native-window")))]
+            {
+                let _ = 文;
+                Err(做不到("设提示"))
             }
         },
     }
@@ -62,28 +78,24 @@ pub(crate) fn module() -> HashMap<String, Val> {
 
 /// 两条**明确的**「做不到」：页面里 / 这个构建没有原生窗口。
 ///
-/// 返回 `Ok(())` = 可以继续走真实现；`Err` 直接把错误抛给脚本。
-/// **不让它静默返回 `假`** —— 那看起来像「改失败了」，其实是环境不对。
-fn 做不到时(名: &str) -> Result<(), crate::JishiError> {
+/// 分开说，因为它们是两件不同的事 —— 混成一句的话，页面里调的人会去翻
+/// 「怎么开原生窗口」的文档，那不是他要找的。
+#[cfg(not(all(not(target_arch = "wasm32"), feature = "native-window")))]
+fn 做不到(名: &str) -> crate::JishiError {
     #[cfg(target_arch = "wasm32")]
     {
-        return Err(crate::err_with_hint(
+        crate::err_with_hint(
             "运行期错误",
             format!("「托盘.{名}」在页面里没有意义（托盘是宿主的事）"),
             "托盘要在**脚本**里建和改，不是页面代码里".into(),
-        ));
+        )
     }
-    #[cfg(all(not(target_arch = "wasm32"), not(feature = "native-window")))]
+    #[cfg(not(target_arch = "wasm32"))]
     {
-        return Err(crate::err_with_hint(
+        crate::err_with_hint(
             "运行期错误",
             format!("这个构建没有原生窗口，「托盘.{名}」用不了"),
             "用默认构建（带 native-window）".into(),
-        ));
-    }
-    #[cfg(all(not(target_arch = "wasm32"), feature = "native-window"))]
-    {
-        let _ = 名;
-        Ok(())
+        )
     }
 }
