@@ -1,0 +1,140 @@
+[package]
+name = "jishi-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "基石（jishi）中文编程语言的 Rust 字节码解释器，消费 M13.1 的 JSON 字节码，脱离 Python 独立执行。前端用同一仓库的 `jishi-frontend`（路径依赖，不是第三方）。**唯一一个第三方依赖是 `rusqlite`**（M112 的 `数据库` 模块，见 `docs/设计决策.md` D78）—— 其余标准库（正则 / 加密 / 压缩 / 网络 / 表格）都是自己写的。"
+
+[features]
+# 🔴 **`sqlite` 默认开**：原生宿主（CLI / MCP / 对拍 / 浏览器之外的都算）要 `数据库` 模块。
+#    **wasm（浏览器试玩页）必须关掉它**（`default-features = false`）—— 那边链不了
+#    sqlite3.c。关掉之后 `导入 数据库` 会报一句**准确**的话（「这个平台没有内置 SQLite」），
+#    而不是含糊的「没有找到标准库模块」。
+default = ["sqlite", "native-window", "jit"]
+sqlite = ["dep:rusqlite"]
+# M174：原生窗口。**放在默认里** —— 用户装的就是这个发行版，`窗口.打开` 默认
+# 就该给他一个真窗口。要「小一点、只要应用模式」的可以
+# `--no-default-features --features sqlite`（判据里试的正是这一档能编过）。
+# `dep:gtk` 只声明在 Linux 目标段里 —— 在 Windows/macOS 上它是空操作（Cargo 按目标
+# 解析可选依赖），不会去编 gtk。
+native-window = [
+    "dep:wry", "dep:tao", "dep:muda", "dep:tray-icon", "dep:rfd", "dep:png", "dep:gtk",
+]
+# **wasm 的 playground 专用**：给 VM 加「步数预算」（防死循环，见 `lib.rs` 的
+# `budget_tick`）。⚠️ **默认关** —— 开了它指令循环的回跳处会多一次判断，
+# 实测在循环密集负载上 **+6%**（8M 次迭代、交错 A/B、稳定复现）。
+# 原生宿主（CLI/MCP/对拍/benchmark）**不需要**它：那边有「另起线程 + 超时」。
+budget = []
+
+# M180：**整数循环的 JIT**（x86-64；别的架构自动等于关）。
+#
+# 为什么是个特征而不是无条件编进来：wasm 那边 `default-features = false`，
+# 而 JIT 在 wasm 上**永远用不了**（`target_arch` 不是 x86_64）—— 让它编进去
+# 只是白白多几 KB 的发射器。关掉特征时指令循环里那条回边判断**整个消失**。
+jit = []
+
+[dependencies]
+# R7.1-c 起：宿主自己做前端（静态检查 / 格式化 / 后面的 LSP 都要 AST）。
+# 以前前端住在 `core/`（pyo3 扩展）里，宿主用不上 —— R7.1-a 把它抽成了独立 crate。
+jishi-frontend = { path = "../frontend" }
+# M119：`编码.GBK文本` / `文本GBK` 要真的 GBK 码表。
+# **第二个第三方依赖**（用户 2026-10-18 拍板）：GBK 是两万多个码位的映射表，
+# 手写不现实；`encoding_rs` 是纯 Rust、零 unsafe、wasm 也能编（Firefox 在用同款）。
+encoding_rs = "0.8"
+# M112：`数据库` 模块的 SQLite。**唯一一个第三方依赖**（用户 2026-10-15 拍板）。
+#
+# 为什么破例：SQLite 是几万行 C 实现，重写既不现实、也拿不到生态（文件格式、
+# 外部工具链）；Python 侧用标准库 `sqlite3`、Node 侧用内置 `node:sqlite`，
+# **只有 Rust 侧要引依赖**。`bundled` = 把 sqlite3.c 一起编进来（不依赖系统库）。
+#
+# ⚠️ 代价（如实记）：① 发行包大一点；② **构建需要 C 编译器**（sqlite3.c 要编）——
+# 本机 `cargo build` 得让 gcc 在 PATH 里（`cvm/build.py` 的那套候选位置），
+# CI 上三个平台本来就装了。
+rusqlite = { version = "0.40", features = ["bundled"], optional = true }
+
+# M174：**原生窗口**（`窗口.打开({原生: 真})`）。wry = 系统自带的 WebView
+# （Windows 用 WebView2、macOS 用 WKWebView、Linux 用 WebKitGTK），tao = 窗口与
+# 事件循环。**这是第三个第三方依赖**（用户 2026-11-05 拍板做原生窗口）。
+#
+# 为什么破例：窗口+事件循环+WebView 三件事的跨平台差异极大（Win32 消息循环 /
+# Cocoa / GTK），自己写等于把整个 GUI 工具链重造一遍 —— 那不是在写语言。
+#
+# ⚠️ 代价（如实记）：
+#   ① 依赖树很宽（M174 实测 **302 个 crate**，空壳 exe 就有 1.2 MB）；
+#   ② **Linux 要系统库** `libwebkit2gtk-4.1-dev`（CI 得装，发行说明要写）；
+#   ③ 所以它是**可选特性**：`--no-default-features` 时整个模块不存在，
+#      wasm（`wasm/Cargo.toml` 用 `default-features = false`）自动躲开。
+wry = { version = "0.47", optional = true }
+tao = { version = "0.34", optional = true }
+
+# M175：**桌面集成**要的三样（用户 2026-11-06 拍板）。
+#
+# 🔴 `tao 0.34` 里**已经没有**菜单和托盘模块了（tauri 生态把它们拆成独立 crate），
+#    所以这三样只能外部来 —— 理由同 D104：GUI 的平台差异自己写成本远高于收益。
+#      · `muda`        菜单栏 / 右键菜单（Win32 HMENU · NSMenu · GTK）
+#      · `tray-icon`   托盘（Shell_NotifyIcon · NSStatusItem · libayatana-appindicator）
+#      · `rfd`         文件对话框（IFileDialog · NSOpenPanel · GTK）
+#      · `png`         托盘图标解码（纯 Rust，只有几千行；不解码就得让用户传 RGBA）
+#
+# ⚠️ 代价实测：crate 数 302 → **348**（+46）、冷构建 +28 秒。
+#
+# 🔴 **两个都关掉默认特性**：
+#    · tray-icon 默认带 `libxdo`（Linux 的系统库，我们不接 X11 那套）⇒ 关掉，
+#      否则 CI 还得装 `libxdo-dev`；
+#    · muda 默认也带 `libxdo` + `gtk`。`gtk` 我们在 Linux 上要（右键菜单要用
+#      `show_context_menu_for_gtk_window`），所以在下面的 `[target.'cfg(...)']`
+#      里**显式**开，而不是指望 tray-icon 替我们开（那属于「蹭别人的特性」）。
+muda = { version = "0.17", default-features = false, optional = true }
+tray-icon = { version = "0.21", default-features = false, optional = true }
+png = { version = "0.17", optional = true }
+# 🔴 `rfd` 必须 `default-features = false`：它的默认特性 `xdg-portal` 会拉
+#    `ashpd` + `zbus`（一整套异步 D-Bus，几十个 crate）。Linux 改走 `gtk3` ——
+#    而 GTK3 本来就在（webkit2gtk 依赖它），等于零成本。见下方 `[target.'cfg(...)']`。
+rfd = { version = "0.15", default-features = false, optional = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+rfd = { version = "0.15", default-features = false, features = ["gtk3"], optional = true }
+# 右键菜单在 Linux 上走 GTK 的那条路（`show_context_menu_for_gtk_window` 带
+# `cfg(feature = "gtk")`）。显式开，不蹭 tray-icon 的。
+muda = { version = "0.17", default-features = false, features = ["gtk"], optional = true }
+# 🔴 `show_context_menu_for_gtk_window` 要 `&gtk::Window`，而 tao 给的是
+#    `&gtk::ApplicationWindow` —— gtk-rs 里前者**不是**后者的 Deref 目标，
+#    得 `upcast_ref`，而那需要能指名 gtk 这个 crate。
+#    版本必须与 tao / muda 用的**同一个**（0.18），否则是两个不同的 crate，类型对不上。
+#    ⚠️ 只能放在这个 Linux 目标段里：gtk 在 Windows / macOS 上根本编不了。
+gtk = { version = "0.18", optional = true }
+
+[[bin]]
+name = "jishi-rs"
+path = "src/main.rs"
+
+# M171：自解压安装器的存根。**独立 bin**，因为它要能脱离基石运行
+# （用户下载 setup.exe 时机器上还没有基石）。它只调 lib 里三个公开小接口
+# （解 zip / 判条目名 / 算 sha256），不把整个引擎拖进来。
+[[bin]]
+name = "jishi-pack-stub"
+path = "src/bin/packstub.rs"
+
+[lib]
+name = "jishi_ffi"
+path = "src/lib.rs"
+
+[profile.release]
+# R8.5b 瘦身实测（2026-10-09，见 `docs/路线图.md` §11.10）。**结论：开 LTO + strip，
+# 但不用 `opt-level = "z"`** —— 三个变体同机同时段交错 A/B（4M 次循环算力基准）：
+#
+#   | profile                    | exe 体积    | 启动    | 算力（越小越快）      |
+#   |----------------------------|------------|--------|--------------------|
+#   | 默认                        | 4.63 MB    | 9.3 ms | 1087 ms            |
+#   | `opt-level="z"`+LTO+strip  | 2.01 MB    | 9.1 ms | 1353 ms（**+24% 慢**）|
+#   | **opt=3 + LTO + strip**    | **2.91 MB**| **9.0 ms** | **1056 ms（0.97x，略快）** |
+#
+# `opt-level="z"` 拿 24% 算力换那 0.9 MB —— **不值**（体积本就远在验收线内）。
+# LTO 反而让算力略快（跨 crate 内联）。
+#
+# 🔴 **不能用 `panic = "abort"`**：`lsp.rs` 用 `catch_unwind` 把 panic 转成
+#    `INTERNAL_ERROR` 回包；abort 就捕获不到 ⇒ LSP 从「回错误」变成「整个进程挂掉」。
+lto = true
+codegen-units = 1
+strip = "symbols"
+opt-level = 3
+
