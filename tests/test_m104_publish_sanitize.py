@@ -84,3 +84,48 @@ def test_内部文档名单是脚本自己的事实():
     """判据依赖 `INTERNAL_DOCS` 里确实有 `前端契约.md`（别哪天被删了还以为在测）。"""
     names = {n for n, _ in pg.INTERNAL_DOCS}
     assert "前端契约.md" in names, names
+
+
+# ---------------------------------------------------------------------------
+# M104b：内部运维文档里的密钥要被刮出来当隐私模式（2026-11-08 加）
+# ---------------------------------------------------------------------------
+
+def test_刮密钥只认长串_地址和短串不算(tmp_path):
+    """`_内部密钥()` 的判据：`://` / 空格 / 太短 ⇒ 不是密钥。
+
+    🔴 为什么这条必须有：AI 跑分的三把 key 记在 `docs/内部运维.md` 里（唯一不上传的文件），
+    发布前要**拿它们去扫快照**。刮错了的后果是双向的 ——
+    刮不到 ⇒ 密钥真漏了也报绿；刮太宽（把地址当密钥）⇒ 每份文档都「含隐私」，发布直接卡死。
+
+    ⚠️ 这里用的是**假 key**（长得像、但不对应任何服务）：本文件是公开的。
+    """
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "内部运维.md").write_text(
+        "## 四、通道\n"
+        "\n"
+        "```text\n"
+        # ① 正常写法：长串、无空格、无 ://
+        "API Key：aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbb\n"
+        # ② 原文件第 2、3 段的坑：标签写反了，密钥挂在「API 地址」下面
+        "API 地址：cccccccccccccccccccccccccccccccc\n"
+        # ③ 反过来：地址挂在「API Key」下面 —— **不能**当成密钥
+        "API Key：https://api.example.com/v1\n"
+        # ④ 太短：不是密钥
+        "密钥：abc123\n"
+        "```\n",
+        encoding="utf-8")
+
+    got = pg._内部密钥(tmp_path)
+    值 = [v for _, v in got]
+    assert "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbb" in 值, got
+    assert "cccccccccccccccccccccccccccccccc" in 值, "标签写反的那把也要刮到"
+    assert "https://api.example.com/v1" not in 值, "地址不是密钥"
+    assert "abc123" not in 值, "短串不是密钥"
+    assert len(got) == 2, got
+    # 报错时只用前缀（`aaaaaa…`），别把密钥打出去
+    assert all(p.endswith("…") and len(p) < 12 for p, _ in got), got
+
+
+def test_没有内部运维文档时不算错(tmp_path):
+    """别人 clone 的是**公开仓库**（没有那份文件）—— 那种情况该安静返回空。"""
+    assert pg._内部密钥(tmp_path) == []

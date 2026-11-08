@@ -30,6 +30,9 @@
   整份不上传，代价是所有指向路线图的链接都成死链、新开发者看不到规划。现在把
   隐私挪进 `docs/内部运维.md`、路线图里模糊化，**规划本身对开发者有价值，就该公开**。
 - 终检：快照里若仍出现 `CLion` / 个人路径片段 / 令牌环境变量名 / 服务器地址，直接中止发布。
+  ➕ **2026-11-08 起还多一层**：`docs/内部运维.md` 里那几把 AI 跑分密钥（行首是
+  `API Key：` / `API 地址：` / `密钥：` 的长串）会被刮出来当隐私模式，
+  **哪份文件里出现了它就中止** —— 密钥只有一个合法住处（那份不上传的文件）。
 
 🔴 **改这个文件之后必须跑那三条判据**（2026-11-07 用血换的教训）：
 
@@ -82,6 +85,40 @@ INTERNAL_DOCS = (
 )
 AUTHOR_NAME = "陈柏林"
 AUTHOR_EMAIL = "benxiaoniao@outlook.com"
+
+#: 内部运维文档里「这一行是密钥」的行首标记。
+#:
+#: 2026-11-08：AI 跑分要三把 API key，作者要求记进 `内部运维.md`（那是唯一不上传的文件）。
+#: 记进去只是「藏在一个不会被推的文件里」—— **万一顺手贴到别处，原来的终检抓不到**
+#: （它只认 `lhins-` / `111.229.` / `CLion` 这些**已知形状**）。所以改成：
+#: 发布前把这几行刮出来，当成隐私模式去扫快照。
+#:
+#: 🔴 为什么三个标记都认：原文件里第 2、3 段把「API 地址 / API Key」**写反了**，
+#:    只认 `API Key` 会漏掉两把。真正的区分靠值的形状（见 `_内部密钥`）。
+密钥标记 = ("API Key：", "API Key:", "API 地址：", "API 地址:", "密钥：", "密钥:")
+
+
+def _内部密钥(root: Path = ROOT) -> "list[tuple[str, str]]":
+    """从 `docs/内部运维.md` 里刮出密钥，返回 `[(只读前缀, 密钥)]`。
+
+    判据：**值里没有 `://`、没有空格、长度 ≥ 24** —— 地址和路径都被这条挡掉，
+    密钥留下（三把分别是 33 位 uuid、48 位字母数字、57 位带点）。
+    文件不存在（比如别人 clone 了公开仓库）就返回空 —— 那种情况下也没有什么可漏。
+    """
+    p = root / "docs" / "内部运维.md"
+    if not p.exists():
+        return []
+    out: "list[tuple[str, str]]" = []
+    for line in io.open(p, encoding="utf-8"):
+        line = line.strip()
+        for mark in 密钥标记:
+            if not line.startswith(mark):
+                continue
+            val = line[len(mark):].strip().strip("`").strip()
+            if len(val) >= 24 and "://" not in val and " " not in val:
+                out.append((val[:6] + "…", val))
+            break
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -463,6 +500,9 @@ def _sanitize(snapshot: Path) -> None:
     if _readme.exists() and "（未公开）" in io.open(_readme, encoding="utf-8").read():
         bad.append("README.md 里出现了「（未公开）」标签"
                    "（项目结构清单混进了内部文档名）")
+    # 5.0c 内部运维文档里那几把密钥（AI 跑分用）也要当隐私模式扫一遍。
+    #      ⚠️ 报错里**只打前缀**（`493fe4…`）—— 把密钥本身打出来就等于又泄一次。
+    密钥们 = _内部密钥(ROOT)
     for f in snapshot.rglob("*"):
         if not f.is_file():
             continue
@@ -480,6 +520,10 @@ def _sanitize(snapshot: Path) -> None:
                     "lhins-", "111.229.", "私人文件"):
             if pat in text:
                 bad.append(f"{f} 含 {pat!r}")
+        for 前缀, 值 in 密钥们:
+            if 值 in text:
+                bad.append(f"{f} 里有一把密钥（{前缀}）—— 它只该待在 "
+                           f"docs/内部运维.md（那份不上传）")
     if bad:
         raise SystemExit("隐私终检未通过：\n" + "\n".join(bad))
 
