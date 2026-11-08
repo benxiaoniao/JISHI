@@ -26,7 +26,7 @@
 //! ⚠️ **去优化绝对不能写回**：写回一半，解释器再从抬头重跑，就把已经做过的加法
 //! 又做了一遍。宁可整段丢掉。
 
-use super::{方案, 指令, 比较, 运算, 源, 标优, 标出, 标断};
+use super::{方案, 指令, 比较, 运算, 源, 类型, 标优, 标出, 标断};
 
 // ---------------------------------------------------------------------------
 // 寄存器
@@ -47,6 +47,18 @@ const RBX: 寄 = 寄 { 号: 3, 扩: false };
 const RSP: 寄 = 寄 { 号: 4, 扩: false };
 const RBP: 寄 = 寄 { 号: 5, 扩: false };
 const RSI: 寄 = 寄 { 号: 6, 扩: false };
+
+/// 浮点槽用 `xmm0`–`xmm3`（Windows 与 System V 上都是 **caller-saved**，
+/// 所以不用保存）。下标与整数槽一样，只是落在另一组寄存器里。
+const 槽x: [u8; 4] = [0, 1, 2, 3];
+
+/// 浮点的临时寄存器：`xmm4` / `xmm5`（左右操作数）、`xmm6`（零）。
+///
+/// ⚠️ 不能用 `xmm0`–`xmm3`：那是槽。也不能用 `xmm6`–`xmm15`：Windows 上
+/// 它们是 **callee-saved**，用了就得多 push/pop。
+const X4: u8 = 4;
+const X5: u8 = 5;
+const X6: u8 = 6;
 
 /// 槽寄存器只有四个：`r8`–`r11`（caller-saved）。
 const 槽寄: [寄; 4] = [
@@ -256,6 +268,77 @@ impl 发 {
         self.b(0x58 | (r.号 & 7));
     }
 
+    /// `66 0F xx /r`：`xmm目 ← xmm目 <op> xmm源`（SSE 标量，都是 mod=11）
+    fn sse(&mut self, 目: u8, 源: u8, 码: u8) {
+        self.b(0x66);
+        self.b(0x0F);
+        self.b(码);
+        self.modrm(0b11, 寄 { 号: 目, 扩: false }, 寄 { 号: 源, 扩: false });
+    }
+
+    /// `F2 0F 10 /r`：`movsd xmm, [基 + 偏]`
+    fn 载x(&mut self, 目: u8, 基: 寄, 偏: i8) {
+        self.b(0xF2);
+        self.b(0x0F);
+        self.b(0x10);
+        self.modrm(0b01, 寄 { 号: 目, 扩: false }, 基);
+        self.b(偏 as u8);
+    }
+
+    /// `F2 0F 11 /r`：`movsd [基 + 偏], xmm`
+    fn 存x(&mut self, 基: 寄, 偏: i8, 源: u8) {
+        self.b(0xF2);
+        self.b(0x0F);
+        self.b(0x11);
+        self.modrm(0b01, 寄 { 号: 源, 扩: false }, 基);
+        self.b(偏 as u8);
+    }
+
+    /// `66 REX.W 0F 6E /r`：`movq xmm, r64`（把整数寄存器里的**位**搬进 xmm）
+    fn 入x(&mut self, 目: u8, 源: 寄) {
+        self.b(0x66);
+        self.rex(true, false, false, 源.扩);
+        self.b(0x0F);
+        self.b(0x6E);
+        self.modrm(0b11, 寄 { 号: 目, 扩: false }, 源);
+    }
+
+    /// `66 REX.W 0F 7E /r`：`movq r64, xmm`
+    fn 出x(&mut self, 目: 寄, 源: u8) {
+        self.b(0x66);
+        self.rex(true, false, false, 目.扩);
+        self.b(0x0F);
+        self.b(0x7E);
+        self.modrm(0b11, 寄 { 号: 源, 扩: false }, 目);
+    }
+
+    /// `F2 REX.W 0F 2A /r`：`cvtsi2sd xmm, r64`（整数 → 浮点）
+    fn 转浮(&mut self, 目: u8, 源: 寄) {
+        self.b(0xF2);
+        self.rex(true, false, false, 源.扩);
+        self.b(0x0F);
+        self.b(0x2A);
+        self.modrm(0b11, 寄 { 号: 目, 扩: false }, 源);
+    }
+
+    /// `66 0F 2E /r`：`ucomisd xmm目, xmm源` —— 浮点比较（置 ZF/PF/CF）
+    fn 比x(&mut self, 目: u8, 源: u8) {
+        self.sse(目, 源, 0x2E);
+    }
+
+    /// `setcc r/m8`：把条件码写成一个字节（`目` 只用 AL / CL 这种低位寄存器）
+    fn 设cc(&mut self, 码: u8, 目: 寄) {
+        self.b(0x0F);
+        self.b(码);
+        self.modrm(0b11, 寄 { 号: 0, 扩: false }, 目);
+    }
+
+    /// `and al, cl` / `or al, cl`（8 位，只有低两位有意义）
+    fn 字节与(&mut self, 码: u8) {
+        self.b(码);
+        self.b(0xC8); // modrm: al ← al <op> cl
+    }
+
     /// 跳转：`码` 是 1 个字节（`E9`）或 2 个字节（`0F 8x`），后面跟 rel32。
     fn 跳(&mut self, 码: &[u8], 标: u16) {
         for x in 码 {
@@ -341,8 +424,8 @@ fn 压数(f: &mut 发, v: i64) {
     }
 }
 
-/// `+ - *`：弹出两个、算、溢出就跳去优化、结果压回。
-fn 发算术(f: &mut 发, op: 运算) {
+/// 整数 `+ - *`：弹出两个、算、溢出就跳去优化、结果压回。
+fn 发整数算(f: &mut 发, op: 运算) {
     f.弹(RDX);                        // 右操作数
     f.弹(RAX);                        // 左操作数
     match op {
@@ -351,6 +434,103 @@ fn 发算术(f: &mut 发, op: 运算) {
         _ => f.乘(RAX, RDX),
     }
     f.跳(&[0x0F, 0x80], 标优);        // jo 去优化
+    f.压(RAX);
+}
+
+/// 浮点的 `+ - * /`（M183）。
+///
+/// 🔴 **`/` 的除零必须查**：基石里 `1.0 / 0.0` 报 `E2001 不能除以零`，
+/// **不是 `inf`**（Python 的 `ZeroDivisionError` 同款）。而 `divsd` 会安安静静
+/// 给一个 `inf` —— 那条语义差别肉眼看不出来，只有判据能抓。所以先 `ucomisd`
+/// 跟 0 比：`±0.0` → 去优化（交给解释器报错），NaN → 放行（NaN 不是零）。
+fn 发浮点算(f: &mut 发, op: 运算, 左转: bool, 右转: bool) {
+    f.弹(RDX);
+    f.弹(RAX);
+    if 左转 {
+        f.转浮(X4, RAX);
+    } else {
+        f.入x(X4, RAX);
+    }
+    if 右转 {
+        f.转浮(X5, RDX);
+    } else {
+        f.入x(X5, RDX);
+    }
+    match op {
+        运算::加 => f.sse(X4, X5, 0x58),   // addsd
+        运算::减 => f.sse(X4, X5, 0x5C),   // subsd
+        运算::乘 => f.sse(X4, X5, 0x59),   // mulsd
+        运算::除法 => {
+            let 跳过 = f.新标();
+            f.sse(X6, X6, 0x57);           // xorpd xmm6, xmm6（0.0）
+            f.比x(X5, X6);                 // ucomisd 除数, 0
+            // jp 先跳：NaN 会同时置 ZF 和 PF，而 NaN **不是**除零
+            f.跳(&[0x0F, 0x8A], 跳过);     // jp
+            f.跳(&[0x0F, 0x84], 标优);     // je → 去优化（解释器报 E2001）
+            f.打标(跳过);
+            f.sse(X4, X5, 0x5E);           // divsd
+        }
+        _ => {}
+    }
+    f.出x(RAX, X4);
+    f.压(RAX);
+}
+
+/// 浮点的比较 —— **NaN 是这一段的全部难点**。
+///
+/// `ucomisd a, b` 在「无序」（有 NaN）时置 `PF=1`、`ZF=1`、`CF=1`，于是：
+///
+/// | 比较 | 直接 `setcc` 会错成 | 正确做法 |
+/// |---|---|---|
+/// | `a == b` | `sete` 把 NaN 当「相等」 | `sete` **且** `setnp` |
+/// | `a < b`  | `setb` 把 NaN 当「小于」 | `setb` **且** `setnp` |
+/// | `a <= b` | `setbe` 把 NaN 当「小于等于」 | `setbe` **且** `setnp` |
+/// | `a != b` | `setne` 把 NaN 当「相等」⇒ 给假 | `setne` **或** `setp`（NaN 必不相等） |
+/// | `a > b`  | `seta` 在无序时本就给假 ✅ | 直接 `seta` |
+/// | `a >= b` | `setae` 在无序时本就给假 ✅ | 直接 `setae` |
+fn 发浮点比(f: &mut 发, 比较: 比较, 左转: bool, 右转: bool) {
+    f.弹(RDX);
+    f.弹(RAX);
+    if 左转 {
+        f.转浮(X4, RAX);
+    } else {
+        f.入x(X4, RAX);
+    }
+    if 右转 {
+        f.转浮(X5, RDX);
+    } else {
+        f.入x(X5, RDX);
+    }
+    f.比x(X4, X5);
+    match 比较 {
+        比较::大于 => f.设cc(0x97, RAX),      // seta
+        比较::大于等 => f.设cc(0x93, RAX),    // setae
+        比较::小于 => {
+            f.设cc(0x92, RAX);                // setb
+            f.设cc(0x9B, RCX);                // setnp
+            f.字节与(0x20);                    // and al, cl
+        }
+        比较::小于等 => {
+            f.设cc(0x96, RAX);                // setbe
+            f.设cc(0x9B, RCX);                // setnp
+            f.字节与(0x20);
+        }
+        比较::等 => {
+            f.设cc(0x94, RAX);                // sete
+            f.设cc(0x9B, RCX);                // setnp
+            f.字节与(0x20);
+        }
+        比较::不等 => {
+            f.设cc(0x95, RAX);                // setne
+            f.设cc(0x9A, RCX);                // setp
+            f.字节与(0x08);                    // or al, cl
+        }
+    }
+    // movzx rax, al
+    f.b(0x48);
+    f.b(0x0F);
+    f.b(0xB6);
+    f.modrm(0b11, RAX, RAX);
     f.压(RAX);
 }
 
@@ -407,8 +587,11 @@ fn 收(f: &mut 发, 方案: &方案, 返回码: i32, 写回: bool) {
         f.弹(RBX);
     }
     if 写回 {
-        for (k, _) in 方案.槽们.iter().enumerate() {
-            f.存(RDX, (k * 8) as i8, 槽寄[k]);
+        for (k, 型) in 方案.槽型.iter().enumerate() {
+            match 型 {
+                类型::整数 => f.存(RDX, (k * 8) as i8, 槽寄[k]),
+                类型::浮点 => f.存x(RDX, (k * 8) as i8, 槽x[k]),
+            }
         }
     }
     f.b(0xB8);                                  // mov eax, imm32
@@ -426,8 +609,15 @@ pub(super) fn 生成(方案: &方案) -> Option<Vec<u8>> {
         f.压(RSI);
     }
     // 2) 装槽（**必须在动参数寄存器之前**）
-    for (k, _) in 方案.槽们.iter().enumerate() {
-        f.取(槽寄[k], 参1, (k * 8) as i8);
+    //
+    //    整数槽进 `r8`–`r11`，浮点槽进 `xmm0`–`xmm3`；两者在缓冲里都占 8 字节，
+    //    靠 `方案.槽型` 决定怎么解释那 8 个字节（`Val::Int` 的 i64 / `Val::Float`
+    //    的 f64 位模式）。
+    for (k, 型) in 方案.槽型.iter().enumerate() {
+        match 型 {
+            类型::整数 => f.取(槽寄[k], 参1, (k * 8) as i8),
+            类型::浮点 => f.载x(槽x[k], 参1, (k * 8) as i8),
+        }
     }
     // 3) 栈帧
     f.压(RBP);
@@ -461,19 +651,37 @@ pub(super) fn 生成(方案: &方案) -> Option<Vec<u8>> {
                 f.比存(RBX, RSI);
                 f.跳(&[0x0F, 0x8D], 标);      // jge：索引 >= 个数
             }
-            指令::压槽(k) => f.压(槽寄[k as usize]),
+            指令::压槽(k) => match 方案.槽型[k as usize] {
+                类型::整数 => f.压(槽寄[k as usize]),
+                类型::浮点 => {
+                    f.出x(RAX, 槽x[k as usize]);
+                    f.压(RAX);
+                }
+            },
             指令::压数(v) => 压数(&mut f, v),
+            指令::压浮点(位) => 压数(&mut f, 位 as i64),
             指令::压元素 => {
                 // [rsi + 8 + rbx*8]：第 0 个是个数，元素从第 1 个起
                 f.载下标(RAX, RSI, RBX, 8);
                 f.压(RAX);
             }
             指令::步进 => f.加一(RBX),
-            指令::二元(op) => {
-                match op {
-                    运算::加 | 运算::减 | 运算::乘 => 发算术(&mut f, op),
+            指令::二元 { 运算: op, 类型, 左转, 右转 } => match 类型 {
+                类型::整数 => match op {
+                    运算::加 | 运算::减 | 运算::乘 => 发整数算(&mut f, op),
+                    运算::除法 => {}
                     _ => 发除模(&mut f, op),
-                }
+                },
+                类型::浮点 => 发浮点算(&mut f, op, 左转, 右转),
+            },
+            指令::取负浮点 => {
+                f.弹(RAX);
+                f.入x(X4, RAX);
+                f.立即(RAX, i64::MIN);   // 只有最高位是 1 = f64 的符号位
+                f.入x(X5, RAX);
+                f.sse(X4, X5, 0x57);     // xorpd：翻符号位（-0.0 也照翻）
+                f.出x(RAX, X4);
+                f.压(RAX);
             }
             指令::取负 => {
                 f.弹(RAX);
@@ -481,15 +689,24 @@ pub(super) fn 生成(方案: &方案) -> Option<Vec<u8>> {
                 f.跳(&[0x0F, 0x80], 标优);    // jo（-i64::MIN 会溢出）
                 f.压(RAX);
             }
-            指令::存槽(k) => f.弹(槽寄[k as usize]),
+            指令::存槽(k) => match 方案.槽型[k as usize] {
+                类型::整数 => f.弹(槽寄[k as usize]),
+                类型::浮点 => {
+                    f.弹(RAX);
+                    f.入x(槽x[k as usize], RAX);
+                }
+            },
             指令::丢弃 => f.弹(RAX),
-            指令::比压(c) => {
-                f.弹(RDX);
-                f.弹(RAX);
-                f.算(0x39, RAX, RDX);          // cmp rax, rdx
-                f.比成(c);                     // al = 0/1
-                f.压(RAX);
-            }
+            指令::比压 { 比较: c, 类型, 左转, 右转 } => match 类型 {
+                类型::整数 => {
+                    f.弹(RDX);
+                    f.弹(RAX);
+                    f.算(0x39, RAX, RDX);      // cmp rax, rdx
+                    f.比成(c);                 // al = 0/1
+                    f.压(RAX);
+                }
+                类型::浮点 => 发浮点比(&mut f, c, 左转, 右转),
+            },
             指令::算存(左, op, 右, k) => {
                 装(&mut f, RAX, 左);
                 装(&mut f, RDX, 右);
