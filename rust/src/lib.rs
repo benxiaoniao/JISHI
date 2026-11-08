@@ -2261,22 +2261,29 @@ impl VM {
         e.trace = chain;
     }
 
-    /// 试着用 JIT 把 `[抬头, 回跳]` 这个循环**整个跑完**（M180）。
+    /// 试着用 JIT 把 `[抬头, 回跳]` 这个循环**整个跑完**（M180 v0 / M182 v1）。
     ///
-    /// - `Some(出口)` = 跑完了，调用方把 `ip` 设成它接着解释；
+    /// - `Some(出口)` = 跑完了（或撞上 `中断`），调用方把 `ip` 设成它接着解释；
     /// - `None` = 没跑（编不了 / 类型对不上 / 中途溢出），调用方照常 `ip = 抬头`
     ///   走解释器 —— **语义完全不变**，只是慢。
     ///
     /// ## 三道闸的顺序是有讲究的
     ///
     /// 1. **编**：只在这一条回边第一次到阈值时做，之后查表；
-    /// 2. **类型守卫**：进来之前查一遍，对不上就**原地退回**（此时什么都没改）；
-    /// 3. **跑**：机器码里溢出会自己跳去「不写回」的出口 ⇒ 局部变量还是进 JIT
-    ///    之前的样子，解释器从头重跑这个循环。（用 `i128` 的它不会溢出。）
+    /// 2. **类型守卫**：进来之前查一遍（`遍历` 还要把剩下的元素摊平一遍），
+    ///    对不上就**原地退回**（此时什么都没改）；
+    /// 3. **跑**：机器码里溢出 / 除零 / `MIN / -1` 会自己跳去「不写回」的出口
+    ///    ⇒ 局部变量还是进 JIT 之前的样子，解释器从头重跑这个循环。
     ///
     /// ⚠️ **去优化时不写回**这一点是整个设计的地基：只要写回了一半，解释器
     /// 拿到的就是一个「跑到中间」的状态，而它会从抬头重跑 —— 那就把已经做过的
     /// 加法做第二遍了。宁可整段丢掉。
+    ///
+    /// ⚠️ **守卫失败就封存**（这个循环以后都走解释器）：编好之后
+    /// `记一步` 每次都返回 `true`（M182：编好的循环要能反复进），
+    /// 要是守卫每次都失败还每次都试，`遍历` 那种 O(n) 的摊平就变成 O(n²) 了。
+    /// 代价是「同一段代码先拿浮点跑一次、后来都拿整数跑」那种用法吃不到 JIT
+    /// —— 与 v0 的「只试一次」等价，不是新退步。
     #[cfg(feature = "jit")]
     fn 试jit(
         &mut self,
@@ -2297,10 +2304,23 @@ impl VM {
                 eprintln!(
                     "[jit] 代码 {}（{}）抬头 {} 回跳 {}：{}",
                     code_idx, 名, 抬头, 回跳,
-                    match &r { Some(_) => "编好了".to_string(), None => "编不了（形态不认识 / 平台不支持）".to_string() }
+                    match &r {
+                        Some(x) => format!(
+                            "编好了（{} 个槽{}{}）",
+                            x.槽们().len(),
+                            if x.是遍历() { "，遍历" } else { "" },
+                            if x.是遍历() { format!("，中断口 {}", x.中断口()) } else { String::new() },
+                        ),
+                        None => "编不了（形态不认识 / 平台不支持）".to_string(),
+                    }
                 );
             }
+            let 编好 = r.is_some();
             self.jit.存(code_idx, 抬头, r);
+            if 编好 {
+                // M182：编好之后**每次回边都要进**（见 `jit::已编好` 的说明）
+                self.jit.标记已编(code_idx, 回跳);
+            }
         }
         if matches!(self.jit.取(code_idx, 抬头), Some(None)) {
             // 形态不认识 / 平台不支持 / 拿不到内存：**这条路以后不再走**。
@@ -2308,71 +2328,152 @@ impl VM {
             return Ok(None);
         }
 
-        // —— 2. 类型守卫 + 3. 跑（借用收在一个块里，出来才好动 `self.frames`）——
-        let 跑果 = {
+        let (槽们, 出口, 中断口, 是遍历) = match self.jit.取(code_idx, 抬头) {
+            Some(Some(x)) => (x.槽们().to_vec(), x.出口(), x.中断口(), x.是遍历()),
+            _ => return Ok(None),
+        };
+
+        // —— 2a. 槽的类型守卫（最多 4 个，便宜）——
+        let mut 值: Vec<i64> = Vec::with_capacity(槽们.len());
+        {
+            let fr = &self.frames[fi];
+            for 槽 in &槽们 {
+                // 取值：局部槽在帧里，全局槽在 `globals` 里。
+                // 两边的「有没有值」判断也要各自照原样 —— 没赋过值时解释器
+                // 会报「赋值之前被用到」/「找不到名字」，那是**必须照原样发生**
+                // 的错误，不能让 JIT 替它决定。
+                let 取到: Option<&Val> = match 槽 {
+                    crate::jit::槽位::局部(号) => {
+                        if !fr.locals_set.get(*号).copied().unwrap_or(false) {
+                            if self.jit.调试么() {
+                                eprintln!("[jit] 抬头 {抬头}：局部槽 {号} 还没赋过值，这个循环以后走解释器");
+                            }
+                            self.jit.封存(code_idx, 回跳);
+                            return Ok(None);
+                        }
+                        fr.locals.get(*号)
+                    }
+                    crate::jit::槽位::全局(号) => self.globals.get(*号).and_then(|x| x.as_ref()),
+                };
+                match 取到 {
+                    Some(Val::Int(x)) => match i64::try_from(*x) {
+                        Ok(y) => 值.push(y),
+                        // 超出 i64：机器码只做 64 位算术，这一圈交给解释器
+                        Err(_) => {
+                            if self.jit.调试么() {
+                                eprintln!("[jit] 抬头 {抬头}：{槽:?} 的整数超出 i64，这个循环以后走解释器");
+                            }
+                            self.jit.封存(code_idx, 回跳);
+                            return Ok(None);
+                        }
+                    },
+                    // 浮点 / 文本 / 空 / 没赋过值的全局：JIT 只管整数
+                    别 => {
+                        if self.jit.调试么() {
+                            let 型 = 别.map(crate::type_label).unwrap_or_else(|| "未赋值".to_string());
+                            eprintln!("[jit] 抬头 {抬头}：{槽:?} 不是整数（{型}），这个循环以后走解释器");
+                        }
+                        self.jit.封存(code_idx, 回跳);
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+
+        // —— 2b. `遍历`：把**剩下那些**元素摊平成 `[个数, 元素…]` ——
+        //
+        // 为什么能摊平：`遍历 列表` 用的是**活迭代器**（共享列表 + 下标），
+        // 所以「先拷出来」只在「循环体碰不到这个列表」时成立 —— 而我们的前端
+        // 只认「取槽 / 取数 / 四则 / 比较 / 分支 / 存槽」，**调用、下标、属性
+        // 一律不认** ⇒ 循环体没有能力改它。见 `rust/src/jit.rs` 模块文档。
+        let mut 元素: Vec<i64> = Vec::new();
+        if 是遍历 {
+            let 摊 = match self.stack.last() {
+                Some(Val::ListIter(st)) => {
+                    let st = st.borrow();
+                    Some((Rc::clone(&st.list), st.idx))
+                }
+                _ => None,
+            };
+            let (清单, 起点) = match 摊 {
+                Some(x) => x,
+                None => {
+                    if self.jit.调试么() {
+                        eprintln!("[jit] 抬头 {抬头}：栈顶不是列表迭代器，这个循环以后走解释器");
+                    }
+                    self.jit.封存(code_idx, 回跳);
+                    return Ok(None);
+                }
+            };
+            let 列 = 清单.borrow();
+            let 个数 = 列.len().saturating_sub(起点);
+            元素.reserve(个数 + 1);
+            元素.push(个数 as i64);
+            for v in 列.iter().skip(起点) {
+                match v {
+                    Val::Int(x) => match i64::try_from(*x) {
+                        Ok(y) => 元素.push(y),
+                        Err(_) => {
+                            if self.jit.调试么() {
+                                eprintln!("[jit] 抬头 {抬头}：元素超出 i64，这个循环以后走解释器");
+                            }
+                            self.jit.封存(code_idx, 回跳);
+                            return Ok(None);
+                        }
+                    },
+                    _ => {
+                        if self.jit.调试么() {
+                            eprintln!("[jit] 抬头 {抬头}：元素不是整数，这个循环以后走解释器");
+                        }
+                        self.jit.封存(code_idx, 回跳);
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+
+        // —— 3. 跑 ——
+        let 果 = {
             let 已 = match self.jit.取(code_idx, 抬头) {
                 Some(Some(x)) => x,
                 _ => return Ok(None),
             };
-            let 槽们 = 已.槽们().to_vec();
-            let 出口 = 已.出口();
-            let mut 值: Vec<i64> = Vec::with_capacity(槽们.len());
-            {
-                let fr = &self.frames[fi];
-                for 槽 in &槽们 {
-                    // 取值：局部槽在帧里，全局槽在 `globals` 里。
-                    // 两边的「有没有值」判断也要各自照原样 —— 没赋过值时解释器
-                    // 会报「赋值之前被用到」/「找不到名字」，那是**必须照原样发生**
-                    // 的错误，不能让 JIT 替它决定。
-                    let 取到: Option<&Val> = match 槽 {
-                        crate::jit::槽位::局部(号) => {
-                            if !fr.locals_set.get(*号).copied().unwrap_or(false) {
-                                if self.jit.调试么() {
-                                    eprintln!("[jit] 抬头 {抬头}：局部槽 {号} 还没赋过值，这次不跑 JIT");
-                                }
-                                return Ok(None);
-                            }
-                            fr.locals.get(*号)
-                        }
-                        crate::jit::槽位::全局(号) => self.globals.get(*号).and_then(|x| x.as_ref()),
-                    };
-                    match 取到 {
-                        Some(Val::Int(x)) => match i64::try_from(*x) {
-                            Ok(y) => 值.push(y),
-                            // 超出 i64：机器码只做 64 位算术，这一圈交给解释器
-                            Err(_) => {
-                                if self.jit.调试么() {
-                                    eprintln!("[jit] 抬头 {抬头}：{槽:?} 的整数超出 i64，这次不跑 JIT");
-                                }
-                                return Ok(None);
-                            }
-                        },
-                        // 浮点 / 文本 / 空 / 没赋过值的全局：JIT 只管整数
-                        别 => {
-                            if self.jit.调试么() {
-                                let 型 = 别.map(crate::type_label).unwrap_or_else(|| "未赋值".to_string());
-                                eprintln!("[jit] 抬头 {抬头}：{槽:?} 不是整数（{型}），这次不跑 JIT");
-                            }
-                            return Ok(None);
-                        }
-                    }
-                }
-            }
-            let 成 = 已.跑(&mut 值);
-            (槽们, 出口, 值, 成)
+            已.跑(&mut 值, &元素)
         };
 
-        let (槽们, 出口, 值, 成) = 跑果;
-        if !成 {
-            // 溢出（去优化）：`值` 没被写回 ⇒ 局部变量还是进 JIT 之前的样子。
-            // 解释器会从抬头把这个循环**重跑一遍**（它用 i128，不会溢出）。
-            // 这个循环以后不再进 JIT —— 同一个地方卡两次只是白烧 CPU。
-            if self.jit.调试么() {
-                eprintln!("[jit] 抬头 {抬头}：中途溢出（i64），已去优化，这个循环以后走解释器");
+        match 果 {
+            crate::jit::结果::去优化 => {
+                // 溢出 / 除零 / `MIN / -1`：`值` 没被写回 ⇒ 局部变量还是进 JIT
+                // 之前的样子，解释器会从抬头把这个循环**重跑一遍**（它用 i128）。
+                // 这个循环以后不再进 JIT —— 同一个地方卡两次只是白烧 CPU。
+                if self.jit.调试么() {
+                    eprintln!("[jit] 抬头 {抬头}：中途去优化，这个循环以后走解释器");
+                }
+                self.jit.封存(code_idx, 回跳);
+                Ok(None)
             }
-            self.jit.封存(code_idx, 回跳);
-            return Ok(None);
+            crate::jit::结果::中断 => {
+                // 写回是**必须**的：跳出循环之后那些变量还要用。
+                self.写回jit槽(fi, &槽们, &值);
+                // `遍历` 的中断口是 `SETUP_LOOP.b` 的清理块（POP_TOP + POP_BLOCK），
+                // 它自己会把迭代器弹掉；`当` 的中断口就是出口（POP_BLOCK）。
+                Ok(Some(中断口))
+            }
+            crate::jit::结果::跑完 => {
+                self.写回jit槽(fi, &槽们, &值);
+                if 是遍历 {
+                    // 元素耗尽：解释器那边是 `FOR_ITER` 自己把迭代器弹掉，
+                    // 我们替它弹（弹出的位置就是栈顶那一个）。
+                    self.stack.pop();
+                }
+                Ok(Some(出口))
+            }
         }
+    }
+
+    /// 把 JIT 摊平缓冲里的值写回槽（M182 从 `试jit` 里抽出来的，两条出口共用）。
+    #[cfg(feature = "jit")]
+    fn 写回jit槽(&mut self, fi: usize, 槽们: &[crate::jit::槽位], 值: &[i64]) {
         for (k, 槽) in 槽们.iter().enumerate() {
             let 新值 = Val::Int(值[k] as i128);
             match 槽 {
@@ -2387,7 +2488,6 @@ impl VM {
                 }
             }
         }
-        Ok(Some(出口))
     }
 
     fn execute_frame(&mut self, start_fi: usize) -> Result<Flow, JishiError> {

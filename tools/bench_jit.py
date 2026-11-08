@@ -65,7 +65,49 @@ EXE = ROOT / "rust" / "target" / "release" / ("jishi-rs.exe" if os.name == "nt" 
     返回 a + b
 打印(主({n}))
 """,
+    # ---- M182 新编的三类 ----
+    "遍历累加": """
+函数 主(n)：
+    令 s = 0
+    遍历 x 在 范围(0, n)：
+        s = s + x
+    返回 s
+打印(主({n}))
+""",
+    "带如果": """
+函数 主(n)：
+    令 i = 0
+    令 s = 0
+    当 i < n：
+        如果 i % 2 == 0：
+            s = s + i
+        否则：
+            s = s - 1
+        i = i + 1
+    返回 s
+打印(主({n}))
+""",
+    "带中断": """
+函数 主(n)：
+    令 i = 0
+    令 s = 0
+    当 i < n：
+        s = s + 1
+        如果 i * 3 > n：
+            s = s + i
+            中断
+        i = i + 1
+    返回 s
+打印(主({n}))
+""",
 }
+
+#: 每个场景的规模系数（`默认规模 × 系数`）。
+#:
+#: `遍历累加` 得先造一个长度为 n 的**列表**（`范围()` 是当场物化的），
+#: 5 千万个 `Val` 是 1 GB 级 —— 所以它自己小两个数量级。
+#: `带如果` 每轮一次 `%`（idiv），解释器侧慢一档，也降一点免得跑太久。
+规模系数 = {"遍历累加": 0.02, "带如果": 0.4}
 
 #: 默认规模。取 5000 万：解释器上约 7 秒，JIT 上约 0.1 秒 ——
 #: 两边都远超进程启动的固定开销。
@@ -93,7 +135,7 @@ def 跑一次(源码: str, 开: bool) -> tuple[float, str]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="JIT vs 解释器（M180）")
+    ap = argparse.ArgumentParser(description="JIT vs 解释器（M180 v0 / M182 v1）")
     ap.add_argument("--轮数", type=int, default=3, help="每档跑几轮，取最小（默认 3）")
     ap.add_argument("--规模", type=int, default=默认规模, help=f"循环次数（默认 {默认规模}）")
     ap.add_argument("--只看", default=None, help="只跑名字里含这个串的场景")
@@ -110,7 +152,8 @@ def main() -> int:
     for 名, 模板 in 场景.items():
         if a.只看 and a.只看 not in 名:
             continue
-        源 = 模板.format(n=a.规模)
+        规模 = int(a.规模 * 规模系数.get(名, 1.0))
+        源 = 模板.format(n=规模)
         最慢, 出1 = min((跑一次(源, False) for _ in range(a.轮数)), key=lambda x: x[0])
         最快, 出2 = min((跑一次(源, True) for _ in range(a.轮数)), key=lambda x: x[0])
         if 出1 != 出2:
