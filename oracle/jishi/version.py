@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 #: 兜底版本：仅当 importlib.metadata 查不到（PyInstaller 单文件 / 源码直跑）时用
-__FALLBACK__ = "0.3.1"
+__FALLBACK__ = "0.3.2"
 
 
 def _read_version() -> str:

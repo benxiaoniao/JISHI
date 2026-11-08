@@ -392,3 +392,28 @@ def test_非windows的快捷方式桩签名要与windows一致():
         assert win[名] == 非[名], (
             f"`lnk::{名}` 的**参数个数**两边不一致：Windows {win[名]} 个、"
             f"非 Windows {非[名]} 个 —— Linux/macOS 会编不过（M177 真踩过）")
+
+
+# ---------------------------------------------------------------------------
+# 六、发行包必须带「自解压存根」（M181 收口演练抓出来的真缺陷）
+# ---------------------------------------------------------------------------
+
+def test_发行包必须带自解压存根():
+    """🔴 **M181 收口演练抓到的真缺陷**：发行包的 `bin/` 里没有 `jishi-pack-stub.exe`。
+
+    它是「用户给自己的程序打安装包」用的自解压壳。`packcmd::找存根()` 的第一候选
+    就是「和 `jishi.exe` 放一起」，而 `build_release.py` 一直没把它放进 `bin/` ——
+    于是**装了基石的普通用户**跑 `jishi 打包 我的程序 --自带运行时`，会得到一句
+    「出 Windows 安装包要 `jishi-pack-stub`，没找到」。
+
+    ⚠️ 为什么判据只能盯**构建脚本**：发行包不在 CI 上构建（要 Inno Setup + 真机），
+    所以这里查的是「构建脚本有没有把那个文件拷进去」。端到端那一半由
+    `tools/drill_install.py` 第 4 段覆盖（它跑的正是**真装完的发行版**）。
+    """
+    源 = (ROOT / "tools" / "build_release.py").read_text(encoding="utf-8")
+    assert "jishi-pack-stub" in 源, (
+        "build_release.py 里没提 `jishi-pack-stub` —— 发行包会缺它，"
+        "用户就没法给自己的程序打安装包")
+    assert 'bin_dir / "jishi-pack-stub.exe"' in 源, (
+        "存根没被**拷进 `bin/`**（只在注释里提一句不算）—— `找存根()` 找的就是"
+        "「和 jishi.exe 放在一起」")

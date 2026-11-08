@@ -223,6 +223,24 @@ def _build_rust_into(bin_dir: Path) -> None:
         else:
             print("  ⚠️ 没找到 WebView2Loader.dll —— 原生窗口在用户机器上会启动失败")
 
+        # 🔴 M181：**`jishi-pack-stub.exe` 也要跟着走**。
+        #
+        # 它是「用户给自己的程序打安装包」用的自解压壳（M177 的 `--自带运行时`）。
+        # `找存根()` 的**第一候选**就是「和 jishi.exe 放在一起」—— 而发行包里
+        # 一直没放这个文件，于是**装了基石的普通用户**跑
+        # `jishi 打包 我的程序 --自带运行时` 会得到一句
+        # 「出 Windows 安装包要 jishi-pack-stub，没找到」。
+        #
+        # 怎么发现的：不是判据（`test_m177` 用的是开发树里的路径），是
+        # **收口演练**（`tools/drill_install.py` 第 4 段）拿**真装完的发行版**跑出来的。
+        # ⇒ 演练里那一段从此成为常设项。
+        存根 = crate / "target" / "release" / "jishi-pack-stub.exe"
+        if 存根.is_file():
+            shutil.copy2(存根, bin_dir / "jishi-pack-stub.exe")
+            print(f"  已放入 bin/jishi-pack-stub.exe（{存根.stat().st_size:,} 字节）")
+        else:
+            print("  ⚠️ 没找到 jishi-pack-stub.exe —— 用户没法给自己的程序打安装包")
+
 
 def _build_wasm_into(bin_dir: Path) -> None:
     """构建 wasm 引擎并把两份素材放进 `bin/`（M174）。

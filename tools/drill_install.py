@@ -1,13 +1,13 @@
-"""收口演练：**装 → 用 → 升 → 卸**，用**真的要发的那个安装器**。
+"""收口演练：**装 → 用 → 升 → 打包 → 卸**，用**真的要发的那个安装器**。
 
-为什么单独一个脚本而不是塞进 pytest：跑一次要一分多钟，会真的写注册表卸载项、
-真的开窗，属「发版前的一次性验收」而不是每次提交都该跑的东西。
+为什么单独一个脚本而不是塞进 pytest：跑一次要一两分钟，会真的写注册表卸载项、
+真的开窗、真的往开始菜单里放快捷方式，属「发版前的一次性验收」而不是每次提交都该跑。
 它输出一份「验到了什么 / 没验到什么」的清单 —— 那份清单要抄进 CHANGELOG。
 
 用法：
 
-    python tools/drill_install.py                  # 0.3.0 → 0.3.1（缺省）
-    python tools/drill_install.py 0.3.1 0.3.1      # 同版本覆盖装
+    python tools/drill_install.py                  # 0.3.1 → 0.3.2（缺省）
+    python tools/drill_install.py 0.3.2 0.3.2      # 同版本覆盖装
 
 ⚠️ 只支持 Windows（要 Inno 的 `/VERYSILENT`）。macOS / Linux 走 tar.gz + install.sh，
 那条路只有 M172 的判据覆盖，**没有真机装过** —— 如实记在路线图里。
@@ -24,8 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]      # 本文件在 tools/ 下
 REL = ROOT / "dist" / "release"
 #: 0.3.0 的安装器在**官网仓库**的 dist 里（本仓库 dist 只留最新的）
 #: 旧版 / 新版安装器：命令行给，缺省用「上一个已发布版 → 当前版」。
-_旧版 = sys.argv[1] if len(sys.argv) > 1 else "0.3.0"
-_新版 = sys.argv[2] if len(sys.argv) > 2 else "0.3.1"
+_旧版 = sys.argv[1] if len(sys.argv) > 1 else "0.3.1"
+_新版 = sys.argv[2] if len(sys.argv) > 2 else "0.3.2"
 OLD = REL / f"jishi-{_旧版}-windows-x64-setup.exe"
 if not OLD.is_file():
     #: 旧版通常已经不在本仓库的 dist 里了（dist 只留最新），去官网镜像里找
@@ -163,8 +163,82 @@ def main():
     记("升级后页面真的到了（不是白窗口）", "页面到了" in 文2,
       文2.strip().splitlines()[-1][:80] if 文2.strip() else "无输出")
 
-    # ── 4. 卸 ─────────────────────────────────────────────────────────
-    print("\n[4] 卸载")
+    # ── 4. 打包（自带运行时）：把「给别人的机器」那条路也走一遍 ────────────
+    #
+    # 为什么演练里还要做（`test_m177` 已经做了一遍）：那条判据用的是**开发树里拼出来**
+    # 的引擎目录，而这里用的是**真的装完的发行版**。两者差在最容易出错的地方 ——
+    # 引擎素材到底跟没跟着走、快捷方式到底指向哪儿、装到空目录之后还认不认路。
+    print("\n[4] 打包（自带运行时）→ 装到空目录 → 双击风格地启动")
+    用户包出 = 工作 / "用户包"
+    用户包出.mkdir(exist_ok=True)
+    源 = 工作 / "我的程序"
+    源.mkdir(exist_ok=True)
+    (源 / "页.html").write_text(
+        '<!DOCTYPE html><meta charset="utf-8"><h1>用户包</h1>'
+        '<script>if(window.ipc)window.ipc.postMessage(JSON.stringify({op:"页面已加载"}));</script>',
+        encoding="utf-8", newline="\n")
+    (源 / "程序.jsh").write_text(
+        '导入 窗口\n令 窗 = 窗口.打开({"标题": "用户包演练", "页面": "页.html"})\n窗口.等(窗)\n',
+        encoding="utf-8", newline="\n")
+    码, 出 = 跑([装目录 / "bin" / "jishi.exe", "打包", 源, "--出", 用户包出,
+                 "--名字", "演练程序", "--版本", "1.0.0", "--入口", "程序.jsh",
+                 "--自带运行时", "--引擎", 装目录 / "bin"], timeout=300)
+    记("jishi 打包 --自带运行时 退出码 0", 码 == 0, 出[-300:] if 码 else "")
+    用户安装 = 用户包出 / "演练程序-1.0.0-windows-x64-setup.exe"
+    记("出了用户安装包", 用户安装.is_file(),
+      f"{用户安装.stat().st_size // 1024} KB" if 用户安装.is_file() else str(用户包出))
+
+    用户装 = 工作 / "用户装"
+    if 用户安装.is_file():
+        # ⚠️ 不能 `capture_output=True`：自解压壳会拉起子进程并继承管道，
+        #    主进程退出后读端还在等 EOF ⇒ 挂满超时（M176 的教训）。
+        壳日志 = 工作 / "用户装.log"
+        with open(壳日志, "w", encoding="utf-8") as f:
+            码 = subprocess.run([str(用户安装), "--目标", str(用户装)],
+                                stdout=f, stderr=subprocess.STDOUT, timeout=300).returncode
+        记("用户包装到空目录 退出码 0", 码 == 0,
+          壳日志.read_text(encoding="utf-8", errors="replace")[-200:] if 码 else "")
+        记("用户包里引擎在 bin/", (用户装 / "bin" / "jishi.exe").is_file())
+        记("用户包里的程序在 app/", (用户装 / "app" / "程序.jsh").is_file())
+        记("用户包里有 运行时.json", (用户装 / "运行时.json").is_file())
+
+        # 快捷方式：目标必须是**引擎**、程序文件当**参数**（M177 的核心）
+        快捷 = (Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows"
+                / "Start Menu" / "Programs" / "演练程序.lnk")
+        记("开始菜单里有快捷方式", 快捷.is_file(), str(快捷))
+        解析 = ""
+        if (用户装 / "uninstall.exe").is_file() and 快捷.is_file():
+            _, 解析 = 跑([用户装 / "uninstall.exe", "--解析快捷方式", 快捷], timeout=120)
+        记("快捷方式指向 bin 里的引擎", "bin\\jishi.exe" in 解析 or "bin/jishi.exe" in 解析,
+          解析.strip()[:120] or "（读不出来）")
+        记("快捷方式带上了 app 里的程序文件",
+          "app\\程序.jsh" in 解析 or "app/程序.jsh" in 解析, 解析.strip()[:120])
+
+        # 按快捷方式写的那样跑一次 —— 窗口要真的起来
+        if (用户装 / "bin" / "jishi.exe").is_file():
+            日志3 = 工作 / "win3.log"
+            with open(日志3, "w", encoding="utf-8") as f:
+                进程3 = subprocess.Popen(
+                    [str(用户装 / "bin" / "jishi.exe"), str(用户装 / "app" / "程序.jsh")],
+                    cwd=str(用户装), stdout=f, stderr=subprocess.STDOUT,
+                    env={**os.environ, "JISHI_WINDOW_DEBUG": "1"})
+            time.sleep(8)
+            起了3 = 进程3.poll() is None
+            if 起了3:
+                进程3.kill()
+                进程3.wait(timeout=20)
+            文3 = 日志3.read_text(encoding="utf-8", errors="replace")
+            记("用户包里的程序能开窗（进程还活着）", 起了3)
+            记("用户包的页面真的到了（不是白窗口）", "页面到了" in 文3,
+              文3.strip().splitlines()[-1][:80] if 文3.strip() else "无输出")
+
+        # 卸干净（顺带验「卸载会删掉开始菜单里那条」）
+        _, 卸出 = 跑([用户装 / "uninstall.exe", "--卸载", "--静默"], timeout=300)
+        time.sleep(1)
+        记("用户包能卸掉（bin/ 没了）", not (用户装 / "bin").exists(), 卸出[-160:])
+
+    # ── 5. 卸 ─────────────────────────────────────────────────────────
+    print("\n[5] 卸载")
     码, 出 = 卸(装目录)
     记("卸载器退出码 0", 码 == 0, 出[-200:] if 码 else "")
     time.sleep(2)

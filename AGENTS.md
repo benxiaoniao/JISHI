@@ -88,7 +88,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **4376 项**；其中 126 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
+3. **测试命令**：`python -m pytest tests/`（当前 **4377 项**；其中 126 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
    .venv/Scripts/python.exe tools/test_all.py          # **两节一条命令**（见下）
@@ -197,7 +197,7 @@
    | **L1 快检** | 只改**一个已存在的**标准库函数内部 | 该模块的 pytest + `test_m51`（漂移） | <1 分钟 |
    | **L2 模块级** | **加**标准库函数/模块、改某模块行为 | L1 + 该模块判据 + 语料 `-k` 相关的 + `check_engines` | ~10 分钟 |
    | **L3 全量** | ① 动了 `tests/cases/` / `tests/error_cases/` / 冻结基线；② 动了 `Val` / 解释器 / 序列化 / 前端（`frontend/`）；③ 动了三宿主共享的语义 | `tools/test_all.py --只并行` | ~15 分钟 |
-   | **L4 收口** | 发版前（每个里程碑的最后一个） | `tools/test_all.py --分块 4`（含串行节）+ 站点 + 版本号 | ~25 分钟 |
+   | **L4 收口** | 发版前（每个里程碑的最后一个） | `tools/test_all.py --分块 4`（含串行节）+ **`tools/drill_install.py`**（真装一遍）+ 站点 + 版本号 | ~30 分钟 |
 
    🔴 **四条硬规矩**：
    - **加/改 `tests/cases/` 里的语料 ⇒ 直接 L3**，没有 L2 可偷懒：
@@ -268,7 +268,7 @@
 
     | 必做 | 怎么做 | 判据 |
     |---|---|---|
-    | **生成 VSCode 扩展** | `cd editors/vscode-jishi && ./node_modules/.bin/vsce package` | 产出 `.vsix`，**版本号 == 语言版本号** |
+    | **生成 VSCode 扩展** | `cd editors/vscode-jishi && ./node_modules/.bin/vsce package` | 产出 `.vsix`，**版本号只增不减**（扩展有自己的线：0.3.2 语言版配 0.4.8 扩展，属正常） |
     | **跑 AI 测试** | 补这一版新能力的试题 → `python tools/eval_ai.py` | `evals/跑分表.md` 有新记录（模型 / 日期 / 通过数） |
 
     🔴 **扩展上传由用户本人做**（网页手传），**不要自动上传** —— 没有商店凭据，
