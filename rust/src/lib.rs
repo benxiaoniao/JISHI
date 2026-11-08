@@ -7055,6 +7055,19 @@ impl PartialOrd for Val {
 /// `source_path`：**源文件的路径**（可选）。树遍历的输入是 AST JSON、里面没有
 /// 源码，报错渲染要打「源码行 + `^`」就得从外面给这个路径；给 `None` 时退回
 /// 「没有源码行」（位置行照打，与字节码 VM 读不到源文件同一口径）。
+/// JIT 端到端自检（M184）：写一条「返回 42」的机器码再真调用一次。
+///
+/// 判据拿它当「这台机器的 JIT 环境通不通」的唯一一句话（见 `jit::自检`）。
+#[cfg(feature = "jit")]
+pub fn jit_selftest() -> Result<i64, String> {
+    crate::jit::自检()
+}
+
+#[cfg(not(feature = "jit"))]
+pub fn jit_selftest() -> Result<i64, String> {
+    Err("这个构建没有编进 JIT（`jit` 特性是关的）".to_string())
+}
+
 pub fn run_walk(ast_text: &str, source_path: Option<&str>) -> Result<String, (String, String)> {
     let ast = match json::parse(ast_text) {
         Ok(a) => a,

@@ -62,15 +62,24 @@ use crate::op;
 use crate::Val;
 use std::collections::HashMap;
 
+mod aarch64;
 mod x86_64;
 
 /// 这个构建/平台到底有没有 JIT。
 ///
 /// ⚠️ 返回值是**编译期**决定的：非 x86-64 一律 `false`，`编译()` 永远给 `None`。
 pub fn 支持() -> bool {
-    cfg!(all(
-        target_arch = "x86_64",
-        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    cfg!(any(
+        all(
+            target_arch = "x86_64",
+            any(target_os = "windows", target_os = "linux", target_os = "macos")
+        ),
+        // M184：ARM64 后端。**Windows-on-ARM 未测**（见模块文档的「未验」清单），
+        // 所以这里不写 `target_os = "windows"` —— 少一个平台就少一句谎话。
+        all(
+            target_arch = "aarch64",
+            any(target_os = "linux", target_os = "macos")
+        ),
     ))
 }
 
@@ -97,9 +106,12 @@ impl Drop for 内存块 {
 /// 这里内存是**我们自己刚从系统拿的整页**，写和跑的窗口极短。macOS 上
 /// `MAP_JIT` 是 Apple Silicon 的硬要求（见 M183），x86-64 上直接
 /// `PROT_EXEC` 也能过。
-#[cfg(all(
-    target_arch = "x86_64",
-    any(target_os = "windows", target_os = "linux", target_os = "macos")
+#[cfg(any(
+    all(
+        target_arch = "x86_64",
+        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    ),
+    all(target_arch = "aarch64", any(target_os = "linux", target_os = "macos")),
 ))]
 fn 申请(长: usize) -> Option<内存块> {
     if 长 == 0 {
@@ -127,12 +139,20 @@ fn 申请(长: usize) -> Option<内存块> {
         const MAP_ANON: i32 = 0x20;
         #[cfg(target_os = "macos")]
         const MAP_ANON: i32 = 0x1000;
+        // 🔴 Apple Silicon 上**没有 MAP_JIT 就 mmap 不出可执行页**（返回 EPERM）。
+        // x86-64 的 macOS 也认这个标志，所以两边一起带。
+        #[cfg(target_os = "macos")]
+        const MAP_JIT: i32 = 0x0800;
+        #[cfg(not(target_os = "macos"))]
+        const MAP_JIT: i32 = 0;
         const PROT_RWX: i32 = 7;      // READ | WRITE | EXEC
         const MAP_PRIVATE: i32 = 0x02;
         extern "C" {
             fn mmap(地: *mut u8, 长: usize, 护: i32, 旗: i32, 句: i32, 偏: i64) -> *mut u8;
         }
-        let p = unsafe { mmap(std::ptr::null_mut(), 长, PROT_RWX, MAP_PRIVATE | MAP_ANON, -1, 0) };
+        let p = unsafe {
+            mmap(std::ptr::null_mut(), 长, PROT_RWX, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0)
+        };
         // MAP_FAILED 是 -1
         if p as isize == -1 {
             None
@@ -142,9 +162,12 @@ fn 申请(长: usize) -> Option<内存块> {
     }
 }
 
-#[cfg(all(
-    target_arch = "x86_64",
-    any(target_os = "windows", target_os = "linux", target_os = "macos")
+#[cfg(any(
+    all(
+        target_arch = "x86_64",
+        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    ),
+    all(target_arch = "aarch64", any(target_os = "linux", target_os = "macos")),
 ))]
 fn 归还(地: *mut u8, 长: usize) {
     // Windows 的 `VirtualFree` 只认 MEM_RELEASE（长度必须传 0），所以那边不用它
@@ -166,19 +189,81 @@ fn 归还(地: *mut u8, 长: usize) {
     }
 }
 
-#[cfg(not(all(
-    target_arch = "x86_64",
-    any(target_os = "windows", target_os = "linux", target_os = "macos")
+#[cfg(not(any(
+    all(
+        target_arch = "x86_64",
+        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    ),
+    all(target_arch = "aarch64", any(target_os = "linux", target_os = "macos")),
 )))]
 fn 申请(_长: usize) -> Option<内存块> {
     None
 }
 
-#[cfg(not(all(
-    target_arch = "x86_64",
-    any(target_os = "windows", target_os = "linux", target_os = "macos")
+#[cfg(not(any(
+    all(
+        target_arch = "x86_64",
+        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    ),
+    all(target_arch = "aarch64", any(target_os = "linux", target_os = "macos")),
 )))]
 fn 归还(_地: *mut u8, _长: usize) {}
+
+/// 允许 / 禁止往 `MAP_JIT` 那块内存里写。
+///
+/// 只在 **macOS + ARM64** 上有意义：Apple Silicon 的 `MAP_JIT` 页默认是
+/// 「可执行不可写」，要写机器码得先把**本线程**的 JIT 写权限打开。
+///
+/// ⚠️ 这是 **per-thread** 状态：在哪个线程写就在哪个线程开。我们的 VM 是
+/// 单线程跑脚本的，编译与执行同线程；写成「写前开、写完关」是为了不依赖这个前提。
+#[inline]
+fn jit写允许() {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    unsafe {
+        extern "C" {
+            fn pthread_jit_write_protect_np(enabled: i32);
+        }
+        pthread_jit_write_protect_np(0);
+    }
+}
+
+#[inline]
+fn jit写禁止() {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    unsafe {
+        extern "C" {
+            fn pthread_jit_write_protect_np(enabled: i32);
+        }
+        pthread_jit_write_protect_np(1);
+    }
+}
+
+/// 写完机器码之后刷**指令缓存**。
+///
+/// 🔴 ARM64 上这一步**不能省**：I-cache 与 D-cache 不保证一致，刚写进去的字节
+/// 可能还没进指令流水线 —— 表现是「跑的是旧代码」或「跑到半条指令」，而且
+/// 只在真机上偶发（QEMU 常常掩盖它）。x86 有硬件一致性，这里是空操作。
+#[inline]
+fn 刷指令缓存(地: *mut u8, 长: usize) {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    unsafe {
+        extern "C" {
+            fn sys_icache_invalidate(start: *const u8, len: usize);
+        }
+        sys_icache_invalidate(地, 长);
+    }
+    #[cfg(all(target_arch = "aarch64", not(target_os = "macos")))]
+    unsafe {
+        extern "C" {
+            fn __clear_cache(begin: *mut u8, end: *mut u8);
+        }
+        __clear_cache(地, 地.add(长));
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        let _ = (地, 长);
+    }
+}
 
 // ---------------------------------------------------------------------------
 // 中间表示（IR）：一台「机器栈 + 槽」的小栈机
@@ -916,6 +1001,63 @@ impl 已编 {
     }
 }
 
+/// 按目标架构选后端。
+///
+/// ⚠️ **两个模块都不加 `cfg` 门**：这样在 x86-64 的开发机上也能调
+/// `aarch64::生成()` 验编码（见 `tests/test_m184_aarch64.py`）。
+/// 只有「能不能跑」是分开的 —— 那由 `目标架构` 之后的 `申请()` 决定。
+fn 后端生成(方案: &方案) -> Option<Vec<u8>> {
+    #[cfg(target_arch = "aarch64")]
+    {
+        aarch64::生成(方案)
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        x86_64::生成(方案)
+    }
+}
+
+/// 写一条「返回 42」的最小机器码进可执行内存，**真调用一次**（M184）。
+///
+/// 这是路线图 §M184 那条「开工第一件事」的常驻版：Apple Silicon 上 JIT 的失败
+/// 模式是**启动即死**（缺 `MAP_JIT` / 缺 `allow-jit` 权限 / 没刷 I-cache），
+/// 不是异常、没有栈、什么都没有。有了这条自检，CI 就能把
+/// 「这台机器的 JIT 环境不通」和「编码器写错了」**分开** —— 少查一天。
+///
+/// 它验证的正是「写机器码 → 刷缓存 → 跳进去 → 拿到返回值」这条完整链：
+/// `申请`（macOS 带 MAP_JIT）· `jit写允许/禁止`（`pthread_jit_write_protect_np`）
+/// · `刷指令缓存`（`sys_icache_invalidate`）。
+pub fn 自检() -> Result<i64, String> {
+    if !支持() {
+        return Err("这个架构没有 JIT 后端（只有 x86-64 与 ARM64）".to_string());
+    }
+    // `mov w0, #42` / `ret`
+    #[cfg(target_arch = "aarch64")]
+    let 码: Vec<u8> = {
+        let mut v = Vec::with_capacity(8);
+        v.extend_from_slice(&(0x5280_0000u32 | (42 << 5)).to_le_bytes());
+        v.extend_from_slice(&0xD65F03C0u32.to_le_bytes());
+        v
+    };
+    // `mov eax, 42` / `ret`
+    #[cfg(not(target_arch = "aarch64"))]
+    let 码: Vec<u8> = vec![0xB8, 42, 0, 0, 0, 0xC3];
+
+    let 块 = 申请(码.len()).ok_or_else(|| {
+        "申请可执行内存失败（macOS 上多半是缺 MAP_JIT 或没有 JIT 权限）".to_string()
+    })?;
+    jit写允许();
+    // SAFETY: `块` 至少有 `码.len()` 字节，且刚申请、还没人用过。
+    unsafe {
+        std::ptr::copy_nonoverlapping(码.as_ptr(), 块.地, 码.len());
+    }
+    刷指令缓存(块.地, 码.len());
+    jit写禁止();
+    // SAFETY: 约定好的签名是 `extern "C" fn() -> i64`；上面写的正是「返回 42」。
+    let f: extern "C" fn() -> i64 = unsafe { std::mem::transmute(块.地) };
+    Ok(f())
+}
+
 /// 编译一个循环。编不出来（形态不认识 / 平台不支持 / 拿不到内存）给 `None`。
 pub fn 编译(
     指令们: &[crate::Instr],
@@ -936,7 +1078,7 @@ pub fn 编译(
             return None;
         }
     };
-    let 码 = match x86_64::生成(&方案) {
+    let 码 = match 后端生成(&方案) {
         Some(x) => x,
         None => {
             if std::env::var("JISHI_JIT_DEBUG").is_ok() || std::env::var("JISHI_JIT").as_deref() == Ok("调试") {
@@ -949,11 +1091,32 @@ pub fn 编译(
         let 十六: Vec<String> = 码.iter().map(|b| format!("{b:02X}")).collect();
         eprintln!("[jit] {} 字节：{}", 码.len(), 十六.join(" "));
     }
+    // ARM64 编码探针（M184）：
+    //
+    // 开发机是 x86-64，**跑不了** ARM 机器码，那怎么验第二个后端的编码？
+    // 让它**在这个架构上也编一遍**、把字节打出来 —— 判据就能在 x86 上检查
+    // 「该发的指令发了、跳转偏移补对了」。CI 的 macos-arm64 上再拿同一份探针
+    // 与**真正在跑的那份**对比，两边必须逐字节相同。
+    //
+    // 正常情况下没人会设这个变量；它只在判据里出现，零运行时开销（一次 getenv）。
+    if std::env::var("JISHI_JIT_DUMP_ARM").is_ok() {
+        match aarch64::生成(&方案) {
+            Some(码) => {
+                let 十六: Vec<String> = 码.iter().map(|b| format!("{b:02X}")).collect();
+                eprintln!("[jit-arm] {} 字节：{}", 码.len(), 十六.join(" "));
+            }
+            None => eprintln!("[jit-arm] 编不了（跳转落点缺失或超出范围）"),
+        }
+    }
     let 块 = 申请(码.len())?;
     // SAFETY: `码` 是刚发出来的机器码，`块` 至少有 `码.len()` 字节可写可执行。
+    // `jit写允许` 只在 macOS + ARM64 上真的做事（见它的说明）。
+    jit写允许();
     unsafe {
         std::ptr::copy_nonoverlapping(码.as_ptr(), 块.地, 码.len());
     }
+    刷指令缓存(块.地, 码.len());
+    jit写禁止();
     // SAFETY: 约定好的签名是 `extern "C" fn(*mut i64, *const i64) -> i64`，
     // 生成码就是这么写的（两个参数从 rcx/rdx 或 rdi/rsi 取，返回值放 rax）。
     let 入口: 入口 = unsafe { std::mem::transmute(块.地) };
@@ -1021,9 +1184,17 @@ impl 状态 {
     pub fn new() -> Self {
         // 环境变量能一票关掉（判据、A/B、用户排障都用得上）
         let 原 = std::env::var("JISHI_JIT").unwrap_or_default();
-        let 环境关 = 原 == "0";
+        // 🔴 **ARM64 编码探针自己开**（M184）：设了 `JISHI_JIT_DUMP_ARM` 就强制打开
+        // JIT 与调试输出，**不受 `JISHI_JIT=0` 影响**。
+        //
+        // 为什么：判据只关心「ARM 后端把这段字节码编成什么」，这件事与「这次运行
+        // 用不用 JIT」无关。M184 的第一版没这么写，判据就时好时坏 —— 同一个脚本
+        // 在这条判据里能编、在那条里编不了，查了很久才发现是开关状态在作怪。
+        // 探针必须**确定性**，不能依赖任何运行时开关。
+        let 探针 = std::env::var("JISHI_JIT_DUMP_ARM").is_ok();
+        let 环境关 = 原 == "0" && !探针;
         let 开 = !环境关 && 支持();
-        let 调试 = 原 == "调试" || 原 == "debug" || std::env::var("JISHI_JIT_DEBUG").is_ok();
+        let 调试 = 探针 || 原 == "调试" || 原 == "debug" || std::env::var("JISHI_JIT_DEBUG").is_ok();
         状态 { 开, 环境关, 已关: false, 调试, 计数: [0; 512], 结果: HashMap::new() }
     }
 

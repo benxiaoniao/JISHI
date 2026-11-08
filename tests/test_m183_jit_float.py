@@ -32,10 +32,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "rust" / "target" / "release" / ("jishi-rs.exe" if os.name == "nt" else "jishi-rs")
 
-是x64 = platform.machine().lower() in ("amd64", "x86_64")
+# 🔴 **M184 起 JIT 有两个后端**（x86-64 / ARM64）⇒ 判据在两种架构上都要真跑。
+# CI 的 `macos-latest` 是 arm64 —— 那边跑的是**真的 ARM 机器码**，
+# 这是「ARM 后端到底对不对」唯一的一锤定音（本机 x86-64 只能验编码）。
+是已知架构 = platform.machine().lower() in ("amd64", "x86_64", "arm64", "aarch64")
 需要jit = pytest.mark.skipif(
-    not 是x64 or not EXE.is_file(),
-    reason="JIT 后端只有 x86-64（先在 x86-64 上 cargo build --release）",
+    not 是已知架构 or not EXE.is_file(),
+    reason="JIT 只在 x86-64 / ARM64 上（先在目标机上 cargo build --release）",
 )
 
 

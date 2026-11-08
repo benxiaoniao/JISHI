@@ -392,6 +392,21 @@ fn main() -> ExitCode {
     }
     // 2026-10-05：报 `Val` 的实际字节数（结构钉）。加变体时若把大载荷内联进来，
     // 它就会悄悄膨胀 —— 「没报错、只是变慢」那类退化，对拍抓不住。
+    // M184：JIT 端到端自检 —— 写一条「返回 42」的机器码、真跳进去。
+    // Apple Silicon 上 JIT 的失败是「启动即死」，这条能把「环境不通」和
+    // 「编码写错」分开（路线图 §M184 的「开工第一件事」的常驻版）。
+    if args[1] == "--jit-selftest" || args[1] == "--jit_selftest" {
+        return match jishi_ffi::jit_selftest() {
+            Ok(n) => {
+                println!("{n}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::from(1)
+            }
+        };
+    }
     if args[1] == "--dump-val-size" || args[1] == "--dump_val_size" {
         println!("{}", jishi_ffi::dump_val_size());
         return ExitCode::SUCCESS;
