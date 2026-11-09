@@ -14,7 +14,8 @@ mod http;
 mod inflate;
 pub mod json;
 mod regex;
-mod stdlib;
+// M188：`jishi_seed` 要给 wasm 入口用（`随机` 在 wasm 上没有时钟）
+pub mod stdlib;
 // M51：标准库函数签名表（由 `tools/gen_stdlib_sigs.py` 从 Python 侧
 // jishi/stdlib/*.py 生成）。命名参数要按「模块.函数」查它才能映射回位置参数。
 mod stdlib_sigs;

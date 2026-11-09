@@ -48,7 +48,8 @@ mod files;
 pub(crate) mod jsonmod;
 mod math;
 mod path;
-mod rand;
+// M188：`设种子` 要给 wasm 入口用（`随机` 在 wasm 上没有时钟，见 rand.rs）
+pub mod rand;
 mod system;
 pub(crate) mod tables;
 mod text;

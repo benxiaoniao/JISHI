@@ -44,58 +44,87 @@ from conftest import ROOT, rust_exe_path                            # noqa: E402
 WASM = ROOT / "site" / "jishi_wasm.wasm"
 SHIM = ROOT / "wasm" / "jishi-wasm.js"
 例子 = ROOT / "examples" / "desktop"
-入口 = 例子 / "打砖块.jsh"
-游戏源 = 例子 / "打砖块_游戏.jsh"
-页面 = 例子 / "打砖块.html"
+#: 三个示例共用的启动器（页面里只有一行 `<script src="游戏启动.js">`）
+启动器 = 例子 / "游戏启动.js"
 音效 = 例子 / "碰.wav"
+
+#: (名字, 入口, 本体, 页面, 页面里**不许**出现的源码记号)
+#: 记号用来抓「有人把游戏源码抄进 HTML」——每一份挑 3 个只有本体会有的片段。
+游戏们 = [
+    ("打砖块", 例子 / "打砖块.jsh", 例子 / "打砖块_游戏.jsh", 例子 / "打砖块.html",
+     ("图形.运行", "函数 每帧", "砖色们")),
+    ("贪吃蛇", 例子 / "贪吃蛇.jsh", 例子 / "贪吃蛇_游戏.jsh", 例子 / "贪吃蛇.html",
+     ("图形.运行", "函数 每帧", "找空位")),
+]
+
+#: 打砖块的三件（下面那一大段帧循环判据只针对它）
+砖_入口, 砖_本体, 砖_页面, _ = 游戏们[0][1:]
 
 
 # ---------------------------------------------------------------------------
 # 一、文件齐不齐（最便宜的一条，先红先知道）
 # ---------------------------------------------------------------------------
 
-def test_打砖块四件套都在():
-    """入口 / 本体 / 页面 / 音效 —— 少一件的表现都是「窗口开了但什么都没发生」。"""
-    for f in (入口, 游戏源, 页面, 音效):
-        assert f.is_file(), f"缺 {f.relative_to(ROOT)}"
+def test_每个示例的四件套都在():
+    """入口 / 本体 / 页面 + 共用的启动器与音效 —— 少一件的表现都是
+    「窗口开了但什么都没发生」。"""
+    assert 启动器.is_file(), "缺 游戏启动.js（三个页面共用它）"
+    assert 音效.is_file(), "缺 碰.wav"
+    for 名, 入, 本, 页, _ in 游戏们:
+        for f in (入, 本, 页):
+            assert f.is_file(), f"「{名}」缺 {f.name}"
 
 
-def test_入口只开窗_游戏本体单独一份():
+@pytest.mark.parametrize("名,入口,本体,页面,记号们", 游戏们)
+def test_入口只开窗_游戏本体单独一份(名, 入口, 本体, 页面, 记号们):
     """桌面入口只管开窗（`窗口.打开` + `窗口.等`），游戏逻辑在另一个文件里。
 
     为什么必须分开：官网试玩页跑的是**同一份**本体，它已经在页面里了，
     不能再 `窗口.打开`（没有第二个窗口可开）。
     """
     文 = 入口.read_text(encoding="utf-8")
-    assert "窗口.打开(" in 文 and "窗口.等(" in 文, "入口没开窗 / 没等窗口"
-    assert "打砖块.html" in 文, "入口没指向页面"
-    assert "图形.运行" not in 文, "入口里不该有游戏逻辑（那是本体的活）"
+    assert "窗口.打开(" in 文 and "窗口.等(" in 文, f"{名} 的入口没开窗 / 没等窗口"
+    assert 页面.name in 文, f"{名} 的入口没指向页面"
+    assert "图形.运行" not in 文, f"{名} 的入口里不该有游戏逻辑（那是本体的活）"
 
 
-def test_页面没有把游戏源码抄一份():
-    """🔴 **源码只有一份**：页面只 fetch 它，不许内联。
+@pytest.mark.parametrize("名,入口,本体,页面,记号们", 游戏们)
+def test_页面没有把游戏源码抄一份(名, 入口, 本体, 页面, 记号们):
+    """🔴 **源码只有一份**：页面只用 `data-游戏` 指过去，不许内联。
 
-    M188 的约定：窗口里与官网试玩页跑的是同一份 `打砖块_游戏.jsh`。抄进 HTML
-    就会漂（改了一边、另一边还是老的，而且在页面上完全看不出来）。
+    抄进 HTML 就会漂（改了一边、另一边还是老的，而且在页面上完全看不出来）。
     """
     文 = 页面.read_text(encoding="utf-8")
-    assert "打砖块_游戏.jsh" in 文, "页面没有 fetch 源码"
-    for 记号 in ("图形.运行", "函数 每帧", "砖色们"):
-        assert 记号 not in 文, f"页面里出现了游戏源码片段「{记号}」—— 源码被抄了一份"
+    assert 本体.name in 文, f"{名} 的页面没指向源码"
+    assert "游戏启动.js" in 文, f"{名} 的页面没引用共用启动器"
+    for 记号 in 记号们:
+        assert 记号 not in 文, f"{名} 的页面里出现了游戏源码片段「{记号}」—— 抄了一份"
 
 
-def test_页面两条路径都有_窗口与官网():
+def test_启动器两条路径都有_窗口与官网():
     """窗口里素材挂在 `/__jishi/`，官网上与页面同级 —— 两条都得在，
     否则一边是白页面（M173 踩过：wasm 写成相对路径，窗口里 404）。
 
-    ⚠️ 同级那条**必须带 `./`**：`import("jishi-wasm.js")` 会被当成裸模块名，
+    ⚠️ 同级那条**必须带 `./`**：不带 `./` 的模块名会被当成裸模块名，
     浏览器报 `Failed to resolve module specifier`（M188 真浏览器截图才发现，
     Node 判据照不出来 —— 判据里 import 的是绝对路径）。
+
+    🔴 这段逻辑**只有一份**（`游戏启动.js`）：三个页面各抄一遍的话，
+    这种错就得改三处，而且新加的那个一定忘。
     """
-    文 = 页面.read_text(encoding="utf-8")
+    文 = 启动器.read_text(encoding="utf-8")
     assert "/__jishi/jishi-wasm.js" in 文 and "/__jishi/jishi_wasm.wasm" in 文
     assert '"./jishi-wasm.js"' in 文 and '"./jishi_wasm.wasm"' in 文
     assert 'import("jishi-wasm.js")' not in 文, "少 `./` 会被当成裸模块名"
+
+
+def test_页面不再各自写启动逻辑():
+    """页面里不许出现 `import(` / `JishiWasm.load` —— 那些都在启动器里。
+    页一多，抄一份就等于给自己埋一个「只有这个页面坏的」bug。"""
+    for 名, _, _, 页面, _ in 游戏们:
+        文 = 页面.read_text(encoding="utf-8")
+        for 记号 in ("import(", "JishiWasm", "jishi_wasm.wasm"):
+            assert 记号 not in 文, f"{名} 的页面里还有启动逻辑「{记号}」（应当在 游戏启动.js）"
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +244,7 @@ def 玩过(tmp_path_factory):
     d = tmp_path_factory.mktemp("m188")
     脚本 = d / "play.js"
     脚本.write_text(_JS, encoding="utf-8", newline="\n")
-    r = subprocess.run(["node", str(脚本), str(SHIM), str(WASM), str(游戏源)],
+    r = subprocess.run(["node", str(脚本), str(SHIM), str(WASM), str(砖_本体)],
                        capture_output=True, timeout=300)
     assert r.returncode == 0, (r.stdout + r.stderr).decode("utf-8", "replace")[-1200:]
     return json.loads(r.stdout.decode("utf-8").strip().splitlines()[-1])
@@ -270,7 +299,230 @@ def test_结束之后按空格能重开(玩过):
 
 
 # ---------------------------------------------------------------------------
-# 三、真窗口里跑一遍（CI 上是空白，见 CHANGELOG）
+# 三、贪吃蛇：纯网格逻辑（没有浮点物理，出事一定不赖碰撞）
+# ---------------------------------------------------------------------------
+
+_JS_蛇 = r'''
+const fs = require("fs");
+const JishiWasm = require(process.argv[2]);
+const BYTES = fs.readFileSync(process.argv[3]);
+const SRC = fs.readFileSync(process.argv[4], "utf8");
+
+// ---- 假 canvas ----
+const 记账 = { 清屏: 0, 矩形: 0, 线: 0, 圆: 0, 每帧矩形: [], 文本: [] };
+function ctx() {
+  const c = { fillStyle: "", strokeStyle: "", lineWidth: 1, font: "",
+              textAlign: "left", globalAlpha: 1 };
+  const 无 = () => {};
+  for (const m of ["save", "restore", "setTransform", "translate", "rotate", "scale",
+    "beginPath", "closePath", "moveTo", "lineTo", "fill", "stroke", "clearRect",
+    "strokeRect", "ellipse", "drawImage", "arc", "fillText", "measureText", "getImageData"]) c[m] = 无;
+  c.measureText = () => ({ width: 8 });
+  c.getImageData = () => ({ data: [0, 0, 0, 255] });
+  c.fillRect = (x, y, w, h) => {
+    if (x === 0 && y === 0 && w === 480 && h === 480) 记账.清屏 += 1;
+    else 记账.矩形 += 1;
+  };
+  c.roundRect = () => { 记账.矩形 += 1; };
+  c.lineTo = () => { 记账.线 += 1; };       // 网格线走 moveTo + lineTo
+  c.arc = () => { 记账.圆 += 1; };
+  c.fillText = (t) => 记账.文本.push(String(t));
+  return c;
+}
+const cv = { width: 480, height: 480, style: {}, clientWidth: 480, clientHeight: 480,
+             getContext: () => ctx() };
+const doc = { querySelector: (s) => (s === "#画布" ? cv : null), createElement: () => cv,
+              body: { appendChild: () => {} }, title: "" };
+
+const kv = new Map();
+const store = { getItem: (k) => (kv.has(k) ? kv.get(k) : null),
+                setItem: (k, v) => kv.set(k, String(v)),
+                removeItem: (k) => kv.delete(k) };
+
+let 放了 = 0;
+const 监听 = {};
+global.addEventListener = (ev, fn) => { (监听[ev] = 监听[ev] || []).push(fn); };
+function 派发(ev, 事件) { for (const fn of (监听[ev] || [])) fn(事件); }
+class 假上下文 {
+  constructor() { this.state = "running"; this.destination = {}; }
+  resume() { return Promise.resolve(); }
+  createGain() { return { gain: { value: 1 }, connect() {} }; }
+  createBufferSource() {
+    const 源 = { buffer: null, loop: false, playbackRate: { value: 1 }, onended: null,
+      connect() {}, start() { 放了 += 1; },
+      stop() { const f = 源.onended; 源.onended = null; if (f) f(); } };
+    return 源;
+  }
+  decodeAudioData(ab, 好) { setTimeout(() => 好({ ok: 1 }), 0); }
+}
+global.AudioContext = 假上下文;
+global.fetch = () => Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) });
+
+(async () => {
+  const j = await JishiWasm.load(BYTES, { doc, store, raf: () => 0 });
+  const r = j.run(SRC);
+  if (!r.ok) { console.error(JSON.stringify(r.error)); process.exit(2); }
+  const 出 = { ok: r.ok, 帧中: j.framesActive() };
+  await new Promise((r) => setTimeout(r, 30));
+
+  // 第 1 帧：3 节蛇 + 食物（圆）+ 网格线
+  j.frame(16);
+  出.首帧矩形 = 记账.矩形;
+  出.首帧圆 = 记账.圆;
+  出.首帧线 = 记账.线;
+  出.第一帧文本 = 记账.文本.slice(-3);
+
+  // 不按任何键：蛇本来就朝右 —— 会先吃到正前方 4 格那颗，然后一路撞到右墙
+  let 帧 = 1;
+  while (帧 < 600) {
+    帧 += 1;
+    j.frame(帧 * 16);
+    记账.每帧矩形.push(记账.矩形);
+    if (记账.文本.some((t) => t.startsWith("撞上了"))) break;
+  }
+  出.帧数 = 帧;
+  出.最长蛇 = Math.max(...记账.每帧矩形);   // 一帧里画了几个矩形 = 蛇几节
+  出.矩形总数 = 记账.矩形;
+  出.分数们 = 记账.文本.filter((t) => t.startsWith("分数 "));
+  出.结束 = 记账.文本.filter((t) => t.startsWith("撞上了")).slice(-1);
+  出.放了 = 放了;
+  出.存档 = Object.fromEntries([...kv.entries()]);
+  // 空格重开
+  记账.文本.length = 0;
+  派发("keydown", { key: " ", preventDefault() {} });
+  j.frame(帧 * 16 + 16);
+  出.重开后 = 记账.文本.slice(-4);
+  出.帧错 = j._帧错 == null ? null : String(j._帧错);
+  console.log(JSON.stringify(出));
+})().catch((e) => { console.error(String(e && e.stack || e)); process.exit(1); });
+'''
+
+
+@pytest.fixture(scope="module")
+def 蛇跑过(tmp_path_factory):
+    if shutil.which("node") is None:
+        pytest.skip("没有 node")
+    if not WASM.is_file():
+        pytest.skip("没构建 wasm（跑 python tools/build_wasm.py）")
+    d = tmp_path_factory.mktemp("m188s")
+    脚本 = d / "snake.js"
+    脚本.write_text(_JS_蛇, encoding="utf-8", newline="\n")
+    r = subprocess.run(["node", str(脚本), str(SHIM), str(WASM), str(游戏们[1][2])],
+                       capture_output=True, timeout=300)
+    assert r.returncode == 0, (r.stdout + r.stderr).decode("utf-8", "replace")[-1200:]
+    return json.loads(r.stdout.decode("utf-8").strip().splitlines()[-1])
+
+
+def test_贪吃蛇帧循环在跑_第一帧画了3节蛇(蛇跑过):
+    assert 蛇跑过["ok"]
+    assert 蛇跑过["帧中"], "`图形.运行` 之后帧循环没在跑"
+    assert 蛇跑过["首帧矩形"] == 3, f"开局应当是 3 节蛇，实际 {蛇跑过['首帧矩形']} 个矩形"
+    assert 蛇跑过["首帧圆"] == 1, "食物没画出来"
+    assert 蛇跑过["首帧线"] >= 19, f"网格线没画够：{蛇跑过['首帧线']}"
+    assert any("分数" in t for t in 蛇跑过["第一帧文本"]), 蛇跑过["第一帧文本"]
+
+
+def test_贪吃蛇吃到会长一节(蛇跑过):
+    """吃到那颗之后蛇从 3 节变 4 节 —— 「分数变了」不等于「蛇长了」。"""
+    assert 蛇跑过["最长蛇"] >= 4, f"蛇没变长（最多 {蛇跑过['最长蛇']} 节）"
+    分 = [int(t.split(" ")[1]) for t in 蛇跑过["分数们"] if t.split(" ")[1].isdigit()]
+    assert max(分) >= 10, f"吃到了却没加分：{max(分)}"
+
+
+def test_贪吃蛇撞墙判负_最高分进存档(蛇跑过):
+    """🔴 闭环：一路朝右 → 撞墙 → 判负 → 存档。食物位置固定在前方，
+    所以这条是**确定性的**（不靠随机数运气）。"""
+    assert 蛇跑过["结束"], f"没撞到墙：跑了 {蛇跑过['帧数']} 帧还在玩"
+    存档 = 蛇跑过["存档"]
+    键 = "基石存档/贪吃蛇最高分"
+    assert 键 in 存档, f"没存最高分：{list(存档)}"
+    assert json.loads(存档[键])["值"] == 10, f"存进去的值不对：{存档[键]}"
+
+
+def test_贪吃蛇按空格重开(蛇跑过):
+    重开 = 蛇跑过["重开后"]
+    assert any("分数 0" in t for t in 重开), f"按空格之后没重开：{重开}"
+    assert not any(t.startswith("撞上了") for t in 重开), f"还停在结束页：{重开}"
+
+
+# ---------------------------------------------------------------------------
+# 四、wasm 里的随机数（M188 撞出来的一颗大雷，单独钉一条）
+# ---------------------------------------------------------------------------
+
+_JS_随机 = r'''
+const fs = require("fs");
+const JishiWasm = require(process.argv[2]);
+const BYTES = fs.readFileSync(process.argv[3]);
+function ctx() {
+  const c = {}; const 无 = () => {};
+  for (const m of ["save", "restore", "setTransform", "translate", "rotate", "scale",
+    "beginPath", "closePath", "moveTo", "lineTo", "fill", "stroke", "clearRect",
+    "strokeRect", "ellipse", "drawImage", "fillRect", "roundRect", "arc", "fillText"]) c[m] = 无;
+  c.measureText = () => ({ width: 8 });
+  c.getImageData = () => ({ data: [0, 0, 0, 255] });
+  return c;
+}
+const cv = { width: 200, height: 200, style: {}, clientWidth: 200, clientHeight: 200, getContext: ctx };
+const doc = { querySelector: () => cv, createElement: () => cv, body: { appendChild: () => {} } };
+
+const SRC = `导入 随机
+令 计数 = {"各": {}}
+令 序 = []
+循环 30 次：
+    令 v = 随机.随机整数(1, 6)
+    序.追加(v)
+    如果 v < 1 或 v > 6：
+        打印("越界 ", v)
+    如果 v 在 计数["各"]：
+        计数["各"][v] = 计数["各"][v] + 1
+    否则：
+        计数["各"][v] = 1
+打印("种数 ", 长度(计数["各"]))
+打印("序 ", 序)
+`;
+
+(async () => {
+  const 结果 = [];
+  for (let i = 0; i < 2; i++) {
+    const j = await JishiWasm.load(BYTES, { doc, store: null, raf: () => 0 });
+    const r = j.run(SRC);
+    if (!r.ok) { console.error("ERR " + JSON.stringify(r.error)); process.exit(2); }
+    结果.push(r.stdout.trim());
+  }
+  console.log(JSON.stringify({ 结果 }));
+})().catch((e) => { console.error(String(e && e.stack || e)); process.exit(1); });
+'''
+
+
+def test_wasm里随机数能用_不再炸引擎(tmp_path):
+    """🔴 `wasm32-unknown-unknown` **没有时钟** —— `SystemTime::now()` 在那边是
+    **直接 panic**。所以 `随机` 模块曾经在浏览器 / 窗口里**一调就炸**，
+    而且报的是 `RuntimeError: unreachable`（看不出跟随机数有关）。
+
+    修法：shim 加载时用 `Math.random()` 喂一颗种子（`jishi_seed` 导出）。
+    这条判据同时钉三件事：不炸、不越界、两次加载的序列不一样。
+    """
+    if shutil.which("node") is None:
+        pytest.skip("没有 node")
+    if not WASM.is_file():
+        pytest.skip("没构建 wasm（跑 python tools/build_wasm.py）")
+    脚本 = tmp_path / "rand.js"
+    脚本.write_text(_JS_随机, encoding="utf-8", newline="\n")
+    r = subprocess.run(["node", str(脚本), str(SHIM), str(WASM)],
+                       capture_output=True, timeout=120)
+    出 = (r.stdout + r.stderr).decode("utf-8", "replace")
+    assert r.returncode == 0, 出[-1200:]
+    两次 = json.loads(出.strip().splitlines()[-1])["结果"]
+    for 文 in 两次:
+        assert "越界" not in 文, f"随机整数越界了：{文}"
+        种数 = int(文.split("种数 ")[1].split("\n")[0])
+        assert 种数 >= 3, f"30 次只出了 {种数} 种（随机数退化了？）"
+    序们 = [文.split("序 ")[1].strip() for 文 in 两次]
+    assert 序们[0] != 序们[1], f"两次加载的序列一模一样 —— 种子没接上：{序们[0]}"
+
+
+# ---------------------------------------------------------------------------
+# 五、真窗口里跑一遍（CI 上是空白，见 CHANGELOG）
 # ---------------------------------------------------------------------------
 
 _无界面 = os.environ.get("JISHI_NO_GUI") == "1"
@@ -317,7 +569,7 @@ def test_打砖块在真窗口里跑起来(tmp_path):
     日志 = tmp_path / "窗口.log"
     env = {**os.environ, "JISHI_WINDOW_DEBUG": "1"}
     with open(日志, "w", encoding="utf-8") as f:
-        进程 = subprocess.Popen([str(exe), str(入口)], cwd=str(例子),
+        进程 = subprocess.Popen([str(exe), str(砖_入口)], cwd=str(例子),
                                 stdout=f, stderr=subprocess.STDOUT, env=env)
     try:
         u = _win32()

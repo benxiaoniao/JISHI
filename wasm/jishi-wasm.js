@@ -1007,6 +1007,15 @@
             "wasm 与 shim 对不上：shim 要 ABI " + ABI_VERSION + "，拿到 " + v +
             "。跑 `python tools/build_wasm.py` 重新构建。");
         }
+        // M188：给「随机」模块一个种子。
+        // 🔴 wasm 里**没有时钟** —— `SystemTime::now()` 在 wasm32-unknown-unknown 上
+        //    是**直接 panic**（不是返回 0），`随机.随机整数` 一调就把引擎炸了。
+        //    `Math.random()` 是这里唯一现成的熵，加载时喂一个进去。
+        if (typeof inst._ex.jishi_seed === "function") {
+          inst._ex.jishi_seed(
+            Math.floor(Math.random() * 4294967296) * 4294967296
+            + Math.floor(Math.random() * 4294967296));
+        }
         return inst;
       });
     },

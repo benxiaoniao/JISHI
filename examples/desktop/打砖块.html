@@ -7,8 +7,8 @@
 <!--
   M188 的交付物：**一个能玩的游戏**。
 
-  页面只负责「一块画布 + 一件事：把 打砖块_游戏.jsh 交给 wasm 引擎跑」。
-  游戏逻辑一个字节都不在这里 —— 全在隔壁那份 `打砖块_游戏.jsh` 里。
+  页面只负责「一块画布 + 一句 `data-游戏`」。启动逻辑在 `游戏启动.js`（三个示例共用），
+  游戏逻辑一个字节都不在这里 —— 全在 `打砖块_游戏.jsh`。
 
   为什么源码要 fetch，而不是内联进 `<script>`：
     ① 窗口里与官网试玩页用的是**同一份**源码，抄成两份必然漂；
@@ -45,75 +45,11 @@
   }
 </style>
 </head>
-<body>
+<body data-游戏="打砖块_游戏.jsh" data-标题="打砖块">
   <canvas id="画布"></canvas>
   <div id="提示"></div>
   <div id="底注">鼠标移动挡板 · <kbd>←</kbd> <kbd>→</kbd> 也行 · 结束之后按 <kbd>空格</kbd> 重开 ·
     <span title="浏览器规定：用户动手之前不许出声">点一下画面才有声音</span></div>
-
-<script>
-// 给原生窗口（wry）报一句进度：宿主在 JISHI_WINDOW_DEBUG=1 下会打日志，
-// 判据就能区分「页面没跑」和「引擎没起来」这两种失败。
-function 报给宿主(什么) {
-  if (window.ipc && window.ipc.postMessage) {
-    window.ipc.postMessage(JSON.stringify({ op: 什么 }));
-  }
-}
-
-/**
- * 载入引擎。两代宿主两个路径：
- *   · 原生窗口 / 应用模式窗口：`/__jishi/…`（`窗口.打开` 起的服务挂的挂载点）
- *   · 官网静态站：与页面同级
- * 连 **wasm 也要跟着同一个前缀** —— 窗口里页面目录下没有 jishi_wasm.wasm，
- * 它只挂在 `/__jishi/` 上（写成相对路径就是 404 白页面，M173 踩过）。
- */
-async function 载引擎() {
-  const 候选 = [
-    { 胶水: "/__jishi/jishi-wasm.js", 引擎: "/__jishi/jishi_wasm.wasm" },
-    // ⚠️ 必须是 `./`：不带 `./` 的模块名会被当成**裸模块名**（要 importmap），
-    //    浏览器直接报 `Failed to resolve module specifier`（M188 截图验的时候踩到）。
-    //    `window.location` 是 http，不是 file:// —— 这条只在静态站上走到了。
-    { 胶水: "./jishi-wasm.js", 引擎: "./jishi_wasm.wasm" },
-  ];
-  let 最后错 = null;
-  for (const 套 of 候选) {
-    try {
-      const m = await import(套.胶水);
-      const J = m.default || m.JishiWasm || window.JishiWasm;
-      if (J) return { J, 引擎路径: 套.引擎 };
-    } catch (e) { 最后错 = e; }
-  }
-  throw 最后错 || new Error("找不到 jishi-wasm.js");
-}
-
-(async () => {
-  const 提示 = document.getElementById("提示");
-  const 显示错误 = (文) => {
-    提示.style.display = "block";
-    提示.textContent = 文;
-  };
-  报给宿主("页面已加载");
-  try {
-    const { J, 引擎路径 } = await 载引擎();
-    const 引擎 = await J.load(引擎路径);
-    const 源码 = await (await fetch("打砖块_游戏.jsh")).text();
-    const r = 引擎.run(源码);
-    if (!r.ok) {
-      报给宿主("引擎失败");
-      const e = r.error || {};
-      显示错误("基石报错：" + (e.title || "出错") + " —— " + (e.message || "")
-        + (e.line ? "（第 " + e.line + " 行）" : "")
-        + (e.hint ? "\n" + e.hint : ""));
-      return;
-    }
-    报给宿主("引擎就绪");
-  } catch (e) {
-    报给宿主("引擎失败");
-    显示错误("加载失败：" + ((e && e.message) || e)
-      + "\n要从 `jishi examples/desktop/打砖块.jsh` 打开（它自带一个本机小服务），"
-      + "或者把它放在站点上；直接双击 .html 是不行的。");
-  }
-})();
-</script>
+  <script src="游戏启动.js"></script>
 </body>
 </html>

@@ -371,3 +371,17 @@ fn fail_json(title: &str, detail: &str) -> String {
 pub extern "C" fn jishi_version() -> i32 {
     ABI_VERSION
 }
+
+/// 宿主塞一个随机种子进来（M188）。
+///
+/// 🔴 **为什么非要有这个导出**：`wasm32-unknown-unknown` **没有时钟**，
+/// `SystemTime::now()` 在那边是**直接 panic**（不是返回 0）——
+/// 于是 `随机` 模块在浏览器 / 窗口里**一调就把引擎炸了**。
+/// M188 写贪吃蛇时，第一颗食物还没放下就 `RuntimeError: unreachable`。
+///
+/// JS 那边有现成的 `Math.random()`，加载时喂一个过来最省事
+/// （原生宿主不需要，那边有时钟）。
+#[no_mangle]
+pub extern "C" fn jishi_seed(v: f64) {
+    jishi_ffi::stdlib::rand::设种子(v as u64);
+}

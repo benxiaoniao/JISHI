@@ -9,13 +9,57 @@
 
 use crate::BuiltinHost;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{as_intish, as_num, as_text, need, need_range, table, to_vec, R};
 use crate::{display, err, Val};
 
 static STATE: OnceLock<Mutex<u64>> = OnceLock::new();
+
+/// 宿主塞进来的种子（`0` = 还没塞）。见 `设种子`。
+static 宿主给的种子: AtomicU64 = AtomicU64::new(0);
+
+/// 让宿主指定种子（M188）。
+///
+/// 🔴 **为什么需要**：`wasm32-unknown-unknown` **没有时钟** ——
+/// `SystemTime::now()` 在那边不是「返回 0」而是**直接 panic**
+/// （`std::time` 在无 OS 的目标上就是 `unimplemented!`）。
+/// 于是 `随机` 模块在浏览器里**一调就崩整个引擎**：
+/// M188 写贪吃蛇时第一颗食物都还没放就 `RuntimeError: unreachable`。
+///
+/// 修法：JS 那边有现成的 `Math.random()`，引擎加载时喂一个进来。
+/// 原生宿主不用它（那边时钟好好的）。
+pub fn 设种子(值: u64) {
+    宿主给的种子.store(值 | 1, Ordering::Relaxed);
+}
+
+/// 种子：宿主给的优先；没有就退回「时钟 + 地址 + 计数」。
+fn 种子() -> u64 {
+    let 给的 = 宿主给的种子.load(Ordering::Relaxed);
+    if 给的 != 0 {
+        return 给的;
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0x9E37_79B9_7F4A_7C15)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        // 走到这儿说明宿主没塞种子（老页面 / 忘了调）：
+        // **不能碰时钟**，只能用「栈地址 + 进程内计数」。质量弱，
+        // 但比 panic 好 —— 而且正常路径上 shim 一定会塞。
+        use std::sync::atomic::AtomicU64 as A;
+        static 计: A = A::new(0);
+        let n = 计.fetch_add(1, Ordering::Relaxed);
+        let 址 = &计 as *const A as u64;
+        址.rotate_left(17) ^ n.wrapping_mul(0x9E37_79B9_7F4A_7C15)
+    }
+}
 
 /// 取一个 64 位随机数。
 ///
@@ -23,14 +67,7 @@ static STATE: OnceLock<Mutex<u64>> = OnceLock::new();
 /// 发生器，全项目只有这里一个实现——别再各写一个（那样两处的质量与种子
 /// 策略会漂开）。
 pub(crate) fn next_u64() -> u64 {
-    let slot = STATE.get_or_init(|| {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_nanos() as u64)
-            .unwrap_or(0x9E37_79B9_7F4A_7C15);
-        // 0 是 xorshift 的不动点，必须避开
-        Mutex::new(nanos | 1)
-    });
+    let slot = STATE.get_or_init(|| Mutex::new(种子() | 1));
     let mut s = slot.lock().unwrap_or_else(|e| e.into_inner());
     let mut x = *s;
     x ^= x >> 12;
