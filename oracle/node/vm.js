@@ -7232,6 +7232,297 @@ const CLIPBOARD_FUNCS = {
   }),
 };
 
+
+// ---------------------------------------------------------------------------
+// M187：游戏工具箱（声音 / 精灵 / 瓦片 / 地图 / 存档 / 场景）
+//
+// 与 Rust / Python 三份实现逐字对齐（键名、报错口径、动画推进规则）。
+// 字典在 JS 里是 `Map`（见 runtime.js 的 buildDict），列表是数组。
+// ---------------------------------------------------------------------------
+
+const SOUND_无 = '这个平台没有声音：「声音」模块只在网页 / 窗口里有'
+  + '（命令行和 Node 上没有音频输出）。';
+function _noSound(name) {
+  return new R.Builtin(name, () => { throw R.runErr(SOUND_无, 0, 0); });
+}
+const SOUND_FUNCS = {
+  '载入': _noSound('载入'), '播放': _noSound('播放'), '停止': _noSound('停止'),
+  '在放': _noSound('在放'), '设音量': _noSound('设音量'), '主音量': _noSound('主音量'),
+};
+
+const SAVE_无 = '这个平台没有存档：「存档」要页面的 localStorage'
+  + '（命令行和 Node 上没有）。';
+function _noSave(name) {
+  return new R.Builtin(name, () => {
+    throw R.runErr(SAVE_无, 0, 0, '在页面 / 窗口里跑，或者自己用「文件」模块存成 JSON');
+  });
+}
+const SAVE_FUNCS = {
+  '存': _noSave('存'), '读': _noSave('读'), '删': _noSave('删'), '清': _noSave('清'),
+};
+
+/** 收字典（基石的字典在 JS 里是 Map）。 */
+function _要字典(v, 名, 参) {
+  if (!(v instanceof Map)) throw R.typeErr(`「${名}」的「${参}」要字典`, 0, 0);
+  return v;
+}
+function _要数(v, 名, 参) {
+  const x = R.unwrap(v);
+  if (typeof x !== 'number' || typeof x === 'boolean') {
+    throw R.typeErr(`「${名}」的「${参}」要数字，给的是${R.typeName(v)}`, 0, 0);
+  }
+  return x;
+}
+/** 数字 → **小数**（与 Python 侧 `float(v)` / Rust 侧 `Val::Float` 对齐：
+ *  `打印` 上 `32.0` 和 `32` 不是一回事，所以存的字段要标出「这是小数」）。 */
+function _小(x) { return new R.FloatBox(x); }
+function _缺(键, 谁) {
+  throw R.valueErr(`「${谁}」要的字典里缺「${键}」`, 0, 0);
+}
+
+const SPRITE_FUNCS = {
+  // 新建(图, {"宽","高","列数"?,"行数"?})
+  '新建': new R.Builtin('新建', (图, 选项) => {
+    const o = _要字典(选项, '新建', '选项');
+    const 宽 = o.has('宽') ? _要数(o.get('宽'), '新建', '宽') : _缺('宽', '新建');
+    const 高 = o.has('高') ? _要数(o.get('高'), '新建', '高') : _缺('高', '新建');
+    if (宽 <= 0 || 高 <= 0) throw R.valueErr('「精灵.新建」的宽高必须大于 0', 0, 0);
+    const m = new Map();
+    m.set('图', 图); m.set('帧宽', _小(宽)); m.set('帧高', _小(高));
+    m.set('列数', Math.max(1, o.has('列数') ? Math.trunc(_要数(o.get('列数'), '新建', '列数')) : 1));
+    m.set('行数', Math.max(1, o.has('行数') ? Math.trunc(_要数(o.get('行数'), '新建', '行数')) : 1));
+    m.set('当前', 0); m.set('在播', ''); m.set('累计', _小(0)); m.set('动画', new Map());
+    return m;
+  }),
+  // 播(精灵, 名, {"帧们"?,"速度"?,"循环"?})
+  '播': new R.Builtin('播', (精灵, 名, 选项) => {
+    const d = _要字典(精灵, '播', '精灵');
+    const o = 选项 === undefined || 选项 === null
+      ? new Map() : _要字典(选项, '播', '选项');
+    let 帧们 = Array.isArray(o.get('帧们')) ? o.get('帧们').map((x) => Math.trunc(_要数(x, '播', '帧们'))) : [];
+    const 速度 = o.has('速度') ? _要数(o.get('速度'), '播', '速度') : 12;
+    if (速度 <= 0) throw R.valueErr('「播」的速度必须大于 0（单位：帧/秒）', 0, 0);
+    if (!帧们.length) {
+      const n = Math.max(1, d.get('列数') * d.get('行数'));
+      帧们 = Array.from({ length: n }, (_, i) => i);
+    }
+    const 项 = new Map();
+    项.set('帧们', 帧们); 项.set('速度', _小(速度)); 项.set('循环', o.has('循环') ? !!o.get('循环') : true);
+    d.get('动画').set(名, 项);
+    d.set('在播', 名); d.set('累计', _小(0)); d.set('当前', 帧们[0]);
+    return 精灵;
+  }),
+  '停': new R.Builtin('停', (精灵) => {
+    _要字典(精灵, '停', '精灵').set('在播', '');
+    return true;
+  }),
+  '设帧': new R.Builtin('设帧', (精灵, 号) => {
+    _要字典(精灵, '设帧', '精灵').set('当前', Math.trunc(_要数(号, '设帧', '号')));
+    return true;
+  }),
+  // 更新(精灵, 间隔毫秒)
+  '更新': new R.Builtin('更新', (精灵, 间隔毫秒) => {
+    const d = _要字典(精灵, '更新', '精灵');
+    const 间隔 = _要数(间隔毫秒, '更新', '间隔');
+    const 名 = d.get('在播') || '';
+    if (!名 || 间隔 <= 0) return false;
+    const 项 = d.get('动画').get(名);
+    if (!项 || !项.get('帧们').length || R.unwrap(项.get('速度')) <= 0) return false;
+    const 每帧 = 1000 / R.unwrap(项.get('速度'));
+    const 帧们 = 项.get('帧们');
+    d.set('累计', _小(R.unwrap(d.get('累计') || 0) + 间隔));
+    let 位 = Math.max(0, 帧们.indexOf(d.get('当前')));
+    let 变 = false, 次 = 0;
+    while (R.unwrap(d.get('累计')) >= 每帧 && 次 < 1000) {
+      d.set('累计', _小(R.unwrap(d.get('累计')) - 每帧));
+      次 += 1;
+      if (位 + 1 < 帧们.length) 位 += 1;
+      else if (项.get('循环')) 位 = 0;
+      else { d.set('累计', _小(0)); break; }
+      d.set('当前', 帧们[位]);
+      变 = true;
+    }
+    return 变;
+  }),
+  // 画(精灵, x, y, 选项?) —— 落到 `图形.画子图`
+  '画': new R.Builtin('画', (精灵, x, y, 选项) => {
+    const d = _要字典(精灵, '画', '精灵');
+    const 帧宽 = R.unwrap(d.get('帧宽')), 帧高 = R.unwrap(d.get('帧高'));
+    const 列数 = d.get('列数') || 1;
+    const 当前 = d.get('当前');
+    const 列 = ((当前 % 列数) + 列数) % 列数;
+    const 行 = Math.floor(当前 / 列数);
+    const 绘图 = STDLIB['图形'].attrs;
+    return 绘图['画子图'].fn(d.get('图'), 列 * 帧宽, 行 * 帧高, 帧宽, 帧高,
+      _要数(x, '画', 'x'), _要数(y, '画', 'y'), 帧宽, 帧高,
+      选项 === undefined ? null : 选项);
+  }),
+  '当前帧': new R.Builtin('当前帧', (精灵) => _要字典(精灵, '当前帧', '精灵').get('当前')),
+};
+
+/** 二维整数列表 → 数组的数组（`空` 当 -1）。 */
+function _要二维(v, 名) {
+  if (!Array.isArray(v)) throw R.typeErr(`「${名}」的「行们」要二维列表，给的是${R.typeName(v)}`, 0, 0);
+  return v.map((r, i) => {
+    if (!Array.isArray(r)) throw R.valueErr(`「${名}」的「行们」第 ${i + 1} 行不是列表`, 0, 0);
+    return r.map((c) => {
+      if (c === null || c === undefined) return -1;
+      const x = R.unwrap(c);
+      if (typeof x !== 'number' || !Number.isInteger(x)) {
+        throw R.valueErr(`「${名}」的「行们」第 ${i + 1} 行里有非整数：${R.display(c)}`, 0, 0);
+      }
+      return x;
+    });
+  });
+}
+
+const TILE_FUNCS = {
+  '载入': new R.Builtin('载入', (选项) => {
+    const o = _要字典(选项, '载入', '选项');
+    for (const 键 of ['图集', '瓦片宽', '瓦片高']) {
+      if (!o.has(键)) throw R.valueErr(`「瓦片.载入」的选项里缺「${键}」`, 0, 0);
+    }
+    const 宽 = _要数(o.get('瓦片宽'), '载入', '瓦片宽');
+    const 高 = _要数(o.get('瓦片高'), '载入', '瓦片高');
+    if (宽 <= 0 || 高 <= 0) throw R.valueErr('「瓦片.载入」的瓦片宽高必须大于 0', 0, 0);
+    const 行们 = o.has('行们') ? _要二维(o.get('行们'), '载入') : [];
+    const m = new Map();
+    m.set('图集', o.get('图集')); m.set('瓦片宽', _小(宽)); m.set('瓦片高', _小(高));
+    m.set('行们', 行们);
+    m.set('列数', 行们.reduce((a, r) => Math.max(a, r.length), 0));
+    m.set('行数', 行们.length);
+    return m;
+  }),
+  '画': new R.Builtin('画', (瓦片图, 相机) => {
+    const d = _要字典(瓦片图, '画', '瓦片图');
+    const 宽 = R.unwrap(d.get('瓦片宽')), 高 = R.unwrap(d.get('瓦片高'));
+    const 列数 = Math.max(1, d.get('列数'));
+    const c = 相机 === undefined || 相机 === null ? new Map() : _要字典(相机, '画', '相机');
+    const vx = c.has('x') ? _要数(c.get('x'), '画', 'x') : 0;
+    const vy = c.has('y') ? _要数(c.get('y'), '画', 'y') : 0;
+    const vw = c.has('宽') ? _要数(c.get('宽'), '画', '宽') : Infinity;
+    const vh = c.has('高') ? _要数(c.get('高'), '画', '高') : Infinity;
+    const 画子图 = STDLIB['图形'].attrs['画子图'].fn;
+    let 画了 = 0;
+    d.get('行们').forEach((行, r) => 行.forEach((号, col) => {
+      if (号 < 0) return;
+      const x = col * 宽, y = r * 高;
+      if (x + 宽 < vx || x > vx + vw || y + 高 < vy || y > vy + vh) return;
+      画子图(d.get('图集'), (号 % 列数) * 宽, Math.floor(号 / 列数) * 高, 宽, 高,
+        x, y, 宽, 高, null);
+      画了 += 1;
+    }));
+    return 画了;
+  }),
+  '碰': new R.Builtin('碰', (瓦片图, 矩形) => {
+    const d = _要字典(瓦片图, '碰', '瓦片图');
+    const 宽 = R.unwrap(d.get('瓦片宽')), 高 = R.unwrap(d.get('瓦片高'));
+    const b = _要字典(矩形, '碰', '矩形');
+    for (const 键 of ['x', 'y', '宽', '高']) if (!b.has(键)) _缺(键, '瓦片.碰');
+    const bx = _要数(b.get('x'), '碰', 'x'), by = _要数(b.get('y'), '碰', 'y');
+    const bw = _要数(b.get('宽'), '碰', '宽'), bh = _要数(b.get('高'), '碰', '高');
+    const c0 = Math.max(0, Math.floor(bx / 宽)), c1 = Math.max(0, Math.floor((bx + bw) / 宽));
+    const r0 = Math.max(0, Math.floor(by / 高)), r1 = Math.max(0, Math.floor((by + bh) / 高));
+    const 行们 = d.get('行们');
+    const 中 = new Set();
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        const 行 = 行们[r];
+        if (行 && c < 行.length && 行[c] >= 0) 中.add(行[c]);
+      }
+    }
+    return [...中].sort((a, b2) => a - b2);
+  }),
+  '取': new R.Builtin('取', (瓦片图, 列, 行) => {
+    const d = _要字典(瓦片图, '取', '瓦片图');
+    const c = Math.trunc(_要数(列, '取', '列'));
+    const r = Math.trunc(_要数(行, '取', '行'));
+    const 行们 = d.get('行们');
+    if (r < 0 || r >= 行们.length) return -1;
+    if (c < 0 || c >= 行们[r].length) return -1;
+    return 行们[r][c];
+  }),
+};
+
+const MAP_FUNCS = {
+  '读': new R.Builtin('读', (路径或字典) => {
+    const fs = require('fs');
+    let d;
+    if (路径或字典 instanceof Map) d = 路径或字典;
+    else if (typeof 路径或字典 === 'string') {
+      let 文;
+      try { 文 = fs.readFileSync(路径或字典, 'utf8'); }
+      catch (e) {
+        throw R.runErr(`读不了地图「${路径或字典}」：${e.message}`, 0, 0,
+          '路径相对于**当前工作目录**；页面里没有文件系统，请直接传字典');
+      }
+      try { d = JSON.parse(文); } catch (e) { throw R.valueErr(`地图「${路径或字典}」不是合法 JSON`, 0, 0); }
+      d = _json到值(d);
+    } else {
+      throw R.typeErr(`「地图.读」要路径或字典，给的是${R.typeName(路径或字典)}`, 0, 0);
+    }
+    if (!(d instanceof Map)) throw R.typeErr(`「地图」的内容要字典，给的是${R.typeName(d)}`, 0, 0);
+    for (const 键 of ['瓦片宽', '瓦片高']) if (!d.has(键)) _缺(键, '地图');
+    if (!Array.isArray(d.get('层们'))) throw R.valueErr('地图里缺「层们」（应当是列表）', 0, 0);
+    const m = new Map();
+    m.set('瓦片宽', d.get('瓦片宽')); m.set('瓦片高', d.get('瓦片高'));
+    m.set('图集', d.has('图集') ? d.get('图集') : null);
+    m.set('层们', d.get('层们'));
+    return m;
+  }),
+  '层': new R.Builtin('层', (地图, 名) => {
+    const d = _要字典(地图, '层', '地图');
+    const 键 = R.pyStr(名);
+    for (const l of d.get('层们') || []) {
+      if (l instanceof Map && l.get('名') === 键) return l;
+    }
+    return null;
+  }),
+};
+
+/** JSON 解析结果 → 基石的值（对象 → Map，数组 → 数组）。 */
+function _json到值(x) {
+  if (Array.isArray(x)) return x.map(_json到值);
+  if (x && typeof x === 'object') {
+    const m = new Map();
+    for (const k of Object.keys(x)) m.set(k, _json到值(x[k]));
+    return m;
+  }
+  return x;
+}
+
+// 场景：登记表 + 当前名（模块级，与 Python 侧同形）
+const _场景们 = new Map();
+let _现在场景 = '';
+const SCENE_FUNCS = {
+  '定': new R.Builtin('定', (名, 选项) => {
+    const 键 = R.pyStr(名);
+    const o = _要字典(选项, '定', '选项');
+    for (const k of ['初始化', '每帧']) {
+      const v = o.get(k);
+      if (v !== undefined && v !== null) R.ensureCallable(v, `场景.定.${k}`, 0, 0);
+    }
+    const m = new Map();
+    m.set('初始化', o.has('初始化') ? o.get('初始化') : null);
+    m.set('每帧', o.has('每帧') ? o.get('每帧') : null);
+    _场景们.set(键, m);
+    return true;
+  }),
+  '切': new R.Builtin('切', (名) => {
+    const 键 = R.pyStr(名);
+    if (!_场景们.has(键)) {
+      throw R.valueErr(`没有叫「${键}」的场景`, 0, 0,
+        '先 `场景.定("名字", {"初始化": 某函数})` 再切');
+    }
+    if (_现在场景 === 键) return false;
+    _现在场景 = 键;
+    const 初 = _场景们.get(键).get('初始化');
+    if (初) R.callValue(初, []);
+    return true;
+  }),
+  '现在': new R.Builtin('现在', () => _现在场景),
+};
+
 const STDLIB = {  '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
     '平方': new R.Builtin('平方', (x) => x * x),
@@ -7572,6 +7863,13 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '窗口': new R.Module('窗口', WINDOW_FUNCS),
   // M186
   '图形': new R.Module('图形', GRAPHICS_FUNCS),
+  // M187
+  '声音': new R.Module('声音', SOUND_FUNCS),
+  '精灵': new R.Module('精灵', SPRITE_FUNCS),
+  '瓦片': new R.Module('瓦片', TILE_FUNCS),
+  '地图': new R.Module('地图', MAP_FUNCS),
+  '存档': new R.Module('存档', SAVE_FUNCS),
+  '场景': new R.Module('场景', SCENE_FUNCS),
   // M185
   '托盘': new R.Module('托盘', TRAY_FUNCS),
   '剪贴板': new R.Module('剪贴板', CLIPBOARD_FUNCS),

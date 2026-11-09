@@ -79,6 +79,10 @@
     this._帧中 = false;
     //: 最近一次帧错误的文本（判据要能读到；控制台也打一份）。
     this._帧错 = null;
+
+    // ---- M187：声音 ----
+    //: `undefined` = 还没建过；`null` = 这个环境没有 AudioContext。
+    this._声 = undefined;
   }
 
   /** 把一段字符串写进 wasm 内存，返回 `{ptr, len}`。调用方负责 `free`。 */
@@ -399,6 +403,15 @@
       case "开帧": this._开帧(); return null;
       case "停帧": this._停帧(); return null;
 
+      // ---- M187：声音（Web Audio）----
+      case "声音载入": return this._音载入(a);
+      case "声音播放": return this._音播放(a);
+      case "声音停止": return this._音停止(a);
+      case "声音在放": return this._音在放(a);
+      case "声音音量": return this._音音量(a);
+      case "声音主音量": return this._音主音量(a);
+      case "声音读主音量": return this._音().主.gain.value;
+
       default: throw new Error("宿主里没有「" + op + "」这个操作");
     }
   };
@@ -677,6 +690,141 @@
     var dpr = this._dpr;
     var d = ctx.getImageData(Math.round(a[0] * dpr), Math.round(a[1] * dpr), 1, 1).data;
     return [d[0], d[1], d[2], d[3]];
+  };
+
+  // -------------------------------------------------------------------------
+  // M187：声音（Web Audio）
+  //
+  // 🔴 **浏览器自动播放策略**（用的人一定会撞）：页面加载后、用户还没点过/按过
+  // 之前 `AudioContext` 是 `suspended` 的 —— 这时 `start()` 不响、也**不报错**。
+  // 所以这里的规矩是：
+  //
+  // - 没解锁 ⇒ `播放` **返回假**（不是报错）—— 调用方据此知道「等用户动一下」；
+  // - 第一次 `pointerdown` / `keydown` / `mousedown` 里 `resume()`（那一次手势
+  //   就是解锁的钥匙），监听**挂上就不摘**（标签页切回来可能又 suspended）。
+  //
+  // 句柄是数字（与 `图形.读图` 同形），表格在这里，wasm 那边只存数字。
+  // -------------------------------------------------------------------------
+  Jishi.prototype._音 = function () {
+    if (this._声 === null) throw new Error("这个环境没有声音（没有 AudioContext）");
+    if (this._声 !== undefined) return this._声;
+    var 造 = root.AudioContext || root.webkitAudioContext;
+    if (!造) {
+      // 没有 Web Audio：明确报错，**不假装能放**
+      this._声 = null;
+      throw new Error("这个环境没有声音（没有 AudioContext）");
+    }
+    var ctx = new 造();
+    var 主 = ctx.createGain();
+    主.gain.value = 1;
+    主.connect(ctx.destination);
+    this._声 = { 上下文: ctx, 主: 主, 表: {}, 序: 1 };
+    var 解 = function () {
+      if (ctx.state === "suspended" && ctx.resume) ctx.resume();
+    };
+    if (root.addEventListener) {
+      root.addEventListener("pointerdown", 解);
+      root.addEventListener("mousedown", 解);
+      root.addEventListener("keydown", 解);
+    }
+    return this._声;
+  };
+
+  /// 取一项（句柄不存在 ⇒ 报错，别静默当没放）。
+  Jishi.prototype._音项 = function (号) {
+    var s = this._音();
+    var 项 = s.表[String(号)];
+    if (!项) {
+      throw new Error("没有「" + 号 + "」这个声音句柄（先 `声音.载入(路径)` 拿一个）");
+    }
+    return 项;
+  };
+
+  Jishi.prototype._音载入 = function (a) {
+    var s = this._音();
+    var 路径 = String(a[0]);
+    var 号 = s.序++;
+    var 项 = { 缓冲: null, 源: null, 增益: null, 在放: false, 音量: 1, 错: null };
+    s.表[String(号)] = 项;
+    var 自 = this;
+    var 读 = this._fetch || (root.fetch ? root.fetch.bind(root) : null);
+    if (!读) {
+      项.错 = "这个环境没有网络（没有 fetch），读不了声音文件";
+      return 号;
+    }
+    // 解码是**异步**的：没解完之前 `播放` 返回假（不是报错）
+    读(路径)
+      .then(function (r) {
+        if (r && r.ok === false) throw new Error("HTTP " + r.status);
+        return r.arrayBuffer();
+      })
+      .then(function (ab) {
+        return new Promise(function (行, 不行) {
+          // 老浏览器只认回调形式；新的两个都收
+          s.上下文.decodeAudioData(ab, 行, 不行);
+        });
+      })
+      .then(function (buf) { 项.缓冲 = buf; })
+      .catch(function (e) { 项.错 = String((e && e.message) || e); });
+    return 号;
+  };
+
+  Jishi.prototype._音播放 = function (a) {
+    var 项 = this._音项(a[0]);
+    var s = this._音();
+    // ① 还没解锁 ② 还没解码完 ③ 文件读失败了 —— 三种都**返回假**
+    if (s.上下文.state !== "running") return false;
+    if (!项.缓冲) return false;
+    var 选 = {};
+    try { 选 = JSON.parse(a[1] || "{}") || {}; } catch (_) { 选 = {}; }
+    // 同一句柄再放一次 ⇒ 先停掉旧的（不然会有两条声音叠着）
+    if (项.源) { try { 项.源.stop(); } catch (_) {} 项.源 = null; }
+    var 源 = s.上下文.createBufferSource();
+    源.buffer = 项.缓冲;
+    源.loop = !!选["循环"];
+    if (选["速度"] != null) 源.playbackRate.value = Number(选["速度"]) || 1;
+    var 增 = s.上下文.createGain();
+    var 量 = 选["音量"] != null ? Number(选["音量"]) : 项.音量;
+    增.gain.value = 量 == null || isNaN(量) ? 1 : 量;
+    源.connect(增);
+    增.connect(s.主);
+    项.源 = 源; 项.增 = 增; 项.在放 = true;
+    源.onended = function () {
+      if (项.源 === 源) { 项.在放 = false; 项.源 = null; }
+    };
+    源.start(0);
+    return true;
+  };
+
+  Jishi.prototype._音停止 = function (a) {
+    var 项 = this._音项(a[0]);
+    if (项.源) {
+      try { 项.源.stop(); } catch (_) {}
+      项.源 = null;
+    }
+    项.在放 = false;
+    return null;
+  };
+
+  Jishi.prototype._音在放 = function (a) {
+    return !!this._音项(a[0]).在放;
+  };
+
+  Jishi.prototype._音音量 = function (a) {
+    var 项 = this._音项(a[0]);
+    var 量 = Number(a[1]);
+    if (isNaN(量)) throw new Error("「声音.设音量」的音量要数字");
+    项.音量 = 量;
+    if (项.增) 项.增.gain.value = 量;    // 正在放的也跟着变
+    return 量;
+  };
+
+  Jishi.prototype._音主音量 = function (a) {
+    var s = this._音();
+    var 量 = Number(a[0]);
+    if (isNaN(量)) throw new Error("「声音.主音量」的音量要数字");
+    s.主.gain.value = 量;
+    return 量;
   };
 
   /**

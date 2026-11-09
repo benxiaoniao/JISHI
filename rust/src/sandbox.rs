@@ -154,7 +154,7 @@ pub fn make_guard(o: &SandboxOpts) -> crate::ImportGuardFn {
                 }
                 return Ok(());
             }
-            "浏览器" | "图形" => {
+            "浏览器" | "图形" | "声音" | "精灵" | "瓦片" | "地图" | "存档" | "场景" => {
                 // 🔴 M167 / M186：**沙箱不该拦它们** —— 拦了 playground 就永远用不了
                 // 交互与画布（那正是这两个模块存在的理由）。真实现只在 wasm 里；
                 // 命令行 / Node 上「导入」成功、**调用时**报平台错（比「找不到模块」准确）。
@@ -365,7 +365,7 @@ pub enum EvalFail {
 /// 别的（集合、精确小数、日期、表格、文件、函数、类实例…）会抛
 /// `TypeError: Object of type X is not JSON serializable`。这里同样拒 ——
 /// 返回 `Err(类型名)`，由调用方翻成那句错误。
-fn val_to_jv(v: &Val) -> Result<Jv, String> {
+pub(crate) fn val_to_jv(v: &Val) -> Result<Jv, String> {
     Ok(match v {
         Val::None_ => Jv::Null,
         Val::Bool(b) => Jv::Bool(*b),

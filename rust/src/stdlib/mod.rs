@@ -69,6 +69,10 @@ mod clipboard;
 // M186：`图形`（2D 画布 / 输入 / 帧循环）—— **只在 wasm 里真做**，
 // 其余宿主报同一句平台错（与 `浏览器` 同边界，见 `graphics.rs` 头注与 D110）。
 pub(crate) mod graphics;
+// M187：游戏工具箱 —— `声音`（Web Audio，只在页面里）+ 精灵/瓦片/地图/存档/场景
+// （五个逻辑模块合在 `gamekit.rs`：它们是一条线上的东西，还共用一批小工具）。
+pub(crate) mod sound;
+pub(crate) mod gamekit;
 mod encode;
 mod htmlmod;
 mod diffmod;
@@ -107,6 +111,13 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         ("窗口", window::module),
         // M186
         ("图形", graphics::module),
+        // M187
+        ("声音", sound::module),
+        ("精灵", gamekit::精灵),
+        ("瓦片", gamekit::瓦片),
+        ("地图", gamekit::地图),
+        ("存档", gamekit::存档),
+        ("场景", gamekit::场景),
         // M185
         ("托盘", tray::module),
         ("剪贴板", clipboard::module),

@@ -196,7 +196,7 @@ fn parse_resp(bytes: &[u8]) -> Result<Val, JishiError> {
 /// ⚠️ **数字按 JSON 文本里的写法分整数 / 浮点**：`320` 进来是 `整数`、
 /// `320.5` 进来是 `浮点`（解析器已经替我们分好了）。调用方（`图形`）用
 /// `数()` 两者都收 —— 所以「画布宽 800」不会因为宿主写成 `800.0` 就变成浮点。
-fn 值_of(j: &crate::json::Json) -> Val {
+pub(crate) fn 值_of(j: &crate::json::Json) -> Val {
     use crate::json::Json;
     match j {
         Json::Null => Val::None_,

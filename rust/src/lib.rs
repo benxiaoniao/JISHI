@@ -645,7 +645,7 @@ fn set_key(v: &Val) -> Option<DictKey> {
 
 /// 字典赋值：键已存在就**就地替换**（位置不变），否则追加。
 /// 与 Python 的 dict 语义一致：插入顺序保持，重复赋值不改变位置。
-fn dict_set(d: &mut Dict, k: Val, v: Val) {
+pub(crate) fn dict_set(d: &mut Dict, k: Val, v: Val) {
     if let Some(key) = dict_key(&k) {
         // 🔴 M165：走 `entry` 而不是 `get` + `insert` —— 后者**每次写要算两遍哈希**
         // （一次查「有没有」、一次插）。字典写入是热路径（基准「字典写入密集」），
