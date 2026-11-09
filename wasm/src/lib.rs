@@ -24,6 +24,8 @@
 //! | `jishi_eval(ptr, len)` | 求一个表达式 → 同上 |
 //! | `jishi_out_len()` / `jishi_out_copy(dst)` | 把结果缓冲取出来 |
 //! | `jishi_set_budget(steps)` | 设步数上限（**0 = 不限**） |
+//! | `jishi_call(源码, 函数名, 实参)` | 事件回调（M167）；常驻模式下**不重放** |
+//! | `jishi_frame(ts)` | **常驻 VM 跑一帧**（M186，D110）；`0` 好 / `2` 出错 / `3` 没会话 |
 //! | `jishi_version()` | 自检用：非 0 就说明这份 wasm 是我们的 |
 //!
 //! ⚠️ **一个实例只跑一件事**：结果放在 `thread_local` 的缓冲里，下一次调用覆盖。
@@ -33,11 +35,20 @@ use std::cell::RefCell;
 
 use jishi_ffi::sandbox::{self, SandboxOpts};
 
-const ABI_VERSION: i32 = 3;   // M167 加 jishi_call / jishi_host_respond；M174 加 jishi_native
+const ABI_VERSION: i32 = 4;   // M167 jishi_call / jishi_host_respond；M174 jishi_native；M186 jishi_frame
 
 thread_local! {
     /// 上一次调用的结果（**协议 JSON 文本**，与原生 `--json-result` 同形）。
     static OUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+    /// **常驻 VM**（M186，D110）：`图形.运行` 之后 `jishi_run` 不再丢它，
+    /// 每一帧从这儿取出来调一次 `每帧`，再放回去。
+    ///
+    /// ⚠️ 取出来的那一刻槽是空的 —— 所以 `jishi_frame` 里**任何 `?` 早退都
+    /// 必须放回去**（或者明确不要了）。下面用「先取 → 算 → 放回」的直线写法，
+    /// 中间不 `?`，就是为了不给自己留这个坑。
+    static 常驻: RefCell<Option<jishi_ffi::VM>> = const { RefCell::new(None) };
+    /// `(上一帧时间戳, 帧号)`。帧号从 0 开始，`-1` = 还没跑过第一帧。
+    static 帧态: RefCell<(f64, i64)> = const { RefCell::new((0.0, -1)) };
 }
 
 /// 把一段 Rust 字符串放进结果缓冲。
@@ -121,7 +132,31 @@ pub extern "C" fn jishi_get_budget() -> u32 {
 pub extern "C" fn jishi_run(ptr: *const u8, len: usize) -> i32 {
     let src = read_src(ptr, len);
     let o = opts();
-    set_out(sandbox::run_sandboxed_direct(&src, &o, "<playground>"));
+    // 每跑一次 = 一次「重启」：丢掉上一轮的常驻 VM 与登记（D110 §二）。
+    常驻.with(|c| {
+        c.borrow_mut().take();
+    });
+    jishi_ffi::frame::清();
+    jishi_ffi::frame::清画布();
+
+    let (json, vm) = sandbox::run_sandboxed_keep(&src, &o, "<playground>");
+    set_out(json);
+    match vm {
+        Some(mut vm) if jishi_ffi::frame::有() => {
+            // 常驻模式（D110 §八）：默认阈值 1000 圈要 17 秒才热，游戏等不起。
+            jishi_ffi::设jit阈值(&mut vm, 60);
+            帧态.with(|s| *s.borrow_mut() = (0.0, -1));
+            常驻.with(|c| *c.borrow_mut() = Some(vm));
+            // 告诉 shim「可以开始出帧了」。放这儿（跑完之后）而不是 `图形.运行`
+            // 里 —— 那是唯一能确定「该不该停靠」的时刻（D110 §四末）。
+            jishi_ffi::通知页面宿主("开帧");
+        }
+        _ => {
+            // 没常驻：可能是正常结束，也可能是跑挂了 ⇒ 登记一律清掉，
+            // 免得下一次 run 误判「已经在跑了」。
+            jishi_ffi::frame::清();
+        }
+    }
     0
 }
 
@@ -205,6 +240,34 @@ pub extern "C" fn jishi_call(src_ptr: *const u8, src_len: usize,
     // 第五、六个参数是**给回调的实参**（`请求` 的响应文本、`绑定` 的事件信息）。
     // 空 = 不带参数。它会变成一个**字符串字面量**塞进调用里，所以必须转义。
     let arg = read_src(arg_ptr, arg_len);
+
+    // —— 常驻模式（M186）：**不重放**，直接在这个 VM 上处理（D110 §六）——
+    //
+    // 为什么不能走下面那条重放路：点一下「开始游戏」会重跑顶层 ⇒ 分数归零、
+    // 球回出发点。那不是性能问题，是功能坏了。
+    if jishi_ffi::frame::有() {
+        if let Some(mut vm) = 常驻.with(|c| c.borrow_mut().take()) {
+            let _事件 = jishi_ffi::frame::事件守卫::新();
+            let o = opts();
+            jishi_ffi::set_output_limit(&mut vm, Some(o.max_stdout));
+            jishi_ffi::重置步数(&mut vm);
+            let r = jishi_ffi::frame::调处理函数(&mut vm, &name, &arg);
+            let 出 = jishi_ffi::取走输出(&mut vm);
+            set_out(match r {
+                Ok(()) => sandbox::成功json(&出),
+                Err(e) => sandbox::错误json(&e),
+            });
+            常驻.with(|c| *c.borrow_mut() = Some(vm));
+            return 0;
+        }
+    }
+
+    // 到这里还没常驻：如果上一轮停靠过一个 VM（`图形.停` 之后），现在就丢掉，
+    // 让它回到「一次事件 = 一次完整执行」那条路（D110 §二）。
+    常驻.with(|c| {
+        c.borrow_mut().take();
+    });
+
     let 实参 = if arg.is_empty() {
         String::new()
     } else {
@@ -214,6 +277,71 @@ pub extern "C" fn jishi_call(src_ptr: *const u8, src_len: usize,
     let o = opts();
     set_out(sandbox::run_sandboxed_direct(&full, &o, "<playground>"));
     0
+}
+
+/// **跑一帧**（M186）—— `图形.运行` 之后由 shim 的 `requestAnimationFrame` 调。
+///
+/// 返回码：
+///
+/// | 码 | 意思 | shim 该做什么 |
+/// |---|---|---|
+/// | `0` | 这一帧跑完了 | 结果缓冲里可能有输出（`打印`），读出来打到控制台 |
+/// | `2` | 出错，**帧循环已停** | 把输出缓冲当**错误 JSON** 处理，停 rAF |
+/// | `3` | 没有常驻会话 | 停 rAF（`图形.停` / 刷新 / 程序没进常驻） |
+///
+/// 🔴 **`dt` 必须 clamp 到 100ms**（D110 §五）：后台标签页 rAF 会停，切回来
+/// 那一帧的时间差可能是几十秒；而碰撞是离散采样 —— 一帧跨 30 秒，球直接穿墙，
+/// 而且**看不出是 dt 的错**（画面只是「球不见了」）。第一帧给 0。
+#[no_mangle]
+pub extern "C" fn jishi_frame(ts: f64) -> i32 {
+    if !jishi_ffi::frame::有() {
+        // 停了：把可能还停靠着的 VM 丢掉（D110 §二「`停` 释放」）。
+        常驻.with(|c| {
+            c.borrow_mut().take();
+        });
+        return 3;
+    }
+    let Some(mut vm) = 常驻.with(|c| c.borrow_mut().take()) else {
+        return 3;
+    };
+    let (号, dt) = 帧态.with(|s| {
+        let mut s = s.borrow_mut();
+        let (上, 号) = *s;
+        let mut dt = if 号 < 0 { 0.0 } else { ts - 上 };
+        if !dt.is_finite() || dt < 0.0 {
+            dt = 0.0;
+        }
+        if dt > 100.0 {
+            dt = 100.0;
+        }
+        let 新号 = 号 + 1;
+        *s = (ts, 新号);
+        (新号, dt)
+    });
+
+    let o = opts();
+    jishi_ffi::set_output_limit(&mut vm, Some(o.max_stdout));
+    // 🔴 每帧清零（D110 §七）：不清的话一局游戏跑到某个总圈数就被当成死循环。
+    jishi_ffi::重置步数(&mut vm);
+
+    let r = jishi_ffi::frame::跑一帧(&mut vm, 号, dt);
+    let 出 = jishi_ffi::取走输出(&mut vm);
+    match r {
+        Ok(()) => {
+            常驻.with(|c| *c.borrow_mut() = Some(vm));
+            // 每帧的 `打印` 照样交出去（shim 打到控制台）—— 但**攒在缓冲里不清**，
+            // 60 行/秒会把内存吃光。
+            set_out(出);
+            0
+        }
+        Err(e) => {
+            // 出错即停：不清掉登记的话，下一帧还会再跑一次、再报一次
+            // （D110 §七「只报一次」）。
+            jishi_ffi::frame::清();
+            set_out(sandbox::错误json(&e));
+            2
+        }
+    }
 }
 
 /// JS 侧实现「浏览器宿主调用」时，把响应 JSON 写回来（M167）。

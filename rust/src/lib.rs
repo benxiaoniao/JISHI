@@ -42,6 +42,8 @@ pub mod scope;      // R7.3：AST 作用域分析（scope.py 的移植，checker
 pub mod lsp;        // R7.3：语言服务器（lsp.py 的移植，`jishi-rs lsp`）
 pub mod run;        // R7.4：CLI 主入口（cli.py 的移植）
 pub mod sandbox;    // R7.4：沙箱（sandbox.py 的移植）
+pub mod frame;      // M186：常驻 VM 的帧循环登记表（D110）
+                    // ⚠️ 不依赖 `native-window` / wasm：两边都要有。
 #[cfg(feature = "jit")]
 pub(crate) mod jit; // M180：整数循环的 JIT（x86-64；编不了就退回解释器）
                     // ⚠️ `pub(crate)` 而不是 `pub`：它的接口用 `Instr` / `Val`
@@ -7208,6 +7210,67 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
 }
 
 /// 设 stdout 上限（字符数；沙箱用，`None` = 不限）。
+/// 按名字从全局表里取一个值（M186）。
+///
+/// 常驻模式下的事件回调拿到的只有**函数名**（从 JS 那边来），而 `call_value`
+/// 要的是一个 `Val` —— 所以得先按名字查一次。查不到给 `None`，由调用方报
+/// 「找不到函数」，别在这里编错误消息。
+pub(crate) fn 按名字取全局(vm: &VM, name: &str) -> Option<Val> {
+    let 号 = vm.module.names.iter().position(|n| n == name)?;
+    vm.globals.get(号).and_then(|g| g.clone())
+}
+
+/// 调一个值（M186）：常驻 VM 里「直接调处理函数 / 调每帧」走这里。
+///
+/// 📌 为什么需要它：`BuiltinHost::call_value` 是 `pub(crate)` 的 —— wasm 那个
+/// crate 拿不到。包一个 `pub` 的薄壳，**语义仍然是同一份实现**（不另写）。
+pub(crate) fn 调用值(vm: &mut VM, callee: Val, args: Vec<Val>) -> Result<Val, JishiError> {
+    vm.call_value(callee, args)
+}
+
+/// 把步数计数器清零（M186）。
+///
+/// 🔴 **常驻模式必须每帧调**：`set_step_limit` 只设「上限」，`steps` 是**整场累加**
+/// 的 —— 不清零的话一局游戏跑到某个总圈数就会被当成死循环掐掉，而且**越玩越早踩**
+/// （D110 §七）。一次性程序只跑一次，清零与不清零等价。
+#[cfg(feature = "budget")]
+pub fn 重置步数(vm: &mut VM) {
+    vm.steps = 0;
+    vm.output_overflow = false;
+}
+
+/// 没开 `budget` 特征时的空实现（原生宿主默认不编它）。
+#[cfg(not(feature = "budget"))]
+pub fn 重置步数(_vm: &mut VM) {}
+
+/// 给这个 VM 设一个 JIT 热度阈值（M186）。
+///
+/// 常驻模式一帧最多一次回边 ⇒ 默认的 1000 要 **17 秒**才热起来，游戏等不起。
+/// 只影响这一个 VM（`图形.运行` 之后由 wasm 入口设成 60），不动全局常量。
+#[cfg(feature = "jit")]
+pub fn 设jit阈值(vm: &mut VM, n: u32) {
+    vm.jit.设阈值(n);
+}
+
+#[cfg(not(feature = "jit"))]
+pub fn 设jit阈值(_vm: &mut VM, _n: u32) {}
+
+/// 把输出缓冲**取走**（留下空缓冲）—— 常驻模式下每次事件只报这一次的输出。
+///
+/// 为什么不是 `get_output`（借用）：常驻 VM 要活很多轮，每轮把总缓冲重复报一遍
+/// 会让人以为「打印了十次」。
+pub fn 取走输出(vm: &mut VM) -> String {
+    std::mem::take(&mut vm.output)
+}
+
+/// 给页面宿主发一条**没有回话**的操作（M186：`开帧` / `停帧`）。
+///
+/// 薄壳：实现在 `stdlib::browser`（那条通道的唯一落点）。wasm 入口拿不到
+/// `stdlib`（它是私有模块），所以从这里转一手。
+pub fn 通知页面宿主(op: &str) {
+    crate::stdlib::browser::通知宿主(op);
+}
+
 pub fn set_output_limit(vm: &mut VM, lim: Option<usize>) {
     vm.output_limit = lim;
 }

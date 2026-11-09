@@ -4149,6 +4149,34 @@ function _noBrowser(name) {
   return new R.Builtin(name, () => { throw R.runErr(BROWSER_无, 0, 0); });
 }
 
+// ---------------------------------------------------------------------------
+// M186：`图形`（2D 画布 / 输入 / 帧循环）
+//
+// 与 `浏览器` 同款边界：只在页面 / 窗口里有。本宿主**每个函数都报同一条错**，
+// 不给「假装能画」的降级实现 —— 那会让同一段游戏代码在两个宿主上行为不同。
+// 文案与 Rust 的 `graphics::无画布`、Python 的 `_无画布` **逐字相同**。
+// ---------------------------------------------------------------------------
+const GRAPHICS_无 = '这个平台没有画布：「图形」模块只在网页 / 窗口里有'
+  + '（命令行和 Node 上没有画布）。要做图表请用「表格」，要出网页请用「站点」。';
+
+function _noGraphics(name) {
+  return new R.Builtin(name, () => { throw R.runErr(GRAPHICS_无, 0, 0); });
+}
+
+const GRAPHICS_FUNCS = {
+  '准备': _noGraphics('准备'), '宽度': _noGraphics('宽度'), '高度': _noGraphics('高度'),
+  '清屏': _noGraphics('清屏'), '矩形': _noGraphics('矩形'), '圆': _noGraphics('圆'),
+  '椭圆': _noGraphics('椭圆'), '线': _noGraphics('线'), '多边形': _noGraphics('多边形'),
+  '文本': _noGraphics('文本'), '测文本': _noGraphics('测文本'),
+  '读图': _noGraphics('读图'), '画图': _noGraphics('画图'), '画子图': _noGraphics('画子图'),
+  '取像素': _noGraphics('取像素'),
+  '设相机': _noGraphics('设相机'), '读相机': _noGraphics('读相机'),
+  '按着': _noGraphics('按着'), '按过': _noGraphics('按过'),
+  '鼠标': _noGraphics('鼠标'), '滚轮': _noGraphics('滚轮'),
+  '碰到': _noGraphics('碰到'), '点到': _noGraphics('点到'), '距离': _noGraphics('距离'),
+  '运行': _noGraphics('运行'), '停': _noGraphics('停'),
+};
+
 const BROWSER_FUNCS = {
   '设文本': _noBrowser('设文本'), '设HTML': _noBrowser('设HTML'),
   '取值': _noBrowser('取值'), '设值': _noBrowser('设值'),
@@ -7542,6 +7570,8 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '站点': new R.Module('站点', SITE_FUNCS),
   '打包': new R.Module('打包', PACK_FUNCS),
   '窗口': new R.Module('窗口', WINDOW_FUNCS),
+  // M186
+  '图形': new R.Module('图形', GRAPHICS_FUNCS),
   // M185
   '托盘': new R.Module('托盘', TRAY_FUNCS),
   '剪贴板': new R.Module('剪贴板', CLIPBOARD_FUNCS),

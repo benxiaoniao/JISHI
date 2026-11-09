@@ -66,6 +66,9 @@ mod matrix;
 // 两个都是「默认构建有：托盘靠 tray-icon / 剪贴板靠裸 Win32」，零新依赖。
 mod tray;
 mod clipboard;
+// M186：`图形`（2D 画布 / 输入 / 帧循环）—— **只在 wasm 里真做**，
+// 其余宿主报同一句平台错（与 `浏览器` 同边界，见 `graphics.rs` 头注与 D110）。
+pub(crate) mod graphics;
 mod encode;
 mod htmlmod;
 mod diffmod;
@@ -102,6 +105,8 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         ("站点", site::module),
         ("打包", pack::module),
         ("窗口", window::module),
+        // M186
+        ("图形", graphics::module),
         // M185
         ("托盘", tray::module),
         ("剪贴板", clipboard::module),

@@ -128,7 +128,7 @@ def _make_guard(opts: SandboxOpts):
                         line=line, col=col, filename=filename,
                         hint="如需系统访问，请显式开启 allow_network")
                 return
-            if name == "浏览器":
+            if name in ("浏览器", "图形"):
                 # 🔴 M167：**沙箱不该拦它** —— 拦了 playground 就永远用不了交互
                 # （那正是这个模块存在的理由）。真实现只在 wasm 里；命令行 / Node
                 # 上「导入」成功、**调用时**报平台错（比「找不到模块」准确）。

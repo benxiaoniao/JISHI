@@ -154,10 +154,10 @@ pub fn make_guard(o: &SandboxOpts) -> crate::ImportGuardFn {
                 }
                 return Ok(());
             }
-            "浏览器" => {
-                // 🔴 M167：**沙箱不该拦它** —— 拦了 playground 就永远用不了交互
-                // （那正是这个模块存在的理由）。真实现只在 wasm 里；命令行 / Node
-                // 上「导入」成功、**调用时**报平台错（比「找不到模块」准确）。
+            "浏览器" | "图形" => {
+                // 🔴 M167 / M186：**沙箱不该拦它们** —— 拦了 playground 就永远用不了
+                // 交互与画布（那正是这两个模块存在的理由）。真实现只在 wasm 里；
+                // 命令行 / Node 上「导入」成功、**调用时**报平台错（比「找不到模块」准确）。
                 return Ok(());
             }
             _ => {}
@@ -523,6 +523,64 @@ pub fn run_sandboxed_direct(source: &str, opts: &SandboxOpts, filename: &str) ->
         Ok(out) => success_json(&out, Jv::Null, ms(start)),
         Err(e) => failure_json(&e, ms(start)),
     }
+}
+
+/// 跑一段源码，**把 VM 交出来**（M186 常驻模式）。
+///
+/// 与 [`run_sandboxed_direct`] 唯一的差别：那条路跑完就把 VM 丢掉，这条把它还给
+/// 调用方 —— 帧循环要的正是「同一个 VM 活到下一帧」。
+///
+/// 返回 `(协议 JSON, VM)`：
+/// - 跑成功 ⇒ `Some(vm)`；
+/// - 程序自己报错 / 编译失败 ⇒ `None`（VM 已经被丢掉了，没什么可常驻的）。
+///
+/// ⚠️ **只在 wasm 里用**：它不开线程（同 `run_sandboxed_direct` 的理由）。
+/// 原生宿主那边没有帧循环（`图形` 只在页面里有，见 D110）。
+pub fn run_sandboxed_keep(
+    source: &str,
+    opts: &SandboxOpts,
+    filename: &str,
+) -> (String, Option<crate::VM>) {
+    let start = clock_start();
+    crate::set_import_guard(Some(make_guard(opts)));
+    let r = run_straight_keep(source, filename, opts.max_stdout, opts.max_steps);
+    crate::set_import_guard(None);
+    match r {
+        Ok((out, vm)) => (success_json(&out, Jv::Null, ms(start)), Some(vm)),
+        Err(e) => (failure_json(&e, ms(start)), None),
+    }
+}
+
+/// [`run_straight`] 的「交还 VM」版。
+fn run_straight_keep(
+    source: &str,
+    filename: &str,
+    max_stdout: usize,
+    max_steps: Option<u64>,
+) -> Result<(String, crate::VM), JishiError> {
+    let bytecode = compile_source(source, filename)?;
+    let mut vm = crate::load_module(&bytecode)
+        .map_err(|e| run_error(format!("字节码加载失败：{e}"), None))?;
+    crate::set_output_limit(&mut vm, Some(max_stdout));
+    crate::set_step_limit(&mut vm, max_steps);
+    match vm.run() {
+        // 与 `run_straight` 同一条规矩：出错**不交 stdout**。
+        Ok(()) => Ok((crate::get_output(&vm).to_string(), vm)),
+        Err(e) => Err(e),
+    }
+}
+
+/// 一份「成功」的协议 JSON（M186：wasm 的帧循环要自己拼结果时用）。
+pub fn 成功json(stdout: &str) -> String {
+    success_json(stdout, Jv::Null, 0.0)
+}
+
+/// 一份「失败」的协议 JSON（同上）。
+///
+/// 📌 `duration_ms` 给 0：wasm 里**没有时钟**（`Instant::now()` 会 panic），
+/// shim 那边本来就会用 `performance.now()` 覆盖掉这个 0。
+pub fn 错误json(e: &JishiError) -> String {
+    failure_json(e, 0.0)
 }
 
 /// 求值一个表达式 —— 不开线程（wasm 用）。语义与 [`eval_sandboxed`] 一致。

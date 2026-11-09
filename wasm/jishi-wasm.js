@@ -27,7 +27,7 @@
   "use strict";
 
   /** ABI 版本：与 `wasm/src/lib.rs` 的 `ABI_VERSION` 必须一致。 */
-  var ABI_VERSION = 3;   // M167 加 jishi_call / jishi_host_respond；M174 加 jishi_native
+  var ABI_VERSION = 4;   // M167 jishi_call；M174 jishi_native；M186 jishi_frame（常驻 VM）
 
   function Jishi(instance, opts) {
     opts = opts || {};
@@ -40,6 +40,12 @@
     this._doc = opts.doc || (typeof document !== "undefined" ? document : null);
     this._store = opts.store || root.localStorage || null;
     this._fetch = opts.fetch || (root.fetch ? root.fetch.bind(root) : null);
+    //: M186：帧循环的调度器。**可注入**是为了判据能在 Node 里完全确定地驱动
+    //: （真跑用 `requestAnimationFrame`；判据自己按固定时间戳调 `frame()`）。
+    //: ⚠️ **没有就明确报错**，不许偷偷退回 `setTimeout` —— 那会在 Node 里
+    //: 起一个 60 次/秒的循环，和判据手动喂的帧**打架**（M186 实测：60 帧数出 61）。
+    this._raf = opts.raf || (root.requestAnimationFrame
+      ? root.requestAnimationFrame.bind(root) : null);
     //: 上一次 `run` 的源码 —— `call`（事件回调）要**重跑一遍**它。见 `_hostCall`。
     this._src = "";
     //: 已绑定的监听（幂等）：`元素 → (事件|函数名) → 处理器`。
@@ -50,6 +56,29 @@
     this._当 = {};
     //: 有没有已经告诉宿主「可以派发事件了」（每次 run 会重新登记，别重复报）。
     this._当已报 = false;
+
+    // ---- M186：图形 ----
+    //: `<canvas>` 与它的 2d 上下文（`图形.准备` 之后才有）。
+    this._画布 = null;
+    this._ctx = null;
+    //: 画布的逻辑尺寸（与 `图形.宽度/高度` 一致）。
+    this._宽 = 0;
+    this._高 = 0;
+    //: 相机偏移（`设相机`）。所有绘制都 `translate(-x, -y)`。
+    this._相机 = { x: 0, y: 0 };
+    //: 图像句柄表：`句柄 → { img, 就绪 }`。`读图` 是异步的，没加载完就跳过这次绘制。
+    this._图 = {};
+    this._图序 = 1;
+    //: 输入状态。`按过` 是**边沿**（读一次就清），`按着` 是电平。
+    this._键 = {};
+    this._按过 = {};
+    this._输入已挂 = false;
+    this._鼠标 = { x: 0, y: 0, 左键: false, 右键: false };
+    this._滚 = { dx: 0, dy: 0 };
+    //: 帧循环是否在跑（rAF 泵）。
+    this._帧中 = false;
+    //: 最近一次帧错误的文本（判据要能读到；控制台也打一份）。
+    this._帧错 = null;
   }
 
   /** 把一段字符串写进 wasm 内存，返回 `{ptr, len}`。调用方负责 `free`。 */
@@ -334,7 +363,43 @@
       }
       case "删本地": this._needStore().removeItem(String(a[0])); return null;
       case "请求": this._request(String(a[0]), String(a[1])); return null;
-      default: throw new Error("浏览器模块里没有「" + op + "」这个操作");
+
+      // ---- M186：图形（同一条通道，多几个 case —— 通道形状没变）----
+      case "准备": return this._g准备(a);
+      case "清屏": return this._g清屏(a);
+      case "矩形": return this._g形状("rect", a);
+      case "圆": return this._g形状("circle", a);
+      case "椭圆": return this._g形状("ellipse", a);
+      case "线": return this._g形状("line", a);
+      case "多边形": return this._g多边形(a);
+      case "文本": return this._g文本(a);
+      case "测文本": return this._g测文本(a);
+      case "读图": return this._g读图(a);
+      case "画图": return this._g画图(a, false);
+      case "画子图": return this._g画图(a, true);
+      case "取像素": return this._g取像素(a);
+      case "设相机": this._相机 = { x: Number(a[0]) || 0, y: Number(a[1]) || 0 }; return null;
+      case "读相机": return { x: this._相机.x, y: this._相机.y };
+      case "按着": return !!this._键[this._键名(a[0])];
+      case "按过": {
+        var 键 = this._键名(a[0]);
+        var 有 = !!this._按过[键];
+        delete this._按过[键];       // 边沿：读一次就清
+        return 有;
+      }
+      case "鼠标": return { x: this._鼠标.x, y: this._鼠标.y,
+                            左键: this._鼠标.左键, 右键: this._鼠标.右键 };
+      case "滚轮": {
+        var 滚 = { dx: this._滚.dx, dy: this._滚.dy };
+        this._滚 = { dx: 0, dy: 0 };   // 读完清零：它是「这一帧滚了多少」
+        return 滚;
+      }
+
+      // ---- M186：帧循环的开与停（D110）----
+      case "开帧": this._开帧(); return null;
+      case "停帧": this._停帧(); return null;
+
+      default: throw new Error("宿主里没有「" + op + "」这个操作");
     }
   };
 
@@ -384,6 +449,360 @@
   /** 当前的步数上限。 */
   Jishi.prototype.getBudget = function () {
     return this._ex.jishi_get_budget();
+  };
+
+  // -------------------------------------------------------------------------
+  // M186：图形（画布 / 绘制 / 图像 / 相机 / 输入 / 帧循环）
+  //
+  // 全部走**同一条** `jishi_host_call` 通道（`_doOp` 里那几个 case），
+  // 所以通道 ABI 一个字没改 —— 只是多了几个操作名（见 D110 §十）。
+  //
+  // ⚠️ 坐标系**一律逻辑像素**：位图按 devicePixelRatio 放大，但 `setTransform`
+  //    一次性抵掉，所以下面所有绘制都用逻辑坐标，游戏代码不用管 DPR。
+  // -------------------------------------------------------------------------
+
+  /** 中文键名 → `KeyboardEvent.key`。单字符（字母/数字）不敏感大小写。 */
+  var 键表 = {
+    "左": "ArrowLeft", "右": "ArrowRight", "上": "ArrowUp", "下": "ArrowDown",
+    "空格": " ", "回车": "Enter", "退出": "Escape", "上档": "Shift",
+    "控制": "Control", "替换": "Alt", "制表": "Tab", "退格": "Backspace",
+    "删除": "Delete", "翻页上": "PageUp", "翻页下": "PageDown",
+  };
+
+  Jishi.prototype._键名 = function (k) {
+    k = String(k == null ? "" : k);
+    if (键表[k]) return 键表[k];
+    return k.length === 1 ? k.toLowerCase() : k;
+  };
+
+  /** 拿 2d 上下文；**没准备过就自动准备一块**（少一步就少一个「忘了调用」的坑）。 */
+  Jishi.prototype._needCtx = function () {
+    if (!this._ctx) this._g准备(["[null,null,null]"]);
+    return this._ctx;
+  };
+
+  /** 绘制统一入口：带相机偏移 + `save/restore`（样式不泄漏到下一条图元）。 */
+  Jishi.prototype._画 = function (f) {
+    var ctx = this._needCtx();
+    ctx.save();
+    ctx.translate(-this._相机.x, -this._相机.y);
+    try { f(ctx); } finally { ctx.restore(); }
+  };
+
+  /**
+   * 样式落地。`类` 决定「什么都没给时」的默认色：
+   * 填充类给白、线给白、文本给白。
+   */
+  Jishi.prototype._样式 = function (ctx, s, 类) {
+    s = s || {};
+    var 填 = s["填充"], 描 = s["描边"];
+    if (类 === "填充" && 填 == null) 填 = "#fff";
+    if (类 === "线" && 描 == null) 描 = "#fff";
+    if (类 === "文本" && 填 == null) 填 = "#fff";
+    if (填 != null) ctx.fillStyle = 填;
+    if (描 != null) ctx.strokeStyle = 描;
+    if (s["线宽"] != null) ctx.lineWidth = Number(s["线宽"]) || 1;
+    if (s["字号"] != null) ctx.font = (Number(s["字号"]) || 16) + "px sans-serif";
+    if (s["对齐"] != null) {
+      ctx.textAlign = ({ "左": "left", "中": "center", "右": "right" })[s["对齐"]] || "left";
+    }
+    if (s["透明度"] != null) ctx.globalAlpha = Number(s["透明度"]);
+    return { 填: 填, 描: 描 };
+  };
+
+  Jishi.prototype._g准备 = function (a) {
+    var 参 = JSON.parse(a[0]);
+    var dpr = Number(root.devicePixelRatio) || 1;
+    var doc = this._doc;
+    if (!doc || !doc.querySelector) throw new Error("这个环境没有页面（没有 DOM）");
+    var cv = doc.querySelector("#画布");
+    if (!cv && doc.createElement && doc.body && doc.body.appendChild) {
+      cv = doc.createElement("canvas");
+      cv.id = "画布";
+      doc.body.appendChild(cv);
+    }
+    if (!cv) throw new Error('页面上没有 <canvas id="画布">，也没法自己插一块');
+    var 宽 = 参[0] == null ? (cv.clientWidth || root.innerWidth || 800) : Number(参[0]);
+    var 高 = 参[1] == null ? (cv.clientHeight || root.innerHeight || 600) : Number(参[1]);
+    // 位图放大、CSS 尺寸不变 ⇒ 看着清楚，坐标仍是逻辑像素
+    cv.width = Math.max(1, Math.round(宽 * dpr));
+    cv.height = Math.max(1, Math.round(高 * dpr));
+    if (cv.style) { cv.style.width = 宽 + "px"; cv.style.height = 高 + "px"; }
+    var ctx = cv.getContext && cv.getContext("2d");
+    if (!ctx) throw new Error("这块 <canvas> 拿不到 2d 上下文");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this._画布 = cv; this._ctx = ctx; this._dpr = dpr;
+    this._宽 = 宽; this._高 = 高;
+    if (参[2]) { ctx.fillStyle = 参[2]; ctx.fillRect(0, 0, 宽, 高); }
+    this._挂输入();
+    return { 宽: 宽, 高: 高 };
+  };
+
+  Jishi.prototype._g清屏 = function (a) {
+    var ctx = this._needCtx();
+    // 清屏**不吃相机**：它清的是整块画布，不是世界坐标里的某一块
+    ctx.save();
+    ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = String(a[0] || "#000");
+    ctx.fillRect(0, 0, this._宽, this._高);
+    ctx.restore();
+    return null;
+  };
+
+  Jishi.prototype._g形状 = function (种, a) {
+    var 自 = this;
+    this._画(function (ctx) {
+      if (种 === "rect") {
+        var s = 自._样式(ctx, JSON.parse(a[4] || "{}"), "填充");
+        var 圆角 = Number((JSON.parse(a[4] || "{}")["圆角"]) || 0);
+        if (圆角 > 0 && ctx.roundRect) {
+          ctx.beginPath(); ctx.roundRect(a[0], a[1], a[2], a[3], 圆角);
+          if (s.填 != null) ctx.fill();
+          if (s.描 != null) ctx.stroke();
+        } else {
+          if (s.填 != null) ctx.fillRect(a[0], a[1], a[2], a[3]);
+          if (s.描 != null) ctx.strokeRect(a[0], a[1], a[2], a[3]);
+        }
+      } else if (种 === "circle" || 种 === "ellipse") {
+        var 选 = JSON.parse(a[种 === "circle" ? 3 : 4] || "{}");
+        var s2 = 自._样式(ctx, 选, "填充");
+        ctx.beginPath();
+        if (种 === "circle") ctx.arc(a[0], a[1], Math.abs(a[2]), 0, Math.PI * 2);
+        else ctx.ellipse(a[0], a[1], Math.abs(a[2]), Math.abs(a[3]), 0, 0, Math.PI * 2);
+        if (s2.填 != null) ctx.fill();
+        if (s2.描 != null) ctx.stroke();
+      } else {
+        var s3 = 自._样式(ctx, JSON.parse(a[4] || "{}"), "线");
+        ctx.beginPath();
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(a[2], a[3]);
+        ctx.stroke();
+      }
+    });
+    return null;
+  };
+
+  Jishi.prototype._g多边形 = function (a) {
+    var 自 = this;
+    var 点 = JSON.parse(a[0]);
+    this._画(function (ctx) {
+      var s = 自._样式(ctx, JSON.parse(a[1] || "{}"), "填充");
+      if (!点.length) return;
+      ctx.beginPath();
+      ctx.moveTo(点[0][0], 点[0][1]);
+      for (var i = 1; i < 点.length; i++) ctx.lineTo(点[i][0], 点[i][1]);
+      ctx.closePath();
+      if (s.填 != null) ctx.fill();
+      if (s.描 != null) ctx.stroke();
+    });
+    return null;
+  };
+
+  Jishi.prototype._g文本 = function (a) {
+    var 自 = this;
+    this._画(function (ctx) {
+      var s = 自._样式(ctx, JSON.parse(a[3] || "{}"), "文本");
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(String(a[0]), a[1], a[2]);
+      if (s.描 != null) ctx.strokeText(String(a[0]), a[1], a[2]);
+    });
+    return null;
+  };
+
+  Jishi.prototype._g测文本 = function (a) {
+    var ctx = this._needCtx();
+    var 选 = JSON.parse(a[1] || "{}");
+    ctx.save();
+    if (选["字号"] != null) ctx.font = (Number(选["字号"]) || 16) + "px sans-serif";
+    var m = ctx.measureText(String(a[0]));
+    var 高 = (m.actualBoundingBoxAscent || 0) + (m.actualBoundingBoxDescent || 0);
+    ctx.restore();
+    if (!高) 高 = Number(选["字号"] || 16) * 1.2;
+    return { 宽: m.width || 0, 高: 高 };
+  };
+
+  /**
+   * `读图`：**异步**。返回句柄立刻可用于绘制；没加载完的那几帧**跳过绘制**
+   * （不阻塞帧 —— 阻塞一帧就是卡一帧，宁可不画）。
+   */
+  Jishi.prototype._g读图 = function (a) {
+    var 句 = this._图序++;
+    var 项 = { img: null, 就绪: false, 错: false };
+    this._图[句] = 项;
+    var Img = root.Image;
+    if (!Img) return 句;              // 这个环境没有 Image（判据的假 DOM）⇒ 永远不画
+    var img = new Img();
+    img.onload = function () { 项.就绪 = true; };
+    img.onerror = function () { 项.错 = true; };
+    img.src = String(a[0]);
+    项.img = img;
+    return 句;
+  };
+
+  Jishi.prototype._g画图 = function (a, 子) {
+    var 项 = this._图[a[0]];
+    if (!项 || !项.就绪) return null;   // 没加载完 / 没这张图：跳过这次绘制
+    var img = 项.img;
+    var 选 = JSON.parse((子 ? a[9] : a[3]) || "{}");
+    var 转 = (Number(选["旋转"]) || 0) * Math.PI / 180;
+    var 缩 = 选["缩放"] == null ? 1 : Number(选["缩放"]);
+    var 翻 = 选["翻转"];
+    var 翻x = 翻 === "横" || 翻 === "水平" ? -1 : 1;
+    var 翻y = 翻 === "纵" || 翻 === "垂直" ? -1 : 1;
+    var 自 = this;
+    this._画(function (ctx) {
+      if (选["透明度"] != null) ctx.globalAlpha = Number(选["透明度"]);
+      var dx, dy, dw, dh, sx = 0, sy = 0, sw = 0, sh = 0;
+      if (子) {
+        sx = a[1]; sy = a[2]; sw = a[3]; sh = a[4];
+        dx = a[5]; dy = a[6]; dw = a[7]; dh = a[8];
+      } else {
+        sw = img.width || img.naturalWidth || 0;
+        sh = img.height || img.naturalHeight || 0;
+        dw = sw * 缩; dh = sh * 缩;
+        dx = a[1]; dy = a[2];
+      }
+      // 旋转绕**目标框中心**（不这样转，图会绕着左上角飞出去）
+      ctx.translate(dx + dw / 2, dy + dh / 2);
+      if (转) ctx.rotate(转);
+      if (翻x < 0 || 翻y < 0) ctx.scale(翻x, 翻y);
+      ctx.drawImage(img, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
+    });
+    return null;
+  };
+
+  Jishi.prototype._g取像素 = function (a) {
+    var ctx = this._needCtx();
+    var dpr = this._dpr;
+    var d = ctx.getImageData(Math.round(a[0] * dpr), Math.round(a[1] * dpr), 1, 1).data;
+    return [d[0], d[1], d[2], d[3]];
+  };
+
+  /**
+   * 挂输入监听（**只挂一次**）。
+   *
+   * ⚠️ 挂在 `window` 上而不是画布上：画布要能拿到焦点才收键盘，而刚插进去的
+   * `<canvas>` 没有 `tabindex`，`keydown` 根本不来（M186 的坑，写在这儿）。
+   * 代价是「页面里别再依赖全局按键」—— 记在文档里。
+   */
+  Jishi.prototype._挂输入 = function () {
+    if (this._输入已挂) return;
+    this._输入已挂 = true;
+    var w = root;
+    if (!w || !w.addEventListener) return;   // 假环境：判据直接喂状态
+    var 自 = this;
+    w.addEventListener("keydown", function (e) {
+      var k = 自._键名(e.key);
+      自._键[k] = true;
+      if (!e.repeat) 自._按过[k] = true;
+      // 方向键 / 空格会滚页面 —— 游戏里那是灾难
+      if (e.preventDefault && 自._要拦(e.key)) e.preventDefault();
+    });
+    w.addEventListener("keyup", function (e) { 自._键[自._键名(e.key)] = false; });
+    w.addEventListener("mousemove", function (e) {
+      自._鼠标.x = e.clientX; 自._鼠标.y = e.clientY;
+    });
+    w.addEventListener("mousedown", function (e) {
+      if (e.button === 0) 自._鼠标.左键 = true;
+      else if (e.button === 2) 自._鼠标.右键 = true;
+    });
+    w.addEventListener("mouseup", function (e) {
+      if (e.button === 0) 自._鼠标.左键 = false;
+      else if (e.button === 2) 自._鼠标.右键 = false;
+    });
+    w.addEventListener("contextmenu", function (e) {
+      if (e.preventDefault) e.preventDefault();
+    });
+    w.addEventListener("wheel", function (e) {
+      自._滚.dx += Number(e.deltaX) || 0;
+      自._滚.dy += Number(e.deltaY) || 0;
+    }, { passive: true });
+  };
+
+  /** 哪些键要吃掉默认行为（只吃方向键 / 空格 —— 别把 F5 也吃了）。 */
+  Jishi.prototype._要拦 = function (k) {
+    return k === "ArrowLeft" || k === "ArrowRight" || k === "ArrowUp"
+        || k === "ArrowDown" || k === " " || k === "Tab";
+  };
+
+  /** 把结果缓冲读出来（**不释放别的东西**，与 `_take` 分开写）。 */
+  Jishi.prototype._取输出 = function () {
+    var n = this._ex.jishi_out_len();
+    if (!n) return "";
+    var p = this._ex.jishi_alloc(n);
+    this._ex.jishi_out_copy(p);
+    var 文 = this._dec.decode(new Uint8Array(this.memory.buffer, p, n));
+    this._ex.jishi_free(p, n);
+    return 文;
+  };
+
+  /**
+   * 开帧（`图形.运行` 之后由 wasm 入口发 `{"op":"开帧"}`）。
+   *
+   * 泵在这儿而不是在 Rust：wasm 没有线程、没有定时器，而 `requestAnimationFrame`
+   * 恰好同时满足「与显示器同步」和「后台自动停」（D110 §四）。
+   */
+  Jishi.prototype._开帧 = function () {
+    if (typeof this._ex.jishi_frame !== "function") {
+      throw new Error("这份 wasm 太旧（没有 jishi_frame，ABI 4 才有）——"
+        + "重跑 `python tools/build_wasm.py`");
+    }
+    if (this._帧中) return;
+    this._帧中 = true;
+    this._帧错 = null;
+    if (!this._raf) {
+      throw new Error("这个环境没有 requestAnimationFrame —— 帧循环只能在浏览器 / WebView 里跑"
+        + "（判据要驱动它请注入 `raf`）");
+    }
+    var 自 = this;
+    var raf = this._raf;
+    var 走 = function (ts) {
+      if (!自._帧中) return;
+      var 码;
+      try {
+        码 = 自._ex.jishi_frame(Number(ts) || 0);
+      } catch (e) {
+        自._帧中 = false;
+        自._帧错 = String((e && e.message) || e);
+        try { console.error("[基石] 帧循环抛了异常：" + 自._帧错); } catch (_) {}
+        return;
+      }
+      if (码 === 3) { 自._帧中 = false; return; }
+      if (码 === 2) {
+        自._帧中 = false;
+        自._帧错 = 自._取输出();
+        try { console.error("[基石] 帧循环停了：" + 自._帧错); } catch (_) {}
+        return;
+      }
+      // 0：这一帧的 `打印` 打到控制台（引擎那边已经把它从缓冲里取走了）
+      var 文 = 自._取输出();
+      if (文) { try { console.log(文); } catch (_) {} }
+      raf(走);
+    };
+    raf(走);
+  };
+
+  /** 停帧（`图形.停`）—— 只是不再排下一帧，VM 由引擎那边释放。 */
+  Jishi.prototype._停帧 = function () {
+    this._帧中 = false;
+  };
+
+  /** 帧循环在不在跑（判据 / 页面自检用）。 */
+  Jishi.prototype.framesActive = function () {
+    return !!this._帧中;
+  };
+
+  /**
+   * **手动跑一帧**（判据专用）。
+   *
+   * 为什么要有：真跑时 `dt` 来自 rAF 的时间戳，判据没法控制；而「第 60 帧
+   * 状态还在不在」这种断言必须**确定性**。判据自己按固定时间戳喂
+   * （0 / 16 / 32 …），于是 `dt` 与帧号都完全可预期。
+   */
+  Jishi.prototype.frame = function (ts) {
+    var 码 = this._ex.jishi_frame(Number(ts) || 0);
+    return { code: 码, out: this._取输出() };
   };
 
   var JishiWasm = {

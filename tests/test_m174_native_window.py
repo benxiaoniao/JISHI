@@ -150,8 +150,11 @@ def test_ABI版本三处一致():
     assert 行2, "wasm/src/lib.rs 里没有 ABI_VERSION"
     rs版本 = int(行2[0].split("=")[1].split(";")[0].strip())
 
-    assert shim版本 == rs版本 == 3, (
-        f"ABI 版本不一致：shim={shim版本} rust={rs版本}（M174 应当是 3）")
+    # ⚠️ **这个数字会随版本长**，别写死成「M174 那一刻的值」：
+    # M174 是 3；M186（常驻 VM 帧循环）加了 `jishi_frame` ⇒ **4**。
+    # 这条判据真正盯的是「shim 与 wasm 两边一致」，具体数字跟着最新一版走。
+    assert shim版本 == rs版本 == 4, (
+        f"ABI 版本不一致：shim={shim版本} rust={rs版本}（M186 起应当是 4）")
 
 
 def test_shim提供了jishi_native():

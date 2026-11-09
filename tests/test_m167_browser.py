@@ -204,7 +204,7 @@ def test_wasm里真能用(tmp_path):
     """**这一条是本里程碑的硬指标**：wasm 里 `浏览器` 模块真的能操作页面。
 
     验了四件事：
-    ① `ABI_VERSION == 2`（`jishi_call` 是这一版加的）；
+    ① `ABI_VERSION >= 2`（`jishi_call` 是 M167 加的；M186 起是 4）；
     ② **无状态重放成立**：同一个源码跑三遍，localStorage 里的数 1 → 2 → 3
        —— 这正是「一次事件 = 一次完整执行」这个设计的可行性证明；
     ③ **事件链路通**：`绑定` 后触发 `点击`，回调执行、DOM 跟着变；
@@ -219,8 +219,9 @@ def test_wasm里真能用(tmp_path):
     出 = json.loads(r.stdout.decode("utf-8").strip().splitlines()[-1])
 
     # ⚠️ 这个数字**跟着 `wasm/src/lib.rs` 的 `ABI_VERSION` 走**：
-    #    M167 加的（=2），M174 加 `jishi_native` 之后 =3。改 ABI 要一起改这里。
-    assert 出["abi"] == 3, f"wasm 的 ABI 版本是 {出['abi']}，应当是 3（M174 之后）"
+    #    M167 加 `jishi_call`（=2）· M174 加 `jishi_native`（=3）·
+    #    M186 加 `jishi_frame`（**=4**，常驻 VM 帧循环）。改 ABI 要一起改这里。
+    assert 出["abi"] == 4, f"wasm 的 ABI 版本是 {出['abi']}，应当是 4（M186 起）"
     assert 出["初始"] == "还没点"
     assert 出["跑"] == ["跑了 1 次", "跑了 2 次", "跑了 3 次"], (
         f"无状态重放没成立：{出['跑']}（localStorage 该累加，说明「状态没持久化」"

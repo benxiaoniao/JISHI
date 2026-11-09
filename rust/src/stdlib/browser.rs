@@ -89,15 +89,34 @@ mod host {
 #[cfg(target_arch = "wasm32")]
 pub use host::回填响应;
 
+/// 给宿主发一条**没有返回值**的操作（M186：`开帧` / `停帧`）。
+///
+/// 为什么单独一个入口：`host_call` 会把响应读回来并解析，而「开始/停止帧循环」
+/// 这件事**没有回话**。用 `host_call` 也能跑（回一个 `null`），但那要求 JS 侧
+/// 每个 case 都写 `return null`——多一处能写错的地方。
+///
+/// ⚠️ **非 wasm 上什么都不做**：调用方（`图形.运行` / `图形.停`）在更外层就已经
+/// 报过平台错了，这里再报一次只是噪音。
+pub(crate) fn 通知宿主(op: &str) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = host::调用(&format!("{{\"op\":\"{}\",\"args\":[]}}", esc(op)));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = op;
+    }
+}
+
 /// 调一次宿主。**非 wasm 上永远报平台错** —— 这就是「一张表两种目标」的落点。
 #[cfg(target_arch = "wasm32")]
-fn host_call(op: &str, args: &[Val]) -> Result<Val, JishiError> {
+pub(crate) fn host_call(op: &str, args: &[Val]) -> Result<Val, JishiError> {
     let resp = host::调用(&build_req(op, args));
     parse_resp(&resp)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn host_call(_op: &str, _args: &[Val]) -> Result<Val, JishiError> {
+pub(crate) fn host_call(_op: &str, _args: &[Val]) -> Result<Val, JishiError> {
     Err(err("运行期错误", 无浏览器))
 }
 
@@ -106,7 +125,7 @@ fn host_call(_op: &str, _args: &[Val]) -> Result<Val, JishiError> {
 // ---------------------------------------------------------------------------
 
 /// JSON 字符串转义。
-fn esc(s: &str) -> String {
+pub(crate) fn esc(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     for c in s.chars() {
         match c {
@@ -164,17 +183,34 @@ fn parse_resp(bytes: &[u8]) -> Result<Val, JishiError> {
     }
     Ok(match json.get("value") {
         None | Some(crate::json::Json::Null) => Val::None_,
-        Some(crate::json::Json::Str(s)) => Val::Str(s.as_str().into()),
-        Some(crate::json::Json::Int(n)) => Val::Int(*n),
-        Some(crate::json::Json::Float(f)) => Val::Float(*f),
-        Some(crate::json::Json::Bool(b)) => Val::Bool(*b),
-        // 数组 / 对象：DOM 操作不该返回这种形状（返回值只有文本/数字/布尔/空）。
-        // 真出现了就明确报，别悄悄转成一个「看起来像」的东西。
-        Some(_) => {
-            return Err(err("运行期错误", format!(
-                "浏览器宿主返回了不认识的 value 形状：{}", text)))
-        }
+        Some(v) => 值_of(v),
     })
+}
+
+/// JSON → `Val`（M186：`图形` 要拿 `{"宽","高"}` / 鼠标状态这种**结构化**回话）。
+///
+/// 以前这里对数组 / 对象直接报错 —— 那时 DOM 操作的返回值只有文本 / 数字 /
+/// 布尔 / 空，报错是「别悄悄转成一个看起来像的东西」。现在画布接口要返回
+/// 结构（尺寸、鼠标位置、像素），所以把这两条补上：对象 → 字典、数组 → 列表。
+///
+/// ⚠️ **数字按 JSON 文本里的写法分整数 / 浮点**：`320` 进来是 `整数`、
+/// `320.5` 进来是 `浮点`（解析器已经替我们分好了）。调用方（`图形`）用
+/// `数()` 两者都收 —— 所以「画布宽 800」不会因为宿主写成 `800.0` 就变成浮点。
+fn 值_of(j: &crate::json::Json) -> Val {
+    use crate::json::Json;
+    match j {
+        Json::Null => Val::None_,
+        Json::Str(s) => Val::Str(s.as_str().into()),
+        Json::Int(n) => Val::Int(*n),
+        Json::Float(f) => Val::Float(*f),
+        Json::Bool(b) => Val::Bool(*b),
+        Json::Arr(a) => crate::list_new(a.iter().map(值_of).collect()),
+        Json::Obj(m) => crate::dict_new(
+            m.iter()
+                .map(|(k, v)| (Val::Str(k.as_str().into()), 值_of(v)))
+                .collect(),
+        ),
+    }
 }
 
 // ---------------------------------------------------------------------------
