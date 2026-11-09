@@ -485,6 +485,8 @@
   Jishi.prototype._键名 = function (k) {
     k = String(k == null ? "" : k);
     if (键表[k]) return 键表[k];
+    // `键表` 把「空格」映射成 `" "`，而浏览器 `e.key` **本来就是 `" "`** ——
+    // 两边在 `" "` 上汇合（M188 核对过：`按着("空格")` 真的能读到）。
     return k.length === 1 ? k.toLowerCase() : k;
   };
 
