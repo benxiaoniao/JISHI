@@ -385,3 +385,23 @@ pub extern "C" fn jishi_version() -> i32 {
 pub extern "C" fn jishi_seed(v: f64) {
     jishi_ffi::stdlib::rand::设种子(v as u64);
 }
+
+/// 宿主告诉「时间」模块现在几点（Unix 毫秒）—— M188。
+///
+/// 🔴 同 `jishi_seed` 的理由：`wasm32-unknown-unknown` **没有时钟**，
+/// `时间.时间戳()` / `时间.今天()` 在网页和窗口里会**直接 panic**
+/// （报「程序跑飞了」，看不出跟时间有关）。
+/// shim 在加载时塞一次、之后**每帧再塞一次**（`jishi_frame` 里），所以时间会走。
+#[no_mangle]
+pub extern "C" fn jishi_now(ms: f64) {
+    jishi_ffi::stdlib::datetime::设现在(ms as u64);
+}
+
+/// 宿主告诉「时间」模块本地时区差几分钟（东八区 = 480）—— M188。
+///
+/// 与 `jishi_now` 配套：wasm 上没有本地时区 API，不喂这个的话
+/// `时间.今天()` 只能按 UTC 算（东八区凌晨 0–8 点会差一天）。
+#[no_mangle]
+pub extern "C" fn jishi_tz(分钟: f64) {
+    jishi_ffi::stdlib::datetime::设时区偏移(分钟 as i64);
+}

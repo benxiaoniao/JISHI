@@ -73,10 +73,29 @@ def test_cmd_doctor():
 
 
 def test_cmd_tutorial():
+    """`jishi 教程` 的**章数必须和列出来的条数一致**。
+
+    🔴 这里原来只断言「13 章 或 第13章」—— 于是索引写着「16 章」、实际只列了 16 条
+    也没人发现，而 `docs/tutorial/` 里只躺着 13 个文件（M188 才发现这笔账）。
+    现在改成：从标题里抽出「N 章」，再数「第MM章」有几行，两者必须相等，
+    而且**每个编号都要有对应的 .md**（教程文档真存在，不是只在索引里活着）。
+    """
+    import re
+    from pathlib import Path
+
     code, out = _run_cli(["教程"])
     assert code == 0
-    assert "13 章" in out or "第13章" in out
+    声明的章数 = int(re.search(r"（(\d+) 章）", out).group(1))
+    列出的 = re.findall(r"^\s+第(\d+)章", out, re.M)
+    assert len(列出的) == 声明的章数, f"标题说 {声明的章数} 章，实际列了 {len(列出的)} 条"
+    assert [int(x) for x in 列出的] == list(range(1, 声明的章数 + 1)), "章节编号有断号"
     assert "包管理" in out
+
+    # 每一章都要有真的 md 文件（索引不能只在嘴上活着）
+    文档 = Path(__file__).resolve().parent.parent / "docs" / "tutorial"
+    for 号 in 列出的:
+        命中 = sorted(文档.glob(f"{号}_*.md"))
+        assert 命中, f"索引里有第{号}章，但 docs/tutorial/ 下没有 {号}_*.md"
 
 
 def test_cmd_new_project(tmp_path, monkeypatch):

@@ -40,7 +40,7 @@ use std::collections::HashMap;
 use crate::{display, err, JishiError, Val};
 
 pub(crate) mod browser;
-pub(crate) mod datetime;
+pub mod datetime;
 pub(crate) mod site;
 pub(crate) mod pack;
 pub(crate) mod window;

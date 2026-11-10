@@ -951,8 +951,28 @@
    * （0 / 16 / 32 …），于是 `dt` 与帧号都完全可预期。
    */
   Jishi.prototype.frame = function (ts) {
+    this._喂时间 && this._喂时间(this);
     var 码 = this._ex.jishi_frame(Number(ts) || 0);
     return { code: 码, out: this._取输出() };
+  };
+
+  /**
+   * 把「现在」喂给 wasm 里的 `时间` 模块（M188）。
+   *
+   * 🔴 为什么要有：`wasm32-unknown-unknown` **没有时钟**，`SystemTime::now()`
+   * 在那边是**直接 panic**。所以时间只能由宿主告诉它。
+   * 加载时喂一次（一次性程序够用），`frame()` 每帧再喂一次（游戏里的时间会走）。
+   */
+  Jishi.prototype._喂时间 = function (inst) {
+    var 目 = inst || this;
+    if (!目._ex) return;
+    if (typeof 目._ex.jishi_now === "function") 目._ex.jishi_now(Date.now());
+    // 时区只要喂一次：`getTimezoneOffset()` 是「本地比 UTC 慢几分钟」，
+    // 取反才是「快几分钟」（东八区 = 480）。DST 变了的极端情况这里不管。
+    if (!目._喂过时区 && typeof 目._ex.jishi_tz === "function") {
+      目._ex.jishi_tz(-new Date().getTimezoneOffset());
+      目._喂过时区 = true;
+    }
   };
 
   var JishiWasm = {
@@ -1016,6 +1036,11 @@
             Math.floor(Math.random() * 4294967296) * 4294967296
             + Math.floor(Math.random() * 4294967296));
         }
+        // M188：告诉「时间」模块现在几点。
+        // 🔴 wasm 里**没有时钟**（`SystemTime::now()` 会 panic）——
+        //    `时间.时间戳()` / `时间.今天()` 曾经一调就把引擎炸掉。
+        //    这里塞一次，`frame()` 里每帧再塞一次，时间才会走。
+        inst._喂时间(inst);
         return inst;
       });
     },

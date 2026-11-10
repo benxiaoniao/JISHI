@@ -25,6 +25,64 @@ use super::{as_intish, as_text, need, need_range, table, R};
 use crate::{err, JishiError, Val};
 
 // ---------------------------------------------------------------------------
+// 「现在」
+// ---------------------------------------------------------------------------
+
+/// 宿主塞进来的「现在」（Unix 毫秒；`0` = 还没塞）。见 `设现在`。
+static 宿主现在: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// 让宿主告诉这里「现在几点」（M188）。
+///
+/// 🔴 **`wasm32-unknown-unknown` 没有时钟** —— 那边 `SystemTime::now()` 不是
+/// 返回 0 而是**直接 panic**。所以 `时间.时间戳()` / `时间.今天()` 在网页和窗口里
+/// 曾经**一调就把引擎炸掉**（报「程序跑飞了」，一个字都没提时间）。
+///
+/// 修法与 `随机` 同一条路（D113）：JS 那边有 `Date.now()`，加载时塞一次、
+/// 之后**每帧再塞一次**（`jishi_frame` 那条路），于是时间会走。
+pub fn 设现在(毫秒: u64) {
+    宿主现在.store(毫秒, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// 当前 Unix 时间戳（秒，含小数）。
+pub(crate) fn 现在秒() -> f64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let ms = 宿主现在.load(std::sync::atomic::Ordering::Relaxed);
+        // 没塞过就给 0（1970）：**不 panic 是第一位的**，0 至少能算下去
+        ms as f64 / 1000.0
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0)
+    }
+}
+
+/// 宿主塞进来的时区偏移（分钟，东八区 = 480；`i64::MIN` = 还没塞）。
+static 宿主偏移: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(i64::MIN);
+
+/// 让宿主告诉这里「本地时区差几分钟」（M188）。
+///
+/// 没有本地时区 API 的平台（wasm）只能问宿主：JS 的
+/// `-new Date().getTimezoneOffset()` 就是「本地比 UTC 快几分钟」。
+pub fn 设时区偏移(分钟: i64) {
+    宿主偏移.store(分钟, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// 本地比 UTC 快几分钟（没喂过就当 0 = UTC）。
+#[cfg_attr(any(windows, unix), allow(dead_code))]
+pub(crate) fn 时区偏移分钟() -> i64 {
+    let v = 宿主偏移.load(std::sync::atomic::Ordering::Relaxed);
+    if v == i64::MIN {
+        0
+    } else {
+        v
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 本地时间
 // ---------------------------------------------------------------------------
 
@@ -166,10 +224,7 @@ mod plat {
     }
 
     pub fn local_now() -> (i32, u32, u32, u32, u32, u32, u32) {
-        let secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+        let secs = super::现在秒() as i64;
         local_from_unix(secs as f64).unwrap_or((1970, 1, 1, 0, 0, 0, 3))
     }
 
@@ -199,11 +254,22 @@ mod plat {
 
 #[cfg(not(any(windows, unix)))]
 mod plat {
-    pub fn local_now() -> (i32, u32, u32, u32, u32, u32, u32) {
-        (1970, 1, 1, 0, 0, 0, 3)
+    /// **没有本地时区 API 的平台（wasm）**：时间由宿主喂（`设现在`），
+    /// 时区偏移也由宿主喂（`设时区偏移`）。这里只做「UTC + 偏移」的换算。
+    ///
+    /// 🔴 M188 之前这里**硬写 1970-01-01** —— 于是浏览器里 `时间.今天()`
+    /// 永远返回 1970，而且不报错（比崩还难查）。
+    fn 带偏移(secs: f64) -> (i32, u32, u32, u32, u32, u32, u32) {
+        let d = super::utc_from_unix(secs + (super::时区偏移分钟() as f64) * 60.0);
+        (d.year, d.month, d.day, d.hour, d.minute, d.second, d.weekday)
     }
-    pub fn local_from_unix(_secs: f64) -> Option<(i32, u32, u32, u32, u32, u32, u32)> {
-        None
+
+    pub fn local_now() -> (i32, u32, u32, u32, u32, u32, u32) {
+        带偏移(super::现在秒())
+    }
+
+    pub fn local_from_unix(secs: f64) -> Option<(i32, u32, u32, u32, u32, u32, u32)> {
+        Some(带偏移(secs))
     }
 }
 
@@ -258,10 +324,11 @@ fn 月天数(y: i32, m: u32) -> u32 {
 /// 两边都从**同一个** `secs` 推出来，所以没有「取两次时钟、跨了整秒」的竞态，
 /// 也不需要任何 `cfg`。`not(any(windows, unix))` 平台会退回 UTC ⇒ 偏移 0。
 pub(crate) fn local_offset_minutes() -> i64 {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+    // 没有本地时区 API 的平台（wasm）：偏移是宿主喂的，直接给
+    if cfg!(not(any(windows, unix))) {
+        return 时区偏移分钟();
+    }
+    let secs = 现在秒() as i64;
     let d = local_from_unix(secs as f64);
     let 本地 = days_from_civil(d.year, d.month, d.day) * 86_400
         + (d.hour as i64) * 3_600
@@ -846,11 +913,7 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
         },
         "时间戳" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("时间戳", args, 0)?;
-            let secs = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_secs_f64())
-                .unwrap_or(0.0);
-            Ok(Val::Float(secs))
+            Ok(Val::Float(现在秒()))
         },
         "格式化时间戳" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("格式化时间戳", args, 1)?;

@@ -523,6 +523,71 @@ def test_wasm里随机数能用_不再炸引擎(tmp_path):
     assert 序们[0] != 序们[1], f"两次加载的序列一模一样 —— 种子没接上：{序们[0]}"
 
 
+_JS_时间 = r'''
+const fs = require("fs");
+const JishiWasm = require(process.argv[2]);
+const BYTES = fs.readFileSync(process.argv[3]);
+function ctx() {
+  const c = {}; const 无 = () => {};
+  for (const m of ["save", "restore", "setTransform", "translate", "rotate", "scale",
+    "beginPath", "closePath", "moveTo", "lineTo", "fill", "stroke", "clearRect",
+    "strokeRect", "ellipse", "roundRect", "arc", "fillText", "fillRect", "drawImage"]) c[m] = 无;
+  c.measureText = () => ({ width: 8 });
+  c.getImageData = () => ({ data: [0, 0, 0, 255] });
+  return c;
+}
+const cv = { width: 200, height: 200, style: {}, clientWidth: 200, clientHeight: 200, getContext: ctx };
+const doc = { querySelector: () => cv, createElement: () => cv, body: { appendChild: () => {} } };
+
+const SRC = `导入 时间
+打印("戳 ", 时间.时间戳())
+打印("今天 ", 时间.今天())
+打印("现在 ", 时间.现在())
+打印("偏移 ", 时间.时区偏移())
+`;
+
+(async () => {
+  const j = await JishiWasm.load(BYTES, { doc, store: null, raf: () => 0 });
+  const r = j.run(SRC);
+  console.log(JSON.stringify({ ok: r.ok, out: r.stdout,
+    err: r.ok ? null : (r.error && r.error.title) }));
+})().catch((e) => { console.error(String(e && e.stack || e)); process.exit(1); });
+'''
+
+
+def test_wasm里时间能用_不再炸也不停在1970(tmp_path):
+    """🔴 `时间` 模块在 wasm 里**也踩了同一颗雷**（和 `随机` 一个根因），
+    而且它还有第二种坏法：**不报错、永远返回 1970-01-01**。
+
+    - `wasm32-unknown-unknown` 没有时钟 ⇒ `std::time::SystemTime::now()` panic；
+    - 没有本地时区 API ⇒ 那个 `cfg` 分支以前是**硬写 `(1970,1,1,…)`**。
+
+    修法（D113 的第二刀）：宿主喂「现在」（`jishi_now`，加载时 + 每帧）与
+    「时区偏移」（`jishi_tz`，加载时一次）。这条判据钉三件事：
+    **不炸**、**时间戳是真的现在**（> 2020 年）、**日期不是 1970**。
+    """
+    if shutil.which("node") is None:
+        pytest.skip("没有 node")
+    if not WASM.is_file():
+        pytest.skip("没构建 wasm（跑 python tools/build_wasm.py）")
+    脚本 = tmp_path / "now.js"
+    脚本.write_text(_JS_时间, encoding="utf-8", newline="\n")
+    r = subprocess.run(["node", str(脚本), str(SHIM), str(WASM)],
+                       capture_output=True, timeout=120)
+    出 = (r.stdout + r.stderr).decode("utf-8", "replace")
+    assert r.returncode == 0, 出[-800:]
+    结果 = json.loads(出.strip().splitlines()[-1])
+    assert 结果["ok"], f"炸了：{结果['err']}"
+    文 = 结果["out"] or ""
+    戳 = float(文.split("戳 ")[1].split("\n")[0].strip())
+    assert 戳 > 1_600_000_000, f"时间戳不像现在：{戳}"
+    今天 = 文.split("今天 ")[1].split("\n")[0].strip()
+    assert not 今天.startswith("1970"), f"日期还停在 1970：{今天}"
+    assert 今天[:2] in ("20", "21"), f"日期不像话：{今天}"
+    偏移 = int(文.split("偏移 ")[1].split("\n")[0].replace("+", "").split(":")[0])
+    assert -14 <= 偏移 <= 14, f"时区偏移不像话：{偏移}"
+
+
 # ---------------------------------------------------------------------------
 # 五、精灵选项的三种写法（M188 撞出来的第二颗雷，单独钉一条）
 # ---------------------------------------------------------------------------
