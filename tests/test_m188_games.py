@@ -524,7 +524,84 @@ def test_wasm里随机数能用_不再炸引擎(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 五、平台跳跃：瓦片 + 相机 + 重力（三个里唯一同时用上三个模块的）
+# 五、精灵选项的三种写法（M188 撞出来的第二颗雷，单独钉一条）
+# ---------------------------------------------------------------------------
+
+_JS_精灵 = r'''
+const fs = require("fs");
+const JishiWasm = require(process.argv[2]);
+const BYTES = fs.readFileSync(process.argv[3]);
+let 画了 = 0;
+function ctx() {
+  const c = {}; const 无 = () => {};
+  for (const m of ["save", "restore", "setTransform", "translate", "rotate", "scale",
+    "beginPath", "closePath", "moveTo", "lineTo", "fill", "stroke", "clearRect",
+    "strokeRect", "ellipse", "roundRect", "arc", "fillText"]) c[m] = 无;
+  c.measureText = () => ({ width: 8 });
+  c.getImageData = () => ({ data: [0, 0, 0, 255] });
+  c.fillRect = 无;
+  c.drawImage = () => { 画了 += 1; };
+  return c;
+}
+const cv = { width: 320, height: 200, style: {}, clientWidth: 320, clientHeight: 200, getContext: ctx };
+const doc = { querySelector: () => cv, createElement: () => cv, body: { appendChild: () => {} } };
+global.Image = class { set src(v) { if (this.onload) this.onload(); } };
+global.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve("") });
+
+const SRC = `导入 图形
+导入 精灵
+图形.准备({"宽": 320, "高": 200})
+令 图 = 图形.读图("x.png")
+令 精 = 精灵.新建(图, {"宽": 16, "高": 16, "列数": 4, "行数": 1})
+精灵.画(精, 10, 20, 空)
+打印("空 OK")
+精灵.画(精, 10, 20, {"翻转": "横"})
+打印("翻转 OK")
+精灵.画(精, 10, 20, {"旋转": 30})
+打印("旋转 OK")
+精灵.画(精, 10, 20, {"缩放": 2})
+打印("缩放 OK")
+精灵.画(精, 10, 20, {"透明度": 0.5})
+打印("透明度 OK")
+`;
+
+(async () => {
+  const j = await JishiWasm.load(BYTES, { doc, store: null, raf: () => 0 });
+  const r = j.run(SRC);
+  console.log(JSON.stringify({ ok: r.ok, out: r.stdout, err: r.ok ? null : r.error.message, 画了 }));
+})().catch((e) => { console.error(String(e && e.stack || e)); process.exit(1); });
+'''
+
+
+def test_精灵画的选项都能用_不再拼坏JSON(tmp_path):
+    """🔴 `精灵.画` 的 `翻转 / 旋转 / 缩放 / 透明度` 曾经**全都用不了**。
+
+    拼选项时键名用了 `jsonw::esc`（**自带引号**），外面又包了一层 ⇒
+    得到 `{""翻转"":"横"}` ⇒ shim 一 `JSON.parse` 就报
+    「Expected ':' after property name at position 3」——
+    报错里一个字都没提「翻转」，只有真跑那个分支才照得出来。
+
+    这条把四种写法和「不传选项」各跑一遍，全过才算过。
+    """
+    if shutil.which("node") is None:
+        pytest.skip("没有 node")
+    if not WASM.is_file():
+        pytest.skip("没构建 wasm（跑 python tools/build_wasm.py）")
+    脚本 = tmp_path / "sprite.js"
+    脚本.write_text(_JS_精灵, encoding="utf-8", newline="\n")
+    r = subprocess.run(["node", str(脚本), str(SHIM), str(WASM)],
+                       capture_output=True, timeout=120)
+    出 = (r.stdout + r.stderr).decode("utf-8", "replace")
+    assert r.returncode == 0, 出[-800:]
+    结果 = json.loads(出.strip().splitlines()[-1])
+    assert 结果["ok"], f"炸了：{结果['err']}"
+    for 词 in ("空", "翻转", "旋转", "缩放", "透明度"):
+        assert f"{词} OK" in (结果["out"] or ""), f"「{词}」这条没走通：{结果['out']!r}"
+    assert 结果["画了"] == 5, f"应当画 5 次，实际 {结果['画了']}"
+
+
+# ---------------------------------------------------------------------------
+# 六、平台跳跃：瓦片 + 相机 + 重力（三个里唯一同时用上三个模块的）
 # ---------------------------------------------------------------------------
 
 _JS_跳 = r'''
@@ -713,7 +790,7 @@ def test_平台跳跃跑到终点会过关并记最快(跳过):
 
 
 # ---------------------------------------------------------------------------
-# 六、真窗口里跑一遍（CI 上是空白，见 CHANGELOG）
+# 七、真窗口里跑一遍（CI 上是空白，见 CHANGELOG）
 # ---------------------------------------------------------------------------
 
 _无界面 = os.environ.get("JISHI_NO_GUI") == "1"
