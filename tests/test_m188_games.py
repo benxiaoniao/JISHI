@@ -55,6 +55,8 @@ SHIM = ROOT / "wasm" / "jishi-wasm.js"
      ("图形.运行", "函数 每帧", "砖色们")),
     ("贪吃蛇", 例子 / "贪吃蛇.jsh", 例子 / "贪吃蛇_游戏.jsh", 例子 / "贪吃蛇.html",
      ("图形.运行", "函数 每帧", "找空位")),
+    ("平台跳跃", 例子 / "平台跳跃.jsh", 例子 / "平台跳跃_游戏.jsh", 例子 / "平台跳跃.html",
+     ("图形.运行", "函数 每帧", "实心")),
 ]
 
 #: 打砖块的三件（下面那一大段帧循环判据只针对它）
@@ -522,7 +524,196 @@ def test_wasm里随机数能用_不再炸引擎(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 五、真窗口里跑一遍（CI 上是空白，见 CHANGELOG）
+# 五、平台跳跃：瓦片 + 相机 + 重力（三个里唯一同时用上三个模块的）
+# ---------------------------------------------------------------------------
+
+_JS_跳 = r'''
+const fs = require("fs");
+const JishiWasm = require(process.argv[2]);
+const BYTES = fs.readFileSync(process.argv[3]);
+const SRC = fs.readFileSync(process.argv[4], "utf8");
+
+// ---- 假 canvas：累计 translate，记**绝对**目标坐标 ----
+const 记账 = { 清屏: 0, 子图: 0, 矩形: 0, 文本: [], 帧: [] };
+let 帧内子图 = 0, 帧内末 = null;
+function ctx() {
+  const c = { fillStyle: "", strokeStyle: "", lineWidth: 1, font: "",
+              textAlign: "left", globalAlpha: 1 };
+  const 无 = () => {};
+  for (const m of ["beginPath", "closePath", "moveTo", "lineTo", "fill", "stroke",
+    "clearRect", "strokeRect", "ellipse", "rotate", "scale"]) c[m] = 无;
+  let tx = 0, ty = 0;
+  const 栈 = [];
+  c.save = () => { 栈.push([tx, ty]); };
+  c.restore = () => { const s = 栈.pop(); if (s) { tx = s[0]; ty = s[1]; } };
+  c.translate = (x, y) => { tx += x; ty += y; };
+  c.setTransform = () => { tx = 0; ty = 0; };
+  c.measureText = () => ({ width: 8 });
+  c.getImageData = () => ({ data: [0, 0, 0, 255] });
+  c.fillRect = (x, y, w, h) => {
+    if (x === 0 && y === 0 && (w === 800 || w === 640 || w === 480)) 记账.清屏 += 1;
+    else 记账.矩形 += 1;
+  };
+  c.roundRect = () => { 记账.矩形 += 1; };
+  c.arc = 无;
+  c.fillText = (t) => 记账.文本.push(String(t));
+  c.drawImage = (img, sx, sy, sw, sh, dx, dy, dw, dh) => {
+    记账.子图 += 1; 帧内子图 += 1;
+    帧内末 = [tx + dx, ty + dy];
+  };
+  return c;
+}
+const cv = { width: 800, height: 480, style: {}, clientWidth: 800, clientHeight: 480,
+             getContext: () => ctx() };
+const doc = { querySelector: (s) => (s === "#画布" ? cv : null), createElement: () => cv,
+              body: { appendChild: () => {} }, title: "" };
+// 假 `Image`：设 src 就立刻「加载完」（否则 `画子图` 会跳过绘制）
+global.Image = class { set src(v) { if (this.onload) this.onload(); } };
+global.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve("") });
+const kv = new Map();
+const store = { getItem: (k) => (kv.has(k) ? kv.get(k) : null),
+                setItem: (k, v) => kv.set(k, String(v)),
+                removeItem: (k) => kv.delete(k) };
+
+const 监听 = {};
+global.addEventListener = (ev, fn) => { (监听[ev] = 监听[ev] || []).push(fn); };
+function 派发(ev, 事件) { for (const fn of (监听[ev] || [])) fn(事件); }
+
+(async () => {
+  const j = await JishiWasm.load(BYTES, { doc, store, raf: () => 0 });
+  const r = j.run(SRC);
+  if (!r.ok) { console.error(JSON.stringify(r.error)); process.exit(2); }
+  const 出 = { ok: r.ok, 帧中: j.framesActive() };
+  let 帧 = 0;
+  function 走一帧() {
+    帧 += 1;
+    帧内子图 = 0; 帧内末 = null;
+    j.frame(帧 * 16);
+    记账.帧.push({ 末: 帧内末, 数: 帧内子图 });
+  }
+  await new Promise((r) => setTimeout(r, 30));
+
+  走一帧();
+  出.首帧子图 = 记账.帧[0].数;      // 瓦片 + 主角
+  出.首帧主角 = 记账.帧[0].末;
+
+  // ① 静置：重力把人压到地面上，位置应当稳定
+  for (let i = 0; i < 30; i++) 走一帧();
+  出.落地y = 记账.帧[记账.帧.length - 1].末[1];
+
+  // ② 跳一下：y 应当先变小（往上），而且最终回到地面
+  派发("keydown", { key: " ", preventDefault() {} });
+  走一帧();
+  派发("keyup", { key: " ", preventDefault() {} });
+  let 最高 = 出.落地y;
+  for (let i = 0; i < 40; i++) { 走一帧(); 最高 = Math.min(最高, 记账.帧[记账.帧.length - 1].末[1]); }
+  出.跳最高 = 最高;
+
+  // ③ 往左走：左边有个坑，掉下去会回到起点
+  for (let i = 0; i < 40; i++) 走一帧();
+  出.落地后y = 记账.帧[记账.帧.length - 1].末[1];
+  const 左相 = [];
+  派发("keydown", { key: "ArrowLeft", preventDefault() {} });
+  for (let i = 0; i < 100; i++) {
+    走一帧();
+    const 末 = 记账.帧[记账.帧.length - 1].末;
+    左相.push(末 ? Math.round(末[0]) : null);
+  }
+  派发("keyup", { key: "ArrowLeft", preventDefault() {} });
+  出.左相 = 左相;
+
+  // ④ 一路向右 + 连跳，跑到终点
+  派发("keydown", { key: "ArrowRight", preventDefault() {} });
+  let 到了 = 0;
+  for (let i = 0; i < 900; i++) {
+    if (i % 8 === 0) {
+      派发("keydown", { key: " ", preventDefault() {} });
+      派发("keyup", { key: " ", preventDefault() {} });
+    }
+    走一帧();
+    if (记账.文本.some((t) => t.startsWith("过关"))) { 到了 = 帧; break; }
+  }
+  派发("keyup", { key: "ArrowRight", preventDefault() {} });
+
+  出.帧数 = 帧;
+  出.过关帧 = 到了;
+  出.过关 = 记账.文本.filter((t) => t.startsWith("过关")).slice(-1);
+  出.存档 = Object.fromEntries([...kv.entries()]);
+  出.帧错 = j._帧错 == null ? null : String(j._帧错);
+  console.log(JSON.stringify(出));
+})().catch((e) => { console.error(String(e && e.stack || e)); process.exit(1); });
+'''
+
+
+@pytest.fixture(scope="module")
+def 跳过(tmp_path_factory):
+    if shutil.which("node") is None:
+        pytest.skip("没有 node")
+    if not WASM.is_file():
+        pytest.skip("没构建 wasm（跑 python tools/build_wasm.py）")
+    d = tmp_path_factory.mktemp("m188p")
+    脚本 = d / "platform.js"
+    脚本.write_text(_JS_跳, encoding="utf-8", newline="\n")
+    r = subprocess.run(["node", str(脚本), str(SHIM), str(WASM), str(游戏们[2][2])],
+                       capture_output=True, timeout=300)
+    assert r.returncode == 0, (r.stdout + r.stderr).decode("utf-8", "replace")[-1500:]
+    return json.loads(r.stdout.decode("utf-8").strip().splitlines()[-1])
+
+
+def test_平台跳跃第一帧就画了瓦片和主角(跳过):
+    """瓦片真的画出来了（不是「地图读了就算」），而且主角是最后一条 `画子图`。"""
+    assert 跳过["ok"], 跳过.get("错")
+    assert 跳过["帧中"], "`图形.运行` 之后帧循环没在跑"
+    # 视口 800 宽 = 25 列；只有实心格子才画 ⇒ 地面两行 50 块 + 空中砖台，50 上下
+    assert 跳过["首帧子图"] >= 40, f"第一帧只画了 {跳过['首帧子图']} 块（瓦片没出来？）"
+    主 = 跳过["首帧主角"]
+    assert 主 is not None, "没画主角"
+    # 起点列 4 → x = 128；站在第 16 行地面上 → y = 16*32-32 = 480
+    assert abs(主[0] - 128) <= 2 and abs(主[1] - 384) <= 2, f"主角起点不对：{主}"
+
+
+def test_平台跳跃重力会把人压到地面(跳过):
+    """静置 30 帧后位置稳定 —— 重力 + 地面碰撞真的在起作用（不是一直往下掉）。"""
+    assert abs(跳过["落地y"] - 跳过["落地后y"]) <= 2, \
+        f"位置不稳定：{跳过['落地y']} → {跳过['落地后y']}"
+    assert abs(跳过["落地y"] - 384) <= 2, f"没站在地面上：y={跳过['落地y']}"
+
+
+def test_平台跳跃能跳起来(跳过):
+    """按空格之后 y **变小**（画布 y 向下），而且不是「一直飞」—— 后面回到地面。"""
+    assert 跳过["跳最高"] <= 跳过["落地y"] - 40, \
+        f"跳不起来（最高 {跳过['跳最高']}，地面 {跳过['落地y']}）"
+
+
+def test_平台跳跃掉进坑里会回到起点(跳过):
+    """左边是个坑：往左走 ⇒ 掉下去 ⇒ **回到起点重来**。
+
+    这条抓的是「掉出世界」那条判定 —— 没有它，掉下去的人只会看着空白屏幕。
+    📌 判据看的是**序列**（x 先走到负数、紧接着跳回起点），不是某一帧的快照：
+    按住左键时它掉下去又往前走，快照拍在哪一帧全看运气。
+    """
+    相 = 跳过["左相"]
+    assert min(相) < 0, f"没走到坑里（最小 x = {min(相)}）"
+    有重开 = any(相[i] < 0 and 相[i + 1] >= 120 for i in range(len(相) - 1))
+    assert 有重开, f"掉下去之后没回起点：{相}"
+
+
+
+def test_平台跳跃跑到终点会过关并记最快(跳过):
+    """🔴 闭环：一路向右 + 连跳 ⇒ 到旗子 ⇒ 过关 + 最快用时进存档。
+
+    这条同时验了「台阶能跳上去」—— 走不过去的地方卡住的话到不了终点。
+    """
+    assert 跳过["过关"], f"跑了 {跳过['帧数']} 帧也没到终点"
+    存档 = 跳过["存档"]
+    键 = "基石存档/平台跳跃最快"
+    assert 键 in 存档, f"没存最快用时：{list(存档)}"
+    值 = json.loads(存档[键])["值"]
+    assert 0 < 值 < 60, f"用时不像话：{值}"
+
+
+# ---------------------------------------------------------------------------
+# 六、真窗口里跑一遍（CI 上是空白，见 CHANGELOG）
 # ---------------------------------------------------------------------------
 
 _无界面 = os.environ.get("JISHI_NO_GUI") == "1"

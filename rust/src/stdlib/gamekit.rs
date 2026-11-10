@@ -28,6 +28,9 @@ use std::collections::HashMap;
 use crate::{dict_get, dict_new, dict_set, err, err_with_hint, BuiltinHost, JishiError, Val};
 
 use super::graphics::调;
+//: `browser::esc` 只转义**不加引号**（键名要自己补引号）；`jsonw::esc` 自带引号。
+//: 两者混淆过一次，见下面「精灵选项」那段注释。
+use super::browser::esc;
 use super::{need, need_range, table, R};
 
 // ---------------------------------------------------------------------------
@@ -410,10 +413,16 @@ fn 选json(v: Option<&Val>) -> Result<String, JishiError> {
     for (k, val) in d.borrow().to_items() {
         let k = crate::display(&k);
         match k.as_str() {
+            // ⚠️ 键名用 `esc`（**不加引号**，这里自己补），值里的文本用
+            //    `jsonw::esc`（**自带引号**）。
+            //    🔴 M188 这里原来两处都写成了 `jsonw::esc`，于是拼出
+            //    `{""翻转"":"横"}` —— JSON 解析在**位置 3** 就炸，
+            //    报「Expected ':' after property name」，而且**看不出跟翻转有关**。
+            //    （和 M187 存档索引那条是同一类错：esc 到底带不带引号。）
             "旋转" | "缩放" | "透明度" => {
-                段.push(format!("\"{}\":{}", crate::jsonw::esc(&k), 数(&val, "画", &k)?))
+                段.push(format!("\"{}\":{}", esc(&k), 数(&val, "画", &k)?))
             }
-            "翻转" => 段.push(format!("\"{}\":{}", crate::jsonw::esc(&k), crate::jsonw::esc(&文本(&val, "画", &k)?))),
+            "翻转" => 段.push(format!("\"{}\":{}", esc(&k), crate::jsonw::esc(&文本(&val, "画", &k)?))),
             other => {
                 return Err(err_with_hint(
                     "值错误",
