@@ -483,6 +483,15 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
         eprintln!("错误：「{源}」里没有文件");
         return ExitCode::from(2);
     }
+    // 🔴 入口必须在**要打包的目录里**（M188 加）：
+    //    入口写错（或者忘了把那个 .jsh 放进目录）时，包照样能出，
+    //    装完双击的后果是「找不到文件」—— 用户看到的是「装了个坏东西」。
+    if !入口.is_empty() && !Path::new(&源).join(&入口).is_file() {
+        eprintln!(
+            "错误：入口「{入口}」不在「{源}」里 —— 装上之后双击会「找不到文件」。\n　　 \
+             要么把 {入口} 放进这个目录，要么把 --入口 写成目录里真有的那个文件。");
+        return ExitCode::from(2);
+    }
     if let Err(e) = fs::create_dir_all(&出) {
         eprintln!("错误：建输出目录「{出}」失败：{e}");
         return ExitCode::FAILURE;

@@ -199,9 +199,21 @@ def test_Node_宿主起不了服务时说明白(tmp_path):
 # ---------------------------------------------------------------------------
 
 def _端口空闲(port: int) -> bool:
+    """这个端口现在能不能**绑**上（不是「连不连得上」）。
+
+    🔴 原来用的是 `connect_ex != 0`（连不上就算空闲）—— 这个判法在两种情况下会骗人：
+    ① 端口上还挂着**半死的**监听（旧服务没退干净）：连得上 → 判定「忙」，于是换下一个口，
+       可那个旧的随时会退，等真去打请求时就变成「连接被拒」；
+    ② Windows 上 TIME_WAIT 一堆时 connect 也可能直接失败 → 判定「空闲」，
+       可 bind 仍会失败（基石的服务没设 SO_REUSEADDR）。
+    改成**真去 bind 一下**：bind 成功才算空闲，与「服务能不能起来」是同一件事。
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(0.3)
-        return s.connect_ex(("127.0.0.1", port)) != 0
+        try:
+            s.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
 
 
 def _挑端口(首选: int = 8137) -> int:
@@ -264,8 +276,24 @@ def test_示例真的能起服务并回应(tmp_path):
     端口 = _挑端口()
     proc = _起(示例服务, 端口, tmp_path)
     try:
-        assert _等端口(端口), "20 秒内没起来"
-        状态, 正文 = _取(端口, "/")
+        if not _等端口(端口):
+            proc.kill()
+            o, e = proc.communicate()
+            raise AssertionError(
+                f"20 秒内没起来（端口 {端口}）。子进程输出："
+                + (o or b"").decode("utf-8", "replace")[-600:]
+                + (e or b"").decode("utf-8", "replace")[-600:])
+        try:
+            状态, 正文 = _取(端口, "/")
+        except Exception:
+            # 🔴 连不上时**必须把子进程的输出带出来** —— 不然只剩一句
+            #    「目标计算机积极拒绝」，看不出它是没起来、崩了、还是端口被占。
+            proc.kill()
+            o, e = proc.communicate()
+            raise AssertionError(
+                f"端口 {端口} 连不上。子进程输出："
+                + (o or b"").decode("utf-8", "replace")[-800:]
+                + (e or b"").decode("utf-8", "replace")[-800:])
         assert 状态 == 200 and "成绩查询" in 正文, (状态, 正文)
         状态, 正文 = _取(端口, "/成绩/小明")
         assert 状态 == 200 and '"语文": 92' in 正文, (状态, 正文)

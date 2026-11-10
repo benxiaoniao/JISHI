@@ -367,6 +367,14 @@ def 打包命令(argv: list) -> int:
     if not 文件们:
         print(f"错误：「{源}」里没有文件", file=sys.stderr)
         return 2
+    # 🔴 入口必须在**要打包的目录里**（M188 加，与 Rust 侧同一条）：
+    #    入口写错（或者忘了把那个 .jsh 放进目录）时，包照样能出，
+    #    装完双击的后果是「找不到文件」—— 用户看到的是「装了个坏东西」。
+    if 入口 and not os.path.isfile(os.path.join(源, 入口)):
+        文 = ("错误：入口「" + 入口 + "」不在「" + 源 + "」里 —— 装上之后双击会「找不到文件」。"
+              + chr(10) + "　　 要么把它放进这个目录，要么把 --入口 写成目录里真有的那个文件。")
+        print(文, file=sys.stderr)
+        return 2
 
     os.makedirs(出, exist_ok=True)
     成品 = []          # [(类型, 路径)]
