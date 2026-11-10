@@ -237,6 +237,122 @@ def main():
         time.sleep(1)
         记("用户包能卸掉（bin/ 没了）", not (用户装 / "bin").exists(), 卸出[-160:])
 
+    # ── 4.5 游戏包（M189 加）：真游戏能不能装、能不能动 ──────────────────
+    #
+    # 为什么单列一段：游戏包与用户包的区别不在打包（同一条路），而在**跑起来之后**：
+    # 它靠 `图形.运行` 进常驻 VM，一帧一帧地跑。窗口开出来、页面到了，
+    # **不代表帧循环在跑**（白画布也是「页面到了」）。
+    # `打印` 在窗口模式下不会回到宿主 stdout（实测一行都没有），所以这里只能看**画面**：
+    # 抓两次窗口截图，比校验和 —— 变了就说明有东西在动。
+    print("\n[4.5] 游戏包（真游戏：装 → 开窗 → 画面真的在动 → 卸）")
+    游戏源 = ROOT / "examples" / "desktop"
+    游戏出 = 工作 / "游戏包"
+    游戏出.mkdir(exist_ok=True)
+    打砖块源 = 工作 / "打砖块源"
+    打砖块源.mkdir(exist_ok=True)
+    for 名 in ("打砖块.html", "打砖块.jsh", "打砖块_游戏.jsh", "游戏启动.js", "碰.wav"):
+        shutil.copyfile(游戏源 / 名, 打砖块源 / 名)
+    码, 出 = 跑([装目录 / "bin" / "jishi.exe", "打包", 打砖块源, "--出", 游戏出,
+                 "--名字", "演练游戏", "--版本", "1.0.0", "--入口", "打砖块.jsh",
+                 "--自带运行时", "--引擎", 装目录 / "bin"], timeout=300)
+    记("游戏打包 退出码 0", 码 == 0, 出[-300:] if 码 else "")
+    游戏安装 = 游戏出 / "演练游戏-1.0.0-windows-x64-setup.exe"
+    记("出了游戏安装包", 游戏安装.is_file(),
+      f"{游戏安装.stat().st_size // 1024} KB" if 游戏安装.is_file() else str(游戏出))
+
+    if 游戏安装.is_file():
+        游戏装 = 工作 / "游戏装"
+        壳日志 = 工作 / "游戏装.log"
+        with open(壳日志, "w", encoding="utf-8") as f:
+            码 = subprocess.run([str(游戏安装), "--目标", str(游戏装)],
+                                stdout=f, stderr=subprocess.STDOUT, timeout=300).returncode
+        记("游戏包装到空目录 退出码 0", 码 == 0,
+          壳日志.read_text(encoding="utf-8", errors="replace")[-200:] if 码 else "")
+        for 名 in ("打砖块.html", "打砖块.jsh", "打砖块_游戏.jsh", "游戏启动.js", "碰.wav"):
+            记(f"游戏包的 app/ 里有 {名}", (游戏装 / "app" / 名).is_file())
+        记("游戏包里有 运行时.json", (游戏装 / "运行时.json").is_file())
+
+        游戏日志 = 工作 / "win_game.log"
+        with open(游戏日志, "w", encoding="utf-8") as f:
+            进程4 = subprocess.Popen(
+                [str(游戏装 / "bin" / "jishi.exe"), str(游戏装 / "app" / "打砖块.jsh")],
+                cwd=str(游戏装), stdout=f, stderr=subprocess.STDOUT,
+                env={**os.environ, "JISHI_WINDOW_DEBUG": "1"})
+        time.sleep(8)
+        活着 = 进程4.poll() is None
+        文4 = 游戏日志.read_text(encoding="utf-8", errors="replace")
+        记("游戏包能开窗（进程还活着）", 活着)
+        记("游戏包页面真的到了", "页面到了" in 文4,
+          文4.strip().splitlines()[-1][:80] if 文4.strip() else "无输出")
+        记("游戏包的 wasm 引擎起来了", "引擎起来了" in 文4,
+          "（页面里的游戏源码真跑了）" if "引擎起来了" in 文4 else "日志里没有这一行")
+
+        if 活着:
+            进程4.kill()
+            进程4.wait(timeout=20)
+
+        # 🔴 帧循环真在跑 —— 用**会动的探针**，不拿游戏自己当探针。
+        #
+        # 为什么不能拿打砖块：球掉下去之后是「结束」页，画面就不动了；
+        # 8 秒足够一颗球掉下去（实测就是这样：6 次抓取同一张图）。
+        # 探针只有一个职责：每帧把方块往右挪一点，永远不停 ⇒ 画面必须一直在变。
+        try:
+            sys.path.insert(0, str(ROOT / "tools"))
+            import 窗口指纹 as 指纹
+
+            探针 = 工作 / "探针"
+            探针.mkdir(exist_ok=True)
+            shutil.copyfile(游戏源 / "游戏启动.js", 探针 / "游戏启动.js")
+            (探针 / "页面.html").write_text(
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>帧循环探针</title>'
+                '</head><body data-游戏="探针.jsh"><canvas id="画布"></canvas>'
+                '<script src="游戏启动.js"></script></body></html>',
+                encoding="utf-8", newline="\n")
+            (探针 / "探针.jsh").write_text(
+                '导入 图形\n'
+                '令 状态 = {"x": 0.0}\n'
+                '函数 初始化()：\n'
+                '    图形.准备({"宽": 400, "高": 240, "背景": "#101820"})\n'
+                '函数 每帧(号, 间隔毫秒)：\n'
+                '    状态["x"] = 状态["x"] + 4.0\n'
+                '    如果 状态["x"] > 360：\n'
+                '        状态["x"] = 0.0\n'
+                '    图形.清屏("#101820")\n'
+                '    图形.矩形(状态["x"], 100, 60, 60, {"填充": "#fde047"})\n'
+                '图形.运行(初始化, 每帧)\n',
+                encoding="utf-8", newline="\n")
+            (探针 / "入口.jsh").write_text(
+                '导入 窗口\n\n令 窗 = 窗口.打开({"标题": "帧循环探针", "页面": "页面.html"})\n'
+                '窗口.等(窗)\n',
+                encoding="utf-8", newline="\n")
+
+            探针日志 = 工作 / "win_probe.log"
+            with open(探针日志, "w", encoding="utf-8") as f:
+                探针进程 = subprocess.Popen(
+                    [str(游戏装 / "bin" / "jishi.exe"), str(探针 / "入口.jsh")],
+                    cwd=str(探针), stdout=f, stderr=subprocess.STDOUT,
+                    env={**os.environ, "JISHI_WINDOW_DEBUG": "1"})
+            time.sleep(6)
+            hwnd = 指纹.找窗口("帧循环探针")
+            指纹.跳到前台(hwnd)      # 后台窗口的 WebView2 会停渲染
+            time.sleep(0.6)
+            样本 = []
+            for _ in range(6):
+                if hwnd:
+                    样本.append(指纹.指纹(hwnd))
+                time.sleep(0.4)
+            样本 = [x for x in 样本 if x]
+            记("帧循环真在跑（画面在变）", len(set(样本)) >= 2,
+              f"{len(set(样本))} 种画面 / {len(样本)} 次抓取" if 样本 else "抓不到窗口")
+            探针进程.kill()
+            探针进程.wait(timeout=20)
+        except Exception as e:                       # noqa: BLE001
+            记("帧循环真在跑（画面在变）", False, f"探针失败：{e}")
+
+        _, 卸出 = 跑([游戏装 / "uninstall.exe", "--卸载", "--静默"], timeout=300)
+        time.sleep(1)
+        记("游戏包能卸掉（bin/ 没了）", not (游戏装 / "bin").exists(), 卸出[-160:])
+
     # ── 5. 卸 ─────────────────────────────────────────────────────────
     print("\n[5] 卸载")
     码, 出 = 卸(装目录)
