@@ -1,0 +1,327 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 2,
+        "name": "日期",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 11,
+                  "line": 4,
+                  "value": 2026,
+                  "类型": "Num"
+                },
+                {
+                  "col": 17,
+                  "line": 4,
+                  "value": 13,
+                  "类型": "Num"
+                }
+              ],
+              "col": 10,
+              "func": {
+                "attr": "月天数",
+                "col": 6,
+                "line": 4,
+                "obj": {
+                  "col": 4,
+                  "id": "日期",
+                  "line": 4,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 4,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 4,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 4,
+          "类型": "Call"
+        },
+        "line": 4,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "15f1407041400b2264a1e1ad8793105c4be72c225aef64c661cd1e51adbe7031",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            2,
+            1,
+            3,
+            0,
+            0,
+            0,
+            2,
+            1,
+            2,
+            1,
+            0,
+            0,
+            4,
+            1,
+            2,
+            0,
+            0,
+            0,
+            4,
+            4,
+            25,
+            2,
+            0,
+            0,
+            4,
+            6,
+            1,
+            0,
+            0,
+            0,
+            4,
+            11,
+            1,
+            1,
+            0,
+            0,
+            4,
+            17,
+            20,
+            2,
+            -1,
+            0,
+            4,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            4,
+            3,
+            38,
+            0,
+            0,
+            0,
+            4,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": 2026
+        },
+        {
+          "t": "int",
+          "v": 13
+        }
+      ],
+      "filename": "tests/error_cases/72_日期_月份越界.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "日期",
+        "打印",
+        "月天数"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 2,
+      "source_line": "导入 日期",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 2,
+      "source_line": "导入 日期",
+      "type": "NAME",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 2,
+      "source_line": "导入 日期",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "NAME",
+      "value": "日期",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "NAME",
+      "value": "月天数",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "NUMBER",
+      "value": 2026,
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "NUMBER",
+      "value": 13,
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "打印(日期.月天数(2026, 13))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 4,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:f04c61747281cbae",
+  "语料": "tests/error_cases/72_日期_月份越界.jsh"
+}

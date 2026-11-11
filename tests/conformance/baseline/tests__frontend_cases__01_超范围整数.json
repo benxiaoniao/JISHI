@@ -1,0 +1,410 @@
+{
+  "ast": {
+    "body": [
+      {
+        "col": 1,
+        "line": 11,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "甲",
+          "line": 11,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 7,
+          "line": 11,
+          "value": 123456789012345678901234567890,
+          "类型": "Num"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 12,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "乙",
+          "line": 12,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 7,
+          "line": 12,
+          "value": 9007199254740993,
+          "类型": "Num"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "id": "甲",
+              "line": 13,
+              "类型": "Name"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 13,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 13,
+          "类型": "Call"
+        },
+        "line": 13,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "id": "乙",
+              "line": 14,
+              "类型": "Name"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 14,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 14,
+          "类型": "Call"
+        },
+        "line": 14,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "968e2398f831c2f16288b6559e31b556bab749bf029e2a586d39cb05935d6093",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            1,
+            0,
+            0,
+            0,
+            11,
+            7,
+            3,
+            0,
+            0,
+            0,
+            11,
+            1,
+            1,
+            1,
+            0,
+            0,
+            12,
+            7,
+            3,
+            1,
+            0,
+            0,
+            12,
+            1,
+            2,
+            2,
+            0,
+            0,
+            13,
+            1,
+            2,
+            0,
+            0,
+            0,
+            13,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            13,
+            3,
+            38,
+            0,
+            0,
+            0,
+            13,
+            1,
+            2,
+            2,
+            0,
+            0,
+            14,
+            1,
+            2,
+            1,
+            0,
+            0,
+            14,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            14,
+            3,
+            38,
+            0,
+            0,
+            0,
+            14,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": []
+        }
+      ],
+      "consts": [
+        {
+          "t": "int",
+          "v": "123456789012345678901234567890"
+        },
+        {
+          "t": "int",
+          "v": "9007199254740993"
+        }
+      ],
+      "filename": "tests/frontend_cases/01_超范围整数.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "甲",
+        "乙",
+        "打印"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "令 甲 = 123456789012345678901234567890",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 11,
+      "source_line": "令 甲 = 123456789012345678901234567890",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 11,
+      "source_line": "令 甲 = 123456789012345678901234567890",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 36,
+      "line": 11,
+      "source_line": "令 甲 = 123456789012345678901234567890",
+      "type": "NUMBER",
+      "value": 123456789012345678901234567890,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "令 甲 = 123456789012345678901234567890",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "令 乙 = 9007199254740993",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 12,
+      "source_line": "令 乙 = 9007199254740993",
+      "type": "NAME",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 12,
+      "source_line": "令 乙 = 9007199254740993",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 22,
+      "line": 12,
+      "source_line": "令 乙 = 9007199254740993",
+      "type": "NUMBER",
+      "value": 9007199254740993,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "令 乙 = 9007199254740993",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 13,
+      "source_line": "打印(甲)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 13,
+      "source_line": "打印(甲)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 13,
+      "source_line": "打印(甲)",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 13,
+      "source_line": "打印(甲)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "打印(甲)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 14,
+      "source_line": "打印(乙)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 14,
+      "source_line": "打印(乙)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 14,
+      "source_line": "打印(乙)",
+      "type": "NAME",
+      "value": "乙",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 14,
+      "source_line": "打印(乙)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "打印(乙)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:1561165ea3eb6425",
+  "语料": "tests/frontend_cases/01_超范围整数.jsh"
+}

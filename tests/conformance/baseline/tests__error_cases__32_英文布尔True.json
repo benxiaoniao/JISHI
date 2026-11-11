@@ -1,0 +1,80 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": [
+      7,
+      10
+    ],
+    "修正": {
+      "new": "真",
+      "old": "True"
+    },
+    "列": 7,
+    "提示": "把「True」换成「真」即可",
+    "标题": "这里出现了意外的内容",
+    "消息": "「True」是英文写法，基石用中文——你是不是想写「真」？",
+    "渲染": "错误 E0201：这里出现了意外的内容（「True」是英文写法，基石用中文——你是不是想写「真」？）\n  ┌─ tests/error_cases/32_英文布尔True.jsh:1:7\n  │\n  1 │ 令 x = True\n    │       ~~~^\n  │\n  提示：把「True」换成「真」即可",
+    "码": "E0201",
+    "行": 1,
+    "阶段": "语法"
+  },
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 x = True",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "令 x = True",
+      "type": "NAME",
+      "value": "x",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 1,
+      "source_line": "令 x = True",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 10,
+      "line": 1,
+      "source_line": "令 x = True",
+      "type": "NAME",
+      "value": "True",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "令 x = True",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:709cf0ca015ceef7",
+  "语料": "tests/error_cases/32_英文布尔True.jsh"
+}
