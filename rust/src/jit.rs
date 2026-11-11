@@ -1540,10 +1540,7 @@ fn 后端生成函数(
 ) -> Option<Vec<u8>> {
     #[cfg(target_arch = "aarch64")]
     {
-        let _ = (形, 指令们, 常量们);
-        // ⚠️ ARM64 的函数级后端还没写（M190 的第二刀）。返回 `None` 表示
-        // 「这个函数编不了」—— 调用方封存，以后都走解释器，**语义不变**。
-        None
+        aarch64::生成函数(形, 指令们, 常量们)
     }
     #[cfg(not(target_arch = "aarch64"))]
     {
@@ -1567,6 +1564,20 @@ pub fn 编译函数(
     if std::env::var("JISHI_JIT_DUMP").is_ok() {
         let 十六: Vec<String> = 码.iter().map(|b| format!("{b:02X}")).collect();
         eprintln!("[jit-func] {} 字节：{}", 码.len(), 十六.join(" "));
+    }
+    // ARM64 探针（M190 的第二刀）—— 与循环 JIT 的 `[jit-arm]` 同一个思路：
+    // 本机是 x86-64，跑不了 ARM 码，那就在这个架构上也**编一遍**把字节打出来，
+    // 判据才能检查「该发的指令发了、跳转偏移补对了」。
+    // CI 的 macos-arm64 上再拿同一份探针与**真正在跑的那份**对比，必须逐字节相同。
+    #[cfg(not(target_arch = "aarch64"))]
+    if std::env::var("JISHI_JIT_DUMP_ARM").is_ok() {
+        match aarch64::生成函数(形, 指令们, 常量们) {
+            Some(码) => {
+                let 十六: Vec<String> = 码.iter().map(|b| format!("{b:02X}")).collect();
+                eprintln!("[jit-arm-func] {} 字节：{}", 码.len(), 十六.join(" "));
+            }
+            None => eprintln!("[jit-arm-func] 编不了"),
+        }
     }
     let 块 = 申请(码.len())?;
     jit写允许();
