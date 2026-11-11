@@ -757,6 +757,12 @@ const 参3: 寄 = 寄 { 号: 0, 扩: true }; // r8
 #[cfg(not(windows))]
 const 参3: 寄 = 寄 { 号: 2, 扩: false }; // rdx
 
+/// 第 4 个参数寄存器：**去优化旗的指针**（见 `已编函数::调用`）。
+#[cfg(windows)]
+const 参4: 寄 = 寄 { 号: 9, 扩: true }; // r9
+#[cfg(not(windows))]
+const 参4: 寄 = 寄 { 号: 1, 扩: false }; // rcx
+
 /// 把一整个函数编成机器码（M190，设计见 D114）。
 ///
 /// ## 约定
@@ -804,8 +810,10 @@ pub(super) fn 生成函数(
 
     let 槽数 = 形.槽数;
     const 栈层: usize = 8;
-    // 槽 + 表达式栈 + 32 字节 shadow，再向上取到 16 的倍数
-    let 帧 = ((8 * (槽数 + 栈层) + 32) + 15) / 16 * 16;
+    // 槽 + 表达式栈 + 旗指针 + 32 字节 shadow，再向上取到 16 的倍数
+    let 帧 = ((8 * (槽数 + 栈层 + 1) + 32) + 15) / 16 * 16;
+    // 去优化旗的指针放在最底下那格（影子区之上）
+    let 旗偏 = -(8 * (槽数 + 栈层 + 1) as i8);
      let 槽偏 = |i: usize| -> i8 { -(8 * (i as i8 + 1)) };
     let 栈偏 = |j: usize| -> i8 { -(8 * (槽数 as i8 + j as i8 + 1)) };
 
@@ -823,6 +831,24 @@ pub(super) fn 生成函数(
     for i in 0..形.参数数 {
         f.存(RBP, 槽偏(i), 参寄[i]);
     }
+    // 第 4 个参数是「旗 + 深度」小结构的指针 —— 深递归时也要一路传下去
+    //
+    // 🔴 **为什么要自己数深度**：解释器有 `MAX_FRAMES`（1000）的递归上限，
+    // 而机器码的递归不建解释器帧 ⇒ 不数的话「`数(1500)` 解释器报错、JIT 跑通」，
+    // 那就是**改了语义**；更糟的是死递归会变成真撞栈（崩溃），而不是那句人话报错。
+    f.存(RBP, 旗偏, 参4);
+    // 进一层：`inc qword [ptr+8]`，再与 1000 比
+    f.取(RAX, RBP, 旗偏);
+    f.b(0x48);
+    f.b(0xFF);
+    f.b(0x40);
+    f.b(0x08); // inc qword [rax+8]
+    f.b(0x48);
+    f.b(0x81);
+    f.b(0x78);
+    f.b(0x08); // cmp qword [rax+8], imm32
+    f.码.extend_from_slice(&1000i32.to_le_bytes());
+    f.跳(&[0x0F, 0x8D], 去标); // jge：超过上限 ⇒ 去优化（交给解释器报那句人话）
 
     let mut 深: usize = 0;
     let mut 种: Vec<Option<usize>> = Vec::new();
@@ -960,9 +986,18 @@ pub(super) fn 生成函数(
                 for k in 0..实参 {
                     f.取(参寄[k], RBP, 栈偏(深 + 1 + k));
                 }
+                f.取(参4, RBP, 旗偏); // 旗指针原样传给内层
                 f.跳(&[0xE8], 0); // call 函数入口（自己的起点）
-                f.测(RDX);
-                f.跳(&[0x0F, 0x85], 去标); // jnz：内层去优化 ⇒ 整段退出去
+                // 内层把旗立起来 ⇒ 整段退出去优化（RAX 里是垃圾，别用）
+                //
+                // 🔴 两级间接：`[rbp+旗偏]` 存的是**指针**，旗的值在那个地址上。
+                // 第一版只读了指针就 `test`（指针永远非空）⇒ 每次都判「去优化」。
+                f.取(RCX, RBP, 旗偏); // rcx = 指针
+                f.b(0x48);
+                f.b(0x8B);
+                f.b(0x09); // mov rcx, [rcx] —— 真正的旗值
+                f.测(RCX);
+                f.跳(&[0x0F, 0x85], 去标);
                 f.存(RBP, 栈偏(深), RAX);
                 深 += 1;
                 种.push(None);
@@ -975,16 +1010,22 @@ pub(super) fn 生成函数(
     f.跳(&[0xE9], 去标);
 
     f.打标(完标);
-    f.异或(RDX, RDX); // 标志 = 0
-    f.b(0xC9); // leave
+    还一层(&mut f, 旗偏);
+    f.b(0xC9); // leave（值在 rax）
     f.b(0xC3); // ret
 
     f.打标(去标);
     if std::env::var("JISHI_JIT_DEBUG").is_ok() {
         eprintln!("[jit-func码] 总={总} 帧={帧} 深={深}");
     }
-    f.立即(RDX, 1); // 标志 = 1
+    // `mov qword [rbp + 旗偏], 1`（`48 C7 45 disp8 imm32`）
+    f.b(0x48);
+    f.b(0xC7);
+    f.b(0x45);
+    f.b(旗偏 as u8);
+    f.码.extend_from_slice(&1i32.to_le_bytes());
     f.异或(RAX, RAX); // 值给 0（调用方会丢掉）
+    还一层(&mut f, 旗偏);
     f.b(0xC9);
     f.b(0xC3);
 
@@ -993,4 +1034,15 @@ pub(super) fn 生成函数(
         eprintln!("[jit-func码] 收尾失败：有跳转找不到落点");
     }
     r
+}
+
+/// `mov rcx, [rbp+旗偏]; dec qword [rcx+8]` —— 退一层递归深度。
+///
+/// 用 `rcx` 而不是 `rax`：正常出口时 `rax` 里正装着返回值。
+fn 还一层(f: &mut 发, 旗偏: i8) {
+    f.取(RCX, RBP, 旗偏);
+    f.b(0x48);
+    f.b(0xFF);
+    f.b(0x49);
+    f.b(0x08); // dec qword [rcx+8]
 }

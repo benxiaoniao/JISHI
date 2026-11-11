@@ -2296,18 +2296,46 @@ impl VM {
     /// 3. **阈值到了才编**，编不了就**封存**（以后不再试）。
     ///
     /// ⚠️ 返回 `None` 一律表示「走解释器」——它永远是正确的那条路。
+    /// 探针（只在 `JISHI_JIT_DEBUG=1` 时说话）：看函数级 JIT 是不是在递归里
+    /// 反复"进机器码 → 去优化 → 回解释器"。`斐波(14)` 撞栈时就靠它定位。
     #[cfg(feature = "jit")]
     fn 试函数jit(&mut self, f: &Rc<Func>, 实参: &[Val]) -> Option<Val> {
+        use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+        static 当前: AtomicUsize = AtomicUsize::new(0);
+        static 最大: AtomicUsize = AtomicUsize::new(0);
+        static 去优化次数: AtomicUsize = AtomicUsize::new(0);
+        let 深 = 当前.fetch_add(1, Relaxed) + 1;
+        if 深 > 最大.load(Relaxed) {
+            最大.store(深, Relaxed);
+            if std::env::var("JISHI_JIT_DEBUG").is_ok() && (深 == 50 || 深 % 500 == 0) {
+                eprintln!(
+                    "[jit-func深] Rust 侧嵌套 {} 层，去优化 {} 次",
+                    深, 去优化次数.load(Relaxed)
+                );
+            }
+        }
+        let 果 = self.试函数jit_内(f, 实参, &去优化次数);
+        当前.fetch_sub(1, Relaxed);
+        果
+    }
+
+    #[cfg(feature = "jit")]
+    fn 试函数jit_内(
+        &mut self,
+        f: &Rc<Func>,
+        实参: &[Val],
+        去优化次数: &std::sync::atomic::AtomicUsize,
+    ) -> Option<Val> {
         if !self.jit.开着() {
             return None;
         }
-        // 🔴 **M190 施工中：默认关闭，用 `JISHI_JIT_FUNC=1` 打开**。
+        // — 闸 0：别在已经很深的地方进机器码 —
         //
-        // 现状（2026-11-11）：x86-64 后端能编、`斐波(0..13)` 全对、两万次调用也不漏栈，
-        // 但 `斐波(14)` 起撞 Rust 栈 —— 还没查清是「机器码帧泄漏」还是「去优化在递归里
-        // 反复重进解释器」。**在查清之前不许默认开**：那会把一个崩溃带给用户。
-        // 收尾条件：判据 `test_m190` 全绿 + 递归判据过，才删掉这个开关。
-        if std::env::var("JISHI_JIT_FUNC").ok().as_deref() != Some("1") {
+        // 🔴 解释器的一帧（`execute_frame`）很大，跑到 1000 层时原生栈已经用得差不多；
+        // 这时候再叠机器码帧就是**真撞栈（SIGSEGV）**，而不是那句「递归层数太深了」。
+        // 所以只在**外层**（帧数 ≤ 200）才走机器码：里面那几百层仍然解释执行，
+        // 慢一点，但 1000 层的语义与报错和关掉 JIT 时一模一样。
+        if self.frames.len() > 200 {
             return None;
         }
         // — 闸 1：实参 —
@@ -2363,11 +2391,15 @@ impl VM {
                 return None;
             }
         }
-        let (v, 标志) = x.调用(值);
+        let (v, 标志) = x.调用(值, self.frames.len());
         // — 闸 3：溢出等去优化 ⇒ 丢掉结果，走解释器 —
         if 标志 == 0 {
             Some(Val::Int(v as i128))
         } else {
+            let n = 去优化次数.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            if std::env::var("JISHI_JIT_DEBUG").is_ok() && n <= 10 {
+                eprintln!("[jit-func] 去优化第 {n} 次（实参 {}）", 实参.len());
+            }
             None
         }
     }
