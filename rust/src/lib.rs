@@ -2973,6 +2973,12 @@ impl VM {
                     self.stack.truncate(fn_base);
                     // M190：**函数级 JIT**。能走机器码就直接拿结果，不建帧。
                     // 判据见 D114 的「三道闸」——任何一条不满足都退回去走解释器。
+                    //
+                    // 🔴 整个 `if` 块都要 `cfg`：wasm 编译时 `jit` 特征关着，
+                    // `试函数jit` 这个方法**根本不存在** —— 只给方法加 cfg 而漏了调用点，
+                    // 本地 x86 编得过、wasm 那边直接 `E0599`（0.3.3 发版后 CI 三平台
+                    // 全卡在「构建 wasm 引擎」上就是这么来的）。
+                    #[cfg(feature = "jit")]
                     if let Val::Func(f) = &fn_val {
                         if let Some(v) = self.试函数jit(f, &参) {
                             self.arg_buf = 参;
