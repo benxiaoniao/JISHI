@@ -117,6 +117,9 @@ def test_递归上限与解释器同一句话(tmp_path):
     assert 码1 == 码2, f"退码不同：{码1} vs {码2}"
 
 
+@pytest.mark.skipif(
+    __import__("platform").machine().lower() not in ("x86_64", "amd64"),
+    reason="函数级 JIT 只有 x86-64 后端（ARM64 的那刀还没落）；ARM 上是「编不了 ⇒ 走解释器」")
 def test_真的编上了(tmp_path):
     """`JISHI_JIT_DEBUG` 里要出现「编好了」——否则上面那些绿可能只是「从来没编过」。"""
     import os
