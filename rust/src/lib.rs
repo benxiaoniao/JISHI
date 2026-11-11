@@ -2434,6 +2434,9 @@ impl VM {
                             crate::jit::槽位::全局(号) => {
                                 self.globals.get(号).and_then(|x| x.as_ref())
                             }
+                            // 扫槽只扫字节码里的局部/全局，出现临时槽是不可能的；
+                            // 真出现就当作「拿不到提示」，让守卫去决定。
+                            crate::jit::槽位::临时(_) => None,
                         };
                         match v {
                             Some(Val::Int(_)) => {
@@ -2448,8 +2451,75 @@ impl VM {
                 }
                 m
             };
+            // ── M191：内联表（把「小函数」的调用点登记进来）──
+            //
+            // 循环 JIT 跑在**宿主栈**上，机器码里没有「函数」这种值、也没法
+            // 回调解释器 ⇒ 想让 `s = 加一(s)` 进 JIT，只有一条路：**把被调者内联**。
+            //
+            // 这里只做「认和查」：扫循环体，遇到 `LOAD_GLOBAL k + CALL n` 就去看
+            // `globals[k]` 是不是一个「一条 `返回 表达式`」的小函数。是就登记。
+            // 运行期每次进循环前还要核对它**没被换掉**（单态守卫）。
+            let mut 内联表 = std::collections::HashMap::new();
+            if let Some(c) = 码 {
+                let mut j = 抬头;
+                while j < 回跳 {
+                    let 本 = &c.instrs[j];
+                    if 本.op == crate::op::LOAD_GLOBAL && 本.a >= 0 {
+                        let 槽号 = 本.a as usize;
+                        if let Some(Val::Func(f)) =
+                            self.globals.get(槽号).and_then(|x| x.as_ref())
+                        {
+                            // 形参个数在 `Code` 上（`Func` 只带 code_idx）
+                            let 实参 = module
+                                .codes
+                                .get(f.code_idx)
+                                .map(|c| c.params.len())
+                                .unwrap_or(0);
+                            if 实参 == 0 || 实参 > 2 {
+                                j += 1;
+                                continue;
+                            }
+                            // 字节码顺序：`LOAD_GLOBAL f; <实参们>; CALL n`
+                            // —— 实参夹在中间，所以要看**第 1 + n 条之后**那条。
+                            let 位 = j + 1 + 实参;
+                            let 是直接调用 = c
+                                .instrs
+                                .get(位)
+                                .map(|跟| {
+                                    跟.op == crate::op::CALL && 跟.a == 实参 as i64
+                                })
+                                .unwrap_or(false)
+                                // 中间那几条必须是「压一个值」，不能有别的动作
+                                && (j + 1..位).all(|q| {
+                                    matches!(
+                                        c.instrs[q].op,
+                                        crate::op::LOAD_FAST
+                                            | crate::op::LOAD_GLOBAL
+                                            | crate::op::LOAD_CONST
+                                    )
+                                });
+                            if 是直接调用 {
+                                if let Some(被调) = module.codes.get(f.code_idx) {
+                                    if let Some(体) = crate::jit::可内联(
+                                        &被调.instrs, &module.consts, 实参, f.id,
+                                    ) {
+                                        if self.jit.调试么() {
+                                            eprintln!(
+                                                "[jit] 抬头 {抬头}：内联 `{}`（全局槽 {槽号}，{实参} 个实参）",
+                                                被调.name
+                                            );
+                                        }
+                                        内联表.insert(槽号, 体);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    j += 1;
+                }
+            }
             let r = 码.and_then(|c| {
-                crate::jit::编译(&c.instrs, &module.consts, 抬头, 回跳, &提示)
+                crate::jit::编译(&c.instrs, &module.consts, 抬头, 回跳, &提示, &内联表)
             });
             if self.jit.调试么() {
                 let 名 = 码.map(|c| c.name.as_str()).unwrap_or("?");
@@ -2486,16 +2556,37 @@ impl VM {
             return Ok(None);
         }
 
-        let (槽们, 槽型, 出口, 中断口, 是遍历) = match self.jit.取(code_idx, 抬头) {
+        let (槽们, 槽型, 出口, 中断口, 是遍历, 调用点) = match self.jit.取(code_idx, 抬头) {
             Some(Some(x)) => (
                 x.槽们().to_vec(),
                 x.槽型().to_vec(),
                 x.出口(),
                 x.中断口(),
                 x.是遍历(),
+                x.调用点().to_vec(),
             ),
             _ => return Ok(None),
         };
+
+        // —— 2a-0. 单态守卫（M191）——
+        //
+        // 内联是**把被调者的表达式抄进循环体**。基石里函数是值，
+        // `加一 = 别的` 是合法写法 —— 抄进来的那份不是「现在这个名字指向的东西」，
+        // 算出来的结果会静默出错（不报错，数字不对）。
+        // ⇒ 每次进循环前核对：那个全局槽里还是不是编译期那个函数。
+        for (槽号, 期望) in &调用点 {
+            let 还是 = matches!(
+                self.globals.get(*槽号).and_then(|x| x.as_ref()),
+                Some(Val::Func(f)) if f.id == *期望
+            );
+            if !还是 {
+                if self.jit.调试么() {
+                    eprintln!("[jit] 抬头 {抬头}：内联点的函数被换掉了（全局槽 {槽号}），这个循环以后走解释器");
+                }
+                self.jit.封存(code_idx, 回跳);
+                return Ok(None);
+            }
+        }
 
         // —— 2a. 槽的类型守卫（最多 4 个，便宜）——
         let mut 值: Vec<i64> = Vec::with_capacity(槽们.len());
@@ -2519,6 +2610,12 @@ impl VM {
                         fr.locals.get(*号)
                     }
                     crate::jit::槽位::全局(号) => self.globals.get(*号).and_then(|x| x.as_ref()),
+                    // M191：临时槽只活在机器码里（内联时存实参），不对应任何变量
+                    // ⇒ 给个 0 占位，**不读 VM、也不做类型守卫**。
+                    crate::jit::槽位::临时(_) => {
+                        值.push(0);
+                        continue;
+                    }
                 };
                 // 按**编译期定下来的类型**收值：整数进 i64，浮点进它的位模式。
                 // 类型对不上就整段不进（编译时是按「当前值的类型」定型的）。
@@ -2666,6 +2763,8 @@ impl VM {
                         *格 = Some(新值);
                     }
                 }
+                // M191：临时槽是内联用的草稿纸，绝不能写回用户变量
+                crate::jit::槽位::临时(_) => {}
             }
         }
     }
