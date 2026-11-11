@@ -1175,6 +1175,11 @@ pub struct 状态 {
     结果: HashMap<(usize, usize), Option<已编>>,
     /// 热度阈值（M186 起是**每个 VM 一份**，见 `默认阈值` 的说明）。
     阈值: u32,
+    /// **函数级 JIT 的表**（M190）：`Func.id → 状态`。
+    ///
+    /// 与循环那张表分开：循环的键是 `(代码号, 抬头)`，函数的键是**函数身份**
+    /// （`Func.id`）—— 同一个函数可能被多个循环调用，热度该合起来算。
+    函数表: HashMap<usize, 函数态>,
 }
 
 impl Default for 状态 {
@@ -1203,7 +1208,7 @@ impl 状态 {
         let 开 = !环境关 && 支持();
         let 调试 = 探针 || 原 == "调试" || 原 == "debug" || std::env::var("JISHI_JIT_DEBUG").is_ok();
         状态 { 开, 环境关, 已关: false, 调试, 计数: [0; 512], 结果: HashMap::new(),
-               阈值: 默认阈值 }
+               阈值: 默认阈值, 函数表: HashMap::new() }
     }
 
     /// 运行时开关（`--不用jit`）。关掉之后**已经编好的也不再进**。
@@ -1274,5 +1279,331 @@ impl 状态 {
     /// 编好的循环数（判据与统计用）。
     pub fn 已编数(&self) -> usize {
         self.结果.values().filter(|x| x.is_some()).count()
+    }
+
+    /// 编好的**函数**数（M190，判据与统计用）。
+    pub fn 已编函数数(&self) -> usize {
+        self.函数表.values().filter(|x| matches!(x, 函数态::编好(_))).count()
+    }
+
+    /// 这个函数第 N 次被调用 —— 返回 `true` 表示「该试着编了」。
+    ///
+    /// 🔴 与循环 JIT 同一条规矩：**编不了就封存**，以后不再试（否则每个调用点
+    /// 都要走一遍「认形态 → 失败」，那比不编还慢）。
+    pub fn 函数记一次(&mut self, id: usize) -> bool {
+        let 阈值 = self.阈值;
+        函数该编(&mut self.函数表, id, 阈值)
+    }
+
+    /// 取编好的函数（没编好 / 封存了都给 `None`）。
+    pub fn 函数取(&self, id: usize) -> Option<&已编函数> {
+        match self.函数表.get(&id) {
+            Some(函数态::编好(x)) => Some(x),
+            _ => None,
+        }
+    }
+
+    /// 存编译结果：`None` = 编不了，封存。
+    pub fn 函数存(&mut self, id: usize, 值: Option<已编函数>) {
+        match 值 {
+            Some(x) => {
+                self.函数表.insert(id, 函数态::编好(x));
+            }
+            None => {
+                self.函数表.insert(id, 函数态::封存);
+            }
+        }
+    }
+
+    /// 这个函数是不是已经封存了（编不了 / 跑不了）。
+    pub fn 函数封存了(&self, id: usize) -> bool {
+        matches!(self.函数表.get(&id), Some(函数态::封存))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 函数级 JIT（M190，见 D114）
+// ---------------------------------------------------------------------------
+
+/// 函数级 JIT 认得出来的形态。
+///
+/// 只有这么点信息是有意的：**认得出什么**与**怎么发码**分开写，
+/// 前者在这里、后者在 `x86_64::生成函数` / （将来的）`aarch64::生成函数`。
+#[derive(Clone)]
+pub struct 函数方案 {
+    /// 形参个数（1–3）。
+    pub 参数数: usize,
+    /// 用到的局部槽个数（含形参），帧大小按它算。
+    pub 槽数: usize,
+    /// 编译期看到的「调自己」用的全局槽号 —— **进机器码之前**宿主必须核对
+    /// `globals[k]` 仍然指向这个函数（基石里函数是值，能被重新赋值）。
+    pub 自递归全局: Vec<usize>,
+}
+
+/// 去掉编译器**自动补的那条「返回 空」尾巴**：`LOAD_CONST <非整数>; RETURN`。
+///
+/// 为什么必须去：每个函数末尾都有一条隐式 `返回 空`（fib 的字节码第 19–20 条），
+/// 而函数级 JIT 只认整数 —— 那条尾巴会让**所有**函数都判「常量不是整数」，
+/// 于是这一站对任何函数都不生效（写第一版时就撞在这上面）。
+/// 它在这种函数里是**不可达**的（每条路径都显式 `返回`），去掉不影响语义；
+/// 真走到那儿就由后端发 `jmp 去优化`，交给解释器。
+pub fn 有效指令<'a>(指令们: &'a [crate::Instr], 常量们: &[Val]) -> &'a [crate::Instr] {
+    let mut 长 = 指令们.len();
+    if 长 >= 2 {
+        let 倒二 = &指令们[长 - 2];
+        let 倒一 = &指令们[长 - 1];
+        let 是空常量 = 常量们
+            .get(倒二.a as usize)
+            .map(|v| !matches!(v, Val::Int(_)))
+            .unwrap_or(false);
+        if 倒二.op == crate::op::LOAD_CONST && 倒一.op == crate::op::RETURN && 是空常量 {
+            长 -= 2;
+        }
+    }
+    &指令们[..长]
+}
+
+/// 认一个函数能不能编（M190 第一道闸）。
+///
+/// 只认这样一种函数：**参数与返回全整数、无闭包、无默认参数**，函数体只用
+/// `+ - *` / 比较 / `如果` / `返回` / **对自己的一次调用**。
+/// 别的一律 `Err`（调用方据此把这个函数封存，以后不再试）。
+pub fn 认函数(
+    指令们: &[crate::Instr],
+    常量们: &[Val],
+    参数数: usize,
+) -> Result<函数方案, String> {
+    let 指令们 = 有效指令(指令们, 常量们);
+    if 参数数 == 0 || 参数数 > 3 {
+        return Err("函数级 JIT 只认 1~3 个形参".into());
+    }
+    if 指令们.is_empty() {
+        return Err("函数体是空的".into());
+    }
+    if 指令们.len() > 200 {
+        return Err("函数太长（>200 条指令）".into());
+    }
+    let 总 = 指令们.len();
+    let mut 槽数 = 参数数;
+    let mut 自递归全局: Vec<usize> = Vec::new();
+    // 值栈：`Some(k)` = 这个值来自 `LOAD_GLOBAL k`（可以当被调者），`None` = 整数。
+    let mut 种: Vec<Option<usize>> = Vec::new();
+
+    for ins in 指令们 {
+        match ins.op {
+            crate::op::LOAD_CONST => {
+                取整(常量们, ins.a).ok_or("常量不是整数（浮点/文本留给下一版）")?;
+                种.push(None);
+            }
+            crate::op::LOAD_FAST => {
+                if !(0..8).contains(&ins.a) {
+                    return Err("局部槽号越界（只认 0–7）".into());
+                }
+                槽数 = 槽数.max(ins.a as usize + 1);
+                种.push(None);
+            }
+            crate::op::STORE_FAST => {
+                if !(0..8).contains(&ins.a) {
+                    return Err("局部槽号越界（只认 0–7）".into());
+                }
+                槽数 = 槽数.max(ins.a as usize + 1);
+                if 种.pop().is_none() {
+                    return Err("存槽时值栈是空的".into());
+                }
+            }
+            crate::op::POP_TOP => {
+                if 种.pop().is_none() {
+                    return Err("弹栈时值栈是空的".into());
+                }
+            }
+            crate::op::LOAD_GLOBAL => {
+                if ins.a < 0 {
+                    return Err("全局槽号是负数".into());
+                }
+                种.push(Some(ins.a as usize));
+            }
+            crate::op::BIN_OP => {
+                match 认运算(ins.a) {
+                    Some(运算::加) | Some(运算::减) | Some(运算::乘) => {}
+                    _ => {
+                        return Err("函数级 JIT 只认 + - *（整除/取余/真除留给下一版）".into())
+                    }
+                }
+                if 种.len() < 2 {
+                    return Err("二元运算前面值栈不够深".into());
+                }
+                种.pop();
+                种.pop();
+                种.push(None);
+            }
+            crate::op::COMPARE => {
+                认比较(ins.a).ok_or("比较码不认识")?;
+                if 种.len() < 2 {
+                    return Err("比较前面值栈不够深".into());
+                }
+                种.pop();
+                种.pop();
+                种.push(None);
+            }
+            crate::op::POP_JUMP_IF_FALSE | crate::op::POP_JUMP_IF_TRUE => {
+                if !(0..=总 as i64).contains(&ins.a) {
+                    return Err("跳转目标越界".into());
+                }
+                if 种.pop().is_none() {
+                    return Err("条件跳转前面没有值".into());
+                }
+            }
+            crate::op::JUMP => {
+                if !(0..=总 as i64).contains(&ins.a) {
+                    return Err("跳转目标越界".into());
+                }
+            }
+            crate::op::RETURN => {
+                if 种.pop().is_none() {
+                    return Err("返回时值栈是空的".into());
+                }
+            }
+            crate::op::CALL => {
+                let 实参 = ins.a as usize;
+                if 实参 != 参数数 {
+                    return Err("调用的实参个数与形参不一致".into());
+                }
+                if 种.len() < 实参 + 1 {
+                    return Err("调用时值栈不够深".into());
+                }
+                let 起点 = 种.len() - 实参 - 1;
+                match 种[起点] {
+                    Some(k) => {
+                        if !自递归全局.contains(&k) {
+                            自递归全局.push(k);
+                        }
+                    }
+                    None => return Err("被调者不是全局函数（闭包/局部值不认）".into()),
+                }
+                for _ in 0..实参 + 1 {
+                    种.pop();
+                }
+                种.push(None); // 调用结果当整数
+            }
+            _ => {
+                return Err(
+                    "函数体里有 JIT 不认识的指令（下标 / 属性 / 方法 / 嵌套 / 异常…）".into(),
+                )
+            }
+        }
+    }
+
+    Ok(函数方案 { 参数数, 槽数, 自递归全局 })
+}
+
+/// 编好的函数：一块可执行内存 + 调用它要的元信息。
+pub struct 已编函数 {
+    参数数: usize,
+    自递归全局: Vec<usize>,
+    /// `extern "C" fn(a, b, c) -> (值, 去优化标志)`
+    ///
+    /// 形参固定三个（用不到的不读）—— 这样调用点不必为不同实参个数写分支。
+    入口: extern "C" fn(i64, i64, i64) -> (i64, i64),
+    /// 只是为了让内存在 `Drop` 时还回去（`入口` 指着它）。
+    _块: 内存块,
+}
+
+impl 已编函数 {
+    /// 形参个数。
+    pub fn 参数数(&self) -> usize {
+        self.参数数
+    }
+
+    /// 编译期看到的「调自己」用的全局槽号（调用前要核对）。
+    pub fn 自递归全局(&self) -> &[usize] {
+        &self.自递归全局
+    }
+
+    /// 跑一次。返回 `(值, 标志)`：标志 0 = 正常，1 = 去优化（调用方走解释器）。
+    pub fn 调用(&self, 实参: [i64; 3]) -> (i64, i64) {
+        (self.入口)(实参[0], 实参[1], 实参[2])
+    }
+}
+
+fn 后端生成函数(
+    形: &函数方案,
+    指令们: &[crate::Instr],
+    常量们: &[Val],
+) -> Option<Vec<u8>> {
+    #[cfg(target_arch = "aarch64")]
+    {
+        let _ = (形, 指令们, 常量们);
+        // ⚠️ ARM64 的函数级后端还没写（M190 的第二刀）。返回 `None` 表示
+        // 「这个函数编不了」—— 调用方封存，以后都走解释器，**语义不变**。
+        None
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        x86_64::生成函数(形, 指令们, 常量们)
+    }
+}
+
+/// 编译一个函数。编不出来（形态不认识 / 平台不支持 / 拿不到内存）给 `None`。
+pub fn 编译函数(
+    形: &函数方案,
+    指令们: &[crate::Instr],
+    常量们: &[Val],
+) -> Option<已编函数> {
+    if !支持() {
+        return None;
+    }
+    let 码 = 后端生成函数(形, 指令们, 常量们)?;
+    if 码.is_empty() {
+        return None;
+    }
+    if std::env::var("JISHI_JIT_DUMP").is_ok() {
+        let 十六: Vec<String> = 码.iter().map(|b| format!("{b:02X}")).collect();
+        eprintln!("[jit-func] {} 字节：{}", 码.len(), 十六.join(" "));
+    }
+    let 块 = 申请(码.len())?;
+    jit写允许();
+    // SAFETY: `块` 至少有 `码.len()` 字节，且刚申请、还没人用过。
+    unsafe {
+        std::ptr::copy_nonoverlapping(码.as_ptr(), 块.地, 码.len());
+    }
+    刷指令缓存(块.地, 码.len());
+    jit写禁止();
+    // SAFETY: 约定好的签名是 `extern "C" fn(i64, i64, i64) -> (i64, i64)`，
+    // 正好与发射器写的序言/尾声一致（见 D114）。
+    let 入口: extern "C" fn(i64, i64, i64) -> (i64, i64) =
+        unsafe { std::mem::transmute(块.地) };
+    Some(已编函数 { 参数数: 形.参数数, 自递归全局: 形.自递归全局.clone(), 入口, _块: 块 })
+}
+
+// ---------------------------------------------------------------------------
+// 函数级 JIT 的热度表（M190）
+// ---------------------------------------------------------------------------
+
+/// 一个函数在 JIT 眼里的状态。
+pub enum 函数态 {
+    /// 还差多少圈到阈值。
+    计(u32),
+    /// 编好了。
+    编好(已编函数),
+    /// 编不了 / 跑不了 —— 以后不再试（与循环 JIT 的「封存」同一条规矩）。
+    封存,
+}
+
+/// 函数级 JIT 的函数表与热度（挂在 [`状态`] 上）。
+pub fn 函数该编(表: &mut HashMap<usize, 函数态>, id: usize, 阈值: u32) -> bool {
+    match 表.get_mut(&id) {
+        None => {
+            表.insert(id, 函数态::计(1));
+            false
+        }
+        Some(函数态::计(n)) => {
+            *n += 1;
+            if *n >= 阈值 {
+                true
+            } else {
+                false
+            }
+        }
+        _ => false,
     }
 }

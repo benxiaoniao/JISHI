@@ -27,6 +27,7 @@
 //! 又做了一遍。宁可整段丢掉。
 
 use super::{方案, 指令, 比较, 运算, 源, 类型, 标优, 标出, 标断};
+use crate::Val;
 
 // ---------------------------------------------------------------------------
 // 寄存器
@@ -744,4 +745,252 @@ pub(super) fn 生成(方案: &方案) -> Option<Vec<u8>> {
     收(&mut f, 方案, 1, false);
 
     f.收尾()
+}
+
+// ---------------------------------------------------------------------------
+// 函数级 JIT 的 x86-64 后端（M190）
+// ---------------------------------------------------------------------------
+
+/// 第 3 个参数寄存器（1、2 在上面，紧挨着 `参1` / `参2`）。
+#[cfg(windows)]
+const 参3: 寄 = 寄 { 号: 0, 扩: true }; // r8
+#[cfg(not(windows))]
+const 参3: 寄 = 寄 { 号: 2, 扩: false }; // rdx
+
+/// 把一整个函数编成机器码（M190，设计见 D114）。
+///
+/// ## 约定
+///
+/// ```text
+/// extern "C" fn(a: i64, b: i64, c: i64) -> (i64, i64)
+///                                          ↑ rax   ↑ rdx（0 = 正常，1 = 去优化）
+/// ```
+///
+/// 形参固定三个（用不到的不读），这样调用点不必按实参个数写分支。
+///
+/// ## 帧布局（`rbp` 往下）
+///
+/// ```text
+/// [rbp-8]       第 0 个槽
+/// [rbp-16]      第 1 个槽 …
+/// ...           表达式栈（8 层）
+/// [rsp .. +32]  给被调者的 shadow space（Windows 要，SysV 留着也无害）
+/// ```
+///
+/// 🔴 **`sub rsp` 必须是 16 的倍数**：`call` 压 8 字节返回地址，进函数时
+/// `rsp ≡ 8 (mod 16)`；`push rbp` 之后变回 0（mod 16），再减去 16 的倍数就一直是 0
+/// —— 这样我们的 `call` 到被调者时，它看到的又正好是「8（mod 16）」。
+/// 错一位不会立刻崩，而是**某些** SSE 指令或库函数里崩。
+pub(super) fn 生成函数(
+    形: &super::函数方案,
+    指令们: &[crate::Instr],
+    常量们: &[Val],
+) -> Option<Vec<u8>> {
+    use crate::op;
+    macro_rules! 编不了 {
+        () => {{
+            if std::env::var("JISHI_JIT_DEBUG").is_ok() {
+                eprintln!("[jit-func码] 第 {} 行放弃", line!());
+            }
+            return None;
+        }};
+    }
+
+    let 指令们 = super::有效指令(指令们, 常量们);
+    let 总 = 指令们.len();
+    let 完标 = (总 + 1) as u16; // 正常返回
+    let 去标 = (总 + 2) as u16; // 去优化
+    let mut f = 发::new(总 + 3); // 0 = 函数入口，1..=总 = 各条字节码
+
+    let 槽数 = 形.槽数;
+    const 栈层: usize = 8;
+    // 槽 + 表达式栈 + 32 字节 shadow，再向上取到 16 的倍数
+    let 帧 = ((8 * (槽数 + 栈层) + 32) + 15) / 16 * 16;
+     let 槽偏 = |i: usize| -> i8 { -(8 * (i as i8 + 1)) };
+    let 栈偏 = |j: usize| -> i8 { -(8 * (槽数 as i8 + j as i8 + 1)) };
+
+    f.打标(0);
+    f.b(0x55); // push rbp
+    f.b(0x48);
+    f.b(0x89);
+    f.b(0xE5); // mov rbp, rsp
+    f.b(0x48);
+    f.b(0x81);
+    f.b(0xEC); // sub rsp, imm32
+    f.码.extend_from_slice(&(帧 as u32).to_le_bytes());
+
+    let 参寄 = [参1, 参2, 参3];
+    for i in 0..形.参数数 {
+        f.存(RBP, 槽偏(i), 参寄[i]);
+    }
+
+    let mut 深: usize = 0;
+    let mut 种: Vec<Option<usize>> = Vec::new();
+
+    for (i, ins) in 指令们.iter().enumerate() {
+        f.打标((i + 1) as u16);
+        match ins.op {
+            op::LOAD_CONST => {
+                let v = super::取整(常量们, ins.a)?;
+                f.立即(RAX, v);
+                if 深 >= 栈层 {
+                    编不了!();
+                }
+                f.存(RBP, 栈偏(深), RAX);
+                深 += 1;
+                种.push(None);
+            }
+            op::LOAD_FAST => {
+                let k = ins.a as usize;
+                if k >= 8 {
+                    编不了!();
+                }
+                f.取(RAX, RBP, 槽偏(k));
+                if 深 >= 栈层 {
+                    编不了!();
+                }
+                f.存(RBP, 栈偏(深), RAX);
+                深 += 1;
+                种.push(None);
+            }
+            op::STORE_FAST => {
+                if 深 == 0 {
+                    编不了!();
+                }
+                深 -= 1;
+                种.pop();
+                let k = ins.a as usize;
+                if k >= 8 {
+                    编不了!();
+                }
+                f.取(RAX, RBP, 栈偏(深));
+                f.存(RBP, 槽偏(k), RAX);
+            }
+            op::POP_TOP => {
+                if 深 == 0 {
+                    编不了!();
+                }
+                深 -= 1;
+                种.pop();
+            }
+            op::LOAD_GLOBAL => {
+                // 🔴 **不算槽、但要算深度**：函数值不物化（`call` 直接打到自己），
+                // 可它仍然占一个「表达式栈位置」—— 忘了加这一句，后面每个
+                // `CALL` 的实参偏移都会差一格（第一版就是这么错的）。
+                if 深 >= 栈层 {
+                    编不了!();
+                }
+                深 += 1;
+                种.push(Some(ins.a as usize));
+            }
+            op::BIN_OP => {
+                let 算 = super::认运算(ins.a)?;
+                if 深 < 2 {
+                    编不了!();
+                }
+                深 -= 2;
+                种.pop();
+                种.pop();
+                f.取(RCX, RBP, 栈偏(深 + 1)); // 右
+                f.取(RAX, RBP, 栈偏(深)); // 左
+                match 算 {
+                    super::运算::加 => f.算(0x01, RAX, RCX),
+                    super::运算::减 => f.算(0x29, RAX, RCX),
+                    super::运算::乘 => f.乘(RAX, RCX),
+                    _ => return None,
+                }
+                f.跳(&[0x0F, 0x80], 去标); // jo
+                f.存(RBP, 栈偏(深), RAX);
+                深 += 1;
+                种.push(None);
+            }
+            op::COMPARE => {
+                let 比 = super::认比较(ins.a)?;
+                if 深 < 2 {
+                    编不了!();
+                }
+                深 -= 2;
+                种.pop();
+                种.pop();
+                f.取(RCX, RBP, 栈偏(深 + 1)); // 右
+                f.取(RAX, RBP, 栈偏(深)); // 左
+                f.算(0x39, RAX, RCX); // cmp rax, rcx
+                f.比成(比);
+                f.存(RBP, 栈偏(深), RAX);
+                深 += 1;
+                种.push(None);
+            }
+            op::POP_JUMP_IF_FALSE | op::POP_JUMP_IF_TRUE => {
+                if 深 == 0 || ins.a < 0 || ins.a as usize > 总 {
+                    编不了!();
+                }
+                深 -= 1;
+                种.pop();
+                f.取(RAX, RBP, 栈偏(深));
+                f.测(RAX);
+                let 码: &[u8] = if ins.op == op::POP_JUMP_IF_FALSE {
+                    &[0x0F, 0x84] // jz
+                } else {
+                    &[0x0F, 0x85] // jnz
+                };
+                f.跳(码, (ins.a as usize + 1) as u16);
+            }
+            op::JUMP => {
+                if ins.a < 0 || ins.a as usize > 总 {
+                    编不了!();
+                }
+                f.跳(&[0xE9], (ins.a as usize + 1) as u16);
+            }
+            op::RETURN => {
+                if 深 == 0 {
+                    编不了!();
+                }
+                深 -= 1;
+                种.pop();
+                f.取(RAX, RBP, 栈偏(深));
+                f.跳(&[0xE9], 完标);
+            }
+            op::CALL => {
+                let 实参 = ins.a as usize;
+                if 实参 > 3 || 深 < 实参 + 1 {
+                    编不了!();
+                }
+                深 -= 实参 + 1;
+                种.truncate(深);
+                for k in 0..实参 {
+                    f.取(参寄[k], RBP, 栈偏(深 + 1 + k));
+                }
+                f.跳(&[0xE8], 0); // call 函数入口（自己的起点）
+                f.测(RDX);
+                f.跳(&[0x0F, 0x85], 去标); // jnz：内层去优化 ⇒ 整段退出去
+                f.存(RBP, 栈偏(深), RAX);
+                深 += 1;
+                种.push(None);
+            }
+            _ => return None,
+        }
+    }
+
+    // 走到函数末尾还没 `返回` ⇒ 形态不认识（让调用方走解释器，而不是猜）
+    f.跳(&[0xE9], 去标);
+
+    f.打标(完标);
+    f.异或(RDX, RDX); // 标志 = 0
+    f.b(0xC9); // leave
+    f.b(0xC3); // ret
+
+    f.打标(去标);
+    if std::env::var("JISHI_JIT_DEBUG").is_ok() {
+        eprintln!("[jit-func码] 总={总} 帧={帧} 深={深}");
+    }
+    f.立即(RDX, 1); // 标志 = 1
+    f.异或(RAX, RAX); // 值给 0（调用方会丢掉）
+    f.b(0xC9);
+    f.b(0xC3);
+
+    let r = f.收尾();
+    if r.is_none() && std::env::var("JISHI_JIT_DEBUG").is_ok() {
+        eprintln!("[jit-func码] 收尾失败：有跳转找不到落点");
+    }
+    r
 }

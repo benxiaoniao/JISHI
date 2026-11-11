@@ -2287,6 +2287,91 @@ impl VM {
     /// 要是守卫每次都失败还每次都试，`遍历` 那种 O(n) 的摊平就变成 O(n²) 了。
     /// 代价是「同一段代码先拿浮点跑一次、后来都拿整数跑」那种用法吃不到 JIT
     /// —— 与 v0 的「只试一次」等价，不是新退步。
+    /// 函数级 JIT（M190，设计见 D114）：能走机器码就走，返回 `Some(值)`。
+    ///
+    /// 三道闸：
+    /// 1. **实参全整数**且在 `i64` 内（解释器用 `i128`，机器码只认 `i64`）；
+    /// 2. **自递归的落点没被换掉**：`globals[k]` 必须仍然指向这个函数
+    ///    （基石里函数是值，`斐波 = 别的函数` 是合法写法）；
+    /// 3. **阈值到了才编**，编不了就**封存**（以后不再试）。
+    ///
+    /// ⚠️ 返回 `None` 一律表示「走解释器」——它永远是正确的那条路。
+    #[cfg(feature = "jit")]
+    fn 试函数jit(&mut self, f: &Rc<Func>, 实参: &[Val]) -> Option<Val> {
+        if !self.jit.开着() {
+            return None;
+        }
+        // 🔴 **M190 施工中：默认关闭，用 `JISHI_JIT_FUNC=1` 打开**。
+        //
+        // 现状（2026-11-11）：x86-64 后端能编、`斐波(0..13)` 全对、两万次调用也不漏栈，
+        // 但 `斐波(14)` 起撞 Rust 栈 —— 还没查清是「机器码帧泄漏」还是「去优化在递归里
+        // 反复重进解释器」。**在查清之前不许默认开**：那会把一个崩溃带给用户。
+        // 收尾条件：判据 `test_m190` 全绿 + 递归判据过，才删掉这个开关。
+        if std::env::var("JISHI_JIT_FUNC").ok().as_deref() != Some("1") {
+            return None;
+        }
+        // — 闸 1：实参 —
+        let 形参个数 = self.module.codes.get(f.code_idx)?.params.len();
+        if 实参.len() != 形参个数 || 形参个数 == 0 || 形参个数 > 3 {
+            return None;
+        }
+        let mut 值 = [0i64; 3];
+        for (i, v) in 实参.iter().enumerate() {
+            match v {
+                Val::Int(x) if *x >= i64::MIN as i128 && *x <= i64::MAX as i128 => {
+                    值[i] = *x as i64;
+                }
+                _ => return None,
+            }
+        }
+        // — 编（只在跨阈值那一次）—
+        if self.jit.函数取(f.id).is_none() {
+            if self.jit.函数封存了(f.id) {
+                return None;
+            }
+            if !self.jit.函数记一次(f.id) {
+                return None;
+            }
+            let module = Rc::clone(&self.module);
+            let 码 = module.codes.get(f.code_idx)?;
+            let 结果 = match crate::jit::认函数(&码.instrs, &module.consts, 码.params.len()) {
+                Ok(形) => crate::jit::编译函数(&形, &码.instrs, &module.consts),
+                Err(因) => {
+                    if self.jit.调试么() {
+                        eprintln!("[jit-func] {} 编不了：{因}", 码.name);
+                    }
+                    None
+                }
+            };
+            if self.jit.调试么() {
+                let 名 = 码.name.as_str();
+                match &结果 {
+                    Some(_) => eprintln!("[jit-func] {名} 编好了"),
+                    None => eprintln!("[jit-func] {名} 编不了（形态不认识 / 平台不支持）"),
+                }
+            }
+            self.jit.函数存(f.id, 结果);
+        }
+        // — 闸 2 + 跑 —
+        let x = self.jit.函数取(f.id)?;
+        for &k in x.自递归全局() {
+            let 还是自己 = matches!(
+                self.globals.get(k).and_then(|v| v.as_ref()),
+                Some(Val::Func(g)) if g.id == f.id
+            );
+            if !还是自己 {
+                return None;
+            }
+        }
+        let (v, 标志) = x.调用(值);
+        // — 闸 3：溢出等去优化 ⇒ 丢掉结果，走解释器 —
+        if 标志 == 0 {
+            Some(Val::Int(v as i128))
+        } else {
+            None
+        }
+    }
+
     #[cfg(feature = "jit")]
     fn 试jit(
         &mut self,
@@ -2854,6 +2939,15 @@ impl VM {
                     let kwvals: Vec<Val> = if nkw > 0 { self.stack[fn_base + 1 + nargs ..].to_vec() } else { Vec::new() };
                     // 截栈
                     self.stack.truncate(fn_base);
+                    // M190：**函数级 JIT**。能走机器码就直接拿结果，不建帧。
+                    // 判据见 D114 的「三道闸」——任何一条不满足都退回去走解释器。
+                    if let Val::Func(f) = &fn_val {
+                        if let Some(v) = self.试函数jit(f, &参) {
+                            self.arg_buf = 参;
+                            self.stack.push(v);
+                            continue;
+                        }
+                    }
                     match fn_val {
                         Val::Func(f) => {
                             let r = self.push_func_frame(Some((fi, ip)), &f, &参, &knames,
