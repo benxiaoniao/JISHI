@@ -1851,6 +1851,88 @@ const TABLE_FUNCS = {
     });
     return makeTable([...tab.headers], rows);
   }),
+  '合并': new R.Builtin('合并', (a, b, 键甲, 键乙, 方式) => {
+    const A = asTable(a);
+    const B = asTable(b);
+    const i甲 = colIndex(A, 键甲);
+    const 键乙名 = (键乙 === undefined || 键乙 === null || 键乙 === '')
+      ? String(键甲) : String(键乙);
+    const i乙 = colIndex(B, 键乙名);
+    const 名 = (方式 === undefined || 方式 === null) ? '左' : String(方式);
+    if (名 !== '左' && 名 !== '内' && 名 !== '外') {
+      throw R.typeErr(`「合并」不认识的连接方式「${名}」—— 只能是：左 / 内 / 外`);
+    }
+    const 索引 = new Map();               // 键 -> 乙表行号（只留第一条）
+    B.rows.forEach((row, j) => {
+      const k = R.display(row[i乙] === undefined ? null : row[i乙]);
+      if (!索引.has(k)) 索引.set(k, j);
+    });
+    const 乙列 = [];
+    B.headers.forEach((_, j) => { if (j !== i乙) 乙列.push(j); });
+    const headers = [...A.headers];
+    乙列.forEach((j) => headers.push(B.headers[j]));
+    const 空甲 = A.headers.map(() => '');
+    const rows = [];
+    const 用过 = new Set();
+    for (const row of A.rows) {
+      const k = R.display(row[i甲] === undefined ? null : row[i甲]);
+      if (!索引.has(k)) {
+        if (名 === '左' || 名 === '外') rows.push(row.concat(乙列.map(() => '')));
+        continue;
+      }
+      用过.add(k);
+      const j = 索引.get(k);
+      rows.push(row.concat(乙列.map((c) => B.rows[j][c])));
+    }
+    if (名 === '外') {
+      for (const [k, j] of 索引) {
+        if (用过.has(k)) continue;
+        // 只在乙出现的键要**填回甲的键列**（否则那行看着像没键）
+        const 新 = 空甲.slice();
+        新[i甲] = B.rows[j][i乙];
+        rows.push(新.concat(乙列.map((c) => B.rows[j][c])));
+      }
+    }
+    return makeTable(headers, rows);
+  }),
+  '按时间重采样': new R.Builtin('按时间重采样', (t, 时间列, 周期, 值列, 聚合参数) => {
+    const tab = asTable(t);
+    const 时名 = String(时间列);
+    const i时 = colIndex(tab, 时名);
+    const 名 = (周期 === undefined || 周期 === null) ? '月' : String(周期);
+    if (名 === '周') {
+      throw R.typeErr('「按时间重采样」这一版还不支持「周」（要 ISO 周算法，'
+        + '不是字符串前缀）—— 先用 月 / 年，或者从 日期 模块自己算');
+    }
+    if (名 !== '月' && 名 !== '年') {
+      throw R.typeErr(`「按时间重采样」不认识的周期「${名}」—— 只能是：月 / 年`);
+    }
+    const 位数 = 名 === '月' ? 7 : 4;
+
+    const 键序 = [];
+    const 桶 = new Map();
+    for (const row of tab.rows) {
+      const txt = R.display(row[i时] === undefined ? null : row[i时]);
+      const k = txt.slice(0, 位数);
+      if (!桶.has(k)) { 桶.set(k, []); 键序.push(k); }
+      桶.get(k).push(row);
+    }
+
+    if (值列 === undefined || 值列 === null) {
+      const rows = 键序.map((k) => [k, 桶.get(k).length]);
+      return makeTable([`${时名}（${名}）`, '行数'], rows);
+    }
+    const 值名 = String(值列);
+    const i值 = colIndex(tab, 值名);
+    const 方式 = 要聚合(聚合参数 === undefined || 聚合参数 === null ? '求和' : 聚合参数,
+      '按时间重采样');
+    const rows = 键序.map((k) => {
+      const 值们 = 桶.get(k).map((r) => (r[i值] === undefined ? null : r[i值]));
+      const v = 聚合(值们, 方式, 值名, '按时间重采样');
+      return [k, v === null ? '' : v];
+    });
+    return makeTable([`${时名}（${名}）`, 值名], rows);
+  }),
 };
 
 // ---------------------------------------------------------------------------
@@ -4080,7 +4162,186 @@ const STATS_FUNCS = {
     for (let i = 0; i < xs.length; i++) s += xs[i] * ws[i];
     return new R.FloatBox(s / total);
   }),
+
+  // ── M192：相关 / 回归 / 标准化 / 移动平均 / 直方图 / 秩 / 百分位 / 协方差 ──
+  // ⚠️ 结果一律 `FloatBox`（Python 侧是 float，`1.0` 不能显示成 `1`）。
+  '协方差': new R.Builtin('协方差', (a, b, 样本) => {
+    const [xs, ys] = _两列('协方差', a, b);
+    const n = xs.length;
+    const mx = _均值(xs);
+    const my = _均值(ys);
+    let s = 0;
+    for (let i = 0; i < n; i++) s += (xs[i] - mx) * (ys[i] - my);
+    return new R.FloatBox(样本 === true ? s / (n - 1) : s / n);
+  }),
+  '秩': new R.Builtin('秩', (d) => {
+    const xs = _numsFor('秩', d);
+    if (xs.length === 0) throw R.valueErr('「秩」要至少有一个数字，现在是空的');
+    return _秩表(xs).map((v) => new R.FloatBox(v));
+  }),
+  '相关系数': new R.Builtin('相关系数', (a, b, 方法) => {
+    const 名 = 方法 === undefined ? '皮尔逊' : pText(方法);
+    if (名 !== '皮尔逊' && 名 !== '斯皮尔曼') {
+      throw R.typeErr(`「相关系数」不认识的方法「${名}」—— 只能是：皮尔逊 / 斯皮尔曼`);
+    }
+    let [xs, ys] = _两列('相关系数', a, b);
+    if (名 === '斯皮尔曼') {
+      xs = _秩表(xs);
+      ys = _秩表(ys);
+    }
+    const mx = _均值(xs);
+    const my = _均值(ys);
+    let sxy = 0;
+    let sxx = 0;
+    let syy = 0;
+    for (let i = 0; i < xs.length; i++) {
+      const dx = xs[i] - mx;
+      const dy = ys[i] - my;
+      sxy += dx * dy;
+      sxx += dx * dx;
+      syy += dy * dy;
+    }
+    if (sxx === 0 || syy === 0) {
+      throw R.valueErr('「相关系数」算不出来：有一组数据的值全都一样（标准差是 0）');
+    }
+    return new R.FloatBox(sxy / Math.sqrt(sxx * syy));
+  }),
+  '线性回归': new R.Builtin('线性回归', (a, b) => {
+    const [xs, ys] = _两列('线性回归', a, b);
+    const n = xs.length;
+    const mx = _均值(xs);
+    const my = _均值(ys);
+    let sxy = 0;
+    let sxx = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = xs[i] - mx;
+      sxy += dx * (ys[i] - my);
+      sxx += dx * dx;
+    }
+    if (sxx === 0) throw R.valueErr('「线性回归」算不出来：甲那组数据全都一样，拟合不出直线');
+    const 斜率 = sxy / sxx;
+    const 截距 = my - 斜率 * mx;
+    const 残差 = [];
+    let ss总 = 0;
+    for (let i = 0; i < n; i++) {
+      const r = ys[i] - (斜率 * xs[i] + 截距);
+      残差.push(new R.FloatBox(r));
+      const d = ys[i] - my;
+      ss总 += d * d;
+    }
+    let ss残 = 0;
+    for (const r of 残差) ss残 += r.v * r.v;
+    const r方 = ss总 === 0 ? 1 : 1 - ss残 / ss总;
+    return new Map([
+      ['斜率', new R.FloatBox(斜率)],
+      ['截距', new R.FloatBox(截距)],
+      ['R方', new R.FloatBox(r方)],
+      ['残差', 残差],
+    ]);
+  }),
+  '标准化': new R.Builtin('标准化', (d) => {
+    const xs = _need('标准化', _numsFor('标准化', d));
+    const n = xs.length;
+    const m = _均值(xs);
+    let ss = 0;
+    for (const x of xs) {
+      const dd = x - m;
+      ss += dd * dd;
+    }
+    const sd = Math.sqrt(ss / n);
+    if (sd === 0) throw R.valueErr('「标准化」算不出来：这组数据的值全都一样（标准差是 0）');
+    return xs.map((x) => new R.FloatBox((x - m) / sd));
+  }),
+  '移动平均': new R.Builtin('移动平均', (d, 窗口) => {
+    const w = 窗口 === undefined ? 3 : 窗口;
+    if (typeof w !== 'number' || !Number.isInteger(w)) {
+      throw R.typeErr(`「移动平均」的窗口要传整数，给的是「${R.display(窗口)}」`);
+    }
+    if (w < 1) throw R.valueErr('「移动平均」的窗口至少是 1');
+    const xs = _need('移动平均', _numsFor('移动平均', d));
+    if (w > xs.length) {
+      throw R.valueErr(`「移动平均」的窗口是 ${w}，但一共只有 ${xs.length} 个数`);
+    }
+    const 出 = [];
+    let s = 0;
+    for (let i = 0; i < xs.length; i++) {
+      s += xs[i];
+      if (i >= w) s -= xs[i - w];
+      if (i + 1 >= w) 出.push(new R.FloatBox(s / w));
+    }
+    return 出;
+  }),
+  '直方图': new R.Builtin('直方图', (d, 箱数) => {
+    const k = 箱数 === undefined ? 10 : 箱数;
+    if (typeof k !== 'number' || !Number.isInteger(k)) {
+      throw R.typeErr(`「直方图」的箱数要传整数，给的是「${R.display(箱数)}」`);
+    }
+    if (k < 1) throw R.valueErr('「直方图」的箱数至少是 1');
+    const xs = _need('直方图', _numsFor('直方图', d));
+    const lo = Math.min.apply(null, xs);
+    const hi = Math.max.apply(null, xs);
+    if (lo === hi) {
+      return new Map([
+        ['边界', [new R.FloatBox(lo), hi]],
+        ['计数', [xs.length]],
+      ]);
+    }
+    const 宽 = (hi - lo) / k;
+    const 边界 = [];
+    for (let i = 0; i < k; i++) 边界.push(new R.FloatBox(lo + 宽 * i));
+    边界.push(hi);
+    const 计数 = new Array(k).fill(0);
+    for (const x of xs) {
+      let j = Math.trunc((x - lo) / 宽);
+      if (j >= k) j = k - 1;
+      if (j < 0) j = 0;
+      计数[j] += 1;
+    }
+    return new Map([['边界', 边界], ['计数', 计数]]);
+  }),
+  '百分位排名': new R.Builtin('百分位排名', (d, 值) => {
+    const xs = _numsFor('百分位排名', d);
+    if (xs.length === 0) throw R.valueErr('「百分位排名」要至少有一个数字，现在是空的');
+    if (typeof 值 !== 'number') {
+      throw R.typeErr(`「百分位排名」的第二个参数要传一个数字，给的是「${R.display(值)}」`);
+    }
+    let n = 0;
+    for (const x of xs) if (x <= 值) n += 1;
+    return new R.FloatBox(n / xs.length);
+  }),
 };
+
+/** 两组数（M192）：个数要一样、且至少 2 组。 */
+function _两列(name, a, b) {
+  const xs = _numsFor(name, a);
+  const ys = _numsFor(name, b);
+  if (xs.length !== ys.length) {
+    throw R.valueErr(`「${name}」两组数据的个数不一样：${xs.length} 和 ${ys.length}`);
+  }
+  if (xs.length < 2) throw R.valueErr(`「${name}」至少要 2 组数据`);
+  return [xs, ys];
+}
+
+function _均值(xs) {
+  let s = 0;
+  for (const x of xs) s += x;
+  return s / xs.length;
+}
+
+/** 升序秩（并列取平均），与输入同序。 */
+function _秩表(xs) {
+  const 序 = xs.map((_, i) => i).sort((p, q) => xs[p] - xs[q]);
+  const 出 = new Array(xs.length).fill(0);
+  let i = 0;
+  while (i < 序.length) {
+    let j = i;
+    while (j + 1 < 序.length && xs[序[j + 1]] === xs[序[i]]) j += 1;
+    const 平均 = (i + 1 + j + 1) / 2;
+    for (let k = i; k <= j; k++) 出[序[k]] = 平均;
+    i = j + 1;
+  }
+  return 出;
+}
 
 /** 编码：base64 / 十六进制 / URL（对齐 Python 侧 编码.py）。 */
 function _toBytesFor(name, v) {

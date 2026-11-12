@@ -1230,5 +1230,165 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             Ok(table_new(t.headers.clone(), rows))
         },
+        // ── M192 ──
+        "合并" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("合并", args, 3, 5)?;
+            let a = as_table(&args[0])?;
+            let b = as_table(&args[1])?;
+            let 键甲 = as_text(&args[2]);
+            let i甲 = 列号(&a, &键甲)?;
+            let 键乙 = match args.get(3) {
+                Some(Val::Str(s)) if !s.is_empty() => s.to_string(),
+                _ => 键甲.clone(),
+            };
+            let i乙 = 列号(&b, &键乙)?;
+            let 名 = match args.get(4) {
+                Some(v) if !matches!(v, Val::None_) => as_text(v),
+                _ => "左".to_string(),
+            };
+            if 名 != "左" && 名 != "内" && 名 != "外" {
+                return Err(err(
+                    "类型错误",
+                    format!("「合并」不认识的连接方式「{名}」—— 只能是：左 / 内 / 外"),
+                ));
+            }
+            // 乙表按键索引（同一个键只留第一条，与 `连接` 一致）
+            let mut 索引: Vec<(String, usize)> = Vec::new();
+            for (j, row) in b.rows.iter().enumerate() {
+                let k = display(row.get(i乙).unwrap_or(&Val::None_));
+                if !索引.iter().any(|(kk, _)| kk == &k) {
+                    索引.push((k, j));
+                }
+            }
+            let 乙列: Vec<usize> = (0..b.headers.len()).filter(|j| *j != i乙).collect();
+            let mut headers = a.headers.clone();
+            for j in &乙列 {
+                headers.push(b.headers[*j].clone());
+            }
+            let mut rows: Vec<Vec<Val>> = Vec::new();
+            let mut 用过: Vec<String> = Vec::new();
+            for row in a.rows.iter() {
+                let k = display(row.get(i甲).unwrap_or(&Val::None_));
+                let 命中 = 索引.iter().find(|(kk, _)| kk == &k).map(|(_, j)| *j);
+                match 命中 {
+                    None => {
+                        if 名 == "左" || 名 == "外" {
+                            let mut 行 = row.clone();
+                            for _ in &乙列 {
+                                行.push(Val::Str("".into()));
+                            }
+                            rows.push(行);
+                        }
+                    }
+                    Some(j) => {
+                        用过.push(k);
+                        let mut 行 = row.clone();
+                        for c in &乙列 {
+                            行.push(b.rows[j].get(*c).cloned().unwrap_or(Val::None_));
+                        }
+                        rows.push(行);
+                    }
+                }
+            }
+            if 名 == "外" {
+                for (k, j) in &索引 {
+                    if 用过.iter().any(|x| x == k) {
+                        continue;
+                    }
+                    let mut 行: Vec<Val> = a
+                        .headers
+                        .iter()
+                        .map(|_| Val::Str("".into()))
+                        .collect();
+                    // 只在乙出现的键要**填回甲的键列**（否则那行看着像没键）
+                    if i甲 < 行.len() {
+                        行[i甲] = b.rows[*j].get(i乙).cloned().unwrap_or(Val::None_);
+                    }
+                    for c in &乙列 {
+                        行.push(b.rows[*j].get(*c).cloned().unwrap_or(Val::None_));
+                    }
+                    rows.push(行);
+                }
+            }
+            Ok(table_new(headers, rows))
+        },
+        "按时间重采样" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("按时间重采样", args, 2, 5)?;
+            let t = as_table(&args[0])?;
+            let 时名 = as_text(&args[1]);
+            let i时 = 列号(&t, &时名)?;
+            let 名 = match args.get(2) {
+                Some(v) if !matches!(v, Val::None_) => as_text(v),
+                _ => "月".to_string(),
+            };
+            if 名 == "周" {
+                return Err(err(
+                    "类型错误",
+                    "「按时间重采样」这一版还不支持「周」（要 ISO 周算法，不是字符串前缀）—— 先用 月 / 年，或者从 日期 模块自己算",
+                ));
+            }
+            if 名 != "月" && 名 != "年" {
+                return Err(err(
+                    "类型错误",
+                    format!("「按时间重采样」不认识的周期「{名}」—— 只能是：月 / 年"),
+                ));
+            }
+            let 位数 = if 名 == "月" { 7 } else { 4 };
+
+            let mut 键序: Vec<String> = Vec::new();
+            let mut 桶: Vec<(String, Vec<usize>)> = Vec::new();
+            for (j, row) in t.rows.iter().enumerate() {
+                let txt = display(row.get(i时).unwrap_or(&Val::None_));
+                let k: String = txt.chars().take(位数).collect();
+                if let Some((_, v)) = 桶.iter_mut().find(|(kk, _)| kk == &k) {
+                    v.push(j);
+                } else {
+                    键序.push(k.clone());
+                    桶.push((k, vec![j]));
+                }
+            }
+
+            // `值列` 没给 ⇒ 只数行数
+            let 值列 = match args.get(3) {
+                Some(v) if !matches!(v, Val::None_) => Some(as_text(v)),
+                _ => None,
+            };
+            let Some(值名) = 值列 else {
+                let headers = vec![
+                    Val::Str(format!("{时名}（{名}）").into()),
+                    Val::Str("行数".into()),
+                ];
+                let mut rows: Vec<Vec<Val>> = Vec::with_capacity(键序.len());
+                for (k, js) in &桶 {
+                    rows.push(vec![
+                        Val::Str(k.as_str().into()),
+                        Val::Int(js.len() as i128),
+                    ]);
+                }
+                return Ok(table_new(headers, rows));
+            };
+            let i值 = 列号(&t, &值名)?;
+            let 方式 = match args.get(4) {
+                Some(v) if !matches!(v, Val::None_) => 要聚合(v, "按时间重采样")?,
+                _ => "求和".to_string(),
+            };
+            let mut rows: Vec<Vec<Val>> = Vec::with_capacity(键序.len());
+            for (k, js) in &桶 {
+                let 值们: Vec<Val> = js
+                    .iter()
+                    .map(|j| t.rows[*j].get(i值).cloned().unwrap_or(Val::None_))
+                    .collect();
+                let v = 聚合(&值们, &方式, &值名, "按时间重采样")?;
+                rows.push(vec![
+                    Val::Str(k.as_str().into()),
+                    v.unwrap_or_else(|| Val::Str("".into())),
+                ]);
+            }
+            let headers = vec![
+                Val::Str(format!("{时名}（{名}）").into()),
+                Val::Str(值名.into()),
+            ];
+            Ok(table_new(headers, rows))
+        },
     }
 }

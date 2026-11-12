@@ -6,7 +6,7 @@
 use crate::BuiltinHost;
 use std::collections::HashMap;
 
-use super::{as_num, need_range, table, to_vec, R};
+use super::{as_num, as_text, need_range, table, to_vec, R};
 use crate::{err, Val};
 
 /// 把输入统一成数字列表（与 Python 侧 `_nums` 同规则）。
@@ -67,6 +67,53 @@ fn as_int_arg(name: &str, v: &Val) -> Result<i128, crate::JishiError> {
 /// 数值参数（`分位数` 的 p、`加权平均` 的权重…）——收 Int / Float / Dec。
 fn as_float_arg(name: &str, v: &Val) -> Result<f64, crate::JishiError> {
     as_num(v).map_err(|_| err("类型错误", format!("「{name}」要传数字")))
+}
+
+fn 两列(name: &str, a: &Val, b: &Val) -> Result<(Vec<f64>, Vec<f64>), crate::JishiError> {
+    let xs = nums(name, a)?;
+    let ys = nums(name, b)?;
+    if xs.len() != ys.len() {
+        return Err(err(
+            "值错误",
+            format!(
+                "「{name}」两组数据的个数不一样：{} 和 {}",
+                xs.len(),
+                ys.len()
+            ),
+        ));
+    }
+    if xs.len() < 2 {
+        return Err(err("值错误", format!("「{name}」至少要 2 组数据")));
+    }
+    Ok((xs, ys))
+}
+
+fn 均值(xs: &[f64]) -> f64 {
+    xs.iter().sum::<f64>() / xs.len() as f64
+}
+
+/// 升序秩（并列取平均秩），返回与输入**同序**的秩。
+fn 秩表(xs: &[f64]) -> Vec<f64> {
+    let mut 序: Vec<usize> = (0..xs.len()).collect();
+    序.sort_by(|a, b| xs[*a].partial_cmp(&xs[*b]).unwrap_or(std::cmp::Ordering::Equal));
+    let mut 出 = vec![0.0f64; xs.len()];
+    let mut i = 0usize;
+    while i < 序.len() {
+        let mut j = i;
+        while j + 1 < 序.len() && xs[序[j + 1]] == xs[序[i]] {
+            j += 1;
+        }
+        let 平均 = (i + 1 + j + 1) as f64 / 2.0;
+        for k in i..=j {
+            出[序[k]] = 平均;
+        }
+        i = j + 1;
+    }
+    出
+}
+
+fn 浮点列(xs: Vec<f64>) -> Val {
+    crate::list_new(xs.into_iter().map(Val::Float).collect())
 }
 
 pub(crate) fn module() -> HashMap<String, Val> {
@@ -202,6 +249,242 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             let s: f64 = xs.iter().zip(ws.iter()).map(|(x, w)| x * w).sum();
             Ok(Val::Float(s / total))
+        },
+        // ── M192 ──
+        "协方差" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("协方差", args, 2, 3)?;
+            let (xs, ys) = 两列("协方差", &args[0], &args[1])?;
+            let n = xs.len();
+            let mx = 均值(&xs);
+            let my = 均值(&ys);
+            let mut s = 0.0f64;
+            for i in 0..n {
+                s += (xs[i] - mx) * (ys[i] - my);
+            }
+            let 样本 = matches!(args.get(2), Some(Val::Bool(true)));
+            let 果 = if 样本 { s / (n - 1) as f64 } else { s / n as f64 };
+            Ok(Val::Float(果))
+        },
+        "秩" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("秩", args, 1, 1)?;
+            let xs = nums("秩", &args[0])?;
+            if xs.is_empty() {
+                return Err(err("值错误", "「秩」要至少有一个数字，现在是空的"));
+            }
+            Ok(浮点列(秩表(&xs)))
+        },
+        "相关系数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("相关系数", args, 2, 3)?;
+            let 名 = if args.len() > 2 { as_text(&args[2]) } else { "皮尔逊".to_string() };
+            if 名 != "皮尔逊" && 名 != "斯皮尔曼" {
+                return Err(err(
+                    "类型错误",
+                    format!("「相关系数」不认识的方法「{名}」—— 只能是：皮尔逊 / 斯皮尔曼"),
+                ));
+            }
+            let (mut xs, mut ys) = 两列("相关系数", &args[0], &args[1])?;
+            if 名 == "斯皮尔曼" {
+                xs = 秩表(&xs);
+                ys = 秩表(&ys);
+            }
+            let mx = 均值(&xs);
+            let my = 均值(&ys);
+            let (mut sxy, mut sxx, mut syy) = (0.0f64, 0.0f64, 0.0f64);
+            for i in 0..xs.len() {
+                let dx = xs[i] - mx;
+                let dy = ys[i] - my;
+                sxy += dx * dy;
+                sxx += dx * dx;
+                syy += dy * dy;
+            }
+            if sxx == 0.0 || syy == 0.0 {
+                return Err(err(
+                    "值错误",
+                    "「相关系数」算不出来：有一组数据的值全都一样（标准差是 0）",
+                ));
+            }
+            Ok(Val::Float(sxy / (sxx * syy).sqrt()))
+        },
+        "线性回归" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("线性回归", args, 2, 2)?;
+            let (xs, ys) = 两列("线性回归", &args[0], &args[1])?;
+            let n = xs.len();
+            let mx = 均值(&xs);
+            let my = 均值(&ys);
+            let (mut sxy, mut sxx) = (0.0f64, 0.0f64);
+            for i in 0..n {
+                let dx = xs[i] - mx;
+                sxy += dx * (ys[i] - my);
+                sxx += dx * dx;
+            }
+            if sxx == 0.0 {
+                return Err(err(
+                    "值错误",
+                    "「线性回归」算不出来：甲那组数据全都一样，拟合不出直线",
+                ));
+            }
+            let 斜率 = sxy / sxx;
+            let 截距 = my - 斜率 * mx;
+            let mut 残差: Vec<f64> = Vec::with_capacity(n);
+            let mut ss总 = 0.0f64;
+            for i in 0..n {
+                let r = ys[i] - (斜率 * xs[i] + 截距);
+                残差.push(r);
+                let d = ys[i] - my;
+                ss总 += d * d;
+            }
+            let ss残: f64 = 残差.iter().map(|r| r * r).sum();
+            let r方 = if ss总 == 0.0 { 1.0 } else { 1.0 - ss残 / ss总 };
+            let pairs = vec![
+                (Val::Str("斜率".into()), Val::Float(斜率)),
+                (Val::Str("截距".into()), Val::Float(截距)),
+                (Val::Str("R方".into()), Val::Float(r方)),
+                (Val::Str("残差".into()), 浮点列(残差)),
+            ];
+            Ok(crate::dict_new(pairs))
+        },
+        "标准化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("标准化", args, 1, 1)?;
+            let xs = need_nonempty("标准化", nums("标准化", &args[0])?)?;
+            let n = xs.len();
+            let m = 均值(&xs);
+            let mut ss = 0.0f64;
+            for x in &xs {
+                let d = x - m;
+                ss += d * d;
+            }
+            let sd = (ss / n as f64).sqrt();
+            if sd == 0.0 {
+                return Err(err(
+                    "值错误",
+                    "「标准化」算不出来：这组数据的值全都一样（标准差是 0）",
+                ));
+            }
+            Ok(浮点列(xs.iter().map(|x| (x - m) / sd).collect()))
+        },
+        "移动平均" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("移动平均", args, 1, 2)?;
+            let 窗口 = match args.get(1) {
+                None | Some(Val::None_) => 3i128,
+                Some(Val::Int(v)) => *v,
+                Some(other) => {
+                    return Err(err(
+                        "类型错误",
+                        format!(
+                            "「移动平均」的窗口要传整数，给的是「{}」",
+                            crate::display(other)
+                        ),
+                    ))
+                }
+            };
+            if 窗口 < 1 {
+                return Err(err("值错误", "「移动平均」的窗口至少是 1"));
+            }
+            let 窗口 = 窗口 as usize;
+            let xs = need_nonempty("移动平均", nums("移动平均", &args[0])?)?;
+            if 窗口 > xs.len() {
+                return Err(err(
+                    "值错误",
+                    format!(
+                        "「移动平均」的窗口是 {窗口}，但一共只有 {} 个数",
+                        xs.len()
+                    ),
+                ));
+            }
+            let mut 出: Vec<f64> = Vec::new();
+            let mut 和 = 0.0f64;
+            for i in 0..xs.len() {
+                和 += xs[i];
+                if i >= 窗口 {
+                    和 -= xs[i - 窗口];
+                }
+                if i + 1 >= 窗口 {
+                    出.push(和 / 窗口 as f64);
+                }
+            }
+            Ok(浮点列(出))
+        },
+        "直方图" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("直方图", args, 1, 2)?;
+            let 箱数 = match args.get(1) {
+                None | Some(Val::None_) => 10i128,
+                Some(Val::Int(v)) => *v,
+                Some(other) => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「直方图」的箱数要传整数，给的是「{}」", crate::display(other)),
+                    ))
+                }
+            };
+            if 箱数 < 1 {
+                return Err(err("值错误", "「直方图」的箱数至少是 1"));
+            }
+            let 箱数 = 箱数 as usize;
+            let xs = need_nonempty("直方图", nums("直方图", &args[0])?)?;
+            let mut lo = xs[0];
+            let mut hi = xs[0];
+            for x in &xs {
+                if *x < lo {
+                    lo = *x;
+                }
+                if *x > hi {
+                    hi = *x;
+                }
+            }
+            if lo == hi {
+                let pairs = vec![
+                    (Val::Str("边界".into()), crate::list_new(vec![Val::Float(lo), f64v(hi)])),
+                    (Val::Str("计数".into()), crate::list_new(vec![Val::Int(xs.len() as i128)])),
+                ];
+                return Ok(crate::dict_new(pairs));
+            }
+            let 宽 = (hi - lo) / 箱数 as f64;
+            let mut 边界: Vec<Val> = (0..箱数).map(|i| Val::Float(lo + 宽 * i as f64)).collect();
+            边界.push(f64v(hi));
+            let mut 计数 = vec![0i128; 箱数];
+            for x in &xs {
+                let mut k = ((x - lo) / 宽) as i128;
+                if k >= 箱数 as i128 {
+                    k = 箱数 as i128 - 1;
+                }
+                if k < 0 {
+                    k = 0;
+                }
+                计数[k as usize] += 1;
+            }
+            let pairs = vec![
+                (Val::Str("边界".into()), crate::list_new(边界)),
+                (
+                    Val::Str("计数".into()),
+                    crate::list_new(计数.into_iter().map(Val::Int).collect()),
+                ),
+            ];
+            Ok(crate::dict_new(pairs))
+        },
+        "百分位排名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("百分位排名", args, 2, 2)?;
+            let xs = nums("百分位排名", &args[0])?;
+            if xs.is_empty() {
+                return Err(err(
+                    "值错误",
+                    "「百分位排名」要至少有一个数字，现在是空的",
+                ));
+            }
+            let t = match &args[1] {
+                Val::Int(v) => *v as f64,
+                Val::Float(f) => *f,
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!(
+                            "「百分位排名」的第二个参数要传一个数字，给的是「{}」",
+                            crate::display(other)
+                        ),
+                    ))
+                }
+            };
+            let 不高于 = xs.iter().filter(|x| **x <= t).count();
+            Ok(Val::Float(不高于 as f64 / xs.len() as f64))
         },
     }
 }
