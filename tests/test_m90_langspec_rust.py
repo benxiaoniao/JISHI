@@ -158,7 +158,8 @@ _METHOD_CATS = ["列表", "字典", "文本", "集合", "文件", "小数"]
 #: M185 加两个模块时第一次直接追加到末尾，这条判据立刻红了（顺序不对）。
 _STDLIB_MODULES = [
     # M194 加了 `Word`（排在 Excel 后面，因为 `--lang-spec` 按 ASCII 排）
-    "Excel", "HTTP服务端", "HTTP路由", "Word", "html", "json", "剪贴板", "加密",
+    # M195 加了 `PDF`（ASCII 在 HTTP 之后、Word 之前）
+    "Excel", "HTTP服务端", "HTTP路由", "PDF", "Word", "html", "json", "剪贴板", "加密",
     "压缩", "参数", "向量", "图形", "地图", "场景", "声音", "存档",
     "容器", "对比", "并发", "打包", "托盘",
     "数学", "数据库", "文件", "文本", "日志", "日期",
@@ -226,8 +227,10 @@ def test_独立判据_lang_spec结构与关键事实():
     # M193：`数据库` 加 6 个（开始 / 提交 / 回滚 / 用事务 / 迁移 / 查询到表格）
     # ⇒ 45 / 480。
     # M194：新模块 `Word`（读文档 / 新建 / 加标题 / 加段落 / 加表格 / 加分页 /
-    # 保存 / 填充模板）⇒ **46 / 488**。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 488
+    # 保存 / 填充模板）⇒ 46 / 488。
+    # M195：新模块 `PDF`（新建 / 加页 / 写文本 / 画线 / 画矩形 / 保存 / 页数 /
+    # 读文本）⇒ **47 / 496**。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 496
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

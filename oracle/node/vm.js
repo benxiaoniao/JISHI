@@ -8529,6 +8529,8 @@ const STDLIB = {  '数学': new R.Module('数学', {
   'Word': new R.Module('Word', require('./word_mod')({
     zipBytes, readZipEntries, makeTable, pText, R, crc32,
   })),
+  // M195：PDF（写英文页 + 读文本）。只要 R —— 它不用 zip，自己拼对象表
+  'PDF': new R.Module('PDF', require('./pdf_mod')({ R, pText })),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }
