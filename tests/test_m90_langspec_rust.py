@@ -218,7 +218,9 @@ def test_独立判据_lang_spec结构与关键事实():
     # 输入 4 / 碰撞 3 / 帧循环 2）⇒ 38 模块 / 402 函数 → **39 / 428**。
     # M187：游戏工具箱六个模块（声音 6 / 精灵 7 / 瓦片 4 / 地图 2 / 存档 4 / 场景 3）
     # ⇒ 39/428 → **45 / 454**。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 454
+    # M192：`表格` 加 10 个（透视 / 按列分组 / 融化 / 展开列 / 填充缺失 / 丢弃缺失 /
+    # 取列 / 切片行 / 去重 / 转换列）⇒ **45 / 464**。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 464
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。
