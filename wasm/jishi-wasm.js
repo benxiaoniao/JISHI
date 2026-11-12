@@ -80,6 +80,24 @@
     //: 最近一次帧错误的文本（判据要能读到；控制台也打一份）。
     this._帧错 = null;
 
+    // ---- M196：离屏 / 裁剪 / 路径 / 渐变 / 混合 ----
+    //: 离屏画布表：`句柄 → {cv, ctx, 宽, 高}`。
+    this._离屏们 = {};
+    this._离屏序 = 1;
+    //: 当前绘制目标（`null` = 主画布）。**绘制函数一律看它，不看 `_ctx`**。
+    this._目标 = null;
+    //: 裁剪栈的层数（`设裁剪` +1，`清裁剪` -1）。
+    this._裁剪层 = 0;
+    //: 路径表：`句柄 → [[操作, ...参数], …]`。路径是**数据**，不是 ctx 状态。
+    this._路径们 = {};
+    this._路径序 = 1;
+    //: 渐变表：`句柄 → CanvasGradient`。样式里写 `"grad:3"` 就能用。
+    this._渐变们 = {};
+    this._渐变序 = 1;
+    //: 全局混合 / 透明度（`设混合` / `设透明度`，一直生效到下次改）。
+    this._混合 = null;
+    this._透明 = null;
+
     // ---- M187：声音 ----
     //: `undefined` = 还没建过；`null` = 这个环境没有 AudioContext。
     this._声 = undefined;
@@ -399,6 +417,27 @@
         return 滚;
       }
 
+      // ---- M196：离屏 / 裁剪 / 排版 / 路径 / 渐变 / 混合 ----
+      case "离屏": return this._g离屏(a);
+      case "用画布": return this._g用画布(a);
+      case "贴到": return this._g贴到(a);
+      case "离屏像素": return this._g离屏像素(a);
+      case "设裁剪": return this._g设裁剪(a);
+      case "清裁剪": return this._g清裁剪(a);
+      case "文字折行": return this._g文字折行(a);
+      case "写段落": return this._g写段落(a);
+      case "路径": return this._g路径(a);
+      case "移到": return this._g移到(a);
+      case "线到": return this._g线到(a);
+      case "弧到": return this._g弧到(a);
+      case "闭合路径": return this._g闭合路径(a);
+      case "填充路径": return this._g填充路径(a);
+      case "描边路径": return this._g描边路径(a);
+      case "线性渐变": return this._g线性渐变(a);
+      case "径向渐变": return this._g径向渐变(a);
+      case "设混合": return this._g设混合(a);
+      case "设透明度": return this._g设透明度(a);
+
       // ---- M186：帧循环的开与停（D110）----
       case "开帧": this._开帧(); return null;
       case "停帧": this._停帧(); return null;
@@ -490,17 +529,39 @@
     return k.length === 1 ? k.toLowerCase() : k;
   };
 
-  /** 拿 2d 上下文；**没准备过就自动准备一块**（少一步就少一个「忘了调用」的坑）。 */
+  /** 拿 2d 上下文；**没准备过就自动准备一块**（少一步就少一个「忘了调用」的坑）。
+   *
+   * M196：先看 `_目标`（`图形.用画布` 切过去的那块离屏），没有才回主画布 ——
+   * **所有绘制函数都从这里拿 ctx**，所以「画到离屏上」不需要改任何一个图元的实现。
+   */
   Jishi.prototype._needCtx = function () {
+    if (this._目标) return this._目标.ctx;
     if (!this._ctx) this._g准备(["[null,null,null]"]);
     return this._ctx;
   };
 
-  /** 绘制统一入口：带相机偏移 + `save/restore`（样式不泄漏到下一条图元）。 */
+  /** 当前目标的逻辑尺寸（`清屏` 要按它填满）。 */
+  Jishi.prototype._目标尺寸 = function () {
+    if (this._目标) return [this._目标.宽, this._目标.高];
+    return [this._宽, this._高];
+  };
+
+  /** 当前目标的 DPR。离屏画布按**逻辑像素**建（`width=宽`），所以恒为 1。 */
+  Jishi.prototype._目标dpr = function () {
+    return this._目标 ? 1 : this._dpr;
+  };
+
+  /** 绘制统一入口：带相机偏移 + `save/restore`（样式不泄漏到下一条图元）。
+   *
+   * M196：`设混合` / `设透明度` 是**持久状态**，在这里每条图元重新应用一遍 ——
+   * `restore` 会把它们弹回去，不重设的话「设了只管一条」。
+   */
   Jishi.prototype._画 = function (f) {
     var ctx = this._needCtx();
     ctx.save();
     ctx.translate(-this._相机.x, -this._相机.y);
+    if (this._混合) ctx.globalCompositeOperation = this._混合;
+    if (this._透明 != null) ctx.globalAlpha = this._透明;
     try { f(ctx); } finally { ctx.restore(); }
   };
 
@@ -510,7 +571,17 @@
    */
   Jishi.prototype._样式 = function (ctx, s, 类) {
     s = s || {};
-    var 填 = s["填充"], 描 = s["描边"];
+    var 自 = this;
+    // M196：`"grad:3"` 换成真的 CanvasGradient。换不到就原样给 —— 那样 canvas 会
+    // 忽略它（画不出东西），但**不会静默变成黑色**：黑色是最像「有效果」的假象。
+    var 兑 = function (v) {
+      if (typeof v === "string" && v.slice(0, 5) === "grad:") {
+        var g = 自._渐变们[Number(v.slice(5))];
+        if (g) return g;
+      }
+      return v;
+    };
+    var 填 = 兑(s["填充"]), 描 = 兑(s["描边"]);
     if (类 === "填充" && 填 == null) 填 = "#fff";
     if (类 === "线" && 描 == null) 描 = "#fff";
     if (类 === "文本" && 填 == null) 填 = "#fff";
@@ -548,6 +619,9 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._画布 = cv; this._ctx = ctx; this._dpr = dpr;
     this._宽 = 宽; this._高 = 高;
+    // M196：重新准备画布 = 回到主画布（否则绘制还留在上一条离屏上，
+    // 「刷新了但还是画不出来」这种最难查）
+    this._目标 = null;
     if (参[2]) { ctx.fillStyle = 参[2]; ctx.fillRect(0, 0, 宽, 高); }
     this._挂输入();
     return { 宽: 宽, 高: 高 };
@@ -555,13 +629,310 @@
 
   Jishi.prototype._g清屏 = function (a) {
     var ctx = this._needCtx();
+    var 尺 = this._目标尺寸();
     // 清屏**不吃相机**：它清的是整块画布，不是世界坐标里的某一块
     ctx.save();
-    ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    ctx.setTransform(this._目标dpr(), 0, 0, this._目标dpr(), 0, 0);
     ctx.globalAlpha = 1;
     ctx.fillStyle = String(a[0] || "#000");
-    ctx.fillRect(0, 0, this._宽, this._高);
+    ctx.fillRect(0, 0, 尺[0], 尺[1]);
     ctx.restore();
+    return null;
+  };
+
+  // ---- M196：离屏画布 ------------------------------------------------------
+
+  /**
+   * 建一块离屏画布，返回句柄。
+   *
+   * 📌 离屏画布**按逻辑像素建**（`width = 宽`，不乘 DPR）：它是拿来当中间结果
+   * 用的，贴到主画布时由主画布负责缩放。乘了 DPR 反而会「贴上去大一圈」。
+   */
+  Jishi.prototype._g离屏 = function (a) {
+    var 宽 = Math.max(1, Math.round(Number(a[0]) || 1));
+    var 高 = Math.max(1, Math.round(Number(a[1]) || 1));
+    var doc = this._doc;
+    var cv = doc && doc.createElement ? doc.createElement("canvas") : null;
+    if (!cv) throw new Error("这个环境建不了离屏画布（没有 document.createElement）");
+    cv.width = 宽; cv.height = 高;
+    var ctx = cv.getContext && cv.getContext("2d");
+    if (!ctx) throw new Error("离屏画布拿不到 2d 上下文");
+    var id = this._离屏序++;
+    this._离屏们[id] = { cv: cv, ctx: ctx, 宽: 宽, 高: 高 };
+    return id;
+  };
+
+  /** 切换绘制目标（`空` = 主画布）。 */
+  Jishi.prototype._g用画布 = function (a) {
+    if (a[0] == null || a[0] === undefined) {
+      this._目标 = null;
+      return null;
+    }
+    var id = Number(a[0]);
+    var 块 = this._离屏们[id];
+    if (!块) {
+      throw new Error("没有句柄为 " + a[0] + " 的离屏画布 —— 先用 图形.离屏(宽, 高) 建一块");
+    }
+    this._目标 = 块;
+    return null;
+  };
+
+  /** 把离屏画布贴到**当前目标**上。 */
+  Jishi.prototype._g贴到 = function (a) {
+    var 块 = this._离屏们[Number(a[0])];
+    if (!块) {
+      throw new Error("没有句柄为 " + a[0] + " 的离屏画布 —— 先用 图形.离屏(宽, 高) 建一块");
+    }
+    var 选 = JSON.parse(a[3] || "{}");
+    var 透 = 选["透明度"];
+    this._画(function (ctx) {
+      if (透 != null) ctx.globalAlpha = Number(透);
+      ctx.drawImage(块.cv, Number(a[1]) || 0, Number(a[2]) || 0);
+    });
+    return null;
+  };
+
+  /** 读离屏画布上一个像素（`[红,绿,蓝,透明]`）。 */
+  Jishi.prototype._g离屏像素 = function (a) {
+    var 块 = this._离屏们[Number(a[0])];
+    if (!块) {
+      throw new Error("没有句柄为 " + a[0] + " 的离屏画布 —— 先用 图形.离屏(宽, 高) 建一块");
+    }
+    var x = Math.floor(Number(a[1]) || 0);
+    var y = Math.floor(Number(a[2]) || 0);
+    if (x < 0 || y < 0 || x >= 块.宽 || y >= 块.高) {
+      throw new Error("离屏像素 (" + x + ", " + y + ") 越界 —— 这块画布是 "
+        + 块.宽 + " × " + 块.高);
+    }
+    var d = 块.ctx.getImageData(x, y, 1, 1).data;
+    return [d[0], d[1], d[2], d.length > 3 ? d[3] : 255];
+  };
+
+  // ---- M196：裁剪 ----------------------------------------------------------
+
+  /**
+   * 把后面的绘制裁到一个矩形里。
+   *
+   * ⚠️ 存的是**世界坐标**（和所有图元一样吃相机）。`save()` 在这里配一次，
+   * `清裁剪` 负责 `restore()` —— 所以 `设裁剪` / `清裁剪` **必须配对**，
+   * 多清一次会报错（那基本一定是逻辑写错了）。
+   */
+  Jishi.prototype._g设裁剪 = function (a) {
+    var 矩 = JSON.parse(a[0]);
+    var ctx = this._needCtx();
+    ctx.save();
+    ctx.translate(-this._相机.x, -this._相机.y);
+    ctx.beginPath();
+    ctx.rect(矩[0], 矩[1], 矩[2], 矩[3]);
+    ctx.clip();
+    this._裁剪层 += 1;
+    return null;
+  };
+
+  Jishi.prototype._g清裁剪 = function () {
+    if (this._裁剪层 <= 0) {
+      throw new Error("没有可以清掉的裁剪 —— 设裁剪 / 清裁剪 要配对");
+    }
+    this._needCtx().restore();
+    this._裁剪层 -= 1;
+    return null;
+  };
+
+  // ---- M196：文字排版 ------------------------------------------------------
+
+  /**
+   * 按最大宽度折行，返回行列表。
+   *
+   * 规则（**按真实字宽量，不按字数**）：
+   * 1. 先按 `\n` 分段，每段各自折；
+   * 2. 逐字符累加，超宽就断 —— 但如果这一行里有空格、且空格在行的**后半段**，
+   *    就回退到那个空格断（英文单词不被劈开）；
+   * 3. 段落里的空行保留成空串（用户显式写的空行不该被吃掉）。
+   */
+  Jishi.prototype._g文字折行 = function (a) {
+    var 文 = String(a[0] == null ? "" : a[0]);
+    var 限 = Number(a[1]) || 1;
+    var 样 = JSON.parse(a[2] || "{}");
+    var ctx = this._needCtx();
+    ctx.save();
+    ctx.font = (Number(样["字号"]) || 16) + "px sans-serif";
+
+    var 量 = function (s) { return ctx.measureText(s).width; };
+    var 行们 = [];
+    var 段们 = 文.split("\n");
+    for (var i = 0; i < 段们.length; i++) {
+      var 段 = 段们[i];
+      if (!段) { 行们.push(""); continue; }
+      var 当前 = "";
+      for (var k = 0; k < 段.length; k++) {
+        var ch = 段[k];
+        if (当前 && 量(当前 + ch) > 限) {
+          var 空 = 当前.lastIndexOf(" ");
+          if (空 > 0 && 空 >= 当前.length * 0.4) {
+            行们.push(当前.slice(0, 空));
+            当前 = 当前.slice(空 + 1) + ch;
+          } else {
+            行们.push(当前);
+            当前 = ch;
+          }
+        } else {
+          当前 += ch;
+        }
+      }
+      if (当前) 行们.push(当前);
+    }
+    ctx.restore();
+    return 行们;
+  };
+
+  /** 折行并逐行画。`y` 是**第一行的基线**。 */
+  Jishi.prototype._g写段落 = function (a) {
+    var 样 = JSON.parse(a[4] || "{}");
+    var 行们 = this._g文字折行([a[0], a[3], a[4]]);
+    var 号 = Number(样["字号"]) || 16;
+    var 距 = Number(样["行距"]) || 号 * 1.5;
+    var x = Number(a[1]) || 0;
+    var y = Number(a[2]) || 0;
+    var 自 = this;
+    this._画(function (ctx) {
+      自._样式(ctx, 样, "文本");
+      for (var i = 0; i < 行们.length; i++) {
+        if (行们[i]) ctx.fillText(行们[i], x, y + i * 距);
+      }
+    });
+    return null;
+  };
+
+  // ---- M196：路径 ----------------------------------------------------------
+
+  /**
+   * 路径是**数据**（一串操作），不是 ctx 状态。
+   *
+   * 为什么不直接 beginPath/moveTo：ctx 的路径是**一次性**的 —— 填充完就没了，
+   * 想「先描边再填充」或「平移着重画几遍」都得重放。存成数据后这些都是自然的，
+   * 而且**判据能直接比对指令序列**（真 canvas 才需要看像素）。
+   */
+  Jishi.prototype._g路径 = function () {
+    var id = this._路径序++;
+    this._路径们[id] = [];
+    return id;
+  };
+
+  Jishi.prototype._路径加 = function (id, 步) {
+    var p = this._路径们[Number(id)];
+    if (!p) {
+      throw new Error("没有句柄为 " + id + " 的路径 —— 先用 图形.路径() 建一条");
+    }
+    p.push(步);
+    return null;
+  };
+
+  Jishi.prototype._g移到 = function (a) {
+    return this._路径加(a[0], ["moveTo", Number(a[1]) || 0, Number(a[2]) || 0]);
+  };
+
+  Jishi.prototype._g线到 = function (a) {
+    return this._路径加(a[0], ["lineTo", Number(a[1]) || 0, Number(a[2]) || 0]);
+  };
+
+  Jishi.prototype._g弧到 = function (a) {
+    return this._路径加(a[0], ["arcTo",
+      Number(a[1]) || 0, Number(a[2]) || 0,
+      Number(a[3]) || 0, Number(a[4]) || 0,
+      Number(a[5]) || 0]);
+  };
+
+  Jishi.prototype._g闭合路径 = function (a) {
+    return this._路径加(a[0], ["closePath"]);
+  };
+
+  /** 把存的步骤重放到 ctx 上（填充/描边共用）。 */
+  Jishi.prototype._路径重放 = function (ctx, p) {
+    ctx.beginPath();
+    for (var i = 0; i < p.length; i++) {
+      var 步 = p[i];
+      if (步[0] === "moveTo") ctx.moveTo(步[1], 步[2]);
+      else if (步[0] === "lineTo") ctx.lineTo(步[1], 步[2]);
+      else if (步[0] === "arcTo") ctx.arcTo(步[1], 步[2], 步[3], 步[4], 步[5]);
+      else if (步[0] === "closePath") ctx.closePath();
+    }
+  };
+
+  Jishi.prototype._g填充路径 = function (a) {
+    var p = this._路径们[Number(a[0])];
+    if (!p) throw new Error("没有句柄为 " + a[0] + " 的路径 —— 先用 图形.路径() 建一条");
+    var 样 = JSON.parse(a[1] || "{}");
+    var 自 = this;
+    this._画(function (ctx) {
+      var s = 自._样式(ctx, 样, "填充");
+      自._路径重放(ctx, p);
+      if (s.填 != null) ctx.fill();
+    });
+    return null;
+  };
+
+  Jishi.prototype._g描边路径 = function (a) {
+    var p = this._路径们[Number(a[0])];
+    if (!p) throw new Error("没有句柄为 " + a[0] + " 的路径 —— 先用 图形.路径() 建一条");
+    var 样 = JSON.parse(a[1] || "{}");
+    var 自 = this;
+    this._画(function (ctx) {
+      var s = 自._样式(ctx, 样, "线");
+      自._路径重放(ctx, p);
+      if (s.描 != null) ctx.stroke();
+    });
+    return null;
+  };
+
+  // ---- M196：渐变 ----------------------------------------------------------
+
+  /** 色标 JSON（`[[位置, 颜色], …]`）→ 往渐变对象上加。 */
+  Jishi.prototype._上色标 = function (g, 色们) {
+    for (var i = 0; i < 色们.length; i++) {
+      var 项 = 色们[i];
+      g.addColorStop(Math.max(0, Math.min(1, Number(项[0]))), String(项[1]));
+    }
+    return g;
+  };
+
+  /**
+   * 线性渐变。返回值是 `"grad:3"` 这种标记 —— 能直接写进样式的
+   * `"填充"` / `"描边"`（`_样式` 会兑成真的渐变对象）。
+   *
+   * 📌 坐标是**世界坐标**（跟着相机）。因为渐变对象是在 `_画` 的 translate
+   * 之后建的，用户写什么就是什么，不用自己加相机偏移。
+   */
+  Jishi.prototype._g线性渐变 = function (a) {
+    var ctx = this._needCtx();
+    var g = ctx.createLinearGradient(
+      Number(a[0]) || 0, Number(a[1]) || 0, Number(a[2]) || 0, Number(a[3]) || 0);
+    this._上色标(g, JSON.parse(a[4] || "[]"));
+    var id = this._渐变序++;
+    this._渐变们[id] = g;
+    return "grad:" + id;
+  };
+
+  Jishi.prototype._g径向渐变 = function (a) {
+    var ctx = this._needCtx();
+    var g = ctx.createRadialGradient(
+      Number(a[0]) || 0, Number(a[1]) || 0, Number(a[2]) || 0,
+      Number(a[0]) || 0, Number(a[1]) || 0, Number(a[3]) || 1);
+    this._上色标(g, JSON.parse(a[4] || "[]"));
+    var id = this._渐变序++;
+    this._渐变们[id] = g;
+    return "grad:" + id;
+  };
+
+  // ---- M196：混合 ----------------------------------------------------------
+
+  Jishi.prototype._g设混合 = function (a) {
+    this._混合 = a[0] == null ? null : String(a[0]);
+    return null;
+  };
+
+  Jishi.prototype._g设透明度 = function (a) {
+    var v = Number(a[0]);
+    this._透明 = isFinite(v) ? Math.max(0, Math.min(1, v)) : null;
     return null;
   };
 

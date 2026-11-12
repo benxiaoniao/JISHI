@@ -230,7 +230,9 @@ def test_独立判据_lang_spec结构与关键事实():
     # 保存 / 填充模板）⇒ 46 / 488。
     # M195：新模块 `PDF`（新建 / 加页 / 写文本 / 画线 / 画矩形 / 保存 / 页数 /
     # 读文本）⇒ **47 / 496**。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 496
+    # M196：`图形` 26 → 45（离屏 4 / 裁剪 2 / 排版 2 / 路径 7 / 渐变 2 / 混合 2）
+    # ⇒ **47 / 515**。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 515
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

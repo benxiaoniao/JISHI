@@ -169,14 +169,17 @@ fn 样式json(v: Option<&Val>) -> Result<String, JishiError> {
     let mut 段: Vec<String> = Vec::new();
     for (k, val) in 字典(v, "图形", "样式")? {
         match k.as_str() {
-            "填充" | "描边" | "对齐" | "字号" | "线宽" | "透明度" | "圆角" => {
+            // M196 加了 `行距`：`写段落` 用它。放进这张表而不是另开一张，
+            // 是因为它就是「文本样式」的一项 —— 用户写 `矩形(…, {"行距": 20})`
+            // 只是没效果，不该报错说「没这一项」。
+            "填充" | "描边" | "对齐" | "字号" | "行距" | "线宽" | "透明度" | "圆角" => {
                 段.push(format!("\"{}\":{}", esc(&k), 标量json(&val)?));
             }
             other => {
                 return Err(err_with_hint(
                     "值错误",
                     format!("样式里没有「{other}」这一项"),
-                    "能用的是：填充 / 描边 / 线宽 / 字号 / 对齐 / 透明度 / 圆角".into(),
+                    "能用的是：填充 / 描边 / 线宽 / 字号 / 行距 / 对齐 / 透明度 / 圆角".into(),
                 ))
             }
         }
@@ -210,6 +213,108 @@ fn 选项json(v: Option<&Val>) -> Result<String, JishiError> {
         }
     }
     Ok(format!("{{{}}}", 段.join(",")))
+}
+
+/// 渐变色标 → JSON（M196）：`[[位置, 颜色], …]`。
+///
+/// 两种写法都收：
+/// - `[[0, "#0a2a5e"], [1, "#4a90d9"]]` —— 位置自己定；
+/// - `["#0a2a5e", "#4a90d9"]` —— 均匀分布（第 i 个的位置 = i / (n-1)）。
+///
+/// 📌 简写不是「为省事」：天空、光晕这类渐变九成都是均匀的，逼用户写位置只是
+/// 让他多写两遍还得自己算。**两种都收，位置越界的照样报错**。
+fn 色们json(v: &Val, 名: &str) -> Result<String, JishiError> {
+    let Val::List(items) = v else {
+        return Err(err(
+            "类型错误",
+            format!("「{名}」的「色们」要列表，给的是{}", crate::type_label(v)),
+        ));
+    };
+    let 项们 = items.borrow().clone();
+    if 项们.len() < 2 {
+        return Err(err("值错误", format!("「{名}」的渐变至少要两个色标")));
+    }
+    let 总 = 项们.len();
+    let mut 段: Vec<String> = Vec::with_capacity(总);
+    for (i, x) in 项们.iter().enumerate() {
+        match x {
+            Val::List(p) => {
+                let q = p.borrow().clone();
+                if q.len() != 2 {
+                    return Err(err(
+                        "值错误",
+                        format!("「{名}」每个色标要写成 [位置, 颜色]，现在是 {} 项", q.len()),
+                    ));
+                }
+                let 位 = 数(&q[0], 名, "色标位置")?;
+                if !(0.0..=1.0).contains(&位) {
+                    return Err(err(
+                        "值错误",
+                        format!("「{名}」的色标位置要在 0–1 之间，现在是 {位}"),
+                    ));
+                }
+                let 色 = 文本(&q[1], 名, "色标颜色")?;
+                段.push(format!("[{},{}]", 标量json(&Val::Float(位))?, 标量json(&Val::Str(色.into()))?));
+            }
+            Val::Str(s) => {
+                let 位 = i as f64 / (总 - 1) as f64;
+                段.push(format!("[{},{}]", 标量json(&Val::Float(位))?, 标量json(&Val::Str(s.clone()))?));
+            }
+            other => {
+                return Err(err(
+                    "类型错误",
+                    format!(
+                        "「{名}」的色标要写成 [位置, 颜色] 或直接给颜色文本，给的是{}",
+                        crate::type_label(other)
+                    ),
+                ))
+            }
+        }
+    }
+    Ok(format!("[{}]", 段.join(",")))
+}
+
+/// `{x, y, 宽, 高}` → JSON（M196：`设裁剪` 用）。
+///
+/// ⚠️ 四项**缺一个就报错**：少写 `高` 而默认成 0 的话，裁剪区就成了空集 ——
+/// 画面上什么都不出来，而且不报错，最难查。
+fn 矩形json(v: &Val, 名: &str) -> Result<String, JishiError> {
+    let (mut x, mut y, mut w, mut h) = (None, None, None, None);
+    for (k, val) in 字典(v, 名, "矩形")? {
+        match k.as_str() {
+            "x" => x = Some(数(&val, 名, "x")?),
+            "y" => y = Some(数(&val, 名, "y")?),
+            "宽" => w = Some(数(&val, 名, "宽")?),
+            "高" => h = Some(数(&val, 名, "高")?),
+            other => {
+                return Err(err_with_hint(
+                    "值错误",
+                    format!("「{名}」的矩形里没有「{other}」这一项"),
+                    "要写 {\"x\": 0, \"y\": 0, \"宽\": 100, \"高\": 50}".into(),
+                ))
+            }
+        }
+    }
+    let (x, y, w, h) = match (x, y, w, h) {
+        (Some(a), Some(b), Some(c), Some(d)) => (a, b, c, d),
+        _ => {
+            return Err(err_with_hint(
+                "值错误",
+                format!("「{名}」的矩形要有 x / y / 宽 / 高 四项"),
+                "少一项就默认成 0 的话，裁剪区可能是空的 —— 画面上什么都不出来还不报错".into(),
+            ))
+        }
+    };
+    if w <= 0.0 || h <= 0.0 {
+        return Err(err("值错误", format!("「{名}」的宽和高要大于 0，现在是 {w} × {h}")));
+    }
+    Ok(format!(
+        "[{},{},{},{}]",
+        标量json(&Val::Float(x))?,
+        标量json(&Val::Float(y))?,
+        标量json(&Val::Float(w))?,
+        标量json(&Val::Float(h))?
+    ))
 }
 
 /// 点列表 → JSON：`[[x,y], …]`（`多边形` 用）。
@@ -624,6 +729,214 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     .map_err(|e| crate::err("运行期错误", format!("初始化函数出错：{}", e.message)))?;
             }
             Ok(Val::Bool(true))
+        },
+        // ---- M196：离屏画布 ------------------------------------------------
+        //
+        // 📌 这一批统一走 `调()`（= 先 `要画布()` 再 `host_call`），**而且放在
+        // 参数校验之后**：用户把 `离屏(0, 10)` 写错时，先说「宽要大于 0」比说
+        // 「这个平台没有画布」有用得多 —— 后者会让人以为「换到网页就好了」。
+        // M186 那批是「先判平台」，保持原样（改它没有收益，只有回归风险）。
+        "离屏" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("离屏", args, 2, 2)?;
+            let 宽 = 数(&args[0], "离屏", "宽")?;
+            let 高 = 数(&args[1], "离屏", "高")?;
+            if 宽 < 1.0 || 高 < 1.0 {
+                return Err(err("值错误", format!("「离屏」的宽和高要大于 0，现在是 {宽} × {高}")));
+            }
+            if 宽 > 8192.0 || 高 > 8192.0 {
+                return Err(err("值错误", format!("「离屏」最大 8192 × 8192，现在是 {宽} × {高}")));
+            }
+            调("离屏", &[Val::Float(宽), Val::Float(高)])
+        },
+        "用画布" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("用画布", args, 1, 1)?;
+            // `空` = 回主画布
+            let 句 = match &args[0] {
+                Val::None_ => Val::None_,
+                v => Val::Float(数(v, "用画布", "画布")?),
+            };
+            调("用画布", &[句])
+        },
+        "贴到" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("贴到", args, 3, 4)?;
+            let 选 = 选项json(args.get(3))?;
+            调("贴到", &[
+                Val::Float(数(&args[0], "贴到", "画布")?),
+                Val::Float(数(&args[1], "贴到", "x")?),
+                Val::Float(数(&args[2], "贴到", "y")?),
+                Val::Str(选.into()),
+            ])
+        },
+        "离屏像素" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("离屏像素", args, 3, 3)?;
+            调("离屏像素", &[
+                Val::Float(数(&args[0], "离屏像素", "画布")?),
+                Val::Float(数(&args[1], "离屏像素", "x")?),
+                Val::Float(数(&args[2], "离屏像素", "y")?),
+            ])
+        },
+
+        // ---- M196：裁剪 ----------------------------------------------------
+        "设裁剪" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设裁剪", args, 1, 1)?;
+            let 矩 = 矩形json(&args[0], "设裁剪")?;
+            调("设裁剪", &[Val::Str(矩.into())])
+        },
+        "清裁剪" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            调("清裁剪", &[])
+        },
+
+        // ---- M196：文字排版 ------------------------------------------------
+        "文字折行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("文字折行", args, 2, 3)?;
+            let 内 = 文本(&args[0], "文字折行", "文本")?;
+            let 宽 = 数(&args[1], "文字折行", "最大宽")?;
+            if 宽 <= 0.0 {
+                return Err(err("值错误", format!("「文字折行」的最大宽要大于 0，现在是 {宽}")));
+            }
+            let 样 = 样式json(args.get(2))?;
+            调("文字折行", &[
+                Val::Str(内.into()),
+                Val::Float(宽),
+                Val::Str(样.into()),
+            ])
+        },
+        "写段落" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("写段落", args, 4, 5)?;
+            let 内 = 文本(&args[0], "写段落", "文本")?;
+            let 宽 = 数(&args[3], "写段落", "最大宽")?;
+            if 宽 <= 0.0 {
+                return Err(err("值错误", format!("「写段落」的最大宽要大于 0，现在是 {宽}")));
+            }
+            let 样 = 样式json(args.get(4))?;
+            调("写段落", &[
+                Val::Str(内.into()),
+                Val::Float(数(&args[1], "写段落", "x")?),
+                Val::Float(数(&args[2], "写段落", "y")?),
+                Val::Float(宽),
+                Val::Str(样.into()),
+            ])
+        },
+
+        // ---- M196：路径 ----------------------------------------------------
+        "路径" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            调("路径", &[])
+        },
+        "移到" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("移到", args, 3, 3)?;
+            调("移到", &[
+                Val::Float(数(&args[0], "移到", "路径")?),
+                Val::Float(数(&args[1], "移到", "x")?),
+                Val::Float(数(&args[2], "移到", "y")?),
+            ])
+        },
+        "线到" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("线到", args, 3, 3)?;
+            调("线到", &[
+                Val::Float(数(&args[0], "线到", "路径")?),
+                Val::Float(数(&args[1], "线到", "x")?),
+                Val::Float(数(&args[2], "线到", "y")?),
+            ])
+        },
+        "弧到" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("弧到", args, 6, 6)?;
+            let 半 = 数(&args[5], "弧到", "半径")?;
+            if 半 < 0.0 {
+                return Err(err("值错误", format!("「弧到」的半径不能是负数，现在是 {半}")));
+            }
+            调("弧到", &[
+                Val::Float(数(&args[0], "弧到", "路径")?),
+                Val::Float(数(&args[1], "弧到", "x1")?),
+                Val::Float(数(&args[2], "弧到", "y1")?),
+                Val::Float(数(&args[3], "弧到", "x2")?),
+                Val::Float(数(&args[4], "弧到", "y2")?),
+                Val::Float(半),
+            ])
+        },
+        "闭合路径" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("闭合路径", args, 1, 1)?;
+            调("闭合路径", &[Val::Float(数(&args[0], "闭合路径", "路径")?)])
+        },
+        "填充路径" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("填充路径", args, 1, 2)?;
+            let 样 = 样式json(args.get(1))?;
+            调("填充路径", &[
+                Val::Float(数(&args[0], "填充路径", "路径")?),
+                Val::Str(样.into()),
+            ])
+        },
+        "描边路径" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("描边路径", args, 1, 2)?;
+            let 样 = 样式json(args.get(1))?;
+            调("描边路径", &[
+                Val::Float(数(&args[0], "描边路径", "路径")?),
+                Val::Str(样.into()),
+            ])
+        },
+
+        // ---- M196：渐变 ----------------------------------------------------
+        "线性渐变" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("线性渐变", args, 5, 5)?;
+            let 色 = 色们json(&args[4], "线性渐变")?;
+            调("线性渐变", &[
+                Val::Float(数(&args[0], "线性渐变", "x1")?),
+                Val::Float(数(&args[1], "线性渐变", "y1")?),
+                Val::Float(数(&args[2], "线性渐变", "x2")?),
+                Val::Float(数(&args[3], "线性渐变", "y2")?),
+                Val::Str(色.into()),
+            ])
+        },
+        "径向渐变" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("径向渐变", args, 5, 5)?;
+            let 内 = 数(&args[2], "径向渐变", "内半径")?;
+            let 外 = 数(&args[3], "径向渐变", "外半径")?;
+            if 内 < 0.0 || 外 <= 0.0 || 内 > 外 {
+                return Err(err(
+                    "值错误",
+                    format!("「径向渐变」要 0 ≤ 内半径 ≤ 外半径，现在是 {内} / {外}"),
+                ));
+            }
+            let 色 = 色们json(&args[4], "径向渐变")?;
+            调("径向渐变", &[
+                Val::Float(数(&args[0], "径向渐变", "x")?),
+                Val::Float(数(&args[1], "径向渐变", "y")?),
+                Val::Float(内),
+                Val::Float(外),
+                Val::Str(色.into()),
+            ])
+        },
+
+        // ---- M196：混合 ----------------------------------------------------
+        "设混合" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设混合", args, 1, 1)?;
+            let 名 = 文本(&args[0], "设混合", "模式")?;
+            // 中文名在 Rust 侧就翻译好（shim 只认规范里的那几个英文值）
+            let 值 = match 名.as_str() {
+                "正常" => "source-over",
+                "叠加" => "lighter",
+                "相乘" => "multiply",
+                "变亮" => "screen",
+                "变暗" => "darken",
+                other => {
+                    return Err(err_with_hint(
+                        "值错误",
+                        format!("「设混合」不认识的模式「{other}」"),
+                        "能用的是：正常 / 叠加 / 相乘 / 变亮 / 变暗".into(),
+                    ))
+                }
+            };
+            调("设混合", &[Val::Str(值.into())])
+        },
+        "设透明度" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设透明度", args, 1, 1)?;
+            let 值 = 数(&args[0], "设透明度", "值")?;
+            if !(0.0..=1.0).contains(&值) {
+                return Err(err(
+                    "值错误",
+                    format!("「设透明度」要在 0–1 之间，现在是 {值}"),
+                ));
+            }
+            调("设透明度", &[Val::Float(值)])
         },
         "停" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             要画布()?;

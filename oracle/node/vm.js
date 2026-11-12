@@ -4714,6 +4714,16 @@ const GRAPHICS_FUNCS = {
   '鼠标': _noGraphics('鼠标'), '滚轮': _noGraphics('滚轮'),
   '碰到': _noGraphics('碰到'), '点到': _noGraphics('点到'), '距离': _noGraphics('距离'),
   '运行': _noGraphics('运行'), '停': _noGraphics('停'),
+  // M196：离屏 / 裁剪 / 排版 / 路径 / 渐变 / 混合
+  '离屏': _noGraphics('离屏'), '用画布': _noGraphics('用画布'),
+  '贴到': _noGraphics('贴到'), '离屏像素': _noGraphics('离屏像素'),
+  '设裁剪': _noGraphics('设裁剪'), '清裁剪': _noGraphics('清裁剪'),
+  '文字折行': _noGraphics('文字折行'), '写段落': _noGraphics('写段落'),
+  '路径': _noGraphics('路径'), '移到': _noGraphics('移到'), '线到': _noGraphics('线到'),
+  '弧到': _noGraphics('弧到'), '闭合路径': _noGraphics('闭合路径'),
+  '填充路径': _noGraphics('填充路径'), '描边路径': _noGraphics('描边路径'),
+  '线性渐变': _noGraphics('线性渐变'), '径向渐变': _noGraphics('径向渐变'),
+  '设混合': _noGraphics('设混合'), '设透明度': _noGraphics('设透明度'),
 };
 
 const BROWSER_FUNCS = {
