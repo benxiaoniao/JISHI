@@ -280,6 +280,133 @@ fn 转TSV文本(t: &Table) -> Result<String, JishiError> {
     Ok(出.join("\n"))
 }
 
+// ---------------------------------------------------------------------------
+// M192：数据分析（透视 / 多列分组 / 宽长表 / 缺失值）
+// ---------------------------------------------------------------------------
+//
+// 与 Python 侧 `jishi/stdlib/表格.py` 逐句对齐。三条共用约定：
+// 1. **列参数可以给一个列名，也可以给列名列表**；
+// 2. **「缺失」= 空文本 或 `空`**（`0` / `假` 不算 —— 最容易搞错的地方）；
+// 3. **都返回新表格，不改原表**。
+
+/// `透视` / `按列分组` 认的聚合方式（与 `汇总` 的五个口径对齐）。
+const 聚合方式们: [&str; 5] = ["求和", "平均", "计数", "最大", "最小"];
+
+/// 这一格算不算「没有值」。
+fn 缺失(v: &Val) -> bool {
+    matches!(v, Val::None_) || matches!(v, Val::Str(s) if s.is_empty())
+}
+
+/// 列名 → 下标（`column_index` 只收 `&Val`，这里收 `&str`）。
+fn 列号(t: &Table, 名: &str) -> Result<usize, JishiError> {
+    t.headers
+        .iter()
+        .position(|h| as_text(h) == 名)
+        .ok_or_else(|| {
+            let 有: Vec<String> = t.headers.iter().map(as_text).collect();
+            err(
+                "类型错误",
+                format!("找不到列「{名}」，现有列：{}", 有.join(" / ")),
+            )
+        })
+}
+
+/// 「一个列名 或 列名列表」→ `Vec<String>`，逐个核对存在。
+fn 列们(t: &Table, v: &Val, 谁: &str) -> Result<Vec<String>, JishiError> {
+    let 名们: Vec<String> = match v {
+        Val::Str(_) => vec![as_text(v)],
+        _ => to_vec(v)?.iter().map(as_text).collect(),
+    };
+    if 名们.is_empty() {
+        return Err(err("类型错误", format!("「{谁}」至少要给一个列名")));
+    }
+    for 名 in &名们 {
+        列号(t, 名)?;
+    }
+    Ok(名们)
+}
+
+fn 要聚合(v: &Val, 谁: &str) -> Result<String, JishiError> {
+    let s = as_text(v);
+    if !聚合方式们.contains(&s.as_str()) {
+        return Err(err(
+            "类型错误",
+            format!(
+                "「{谁}」不认识的聚合方式「{s}」—— 只能是：{}",
+                聚合方式们.join(" / ")
+            ),
+        ));
+    }
+    Ok(s)
+}
+
+/// 把一批格子转成数字（缺失跳过，不参与计算 —— 不是 0）。
+fn 数值们(值们: &[Val], 列名: &str, 谁: &str) -> Result<Vec<f64>, JishiError> {
+    let mut 出 = Vec::with_capacity(值们.len());
+    for v in 值们 {
+        if 缺失(v) {
+            continue;
+        }
+        let f = match v {
+            Val::Int(i) => *i as f64,
+            Val::Float(f) => *f,
+            Val::Bool(b) => {
+                if *b {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            // 📌 从 CSV 读进来的格子全是**文本**，所以这条分支是主路
+            Val::Str(s) => s.trim().parse::<f64>().map_err(|_| {
+                err(
+                    "类型错误",
+                    format!(
+                        "「{谁}」：列「{列名}」里有不是数字的值「{}」，没法聚合",
+                        display(v)
+                    ),
+                )
+            })?,
+            other => {
+                return Err(err(
+                    "类型错误",
+                    format!(
+                        "「{谁}」：列「{列名}」里有不是数字的值「{}」，没法聚合",
+                        display(other)
+                    ),
+                ))
+            }
+        };
+        出.push(f);
+    }
+    Ok(出)
+}
+
+/// 按名字聚合。**空批次**：`计数` 给 0，其余给 `None`（调用方写成空格）。
+fn 聚合(
+    值们: &[Val],
+    方式: &str,
+    列名: &str,
+    谁: &str,
+) -> Result<Option<Val>, JishiError> {
+    if 方式 == "计数" {
+        return Ok(Some(Val::Int(
+            值们.iter().filter(|v| !缺失(v)).count() as i128
+        )));
+    }
+    let 数 = 数值们(值们, 列名, 谁)?;
+    if 数.is_empty() {
+        return Ok(None);
+    }
+    let 果 = match 方式 {
+        "求和" => 数.iter().sum::<f64>(),
+        "平均" => 数.iter().sum::<f64>() / 数.len() as f64,
+        "最大" => 数.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+        _ => 数.iter().copied().fold(f64::INFINITY, f64::min),
+    };
+    Ok(Some(Val::Float(果)))
+}
+
 pub(crate) fn module() -> HashMap<String, Val> {
     table! { "表格";
         "读表格" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -681,6 +808,290 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 out.push(crate::dict_new(pairs));
             }
             Ok(crate::list_new(out))
+        },
+        // ── M192 ──
+        "透视" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("透视", args, 4, 5)?;
+            let t = as_table(&args[0])?;
+            let i行 = column_index(&t, &args[1])?;
+            let i列 = column_index(&t, &args[2])?;
+            let i值 = column_index(&t, &args[3])?;
+            let 值列名 = as_text(&args[3]);
+            let 方式 = if args.len() > 4 {
+                要聚合(&args[4], "透视")?
+            } else {
+                "求和".to_string()
+            };
+
+            let mut 行序: Vec<Val> = Vec::new();
+            let mut 列序: Vec<Val> = Vec::new();
+            // 键是 `(行, 列)` 两个 `Val` —— `Val` 没实现 `Hash`（里面有 f64），
+            // 所以用**线性查找**。表格行数不大，与 Python 侧的 list 查找同阶。
+            let mut 桶: Vec<((Val, Val), Vec<Val>)> = Vec::new();
+            for row in t.rows.iter() {
+                let r = row.get(i行).cloned().unwrap_or(Val::None_);
+                let c = row.get(i列).cloned().unwrap_or(Val::None_);
+                if !行序.iter().any(|x| x == &r) {
+                    行序.push(r.clone());
+                }
+                if !列序.iter().any(|x| x == &c) {
+                    列序.push(c.clone());
+                }
+                let 值 = row.get(i值).cloned().unwrap_or(Val::None_);
+                let 键 = (r, c);
+                if let Some((_, v)) = 桶.iter_mut().find(|(k, _)| k == &键) {
+                    v.push(值);
+                } else {
+                    桶.push((键, vec![值]));
+                }
+            }
+
+            let mut headers: Vec<Val> = Vec::with_capacity(列序.len() + 1);
+            headers.push(Val::Str(as_text(&args[1]).into()));
+            for c in &列序 {
+                headers.push(Val::Str(display(c).into()));
+            }
+            let mut rows: Vec<Vec<Val>> = Vec::with_capacity(行序.len());
+            for r in &行序 {
+                let mut 行出: Vec<Val> = Vec::with_capacity(列序.len() + 1);
+                行出.push(r.clone());
+                for c in &列序 {
+                    let 空: Vec<Val> = Vec::new();
+                    let 值们 = 桶
+                        .iter()
+                        .find(|(k, _)| &k.0 == r && &k.1 == c)
+                        .map(|(_, v)| v)
+                        .unwrap_or(&空);
+                    let v = 聚合(值们, &方式, &值列名, "透视")?;
+                    行出.push(v.unwrap_or_else(|| Val::Str("".into())));
+                }
+                rows.push(行出);
+            }
+            Ok(table_new(headers, rows))
+        },
+        "按列分组" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("按列分组", args, 3, 4)?;
+            let t = as_table(&args[0])?;
+            let 名们 = 列们(&t, &args[1], "按列分组")?;
+            let i值 = column_index(&t, &args[2])?;
+            let 值列名 = as_text(&args[2]);
+            let 方式 = if args.len() > 3 {
+                要聚合(&args[3], "按列分组")?
+            } else {
+                "求和".to_string()
+            };
+            let mut 索引: Vec<usize> = Vec::with_capacity(名们.len());
+            for 名 in &名们 {
+                索引.push(列号(&t, 名)?);
+            }
+
+            let mut 键序: Vec<Vec<Val>> = Vec::new();
+            let mut 桶: Vec<(Vec<Val>, Vec<Val>)> = Vec::new();
+            for row in t.rows.iter() {
+                let 键: Vec<Val> = 索引
+                    .iter()
+                    .map(|i| row.get(*i).cloned().unwrap_or(Val::None_))
+                    .collect();
+                let 值 = row.get(i值).cloned().unwrap_or(Val::None_);
+                if let Some((_, v)) = 桶.iter_mut().find(|(k, _)| k == &键) {
+                    v.push(值);
+                } else {
+                    键序.push(键.clone());
+                    桶.push((键, vec![值]));
+                }
+            }
+
+            let mut headers: Vec<Val> = 名们.iter().map(|n| Val::Str(n.as_str().into())).collect();
+            headers.push(Val::Str(值列名.as_str().into()));
+            let mut rows: Vec<Vec<Val>> = Vec::with_capacity(键序.len());
+            for 键 in &键序 {
+                let 空: Vec<Val> = Vec::new();
+                let 值们 = 桶
+                    .iter()
+                    .find(|(k, _)| k == 键)
+                    .map(|(_, v)| v)
+                    .unwrap_or(&空);
+                let v = 聚合(值们, &方式, &值列名, "按列分组")?;
+                let mut 行出 = 键.clone();
+                行出.push(v.unwrap_or_else(|| Val::Str("".into())));
+                rows.push(行出);
+            }
+            Ok(table_new(headers, rows))
+        },
+        "融化" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("融化", args, 2)?;
+            let t = as_table(&args[0])?;
+            let 保留 = 列们(&t, &args[1], "融化")?;
+            let mut 保留索引: Vec<usize> = Vec::with_capacity(保留.len());
+            for 名 in &保留 {
+                保留索引.push(列号(&t, 名)?);
+            }
+            let 其余: Vec<(usize, Val)> = t
+                .headers
+                .iter()
+                .enumerate()
+                .filter(|(_, h)| !保留.iter().any(|n| n == &as_text(h)))
+                .map(|(i, h)| (i, h.clone()))
+                .collect();
+
+            let mut rows: Vec<Vec<Val>> = Vec::new();
+            for row in t.rows.iter() {
+                let 头: Vec<Val> = 保留索引
+                    .iter()
+                    .map(|i| row.get(*i).cloned().unwrap_or(Val::None_))
+                    .collect();
+                for (i, 名) in &其余 {
+                    let mut 行 = 头.clone();
+                    行.push(名.clone());
+                    行.push(row.get(*i).cloned().unwrap_or(Val::None_));
+                    rows.push(行);
+                }
+            }
+            let mut headers = 保留.iter().map(|n| Val::Str(n.as_str().into())).collect::<Vec<_>>();
+            headers.push(Val::Str("变量".into()));
+            headers.push(Val::Str("值".into()));
+            Ok(table_new(headers, rows))
+        },
+        "展开列" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("展开列", args, 3)?;
+            let t = as_table(&args[0])?;
+            let 键名 = as_text(&args[1]);
+            let 值名 = as_text(&args[2]);
+            let i键 = 列号(&t, &键名)?;
+            let i值 = 列号(&t, &值名)?;
+            let 保留: Vec<(usize, Val)> = t
+                .headers
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != i键 && *i != i值)
+                .map(|(i, h)| (i, h.clone()))
+                .collect();
+
+            let mut 键序: Vec<Val> = Vec::new();
+            let mut 行序: Vec<Vec<Val>> = Vec::new();
+            // 每行：头（保留列）+ 键 → 值。同一个 (头, 键) 出现多次：后一个赢。
+            let mut 格: Vec<(Vec<Val>, Vec<(Val, Val)>)> = Vec::new();
+            for row in t.rows.iter() {
+                let 键 = row.get(i键).cloned().unwrap_or(Val::None_);
+                let 头: Vec<Val> = 保留
+                    .iter()
+                    .map(|(i, _)| row.get(*i).cloned().unwrap_or(Val::None_))
+                    .collect();
+                let 值 = row.get(i值).cloned().unwrap_or(Val::None_);
+                if !键序.iter().any(|x| x == &键) {
+                    键序.push(键.clone());
+                }
+                if !行序.iter().any(|x| x == &头) {
+                    行序.push(头.clone());
+                }
+                if let Some((_, m)) = 格.iter_mut().find(|(h, _)| h == &头) {
+                    if let Some(slot) = m.iter_mut().find(|(k, _)| k == &键) {
+                        slot.1 = 值;
+                    } else {
+                        m.push((键, 值));
+                    }
+                } else {
+                    格.push((头, vec![(键, 值)]));
+                }
+            }
+
+            let mut headers: Vec<Val> = 保留.iter().map(|(_, h)| h.clone()).collect();
+            for k in &键序 {
+                headers.push(Val::Str(display(k).into()));
+            }
+            let mut rows: Vec<Vec<Val>> = Vec::with_capacity(行序.len());
+            for 头 in &行序 {
+                let mut 行 = 头.clone();
+                for k in &键序 {
+                    let v = 格
+                        .iter()
+                        .find(|(h, _)| h == 头)
+                        .and_then(|(_, m)| m.iter().find(|(kk, _)| kk == k))
+                        .map(|(_, v)| v.clone())
+                        .unwrap_or_else(|| Val::Str("".into()));
+                    行.push(v);
+                }
+                rows.push(行);
+            }
+            Ok(table_new(headers, rows))
+        },
+        "填充缺失" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("填充缺失", args, 2, 3)?;
+            let t = as_table(&args[0])?;
+            let 列名 = as_text(&args[1]);
+            let i = 列号(&t, &列名)?;
+            let 方法 = if args.len() > 2 {
+                args[2].clone()
+            } else {
+                Val::Str("前向".into())
+            };
+            let 法名 = as_text(&方法);
+
+            let mut 平均 = None;
+            if 法名 == "平均" {
+                let 列值: Vec<Val> = t
+                    .rows
+                    .iter()
+                    .map(|r| r.get(i).cloned().unwrap_or(Val::None_))
+                    .collect();
+                let 数 = 数值们(&列值, &列名, "填充缺失")?;
+                if !数.is_empty() {
+                    平均 = Some(数.iter().sum::<f64>() / 数.len() as f64);
+                }
+            }
+
+            let 前向 = 法名 == "前向";
+            let 用平均 = 法名 == "平均";
+            let mut 上一个: Option<Val> = None;
+            let mut rows: Vec<Vec<Val>> = Vec::with_capacity(t.rows.len());
+            for row in t.rows.iter() {
+                let mut 新 = row.clone();
+                while 新.len() <= i {
+                    新.push(Val::None_);
+                }
+                if 缺失(&新[i]) {
+                    if 前向 {
+                        if let Some(v) = &上一个 {
+                            新[i] = v.clone();
+                        }
+                    } else if 用平均 {
+                        if let Some(f) = 平均 {
+                            新[i] = Val::Float(f);
+                        }
+                    } else {
+                        新[i] = 方法.clone();
+                    }
+                } else {
+                    上一个 = Some(新[i].clone());
+                }
+                rows.push(新);
+            }
+            Ok(table_new(t.headers.clone(), rows))
+        },
+        "丢弃缺失" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("丢弃缺失", args, 1, 2)?;
+            let t = as_table(&args[0])?;
+            let 索引: Vec<usize> = if args.len() > 1 && !matches!(args[1], Val::None_) {
+                let 名们 = 列们(&t, &args[1], "丢弃缺失")?;
+                let mut v = Vec::with_capacity(名们.len());
+                for 名 in &名们 {
+                    v.push(列号(&t, 名)?);
+                }
+                v
+            } else {
+                (0..t.headers.len()).collect()
+            };
+            let rows: Vec<Vec<Val>> = t
+                .rows
+                .iter()
+                .filter(|r| {
+                    !索引
+                        .iter()
+                        .any(|i| r.get(*i).map(缺失).unwrap_or(true))
+                })
+                .cloned()
+                .collect();
+            Ok(table_new(t.headers.clone(), rows))
         },
     }
 }

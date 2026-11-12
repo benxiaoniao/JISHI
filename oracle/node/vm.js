@@ -1268,6 +1268,57 @@ function colIndex(t, name) {
   return i;
 }
 
+// ── M192：数据分析的共用件（与 Python 侧 `表格.py` 逐句对齐）──
+// 三条约定：列参数可以给一个列名或列名列表；「缺失」= 空文本 或 空
+// （`0` / `假` 不算）；都返回新表格、不改原表。
+const 聚合方式们 = ['求和', '平均', '计数', '最大', '最小'];
+
+function 缺失(v) {
+  return v === null || v === undefined || v === '';
+}
+
+function 列们(tab, v, 谁) {
+  const 名们 = (typeof v === 'string')
+    ? [String(v)]
+    : R.asIterable(v, `${谁}的列名`).map((x) => String(x));
+  if (名们.length === 0) throw R.typeErr(`「${谁}」至少要给一个列名`);
+  名们.forEach((n) => colIndex(tab, n));
+  return 名们;
+}
+
+function 要聚合(v, 谁) {
+  const s = String(v);
+  if (!聚合方式们.includes(s)) {
+    throw R.typeErr(`「${谁}」不认识的聚合方式「${s}」—— 只能是：${聚合方式们.join(' / ')}`);
+  }
+  return s;
+}
+
+function 数值们(值们, 列名, 谁) {
+  const 出 = [];
+  for (const v of 值们) {
+    if (缺失(v)) continue;
+    const n = typeof v === 'number' ? v : Number(v);
+    if (Number.isNaN(n)) {
+      throw R.typeErr(`「${谁}」：列「${列名}」里有不是数字的值「${R.display(v)}」，没法聚合`);
+    }
+    出.push(n);
+  }
+  return 出;
+}
+
+/** 空批次：`计数` 给 0，其余给 `null`（调用方写成空格）。 */
+function 聚合(值们, 方式, 列名, 谁) {
+  if (方式 === '计数') return 值们.filter((v) => !缺失(v)).length;
+  const 数 = 数值们(值们, 列名, 谁);
+  if (数.length === 0) return null;
+  const 和 = 数.reduce((a, b) => a + b, 0);
+  if (方式 === '求和') return new R.FloatBox(和);
+  if (方式 === '平均') return new R.FloatBox(和 / 数.length);
+  if (方式 === '最大') return new R.FloatBox(Math.max(...数));
+  return new R.FloatBox(Math.min(...数));
+}
+
 /** 解析 CSV（RFC 4180 的常见子集：引号包裹、双引号转义、CRLF）。 */
 function parseCsv(text) {
   const rows = [];
@@ -1572,6 +1623,166 @@ const TABLE_FUNCS = {
       tab.headers.forEach((h, i) => d.set(h, row[i]));
       return d;
     });
+  }),
+
+  // ── M192：数据分析（与 Python 侧 `表格.py` 对齐）──
+  '透视': new R.Builtin('透视', (t, 行, 列, 值, 聚合参数) => {
+    const tab = asTable(t);
+    const i行 = colIndex(tab, 行);
+    const i列 = colIndex(tab, 列);
+    const i值 = colIndex(tab, 值);
+    const 方式 = 要聚合(聚合参数 === undefined ? '求和' : 聚合参数, '透视');
+    const 值列名 = String(值);
+
+    const 行序 = [];
+    const 行集 = new Set();
+    const 列序 = [];
+    const 列集 = new Set();
+    const 桶 = new Map();
+    for (const row of tab.rows) {
+      const r = row[i行] === undefined ? null : row[i行];
+      const c = row[i列] === undefined ? null : row[i列];
+      const kr = R.setKey(r);
+      const kc = R.setKey(c);
+      if (!行集.has(kr)) { 行集.add(kr); 行序.push(r); }
+      if (!列集.has(kc)) { 列集.add(kc); 列序.push(c); }
+      const k = kr + '\u0001' + kc;
+      const 值们 = row[i值] === undefined ? null : row[i值];
+      if (!桶.has(k)) 桶.set(k, []);
+      桶.get(k).push(值们);
+    }
+
+    const headers = [String(行)].concat(列序.map((c) => R.display(c)));
+    const rows = 行序.map((r) => {
+      const 出 = [r];
+      const kr = R.setKey(r);
+      for (const c of 列序) {
+        const v = 聚合(桶.get(kr + '\u0001' + R.setKey(c)) || [], 方式, 值列名, '透视');
+        出.push(v === null ? '' : v);
+      }
+      return 出;
+    });
+    return makeTable(headers, rows);
+  }),
+  '按列分组': new R.Builtin('按列分组', (t, 分组列们, 值列, 聚合参数) => {
+    const tab = asTable(t);
+    const 名们 = 列们(tab, 分组列们, '按列分组');
+    const i值 = colIndex(tab, 值列);
+    const 值列名 = String(值列);
+    const 方式 = 要聚合(聚合参数 === undefined ? '求和' : 聚合参数, '按列分组');
+    const 索引 = 名们.map((n) => colIndex(tab, n));
+
+    const 键序 = [];
+    const 桶 = new Map();
+    for (const row of tab.rows) {
+      const 键值 = 索引.map((i) => (row[i] === undefined ? null : row[i]));
+      const k = 键值.map((v) => R.setKey(v)).join('\u0001');
+      if (!桶.has(k)) { 桶.set(k, { 键: 键值, 值们: [] }); 键序.push(k); }
+      桶.get(k).值们.push(row[i值] === undefined ? null : row[i值]);
+    }
+
+    const headers = 名们.concat([值列名]);
+    const rows = 键序.map((k) => {
+      const e = 桶.get(k);
+      const v = 聚合(e.值们, 方式, 值列名, '按列分组');
+      return e.键.concat([v === null ? '' : v]);
+    });
+    return makeTable(headers, rows);
+  }),
+  '融化': new R.Builtin('融化', (t, 保留列们) => {
+    const tab = asTable(t);
+    const 保留 = 列们(tab, 保留列们, '融化');
+    const 保留索引 = 保留.map((n) => colIndex(tab, n));
+    const 其余 = [];
+    tab.headers.forEach((h, i) => { if (!保留.includes(String(h))) 其余.push(i); });
+
+    const rows = [];
+    for (const row of tab.rows) {
+      const 头 = 保留索引.map((i) => (row[i] === undefined ? null : row[i]));
+      for (const i of 其余) {
+        rows.push(头.concat([tab.headers[i],
+          row[i] === undefined ? null : row[i]]));
+      }
+    }
+    return makeTable(保留.concat(['变量', '值']), rows);
+  }),
+  '展开列': new R.Builtin('展开列', (t, 键列, 值列) => {
+    const tab = asTable(t);
+    const 键名 = String(键列);
+    const 值名 = String(值列);
+    const i键 = colIndex(tab, 键名);
+    const i值 = colIndex(tab, 值名);
+    const 保留 = [];
+    tab.headers.forEach((h, i) => { if (i !== i键 && i !== i值) 保留.push(i); });
+
+    const 键序 = [];
+    const 键集 = new Set();
+    const 行序 = [];
+    const 格 = new Map();          // 头键 -> Map(键键 -> 值)
+    for (const row of tab.rows) {
+      const 键v = row[i键] === undefined ? null : row[i键];
+      const 头 = 保留.map((i) => (row[i] === undefined ? null : row[i]));
+      const kh = 头.map((v) => R.setKey(v)).join('\u0001');
+      const kk = R.setKey(键v);
+      if (!键集.has(kk)) { 键集.add(kk); 键序.push(键v); }
+      if (!格.has(kh)) { 格.set(kh, new Map()); 行序.push(头); }
+      // 同一个 (头, 键) 出现多次：后一个赢
+      格.get(kh).set(kk, row[i值] === undefined ? null : row[i值]);
+    }
+
+    const headers = 保留.map((i) => tab.headers[i])
+      .concat(键序.map((k) => R.display(k)));
+    const rows = 行序.map((头) => {
+      const kh = 头.map((v) => R.setKey(v)).join('\u0001');
+      const m = 格.get(kh);
+      return 头.concat(键序.map((k) => {
+        const kk = R.setKey(k);
+        return m.has(kk) ? m.get(kk) : '';
+      }));
+    });
+    return makeTable(headers, rows);
+  }),
+  '填充缺失': new R.Builtin('填充缺失', (t, 列, 方法) => {
+    const tab = asTable(t);
+    const i = colIndex(tab, 列);
+    const 法 = 方法 === undefined ? '前向' : 方法;
+    const 法名 = pText(法);
+
+    let 平均 = null;
+    if (法名 === '平均') {
+      const 列值 = tab.rows.map((r) => (r[i] === undefined ? null : r[i]));
+      const 数 = 数值们(列值, String(列), '填充缺失');
+      if (数.length > 0) 平均 = 数.reduce((a, b) => a + b, 0) / 数.length;
+    }
+
+    let 上一个 = null;
+    const rows = tab.rows.map((row) => {
+      const 新 = row.slice();
+      while (新.length <= i) 新.push(null);
+      if (缺失(新[i])) {
+        if (法名 === '前向') { if (上一个 !== null) 新[i] = 上一个; }
+        else if (法名 === '平均') { if (平均 !== null) 新[i] = new R.FloatBox(平均); }
+        else 新[i] = 法;
+      } else {
+        上一个 = 新[i];
+      }
+      return 新;
+    });
+    return makeTable([...tab.headers], rows);
+  }),
+  '丢弃缺失': new R.Builtin('丢弃缺失', (t, 列们参数) => {
+    const tab = asTable(t);
+    let 索引;
+    if (列们参数 === undefined || 列们参数 === null) {
+      索引 = tab.headers.map((_, i) => i);
+    } else {
+      索引 = 列们(tab, 列们参数, '丢弃缺失').map((n) => colIndex(tab, n));
+    }
+    const rows = tab.rows.filter((row) => !索引.some((i) => {
+      const v = row[i] === undefined ? null : row[i];
+      return 缺失(v);
+    }));
+    return makeTable([...tab.headers], rows);
   }),
 };
 
