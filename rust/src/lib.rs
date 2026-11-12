@@ -14,6 +14,8 @@ mod http;
 mod inflate;
 pub mod json;
 mod regex;
+// M194：一个够用就停的 XML 解析器（.docx 的正文是 XML）
+pub mod xml;
 // M188：`jishi_seed` 要给 wasm 入口用（`随机` 在 wasm 上没有时钟）
 pub mod stdlib;
 // M51：标准库函数签名表（由 `tools/gen_stdlib_sigs.py` 从 Python 侧

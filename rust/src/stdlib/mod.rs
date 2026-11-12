@@ -52,6 +52,7 @@ mod path;
 pub mod rand;
 mod system;
 pub(crate) mod tables;
+pub(crate) mod word;
 mod text;
 // M41 新增（与 Python 侧 jishi/stdlib/ 下同名文件对齐）
 mod args;
@@ -133,6 +134,8 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         ("加密", crate::crypto::module),
         ("压缩", crate::zip::module),
         ("表格", tables::module),
+        // M194：Word（.docx 读写）
+        ("Word", word::module),
         ("json", jsonmod::module),
         ("正则", crate::regex::module),
         ("网络", crate::http::module),

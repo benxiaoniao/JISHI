@@ -8525,6 +8525,10 @@ const STDLIB = {  '数学': new R.Module('数学', {
   'Excel': new R.Module('Excel', require('./excel_mod')({
     zipBytes, readZipEntries, makeTable, pText, R, crc32,
   })),
+  // M194：Word（.docx 读写）。与 Excel 同一套工具注入（zip / 表格构造 / crc32）
+  'Word': new R.Module('Word', require('./word_mod')({
+    zipBytes, readZipEntries, makeTable, pText, R, crc32,
+  })),
 };
 
 function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }
