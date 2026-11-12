@@ -936,6 +936,184 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Ok(Val::Int(n as i128))
             })
         },
+        // ── M193：事务 / 迁移 / 查询直出表格 ──
+        "开始" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("开始", args, 1, 1)?;
+            let 键 = 取连接(&args[0])?;
+            用连接(&键, |c| {
+                if !c.is_autocommit() {
+                    return Err(err_with_hint(
+                        "值错误",
+                        "已经在一个事务里了，不能再「开始」一次",
+                        "先用 数据库.提交 或 数据库.回滚 结束上一个事务".into()));
+                }
+                c.execute("BEGIN", []).map_err(库错)?;
+                Ok(Val::None_)
+            })
+        },
+        "提交" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("提交", args, 1, 1)?;
+            let 键 = 取连接(&args[0])?;
+            用连接(&键, |c| {
+                if c.is_autocommit() {
+                    return Err(err_with_hint(
+                        "值错误",
+                        "现在不在事务里，没有可提交的改动",
+                        "先 数据库.开始(库)，改完再 数据库.提交(库)".into()));
+                }
+                c.execute("COMMIT", []).map_err(库错)?;
+                Ok(Val::None_)
+            })
+        },
+        "回滚" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("回滚", args, 1, 1)?;
+            let 键 = 取连接(&args[0])?;
+            用连接(&键, |c| {
+                if c.is_autocommit() {
+                    return Err(err_with_hint(
+                        "值错误",
+                        "现在不在事务里，没有可回滚的改动",
+                        "先 数据库.开始(库)，再 数据库.回滚(库)".into()));
+                }
+                c.execute("ROLLBACK", []).map_err(库错)?;
+                Ok(Val::None_)
+            })
+        },
+        "用事务" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            need_range("用事务", args, 2, 2)?;
+            let 键 = 取连接(&args[0])?;
+            // 🔴 三步都要**先借出再放下**连接：`call_value` 里用户函数会再借一次，
+            // 借用期重叠会直接 panic（RefCell 不是可重入的）。
+            用连接(&键, |c| {
+                if !c.is_autocommit() {
+                    return Err(err_with_hint(
+                        "值错误",
+                        "已经在一个事务里了，不能再「开始」一次",
+                        "先用 数据库.提交 或 数据库.回滚 结束上一个事务".into()));
+                }
+                c.execute("BEGIN", []).map_err(库错)?;
+                Ok(())
+            })?;
+            match vm.call_value(args[1].clone(), vec![]) {
+                Ok(v) => {
+                    用连接(&键, |c| {
+                        c.execute("COMMIT", []).map_err(库错)?;
+                        Ok(())
+                    })?;
+                    Ok(v)
+                }
+                Err(e) => {
+                    // 回滚失败也不能盖掉原来的错 —— 那个才是用户要看的
+                    let _ = 用连接(&键, |c| {
+                        c.execute("ROLLBACK", []).map_err(库错)?;
+                        Ok(())
+                    });
+                    Err(e)
+                }
+            }
+        },
+        "迁移" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("迁移", args, 2, 2)?;
+            let 键 = 取连接(&args[0])?;
+            let 目录 = match &args[1] { Val::Str(s) => s.to_string(), o => display(o) };
+            let rd = std::fs::read_dir(&目录).map_err(|_| {
+                err_with_hint(
+                    "文件错误",
+                    format!("迁移目录不存在：「{目录}」"),
+                    "先建目录，把 001_建表.sql 这类文件放进去".into())
+            })?;
+            let mut 文件们: Vec<String> = rd
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .filter(|n| n.ends_with(".sql"))
+                .collect();
+            文件们.sort();
+            if 文件们.is_empty() {
+                return Ok(crate::list_new(vec![]));
+            }
+            let 跑了 = 用连接(&键, |c| {
+                c.execute(
+                    "CREATE TABLE IF NOT EXISTS \"schema_版本\" (\"版本\" TEXT PRIMARY KEY, \"跑于\" INTEGER NOT NULL)",
+                    [],
+                ).map_err(库错)?;
+                let mut 已跑: Vec<String> = Vec::new();
+                {
+                    let mut st = c
+                        .prepare("SELECT \"版本\" FROM \"schema_版本\"")
+                        .map_err(库错)?;
+                    let mut rs = st.query([]).map_err(库错)?;
+                    while let Some(r) = rs.next().map_err(库错)? {
+                        已跑.push(r.get::<_, String>(0).map_err(库错)?);
+                    }
+                }
+                let mut 跑了: Vec<Val> = Vec::new();
+                for 名 in &文件们 {
+                    if 已跑.iter().any(|x| x == 名) {
+                        continue;
+                    }
+                    let 路径 = std::path::Path::new(&目录).join(名);
+                    let 文本 = std::fs::read_to_string(&路径).map_err(|_| {
+                        err("文件错误", format!("读不了迁移文件「{}」", 路径.display()))
+                    })?;
+                    c.execute_batch(&文本).map_err(|e| {
+                        err_with_hint(
+                            "值错误",
+                            format!("迁移文件「{名}」跑失败了：{e}"),
+                            "改好这个 .sql 再重跑（已经跑过的不会重复跑）".into())
+                    })?;
+                    let 现在 = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs() as i128)
+                        .unwrap_or(0);
+                    c.execute(
+                        "INSERT INTO \"schema_版本\" (\"版本\", \"跑于\") VALUES (?1, ?2)",
+                        rusqlite::params![名, 现在 as i64],
+                    ).map_err(库错)?;
+                    跑了.push(Val::Str(名.as_str().into()));
+                }
+                Ok(跑了)
+            })?;
+            Ok(crate::list_new(跑了))
+        },
+        "查询到表格" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("查询到表格", args, 2, 3)?;
+            let 键 = 取连接(&args[0])?;
+            let sql = match &args[1] { Val::Str(s) => s.to_string(), o => display(o) };
+            if !像查询(&sql) {
+                return Err(err_with_hint(
+                    "值错误",
+                    "「查询到表格」只跑 SELECT；你写的是别的",
+                    "写操作用 数据库.执行(库, SQL)".into()));
+            }
+            let 参 = 取绑参(args.get(2))?;
+            用连接(&键, |c| {
+                let r = 跑(c, &sql, &参)?;
+                // 重名列：记录那边报错，表格这边也报（不然取值只拿到第一列）
+                let mut 见 = std::collections::HashSet::new();
+                for 列 in &r.列 {
+                    if !见.insert(列.clone()) {
+                        return Err(err_with_hint(
+                            "类型错误",
+                            format!("这句 SQL 里有重名的列（{列}），表格里装不下"),
+                            "在 SQL 里给它们起别名，例如 SELECT 金额 AS 分组, 金额 AS 值".into()));
+                    }
+                }
+                let headers: Vec<Val> = r.列.iter().map(|x| Val::Str(x.as_str().into())).collect();
+                let rows: Vec<Vec<Val>> = r
+                    .行们
+                    .into_iter()
+                    .map(|行| {
+                        行.into_iter()
+                            .map(|v| if matches!(v, Val::None_) { Val::Str("".into()) } else { v })
+                            .collect()
+                    })
+                    .collect();
+                Ok(Val::Table(std::rc::Rc::new(super::tables::Table {
+                    headers,
+                    rows,
+                })))
+            })
+        },
         "执行查询" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("执行查询", args, 2, 3)?;
             let 键 = 取连接(&args[0])?;

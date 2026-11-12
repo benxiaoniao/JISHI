@@ -6865,6 +6865,101 @@ const DB_FUNCS = {
     }
     return _dbRecords(_dbRun(conn, sql, _dbBind(参数们)));
   }),
+
+  // ── M193：事务 / 迁移 / 查询直出表格 ──
+  '开始': new R.Builtin('开始', (库) => {
+    const conn = _dbConn(库);
+    if (conn.isTransaction) {
+      throw R.valueErr('已经在一个事务里了，不能再「开始」一次', undefined, undefined,
+        '先用 数据库.提交 或 数据库.回滚 结束上一个事务');
+    }
+    conn.exec('BEGIN');
+    return null;
+  }),
+  '提交': new R.Builtin('提交', (库) => {
+    const conn = _dbConn(库);
+    if (!conn.isTransaction) {
+      throw R.valueErr('现在不在事务里，没有可提交的改动', undefined, undefined,
+        '先 数据库.开始(库)，改完再 数据库.提交(库)');
+    }
+    conn.exec('COMMIT');
+    return null;
+  }),
+  '回滚': new R.Builtin('回滚', (库) => {
+    const conn = _dbConn(库);
+    if (!conn.isTransaction) {
+      throw R.valueErr('现在不在事务里，没有可回滚的改动', undefined, undefined,
+        '先 数据库.开始(库)，再 数据库.回滚(库)');
+    }
+    conn.exec('ROLLBACK');
+    return null;
+  }),
+  '用事务': new R.Builtin('用事务', (库, fn) => {
+    const conn = _dbConn(库);
+    if (conn.isTransaction) {
+      throw R.valueErr('已经在一个事务里了，不能再「开始」一次', undefined, undefined,
+        '先用 数据库.提交 或 数据库.回滚 结束上一个事务');
+    }
+    conn.exec('BEGIN');
+    let 果;
+    try {
+      果 = R.callValue(fn, []);
+    } catch (e) {
+      try { conn.exec('ROLLBACK'); } catch (_) { /* 回滚失败不盖掉原错 */ }
+      throw e;
+    }
+    conn.exec('COMMIT');
+    return 果 === undefined ? null : 果;
+  }),
+  '迁移': new R.Builtin('迁移', (库, 目录) => {
+    const conn = _dbConn(库);
+    const dir = _dbRaw(目录);
+    const fs = require('node:fs');
+    const path = require('node:path');
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+      throw R.fileErr(`迁移目录不存在：「${dir}」`, undefined,
+        '先建目录，把 001_建表.sql 这类文件放进去');
+    }
+    const 文件们 = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+    if (文件们.length === 0) return [];
+    conn.exec('CREATE TABLE IF NOT EXISTS "schema_版本" '
+      + '("版本" TEXT PRIMARY KEY, "跑于" INTEGER NOT NULL)');
+    const 已跑 = new Set(
+      conn.prepare('SELECT "版本" FROM "schema_版本"').all().map((r) => r.版本));
+    const 跑了 = [];
+    for (const 名 of 文件们) {
+      if (已跑.has(名)) continue;
+      const 文本 = fs.readFileSync(path.join(dir, 名), 'utf8');
+      try {
+        conn.exec(文本);
+      } catch (e) {
+        throw R.valueErr(`迁移文件「${名}」跑失败了：${_dbMsg(e)}`, undefined, undefined,
+          '改好这个 .sql 再重跑（已经跑过的不会重复跑）');
+      }
+      conn.prepare('INSERT INTO "schema_版本" ("版本", "跑于") VALUES (?, ?)')
+        .run(名, BigInt(Math.floor(Date.now() / 1000)));
+      跑了.push(名);
+    }
+    return 跑了;
+  }),
+  '查询到表格': new R.Builtin('查询到表格', (库, SQL, 参数们) => {
+    const conn = _dbConn(库);
+    const sql = _dbRaw(SQL);
+    if (!_dbLikeSelect(sql)) {
+      throw R.valueErr('「查询到表格」只跑 SELECT；你写的是别的', undefined, undefined,
+        '写操作用 数据库.执行(库, SQL)');
+    }
+    const r = _dbRun(conn, sql, _dbBind(参数们));
+    const 列 = r.cols || [];
+    if (new Set(列).size !== 列.length) {
+      const 重 = [...new Set(列.filter((x, i) => 列.indexOf(x) !== i))].sort();
+      throw R.typeErr(`这句 SQL 里有重名的列（${重.join('、')}），表格里装不下`,
+        undefined, undefined,
+        '在 SQL 里给它们起别名，例如 SELECT 金额 AS 分组, 金额 AS 值');
+    }
+    const rows = r.rows.map((row) => row.map((v) => (v === null || v === undefined ? '' : v)));
+    return makeTable(列, rows);
+  }),
 };
 
 /** 是不是一句 SELECT（跳过开头的行注释）。 */

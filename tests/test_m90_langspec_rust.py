@@ -221,8 +221,10 @@ def test_独立判据_lang_spec结构与关键事实():
     # M192：`表格` 加 12 个（透视 / 按列分组 / 融化 / 展开列 / 填充缺失 / 丢弃缺失 /
     # 取列 / 切片行 / 去重 / 转换列 / 合并 / 按时间重采样）、
     # `统计` 加 8 个（相关 / 回归 / 标准化 / 移动平均 / 直方图 / 秩 / 百分位 / 协方差）
-    # ⇒ **45 / 474**。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 474
+    # ⇒ 45 / 474。
+    # M193：`数据库` 加 6 个（开始 / 提交 / 回滚 / 用事务 / 迁移 / 查询到表格）
+    # ⇒ **45 / 480**。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 480
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

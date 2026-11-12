@@ -43,12 +43,14 @@
 from __future__ import annotations
 
 from ..errors import RunError, RunFileError, RunTypeError, RunValueError
-from ..runtime import JishiDecimal, JishiBytes, type_name
+from ..runtime import JishiDecimal, JishiBytes, call_value, type_name
 
 __all__ = [
     "打开", "关闭", "表们", "有表", "建表", "建索引",
     "插入", "批量插入", "查询", "条数", "汇总",
     "修改", "删除", "执行", "执行查询",
+    # M193：事务 / 迁移 / 查询直出表格
+    "开始", "提交", "回滚", "用事务", "迁移", "查询到表格",
 ]
 
 #: 查询条件里能用的比较符号（写成一个单元素字典，如 `{">": 100}`）。
@@ -630,6 +632,165 @@ def __基石新建__() -> dict:
         游标 = _翻(连接, 连接.execute, 文本, _绑参(参数们))
         return [_行(游标, r) for r in 游标.fetchall()]
 
+    # -- M193：事务 --------------------------------------------------------
+
+    def _要事务外(连接, 谁: str) -> None:
+        """已经在事务里再 `开始` 会报 SQLite 的英文错，这里翻成人话。"""
+        if 连接.in_transaction:
+            raise RunValueError(
+                f"已经在一个事务里了，不能再「{谁}」一次",
+                hint="先用 数据库.提交 或 数据库.回滚 结束上一个事务")
+
+    def 开始(库: str) -> None:
+        """显式开一个事务：从这里到 `提交`（或 `回滚`）之间的写操作**算一组**。
+
+        `打开` 出来的是**自动提交**模式（每句立刻落盘）；只有包在
+        `开始 … 提交` 之间才是「要么全成、要么全不成」。
+
+        例（转账：扣钱和加钱必须同生共死）::
+
+            数据库.开始(库)
+            数据库.修改(库, "账", {"余额": 90}, {"姓名": "甲"})
+            数据库.修改(库, "账", {"余额": 110}, {"姓名": "乙"})
+            数据库.提交(库)
+
+        ⚠️ 忘记 `提交` 的话，程序退出时那些改动**会丢**（回滚）。
+        """
+        连接 = _连接(库)
+        _要事务外(连接, "开始")
+        _翻(连接, 连接.execute, "BEGIN")
+        return None
+
+    def 提交(库: str) -> None:
+        """把 `开始` 之后的写操作**一次性落盘**。"""
+        连接 = _连接(库)
+        if not 连接.in_transaction:
+            raise RunValueError(
+                "现在不在事务里，没有可提交的改动",
+                hint="先 数据库.开始(库)，改完再 数据库.提交(库)")
+        _翻(连接, 连接.execute, "COMMIT")
+        return None
+
+    def 回滚(库: str) -> None:
+        """撤掉 `开始` 之后的**所有**改动（像没发生过一样）。"""
+        连接 = _连接(库)
+        if not 连接.in_transaction:
+            raise RunValueError(
+                "现在不在事务里，没有可回滚的改动",
+                hint="先 数据库.开始(库)，再 数据库.回滚(库)")
+        _翻(连接, 连接.execute, "ROLLBACK")
+        return None
+
+    def 用事务(库: str, 函数):
+        """在一个事务里调用 `函数`：**正常返回就提交，抛异常就回滚**再往外抛。
+
+        例::
+
+            数据库.用事务(库, 函数()：
+                数据库.修改(库, "账", {"余额": 90}, {"姓名": "甲"})
+                抛出 值错误("故意失败")
+            )
+
+        📌 这是「别忘写 `回滚`」的糖 —— 手工写 `开始 … 提交` 最容易漏的就是
+        异常那一支，而漏了之后数据库会停在一个半拉子事务里。
+        """
+        开始(库)
+        try:
+            果 = call_value(函数, [])
+        except BaseException:
+            回滚(库)
+            raise
+        提交(库)
+        return 果
+
+    # -- M193：迁移 --------------------------------------------------------
+
+    版本表 = '"schema_版本"'
+
+    def 迁移(库: str, 目录) -> list:
+        """按文件名顺序跑目录里的 `*.sql`，**跑过的不再跑**，返回这次跑了哪些。
+
+        例::
+
+            打印(数据库.迁移(库, "迁移"))      # ["001_建表.sql"]
+            打印(数据库.迁移(库, "迁移"))      # []  ← 第二次是空的
+
+        📌 进度记在库里的 `schema_版本` 表（版本 = 文件名，主键）——
+        所以「跑没跑过」跟着库走，换台机器也认得。
+        📌 一个文件里可以写多条语句（用 `;` 分开）。
+        ⚠️ 文件**按名字排序**执行，所以请用 `001_` `002_` 这样的前缀。
+        """
+        import os
+        import sqlite3 as _sq
+        import time as _time
+
+        连接 = _连接(库)
+        目录文 = str(目录)
+        if not os.path.isdir(目录文):
+            raise RunFileError(f"迁移目录不存在：「{目录文}」",
+                               hint="先建目录，把 001_建表.sql 这类文件放进去")
+        文件们 = sorted(f for f in os.listdir(目录文) if f.endswith(".sql"))
+        if not 文件们:
+            return []
+        连接.execute(
+            f'CREATE TABLE IF NOT EXISTS {版本表} '
+            '("版本" TEXT PRIMARY KEY, "跑于" TEXT NOT NULL)')
+        已跑 = {r[0] for r in 连接.execute(f'SELECT "版本" FROM {版本表}').fetchall()}
+        跑了 = []
+        for 名 in 文件们:
+            if 名 in 已跑:
+                continue
+            路径 = os.path.join(目录文, 名)
+            with open(路径, "r", encoding="utf-8") as f:
+                文本 = f.read()
+            try:
+                连接.executescript(文本)
+            except _sq.Error as e:
+                 raise RunValueError(
+                    f"迁移文件「{名}」跑失败了：{e}",
+                    hint="改好这个 .sql 再重跑（已经跑过的不会重复跑）")
+            连接.execute(
+                f'INSERT INTO {版本表} ("版本", "跑于") VALUES (?, ?)',
+                (名, int(_time.time())))
+            跑了.append(名)
+        return 跑了
+
+    # -- M193：查询直出表格 ------------------------------------------------
+
+    def 查询到表格(库: str, SQL: str, 参数们=None):
+        """跑一句 SELECT，直接把结果装成**表格值**（能 `写表格` 存下来）。
+
+        例::
+
+            令 表 = 数据库.查询到表格(库, "SELECT 类别, SUM(金额) AS 合计 FROM 账 GROUP BY 类别")
+            表格.写表格("汇总.csv", 表)
+
+        ⚠️ 与 `执行查询` 的区别：那个返回**记录列表**（字典），这个返回表格；
+        记录重复列会报错，表格允许（但取值只会拿到第一列）。
+        ⚠️ SQL 里的**空值**进表格是**空文本**（不是 `空`）—— 表格的空格子
+        就是这个表示，`丢弃缺失` 认它。
+        """
+        from .表格 import _Table
+
+        连接 = _连接(库)
+        文本 = str(SQL)
+        if not _像查询(文本):
+            raise RunValueError(
+                "「查询到表格」只跑 SELECT；你写的是别的",
+                hint="写操作用 数据库.执行(库, SQL)")
+        游标 = _翻(连接, 连接.execute, 文本, _绑参(参数们))
+        列 = [d[0] for d in (游标.description or [])]
+        if len(set(列)) != len(列):
+            重 = sorted({x for x in 列 if 列.count(x) > 1})
+            raise RunTypeError(
+                f"这句 SQL 里有重名的列（{'、'.join(重)}），表格里装不下",
+                hint="在 SQL 里给它们起别名，例如 SELECT 金额 AS 分组, 金额 AS 值")
+        数据 = []
+        for 行 in 游标.fetchall():
+            数据.append(["" if v is None else _取(v, 列[i])
+                         for i, v in enumerate(行)])
+        return _Table(列, 数据)
+
     return {
         "打开": 打开, "关闭": 关闭, "表们": 表们, "有表": 有表,
         "建表": 建表, "建索引": 建索引,
@@ -637,4 +798,6 @@ def __基石新建__() -> dict:
         "查询": 查询, "条数": 条数, "汇总": 汇总,
         "修改": 修改, "删除": 删除,
         "执行": 执行, "执行查询": 执行查询,
+        "开始": 开始, "提交": 提交, "回滚": 回滚, "用事务": 用事务,
+        "迁移": 迁移, "查询到表格": 查询到表格,
     }
