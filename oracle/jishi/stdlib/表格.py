@@ -20,6 +20,7 @@ __all__ = [
     "转文本", "转TSV",
     # M192：数据分析（透视 / 多列分组 / 宽长表 / 缺失值）
     "透视", "按列分组", "融化", "展开列", "填充缺失", "丢弃缺失",
+    "取列", "切片行", "去重", "转换列",
 ]
 
 
@@ -692,4 +693,104 @@ def 丢弃缺失(t: _Table, 列们=None) -> _Table:
         索引 = [_column_index(t, c) for c in _列们(t, 列们, "丢弃缺失")]
     数据 = [list(row) for row in t.rows
             if not any(_缺失(row[i]) for i in 索引 if i < len(row))]
+    return _Table(t.headers, 数据)
+
+
+def 取列(t: _Table, 列们) -> _Table:
+    """只留下这几列（顺序按你给的来），返回新表格。
+
+    `取列(表, ["姓名", "分数"])` —— 列名也可以给单个字符串。
+    与 `挑选` 的区别：`挑选` 是**按值挑一行**（行过滤），这个是**按名字挑列**。
+    """
+    _要表格(t, "取列")
+    名们 = _列们(t, 列们, "取列")
+    索引 = [_column_index(t, 名) for 名 in 名们]
+    数据 = [[row[i] if i < len(row) else "" for i in 索引] for row in t.rows]
+    return _Table(list(名们), 数据)
+
+
+def 切片行(t: _Table, 起=0, 止=None) -> _Table:
+    """取第 `起` 到第 `止` 行（**从 0 数、含头不含尾**），返回新表格。
+
+    例：前 10 行 `切片行(表, 0, 10)`；从第 5 行到末尾 `切片行(表, 5)`。
+
+    📌 负数按 Python 的习惯从**末尾**数（`-1` 是最后一行）——
+    这对「只要最后 100 行」很有用：`切片行(表, -100)`。
+    📌 越界的端点会被夹到合法范围（不报错），与 Python 的切片一致。
+    """
+    _要表格(t, "切片行")
+    总 = len(t.rows)
+
+    def 归一(v, 默认: int) -> int:
+        if v is None:
+            return 默认
+        i = int(v)
+        if i < 0:
+            i += 总
+        return max(0, min(总, i))
+
+    起i = 归一(起, 0)
+    止i = 归一(止, 总)
+    if 止i < 起i:
+        止i = 起i
+    return _Table(t.headers, [list(r) for r in t.rows[起i:止i]])
+
+
+def 去重(t: _Table, 列们=None) -> _Table:
+    """按这些列去重，**保留首次出现的那一行**，返回新表格。
+
+    `列们` 省略就整行比；给了就只看这几列（其余列取首次出现那行的值）。
+    """
+    _要表格(t, "去重")
+    if 列们 is None:
+        索引 = list(range(len(t.headers)))
+    else:
+        索引 = [_column_index(t, c) for c in _列们(t, 列们, "去重")]
+    见过 = set()
+    数据 = []
+    for row in t.rows:
+        # 用 repr 做键：整数 1 与文本 "1" 不能算同一行（与 `筛选` 的口径一致）
+        键 = tuple(jishi_repr(row[i] if i < len(row) else "", top=True) for i in 索引)
+        if 键 in 见过:
+            continue
+        见过.add(键)
+        数据.append(list(row))
+    return _Table(t.headers, 数据)
+
+
+def 转换列(t: _Table, 列, 类型="整数") -> _Table:
+    """把某一列的格子转成别的类型，返回新表格。
+
+    `类型` 认三种：`"整数"` / `"小数"` / `"文本"`。
+
+    📌 从 `.xlsx` / `.csv` 读进来的列**全是文本**，算之前先转一下是常见活儿。
+    📌 转不了的格子**报错并指出第几行** —— 静默变成 0 或空，错得最难查。
+    📌 空格子（缺失）**保持原样**，不当成 0。
+    """
+    _要表格(t, "转换列")
+    i = _column_index(t, 列)
+    名 = str(类型)
+    if 名 not in ("整数", "小数", "文本"):
+        raise RunTypeError(
+            f"「转换列」不认识的类型「{名}」—— 只能是：整数 / 小数 / 文本")
+
+    数据 = []
+    for 行号, row in enumerate(t.rows):
+        新 = list(row)
+        if i >= len(新):
+            新.extend([""] * (i + 1 - len(新)))
+        v = 新[i]
+        if not _缺失(v):
+            try:
+                if 名 == "文本":
+                    新[i] = jishi_repr(v, top=True)
+                elif 名 == "整数":
+                    新[i] = int(float(v))
+                else:
+                    新[i] = float(v)
+            except (TypeError, ValueError):
+                raise RunTypeError(
+                    f"「转换列」：第 {行号 + 1} 行的「{列}」是"
+                    f"「{jishi_repr(v, top=True)}」，转不成{名}")
+        数据.append(新)
     return _Table(t.headers, 数据)

@@ -1784,6 +1784,73 @@ const TABLE_FUNCS = {
     }));
     return makeTable([...tab.headers], rows);
   }),
+  '取列': new R.Builtin('取列', (t, 列们参数) => {
+    const tab = asTable(t);
+    const 名们 = 列们(tab, 列们参数, '取列');
+    const 索引 = 名们.map((n) => colIndex(tab, n));
+    const rows = tab.rows.map((row) => 索引.map((i) =>
+      (row[i] === undefined ? '' : row[i])));
+    return makeTable(名们, rows);
+  }),
+  '切片行': new R.Builtin('切片行', (t, 起, 止) => {
+    const tab = asTable(t);
+    const 总 = tab.rows.length;
+    const 归一 = (v, 默认) => {
+      if (v === undefined || v === null) return 默认;
+      let i = Number(v);
+      if (!Number.isFinite(i)) throw R.typeErr(`「切片行」的行号要是整数，给的是「${R.display(v)}」`);
+      i = Math.trunc(i);
+      if (i < 0) i += 总;
+      return Math.max(0, Math.min(总, i));
+    };
+    const 起i = 归一(起, 0);
+    const 止i = Math.max(起i, 归一(止, 总));
+    return makeTable([...tab.headers], tab.rows.slice(起i, 止i).map((r) => r.slice()));
+  }),
+  '去重': new R.Builtin('去重', (t, 列们参数) => {
+    const tab = asTable(t);
+    const 索引 = (列们参数 === undefined || 列们参数 === null)
+      ? tab.headers.map((_, i) => i)
+      : 列们(tab, 列们参数, '去重').map((n) => colIndex(tab, n));
+    const 见过 = new Set();
+    const rows = [];
+    for (const row of tab.rows) {
+      // 用**显示的文本**做键：整数 1 与文本 "1" 不能算同一行（与 `筛选` 同口径）
+      const 键 = 索引.map((i) => R.display(row[i] === undefined ? '' : row[i])).join('\u0001');
+      if (见过.has(键)) continue;
+      见过.add(键);
+      rows.push(row.slice());
+    }
+    return makeTable([...tab.headers], rows);
+  }),
+  '转换列': new R.Builtin('转换列', (t, 列, 类型) => {
+    const tab = asTable(t);
+    const 列名 = String(列);
+    const i = colIndex(tab, 列名);
+    const 名 = 类型 === undefined ? '整数' : String(类型);
+    if (!['整数', '小数', '文本'].includes(名)) {
+      throw R.typeErr(`「转换列」不认识的类型「${名}」—— 只能是：整数 / 小数 / 文本`);
+    }
+    const rows = tab.rows.map((row, 行号) => {
+      const 新 = row.slice();
+      while (新.length <= i) 新.push('');
+      const v = 新[i];
+      if (!缺失(v)) {
+        if (名 === '文本') {
+          新[i] = R.display(v);
+        } else {
+          const n = typeof v === 'number' ? v : Number(v);
+          if (Number.isNaN(n)) {
+            throw R.typeErr(`「转换列」：第 ${行号 + 1} 行的「${列名}」是`
+              + `「${R.display(v)}」，转不成${名}`);
+          }
+          新[i] = (名 === '整数') ? Math.trunc(n) : new R.FloatBox(n);
+        }
+      }
+      return 新;
+    });
+    return makeTable([...tab.headers], rows);
+  }),
 };
 
 // ---------------------------------------------------------------------------

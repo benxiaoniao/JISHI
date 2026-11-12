@@ -1093,5 +1093,142 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .collect();
             Ok(table_new(t.headers.clone(), rows))
         },
+        "取列" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("取列", args, 2)?;
+            let t = as_table(&args[0])?;
+            let 名们 = 列们(&t, &args[1], "取列")?;
+            let mut 索引: Vec<usize> = Vec::with_capacity(名们.len());
+            for 名 in &名们 {
+                索引.push(列号(&t, 名)?);
+            }
+            let rows: Vec<Vec<Val>> = t
+                .rows
+                .iter()
+                .map(|row| {
+                    索引
+                        .iter()
+                        .map(|i| row.get(*i).cloned().unwrap_or_else(|| Val::Str("".into())))
+                        .collect()
+                })
+                .collect();
+            let headers: Vec<Val> = 名们.iter().map(|n| Val::Str(n.as_str().into())).collect();
+            Ok(table_new(headers, rows))
+        },
+        "切片行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("切片行", args, 1, 3)?;
+            let t = as_table(&args[0])?;
+            let 总 = t.rows.len() as i128;
+            let 归一 = |v: &Val, 默认: i128| -> Result<usize, JishiError> {
+                let mut i = match v {
+                    Val::None_ => 默认,
+                    Val::Int(x) => *x,
+                    other => as_text(other).parse::<i128>().map_err(|_| {
+                        err("类型错误", format!("「切片行」的行号要是整数，给的是「{}」", display(other)))
+                    })?,
+                };
+                if i < 0 {
+                    i += 总;
+                }
+                Ok(i.max(0).min(总) as usize)
+            };
+            let 起i = 归一(&args[1], 0)?;
+            let 止i = if args.len() > 2 {
+                归一(&args[2], 总)?
+            } else {
+                总 as usize
+            };
+            let 止i = 止i.max(起i);
+            let rows: Vec<Vec<Val>> = t.rows.get(起i..止i).unwrap_or(&[]).to_vec();
+            Ok(table_new(t.headers.clone(), rows))
+        },
+        "去重" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("去重", args, 1, 2)?;
+            let t = as_table(&args[0])?;
+            let 索引: Vec<usize> = if args.len() > 1 && !matches!(args[1], Val::None_) {
+                let 名们 = 列们(&t, &args[1], "去重")?;
+                let mut v = Vec::with_capacity(名们.len());
+                for 名 in &名们 {
+                    v.push(列号(&t, 名)?);
+                }
+                v
+            } else {
+                (0..t.headers.len()).collect()
+            };
+            let mut 见过: Vec<Vec<String>> = Vec::new();
+            let mut rows: Vec<Vec<Val>> = Vec::new();
+            for row in t.rows.iter() {
+                // 用**显示的文本**做键：整数 1 与文本 "1" 不能算同一行
+                // （与 `筛选` 的口径一致 —— 它也是按文本比的）。
+                let 键: Vec<String> = 索引
+                    .iter()
+                    .map(|i| display(row.get(*i).unwrap_or(&Val::Str("".into()))))
+                    .collect();
+                if 见过.contains(&键) {
+                    continue;
+                }
+                见过.push(键);
+                rows.push(row.clone());
+            }
+            Ok(table_new(t.headers.clone(), rows))
+        },
+        "转换列" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("转换列", args, 2, 3)?;
+            let t = as_table(&args[0])?;
+            let 列名 = as_text(&args[1]);
+            let i = 列号(&t, &列名)?;
+            let 名 = if args.len() > 2 {
+                as_text(&args[2])
+            } else {
+                "整数".to_string()
+            };
+            if 名 != "整数" && 名 != "小数" && 名 != "文本" {
+                return Err(err(
+                    "类型错误",
+                    format!("「转换列」不认识的类型「{名}」—— 只能是：整数 / 小数 / 文本"),
+                ));
+            }
+            let mut rows: Vec<Vec<Val>> = Vec::with_capacity(t.rows.len());
+            for (行号, row) in t.rows.iter().enumerate() {
+                let mut 新 = row.clone();
+                while 新.len() <= i {
+                    新.push(Val::Str("".into()));
+                }
+                let v = 新[i].clone();
+                if !缺失(&v) {
+                    let 转不了 = |v: &Val| -> JishiError {
+                        err(
+                            "类型错误",
+                            format!(
+                                "「转换列」：第 {} 行的「{列名}」是「{}」，转不成{名}",
+                                行号 + 1,
+                                display(v)
+                            ),
+                        )
+                    };
+                    let 数值 = |v: &Val| -> Option<f64> {
+                        match v {
+                            Val::Int(x) => Some(*x as f64),
+                            Val::Float(f) => Some(*f),
+                            Val::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+                            Val::Str(s) => s.trim().parse::<f64>().ok(),
+                            _ => None,
+                        }
+                    };
+                    新[i] = match 名.as_str() {
+                        "文本" => Val::Str(display(&v).into()),
+                        "整数" => {
+                            let f = 数值(&v).ok_or_else(|| 转不了(&v))?;
+                            Val::Int(f as i128)
+                        }
+                        _ => {
+                            let f = 数值(&v).ok_or_else(|| 转不了(&v))?;
+                            Val::Float(f)
+                        }
+                    };
+                }
+                rows.push(新);
+            }
+            Ok(table_new(t.headers.clone(), rows))
+        },
     }
 }
