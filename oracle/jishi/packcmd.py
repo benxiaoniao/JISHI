@@ -40,6 +40,7 @@ import json
 import os
 import shutil
 import struct
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -276,6 +277,274 @@ def _解压到(zip路径: str, 目录: str) -> None:
                 f.write(zf.read(名))
 
 
+# ---------------------------------------------------------------------------
+# M198：Inno Setup 向导安装包
+# ---------------------------------------------------------------------------
+#
+# 存根版（`jishi-pack-stub` + 尾部载荷索引）能装、能卸、在「应用和功能」里能看到，
+# 但它**没有向导**：不能选目录、不能选要不要桌面快捷方式、没有许可页和完成页。
+# 那一套是 Inno Setup 干的事，而 Inno 是**第三方编译器** ⇒ 这里只做三件事：
+#
+#   1. 找 ISCC（`JISHI_ISCC` → 系统级 → 用户级 → PATH）；
+#   2. 把 `tools/installer_user.iss` 的占位符换成真值，写进临时目录；
+#   3. 调 ISCC 编出来。
+#
+# 🔴 找不到 ISCC **不是错误**：回落到存根版，但**当场说明**为什么、怎么装 Inno。
+#    「不许静默降级」—— 用户拿到的产物类型变了，他必须知道。
+
+#: 模板与语言文件都在仓库里（Python 这一侧是开发用的判据基准，不随发行包走）。
+_仓库根 = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "..", ".."))
+_iss模板 = os.path.join(_仓库根, "tools", "installer_user.iss")
+
+#: 基名 —— 与存根版**同名**（升级/替换时不能变）。
+def 安装包名(名字: str, 版本: str) -> str:
+    return f"{名字}-{版本}-windows-x64-setup.exe"
+
+
+def _fnv1a64(数据: bytes, 偏移: int) -> int:
+    h = 偏移
+    for b in 数据:
+        h ^= b
+        h = (h * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    return h
+
+
+def 应用id(名字: str) -> str:
+    """由**应用名**派生一个稳定的 GUID（Inno 的 `AppId`）。
+
+    📌 为什么要派生而不是写死：装两个不同的基石程序时，卸载项要**各是各的**。
+       写死一个 AppId 的后果是「后装的顶掉前一个的卸载项」，卸一个残另一个。
+    📌 为什么不用随机数：同一个程序升级时 AppId 变了 = Inno 认为是**另一个软件** ⇒
+       控制面板里冒出两条、旧的文件留在盘上。
+    📌 这不是密码学哈希（FNV-1a 128 位够用了）：它只要「稳定 + 撞不上」。
+    """
+    a = _fnv1a64(名字.encode("utf-8"), 0xCBF29CE484222325)
+    b = _fnv1a64(名字.encode("utf-8"), 0x9E3779B97F4A7C15)
+    g1 = (a >> 32) & 0xFFFFFFFF
+    g2 = (a >> 16) & 0xFFFF
+    g3 = ((a & 0xFFFF) & 0x0FFF) | 0x4000          # 版本位：看着像真 GUID
+    g4 = ((b >> 48) & 0x3FFF) | 0x8000             # 变体位
+    g5 = b & 0xFFFFFFFFFFFF
+    return "%08X-%04X-%04X-%04X-%012X" % (g1, g2, g3, g4, g5)
+
+
+#: 名字/版本里**不能有**的字符。分两类：
+#:   · `"` `{` `}` `'` —— 会把 Inno 的语法（字符串、常量、`{code:}`）搅坏，
+#:     而且 [Code] 段里的字面量是 `'…'`，带单引号能注入脚本；
+#:   · `< > : | ? * / \` —— Windows 文件名非法字符（装出来的目录名/快捷方式名会坏）。
+_禁用字符 = set("\"'{}<>:|?*/\\")
+
+
+def _查名字(名字: str, 版本: str) -> str:
+    """名字/版本里出现禁用字符就报错（返回空串 = 通过）。"""
+    for 值, 叫 in ((名字, "名字"), (版本, "版本")):
+        for ch in 值:
+            if ch in _禁用字符 or ord(ch) < 0x20:
+                return (f"「{叫}」里不能有字符 {ch!r}（会把安装程序的脚本搅坏，"
+                        f"或造出 Windows 不认的文件名）：{值!r}")
+    if not 名字:
+        return "「名字」不能是空的"
+    return ""
+
+
+def 找iscc() -> str:
+    """找 Inno Setup 编译器 `ISCC.exe`。找不到返回空串（调用方决定降级）。
+
+    顺序与 `tools/build_release.py::_find_iscc` 一致：环境变量 → 系统级 7/6 →
+    用户级 7/6 → PATH。`JISHI_ISCC` **指了却没这个文件**会是错误（见调用方）：
+    那说明用户明确想用某个编译器，静默忽略他的意图比报错更糟。
+    """
+    指定 = os.environ.get("JISHI_ISCC", "").strip()
+    if 指定:
+        return 指定 if os.path.isfile(指定) else ""
+    if sys.platform != "win32":
+        return ""
+    候选 = []
+    for pf in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles")):
+        if pf:
+            for ver in ("Inno Setup 7", "Inno Setup 6"):
+                候选.append(os.path.join(pf, ver, "ISCC.exe"))
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        for ver in ("Inno Setup 7", "Inno Setup 6"):
+            候选.append(os.path.join(local, "Programs", ver, "ISCC.exe"))
+    for c in 候选:
+        if os.path.isfile(c):
+            return c
+    return shutil.which("ISCC") or shutil.which("iscc") or ""
+
+
+def _替换(模板: str, 值: dict) -> str:
+    """**一遍过**替换 `@键@`。
+
+    🔴 不能「逐个 `str.replace`」：值里如果正好含 `@名字@`（比如应用名就叫
+       `@版本@`），第二轮替换会把刚填进去的内容再搅一次。一遍过扫描就不会。
+    落单的 `@`（模板注释里那种）原样留着；**认不出的键直接报错** —— 那是模板与
+    代码不同步，越早炸越好。
+    """
+    出 = []
+    i, n = 0, len(模板)
+    while i < n:
+        if 模板[i] == "@":
+            j = 模板.find("@", i + 1)
+            # 只有「同一行、短」的才算占位符：注释里出现一个孤零零的 at 符号
+            # （比如邮箱）不该让整份模板炸掉
+            if j > i + 1 and "\n" not in 模板[i + 1:j] and j - i <= 13:
+                键 = 模板[i + 1:j]
+                if 键 in 值:
+                    出.append(值[键])
+                    i = j + 1
+                    continue
+                raise SystemExit(
+                    f"错误：模板里的占位符「@{键}@」代码里没有给值 —— "
+                    f"`tools/installer_user.iss` 与 packcmd 不同步了")
+        出.append(模板[i])
+        i += 1
+    return "".join(出)
+
+
+def _找图标(源目录: str) -> str:
+    """包里带的 `.ico`（有就用，没有就不用）。**优先 `share/基石.ico`**。"""
+    优先 = os.path.join(源目录, "share", "基石.ico")
+    if os.path.isfile(优先):
+        return 优先
+    for 目录 in (源目录, os.path.join(源目录, "share"), os.path.join(源目录, "app")):
+        if not os.path.isdir(目录):
+            continue
+        for 名 in sorted(os.listdir(目录)):
+            if 名.lower().endswith(".ico") and os.path.isfile(os.path.join(目录, 名)):
+                return os.path.join(目录, 名)
+    return ""
+
+
+#: 包里这几个名字的第一个会被当**许可文件**（有就出许可页，没有就跳过那一页）。
+#: 只认这几个固定名字：`README.md` 之类不是许可，拿来当许可页反而要用户在
+#: 「我同意」上点一下才能装 —— 那是骚扰。
+_许可名们 = ("LICENSE", "LICENSE.txt", "LICENSE.md", "许可.txt", "许可协议.txt")
+
+
+def _找许可(源目录: str) -> str:
+    for 名 in _许可名们:
+        p = os.path.join(源目录, 名)
+        if os.path.isfile(p):
+            return p
+    return ""
+
+
+def 用户iss(名字: str, 版本: str, 入口: str, 源目录: str, 出目录: str,
+           消息文件: str) -> str:
+    """把模板换成一份**能交给 ISCC** 的 `.iss` 文本（不含 BOM，写盘时再加）。
+
+    📌 为什么值全是内联的（不用 ISCC 的 `/D` 参数）：`/D` 的值走命令行，
+       中文在**命令行 → 编译器**这一路上会不会被当 ANSI 取决于系统区域设置；
+       写进 UTF-8 带 BOM 的文件里就没有这个不确定性。
+    """
+    with open(_iss模板, "r", encoding="utf-8") as f:
+        模板 = f.read()
+
+    入口盘 = (入口 or "").replace("/", "\\")
+    有引擎 = any(os.path.isfile(os.path.join(源目录, "bin", 名))
+                for 名 in ("jishi.exe", "jishi"))
+    if 有引擎 and 入口盘:
+        # 有自带运行时：快捷方式指引擎、程序文件当参数（M177 的结论）
+        快捷目标 = '"{app}\\bin\\jishi.exe"'
+        快捷参数行 = 'Parameters: "{app}\\app\\' + 入口盘 + '"; '
+        运行段 = (
+            "[Run]\n"
+            'Filename: "{app}\\bin\\jishi.exe"; Parameters: "{app}\\app\\' + 入口盘 + '"; '
+            'Description: "立即运行 ' + 名字 + '"; '
+            "Flags: postinstall nowait skipifsilent; Check: ShouldRun\n"
+        )
+        卸载图标 = "{app}\\bin\\jishi.exe"
+    elif 入口盘:
+        快捷目标 = '"{app}\\' + 入口盘 + '"'
+        快捷参数行 = ""
+        运行段 = ""
+        卸载图标 = "{uninstallexe}"
+    else:
+        # 没标入口：快捷方式就指向安装目录（双击打开文件夹），比指个坏路径强
+        快捷目标 = '"{app}"'
+        快捷参数行 = ""
+        运行段 = ""
+        卸载图标 = "{uninstallexe}"
+
+    图标 = _找图标(源目录)
+    许可 = _找许可(源目录)
+
+    值 = {
+        "APPID": "{{" + 应用id(名字) + "}",
+        "名字": 名字,
+        "版本": 版本,
+        "默认标题": 名字,
+        "出目录": 出目录,
+        "基名": f"{名字}-{版本}-windows-x64-setup",
+        "源目录": 源目录,
+        "快捷目标": 快捷目标,
+        "快捷参数行": 快捷参数行,
+        "图标参数": ('IconFilename: "' + 图标 + '"; ') if 图标 else "",
+        "卸载图标": 卸载图标,
+        "图标行": ("SetupIconFile=" + 图标) if 图标 else "",
+        "消息文件": 消息文件,
+        "许可行": ("LicenseFile=" + 许可) if 许可 else "",
+        "运行段": 运行段,
+    }
+    return _替换(模板, 值)
+
+
+def _带bom(文本: str) -> bytes:
+    """UTF-8 **带 BOM**、CRLF 换行 —— Inno 6 靠 BOM 认 UTF-8。
+
+    没有 BOM 时 Inno 按系统 ANSI 解码：中文应用名会变乱码，而且**编译不报错**，
+    装出来才发现「应用和功能」里是一串问号。
+    """
+    return b"\xef\xbb\xbf" + 文本.replace("\n", "\r\n").encode("utf-8")
+
+
+#: 载荷里那一条的名字。🔴 与 `rust/src/bin/packstub.rs::子安装器名` 必须逐字一致：
+#: 壳靠它认出「这包里装的是另一个安装器」，改一边不改另一边 = 装成一堆散文件。
+子安装器条目 = "__installer__.exe"
+
+
+def 备iss(名字: str, 版本: str, 入口: str, 包: str, 出: str, 临时: str) -> str:
+    """解出要装的文件 + 写出一份 `.iss`，返回 iss 的路径。
+
+    📌 **不管有没有 ISCC 都做这一步**：一来 `--保留iss` 在任何机器上都有东西可留
+       （排查「装出来不对」时那是最有用的线索）；二来判据能在没有 Inno 的机器上
+       比对「两套命令行生成的脚本是否逐字相同」。
+    """
+    发行 = os.path.join(临时, "发行")
+    _解压到(包, 发行)
+    语言 = os.path.join(临时, "ChineseSimplified.isl")
+    shutil.copyfile(os.path.join(os.path.dirname(_iss模板), "inno",
+                                "ChineseSimplified.isl"), 语言)
+    iss路径 = os.path.join(临时, "安装.iss")
+    with open(iss路径, "wb") as f:
+        f.write(_带bom(用户iss(名字, 版本, 入口, 发行, 出, 语言)))
+    return iss路径
+
+
+def 编译iss(iss路径: str, 名字: str, 版本: str, 出: str, 临时: str, iscc: str) -> str:
+    """调 ISCC 编出来，再把那个 setup.exe 打成「只装一个文件」的 zip（壳的载荷）。"""
+    r = subprocess.run([iscc, "/Q", iss路径], cwd=临时, capture_output=True, timeout=900)
+    文 = (r.stdout + r.stderr).decode("utf-8", "replace")
+    编出 = os.path.join(出, 安装包名(名字, 版本))
+    if r.returncode != 0 or not os.path.isfile(编出):
+        # 编译失败**不**悄悄退回存根：那是我们自己的脚本坏了，
+        # 换一种产物只会把问题藏起来
+        raise SystemExit(
+            f"错误：Inno Setup 编译失败（退出码 {r.returncode}）\n{文[-2000:]}\n"
+            "　　 不想用向导版就加 `--不用inno`（出存根版）。")
+
+    子 = os.path.join(临时, "子包")
+    os.makedirs(子, exist_ok=True)
+    载荷 = os.path.join(子, 子安装器条目)
+    shutil.move(编出, 载荷)          # 挪走：最终产物还要用同一个名字写在这里
+    return 打包模块.生成(
+        [载荷], 临时,
+        {"名字": 名字, "版本": 版本, "平台": 平台表["安装包"], "入口": "", "基础": 子})
+
+
 def 打包命令(argv: list) -> int:
     """`jishi 打包 [目录] [--出 目录] [--名字 X] [--版本 X] [--入口 X] [--存根 路径]
     [--目标 列表] [--安静]`。
@@ -290,6 +559,8 @@ def 打包命令(argv: list) -> int:
     存根 = ""
     目标们 = ""
     安静 = False
+    不用inno = False
+    保留iss = False
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -313,9 +584,14 @@ def 打包命令(argv: list) -> int:
             目标们 = argv[i] if i < len(argv) else ""
         elif a in ("--安静", "-q", "--quiet"):
             安静 = True
+        elif a in ("--不用inno", "--no-inno"):
+            不用inno = True
+        elif a in ("--保留iss", "--keep-iss"):
+            保留iss = True
         elif a in ("-h", "--help"):
             print("用法：jishi 打包 [目录] [--出 目录] [--名字 X] [--版本 X] "
-                  "[--入口 X] [--存根 路径] [--目标 便携,安装包,应用,压缩包] [--安静]")
+                  "[--入口 X] [--存根 路径] [--目标 便携,安装包,应用,压缩包] "
+                  "[--不用inno] [--保留iss] [--安静]")
             print()
             # 前半段模块说明（到「## 三条规矩」为止）——那段正是「四类产物是什么」
             print(__doc__.split("## 三条规矩")[0].split("\n", 1)[1].strip())
@@ -345,23 +621,30 @@ def 打包命令(argv: list) -> int:
     else:
         存根 = _找存根()
 
+    # M198：向导版要 Inno Setup 的编译器。`JISHI_ISCC` 指了却没有那个文件 ⇒ 硬错误
+    # （用户明确说了「用这个编译器」，静默忽略他的意图比报错更糟）
+    指定iscc = os.environ.get("JISHI_ISCC", "").strip()
+    if 指定iscc and not os.path.isfile(指定iscc):
+        print(f"错误：JISHI_ISCC 指到「{指定iscc}」，但那里没有 ISCC.exe", file=sys.stderr)
+        return 2
+    iscc = "" if 不用inno else (指定iscc or 找iscc())
+
     要哪些 = [x.strip() for x in 目标们.split(",") if x.strip()] if 目标们 else list(全部类型)
     for t in 要哪些:
         if t not in 全部类型:
             print(f"错误：不认识的产物类型「{t}」（认：{'、'.join(全部类型)}）",
                   file=sys.stderr)
             return 2
-    if "安装包" in 要哪些 and not 存根:
-        print("错误：出 Windows 安装包要 `jishi-pack-stub`，没找到。"
-              "用 --存根 指给它，或者 `--目标` 里去掉「安装包」。", file=sys.stderr)
+    # 🔴 安装包要「Inno 或 存根」二者之一：两样都没有就没法出
+    if "安装包" in 要哪些 and not 存根 and not iscc:
+        print("错误：出 Windows 安装包要 Inno Setup 的 ISCC.exe 或 `jishi-pack-stub`，"
+              "两样都没找到。装 Inno（winget install -e --id JRSoftware.InnoSetup）、"
+              "用 --存根 指给存根、或者 `--目标` 里去掉「安装包」。", file=sys.stderr)
         return 2
     警告 = []
     if "应用" in 要哪些 and not 入口:
         要哪些.remove("应用")
         警告.append("没有「入口」，出不了 .app（macOS 靠 Info.plist 里的入口启动）")
-    if "安装包" in 要哪些 and not 存根:
-        要哪些.remove("安装包")
-        警告.append("没找到 jishi-pack-stub，跳过 Windows 安装包")
 
     文件们 = _收集(源, [出])
     if not 文件们:
@@ -375,6 +658,13 @@ def 打包命令(argv: list) -> int:
               + chr(10) + "　　 要么把它放进这个目录，要么把 --入口 写成目录里真有的那个文件。")
         print(文, file=sys.stderr)
         return 2
+    # M198：向导版的名字要进 Inno 脚本（字符串字面量、常量、文件/快捷方式名），
+    # 禁用字符在这里一次拦掉 —— 等 ISCC 报错时，错误信息是它自己的行号，看不懂
+    if "安装包" in 要哪些:
+        错 = _查名字(名字, 版本)
+        if 错:
+            print("错误：" + 错, file=sys.stderr)
+            return 2
 
     os.makedirs(出, exist_ok=True)
     成品 = []          # [(类型, 路径)]
@@ -394,10 +684,39 @@ def 打包命令(argv: list) -> int:
             成品.append(("便携", 目标))
 
         if "安装包" in 要哪些:
+            目标 = os.path.join(出, 安装包名(名字, 版本))
+            # 内容两半都用得上：无 ISCC 时它就是载荷；有 ISCC 时它是「要装的那些文件」
             包 = 打一个包(平台表["安装包"])
-            目标 = os.path.join(出, f"{名字}-{版本}-windows-x64-setup.exe")
+            iss路径 = 备iss(名字, 版本, 入口, 包, 出, 临时)
+            if iscc:
+                # 再编 Inno 的 setup.exe，把它当载荷塞进**存根壳**里。
+                #
+                # 🔴 为什么要多这一层壳（不是直接把 Inno 的 exe 当产物）：
+                #    ① Inno 的静默**没法从脚本里打开**（`WizardSilent` 只读），
+                #       `/S` 它不认，跳完所有页也不装（rc=0、一个文件都不落）；
+                #    ② `--目标` 在 Inno 里只能当「默认值」，老脚本拿它当「别问我」；
+                #    ③ Inno 用互斥锁挡住第二个实例 ⇒ 「转成 /VERYSILENT 再拉一遍」
+                #       会两边死等（实测挂到超时）。
+                #    壳里翻译参数，老脚本一行不用改；`--查看/--校验/--解析快捷方式`
+                #    也顺带留住了。详见 `rust/src/bin/packstub.rs` 的 `子安装器名`。
+                包 = 编译iss(iss路径, 名字, 版本, 出, 临时, iscc)
             打包模块.安装包(包, 存根, 目标)
+            if not iscc:
+                # 🔴 降级要**当场说清**，`--安静` 也照说：产物类型变了，
+                #    脚本作者不看 stderr 就会一直以为拿到的是向导版。
+                因 = "你指定了 --不用inno" if 不用inno else \
+                    "这台机器没找到 Inno Setup 的编译器（ISCC.exe）"
+                print(f"⚠️  安装包没走 Inno 向导：{因}", file=sys.stderr)
+                print("　　 出的是「自解压存根版」：能装、能卸、「应用和功能」里有条目，"
+                      "但没有「选目录 / 选桌面快捷方式」的向导。", file=sys.stderr)
+                print("　　 要向导版：装 Inno Setup 6"
+                      "（winget install -e --id JRSoftware.InnoSetup），"
+                      "或用 JISHI_ISCC 指到 ISCC.exe。", file=sys.stderr)
             成品.append(("安装包", 目标))
+            if 保留iss:
+                iss出 = os.path.join(出, f"{名字}-{版本}-windows-x64-setup.iss")
+                shutil.copyfile(iss路径, iss出)
+                成品.append(("安装脚本", iss出))
 
         if "应用" in 要哪些:
             包 = 打一个包(平台表["应用"])

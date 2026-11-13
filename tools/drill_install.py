@@ -66,6 +66,43 @@ def 卸(目录):
     return (1, "找不到卸载器")
 
 
+def 校验载荷(包):
+    """这个安装包的载荷是 **Inno 向导**还是**散文件**（M198 起两种都可能）。
+
+    📌 别去产物里搜 "Inno Setup"：Inno 的 exe 在载荷 zip 里是**压缩**过的，
+       搜字符串搜不到。壳自己会说（`--查看`）。
+    """
+    _, 出 = 跑([包, "--查看"], timeout=120)
+    return "Inno Setup 向导安装器" in 出
+
+
+def 卸用户包(装, 向导):
+    """用户包（`jishi 打包` 出的）的卸载。
+
+    · 向导版：卸载器是 Inno 写的 `unins000.exe`，开关 `/VERYSILENT`；
+    · 存根版：我们写的 `uninstall.exe`，开关 `--卸载 --静默`。
+    """
+    if 向导:
+        for p in sorted(Path(装).glob("unins*.exe")):
+            return 跑([p, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"], timeout=300)
+        return (1, "找不到 unins000.exe")
+    return 跑([Path(装) / "uninstall.exe", "--卸载", "--静默"], timeout=300)
+
+
+def 开始菜单():
+    return Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+
+
+def 找快捷方式(名字):
+    """`Programs` 底下任何一层里的 `<名字>.lnk`。
+
+    📌 Inno 给每个程序建一个文件夹（`Programs\\<组名>\\<名字>.lnk`），
+       存根版直接摆在 `Programs\\<名字>.lnk` —— 两种都要认。
+    """
+    候 = sorted(开始菜单().rglob(f"{名字}.lnk")) if 开始菜单().is_dir() else []
+    return 候[0] if 候 else None
+
+
 def 版本(目录):
     exe = Path(目录) / "bin" / "jishi.exe"
     if not exe.is_file():
@@ -203,12 +240,16 @@ def main():
         记("用户包里有 运行时.json", (用户装 / "运行时.json").is_file())
 
         # 快捷方式：目标必须是**引擎**、程序文件当**参数**（M177 的核心）
-        快捷 = (Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows"
-                / "Start Menu" / "Programs" / "演练程序.lnk")
-        记("开始菜单里有快捷方式", 快捷.is_file(), str(快捷))
+        # M198：向导版的快捷方式在 `Programs\<组名>\` 里，所以用 rglob 找
+        快捷 = 找快捷方式("演练程序")
+        记("开始菜单里有快捷方式", 快捷 is not None, str(快捷 or "（没找到）"))
         解析 = ""
-        if (用户装 / "uninstall.exe").is_file() and 快捷.is_file():
-            _, 解析 = 跑([用户装 / "uninstall.exe", "--解析快捷方式", 快捷], timeout=120)
+        if 快捷 is not None:
+            # `.lnk` 用存根读（M198 起向导版没有 uninstall.exe 了）
+            存根 = 装目录 / "bin" / "jishi-pack-stub.exe"
+            if not 存根.is_file():
+                存根 = ROOT / "rust" / "target" / "release" / "jishi-pack-stub.exe"
+            _, 解析 = 跑([存根, "--解析快捷方式", 快捷], timeout=120)
         记("快捷方式指向 bin 里的引擎", "bin\\jishi.exe" in 解析 or "bin/jishi.exe" in 解析,
           解析.strip()[:120] or "（读不出来）")
         记("快捷方式带上了 app 里的程序文件",
@@ -233,7 +274,7 @@ def main():
               文3.strip().splitlines()[-1][:80] if 文3.strip() else "无输出")
 
         # 卸干净（顺带验「卸载会删掉开始菜单里那条」）
-        _, 卸出 = 跑([用户装 / "uninstall.exe", "--卸载", "--静默"], timeout=300)
+        _, 卸出 = 卸用户包(用户装, 校验载荷(用户安装))
         time.sleep(1)
         记("用户包能卸掉（bin/ 没了）", not (用户装 / "bin").exists(), 卸出[-160:])
 
@@ -349,7 +390,7 @@ def main():
         except Exception as e:                       # noqa: BLE001
             记("帧循环真在跑（画面在变）", False, f"探针失败：{e}")
 
-        _, 卸出 = 跑([游戏装 / "uninstall.exe", "--卸载", "--静默"], timeout=300)
+        _, 卸出 = 卸用户包(游戏装, 校验载荷(游戏安装))
         time.sleep(1)
         记("游戏包能卸掉（bin/ 没了）", not (游戏装 / "bin").exists(), 卸出[-160:])
 

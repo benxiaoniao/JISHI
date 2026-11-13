@@ -144,8 +144,12 @@ def test_压缩包带_install_sh_且入口对(打好的包):
 def test_安装包是_存根加载荷(打好的包):
     """`.exe` = `[存根][zip 载荷][偏移 u64][长度 u64]["JISHIPK1"]`。
 
-    这里验两件：尾部标识对、载荷能当 zip 解开且里面有 app/ 与 bin/。
-    真正**装一遍**不在这里做（会在本机落一份安装），开窗验证走便携包那条。
+    这里验两件：尾部标识对、载荷能当 zip 解开。
+
+    📌 **M198 起载荷有两种**：散文件（没有 Inno 的机器）或**内嵌的 Inno 向导安装器**
+       （`__installer__.exe`，有 Inno 的机器）。两种都得认 —— CI 上没有 Inno，
+       本机有，判据不能只认一种。真正**装一遍**不在这里做（会在本机落一份安装），
+       开窗验证走便携包那条。
     """
     import struct
 
@@ -158,8 +162,13 @@ def test_安装包是_存根加载荷(打好的包):
     载荷 = 全[偏移:偏移 + 长度]
     z = zipfile.ZipFile(__import__("io").BytesIO(载荷))
     有 = set(z.namelist())
-    assert "app/打砖块.jsh" in 有, "载荷里没有入口"
-    assert "bin/jishi_wasm.wasm" in 有, "载荷里没有 wasm 素材"
+    if "__installer__.exe" in 有:
+        # 向导版：载荷只有那一个安装器（程序与引擎都编进它里面了）
+        assert 有 == {"清单.json", "__installer__.exe"}, f"向导载荷里多了东西：{有}"
+        assert z.getinfo("__installer__.exe").file_size > 100_000, "内嵌安装器太小了"
+    else:
+        assert "app/打砖块.jsh" in 有, "载荷里没有入口"
+        assert "bin/jishi_wasm.wasm" in 有, "载荷里没有 wasm 素材"
 
 
 # ---------------------------------------------------------------------------

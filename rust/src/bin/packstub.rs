@@ -42,7 +42,7 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use std::process::{Command, ExitCode};
 
 use jishi_ffi::json::Json;
 
@@ -58,6 +58,23 @@ const 清单名: &str = "清单.json";
 /// 「双击时该执行什么」是另一件事 —— 分成两份，清单的格式就不用动
 /// （那是三个宿主都在守的契约）。
 const 运行名: &str = "运行时.json";
+
+/// M198：载荷里装着一个**别的安装器**（Inno Setup 编出来的向导）时的条目名。
+///
+/// ## 为什么还要这层壳
+///
+/// 以为「让 Inno 出安装包」就完事，实测三件事都做不到（2026-11-13 本机验过）：
+///
+/// 1. **静默没法从脚本里打开** —— `WizardSilent` 是只读的；`/S` 这种老开关
+///    Inno 根本不认，`ShouldSkipPage` 跳完所有页也不装（`rc=0`、一个文件都不落）。
+/// 2. **`--目标` 只能当「默认值」** —— 老脚本拿它当「装到这儿、别问我」。
+/// 3. **自己起不来自己** —— 想「转成 `/VERYSILENT` 再拉一遍」，`Exec` 直接
+///    返回错误 5；换 `cmd /c` 绕过也不成：Inno 用互斥锁挡住第二个实例，
+///    父进程又在等子进程，两边死等。
+///
+/// 所以老参数只能在这层壳里翻译。顺带把 `--查看` / `--校验` / `--解析快捷方式`
+/// 这三个查错动作也留住了 —— 纯 Inno 包里没有「载荷清单」这个概念可查。
+const 子安装器名: &str = "__installer__.exe";
 /// 卸载时用的程序名（安装时写进安装目录）。
 const 卸载名: &str = "uninstall.exe";
 
@@ -1006,6 +1023,35 @@ fn 用法() -> String {
         .to_string()
 }
 
+fn 跑子安装器(包: &包, 目标: Option<&str>, 静默: bool, 透传: &[String]) -> Result<i32, String> {
+    let (_, 数据) = 包
+        .条目们
+        .iter()
+        .find(|(n, _)| n == 子安装器名)
+        .ok_or("内部错误：找不到子安装器载荷")?;
+    let 临时 = env::temp_dir().join(format!("jishi-setup-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&临时);
+    fs::create_dir_all(&临时).map_err(|e| format!("建临时目录失败：{e}"))?;
+    let 程序 = 临时.join("setup.exe");
+    fs::write(&程序, 数据).map_err(|e| format!("写安装器失败：{e}"))?;
+
+    let mut 命令 = Command::new(&程序);
+    // 老语义：`--目标` 单独给的时候**就是静默**（存根版是控制台程序，从不问人）
+    if 静默 || 目标.is_some() {
+        命令.args(["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-"]);
+    }
+    for a in 透传 {
+        命令.arg(a);
+    }
+    if let Some(d) = 目标 {
+        命令.arg(format!("/DIR={d}"));
+    }
+    // 等它装完再清临时目录：向导版要那份 setup.exe 一直活着
+    let 状态 = 命令.status().map_err(|e| format!("起不来安装器：{e}"))?;
+    let _ = fs::remove_dir_all(&临时);
+    Ok(状态.code().unwrap_or(1))
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
     let mut 静默 = false;
@@ -1013,6 +1059,8 @@ fn main() -> ExitCode {
     let mut 目标参数: Option<String> = None;
     let mut 快捷参数: Option<String> = None;
     let mut 动作 = "安装";
+    //: M198：认不出但看着像开关的参数（要等读到载荷才知道该不该透传）
+    let mut 未知: Vec<String> = Vec::new();
     let mut i = 0;
     while i < args.len() {
         let a = args[i].as_str();
@@ -1040,7 +1088,11 @@ fn main() -> ExitCode {
                 return ExitCode::SUCCESS;
             }
             _ if a.starts_with("/D=") => 目标参数 = Some(a[3..].to_string()),
+            _ if a.starts_with("/DIR=") => 目标参数 = Some(a[5..].to_string()),
             _ if a.starts_with("--目标=") => 目标参数 = Some(a[6..].to_string()),
+            // M198：Inno 自己的开关（`/VERYSILENT` `/SILENT` `/SP-` `/LOG=…` …）。
+            // 先收着：普通包收到它们仍然是「不认识这个参数」，**只有**子安装器包才透传。
+            _ if a.starts_with('/') || a.starts_with("--") => 未知.push(a.to_string()),
             _ => {
                 eprintln!("错误：不认识这个参数「{a}」\n{}", 用法());
                 return ExitCode::from(2);
@@ -1080,6 +1132,18 @@ fn main() -> ExitCode {
 
     // 卸载走另一条路：它不该依赖载荷（卸载程序是截短的存根，没有 zip）
     if 动作 == "卸载" {
+        // M198：子安装器包没有我们写的 uninstall.exe（卸载器是 Inno 写的
+        // unins000.exe、卸载项在它自己的 AppId 下），所以这里只能指路。
+        if let Some((off, len)) = 找载荷(&自身) {
+            if let Ok(包) = 读包(&自身[off..off + len]) {
+                if 包.条目们.iter().any(|(n, _)| n == 子安装器名) {
+                    eprintln!("这个安装包装的是 Inno 向导版 —— 卸载请走：");
+                    eprintln!("  设置 → 应用 → 已安装的应用 里找「{}」", 包.名字);
+                    eprintln!("  或者运行安装目录里的 unins000.exe");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
         let 目标 = 目标参数
             .map(PathBuf::from)
             .or_else(|| {
@@ -1115,7 +1179,12 @@ fn main() -> ExitCode {
             println!("版本：{}", 包.版本);
             println!("平台：{}", 包.平台);
             println!("入口：{}", 包.入口);
-            println!("文件：{} 个", 包.文件们.len());
+            if 包.条目们.iter().any(|(n, _)| n == 子安装器名) {
+                println!("载荷：Inno Setup 向导安装器（M198；参数由本程序翻译）");
+                println!("文件：1 个（内嵌安装器）");
+            } else {
+                println!("文件：{} 个", 包.文件们.len());
+            }
             ExitCode::SUCCESS
         }
         "校验" => match 包.核对() {
@@ -1131,6 +1200,22 @@ fn main() -> ExitCode {
             }
         },
         _ => {
+            // M198：载荷是「另一个安装器」（Inno 向导）⇒ 交给它装，参数由这里翻译
+            if 包.条目们.iter().any(|(n, _)| n == 子安装器名) {
+                return match 跑子安装器(&包, 目标参数.as_deref(), 静默, &未知) {
+                    Ok(0) => ExitCode::SUCCESS,
+                    Ok(码) => ExitCode::from(码.clamp(1, 255) as u8),
+                    Err(e) => {
+                        eprintln!("错误：{e}");
+                        ExitCode::FAILURE
+                    }
+                };
+            }
+            // 普通包收到 Inno 的开关 = 用户拿错了安装包类型，别装作懂
+            if let Some(a) = 未知.first() {
+                eprintln!("错误：不认识这个参数「{a}」\n{}", 用法());
+                return ExitCode::from(2);
+            }
             let 目标 = 目标参数
                 .map(PathBuf::from)
                 .unwrap_or_else(|| 默认安装目录(if 包.名字.is_empty() { "程序" } else { &包.名字 }));

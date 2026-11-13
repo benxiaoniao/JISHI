@@ -38,6 +38,39 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+#: 开始菜单目录（快捷方式在这底下的某处）
+开始菜单 = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+
+
+def _找快捷方式(名字: str) -> Path | None:
+    """在开始菜单里找那个 `.lnk`。
+
+    📌 M198 起用户包装的是 **Inno 向导**，快捷方式会在 `Programs\\<组名>\\<名字>.lnk`
+       里（Inno 的惯例是给每个程序一个文件夹）；存根版则直接摆在 `Programs` 下。
+       两种都得认 —— CI 上没有 Inno，本机有。
+    """
+    if not 开始菜单.is_dir():
+        return None
+    候 = sorted(开始菜单.rglob(f"{名字}.lnk"))
+    return 候[0] if 候 else None
+
+
+def _解快捷方式(lnk: Path) -> str:
+    """`.lnk` 的内容用 `jishi-pack-stub --解析快捷方式` 读（M198 起它不再是 uninstall.exe）。"""
+    stub = ROOT / "rust" / "target" / "release" / "jishi-pack-stub.exe"
+    if not stub.is_file():
+        stub = Path(shutil.which("jishi-pack-stub") or "")
+    assert stub.is_file(), "没找到 jishi-pack-stub（先 cargo build --release）"
+    r = subprocess.run([str(stub), "--解析快捷方式", str(lnk)],
+                       capture_output=True, timeout=120)
+    return (r.stdout + r.stderr).decode("utf-8", "replace")
+
+
+def _载荷是向导(包: Path) -> bool:
+    """这个安装包的载荷是 Inno 向导，还是散文件（存根版）—— 壳自己会说。"""
+    r = subprocess.run([str(包), "--查看"], capture_output=True, timeout=120)
+    return "Inno Setup 向导安装器" in (r.stdout + r.stderr).decode("utf-8", "replace")
+
 from oracle.jishi.stdlib import 打包                            # noqa: E402
 
 #: 要跟着走的引擎素材（可执行另算，名字随平台）。
@@ -314,12 +347,10 @@ def test_装到别的目录_双击快捷方式能开窗(tmp_path):
     assert (装目录 / "运行时.json").is_file()
 
     # ② 快捷方式：目标 = 引擎，参数 = 程序文件（读回来验，不猜）
-    快捷 = Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / \
-        "Programs" / "M177探针.lnk"
-    assert 快捷.is_file(), f"开始菜单里没有快捷方式：{快捷}"
-    r = subprocess.run([str(装目录 / "uninstall.exe"), "--解析快捷方式", str(快捷)],
-                       capture_output=True, timeout=120)
-    out = r.stdout.decode("utf-8", "replace")
+    快捷 = _找快捷方式("M177探针")
+    assert 快捷 is not None, (
+        f"开始菜单里没有快捷方式；现有的：{list(开始菜单.rglob('*.lnk'))[:8]}")
+    out = _解快捷方式(快捷)
     assert "bin\\jishi.exe" in out or "bin/jishi.exe" in out, f"快捷方式没指向引擎：{out}"
     assert "app\\计算器.jsh" in out or "app/计算器.jsh" in out, (
         f"快捷方式没带程序文件当参数：{out}")
@@ -349,9 +380,16 @@ def test_装到别的目录_双击快捷方式能开窗(tmp_path):
     # ⚠️ 卸载走 `--卸载`（不是 `--目标`）：`uninstall.exe` 是**没有载荷的存根**，
     #    它靠安装时写进注册表的「安装位置」找到自己 —— 传 --目标 会得到
     #    「这个程序里没有安装内容」。这是 M177 写判据时踩的。
+    向导 = _载荷是向导(setup)
     with open(tmp_path / "un.log", "w", encoding="utf-8") as f:
-        subprocess.run([str(装目录 / "uninstall.exe"), "--卸载", "--静默"],
-                       stdout=f, stderr=subprocess.STDOUT, timeout=180)
+        if 向导:
+            # M198：向导版的卸载器是 Inno 写的（unins000.exe），开关是 `/VERYSILENT`
+            卸 = next(装目录.glob("unins*.exe"))
+            subprocess.run([str(卸), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                           stdout=f, stderr=subprocess.STDOUT, timeout=180)
+        else:
+            subprocess.run([str(装目录 / "uninstall.exe"), "--卸载", "--静默"],
+                           stdout=f, stderr=subprocess.STDOUT, timeout=180)
     assert not (装目录 / "bin").exists(), (
         "卸载后 bin/ 还在：\n"
         + (tmp_path / "un.log").read_text(encoding="utf-8", errors="replace")[:400])

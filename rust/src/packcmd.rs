@@ -329,6 +329,369 @@ fn 打一个包(文件们: &[String], 源: &str, 临时: &Path, 名字: &str, �
     crate::stdlib::pack::建包(&列表, &临时.display().to_string(), Some(&选项))
 }
 
+// ---------------------------------------------------------------------------
+// M198：Inno Setup 向导安装包
+// ---------------------------------------------------------------------------
+//
+// 存根版（`jishi-pack-stub` + 尾部载荷索引）能装、能卸、在「应用和功能」里能看到，
+// 但它**没有向导**：不能选目录、不能选要不要桌面快捷方式、没有完成页。
+// 那一套交给 Inno Setup —— 而它是**第三方编译器**，所以这里只做四件事：
+//
+//   1. 找 ISCC（`JISHI_ISCC` → 系统级 → 用户级 → PATH）；
+//   2. 解出要装的文件，把 `tools/installer_user.iss` 的占位符换成真值写成 `.iss`；
+//   3. 调 ISCC 编出 setup.exe；
+//   4. 把那个 setup.exe 当**载荷**塞进存根壳（壳负责翻译老参数，见 packstub）。
+//
+// 🔴 找不到 ISCC **不是错误**：回落到存根版，但**当场说明**为什么、怎么装 Inno。
+
+/// 载荷里那一条的名字。**与 `packstub` 共用这一份常量**（不是各写一个字符串）。
+///
+/// 壳靠它认出「这个包装的是另一个安装器」：改一边不改另一边 = 装成一堆散文件。
+pub const 子安装器条目: &str = "__installer__.exe";
+
+/// 用户程序安装器的模板。**编进二进制**：装好的 `jishi.exe` 旁边没有仓库的 `tools/`。
+const 用户iss模板: &str = include_str!("../../tools/installer_user.iss");
+
+/// 简体中文的消息文件（同上，也编进去再写到临时目录）。
+const 内置消息文件: &str = include_str!("../../tools/inno/ChineseSimplified.isl");
+
+/// 名字 / 版本里不能出现的字符（与 Python `packcmd._禁用字符` 同一条）。
+///
+/// 分两类：`"` `{` `}` `'` 会把 Inno 的语法（字符串、常量、`[Code]` 里的字面量）
+/// 搅坏；`< > : | ? * / \` 是 Windows 文件名非法字符。
+const 禁用字符: &[char] = &['"', '{', '}', '\'', '<', '>', ':', '|', '?', '*', '/', '\\'];
+
+fn fnv1a64(数据: &[u8], 偏移: u64) -> u64 {
+    let mut h = 偏移;
+    for b in 数据 {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01B3);
+    }
+    h
+}
+
+/// 由**应用名**派生一个稳定的 GUID（Inno 的 `AppId`）。
+///
+/// 为什么要派生：装两个不同的基石程序时卸载项要各是各的（写死一个 AppId 会
+/// 「后装的顶掉前一个」）；为什么不能用随机数：升级时 AppId 变了 = Inno 认为是
+/// 另一个软件，控制面板里冒出两条、旧文件留在盘上。
+///
+/// ⚠️ 与 Python `packcmd.应用id` **必须逐字一致**（同一个名字 → 同一个 GUID）。
+fn 应用id(名字: &str) -> String {
+    let a = fnv1a64(名字.as_bytes(), 0xCBF2_9CE4_8422_2325);
+    let b = fnv1a64(名字.as_bytes(), 0x9E37_79B9_7F4A_7C15);
+    let g1 = (a >> 32) as u32;
+    let g2 = (a >> 16) as u16;
+    let g3 = ((a & 0xFFFF) as u16 & 0x0FFF) | 0x4000;
+    let g4 = ((b >> 48) as u16 & 0x3FFF) | 0x8000;
+    let g5 = b & 0xFFFF_FFFF_FFFF;
+    format!("{g1:08X}-{g2:04X}-{g3:04X}-{g4:04X}-{g5:012X}")
+}
+
+/// 名字 / 版本能用吗？不能用返回一句人话。
+fn 查名字(名字: &str, 版本: &str) -> Option<String> {
+    if 名字.is_empty() {
+        return Some("「名字」不能是空的".to_string());
+    }
+    for (值, 叫) in [(名字, "名字"), (版本, "版本")] {
+        for ch in 值.chars() {
+            if 禁用字符.contains(&ch) || (ch as u32) < 0x20 {
+                return Some(format!(
+                    "「{叫}」里不能有字符 {ch:?}（会把安装程序的脚本搅坏，\
+                     或造出 Windows 不认的文件名）：{值:?}"
+                ));
+            }
+        }
+    }
+    None
+}
+
+/// 找 Inno Setup 的编译器。`Ok(None)` = 这台机器没有（调用方降级）。
+///
+/// `JISHI_ISCC` 指了却没有那个文件 ⇒ `Err`：用户明确说了要用哪个编译器，
+/// 静默忽略他的意图比报错更糟。
+fn 找iscc() -> Result<Option<PathBuf>, String> {
+    if let Ok(v) = std::env::var("JISHI_ISCC") {
+        let v = v.trim().to_string();
+        if !v.is_empty() {
+            let p = PathBuf::from(&v);
+            return if p.is_file() {
+                Ok(Some(p))
+            } else {
+                Err(format!("JISHI_ISCC 指到「{v}」，但那里没有 ISCC.exe"))
+            };
+        }
+    }
+    if !cfg!(windows) {
+        return Ok(None);
+    }
+    let mut 候选: Vec<PathBuf> = Vec::new();
+    for 变量 in ["ProgramFiles(x86)", "ProgramFiles"] {
+        if let Ok(根) = std::env::var(变量) {
+            for 版 in ["Inno Setup 7", "Inno Setup 6"] {
+                候选.push(Path::new(&根).join(版).join("ISCC.exe"));
+            }
+        }
+    }
+    if let Ok(本地) = std::env::var("LOCALAPPDATA") {
+        for 版 in ["Inno Setup 7", "Inno Setup 6"] {
+            候选.push(
+                Path::new(&本地).join("Programs").join(版).join("ISCC.exe"),
+            );
+        }
+    }
+    for p in &候选 {
+        if p.is_file() {
+            return Ok(Some(p.clone()));
+        }
+    }
+    if let Some(路径) = std::env::var_os("PATH") {
+        for 目录 in std::env::split_paths(&路径) {
+            for 名 in ["ISCC.exe", "iscc.exe", "ISCC", "iscc"] {
+                let p = 目录.join(名);
+                if p.is_file() {
+                    return Ok(Some(p));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// **一遍过**替换 `@键@`（与 Python `_替换` 同一条规则）。
+///
+/// 不能逐个 `replace`：值里如果正好含 `@名字@`，第二轮会把刚填进去的内容再搅一次。
+/// 只有「同一行、短」的才算占位符 —— 注释里出现一个孤零零的 at 符号不该炸掉模板。
+fn 替换(模板: &str, 值: &[(&str, String)]) -> Result<String, String> {
+    let 字: Vec<char> = 模板.chars().collect();
+    let mut 出 = String::with_capacity(模板.len() + 256);
+    let mut i = 0usize;
+    while i < 字.len() {
+        if 字[i] == '@' {
+            let mut j = i + 1;
+            while j < 字.len() && 字[j] != '@' && 字[j] != '\n' {
+                j += 1;
+            }
+            if j < 字.len() && 字[j] == '@' && j > i + 1 && j - i <= 13 {
+                let 键: String = 字[i + 1..j].iter().collect();
+                match 值.iter().find(|(k, _)| *k == 键) {
+                    Some((_, v)) => {
+                        出.push_str(v);
+                        i = j + 1;
+                        continue;
+                    }
+                    None => {
+                        return Err(format!(
+                            "模板里的占位符「@{键}@」代码里没有给值 —— \
+                             `tools/installer_user.iss` 与 packcmd 不同步了"
+                        ))
+                    }
+                }
+            }
+        }
+        出.push(字[i]);
+        i += 1;
+    }
+    Ok(出)
+}
+
+/// 包里带的 `.ico`（优先 `share/基石.ico`）。空 = 包里有图标就用，没有就不设。
+fn 找图标(源目录: &Path) -> Option<PathBuf> {
+    let 优先 = 源目录.join("share").join("基石.ico");
+    if 优先.is_file() {
+        return Some(优先);
+    }
+    for 子 in ["", "share", "app"] {
+        let 目录 = if 子.is_empty() { 源目录.to_path_buf() } else { 源目录.join(子) };
+        let Ok(读) = fs::read_dir(&目录) else { continue };
+        let mut 名们: Vec<PathBuf> = 读
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| {
+                p.is_file()
+                    && p.extension()
+                        .map(|x| x.to_string_lossy().to_lowercase() == "ico")
+                        .unwrap_or(false)
+            })
+            .collect();
+        名们.sort();
+        if let Some(p) = 名们.into_iter().next() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// 包里这几个名字的第一个会被当**许可文件**（有就出许可页，没有就跳过那一页）。
+///
+/// 只认这几个固定名字：`README.md` 之类不是许可，拿来当许可页反而要用户
+/// 在「我同意」上点一下才能装 —— 那是骚扰。与 Python `_许可名们` 同一条。
+const 许可名们: [&str; 5] = ["LICENSE", "LICENSE.txt", "LICENSE.md", "许可.txt", "许可协议.txt"];
+
+fn 找许可(源目录: &Path) -> Option<PathBuf> {
+    许可名们
+        .iter()
+        .map(|名| 源目录.join(名))
+        .find(|p| p.is_file())
+}
+
+/// 把模板换成一份能交给 ISCC 的 `.iss` 文本（不含 BOM，写盘时再加）。
+fn 用户iss(
+    名字: &str,
+    版本: &str,
+    入口: &str,
+    源目录: &Path,
+    出目录: &str,
+    消息文件: &str,
+) -> Result<String, String> {
+    let 入口盘 = 入口.replace('/', "\\");
+    let 有引擎 = 源目录.join("bin").join("jishi.exe").is_file()
+        || 源目录.join("bin").join("jishi").is_file();
+
+    let (快捷目标, 快捷参数行, 运行段, 卸载图标) = if 有引擎 && !入口盘.is_empty() {
+        let 参数 = format!("Parameters: \"{{app}}\\app\\{入口盘}\"; ");
+        (
+            "\"{app}\\bin\\jishi.exe\"".to_string(),
+            参数.clone(),
+            format!(
+                "[Run]\nFilename: \"{{app}}\\bin\\jishi.exe\"; {参数}\
+                 Description: \"立即运行 {名字}\"; \
+                 Flags: postinstall nowait skipifsilent; Check: ShouldRun\n"
+            ),
+            "{app}\\bin\\jishi.exe".to_string(),
+        )
+    } else if !入口盘.is_empty() {
+        (format!("\"{{app}}\\{入口盘}\""), String::new(), String::new(),
+         "{uninstallexe}".to_string())
+    } else {
+        // 没标入口：快捷方式指向安装目录（双击打开文件夹），比指个坏路径强
+        ("\"{app}\"".to_string(), String::new(), String::new(),
+         "{uninstallexe}".to_string())
+    };
+
+    let 图标 = 找图标(源目录);
+    let 图标文 = 图标
+        .as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+    let 值: Vec<(&str, String)> = vec![
+        ("APPID", format!("{{{{{}}}", 应用id(名字))),
+        ("名字", 名字.to_string()),
+        ("版本", 版本.to_string()),
+        ("默认标题", 名字.to_string()),
+        ("出目录", 出目录.to_string()),
+        ("基名", format!("{名字}-{版本}-windows-x64-setup")),
+        ("源目录", 源目录.display().to_string()),
+        ("快捷目标", 快捷目标),
+        ("快捷参数行", 快捷参数行),
+        ("图标参数", if 图标.is_some() { format!("IconFilename: \"{图标文}\"; ") } else { String::new() }),
+        ("卸载图标", 卸载图标),
+        ("图标行", if 图标.is_some() { format!("SetupIconFile={图标文}") } else { String::new() }),
+        ("消息文件", 消息文件.to_string()),
+        (
+            "许可行",
+            找许可(源目录)
+                .map(|p| format!("LicenseFile={}", p.display()))
+                .unwrap_or_default(),
+        ),
+        ("运行段", 运行段),
+    ];
+    替换(用户iss模板, &值)
+}
+
+/// UTF-8 **带 BOM**、CRLF —— Inno 6 靠 BOM 认 UTF-8（没 BOM 时中文按 ANSI 解，
+/// 而且**编译不报错**，装完才发现「应用和功能」里是一串问号）。
+///
+/// 🔴 先把已有的 CRLF 归一成 LF 再统一转换：模板文件被编辑器存成 CRLF 时，
+/// 直接 `\n → \r\n` 会得到 `\r\r\n` —— 编译不报错，但**每一行都多一个空行**，
+/// 而且 `.iss` 与 Python 那边逐字不一致（判据当场红，却看不出为什么）。
+fn 带bom(文本: &str) -> Vec<u8> {
+    let mut 出 = vec![0xEF, 0xBB, 0xBF];
+    let 规整 = 文本.replace("\r\n", "\n").replace('\r', "\n");
+    出.extend_from_slice(规整.replace('\n', "\r\n").as_bytes());
+    出
+}
+
+/// 解出要装的文件 + 写出一份 `.iss`，返回 iss 的路径。
+///
+/// 不管有没有 ISCC 都做这一步：`--保留iss` 在任何机器上都有东西可留（排查
+/// 「装出来不对」时那是最有用的线索），判据也能在没有 Inno 的机器上比对
+/// 「两套命令行生成的脚本是否逐字相同」。
+fn 备iss(
+    名字: &str,
+    版本: &str,
+    入口: &str,
+    出: &str,
+    临时: &Path,
+    zip: &[u8],
+) -> Result<PathBuf, String> {
+    let 发行 = 临时.join("发行");
+    fs::create_dir_all(&发行).map_err(|e| format!("建目录失败：{e}"))?;
+    解到(zip, &发行)?;
+    let 语言 = 临时.join("ChineseSimplified.isl");
+    fs::write(&语言, 内置消息文件.as_bytes())
+        .map_err(|e| format!("写语言文件失败：{e}"))?;
+    let 文本 = 用户iss(名字, 版本, 入口, &发行, 出, &语言.display().to_string())?;
+    let iss = 临时.join("安装.iss");
+    fs::write(&iss, 带bom(&文本)).map_err(|e| format!("写 iss 失败：{e}"))?;
+    Ok(iss)
+}
+
+/// 调 ISCC 编出来，再把那个 setup.exe 打成「只装一个文件」的 zip（壳的载荷）。
+#[allow(clippy::too_many_arguments)]
+fn 编译iss(
+    iss: &Path,
+    名字: &str,
+    版本: &str,
+    出: &str,
+    临时: &Path,
+    iscc: &Path,
+) -> Result<String, String> {
+    let 结果 = std::process::Command::new(iscc)
+        .arg("/Q")
+        .arg(iss)
+        .current_dir(临时)
+        .output()
+        .map_err(|e| format!("起不来 ISCC（{}）：{e}", iscc.display()))?;
+    let 文 = format!(
+        "{}{}",
+        String::from_utf8_lossy(&结果.stdout),
+        String::from_utf8_lossy(&结果.stderr)
+    );
+    let 编出 = Path::new(出).join(format!("{名字}-{版本}-windows-x64-setup.exe"));
+    if !结果.status.success() || !编出.is_file() {
+        // 编译失败**不**悄悄退回存根：那是我们自己的脚本坏了，换一种产物只会藏问题
+        let 尾: String = 文.chars().rev().take(2000).collect::<Vec<_>>()
+            .into_iter().rev().collect();
+        return Err(format!(
+            "Inno Setup 编译失败（退出码 {:?}）\n{尾}\n\
+             　　 不想用向导版就加 `--不用inno`（出存根版）。",
+            结果.status.code()
+        ));
+    }
+    let 子 = 临时.join("子包");
+    fs::create_dir_all(&子).map_err(|e| format!("建目录失败：{e}"))?;
+    let 载荷 = 子.join(子安装器条目);
+    fs::rename(&编出, &载荷).or_else(|_| {
+        fs::copy(&编出, &载荷)
+            .map(|_| ())
+            .and_then(|_| fs::remove_file(&编出))
+    })
+    .map_err(|e| format!("搬安装器失败：{e}"))?;
+    打一个包(
+        &[载荷.display().to_string()],
+        &子.display().to_string(),
+        临时,
+        名字,
+        版本,
+        "",
+        平台("安装包"),
+        false,
+        "",
+    )
+    .map_err(|e| e.message)
+}
+
 fn 找存根() -> String {
     let 名 = if cfg!(windows) { "jishi-pack-stub.exe" } else { "jishi-pack-stub" };
     let mut 候选: Vec<PathBuf> = Vec::new();
@@ -353,7 +716,8 @@ fn 找存根() -> String {
 
 fn 用法() -> String {
     "用法：jishi 打包 [目录] [--出 目录] [--名字 X] [--版本 X] [--入口 X]\n\
-     \x20               [--存根 路径] [--目标 便携,安装包,应用,压缩包] [--安静]\n"
+     \x20               [--存根 路径] [--目标 便携,安装包,应用,压缩包]\n\
+     \x20               [--不用inno] [--保留iss] [--安静]\n"
         .to_string()
 }
 
@@ -367,6 +731,9 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
     // M177：自带运行时
     let mut 带运行时 = false;
     let mut 引擎 = String::new();
+    // M198：向导版的两个开关
+    let mut 不用inno = false;
+    let mut 保留iss = false;
     let mut i = 0;
     while i < argv.len() {
         let a = argv[i].as_str();
@@ -382,6 +749,8 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             "--存根" | "--stub" => 存根 = 取值(&mut i),
             "--目标" | "--targets" => 目标们 = 取值(&mut i),
             "--安静" | "-q" | "--quiet" => 安静 = true,
+            "--不用inno" | "--no-inno" => 不用inno = true,
+            "--保留iss" | "--keep-iss" => 保留iss = true,
             // M177：把引擎打进包里，装到没装过基石的机器上双击就能用
             "--自带运行时" | "--with-runtime" => 带运行时 = true,
             "--引擎" | "--engine" => 引擎 = 取值(&mut i),
@@ -472,6 +841,19 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
                    用 --存根 指给它，或者 `--目标` 里去掉「安装包」。");
         return ExitCode::from(2);
     }
+    // M198：向导版的载荷要套在存根壳里（壳翻译老参数），所以存根仍然是必需的；
+    // ISCC 决定的是「载荷是 Inno 向导还是散文件」
+    let iscc: Option<PathBuf> = if 不用inno {
+        None
+    } else {
+        match 找iscc() {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("错误：{e}");
+                return ExitCode::from(2);
+            }
+        }
+    };
     let mut 警告: Vec<String> = Vec::new();
     if 要哪些.iter().any(|t| t == "应用") && 入口.is_empty() {
         要哪些.retain(|t| t != "应用");
@@ -496,6 +878,16 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
         eprintln!("错误：建输出目录「{出}」失败：{e}");
         return ExitCode::FAILURE;
     }
+    // M198：后面要给 ISCC 传 `OutputDir`，**必须绝对路径** —— 相对路径它会
+    // 相对 `.iss` 所在目录（临时目录）去算，编完在输出目录里找不到产物，
+    // 而 ISCC 的退出码还是 0（「成功但没东西」）。
+    let 出 = match fs::canonicalize(&出) {
+        Ok(p) => {
+            let s = p.display().to_string();
+            s.strip_prefix(r"\\?\").unwrap_or(&s).to_string()
+        }
+        Err(_) => 出.clone(),
+    };
 
     let 临时 = std::env::temp_dir().join(format!("jishi-pack-{}", std::process::id()));
     let _ = fs::remove_dir_all(&临时);
@@ -517,7 +909,17 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("安装包"), 带运行时, &引擎)
                 .map_err(|e| e.message)?;
             let 目标 = format!("{出}/{名字}-{版本}-windows-x64-setup.exe");
-            let 包字节 = fs::read(&包).map_err(|e| format!("读包失败：{e}"))?;
+            let 原包字节 = fs::read(&包).map_err(|e| format!("读包失败：{e}"))?;
+            // M198：`.iss` **不管有没有 ISCC 都生成**（`--保留iss` 与判据都要它）。
+            // 有 ISCC 时再编成子安装器、拿那个 zip 当载荷。
+            let iss = 备iss(&名字, &版本, &入口, &出, &临时, &原包字节)?;
+            let 包字节 = match &iscc {
+                Some(路径) => {
+                    let 子 = 编译iss(&iss, &名字, &版本, &出, &临时, 路径)?;
+                    fs::read(&子).map_err(|e| format!("读子包失败：{e}"))?
+                }
+                None => 原包字节,
+            };
             let 存根字节 = fs::read(&存根).map_err(|e| format!("读存根失败：{e}"))?;
             // 尾部索引：`[存根][包][偏移 u64][长度 u64]["JISHIPK1"]`（与 `打包.安装包` 同格式）
             let mut 全 = Vec::with_capacity(存根字节.len() + 包字节.len() + 24);
@@ -527,7 +929,24 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             全.extend_from_slice(&(包字节.len() as u64).to_le_bytes());
             全.extend_from_slice(b"JISHIPK1");
             fs::write(&目标, &全).map_err(|e| format!("写安装包失败：{e}"))?;
+            // 🔴 降级要**当场说清**（`--安静` 也照说）：产物类型变了，
+            //    脚本作者不看 stderr 就会一直以为拿到的是向导版。
+            if iscc.is_none() {
+                let 因 = if 不用inno {
+                    "你指定了 --不用inno"
+                } else {
+                    "这台机器没找到 Inno Setup 的编译器（ISCC.exe）"
+                };
+                eprintln!("⚠️  安装包没走 Inno 向导：{因}");
+                eprintln!("　　 出的是「自解压存根版」：能装、能卸、「应用和功能」里有条目，但没有「选目录 / 选桌面快捷方式」的向导。");
+                eprintln!("　　 要向导版：装 Inno Setup 6（winget install -e --id JRSoftware.InnoSetup），或用 JISHI_ISCC 指到 ISCC.exe。");
+            }
             成品.push(("安装包".to_string(), 目标));
+            if 保留iss {
+                let iss出 = format!("{出}/{名字}-{版本}-windows-x64-setup.iss");
+                fs::copy(&iss, &iss出).map_err(|e| format!("复制 iss 失败：{e}"))?;
+                成品.push(("安装脚本".to_string(), iss出));
+            }
         }
         if 要哪些.iter().any(|t| t == "应用") {
             let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("应用"), 带运行时, &引擎)
