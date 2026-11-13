@@ -61,10 +61,13 @@ def _起(命令, 日志, 超时):
     🔴 Windows Defender 会拦「刚写出来就执行」的 exe：`CreateProcess` 直接
        抛 `WinError 225（文件包含病毒或潜在的垃圾软件）`。这不是判据的错，
        重试一两次就过去了（实测：同一条命令隔几秒再跑就没事）。所以这里
-       **退避重试**；三次都不行才报错，并把「大概是杀软」写在错误里 ——
+       **退避重试**（累计约 31 秒）；还不行才报错，并把「大概是杀软」写在错误里 ——
        否则下次看到 225 的人会以为是打包坏了。
+
+    📌 为什么退避要这么长：判据是 4 路并行跑的，同一时刻好几个进程在「写完就执行」，
+       Defender 的按访问扫描会排队；实测 15 秒偶尔还不够，31 秒没再撞过。
     """
-    退避 = (1.0, 2.0, 4.0, 8.0)
+    退避 = (1.0, 2.0, 4.0, 8.0, 8.0, 8.0)
     for 次 in range(len(退避) + 1):
         try:
             with open(日志, "w", encoding="utf-8") as f:
@@ -357,12 +360,28 @@ def _跑安装器(包: Path, *参数, 超时=600):
     return r.returncode, 日志.read_text(encoding="utf-8", errors="replace")
 
 
-def _卸载(装: Path):
+def _卸载(装: Path, 显示名: str = "M198自检"):
+    """卸载并且**等它真的卸完**。
+
+    🔴 Inno 的卸载器会把自己复制到临时目录再让那份干活，**主进程立刻退出** ——
+       不等的话，下一个用例正在装同一个 AppId，上一个卸载器在后台把注册表项和
+       目录删掉：报出来的错是「装完了目录里没文件」，看着像安装器坏了。
+       （本判据一开始就是这么假红的：串行跑 13 条全绿，并行跑必挂一条。）
+    """
+    import time
+
+    结果 = (1, "找不到卸载器")
     for 名 in ("unins000.exe", "uninstall.exe"):
         p = 装 / 名
         if p.is_file():
-            return _跑安装器(p, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
-    return 1, "找不到卸载器"
+            结果 = _跑安装器(p, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
+            break
+    for _ in range(60):
+        剩 = [x for x in 装.rglob("*")] if 装.exists() else []
+        if not 剩 and _卸载项(显示名) is None:
+            break
+        time.sleep(0.5)
+    return 结果
 
 
 def _卸载项(显示名: str):
