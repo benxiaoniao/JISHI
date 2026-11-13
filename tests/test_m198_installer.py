@@ -64,21 +64,28 @@ def _起(命令, 日志, 超时):
        **退避重试**；三次都不行才报错，并把「大概是杀软」写在错误里 ——
        否则下次看到 225 的人会以为是打包坏了。
     """
-    for 次 in range(3):
+    退避 = (1.0, 2.0, 4.0, 8.0)
+    for 次 in range(len(退避) + 1):
         try:
             with open(日志, "w", encoding="utf-8") as f:
                 return subprocess.run(命令, stdout=f, stderr=subprocess.STDOUT,
                                       timeout=超时)
         except OSError as e:
-            if getattr(e, "winerror", None) != 225 or 次 == 2:
+            if getattr(e, "winerror", None) != 225 or 次 == len(退避):
                 raise
             import time
-            time.sleep(1.0 + 次)
+            time.sleep(退避[次])
     raise AssertionError("不可达")
 
 
 def _跑程序(程序: Path, *参数, 超时=300):
-    """直接跑一个 exe（不是 jishi 脚本）。**不能** capture_output，理由见 `_跑安装器`。"""
+    """直接跑一个 exe（不是 jishi 脚本）。**不能** capture_output，理由见 `_跑安装器`。
+
+    📌 POSIX 上要先 `chmod +x`：产物是给 Windows 的 `.exe`，在 Linux/macOS 上
+       打包出来的**没有可执行位**（`PermissionError: [Errno 13]`，CI 上撞过）。
+    """
+    if os.name != "nt":
+        os.chmod(程序, 0o755)
     日志 = Path(tempfile.mkdtemp(prefix="m198-程序日志-")) / "out.log"
     r = _起([str(程序), *参数], 日志, 超时)
     return r.returncode, 日志.read_text(encoding="utf-8", errors="replace")

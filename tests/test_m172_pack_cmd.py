@@ -267,12 +267,21 @@ def test_目标能限定只要哪几样(tmp_path):
 
 
 def test_安静模式只打路径(tmp_path):
+    """`--安静` 的契约：**stdout 只有产物路径**（给脚本读的）。
+
+    📌 stderr 归人看：M198 起「这台机器没有 Inno Setup」那条降级说明走 stderr
+       （不许静默降级 —— 产物类型变了）。所以这里**只看 stdout**，
+       `_跑` 把两股合在一起了，得分开拿。
+    """
     _造源(tmp_path)
-    出 = _跑(["app", "--名字", "演示", "--入口", "bin/演示.exe", "--出", "出", "--安静"],
-             tmp_path)
-    行们 = [ln for ln in 出.splitlines() if ln.strip()]
+    命令 = [sys.executable, "-m", "oracle.jishi.cli", "打包", "app",
+            "--名字", "演示", "--入口", "bin/演示.exe", "--出", "出", "--安静"]
+    r = subprocess.run(命令, cwd=str(tmp_path), capture_output=True, timeout=300,
+                       input=b"")
+    assert r.returncode == 0, (r.stdout + r.stderr).decode("utf-8", "replace")[-400:]
+    行们 = [ln for ln in r.stdout.decode("utf-8", "replace").splitlines() if ln.strip()]
     assert 行们 and all(os.path.isabs(ln) or ln.startswith("出") for ln in 行们), 行们
-    assert not any("打包「" in ln for ln in 行们), 出[:300]
+    assert not any("打包「" in ln for ln in 行们), 行们[:6]
 
 
 def test_不认识的产物类型要报错(tmp_path):
