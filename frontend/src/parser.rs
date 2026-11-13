@@ -607,6 +607,26 @@ impl Parser {
         Err(self.err_here(E_NAME, "这里需要一个属性名", None))
     }
 
+    /// 中文里「逻辑与 / 逻辑或」的常见说法 —— 它们**不是关键字**。
+    ///
+    /// 📌 为什么不做成 `且` 的别名（`且 = 与`）：项目规矩是「一个能力不造两个名字，
+    /// 否则用户只会犹豫该用哪个」。但报错**必须点名** —— 清单里的原话是
+    /// 「中文语感默认『与=且』，报错却指向别处，1000 行文件里找了一轮」。
+    ///
+    /// ⚠️ 与 Python `parser._逻辑近义词` **逐字一致**（报错渲染要三宿主相同）。
+    fn 逻辑近义词(t: &Tok) -> Option<String> {
+        let v = match &t.value {
+            Value::Str(x) => x.as_str(),
+            _ => return None,
+        };
+        if !matches!(v, "且" | "并且" | "而且" | "或者" | "但是" | "可是") {
+            return None;
+        }
+        Some(format!(
+            "「{v}」不是关键字，会被当成名字 —— 逻辑运算符只有 与 / 或 / 非"
+        ))
+    }
+
     fn expect_newline(&mut self) -> R<()> {
         if self.at("NEWLINE") {
             self.advance();
@@ -621,9 +641,10 @@ impl Parser {
                 }
             }
         }
+        let 提 = Self::逻辑近义词(self.cur());
         Err(self.err_here(
             E_UNEXPECTED,
-            "这一行没写完，但下一行已经开始了——是不是少了个符号？", None))
+            "这一行没写完，但下一行已经开始了——是不是少了个符号？", 提))
     }
 
     fn expect_colon(&mut self, kw: &str) -> R<()> {
@@ -631,9 +652,12 @@ impl Parser {
             self.advance();
             return Ok(());
         }
+        // 典型：`当 真 且 假：` —— 报「少了个冒号」并指在「且」上，
+        // 但用户看不出是「且」的问题。点名。
+        let 提 = Self::逻辑近义词(self.cur());
         Err(self.err_here(
             E_COLON,
-            format!("「{}」后面要跟冒号「：」，然后换行缩进写代码块", kw), None))
+            format!("「{}」后面要跟冒号「：」，然后换行缩进写代码块", kw), 提))
     }
 
     /// 按 AST 节点位置报错（块解析完之后拿不到 token 时用）

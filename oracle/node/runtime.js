@@ -108,6 +108,10 @@ class JishiError extends Error {
     //: 源文件名（R6.4）：渲染要打 `┌─ 文件:行:列`。由 VM 在错误冒泡时填
     //: （见 `vm.js` 的 catch），对应 Python 的 `JishiError.filename`。
     this.filename = null;
+    //: 出错代码**所在的源文件**（M199 / E5）：只有「本地包展开进来的函数」
+    //: 才有值。入口脚本里写 `甲包.算()`，真正炸的是包里那个文件 —— 不给它，
+    //: 行号在入口脚本里根本不存在，用户拿着哪儿也找不到。
+    this.file = null;
     //: 出错那一行的源码（R6.4）：与 Python 的 `JishiError.source_line` 同义。
     //: ⚠️ **只在出口补**（`attachSource()`，对应 Python CLI 的 `with_source`），
     //: 程序内部 `打印(e)` 时不补 —— 于是「打印出来的错误」两边长得一样
@@ -149,7 +153,7 @@ class JishiError extends Error {
   _attachOne() {
     if (this.sourceLine != null || this.line == null) return this;
     try {
-      const text = fs.readFileSync(this.filename || '', 'utf-8');
+      const text = fs.readFileSync(this.file || this.filename || '', 'utf-8');
       const lines = text.split('\n');
       if (this.line >= 1 && this.line <= lines.length) {
         this.sourceLine = lines[this.line - 1].replace(/\r$/, '');
@@ -239,7 +243,7 @@ class JishiError extends Error {
     } else {
       const [line, col] = pos;
       parts.push(head);
-      parts.push(`  ┌─ ${this.filename || '<输入>'}:${line}:${col}`);
+      parts.push(`  ┌─ ${this.file || this.filename || '<输入>'}:${line}:${col}`);
       parts.push('  │');
       if (this.sourceLine) {
         const src = this.sourceLine.replace(/\n$/, '').replace(/\r$/, '');
@@ -2472,10 +2476,14 @@ function orderCompare(a, b) {
   if (typeof a === 'string' && typeof b === 'string') {
     // ⚠️ 按**码点**比（M55 的老坑：JS 直接 `<` 比的是 UTF-16 码元，
     // `😀` 会落到代理区，与 Python 的码点序不一致）
+    // 🔴 拆成码点还不够 —— 拆开的元素**还是字符串**，`ca[i] < cb[i]` 依旧在比
+    //    码元（M199 实测：`\ufffd` vs `𝄞` 给反的答案）。必须显式取 `codePointAt(0)`。
     const ca = Array.from(a), cb = Array.from(b);
     const n = Math.min(ca.length, cb.length);
     for (let i = 0; i < n; i++) {
-      if (ca[i] !== cb[i]) return ca[i] < cb[i] ? -1 : 1;
+      if (ca[i] !== cb[i]) {
+        return ca[i].codePointAt(0) < cb[i].codePointAt(0) ? -1 : 1;
+      }
     }
     return ca.length === cb.length ? 0 : (ca.length < cb.length ? -1 : 1);
   }

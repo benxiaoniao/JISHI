@@ -14407,7 +14407,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "c2e783c569973bab391350f5f84e62c10aa88b98bf5ad512fd2b9fa9ba2c6dee",
+    "checksum": "8925b65811f394a11c2fb74905102f1f83d180551bd8e0aee0b4e5fb28695e00",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -14959,7 +14959,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -15334,7 +15336,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -15575,7 +15579,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -15881,7 +15887,9 @@
           ],
           "params": [
             "数列"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -16103,7 +16111,9 @@
           "params": [
             "值",
             "字节数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -16337,7 +16347,9 @@
           "params": [
             "值",
             "字节数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -16571,7 +16583,9 @@
             "数据",
             "起点",
             "字节数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -16726,7 +16740,9 @@
           "params": [
             "目标",
             "来源"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -16978,7 +16994,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -17231,7 +17249,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -18046,7 +18066,9 @@
           ],
           "params": [
             "原始"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -18383,7 +18405,9 @@
           "params": [
             "类型文本",
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -19418,7 +19442,9 @@
           "params": [
             "图",
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -20941,7 +20967,9 @@
           "params": [
             "图",
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -22509,7 +22537,9 @@
           "params": [
             "数据",
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -22983,7 +23013,9 @@
           "params": [
             "数据",
             "位置"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -23313,7 +23345,9 @@
           "params": [
             "数据",
             "位置"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -25078,7 +25112,9 @@
           "params": [
             "数据",
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -25423,7 +25459,9 @@
           "params": [
             "图",
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -26038,7 +26076,9 @@
             "宽",
             "高",
             "底色"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -26138,7 +26178,9 @@
           ],
           "params": [
             "图"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -26708,7 +26750,9 @@
             "图",
             "x",
             "y"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -27326,7 +27370,9 @@
             "x",
             "y",
             "色"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -27680,7 +27726,9 @@
           "params": [
             "图",
             "色"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -27816,7 +27864,9 @@
           ],
           "params": [
             "读的"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -28067,7 +28117,9 @@
           ],
           "params": [
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -28559,7 +28611,9 @@
           ],
           "params": [
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -28906,7 +28960,9 @@
           "params": [
             "图",
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -29043,7 +29099,9 @@
           "params": [
             "源路径",
             "目标路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

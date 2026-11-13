@@ -1900,7 +1900,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "4f841d8031b62b239761eeda308bb203667b6071a86b09bc08ec601e4b97c756",
+    "checksum": "fee23bef8443fc4e96585ade964eb0a2e930d7f9197b4810cac07a483dc787f5",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -3216,7 +3216,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3280,7 +3282,9 @@
           "params": [
             "自身",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3332,7 +3336,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3432,7 +3438,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3526,7 +3534,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3638,7 +3648,9 @@
           "params": [
             "自身",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3690,7 +3702,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3754,7 +3768,9 @@
           "params": [
             "自身",
             "余额"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3848,7 +3864,9 @@
           "params": [
             "自身",
             "数额"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3906,7 +3924,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3964,7 +3984,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4058,7 +4080,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4122,7 +4146,9 @@
           "params": [
             "自身",
             "项"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4180,7 +4206,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4244,7 +4272,9 @@
           "params": [
             "自身",
             "项"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4302,7 +4332,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

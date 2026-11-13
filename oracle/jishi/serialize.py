@@ -97,6 +97,11 @@ def _payload_json(cmod: O.CompiledModule) -> dict:
                             for k, v in sorted(code.local_hints.items())},
             # 指令流：扁平数组，每条指令 6 个 int32（op,a,b,c,line,col）
             "instrs": [x for ins in code.instrs for x in ins.as_tuple()],
+            # M199 / E5：**只给包内函数**（入口脚本的 Code 是空/0，此时这两个键
+            # 与不写完全等价 —— 老字节码缺键也按空/0 处理，行为不变）。
+            # 有它，包里的函数抛错才能报「乙.jsh:4」而不是「入口.jsh:7」。
+            "src_file": getattr(code, "src_file", "") or "",
+            "src_start": getattr(code, "src_start", 0) or 0,
         })
     return {
         "consts": [_const_to_json(c) for c in cmod.consts],

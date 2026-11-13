@@ -178,7 +178,7 @@ pub fn payload_json(m: &Module) -> String {
                 "{{\"name\":{},\"params\":{},\"param_idx\":{},\"param_local\":{},",
                 "\"param_cell\":{},\"param_kind\":{},\"nlocals\":{},\"local_names\":{},",
                 "\"cellvars\":{},\"freevars\":{},\"firstlineno\":{},\"local_hints\":{},",
-                "\"instrs\":[{}]}}"
+                "\"instrs\":[{}],\"src_file\":{},\"src_start\":{}}}"
             ),
             json_str(&c.name),
             json_str_list(&c.params),
@@ -193,6 +193,8 @@ pub fn payload_json(m: &Module) -> String {
             c.firstlineno,
             json_local_hints(&c.local_hints),
             instrs.join(","),
+            json_str(&c.src_file),
+            c.src_start,
         ));
     }
     let kw: Vec<String> = m.kw_names.iter().map(|v| json_str_list(v)).collect();

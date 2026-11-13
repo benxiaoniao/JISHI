@@ -1163,7 +1163,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "2b5d4284d13816757f0afc1ef61e3543a5fa85b5c5f7a76d26049b533d4d61e1",
+    "checksum": "79d427d5673e14d173448b6f005c62d8539aad905ea5e9c906386e944138c502",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -1781,7 +1781,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1941,7 +1943,9 @@
           "params": [
             "名",
             "称呼"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2035,7 +2039,9 @@
             "乙",
             "丙",
             "丁"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -2107,7 +2113,9 @@
           ],
           "params": [
             "基数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2173,7 +2181,9 @@
           ],
           "params": [
             "数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2267,7 +2277,9 @@
             "乙",
             "余",
             "选项"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -2350,7 +2362,9 @@
           "params": [
             "自身",
             "谁"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2434,7 +2448,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -2510,7 +2526,9 @@
           "params": [
             "数",
             "步长"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2619,7 +2637,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

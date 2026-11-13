@@ -887,7 +887,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "11e841c25fc7c53c896ab5f8697eee34953d240e13c532691564c5669b8682a5",
+    "checksum": "ed9869ab69f9b26456560ba2458bd6fd97dddb7a8326a8704ef93ddaf8334eaf",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -1433,7 +1433,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1497,7 +1499,9 @@
           "params": [
             "自身",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1573,7 +1577,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1649,7 +1655,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1725,7 +1733,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1789,7 +1799,9 @@
           "params": [
             "自身",
             "余额"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1871,7 +1883,9 @@
           "params": [
             "自身",
             "数额"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2013,7 +2027,9 @@
           "params": [
             "自身",
             "数额"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2071,7 +2087,9 @@
           ],
           "params": [
             "自身"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

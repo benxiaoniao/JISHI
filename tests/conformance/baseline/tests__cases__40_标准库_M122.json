@@ -2099,7 +2099,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "d2855d5f8660ce49a7345097d568df70e2eec05dc405a600477254b91a628885",
+    "checksum": "2bce9984ef901c85a59123a4cc804f3d11469a0c440b6b043f4e57a53437b8f2",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -3977,7 +3977,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4035,7 +4037,9 @@
           "params": [
             "请求",
             "参数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4117,7 +4121,9 @@
           "params": [
             "请求",
             "参数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4175,7 +4181,9 @@
           "params": [
             "请求",
             "参数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4233,7 +4241,9 @@
           "params": [
             "请求",
             "参数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

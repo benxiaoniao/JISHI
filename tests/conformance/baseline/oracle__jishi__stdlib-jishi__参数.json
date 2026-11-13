@@ -5234,7 +5234,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "5df3500bf8b9124da3d419ccbf54ed12f89e74397ad4d97d73259c0191db6090",
+    "checksum": "2b6c98e2469990f5e97ebfc17152063076678ccca6fba5416fa620247cfe3323",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -5492,7 +5492,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5568,7 +5570,9 @@
           ],
           "params": [
             "v"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5824,7 +5828,9 @@
           ],
           "params": [
             "句柄"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5888,7 +5894,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -6177,7 +6185,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -6513,7 +6523,9 @@
           "params": [
             "选项表",
             "名"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -6698,7 +6710,9 @@
           "params": [
             "选项表",
             "名"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -8312,7 +8326,9 @@
           "params": [
             "选项表",
             "参数们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -8478,7 +8494,9 @@
           "params": [
             "名字",
             "说明"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -8693,7 +8711,9 @@
             "名",
             "默认",
             "说明"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -8902,7 +8922,9 @@
             "句柄",
             "名",
             "说明"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9117,7 +9139,9 @@
           ],
           "params": [
             "文"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9278,7 +9302,9 @@
           "params": [
             "文",
             "宽"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -10110,7 +10136,9 @@
           ],
           "params": [
             "句柄"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -10573,7 +10601,9 @@
           "params": [
             "参数们",
             "声明"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -10903,7 +10933,9 @@
           "params": [
             "句柄",
             "参数们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

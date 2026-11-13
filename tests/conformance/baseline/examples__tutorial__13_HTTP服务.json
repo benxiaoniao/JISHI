@@ -1754,7 +1754,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "208aa22caa4b412c3a8424c48c7be535abf6c7c43d1cab9b578c98d6959abf7f",
+    "checksum": "33c607c2be81c508d7754ec1f55e83c74832e4fb0c7aab0ecac227f60620b862",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -2372,7 +2372,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2545,7 +2547,9 @@
           "params": [
             "请求",
             "参数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2838,7 +2842,9 @@
           "params": [
             "请求",
             "参数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3411,7 +3417,9 @@
           "params": [
             "请求",
             "参数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3475,7 +3483,9 @@
           ],
           "params": [
             "行"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3702,7 +3712,9 @@
           ],
           "params": [
             "请求"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

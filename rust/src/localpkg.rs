@@ -46,7 +46,10 @@ pub fn expand(program: &jishi_frontend::parser::Node, filename: &str)
             return Err(e);
         }
     }
-    jishi_frontend::localpkg::expand(program).map_err(|e| {
+    // M199 / B2：本地包**先从脚本所在目录**找（`脚本/.jishi/packages/<包>/`），
+    // 找不到再退回 cwd 与用户目录。原来是只看 cwd ⇒「把库放在脚本旁边」不成立。
+    let base = jishi_frontend::localpkg::脚本目录(filename);
+    jishi_frontend::localpkg::expand_at(program, base.as_deref()).map_err(|e| {
         let mut err = crate::err("找不到这个函数", e.message);
         err.line = Some(if e.line > 0 { e.line } else { 1 });
         err.col = Some(if e.col > 0 { e.col } else { 1 });

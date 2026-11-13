@@ -102,10 +102,30 @@ def _环境包根() -> list:
     return [d for d in raw.split(os.pathsep) if d]
 
 
-def package_dirs() -> list:
-    """包搜索目录：**额外根（`JISHI_PKG_ROOTS`）→ 项目 `.jishi/packages` → 用户目录**。"""
+def _脚本目录(filename: str) -> Optional[str]:
+    """从「脚本文件名」推出它所在的目录，用作本地包的**第一个**搜索根（M199 / B2）。
+
+    推不出来就返回 None —— 那时行为与以前完全一样：
+    · `<输入>` / `<stdin>` 这类虚拟名（REPL、`--eval`）；
+    · **纯文件名**（`a.jsh`）：它的目录就是 cwd，搜索链里本来就有。
+    ⚠️ 与 Rust `localpkg::脚本目录` **同样三条规则**（判据盯着两边同一结果）。
+    """
+    f = (filename or "").strip()
+    if not f or f.startswith("<"):
+        return None
+    return os.path.dirname(f) or None
+
+
+def package_dirs(脚本目录: Optional[str] = None) -> list:
+    """包搜索目录：**脚本目录 → 额外根（`JISHI_PKG_ROOTS`）→ 项目 → 用户目录**。
+
+    🔴 脚本目录排最前（M199 / B2）：原来只看 cwd，于是「把库放在脚本旁边」不成立 ——
+       同一份文件换个目录跑就报「没有找到本地包」。最具体的那一层先找，跟
+       `.git` / `node_modules` 逐级往上的直觉一致；cwd 与用户目录留作兜底。
+    """
+    head = [os.path.join(脚本目录, ".jishi", "packages")] if 脚本目录 else []
     dirs = []
-    for d in (_环境包根()
+    for d in (head + _环境包根()
               + [os.path.join(os.getcwd(), ".jishi", "packages"),
                  os.path.join(os.path.expanduser("~"), ".jishi", "packages")]):
         if d and d not in dirs:
@@ -113,8 +133,8 @@ def package_dirs() -> list:
     return dirs
 
 
-def find_pkg_dir(name: str) -> Optional[str]:
-    for base in package_dirs():
+def find_pkg_dir(name: str, 脚本目录: Optional[str] = None) -> Optional[str]:
+    for base in package_dirs(脚本目录):
         cand = os.path.join(base, name)
         if os.path.isdir(cand):
             return cand
@@ -177,7 +197,8 @@ def _shift(node, delta: int) -> None:
     _shift_lines(node, delta)
 
 
-def shell_def(name: str, node, filename: str, stack: Optional[list] = None) -> list:
+def shell_def(name: str, node, filename: str, stack: Optional[list] = None,
+              脚本目录: Optional[str] = None) -> list:
     """生成 `[依赖的外壳函数…, 本包的外壳函数]`（依赖在前，可直接插进程序顶部）。
 
     `node` 是**那条 `导入` 语句** —— 报错位置用它（行列要落在用户写的那一行）。
@@ -188,10 +209,13 @@ def shell_def(name: str, node, filename: str, stack: Optional[list] = None) -> l
         _fail(f"检测到循环依赖：{chain}", node, filename)
     stack.append(name)
 
-    pkg_dir = find_pkg_dir(name)
+    pkg_dir = find_pkg_dir(name, 脚本目录)
     if pkg_dir is None:
+        # 把**找过的目录列出来**（M199 / B2）：原来只说「放到 .jishi/packages/」，
+        # 而实际会找四处；用户放在脚本旁边却被判「没找到」时看不到这条最关键线索。
+        找过 = "\n".join("  · " + d for d in sorted(package_dirs(脚本目录)))
         _fail(f"没有找到本地包「{name}」", node, filename,
-              hint=f"请把包放到 .jishi/packages/{name}/ 目录（含 包.json 与 .jsh 模块）")
+              hint=f"找过这些目录（放 <目录>/{name}/，含 包.json 与 .jsh 模块）：\n{找过}")
 
     meta = _read_meta(pkg_dir, name, node, filename)
 
@@ -201,8 +225,8 @@ def shell_def(name: str, node, filename: str, stack: Optional[list] = None) -> l
     defs: list = []
     依赖名: list = []
     for dep_name, constraint in (meta.get("依赖") or {}).items():
-        defs += shell_def(dep_name, node, filename, stack)
-        dep_dir = find_pkg_dir(dep_name)
+        defs += shell_def(dep_name, node, filename, stack, 脚本目录)
+        dep_dir = find_pkg_dir(dep_name, 脚本目录)
         dep_meta = _read_meta(dep_dir, dep_name, node, filename) if dep_dir else {}
         dep_version = str(dep_meta.get("版本") or "") or "0.0.0"
         if not version_satisfies(dep_version, str(constraint)):
@@ -225,8 +249,14 @@ def shell_def(name: str, node, filename: str, stack: Optional[list] = None) -> l
     from .parser import parse_source
     from .jishilib import _export_names
 
-    源码 = "".join(s.replace("\r\n", "\n").replace("\r", "\n") + "\n"
-                   for _p, s in 片段)
+    # M199 / E5：**段表** —— 每个模块在拼接源码里的起始行 → 真实路径。
+    # 报错要显示「乙.jsh:4」就靠它（原来是「入口.jsh:7」，第 7 行还是拼出来的）。
+    源码 = ""
+    段表: list = []
+    for 路径, 内容 in 片段:
+        # 路径归一成绝对：Rust 侧也这么做，否则两边显示成两串不同的字
+        段表.append((源码.count("\n") + 1, os.path.abspath(路径)))
+        源码 += 内容.replace("\r\n", "\n").replace("\r", "\n") + "\n"
     导出 = _export_names(parse_source(源码, 片段[0][0]))
     正文 = [("    " + line) if line.strip() else ""
             for line in 源码.split("\n")]
@@ -240,6 +270,9 @@ def shell_def(name: str, node, filename: str, stack: Optional[list] = None) -> l
         if isinstance(节点, A.FuncDef) and 节点.name == shell_name(name):
             # 行号整体减掉「函数头 1 行」
             _shift(节点, -1)
+            # M199 / E5：给包里**每个函数**打「来自哪个文件、从第几行起」。
+            # 必须在 `_shift` 之后 —— 标记是按「拼接源码行」查的。
+            _标记来源(节点, 段表)
             # 依赖注入**用 AST 节点插**，不写进源码：`$造模块` 在宿主的词法器里
             # 写不出来（`$` 不是合法字符），写进源码只有 Python 能解析。
             节点.body = [_dep_assign(d, 节点.line) for d in 依赖名] + 节点.body
@@ -251,6 +284,30 @@ def shell_def(name: str, node, filename: str, stack: Optional[list] = None) -> l
 # ---------------------------------------------------------------------------
 # AST 改写：`导入 图片格式转换 从 本地包` → `图片格式转换 = $造模块("图片格式转换", __本地包_图片格式转换__())`
 # ---------------------------------------------------------------------------
+
+def _标记来源(node, 段表: list) -> None:
+    """给包里每个**函数节点**打「来源文件 + 起始行」（M199 / E5）。
+
+    只标 `FuncDef`：只有函数会变成独立的 `Code`，报错的文件名与行号挂在它上面。
+    规则与 Rust `localpkg::标记来源` 同一套（两边产物要对得上）。
+    """
+    import dataclasses
+
+    if isinstance(node, A.FuncDef):
+        for 起, 文件 in 段表:
+            if 起 > (node.line or 0):
+                break
+            node.__src_file = 文件
+            node.__src_start = 起
+    for f in dataclasses.fields(node):
+        v = getattr(node, f.name, None)
+        if isinstance(v, A.Node):
+            _标记来源(v, 段表)
+        elif isinstance(v, list):
+            for x in v:
+                if isinstance(x, A.Node):
+                    _标记来源(x, 段表)
+
 
 def _dep_assign(dep_name: str, line: int):
     """`依赖名 = $造模块("依赖名", __本地包_依赖名__())` —— 一个赋值节点。
@@ -341,6 +398,8 @@ def expand(program, filename: str = "<输入>"):
     if not _collect(program):
         return program
 
+    # M199 / B2：本地包**先从脚本所在目录**找（`脚本/.jishi/packages/<包>/`）
+    脚本所在 = _脚本目录(filename)
     新程序 = copy.deepcopy(program)
     壳们: dict = {}
 
@@ -349,7 +408,7 @@ def expand(program, filename: str = "<输入>"):
             return node
         name = node.name
         if name not in 壳们:
-            壳们[name] = shell_def(name, node, filename)
+            壳们[name] = shell_def(name, node, filename, 脚本目录=脚本所在)
         binding = node.alias or name
         调用 = A.Call(
             line=node.line, col=node.col,

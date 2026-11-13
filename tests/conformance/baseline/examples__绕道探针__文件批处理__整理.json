@@ -2494,7 +2494,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "355497ade905f5d7c12816873e5e75fb571cb97cb8153a2902c7060ccc5c596a",
+    "checksum": "a68e14661bb7fef203c7c1b962956c00eb58f52bb28245999ce6d4c9a0071929",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -2728,7 +2728,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2804,7 +2806,9 @@
           ],
           "params": [
             "目录"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3112,7 +3116,9 @@
           "params": [
             "目录",
             "名字们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3478,7 +3484,9 @@
           ],
           "params": [
             "新路径们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3615,7 +3623,9 @@
           ],
           "params": [
             "新路径们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4066,7 +4076,9 @@
           ],
           "params": [
             "新路径们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4379,7 +4391,9 @@
           ],
           "params": [
             "目录"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4461,7 +4475,9 @@
           "params": [
             "源",
             "目标"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4711,7 +4727,9 @@
           ],
           "params": [
             "索引"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5320,7 +5338,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

@@ -2016,7 +2016,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "59715d95b2402ac85ec1dfa78f1273cb8851b5ef5b80b0a9ea3270beb9740b3f",
+    "checksum": "8ecf7b074732d196d19139e21096e30b88efc651cd0c4d84b4d00f3e7b5aece0",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -2130,7 +2130,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2266,7 +2268,9 @@
           ],
           "params": [
             "值"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2488,7 +2492,9 @@
           "params": [
             "行",
             "科目"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3989,7 +3995,9 @@
           ],
           "params": [
             "文件路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4382,7 +4390,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

@@ -12,7 +12,7 @@ from ..errors import RunFileError
 from ..runtime import jishi_repr, JishiBytes
 
 __all__ = [
-    "写文本", "读文本", "追加文本", "写行", "按行读",
+    "写文本", "读文本", "追加文本", "追加行们", "写行", "按行读",
     "读字节", "写字节",
     "文件存在", "是文件", "是目录", "列出目录",
     "创建目录", "删除文件", "复制", "复制目录", "文件大小", "原子写",
@@ -82,6 +82,20 @@ def 追加文本(路径, 内容: str) -> None:
     """把内容追加到文件末尾（文件不存在则创建）。"""
     with open(_path(路径), "a", encoding="utf-8", newline="") as f:
         f.write(jishi_repr(内容, top=True))
+
+
+def 追加行们(路径, 行列表: list) -> None:
+    """把每一行**追加**到文件末尾（自动补换行；文件不存在则创建）。
+
+    🔴 为什么要有（M199 / B1，`基石数据库` 的 WAL 与日志）：逐行 `追加文本`
+       每行都要**开关一次文件** —— 1 万行就是 1 万次 `open/write/close`。
+       那个项目实测 **0.2 ms/次**，写 WAL 与建索引时是主要开销。
+       这个接口一次打开、批量写，语义与 `写行` 对称（只差开头是 `a` 不是 `w`）。
+
+    ⚠️ 与 `写行` 一样**不替你补分隔符之外的东西**；行里的换行会被原样写下去。
+    """
+    with open(_path(路径), "a", encoding="utf-8", newline="") as f:
+        f.write("".join(jishi_repr(行, top=True) + "\n" for 行 in 行列表))
 
 
 def 写行(路径, 行列表: list) -> None:

@@ -2375,10 +2375,37 @@ def _package_dirs() -> list[str]:
     return localpkg.package_dirs()
 
 
-def _find_pkg_dir(name: str) -> Optional[str]:
-    """在本地包搜索目录里找包目录，找不到返回 None。"""
+def _脚本级包根(脚本目录: Optional[str]) -> Optional[str]:
+    """`<脚本目录>/.jishi/packages`；没有脚本目录就是 None。"""
     import os
-    for base in _package_dirs():
+
+    if not 脚本目录:
+        return None
+    return os.path.join(脚本目录, ".jishi", "packages")
+
+
+def _找过目录(脚本目录: Optional[str] = None) -> list[str]:
+    """**这次实际找过的**目录（给报错提示用）。
+
+    ⚠️ 不把「脚本目录」塞进 `_package_dirs` 的参数里：那个函数被大量测试
+    用 `monkeypatch.setattr(runtime, "_package_dirs", lambda: [...])` 替身成
+    **无参**版本 —— 给它加参数会让十几条老判据一起 `TypeError`
+    （M199 实测，全量一跑就露）。所以这里用「先拿老列表、再往最前面插一条」。
+    """
+    dirs = list(_package_dirs())
+    根 = _脚本级包根(脚本目录)
+    if 根 and 根 not in dirs:
+        dirs.insert(0, 根)
+    return dirs
+
+
+def _find_pkg_dir(name: str, 脚本目录: Optional[str] = None) -> Optional[str]:
+    """在本地包搜索目录里找包目录，找不到返回 None。
+
+    M199 / B2：**先看脚本自己所在的目录**（`<脚本>/​.jishi/packages/<包>`）。
+    """
+    import os
+    for base in _找过目录(脚本目录):
         cand = os.path.join(base, name)
         if os.path.isdir(cand):
             return cand
@@ -2429,12 +2456,19 @@ def _import_local_package(name: str, *, line=None, col=None,
     """
     import os
 
-    pkg_dir = _find_pkg_dir(name)
+    # M199 / B2：解释执行这条路**不经过编译期展开**（`Interpreter.run` 只展开
+    # 基石库），本地包全靠这里的运行时导入 ⇒ 搜索根必须也带上脚本目录，
+    # 否则「`jishi 脚本.jsh` 从仓库根跑」与「cd 到脚本目录再跑」结论不同。
+    from . import localpkg as _lp
+
+    脚本目录 = _lp._脚本目录(filename)
+    pkg_dir = _find_pkg_dir(name, 脚本目录)
     if pkg_dir is None:
+        找过 = "\n".join("  · " + d for d in sorted(_找过目录(脚本目录)))
         raise SemanticFuncError(
             f"没有找到本地包「{name}」", line=line, col=col,
             filename=filename,
-            hint=f"请把包放到 .jishi/packages/{name}/ 目录（含 包.json 与 .jsh 模块）")
+            hint=f"找过这些目录（放 <目录>/{name}/，含 包.json 与 .jsh 模块）：\n{找过}")
 
     if name in _IMPORT_STACK:
         chain = " → ".join(_IMPORT_STACK + [name])
@@ -2454,7 +2488,7 @@ def _import_local_package(name: str, *, line=None, col=None,
                 dep_name, line=line, col=col, filename=filename)
         finally:
             _IMPORT_STACK.pop()
-        dep_dir = _find_pkg_dir(dep_name)
+        dep_dir = _find_pkg_dir(dep_name, 脚本目录)
         dep_meta = _read_pkg_meta(dep_dir, dep_name, line=line, col=col,
                                   filename=filename) if dep_dir else {}
         dep_version = dep_meta.get("版本") or "0.0.0"

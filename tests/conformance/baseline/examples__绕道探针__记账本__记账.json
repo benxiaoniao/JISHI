@@ -2599,7 +2599,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "dd133d9f5d13bfefb5e16e6d77124b39e78e2c1d7df3fc5bb28bea6ff2439c9d",
+    "checksum": "c6c3bef1c6427ad12512e75e3c367645560a9acbfdc74e7735eaa856989255a4",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -2785,7 +2785,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2965,7 +2967,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3185,7 +3189,9 @@
             "金额",
             "类别",
             "备注"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3731,7 +3737,9 @@
           ],
           "params": [
             "库"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4255,7 +4263,9 @@
           ],
           "params": [
             "库"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4355,7 +4365,9 @@
           "params": [
             "库",
             "类别"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -5326,7 +5338,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5434,7 +5448,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

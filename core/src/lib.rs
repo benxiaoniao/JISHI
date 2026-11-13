@@ -395,7 +395,9 @@ fn to_py_module(py: Python<'_>, m: &compiler::Module) -> PyResult<Py<PyAny>> {
 fn compile(py: Python<'_>, source: &str, filename: &str,
            lib_dir: Option<&str>, fuse_method_call: bool) -> PyResult<String> {
     let prog = parser::parse(source, filename).map_err(|e| to_parse_err(py, e))?;
-    let prog = localpkg::expand(&prog).map_err(|e| to_pkg_err(py, e))?;
+    let base = localpkg::脚本目录(filename);
+    let prog = localpkg::expand_at(&prog, base.as_deref())
+        .map_err(|e| to_pkg_err(py, e))?;
     let m = compiler::compile_program(&prog, filename, lib_dir, fuse_method_call);
     Ok(serialize::dump_json(&m))
 }
@@ -408,7 +410,9 @@ fn compile_module(py: Python<'_>, source: &str, filename: &str,
                   lib_dir: Option<&str>, fuse_method_call: bool)
     -> PyResult<Py<PyAny>> {
     let prog = parser::parse(source, filename).map_err(|e| to_parse_err(py, e))?;
-    let prog = localpkg::expand(&prog).map_err(|e| to_pkg_err(py, e))?;
+    let base = localpkg::脚本目录(filename);
+    let prog = localpkg::expand_at(&prog, base.as_deref())
+        .map_err(|e| to_pkg_err(py, e))?;
     let m = compiler::compile_program(&prog, filename, lib_dir, fuse_method_call);
     to_py_module(py, &m)
 }

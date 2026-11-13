@@ -207,7 +207,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "6bf929e895a748f092c79693da594eaa266a3e0dfa0cf5dd0fe72798b699749c",
+    "checksum": "44c8cb33a207bf7537c6eccb7af7227febd409dc8e47e282acbed6a754d49ca3",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -447,7 +447,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

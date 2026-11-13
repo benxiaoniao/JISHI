@@ -138,6 +138,14 @@ pub struct Code {
     /// 局部槽号 → 提示文本（**不进序列化**，只给字节码执行器报错用）。
     pub local_hints: Vec<(i64, String)>,
     pub firstlineno: i64,
+    /// 这段代码**来自哪个源文件**（M199 / E5）。空 = 就是模块的入口文件。
+    ///
+    /// 只有「从本地包展开进来」的函数才有值。不这么做的话，包里的函数抛错时
+    /// 报的是 **入口脚本 + 拼接后的全局行号** —— 那个行号在入口脚本里根本
+    /// 不存在，用户拿着它哪儿也找不到（`基石数据库` 的原话）。
+    pub src_file: String,
+    /// 该文件在「包内拼接源码」里的起始行（1 起）；0 = 不换算。
+    pub src_start: i64,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -1296,6 +1304,16 @@ impl<'a> Emitter<'a> {
             freevars,
             local_hints,
             firstlineno,
+            // M199 / E5：包内函数由 `localpkg` 在 AST 上打好标记，这里照抄。
+            // 入口脚本的节点没有这两个字段 ⇒ 空串，渲染时退回模块文件名。
+            src_file: {
+                if std::env::var("JISHI_DBG_E5").is_ok() {
+                    eprintln!("[E5-code] name={} 字段={:?}", as_jstr(nf(n, "name")),
+                              n.fields.iter().map(|(k, _)| *k).collect::<Vec<_>>());
+                }
+                as_jstr(nf(n, "__src_file")).to_string()
+            },
+            src_start: match nf(n, "__src_start") { J::Int(i) => *i, _ => 0 },
         }
     }
 

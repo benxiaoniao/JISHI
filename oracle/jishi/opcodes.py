@@ -297,6 +297,12 @@ class Code:
     #: 用于把「找不到名字」升级成一句说得清原因的中文提示。
     local_hints: dict[int, str] = field(default_factory=dict)
     firstlineno: int = 1
+    #: 这段代码**来自哪个源文件**（M199 / E5）。空 = 模块入口文件。
+    #: 只有「本地包展开进来的函数」才有值 —— 报错要显示包里那个文件，
+    #: 不是入口脚本（否则行号在入口里根本不存在）。
+    src_file: str = ""
+    #: 该文件在「包内拼接源码」里的起始行（1 起）；0 = 不换算。
+    src_start: int = 0
 
     @property
     def stmt_marks(self) -> list[int]:

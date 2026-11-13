@@ -326,6 +326,24 @@ fn report(e: &JishiError, filename: &str, lines: &[String], json_errors: bool) -
 
 /// 渲染报错块 —— 源码行从**内存里那份**取（`--stdin` 时磁盘上没有这个文件）。
 pub fn render_err(e: &JishiError, filename: &str, lines: &[String]) -> String {
+    // M199 / E5：包内函数报错时 `e.file` 是包里那个文件，**不是**入口脚本。
+    // 那时要换文件显示、并去读那个文件的行 —— 拿入口脚本的 `lines` 去索引
+    // 只会画出另一段代码（或者越界什么都不画），比不画更误导。
+    if let Some(文件) = e.file.as_deref() {
+        if 文件 != filename {
+            let 全 = std::fs::read_to_string(文件)
+                .ok()
+                .map(|t| t.replace("\r\n", "\n").replace('\r', "\n"));
+            return crate::render_error_with(e, 文件, &|line| {
+                if line < 1 {
+                    return None;
+                }
+                全.as_ref()
+                    .and_then(|t| t.lines().nth((line - 1) as usize))
+                    .map(|s| s.to_string())
+            });
+        }
+    }
     crate::render_error_with(e, filename, &|line| {
         if line >= 1 {
             lines.get((line - 1) as usize).cloned()

@@ -3434,7 +3434,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "41346d945c0917193d399bc716bb8f44f274df8f0d0a39e5c00836a04fd57e94",
+    "checksum": "c27229299959b2525e1e72495c62ad8da239c29f90ed2c533972986d14c20885",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -3746,7 +3746,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3846,7 +3848,9 @@
           ],
           "params": [
             "日"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3990,7 +3994,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4292,7 +4298,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4737,7 +4745,9 @@
           ],
           "params": [
             "箱子"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4940,7 +4950,9 @@
           ],
           "params": [
             "口令"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5291,7 +5303,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5415,7 +5429,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5631,7 +5647,9 @@
           ],
           "params": [
             "日志内容"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5961,7 +5979,9 @@
           "params": [
             "箱子",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7087,7 +7107,9 @@
           ],
           "params": [
             "参数们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

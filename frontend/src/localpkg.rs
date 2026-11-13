@@ -79,6 +79,59 @@ fn field<'a>(n: &'a Node, name: &str) -> Option<&'a J> {
     n.fields.iter().find(|(k, _)| *k == name).map(|(_, v)| v)
 }
 
+// ---------------------------------------------------------------------------
+// 段表（M199 / E5）：包内函数 → 「它在哪个文件、从第几行起」
+// ---------------------------------------------------------------------------
+
+/// 找「最后一个起始行 ≤ 行」的那一段（段表按起始行升序，量小，线性扫足够）。
+fn 查段(段表: &[(i64, String)], 行: i64) -> Option<(i64, String)> {
+    let mut 结果 = None;
+    for (起, 文件) in 段表 {
+        if *起 > 行 {
+            break;
+        }
+        结果 = Some((*起, 文件.clone()));
+    }
+    结果
+}
+
+/// 给包里的**每个函数节点**打上「来源文件 + 起始行」。
+///
+/// 🔴 为什么只标 `FuncDef`：只有函数会变成独立的 `Code`，而报错要显示的文件名
+///    与行号是挂在 `Code` 上的。标在 `fields` 里而不是给 `Node` 加结构体字段 ——
+///    `fields` 本来就是开放键值表，编译期读一下就走，别为一个诊断信息动通用结构。
+fn 标记来源(n: &mut Node, 段表: &[(i64, String)]) {
+    if std::env::var("JISHI_DBG_E5").is_ok() {
+        eprintln!("[E5-标记] kind={} name={} line={:?}", n.kind,
+                  as_jstr(field(n, "name")), field(n, "line"));
+    }
+    if n.kind == "FuncDef" {
+        let 行 = match field(n, "line") {
+            Some(J::Int(i)) => *i,
+            _ => 0,
+        };
+        if let Some((起, 文件)) = 查段(段表, 行) {
+            n.fields.push(("__src_file", J::Str(文件)));
+            n.fields.push(("__src_start", J::Int(起)));
+        }
+    }
+    for (_k, v) in n.fields.iter_mut() {
+        标记来源值(v, 段表);
+    }
+}
+
+fn 标记来源值(v: &mut J, 段表: &[(i64, String)]) {
+    match v {
+        J::Node(b) => 标记来源(b, 段表),
+        J::List(items) => {
+            for it in items.iter_mut() {
+                标记来源值(it, 段表);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn as_jstr(v: Option<&J>) -> &str {
     match v {
         Some(J::Str(s)) => s.as_str(),
@@ -143,17 +196,41 @@ pub fn extra_package_roots() -> Vec<String> {
         .collect()
 }
 
-/// 包搜索目录：**额外根 → 项目 `.jishi/packages` → 用户目录**。
+/// 包搜索目录：**脚本目录 → 额外根 → 项目 `.jishi/packages` → 用户目录**。
 pub fn package_roots() -> Vec<String> {
-    let mut v: Vec<String> = extra_package_roots();
-    for d in [
-        Path::new(&cwd()).join(".jishi").join("packages").to_string_lossy().to_string(),
-        Path::new(&home_dir()).join(".jishi").join("packages").to_string_lossy().to_string(),
-    ] {
-        if !v.contains(&d) {
-            v.push(d);
-        }
+    package_roots_at(None)
+}
+
+fn 推(v: &mut Vec<String>, d: String) {
+    if !d.trim().is_empty() && !v.contains(&d) {
+        v.push(d);
     }
+}
+
+/// 同上，但**先看脚本自己所在的目录**（M199 / B2）。
+///
+/// 🔴 为什么要加（`D:/code/基石数据库/语言问题清单.md` 的 B2）：原来只按 **cwd**
+///    找 `.jishi/packages`，于是「把库放在脚本旁边」这件事根本不成立 ——
+///    在 A 目录 `jishi 工具/备份.jsh` 跑得起来，`cd` 到仓库根再跑同一句就报
+///    「没有找到本地包」。用户看到的是**同一份文件忽好忽坏**，而不是路径问题。
+///
+/// 顺序把脚本目录放**最前**：它是最具体的那一层，跟 `.git` 找仓库、`node_modules`
+/// 逐级往上的直觉一致；cwd 与用户目录留作兜底（`jishi 测试 <包>` 那类仍靠它们）。
+///
+/// ⚠️ 与 Python 侧 `localpkg.package_dirs(脚本目录)` **同序**（`test_m199` 盯着）。
+pub fn package_roots_at(base_dir: Option<&str>) -> Vec<String> {
+    let mut v: Vec<String> = Vec::new();
+    if let Some(b) = base_dir.filter(|b| !b.trim().is_empty()) {
+        推(&mut v, Path::new(b).join(".jishi").join("packages")
+            .to_string_lossy().to_string());
+    }
+    for d in extra_package_roots() {
+        推(&mut v, d);
+    }
+    推(&mut v, Path::new(&cwd()).join(".jishi").join("packages")
+        .to_string_lossy().to_string());
+    推(&mut v, Path::new(&home_dir()).join(".jishi").join("packages")
+        .to_string_lossy().to_string());
     v
 }
 
@@ -162,8 +239,12 @@ fn package_dirs() -> Vec<String> {
 }
 
 fn find_pkg_dir(name: &str) -> Option<String> {
-    for base in package_dirs() {
-        let cand = Path::new(&base).join(name);
+    find_pkg_dir_at(name, None)
+}
+
+fn find_pkg_dir_at(name: &str, base: Option<&str>) -> Option<String> {
+    for b in package_roots_at(base) {
+        let cand = Path::new(&b).join(name);
         if cand.is_dir() {
             return Some(cand.to_string_lossy().to_string());
         }
@@ -466,7 +547,8 @@ fn module_files(pkg_dir: &str, name: &str, meta: &MJ, line: i64, col: i64)
 // ---------------------------------------------------------------------------
 
 /// 生成 `[(外壳名, FuncDef)]`：**依赖的在前**，可直接插到程序顶部。
-fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>)
+fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>,
+              base: Option<&str>)
     -> Result<Vec<(String, Node)>, PkgErr>
 {
     if stack.iter().any(|x| x == name) {
@@ -474,9 +556,16 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>)
         chain.push(name.to_string());
         return Err(bad(format!("检测到循环依赖：{}", chain.join(" → ")), line, col));
     }
-    let pkg_dir = find_pkg_dir(name).ok_or_else(|| {
+    let pkg_dir = find_pkg_dir_at(name, base).ok_or_else(|| {
+        // 提示里**把找过的地方列出来**（M199 / B2）：原来只说「放到
+        // .jishi/packages/」，而实际会找四处；用户放在脚本旁边却被判「没找到」时，
+        // 看不到「脚本目录也在找」这条最关键的线索。
+        let mut 找过: Vec<String> = package_roots_at(base)
+            .into_iter().map(|d| format!("  · {d}")).collect();
+        找过.sort();
         bad_hint(format!("没有找到本地包「{name}」"),
-                 format!("请把包放到 .jishi/packages/{name}/ 目录（含 包.json 与 .jsh 模块）"),
+                 format!("找过这些目录（放 <目录>/{name}/，含 包.json 与 .jsh 模块）：\n{}",
+                         找过.join("\n")),
                  line, col)
     })?;
     stack.push(name.to_string());
@@ -493,10 +582,10 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>)
         _ => Vec::new(),
     };
     for (dep_name, constraint) in deps.iter() {
-        let mut sub = shell_defs(dep_name, line, col, stack)?;
+        let mut sub = shell_defs(dep_name, line, col, stack, base)?;
         out.append(&mut sub);
 
-        let dep_version = find_pkg_dir(dep_name)
+        let dep_version = find_pkg_dir_at(dep_name, base)
             .and_then(|d| read_meta(&d, dep_name, line, col).ok())
             .and_then(|m| m.get("版本").and_then(|v| v.as_str()).map(|s| s.trim().to_string()))
             .unwrap_or_default();
@@ -516,12 +605,20 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>)
     // ---- 源码拼起来（多份 .jsh 共享一个作用域，见 Python 侧文档第 2 条取舍）----
     let mut 源码 = String::new();
     let mut 首文件: Option<PathBuf> = None;
+    //: M199 / E5：**段表** —— 每个模块在拼接源码里的起始行 → 它的真实路径。
+    //: 报错要显示「乙.jsh:4」就靠它（原来是「入口.jsh:7」，第 7 行还是拼出来的）。
+    let mut 段表: Vec<(i64, String)> = Vec::new();
     for f in module_files(&pkg_dir, name, &meta, line, col)?.iter() {
         let path = Path::new(&pkg_dir).join(f);
         let text = std::fs::read_to_string(&path).map_err(|e| {
             bad(format!("本地包「{name}」的模块「{f}」读不了：{e}"), line, col)
         })?;
         let norm = text.replace("\r\n", "\n").replace('\r', "\n");
+        // 路径归一成**绝对**：Python 侧也这么做，否则同一个包在两边显示成
+        // 「build\…\乙.jsh」与「D://…//乙.jsh」，对拍时是两串不同的字。
+        段表.push((源码.matches('\n').count() as i64 + 1,
+                   std::path::absolute(&path).unwrap_or(path.clone())
+                       .to_string_lossy().to_string()));
         源码.push_str(&norm);
         源码.push('\n');
         if 首文件.is_none() {
@@ -558,6 +655,9 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>)
                 let mut def = n.as_ref().clone();
                 // 行号减掉「函数头 1 行」
                 shift_lines(&mut def, -1);
+                // M199 / E5：给这个包里的**每个函数**打「来自哪个文件、从第几行起」。
+                // 必须在 `shift_lines` 之后 —— 标记是按「拼接源码行」查的。
+                标记来源(&mut def, &段表);
                 // 依赖注入**用节点插**，不写进源码：`$造模块` 里那个 `$`
                 // 在词法器里根本写不出来（Python 词法器恰好放行 —— 拼源码
                 // 就只有一边能跑，2026-10-27 实测撞到过）。
@@ -718,10 +818,35 @@ fn rewrite_val(v: &J) -> J {
 // 对外入口
 // ---------------------------------------------------------------------------
 
+/// 从「脚本文件名」推出它所在的目录，用作本地包的**第一个**搜索根（M199 / B2）。
+///
+/// 推不出来就返回 `None` —— 那时行为与以前完全一样：
+/// - `<输入>` / `<stdin>` 这类虚拟名（REPL、`--eval`）；
+/// - **纯文件名**（`a.jsh`）：它的目录就是 cwd，搜索链里本来就有，不必重复。
+///
+/// ⚠️ 与 Python `localpkg._脚本目录` **同样三条规则**（判据盯着两边同一结果）。
+pub fn 脚本目录(filename: &str) -> Option<String> {
+    let f = filename.trim();
+    if f.is_empty() || f.starts_with('<') {
+        return None;
+    }
+    match Path::new(f).parent() {
+        Some(d) if !d.as_os_str().is_empty() => Some(d.to_string_lossy().to_string()),
+        _ => None,
+    }
+}
+
 /// 把程序里所有 `导入 … 从 本地包` 展开掉，返回**新的** AST。
 ///
 /// 没有本地包导入时原样返回（`clone` 一次，可忽略）。
 pub fn expand(program: &Node) -> Result<Node, PkgErr> {
+    expand_at(program, None)
+}
+
+/// 同上，但本地包**先从 `base_dir/.jishi/packages` 找**（M199 / B2）。
+///
+/// `base_dir` 传脚本所在目录；`None` = 老行为（只看 cwd 与用户目录）。
+pub fn expand_at(program: &Node, base_dir: Option<&str>) -> Result<Node, PkgErr> {
     let targets = collect(program);
     if targets.is_empty() {
         return Ok(program.clone());
@@ -731,7 +856,7 @@ pub fn expand(program: &Node) -> Result<Node, PkgErr> {
     let mut shells: Vec<(String, Node)> = Vec::new();
     for (name, line, col) in targets.iter() {
         let mut stack: Vec<String> = Vec::new();
-        for (k, d) in shell_defs(name, *line, *col, &mut stack)?.into_iter() {
+        for (k, d) in shell_defs(name, *line, *col, &mut stack, base_dir)?.into_iter() {
             if !shells.iter().any(|(s, _)| s == &k) {
                 shells.push((k, d));
             }

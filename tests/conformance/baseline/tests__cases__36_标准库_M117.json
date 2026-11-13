@@ -1605,7 +1605,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "65a23eba593fb568fbc297eccd130a2d9d1c02d87e622e54cf7499735bf8f96e",
+    "checksum": "bb51fff7ecb8333a36537fd145472ff2928b55a75e6e833b9bde94b4622622cf",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -3159,7 +3159,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -3543,7 +3545,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3856,7 +3860,9 @@
           "params": [
             "数据",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4116,7 +4122,9 @@
           ],
           "params": [
             "可迭代"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4320,7 +4328,9 @@
           ],
           "params": [
             "表"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4396,7 +4406,9 @@
           ],
           "params": [
             "对"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4917,7 +4929,9 @@
           "params": [
             "可迭代",
             "个数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5277,7 +5291,9 @@
           "params": [
             "频次字典",
             "降序"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5353,7 +5369,9 @@
           ],
           "params": [
             "对"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5417,7 +5435,9 @@
           ],
           "params": [
             "对"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5696,7 +5716,9 @@
           "params": [
             "可迭代",
             "键函数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5882,7 +5904,9 @@
           "params": [
             "全部",
             "n"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -6137,7 +6161,9 @@
           "params": [
             "可迭代",
             "个数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -6550,7 +6576,9 @@
           "params": [
             "可迭代",
             "个数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7018,7 +7046,9 @@
           "params": [
             "可迭代",
             "每块个数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7273,7 +7303,9 @@
           ],
           "params": [
             "可迭代"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7679,7 +7711,9 @@
           ],
           "params": [
             "值"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

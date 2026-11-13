@@ -125,6 +125,27 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("文件错误", format!("往「{p}」追加字节失败：{e}")))?;
             Ok(Val::Int(内容.len() as i128))
         },
+        // 🔴 M199 / B1：批量追加。逐行 `追加文本` 每行**开关一次文件**
+        //    （`基石数据库` 的 WAL 实测 0.2 ms/次，建索引时是主要开销）。
+        //    语义与 `写行` 对称，只差开头是 append 不是 truncate。
+        "追加行们" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("追加行们", args, 2)?;
+            let p = as_text(&args[0]);
+            let lines = to_vec(&args[1])?;
+            let mut buf = String::new();
+            for line in &lines {
+                buf.push_str(&as_text(line));
+                buf.push('\n');
+            }
+            let mut f = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&p)
+                .map_err(|e| err("文件错误", format!("打开「{p}」准备追加失败：{e}")))?;
+            f.write_all(buf.as_bytes())
+                .map_err(|e| err("文件错误", format!("往「{p}」追加内容失败：{e}")))?;
+            Ok(Val::None_)
+        },
         "写行" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("写行", args, 2)?;
             let p = as_text(&args[0]);

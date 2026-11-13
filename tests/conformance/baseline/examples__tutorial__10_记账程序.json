@@ -858,7 +858,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "3df81e92c58ec16419bd61fa7bcbadc674eefc613e9c00a7c4bcfa48aa054e34",
+    "checksum": "cb952e35ac934a9d98fb58637b1e469dd7287210efe53a27808099c1ffc762f7",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -1644,7 +1644,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1768,7 +1770,9 @@
           "params": [
             "项目",
             "金额"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

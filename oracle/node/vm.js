@@ -494,7 +494,7 @@ class VM {
           exc = R.runErr(String(exc && exc.message ? exc.message : exc),
                          badIns ? badIns.line : null, badIns ? badIns.col : null);
         }
-        this._fillErrorLoc(exc, badIns);
+        this._fillErrorLoc(exc, badIns, code);
         // 报错渲染要打 `┌─ 文件:行:列`，还要按它去读源文件画源码行 —— 宿主
         // 得知道自己在跑哪个文件（R6.4，与 Rust 的 `Module.filename` 同义）。
         if (!exc.filename) exc.filename = this.filename;
@@ -613,10 +613,17 @@ class VM {
    * 与 Python 的 `errors.py`/`vm` 同义：**只填还没填的** —— 内层若已给出更准的
    * 位置（内建/标准库手里有调用点），不要被外层覆盖。
    */
-  _fillErrorLoc(exc, ins) {
-    if (!ins || exc.line != null) return;
-    exc.line = ins.line;
-    exc.col = ins.col;
+  _fillErrorLoc(exc, ins, code) {
+    if (ins && exc.line == null) {
+      exc.line = ins.line;
+      exc.col = ins.col;
+    }
+    // M199 / E5：包内函数的行号是「该包拼接源码」的行号，入口脚本里不存在。
+    // 换算回文件内行号并挂上文件名；`exc.file` 挡住重复换算。
+    if (code && !exc.file && code.src_file && code.src_start > 0) {
+      if (exc.line != null) exc.line = exc.line - code.src_start + 1;
+      exc.file = code.src_file;
+    }
   }
 
   /**
@@ -637,10 +644,14 @@ class VM {
       const fr = this.frames[i];
       if (!fr.inTrace) continue;   // 方法 / 类实例化 / 内建回调不进链（D74 §三收口）
       const nm = fr.code && fr.code.name;
-      chain.push({
-        func: (nm && nm.startsWith('<')) ? '匿名函数' : nm,
-        line: fr.callLine > 0 ? fr.callLine : null,
-      });
+      // `callLine` 属于**调用者**那个文件（M199 / E5）—— 拿本帧的 code 去减，
+      // 行号会成负数（Rust 侧实测踩过 `第 -1 行`）。
+      const caller = this.frames[i - 1] && this.frames[i - 1].code;
+      let line = fr.callLine > 0 ? fr.callLine : null;
+      if (line != null && caller && caller.src_file && caller.src_start > 0) {
+        line = line - caller.src_start + 1;
+      }
+      chain.push({ func: (nm && nm.startsWith('<')) ? '匿名函数' : nm, line });
     }
     exc.trace = chain;
   }
@@ -2276,6 +2287,12 @@ const FILE_FUNCS = {
   }),
   '追加文本': new R.Builtin('追加文本', (p, content) => {
     fs.appendFileSync(pText(p), pText(content), 'utf8');
+    return null;
+  }),
+  // M199 / B1：批量追加。逐行 `追加文本` 每行开关一次文件（实测 0.2 ms/次）
+  '追加行们': new R.Builtin('追加行们', (p, lines) => {
+    const arr = R.asIterable(lines, '要追加的行');
+    fs.appendFileSync(pText(p), arr.map((x) => pText(x) + '\n').join(''), 'utf8');
     return null;
   }),
   '写行': new R.Builtin('写行', (p, lines) => {

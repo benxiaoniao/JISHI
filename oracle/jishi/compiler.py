@@ -767,6 +767,9 @@ class _Emitter:
             freevars=sorted(scope.freevars),
             local_hints=local_hints,
             firstlineno=st.line,
+            # M199 / E5：包内函数由 `localpkg` 在 AST 上打好标记（见 `_标记来源`）
+            src_file=getattr(st, "__src_file", "") or "",
+            src_start=getattr(st, "__src_start", 0) or 0,
         )
 
     def _c_import(self, st: A.Import):

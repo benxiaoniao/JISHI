@@ -435,7 +435,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "05eb65dd8f94126c7f6470dfeac0b659018c97edbec51a88110ef904d4dc1e3a",
+    "checksum": "9715d57584b6b3584eab689f04c154caa4625cb0c097be5d532cb2b346934096",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -861,7 +861,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -1701,7 +1703,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2413,7 +2417,9 @@
           "params": [
             "数据",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2561,7 +2567,9 @@
           "params": [
             "序",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2695,7 +2703,9 @@
           "params": [
             "数据",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2944,7 +2954,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3182,7 +3194,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3455,7 +3469,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3984,7 +4000,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4543,7 +4561,9 @@
           "params": [
             "数据",
             "样本"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4652,7 +4672,9 @@
           "params": [
             "数据",
             "样本"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4804,7 +4826,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5476,7 +5500,9 @@
           "params": [
             "数据",
             "p"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -6044,7 +6070,9 @@
           "params": [
             "数据",
             "去掉个数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -6699,7 +6727,9 @@
           "params": [
             "数据",
             "权重"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7127,7 +7157,9 @@
             "甲",
             "乙",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7301,7 +7333,9 @@
           ],
           "params": [
             "序"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7784,7 +7818,9 @@
             "甲",
             "乙",
             "样本"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -8648,7 +8684,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9564,7 +9602,9 @@
             "甲",
             "乙",
             "方法"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -10692,7 +10732,9 @@
           "params": [
             "甲",
             "乙"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -11213,7 +11255,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -11914,7 +11958,9 @@
           "params": [
             "数据",
             "窗口"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -13040,7 +13086,9 @@
           "params": [
             "数据",
             "箱数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -13488,7 +13536,9 @@
           "params": [
             "数据",
             "值"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -13552,7 +13602,9 @@
           ],
           "params": [
             "分"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

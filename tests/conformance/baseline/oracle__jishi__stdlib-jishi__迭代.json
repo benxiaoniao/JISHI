@@ -6387,7 +6387,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "2ba49aac66cc35c2907eb8dd28fda18718b475cde6bd718cc5e7f51d230d031e",
+    "checksum": "6e48bc0f97cf4aaa89a47f52b6a77a00dd2025ddf23e5bea409f899ef161c43a",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -6651,7 +6651,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -6964,7 +6966,9 @@
           "params": [
             "数据",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7270,7 +7274,9 @@
             "全部",
             "起",
             "止"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7395,7 +7401,9 @@
           "params": [
             "值",
             "名字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7842,7 +7850,9 @@
           "params": [
             "可迭代",
             "每组个数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -8331,7 +8341,9 @@
             "可迭代",
             "窗口大小",
             "步长"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -8735,7 +8747,9 @@
           ],
           "params": [
             "可迭代"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9213,7 +9227,9 @@
           ],
           "params": [
             "嵌套"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9435,7 +9451,9 @@
           "params": [
             "可迭代",
             "个数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9693,7 +9711,9 @@
           "params": [
             "可迭代",
             "个数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9769,7 +9789,9 @@
           ],
           "params": [
             "可迭代"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9985,7 +10007,9 @@
           "params": [
             "可迭代",
             "条件"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -10419,7 +10443,9 @@
             "可迭代",
             "合并",
             "初值"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -10684,7 +10710,9 @@
           "params": [
             "可迭代",
             "判定"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -10907,7 +10935,9 @@
           "params": [
             "可迭代",
             "初值"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -11259,7 +11289,9 @@
           "params": [
             "可迭代",
             "取几个"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -11606,7 +11638,9 @@
           ],
           "params": [
             "起"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -12153,7 +12187,9 @@
           "params": [
             "可迭代",
             "取几个"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -12551,7 +12587,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -13564,7 +13602,9 @@
           ],
           "params": [
             "序列"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

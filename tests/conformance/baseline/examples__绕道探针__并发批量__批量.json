@@ -1482,7 +1482,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "0127d1d68a5d26ef2a53caf476f2fdd527e62de5bdc1c3558663a44976ef969b",
+    "checksum": "0cd5f4920d3e8c9d8ab9d6c2211c2c958887d7ef962e5b8f0f6654374b8513b6",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -1632,7 +1632,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1800,7 +1802,9 @@
           ],
           "params": [
             "文件们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1870,7 +1874,9 @@
           ],
           "params": [
             "文件们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -3047,7 +3053,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3155,7 +3163,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

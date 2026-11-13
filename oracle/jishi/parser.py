@@ -447,6 +447,19 @@ class Parser:
             return t
         self._err(ParseMissingNameError, "这里需要一个属性名")
 
+    #: 中文里「逻辑与 / 逻辑或」的常见说法 —— 它们**不是关键字**。
+    #:
+    #: 📌 为什么不做成 `且` 的别名：项目规矩是「一个能力不造两个名字」。
+    #:    但报错**必须点名**（清单原话：「报错却指向别处，1000 行文件里找了一轮」）。
+    #: ⚠️ 与 Rust `parser.rs::逻辑近义词` **逐字一致**（报错渲染要三宿主相同）。
+    _逻辑近义词 = ("且", "并且", "而且", "或者", "但是", "可是")
+
+    def _逻辑提示(self):
+        t = self._peek()
+        if t.type != "NAME" or t.value not in self._逻辑近义词:
+            return None
+        return f"「{t.value}」不是关键字，会被当成名字 —— 逻辑运算符只有 与 / 或 / 非"
+
     def _expect_newline(self):
         if self._at("NEWLINE"):
             return self._next()
@@ -455,7 +468,8 @@ class Parser:
         if nxt.type == "NAME" and nxt.value in _EN_VALUE_HINTS:
             self._check_en_word(nxt, mode="newline")
         self._err(ParseUnexpectedError,
-                  f"这一行没写完，但下一行已经开始了——是不是少了个符号？")
+                  f"这一行没写完，但下一行已经开始了——是不是少了个符号？",
+                  hint=self._逻辑提示())
 
     # -- 程序入口 ----------------------------------------------------------
 
@@ -1543,8 +1557,10 @@ class Parser:
         if self._at_op(":"):
             self._next()
             return
+        # 典型：`当 真 且 假：` —— 报「少个冒号」还指在「且」上，用户看不出所以然
         self._err(ParseMissingColonError,
-                  f"「{kw}」后面要跟冒号「：」，然后换行缩进写代码块")
+                  f"「{kw}」后面要跟冒号「：」，然后换行缩进写代码块",
+                  hint=self._逻辑提示())
 
     def _parse_block(self) -> list[A.Node]:
         if not self._at("NEWLINE"):

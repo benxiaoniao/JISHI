@@ -1497,6 +1497,10 @@ struct Code {
     /// 与 Python 的 `Code.local_hints` 同源（以前这份数据**不在字节码 JSON 里**，
     /// 宿主只能说通用说法，同一个错误在两处提示不同）。
     local_hints: Vec<(i64, String)>,
+    /// 这段代码来自哪个源文件（M199 / E5）。空 = 模块入口文件。
+    src_file: String,
+    /// 该文件在「包内拼接源码」里的起始行（1 起）；0 = 不换算。
+    src_start: i64,
 }
 
 #[derive(Clone)]
@@ -1583,6 +1587,14 @@ pub struct JishiError {
     /// 调用链（R6.3）：**从外到内**，最外层模块帧不算。
     /// 没进过函数调用就是空（那种情况 Python 侧也不印回溯块）。
     pub trace: Vec<TraceFrame>,
+    /// 出错代码**所在的源文件**（M199 / E5）。
+    ///
+    /// 只有「本地包展开进来的函数」才有值：入口脚本里写 `甲包.算()  ← 第 4 行`
+    /// 看着没问题，但真正炸的是包里那个文件的第 4 行 —— 不给文件名，
+    /// 用户拿着入口脚本的行号**哪儿也找不到**（`基石数据库` 的原话）。
+    /// `None` = 就是入口脚本，与以前完全一样。
+    /// ⚠️ **不进 `--json-errors`**：那是与 Python/Node 的契约，加键会让对拍红。
+    pub file: Option<String>,
     /// 「起因」链（M148）：**正在处理某个异常时又抛出的新异常**，把被处理的
     /// 那个挂在这里。与 Python 侧 `JishiError.cause`、Node 侧 `cause` 同一语义。
     ///
@@ -1655,7 +1667,7 @@ pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
                  line: None, col: None, underline: None, hint: None, fix: None,
-                 trace: Vec::new(), cause: None }
+                 trace: Vec::new(), cause: None, file: None }
 }
 
 /// 带提示语的报错（M56）：`hint` 会渲染成「  提示：…」那一行。
@@ -1767,7 +1779,7 @@ pub(crate) fn err_with_hint(t: &str, msg: impl Into<String>, hint: String) -> Ji
     JishiError { type_name: t.to_string(), message: msg.into(),
                  code: error_code(t).map(|s| s.to_string()),
                  line: None, col: None, underline: None, hint: Some(hint),
-                 fix: None, trace: Vec::new(), cause: None }
+                 fix: None, trace: Vec::new(), cause: None, file: None }
 }
 
 // ---------------------------------------------------------------------------
@@ -2227,14 +2239,22 @@ impl VM {
     /// 见 `execute_frame`）。**只填还没填的** —— 内层若已给出更准的位置，
     /// 不要被外层覆盖。
     fn fill_error_loc(&self, e: &mut JishiError, fi: usize) {
-        if e.line.is_some() {
-            return;
-        }
         let Some(frame) = self.frames.get(fi) else { return };
         let Some(code) = self.module.codes.get(frame.code_idx) else { return };
-        let Some(ins) = code.instrs.get(frame.ip) else { return };
-        e.line = Some(ins.line);
-        e.col = Some(ins.col);
+        if e.line.is_none() {
+            let Some(ins) = code.instrs.get(frame.ip) else { return };
+            e.line = Some(ins.line);
+            e.col = Some(ins.col);
+        }
+        // M199 / E5：包内函数的行号是「该包拼接源码」的行号，入口脚本里不存在。
+        // 换算回文件内行号，并把文件名挂上去；`file.is_none()` 挡住重复换算
+        // （同一个错误会在多层帧上各 fill 一次）。
+        if e.file.is_none() && !code.src_file.is_empty() && code.src_start > 0 {
+            if let Some(l) = e.line {
+                e.line = Some(l - code.src_start + 1);
+            }
+            e.file = Some(code.src_file.clone());
+        }
     }
 
     /// 把当前帧栈拍成调用链（只拍一次；已经有链就不动）。
@@ -2251,17 +2271,31 @@ impl VM {
             return;
         }
         let mut chain = Vec::new();
-        for fr in self.frames.iter().skip(1) {
+        // 🔴 `call_line` 是「**调用者**在第几行调的这个函数」，所以换算来源文件
+        //    要看外层帧的 code —— 拿本帧的 code 去减，行号会变成负数
+        //    （实测 `转交 ← 第 -1 行`）。M199 / E5 踩过。
+        for (i, fr) in self.frames.iter().enumerate().skip(1) {
             if !fr.in_trace {
                 continue;
             }
             let Some(code) = self.module.codes.get(fr.code_idx) else { continue };
+            let 调用者 = self.frames.get(i - 1)
+                .and_then(|f| self.module.codes.get(f.code_idx));
             let name = if code.name.starts_with('<') {
                 "匿名函数".to_string()
             } else {
                 code.name.clone()
             };
-            chain.push(TraceFrame { func: name, line: fr.call_line, col: fr.call_col });
+            // 调用点行号属于**调用者**那个文件（M199 / E5）
+            let mut 行 = fr.call_line;
+            if let Some(c) = 调用者 {
+                if !c.src_file.is_empty() && c.src_start > 0 {
+                    if let Some(l) = 行 {
+                        行 = Some(l - c.src_start + 1);
+                    }
+                }
+            }
+            chain.push(TraceFrame { func: name, line: 行, col: fr.call_col });
         }
         e.trace = chain;
     }
@@ -4674,6 +4708,30 @@ pub(crate) fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
                     _ => return Err(err("运行期错误", "不支持的比较")),
                 }));
             }
+            // 🔴 M199：**文本**按码点比（UTF-8 的字节序就是码点序，所以直接比
+            // `str` 的字节即可）。
+            //
+            // 这一支原来**完全缺失** —— 而另外三个宿主早就支持了：
+            // Python 的 `str < str` 天然按码点；Node 的 `orderCompare` 在 M55
+            // 就改成 `Array.from` 逐码点比（JS 直接 `<` 是 UTF-16 码元序，
+            // 星平面字符会错）；C VM 用 `memcmp` 比 UTF-8 字节（jsvm.c 里写着
+            // 「字节序 == 码点序」）。于是同一个 `"甲" < "乙"` 在三个宿主上是
+            // `真`、在 Rust 宿主上是 `E2002 类型错误` —— 下游写数据库的人只好
+            // 手写逐码点比较（`值库_比较`），每个写库的人重复造一遍轮子。
+            //
+            // 📌 为什么不是「字符串按字典序」这种含糊说法：**必须钉死按码点**。
+            //    UTF-16 码元序在 `U+E000..U+FFFF` 与星平面之间会翻个个儿
+            //    （代理项 D800..DFFF 排在 E000 前面），那是另一套顺序。
+            if let (Val::Str(a), Val::Str(b)) = (&l, &r) {
+                let (a, b) = (a.as_bytes(), b.as_bytes());
+                return Ok(Val::Bool(match op {
+                    2 => a < b,
+                    3 => a > b,
+                    4 => a <= b,
+                    5 => a >= b,
+                    _ => return Err(err("运行期错误", "不支持的比较")),
+                }));
+            }
             // 混了浮点 / 精确小数（精确小数上面已分流）→ 仍走 f64。
             let (la, lb) = (l.clone(), r.clone());
             let (a, b) = to_num_pair(l, r)
@@ -4695,7 +4753,15 @@ pub(crate) fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
 fn contains(container: &Val, item: &Val) -> Result<bool, JishiError> {
     match container {
         Val::List(l) => Ok(l.borrow().iter().any(|x| x == item)),
-        Val::Dict(d) => Ok(d.borrow().iter().any(|(k, _)| k == item)),
+        // 🔴 M199：字典走**哈希索引**（`dict_contains`），不是线性扫 `items`。
+        //
+        // 原来这里是 `d.borrow().iter().any(|(k, _)| k == item)` —— 语义没错，但
+        // `items` 是插入顺序的 `Vec`，**每查一个不存在的键就全表扫一遍**。
+        // 实测（10 万键、2000 次）：未命中 0.87 秒，而 `字典.获取` 只要 0.0021 秒
+        // —— **慢 408 倍**；同一个脚本在 Python 宿主上是 0.0113 秒（Python 的
+        // `in dict` 本来就走哈希）。也就是说这是 **Rust 宿主独有的退化**，
+        // 而「先查再写」恰恰是索引、缓存、去重表最常写的形状。
+        Val::Dict(d) => Ok(dict_contains(&d.borrow(), item)),
         Val::Str(s) => {
             let needle = match item { Val::Str(t) => t.to_string(), other => display(other) };
             Ok(s.contains(&needle))
@@ -7417,6 +7483,9 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
                     Some((k.parse::<i64>().ok()?, v.as_str()?.to_string()))
                 }).collect())
                 .unwrap_or_default(),
+            // M199 / E5：老字节码没有这两个键 ⇒ 空/0，行为与以前完全一样
+            src_file: cd.get("src_file").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            src_start: cd.get("src_start").and_then(|v| v.as_i64()).unwrap_or(0),
         });
     }
 

@@ -1694,7 +1694,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "bbbba86c35a8d07c4b75cb7f33b96971e7394c3eba97f83d61d3836bc6b2483d",
+    "checksum": "ad22980886af08a8591fb1518e47243ffbb142d858e555d75a161e39cb81c386",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -2564,7 +2564,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2628,7 +2630,9 @@
           ],
           "params": [
             "数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2710,7 +2714,9 @@
           "params": [
             "名",
             "问候"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2860,7 +2866,9 @@
           ],
           "params": [
             "数们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2924,7 +2932,9 @@
           ],
           "params": [
             "选项"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2994,7 +3004,9 @@
           "params": [
             "甲",
             "乙"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3148,7 +3160,9 @@
           ],
           "params": [
             "序号"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -3220,7 +3234,9 @@
           ],
           "params": [
             "基数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3286,7 +3302,9 @@
           ],
           "params": [
             "数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3350,7 +3368,9 @@
           ],
           "params": [
             "数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3486,7 +3506,9 @@
           ],
           "params": [
             "数"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3659,7 +3681,9 @@
           ],
           "params": [
             "目标"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3699,7 +3723,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3769,7 +3795,9 @@
           "params": [
             "操作",
             "值"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -3843,7 +3871,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3885,7 +3915,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

@@ -858,7 +858,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "123a6cce67774b526de94519aa1d18c57d03d56b55f729833817e489ef81b083",
+    "checksum": "ac32313eda1a07ee7664d86f8aff51316c299cd6baa2922182b251667f97f50d",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -1572,7 +1572,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1642,7 +1644,9 @@
           ],
           "params": [
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1793,7 +1797,9 @@
           ],
           "params": [
             "内容"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -1968,7 +1974,9 @@
           ],
           "params": [
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -2062,7 +2070,9 @@
           ],
           "params": [
             "端口"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

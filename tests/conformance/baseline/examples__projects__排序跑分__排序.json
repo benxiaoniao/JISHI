@@ -2814,7 +2814,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "60fcc2faeb268d215933b8cb8f1f1df3b639d10ff74345528822e24a53f2616c",
+    "checksum": "0a57a8a10372ba4dc5bee5e0ac316261e8f0d43bbcdb54ed87c39ad2befd2f64",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -2988,7 +2988,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3502,7 +3504,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -3930,7 +3934,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4384,7 +4390,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4582,7 +4590,9 @@
           ],
           "params": [
             "规模"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4835,7 +4845,9 @@
           "params": [
             "排序函数",
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -6097,7 +6109,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

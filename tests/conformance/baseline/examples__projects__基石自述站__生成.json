@@ -7990,7 +7990,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "aa4b90995b8d50c320347e574de7bf73b9a4203145091a126ec58fd0d605607e",
+    "checksum": "7a77c7a3152b8f081418aa2e185c82ac11cf3edd18f4dfe4663376301e61d049",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -8512,7 +8512,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -8801,7 +8803,9 @@
             "源",
             "左标记",
             "右标记"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -8871,7 +8875,9 @@
           ],
           "params": [
             "源"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9257,7 +9263,9 @@
           ],
           "params": [
             "源"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9329,7 +9337,9 @@
           ],
           "params": [
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9516,7 +9526,9 @@
           "params": [
             "路径",
             "关键字"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9610,7 +9622,9 @@
           "params": [
             "根目录",
             "后缀"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -9911,7 +9925,9 @@
           "params": [
             "目录",
             "后缀"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -10284,7 +10300,9 @@
           ],
           "params": [
             "目录"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -10855,7 +10873,9 @@
           ],
           "params": [
             "根"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -11242,7 +11262,9 @@
           ],
           "params": [
             "路径"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -11378,7 +11400,9 @@
             "名",
             "值",
             "补充"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -13031,7 +13055,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -13193,7 +13219,9 @@
           ],
           "params": [
             "模块"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -13644,7 +13672,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -14482,7 +14512,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -14919,7 +14951,9 @@
           ],
           "params": [
             "数据"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -16480,7 +16514,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [

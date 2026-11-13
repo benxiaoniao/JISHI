@@ -3703,7 +3703,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "462de424b161726886268ed2f321f11a79b599d29c041fec9cf85e2b6626dece",
+    "checksum": "9109e816de4a8f386c2f9f8e4d90ae0729854d7d4e107d17b8122c5e967bd29c",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -3913,7 +3913,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4225,7 +4227,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4307,7 +4311,9 @@
           ],
           "params": [
             "任务们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -4527,7 +4533,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [
@@ -5197,7 +5205,9 @@
           ],
           "params": [
             "任务们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5293,7 +5303,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5615,7 +5627,9 @@
           ],
           "params": [
             "参数们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -5889,7 +5903,9 @@
           "params": [
             "下标",
             "任务们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7602,7 +7618,9 @@
           "param_idx": [],
           "param_kind": [],
           "param_local": [],
-          "params": []
+          "params": [],
+          "src_file": "",
+          "src_start": 0
         },
         {
           "cellvars": [],
@@ -7678,7 +7696,9 @@
           ],
           "params": [
             "词们"
-          ]
+          ],
+          "src_file": "",
+          "src_start": 0
         }
       ],
       "consts": [
