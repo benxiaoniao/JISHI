@@ -169,5 +169,64 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             }
         },
+
+        // ---- M197：循环 / 淡入 / 淡出 / 静音 -------------------------------
+        "循环" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("循环", args, 1, 2)?;
+            要声音()?;
+            let 号 = 句柄(&args[0], "循环")?;
+            let 开 = match args.get(1) {
+                None | Some(Val::None_) => true,
+                Some(Val::Bool(b)) => *b,
+                Some(other) => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「循环」的开关要 真 / 假，给的是{}", crate::type_label(other)),
+                    ))
+                }
+            };
+            host_call("声音循环", &[Val::Float(号), Val::Bool(开)])
+        },
+        "淡入" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("淡入", args, 1, 2)?;
+            要声音()?;
+            let 号 = 句柄(&args[0], "淡入")?;
+            let 毫 = 毫秒(&args, 1, "淡入")?;
+            host_call("声音淡入", &[Val::Float(号), Val::Float(毫)])
+        },
+        "淡出" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("淡出", args, 1, 2)?;
+            要声音()?;
+            let 号 = 句柄(&args[0], "淡出")?;
+            let 毫 = 毫秒(&args, 1, "淡出")?;
+            host_call("声音淡出", &[Val::Float(号), Val::Float(毫)])
+        },
+        "静音" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("静音", args, 0, 1)?;
+            要声音()?;
+            let 开 = match args.first() {
+                None | Some(Val::None_) => true,
+                Some(Val::Bool(b)) => *b,
+                Some(other) => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「静音」的开关要 真 / 假，给的是{}", crate::type_label(other)),
+                    ))
+                }
+            };
+            host_call("声音静音", &[Val::Bool(开)])
+        },
     }
+}
+
+/// 取「毫秒」参数（缺省 1000，必须 > 0）。
+fn 毫秒(args: &[Val], i: usize, 谁: &str) -> Result<f64, JishiError> {
+    let v = match args.get(i) {
+        None | Some(Val::None_) => 1000.0,
+        Some(x) => 数(x, 谁, "毫秒")?,
+    };
+    if v <= 0.0 {
+        return Err(err("值错误", format!("「{谁}」的毫秒要大于 0，现在是 {v}")));
+    }
+    Ok(v)
 }

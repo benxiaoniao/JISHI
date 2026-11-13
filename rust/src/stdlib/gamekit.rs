@@ -26,6 +26,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use crate::{dict_get, dict_new, dict_set, err, err_with_hint, BuiltinHost, JishiError, Val};
+use super::as_text;
 
 use super::graphics::调;
 //: `browser::esc` 只转义**不加引号**（键名要自己补引号）；`jsonw::esc` 自带引号。
@@ -56,6 +57,42 @@ fn 取(d: &crate::Dict, 键: &str) -> Option<Val> {
 /// 写一个字段。
 fn 设(d: &mut crate::Dict, 键: &str, v: Val) {
     dict_set(d, Val::Str(键.into()), v);
+}
+
+/// 从瓦片图字典取它的二维行们（M197：碰撞 / 斜坡 / 取格都要用）。
+fn 图的格们(d: &std::rc::Rc<RefCell<crate::Dict>>) -> Result<Vec<Vec<i64>>, JishiError> {
+    let v = {
+        let dd = d.borrow();
+        取(&dd, "行们").unwrap_or(Val::None_)
+    };
+    二维(&v, "瓦片", "行们")
+}
+
+/// 从瓦片图读一格（越界 / 空 = -1，与 `瓦片.取` 同口径）。
+fn 格号(d: &std::rc::Rc<RefCell<crate::Dict>>, 列: i64, 行: i64) -> Result<i64, JishiError> {
+    let 行们 = 图的格们(d)?;
+    if 列 < 0 || 行 < 0 {
+        return Ok(-1);
+    }
+    Ok(行们
+        .get(行 as usize)
+        .and_then(|r| r.get(列 as usize))
+        .copied()
+        .unwrap_or(-1))
+}
+
+/// 从字典里取一个**必有**的数（缺了就报「缺 xxx」）。
+///
+/// 与 `取必` + `数` 分开：矩形 `{x,y,宽,高}` 缺一项时要说清**缺哪一项**，
+/// 而不是笼统的「参数不对」—— 少写 `高` 而默认成 0 的话，碰撞区会是空的。
+fn 字典里的数(d: &crate::Dict, 键: &str, 谁: &str) -> Result<f64, JishiError> {
+    match 取(d, 键) {
+        Some(v) => 数(&v, 谁, 键),
+        None => Err(err(
+            "值错误",
+            format!("「{谁}」的矩形里缺「{键}」"),
+        )),
+    }
 }
 
 /// 读一个**必有**的字段。
@@ -199,6 +236,10 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
                 (Val::Str("在播".into()), Val::Str("".into())),
                 (Val::Str("累计".into()), Val::Float(0.0)),
                 (Val::Str("动画".into()), dict_new(Vec::new())),
+                // M197：锚点（比例）与「非循环播完了」的标志
+                (Val::Str("原点x".into()), Val::Float(0.0)),
+                (Val::Str("原点y".into()), Val::Float(0.0)),
+                (Val::Str("完成".into()), Val::Bool(false)),
             ]))
         },
         // 播(精灵, 名, {"帧们"?,"速度"?,"循环"?})
@@ -260,6 +301,8 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
             设(&mut dd, "在播", Val::Str(名.as_str().into()));
             设(&mut dd, "累计", Val::Float(0.0));
             设(&mut dd, "当前", Val::Int(帧们[0] as i128));
+            // M197：重新播就把「播完了」清掉
+            设(&mut dd, "完成", Val::Bool(false));
             Ok(args[0].clone())
         },
         // 停(精灵)
@@ -342,7 +385,9 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
                 } else if 循环 {
                     位 = 0;
                 } else {
+                    // 非循环：停在最后一帧，并记下「播完了」——`动画完成` 读它
                     累计 = 0.0;
+                    设(&mut dd, "完成", Val::Bool(true));
                     break;
                 }
                 当前 = 帧们[位];
@@ -370,6 +415,16 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
             };
             let x = 数(&args[1], "画", "x")?;
             let y = 数(&args[2], "画", "y")?;
+            // M197：原点按**比例**偏移（默认 0,0 = 左上角，与 M187 行为一致）
+            let (ox, oy) = {
+                let dd = d.borrow();
+                (
+                    取(&dd, "原点x").and_then(|v| 数(&v, "画", "原点x").ok()).unwrap_or(0.0),
+                    取(&dd, "原点y").and_then(|v| 数(&v, "画", "原点y").ok()).unwrap_or(0.0),
+                )
+            };
+            let x = x - ox * 帧宽;
+            let y = y - oy * 帧高;
             let 列 = if 列数 > 0 { 当前.rem_euclid(列数) } else { 0 };
             let 行 = if 列数 > 0 { 当前.div_euclid(列数) } else { 0 };
             let sx = 列 as f64 * 帧宽;
@@ -398,6 +453,72 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
             let d = 字典(&args[0], "当前帧", "精灵")?;
             let dd = d.borrow();
             Ok(取必(&dd, "当前", "精灵")?)
+        },
+
+        // ---- M197：图集切分 / 动画完成 / 原点 ------------------------------
+        "图集切分" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("图集切分", args, 4)?;
+            let 图宽 = 数(&args[0], "图集切分", "图宽")?;
+            let 图高 = 数(&args[1], "图集切分", "图高")?;
+            let 帧宽 = 数(&args[2], "图集切分", "帧宽")?;
+            let 帧高 = 数(&args[3], "图集切分", "帧高")?;
+            for (名, v) in [("图宽", 图宽), ("图高", 图高), ("帧宽", 帧宽), ("帧高", 帧高)] {
+                if v <= 0.0 {
+                    return Err(err(
+                        "值错误",
+                        format!("「图集切分」的{名}必须大于 0，现在是 {v}"),
+                    ));
+                }
+            }
+            if 帧宽 > 图宽 || 帧高 > 图高 {
+                return Err(err(
+                    "值错误",
+                    format!("「图集切分」的帧（{帧宽}×{帧高}）比图（{图宽}×{图高}）还大"),
+                ));
+            }
+            // 除不尽的残条丢掉 —— 半帧的图放出来是错的
+            let 列数 = (图宽 / 帧宽).floor() as i64;
+            let 行数 = (图高 / 帧高).floor() as i64;
+            let 帧数 = 列数 * 行数;
+            Ok(dict_new(vec![
+                (Val::Str("列数".into()), Val::Int(列数 as i128)),
+                (Val::Str("行数".into()), Val::Int(行数 as i128)),
+                (Val::Str("帧数".into()), Val::Int(帧数 as i128)),
+                (
+                    Val::Str("帧们".into()),
+                    crate::list_new((0..帧数).map(|n| Val::Int(n as i128)).collect()),
+                ),
+            ]))
+        },
+        "动画完成" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("动画完成", args, 1)?;
+            let d = 字典(&args[0], "动画完成", "精灵")?;
+            let dd = d.borrow();
+            Ok(Val::Bool(matches!(取(&dd, "完成"), Some(Val::Bool(true)))))
+        },
+        "设原点" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设原点", args, 1, 3)?;
+            let d = 字典(&args[0], "设原点", "精灵")?;
+            let ox = match args.get(1) {
+                None | Some(Val::None_) => 0.5,
+                Some(v) => 数(v, "设原点", "x")?,
+            };
+            let oy = match args.get(2) {
+                None | Some(Val::None_) => 0.5,
+                Some(v) => 数(v, "设原点", "y")?,
+            };
+            if !(0.0..=1.0).contains(&ox) || !(0.0..=1.0).contains(&oy) {
+                return Err(err(
+                    "值错误",
+                    format!("「设原点」的两个比例要在 0–1 之间，现在是 {ox} / {oy}"),
+                ));
+            }
+            {
+                let mut dd = d.borrow_mut();
+                设(&mut dd, "原点x", Val::Float(ox));
+                设(&mut dd, "原点y", Val::Float(oy));
+            }
+            Ok(args[0].clone())
         },
     }
 }
@@ -592,6 +713,232 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
             };
             Ok(Val::Int(号 as i128))
         },
+
+        // ---- M197：碰撞层 / 斜坡 / 矩形取格 / 最近可走格 --------------------
+        //
+        // 三条规则（与 Python / Node 逐字一致）：
+        // 1. **碰撞层是「哪些瓦片号算实心」的名单**，不改原图 —— 同一个图可以
+        //    建好几层（地面一层、水一层）；
+        // 2. **斜坡只记方向**（左/右），不做物理；键用**文本** `"列,行"`，
+        //    这是三宿主唯一能一致的表示；
+        // 3. **`最近可走格` 一圈圈向外找**，最多 16 圈，找不到给 `空`
+        //    （不给「假装找到的」坐标 —— 那会把角色瞬移进墙里）。
+        "碰撞层" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("碰撞层", args, 2)?;
+            let d = 字典(&args[0], "碰撞层", "瓦片图")?;
+            let 项们 = match &args[1] {
+                Val::List(l) => l.borrow().clone(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!(
+                            "「碰撞层」的「实心号们」要整数列表（比如 [0, 1, 2]），给的是{}",
+                            crate::type_label(other)
+                        ),
+                    ))
+                }
+            };
+            let mut 号们: Vec<i64> = Vec::new();
+            for x in &项们 {
+                let n = 整数(x, "碰撞层", "实心号")?;
+                if !号们.contains(&n) {
+                    号们.push(n);
+                }
+            }
+            号们.sort_unstable();
+            Ok(crate::dict_new(vec![
+                (Val::Str("图".into()), Val::Dict(d.clone())),
+                (
+                    Val::Str("实心".into()),
+                    crate::list_new(号们.into_iter().map(|n| Val::Int(n as i128)).collect()),
+                ),
+            ]))
+        },
+        "是实心" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("是实心", args, 3)?;
+            let c = 字典(&args[0], "是实心", "碰撞层")?;
+            let cc = c.borrow();
+            let 图 = match 取(&cc, "图") {
+                Some(Val::Dict(d)) => d,
+                _ => {
+                    return Err(err(
+                        "类型错误",
+                        "「是实心」的第一个参数要碰撞层（`瓦片.碰撞层` 造的）",
+                    ))
+                }
+            };
+            let 实心: Vec<i64> = match 取(&cc, "实心") {
+                Some(Val::List(l)) => l
+                    .borrow()
+                    .iter()
+                    .filter_map(|v| match v {
+                        Val::Int(n) => Some(*n as i64),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            };
+            drop(cc);
+            let 列 = 整数(&args[1], "是实心", "列")?;
+            let 行 = 整数(&args[2], "是实心", "行")?;
+            let 号 = 格号(&图, 列, 行)?;
+            Ok(Val::Bool(实心.contains(&号)))
+        },
+        "斜坡" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("斜坡", args, 4)?;
+            let d = 字典(&args[0], "斜坡", "瓦片图")?;
+            let 向 = as_text(&args[3]);
+            if 向 != "左" && 向 != "右" {
+                return Err(err(
+                    "值错误",
+                    format!("「斜坡」的方向只能是 左 / 右，给的是「{向}」"),
+                ));
+            }
+            let 列 = 整数(&args[1], "斜坡", "列")?;
+            let 行 = 整数(&args[2], "斜坡", "行")?;
+            // 越界要报错（与 Python 同口径）—— 悄悄记在一个不存在的格子上，
+            // 之后 `是斜坡` 永远问不到，那种「设了没效果」最难查
+            let 行们0 = 图的格们(&d)?;
+            let 列数0 = 行们0.iter().map(|r| r.len()).max().unwrap_or(0);
+            let 越界 = 列 < 0
+                || 行 < 0
+                || 行 as usize >= 行们0.len()
+                || 列 as usize >= 行们0.get(行 as usize).map(|r| r.len()).unwrap_or(0);
+            if 越界 {
+                return Err(err(
+                    "值错误",
+                    format!(
+                        "「斜坡」的格子 ({列}, {行}) 不在地图里（地图是 {列数0} 列 × {} 行）",
+                        行们0.len()
+                    ),
+                ));
+            }
+            let mut dd = d.borrow_mut();
+            // 没有就建一个空字典
+            if !matches!(取(&dd, "斜坡们"), Some(Val::Dict(_))) {
+                设(&mut dd, "斜坡们", crate::dict_new(Vec::new()));
+            }
+            if let Some(Val::Dict(坡们)) = 取(&dd, "斜坡们") {
+                crate::dict_set(
+                    &mut 坡们.borrow_mut(),
+                    Val::Str(format!("{列},{行}").into()),
+                    Val::Str(向.into()),
+                );
+            }
+            drop(dd);
+            Ok(Val::Dict(d.clone()))
+        },
+        "是斜坡" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("是斜坡", args, 3)?;
+            let d = 字典(&args[0], "是斜坡", "瓦片图")?;
+            let dd = d.borrow();
+            let 列 = 整数(&args[1], "是斜坡", "列")?;
+            let 行 = 整数(&args[2], "是斜坡", "行")?;
+            match 取(&dd, "斜坡们") {
+                Some(Val::Dict(坡们)) => {
+                    let k = Val::Str(format!("{列},{行}").into());
+                    Ok(crate::dict_get(&坡们.borrow(), &k).unwrap_or(Val::None_))
+                }
+                _ => Ok(Val::None_),
+            }
+        },
+        "取矩形内瓦片" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("取矩形内瓦片", args, 2)?;
+            let d = 字典(&args[0], "取矩形内瓦片", "瓦片图")?;
+            let dd = d.borrow();
+            let 宽 = 数(&取(&dd, "瓦片宽").unwrap_or(Val::Int(1)), "取矩形内瓦片", "瓦片宽")?;
+            let 高 = 数(&取(&dd, "瓦片高").unwrap_or(Val::Int(1)), "取矩形内瓦片", "瓦片高")?;
+            let 行们 = 二维(&取(&dd, "行们").unwrap_or(Val::None_), "取矩形内瓦片", "行们")?;
+            drop(dd);
+            let 矩 = 字典(&args[1], "取矩形内瓦片", "矩形")?;
+            let mr = 矩.borrow();
+            let bx = 字典里的数(&mr, "x", "取矩形内瓦片")?;
+            let by = 字典里的数(&mr, "y", "取矩形内瓦片")?;
+            let bw = 字典里的数(&mr, "宽", "取矩形内瓦片")?;
+            let bh = 字典里的数(&mr, "高", "取矩形内瓦片")?;
+            drop(mr);
+            if bw <= 0.0 || bh <= 0.0 {
+                return Err(err("值错误", "「取矩形内瓦片」的矩形宽高要大于 0"));
+            }
+            let c0 = ((bx / 宽).floor() as i64).max(0);
+            let c1 = ((bx + bw) / 宽).floor() as i64;
+            let r0 = ((by / 高).floor() as i64).max(0);
+            let r1 = ((by + bh) / 高).floor() as i64;
+            let mut 出: Vec<Val> = Vec::new();
+            for r in r0..=r1 {
+                let 行 = match 行们.get(r as usize) {
+                    Some(x) => x,
+                    None => break,
+                };
+                for c in c0..=c1 {
+                    match 行.get(c as usize) {
+                        Some(号) => 出.push(crate::dict_new(vec![
+                            (Val::Str("列".into()), Val::Int(c as i128)),
+                            (Val::Str("行".into()), Val::Int(r as i128)),
+                            (Val::Str("号".into()), Val::Int(*号 as i128)),
+                        ])),
+                        None => break,
+                    }
+                }
+            }
+            Ok(crate::list_new(出))
+        },
+        "最近可走格" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("最近可走格", args, 4)?;
+            let d = 字典(&args[0], "最近可走格", "瓦片图")?;
+            let c = 字典(&args[1], "最近可走格", "碰撞层")?;
+            let 宽 = 数(&取(&d.borrow(), "瓦片宽").unwrap_or(Val::Int(1)), "最近可走格", "瓦片宽")?;
+            let 高 = 数(&取(&d.borrow(), "瓦片高").unwrap_or(Val::Int(1)), "最近可走格", "瓦片高")?;
+            let 行们 = 二维(
+                &取(&d.borrow(), "行们").unwrap_or(Val::None_),
+                "最近可走格",
+                "行们",
+            )?;
+            let 实心: Vec<i64> = match 取(&c.borrow(), "实心") {
+                Some(Val::List(l)) => l
+                    .borrow()
+                    .iter()
+                    .filter_map(|v| match v {
+                        Val::Int(n) => Some(*n as i64),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            };
+            let x = 数(&args[2], "最近可走格", "x")?;
+            let y = 数(&args[3], "最近可走格", "y")?;
+            let 起列 = (x / 宽).floor() as i64;
+            let 起行 = (y / 高).floor() as i64;
+            for 圈 in 0..=16i64 {
+                // 行优先遍历这一圈 —— 与 Python 同序，结果才可复现
+                for dr in -圈..=圈 {
+                    for dc in -圈..=圈 {
+                        if dr.abs().max(dc.abs()) != 圈 {
+                            continue;
+                        }
+                        let r = 起行 + dr;
+                        let cc = 起列 + dc;
+                        if r < 0 || cc < 0 {
+                            continue;
+                        }
+                        let 号 = match 行们.get(r as usize).and_then(|行| 行.get(cc as usize)) {
+                            Some(v) => *v,
+                            None => continue,
+                        };
+                        if 实心.contains(&号) {
+                            continue;
+                        }
+                        return Ok(crate::dict_new(vec![
+                            (Val::Str("列".into()), Val::Int(cc as i128)),
+                            (Val::Str("行".into()), Val::Int(r as i128)),
+                            (Val::Str("x".into()), Val::Float((cc as f64 + 0.5) * 宽)),
+                            (Val::Str("y".into()), Val::Float((r as f64 + 0.5) * 高)),
+                        ]));
+                    }
+                }
+            }
+            Ok(Val::None_)
+        },
     }
 }
 
@@ -653,7 +1000,264 @@ pub(crate) fn map_module() -> HashMap<String, Val> {
             }
             Ok(Val::None_)
         },
+
+        // ---- M197：Tiled TMX 互通 ------------------------------------------
+        //
+        // 复用 M194 的 `crate::xml`（按本地名认标签，正好对付 Tiled 的命名空间）。
+        // 两处换算写死：`gid 0 → -1`（Tiled 用 0 表示空格，我们 0 是合法瓦片）、
+        // `gid n → n - firstgid`（Tiled 的 gid 从 firstgid 起）。
+        "从Tiled" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("从Tiled", args, 1)?;
+            let p = 文本(&args[0], "从Tiled", "路径")?;
+            let 文 = std::fs::read_to_string(&p).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    err("文件错误", format!("找不到文件「{p}」"))
+                } else {
+                    err("文件错误", format!("读不了「{p}」：{e}"))
+                }
+            })?;
+            let 根 = crate::xml::解析(&文);
+            if 根.名 != "map" {
+                return Err(err(
+                    "值错误",
+                    format!(
+                        "「{p}」的根标签是 <{}>，不是 <map> —— 这大概不是 Tiled 地图",
+                        根.名
+                    ),
+                ));
+            }
+            let 宽: i64 = 根.取属性("width").parse().unwrap_or(0);
+            let 高: i64 = 根.取属性("height").parse().unwrap_or(0);
+            let 瓦宽: f64 = 根.取属性("tilewidth").parse().unwrap_or(0.0);
+            let 瓦高: f64 = 根.取属性("tileheight").parse().unwrap_or(0.0);
+            if 宽 <= 0 || 高 <= 0 {
+                return Err(err(
+                    "值错误",
+                    format!("「{p}」的 map 缺 width / height（现在是 {宽} × {高}）"),
+                ));
+            }
+            if 瓦宽 <= 0.0 || 瓦高 <= 0.0 {
+                return Err(err(
+                    "值错误",
+                    format!("「{p}」的 map 缺 tilewidth / tileheight"),
+                ));
+            }
+            // 图集：第一个 tileset 的 <image source>
+            let mut 图集 = Val::None_;
+            let mut 首gid: i64 = 1;
+            for c in &根.子们 {
+                if c.名 != "tileset" {
+                    continue;
+                }
+                首gid = c.取属性("firstgid").parse().unwrap_or(1);
+                for k in &c.子们 {
+                    if k.名 == "image" {
+                        图集 = Val::Str(k.取属性("source").into());
+                    }
+                }
+                break;
+            }
+            let mut 层们: Vec<Val> = Vec::new();
+            for c in &根.子们 {
+                if c.名 != "layer" {
+                    continue;
+                }
+                let 名 = c.取属性("name").to_string();
+                let 数据 = c.子们.iter().find(|k| k.名 == "data");
+                let 数据 = match 数据 {
+                    Some(x) => x,
+                    None => {
+                        let 空行: Vec<Val> = (0..高)
+                            .map(|_| crate::list_new(vec![Val::Int(-1); 宽 as usize]))
+                            .collect();
+                        层们.push(dict_new(vec![
+                            (Val::Str("名".into()), Val::Str(名.as_str().into())),
+                            (Val::Str("行们".into()), crate::list_new(空行)),
+                        ]));
+                        continue;
+                    }
+                };
+                let 编 = 数据.取属性("encoding").to_lowercase();
+                if 编 != "csv" {
+                    return Err(err(
+                        "值错误",
+                        format!(
+                            "「{p}」的层「{名}」用的是 {} 编码，这一版只认 csv\
+                             （Tiled 里「地图 → 地图属性 → 图块层格式」改成 CSV 再存）",
+                            if 编.is_empty() { "未标注" } else { 编.as_str() }
+                        ),
+                    ));
+                }
+                let mut gid们: Vec<i64> = Vec::new();
+                for 片 in 数据.文本.replace('\n', ",").split(',') {
+                    let 片 = 片.trim();
+                    if 片.is_empty() {
+                        continue;
+                    }
+                    match 片.parse::<i64>() {
+                        Ok(n) => gid们.push(n),
+                        Err(_) => {
+                            return Err(err(
+                                "值错误",
+                                format!("「{p}」的层「{名}」里有个格子不是整数：「{片}」"),
+                            ))
+                        }
+                    }
+                }
+                if gid们.len() != (宽 * 高) as usize {
+                    return Err(err(
+                        "值错误",
+                        format!(
+                            "「{p}」的层「{名}」有 {} 个格子，应当是 {宽} × {高} = {}",
+                            gid们.len(),
+                            宽 * 高
+                        ),
+                    ));
+                }
+                let mut 行们: Vec<Val> = Vec::with_capacity(高 as usize);
+                for r in 0..高 as usize {
+                    let mut 行: Vec<Val> = Vec::with_capacity(宽 as usize);
+                    for c0 in 0..宽 as usize {
+                        let g = gid们[r * 宽 as usize + c0];
+                        行.push(Val::Int(if g == 0 { -1 } else { g - 首gid } as i128));
+                    }
+                    行们.push(crate::list_new(行));
+                }
+                层们.push(dict_new(vec![
+                    (Val::Str("名".into()), Val::Str(名.as_str().into())),
+                    (Val::Str("行们".into()), crate::list_new(行们)),
+                ]));
+            }
+            Ok(dict_new(vec![
+                (Val::Str("瓦片宽".into()), Val::Float(瓦宽)),
+                (Val::Str("瓦片高".into()), Val::Float(瓦高)),
+                (Val::Str("图集".into()), 图集),
+                (Val::Str("层们".into()), crate::list_new(层们)),
+            ]))
+        },
+        "存Tiled" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("存Tiled", args, 2)?;
+            let 规整 = 规整地图(&args[0])?;
+            let p = 文本(&args[1], "存Tiled", "路径")?;
+            let 地 = 字典(&规整, "存Tiled", "地图")?;
+            let (瓦宽, 瓦高, 图集, 层们) = {
+                let dd = 地.borrow();
+                let w = 数(&取必(&dd, "瓦片宽", "地图")?, "存Tiled", "瓦片宽")?;
+                let h = 数(&取必(&dd, "瓦片高", "地图")?, "存Tiled", "瓦片高")?;
+                let t = match 取(&dd, "图集") {
+                    Some(Val::Str(s)) if !s.is_empty() => s.to_string(),
+                    _ => "tiles.png".to_string(),
+                };
+                let ls = match 取(&dd, "层们") {
+                    Some(Val::List(l)) => l.borrow().clone(),
+                    _ => Vec::new(),
+                };
+                (w, h, t, ls)
+            };
+            if 层们.is_empty() {
+                return Err(err("值错误", "「存Tiled」的地图里一层都没有"));
+            }
+            // 先量出整张地图有多大（层之间可能长短不一，取最大）
+            let mut 宽: usize = 0;
+            let mut 高: usize = 0;
+            for l in &层们 {
+                if let Val::Dict(ld) = l {
+                    if let Some(Val::List(行们)) = 取(&ld.borrow(), "行们") {
+                        let 行们 = 行们.borrow().clone();
+                        高 = 高.max(行们.len());
+                        for r in &行们 {
+                            if let Val::List(cs) = r {
+                                宽 = 宽.max(cs.borrow().len());
+                            }
+                        }
+                    }
+                }
+            }
+            if 宽 == 0 || 高 == 0 {
+                return Err(err("值错误", "「存Tiled」的地图是空的（没有格子）"));
+            }
+            let 瓦宽 = 瓦宽.round() as i64;
+            let 瓦高 = 瓦高.round() as i64;
+            let mut 出 = String::new();
+            出.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+            出.push_str(&format!(
+                "<map version=\"1.10\" tiledversion=\"1.10.2\" orientation=\"orthogonal\"\
+                 renderorder=\"right-down\" width=\"{宽}\" height=\"{高}\"\
+                 tilewidth=\"{瓦宽}\" tileheight=\"{瓦高}\" infinite=\"0\"\
+                 nextlayerid=\"{}\" nextobjectid=\"1\">\n",
+                层们.len() + 1
+            ));
+            出.push_str(&format!(
+                " <tileset firstgid=\"1\" name=\"tiles\" tilewidth=\"{瓦宽}\" tileheight=\"{瓦高}\">\n"
+            ));
+            出.push_str(&format!("  <image source=\"{}\"/>\n", xml转义(&图集)));
+            出.push_str(" </tileset>\n");
+            for (i, l) in 层们.iter().enumerate() {
+                let (名, 行们) = match l {
+                    Val::Dict(ld) => {
+                        let dd = ld.borrow();
+                        let n = match 取(&dd, "名") {
+                            Some(v) => as_text(&v),
+                            None => format!("层{}", i + 1),
+                        };
+                        let rs = match 取(&dd, "行们") {
+                            Some(Val::List(x)) => x.borrow().clone(),
+                            _ => Vec::new(),
+                        };
+                        (n, rs)
+                    }
+                    _ => (format!("层{}", i + 1), Vec::new()),
+                };
+                let 名 = xml转义(&名);
+                出.push_str(&format!(
+                    " <layer id=\"{}\" name=\"{名}\" width=\"{宽}\" height=\"{高}\">\n",
+                    i + 1
+                ));
+                出.push_str("  <data encoding=\"csv\">\n");
+                for r in 0..高 {
+                    let mut 片: Vec<String> = Vec::with_capacity(宽);
+                    let 本行 = 行们.get(r).and_then(|x| match x {
+                        Val::List(cs) => Some(cs.borrow().clone()),
+                        _ => None,
+                    });
+                    for c in 0..宽 {
+                        let 号 = 本行
+                            .as_ref()
+                            .and_then(|cs| cs.get(c))
+                            .and_then(|v| match v {
+                                Val::Int(n) => Some(*n as i64),
+                                _ => None,
+                            })
+                            .unwrap_or(-1);
+                        片.push(if 号 < 0 {
+                            "0".to_string()
+                        } else {
+                            (号 + 1).to_string()
+                        });
+                    }
+                    出.push_str(&片.join(","));
+                    if r + 1 < 高 {
+                        出.push(',');
+                    }
+                    出.push('\n');
+                }
+                出.push_str("</data>\n </layer>\n");
+            }
+            出.push_str("</map>\n");
+            std::fs::write(&p, 出)
+                .map_err(|e| err("文件错误", format!("写不了「{p}」：{e}")))?;
+            Ok(Val::None_)
+        },
     }
+}
+
+/// XML 文本转义（只转这五个 —— 多转会把合法内容弄坏）。
+fn xml转义(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 /// 校验 / 补齐地图字典（缺字段就说清楚缺哪个，别让它在 `瓦片.载入` 里才炸）。
@@ -701,6 +1305,8 @@ const 前缀: &str = "基石存档/";
 const 索引键: &str = "基石存档/索引";
 /// 格式版本。**改它 = 老存档读不出来**（这是有意的：宁可当没存过，也别读错数据）。
 const 格式版本: i64 = 1;
+/// M197：「自动存」写进这个槽（固定名）。用户读它就跟读别的槽一样。
+const 自动槽: &str = "自动";
 
 fn 页面检查() -> Result<(), JishiError> {
     #[cfg(target_arch = "wasm32")]
@@ -830,6 +1436,52 @@ pub(crate) fn save_module() -> HashMap<String, Val> {
             super::browser::host_call("删本地", &[Val::Str(索引键.into())])?;
             Ok(Val::Int(名们.len() as i128))
         },
+
+        // ---- M197：槽们 / 自动存 -------------------------------------------
+        "槽们" => |_args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            页面检查()?;
+            let mut 名们 = 索引()?;
+            名们.sort();
+            Ok(crate::list_new(
+                名们.into_iter().map(|n| Val::Str(n.as_str().into())).collect(),
+            ))
+        },
+        // 自动存(值, 间隔毫秒?) —— 只把「要存什么」交给宿主，落盘由宿主的定时器做
+        // （每帧写 localStorage 是同步 IO，会把主线程卡住）
+        "自动存" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("自动存", args, 1, 2)?;
+            页面检查()?;
+            let 毫 = match args.get(1) {
+                None | Some(Val::None_) => 30000.0,
+                Some(v) => 数(v, "自动存", "间隔毫秒")?,
+            };
+            if 毫 < 16.0 {
+                return Err(err(
+                    "值错误",
+                    format!("「自动存」的间隔至少 16 毫秒（一帧），现在是 {毫}"),
+                ));
+            }
+            // 与 `存` 用同一套序列化 + 同一个包格式（版本 + 值）——
+            // 这样 `读("自动")` 读得出来
+            let jv = crate::sandbox::val_to_jv(&args[0]).map_err(|t| {
+                err_with_hint(
+                    "类型错误",
+                    format!("「自动存」存不了：值里有「{t}」这类东西，转不成 JSON"),
+                    "存档只收 数字 / 文本 / 布尔 / 空 / 列表 / 字典".into(),
+                )
+            })?;
+            let 文 = crate::jsonw::dump_compact(&jv);
+            let 包 = format!("{{\"版本\":{},\"值\":{}}}", 格式版本, 文);
+            super::browser::host_call(
+                "自动存",
+                &[
+                    Val::Str(包.into()),
+                    Val::Float(毫),
+                    Val::Str(format!("{前缀}{}", 自动槽).into()),
+                    Val::Str(索引键.into()),
+                ],
+            )
+        },
     }
 }
 
@@ -845,6 +1497,12 @@ thread_local! {
         RefCell::new(HashMap::new());
     /// 当前场景名（空 = 还没切过）。
     static 现在: RefCell<String> = const { RefCell::new(String::new()) };
+    /// M197 转场：`(效果, 总帧数, 已走帧数)`。空效果 = 没在转场。
+    ///
+    /// 📌 **按帧数不按毫秒**：毫秒要靠时钟，而 wasm 没有系统时钟（得由页面每帧喂），
+    /// 三宿主的时钟不一致就是「同一段代码快慢不同」的最难查的坑。帧数是确定的。
+    static 转场态: RefCell<(String, i64, i64)> =
+        const { RefCell::new((String::new(), 0, 0)) };
 }
 
 pub(crate) fn scene_module() -> HashMap<String, Val> {
@@ -902,6 +1560,52 @@ pub(crate) fn scene_module() -> HashMap<String, Val> {
         // 现在()
         "现在" => |_args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             Ok(Val::Str(现在.with(|n| n.borrow().clone()).as_str().into()))
+        },
+        // ---- M197：转场（按帧数，见 `转场态` 的注释）----
+        "转场" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("转场", args, 2)?;
+            let 名 = 文本(&args[0], "转场", "效果")?;
+            if 名 != "淡出" && 名 != "淡入" && 名 != "擦除" {
+                return Err(err(
+                    "值错误",
+                    format!("「场景.转场」不认识的效果「{名}」—— 只能是：淡出 / 淡入 / 擦除"),
+                ));
+            }
+            let 总 = 整数(&args[1], "转场", "帧数")?;
+            if 总 <= 0 {
+                return Err(err(
+                    "值错误",
+                    format!("「场景.转场」的帧数要大于 0，现在是 {总}"),
+                ));
+            }
+            转场态.with(|t| *t.borrow_mut() = (名, 总, 0));
+            Ok(Val::Bool(true))
+        },
+        "转场中" => |_args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            let (在, 已, 总) = 转场态.with(|t| {
+                let mut b = t.borrow_mut();
+                if b.2 >= b.1 {
+                    return (false, b.2, b.1);
+                }
+                b.2 += 1;
+                (true, b.2, b.1)
+            });
+            if 在 {
+                // 页面里顺手画一层遮罩（走 `图形` 的通道）。命令行上没画布 ⇒ 静默跳过 ——
+                // 它是**表现**，不该让「转场中」在命令行上报错。
+                #[cfg(target_arch = "wasm32")]
+                {
+                    let 进度 = if 总 > 0 { 已 as f64 / 总 as f64 } else { 1.0 };
+                    let 效 = 转场态.with(|t| t.borrow().0.clone());
+                    let _ = 调(
+                        "转场帧",
+                        &[Val::Str(效.into()), Val::Float(进度)],
+                    );
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                let _ = (已, 总);
+            }
+            Ok(Val::Bool(在))
         },
     }
 }

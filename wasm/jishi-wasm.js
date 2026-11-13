@@ -362,6 +362,44 @@
     return this._store;
   };
 
+  /**
+   * M197：自动存 —— 记下「要存什么」，按间隔落盘。
+   *
+   * 🔴 **不能在每帧里直接写 localStorage**：它是**同步 IO**，每帧写一次会把主线程
+   * 拖住（60 帧的游戏掉到 40 帧，而且看不出是谁的错）。所以这里只更新一份
+   * 「最新快照」，真正写由 `setInterval` 按间隔做。
+   *
+   * 📌 定时器只起一个（重复调用只更新快照），`毫秒` 变了**不重起** ——
+   * 每帧传不同间隔不该产生一堆定时器。
+   */
+  Jishi.prototype._自动存 = function (a) {
+    var 包 = String(a[0]);
+    var 毫 = Math.max(16, Number(a[1]) || 30000);
+    var 键 = String(a[2]);
+    var 索引键 = String(a[3]);
+    var 槽名 = 键.slice(键.lastIndexOf("/") + 1);
+    this._自动快照 = { 包: 包, 键: 键, 索引键: 索引键, 槽名: 槽名 };
+    if (this._自动定时) return null;
+    var 自 = this;
+    this._自动定时 = setInterval(function () {
+      var p = 自._自动快照;
+      if (!p) return;
+      try {
+        var st = 自._needStore();
+        st.setItem(p.键, p.包);
+        var 名们 = [];
+        try { 名们 = JSON.parse(st.getItem(p.索引键) || "[]"); } catch (_) { 名们 = []; }
+        if (!Array.isArray(名们)) 名们 = [];
+        if (名们.indexOf(p.槽名) < 0) {
+          名们.push(p.槽名);
+          st.setItem(p.索引键, JSON.stringify(名们));
+        }
+      } catch (_) { /* localStorage 满了 / 被禁 —— 不打断游戏 */ }
+    }, 毫);
+    if (this._自动定时 && this._自动定时.unref) this._自动定时.unref();
+    return null;
+  };
+
   Jishi.prototype._doOp = function (op, a) {
     var el;
     switch (op) {
@@ -384,6 +422,8 @@
         return got === null || got === undefined ? null : got;
       }
       case "删本地": this._needStore().removeItem(String(a[0])); return null;
+      // M197：自动存（只更新「要存什么」，落盘由定时器做）
+      case "自动存": return this._自动存(a);
       case "请求": this._request(String(a[0]), String(a[1])); return null;
 
       // ---- M186：图形（同一条通道，多几个 case —— 通道形状没变）----
@@ -450,6 +490,12 @@
       case "声音音量": return this._音音量(a);
       case "声音主音量": return this._音主音量(a);
       case "声音读主音量": return this._音().主.gain.value;
+      // M197
+      case "声音循环": return this._音循环(a);
+      case "声音淡入": return this._音淡入(a);
+      case "声音淡出": return this._音淡出(a);
+      case "声音静音": return this._音静音(a);
+      case "转场帧": return this._g转场帧(a);
 
       default: throw new Error("宿主里没有「" + op + "」这个操作");
     }
@@ -936,6 +982,34 @@
     return null;
   };
 
+  /**
+   * M197：转场遮罩。`(效果, 进度 0–1)`。
+   *
+   * 📌 它**不吃相机**（`setTransform` 到 dpr 原点）：遮罩盖的是整块画布，
+   * 不是世界坐标里的某一块 —— 跟着相机走的话，镜头一移遮罩就露出边来。
+   */
+  Jishi.prototype._g转场帧 = function (a) {
+    var 效 = String(a[0] || "");
+    var 进 = Math.max(0, Math.min(1, Number(a[1]) || 0));
+    var ctx = this._needCtx();
+    var 尺 = this._目标尺寸();
+    var d = this._目标dpr();
+    ctx.save();
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+    ctx.fillStyle = "#000";
+    if (效 === "淡出") {
+      ctx.globalAlpha = 进;
+      ctx.fillRect(0, 0, 尺[0], 尺[1]);
+    } else if (效 === "淡入") {
+      ctx.globalAlpha = 1 - 进;
+      ctx.fillRect(0, 0, 尺[0], 尺[1]);
+    } else if (效 === "擦除") {
+      ctx.fillRect(0, 0, 尺[0] * 进, 尺[1]);
+    }
+    ctx.restore();
+    return null;
+  };
+
   Jishi.prototype._g形状 = function (种, a) {
     var 自 = this;
     this._画(function (ctx) {
@@ -1140,6 +1214,76 @@
       .then(function (buf) { 项.缓冲 = buf; })
       .catch(function (e) { 项.错 = String((e && e.message) || e); });
     return 号;
+  };
+
+  /**
+   * M197：把**正在放的**那条改成循环 / 不循环。
+   *
+   * 📌 与 `播放(句柄, {"循环": 真})` 分工：那个管「这一遍」；这个管「已经在放的」。
+   * 没在放时只记下来，下次播放沿用。
+   */
+  Jishi.prototype._音循环 = function (a) {
+    var 项 = this._音项(a[0]);
+    var 开 = !!a[1];
+    项.循环 = 开;
+    if (项.源) 项.源.loop = 开;
+    return null;
+  };
+
+  /**
+   * M197：淡入 —— `毫秒` 内从 0 升到该声音的音量。
+   *
+   * 🔴 必须先 `cancelScheduledValues`：WebAudio 的自动化是**排队**的，
+   * 不取消的话「淡出到一半又淡入」会把两段斜坡叠起来，音量会跳。
+   */
+  Jishi.prototype._音淡入 = function (a) {
+    var 项 = this._音项(a[0]);
+    if (!项.增) return false;
+    var s = this._音();
+    var 现 = s.上下文.currentTime;
+    var 毫 = Math.max(1, Number(a[1]) || 1000) / 1000;
+    var 目标 = 项.音量 == null ? 1 : 项.音量;
+    项.增.gain.cancelScheduledValues(现);
+    项.增.gain.setValueAtTime(0, 现);
+    项.增.gain.linearRampToValueAtTime(目标, 现 + 毫);
+    return true;
+  };
+
+  /** M197：淡出 —— `毫秒` 内降到 0，到 0 后自动停（不然它会「静音着继续放」）。 */
+  Jishi.prototype._音淡出 = function (a) {
+    var 项 = this._音项(a[0]);
+    if (!项.增) return false;
+    var s = this._音();
+    var 现 = s.上下文.currentTime;
+    var 毫 = Math.max(1, Number(a[1]) || 1000) / 1000;
+    var 源 = 项.源;
+    项.增.gain.cancelScheduledValues(现);
+    项.增.gain.setValueAtTime(项.增.gain.value, 现);
+    项.增.gain.linearRampToValueAtTime(0, 现 + 毫);
+    if (源) {
+      源.stop(现 + 毫 + 0.01);
+    }
+    return true;
+  };
+
+  /**
+   * M197：全部静音 / 取消。
+   *
+   * 📌 记一份「静音前的音量」—— 取消时恢复它，而不是写死 1
+   * （用户可能把总音量调到 0.3，静音再取消不该变成 1）。
+   * 📌 静音期间 `在放` 照样给真：声音在走，只是听不见。
+   */
+  Jishi.prototype._音静音 = function (a) {
+    var s = this._音();
+    var 开 = !!a[0];
+    if (开) {
+      if (this._静音前 == null) this._静音前 = s.主.gain.value;
+      s.主.gain.value = 0;
+    } else if (this._静音前 != null) {
+      s.主.gain.value = this._静音前;
+      this._静音前 = null;
+    }
+    return null;
   };
 
   Jishi.prototype._音播放 = function (a) {

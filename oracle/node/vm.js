@@ -7892,6 +7892,9 @@ function _noSound(name) {
 const SOUND_FUNCS = {
   '载入': _noSound('载入'), '播放': _noSound('播放'), '停止': _noSound('停止'),
   '在放': _noSound('在放'), '设音量': _noSound('设音量'), '主音量': _noSound('主音量'),
+  // M197
+  '循环': _noSound('循环'), '淡入': _noSound('淡入'),
+  '淡出': _noSound('淡出'), '静音': _noSound('静音'),
 };
 
 const SAVE_无 = '这个平台没有存档：「存档」要页面的 localStorage'
@@ -7903,6 +7906,8 @@ function _noSave(name) {
 }
 const SAVE_FUNCS = {
   '存': _noSave('存'), '读': _noSave('读'), '删': _noSave('删'), '清': _noSave('清'),
+  // M197
+  '槽们': _noSave('槽们'), '自动存': _noSave('自动存'),
 };
 
 /** 收字典（基石的字典在 JS 里是 Map）。 */
@@ -7936,6 +7941,8 @@ const SPRITE_FUNCS = {
     m.set('列数', Math.max(1, o.has('列数') ? Math.trunc(_要数(o.get('列数'), '新建', '列数')) : 1));
     m.set('行数', Math.max(1, o.has('行数') ? Math.trunc(_要数(o.get('行数'), '新建', '行数')) : 1));
     m.set('当前', 0); m.set('在播', ''); m.set('累计', _小(0)); m.set('动画', new Map());
+    // M197：锚点（比例）与「非循环播完了」的标志
+    m.set('原点x', _小(0)); m.set('原点y', _小(0)); m.set('完成', false);
     return m;
   }),
   // 播(精灵, 名, {"帧们"?,"速度"?,"循环"?})
@@ -7954,6 +7961,7 @@ const SPRITE_FUNCS = {
     项.set('帧们', 帧们); 项.set('速度', _小(速度)); 项.set('循环', o.has('循环') ? !!o.get('循环') : true);
     d.get('动画').set(名, 项);
     d.set('在播', 名); d.set('累计', _小(0)); d.set('当前', 帧们[0]);
+    d.set('完成', false);   // 重新播就把「播完了」清掉
     return 精灵;
   }),
   '停': new R.Builtin('停', (精灵) => {
@@ -7982,7 +7990,8 @@ const SPRITE_FUNCS = {
       次 += 1;
       if (位 + 1 < 帧们.length) 位 += 1;
       else if (项.get('循环')) 位 = 0;
-      else { d.set('累计', _小(0)); break; }
+      // 非循环：停在最后一帧，并记下「播完了」——`动画完成` 读它
+      else { d.set('累计', _小(0)); d.set('完成', true); break; }
       d.set('当前', 帧们[位]);
       变 = true;
     }
@@ -7996,12 +8005,53 @@ const SPRITE_FUNCS = {
     const 当前 = d.get('当前');
     const 列 = ((当前 % 列数) + 列数) % 列数;
     const 行 = Math.floor(当前 / 列数);
+    // M197：原点按**比例**偏移（默认 0,0 = 左上角，与 M187 行为一致）
+    const ox = d.has('原点x') ? R.unwrap(d.get('原点x')) : 0;
+    const oy = d.has('原点y') ? R.unwrap(d.get('原点y')) : 0;
+    const px = _要数(x, '画', 'x') - ox * 帧宽;
+    const py = _要数(y, '画', 'y') - oy * 帧高;
     const 绘图 = STDLIB['图形'].attrs;
     return 绘图['画子图'].fn(d.get('图'), 列 * 帧宽, 行 * 帧高, 帧宽, 帧高,
-      _要数(x, '画', 'x'), _要数(y, '画', 'y'), 帧宽, 帧高,
+      new R.FloatBox(px), new R.FloatBox(py), 帧宽, 帧高,
       选项 === undefined ? null : 选项);
   }),
   '当前帧': new R.Builtin('当前帧', (精灵) => _要字典(精灵, '当前帧', '精灵').get('当前')),
+
+  // ---- M197：图集切分 / 动画完成 / 原点 --------------------------------
+  '图集切分': new R.Builtin('图集切分', (图宽, 图高, 帧宽, 帧高) => {
+    const w = _要数(图宽, '图集切分', '图宽');
+    const h = _要数(图高, '图集切分', '图高');
+    const fw = _要数(帧宽, '图集切分', '帧宽');
+    const fh = _要数(帧高, '图集切分', '帧高');
+    for (const [名, v] of [['图宽', w], ['图高', h], ['帧宽', fw], ['帧高', fh]]) {
+      if (v <= 0) throw R.valueErr(`「图集切分」的${名}必须大于 0，现在是 ${v}`, 0, 0);
+    }
+    if (fw > w || fh > h) {
+      throw R.valueErr(`「图集切分」的帧（${fw}×${fh}）比图（${w}×${h}）还大`, 0, 0);
+    }
+    // 除不尽的残条丢掉 —— 半帧的图放出来是错的
+    const 列数 = Math.floor(w / fw);
+    const 行数 = Math.floor(h / fh);
+    const 帧数 = 列数 * 行数;
+    const 帧们 = [];
+    for (let i = 0; i < 帧数; i++) 帧们.push(i);
+    return new Map([['列数', 列数], ['行数', 行数], ['帧数', 帧数], ['帧们', 帧们]]);
+  }),
+
+  '动画完成': new R.Builtin('动画完成', (精灵) =>
+    _要字典(精灵, '动画完成', '精灵').get('完成') === true),
+
+  '设原点': new R.Builtin('设原点', (精灵, x, y) => {
+    const d = _要字典(精灵, '设原点', '精灵');
+    const ox = (x === undefined || x === null) ? 0.5 : _要数(x, '设原点', 'x');
+    const oy = (y === undefined || y === null) ? 0.5 : _要数(y, '设原点', 'y');
+    if (ox < 0 || ox > 1 || oy < 0 || oy > 1) {
+      throw R.valueErr(`「设原点」的两个比例要在 0–1 之间，现在是 ${ox} / ${oy}`, 0, 0);
+    }
+    d.set('原点x', _小(ox));
+    d.set('原点y', _小(oy));
+    return 精灵;
+  }),
 };
 
 /** 二维整数列表 → 数组的数组（`空` 当 -1）。 */
@@ -8086,6 +8136,125 @@ const TILE_FUNCS = {
     if (c < 0 || c >= 行们[r].length) return -1;
     return 行们[r][c];
   }),
+
+  // ---- M197：碰撞层 / 斜坡 / 矩形取格 / 最近可走格 ------------------------
+  //
+  // 三条规则（与 Python / Rust 逐字一致）：
+  //   1. 碰撞层是「哪些瓦片号算实心」的名单，不改原图（一个图能建好几层）；
+  //   2. 斜坡只记方向，键用文本 `"列,行"`（三宿主唯一能一致的表示）；
+  //   3. 最近可走格一圈圈向外找，最多 16 圈，找不到给空。
+  '碰撞层': new R.Builtin('碰撞层', (瓦片图, 实心号们) => {
+    const d = _要字典(瓦片图, '碰撞层', '瓦片图');
+    if (!Array.isArray(实心号们)) {
+      throw R.typeErr('「碰撞层」的「实心号们」要整数列表（比如 [0, 1, 2]）', 0, 0);
+    }
+    const 号们 = [];
+    for (const x of 实心号们) {
+      const n = Math.trunc(_要数(x, '碰撞层', '实心号'));
+      if (!号们.includes(n)) 号们.push(n);
+    }
+    号们.sort((a, b) => a - b);
+    return new Map([['图', d], ['实心', 号们]]);
+  }),
+
+  '是实心': new R.Builtin('是实心', (碰撞层对象, 列, 行) => {
+    const c = _要字典(碰撞层对象, '是实心', '碰撞层');
+    const 图 = c.get('图');
+    if (!(图 instanceof Map)) {
+      throw R.typeErr('「是实心」的第一个参数要碰撞层（`瓦片.碰撞层` 造的）', 0, 0);
+    }
+    const 实心 = c.get('实心') || [];
+    const cc = Math.trunc(_要数(列, '是实心', '列'));
+    const rr = Math.trunc(_要数(行, '是实心', '行'));
+    const 行们 = 图.get('行们');
+    let 号 = -1;
+    if (rr >= 0 && rr < 行们.length && cc >= 0 && cc < 行们[rr].length) 号 = 行们[rr][cc];
+    return 实心.includes(号);
+  }),
+
+  '斜坡': new R.Builtin('斜坡', (瓦片图, 列, 行, 方向) => {
+    const d = _要字典(瓦片图, '斜坡', '瓦片图');
+    const 向 = pText(方向);   // vm.js 里 `pText` 是普通函数，不走 R
+    if (向 !== '左' && 向 !== '右') {
+      throw R.valueErr(`「斜坡」的方向只能是 左 / 右，给的是「${向}」`, 0, 0);
+    }
+    const c = Math.trunc(_要数(列, '斜坡', '列'));
+    const r = Math.trunc(_要数(行, '斜坡', '行'));
+    const 行们 = d.get('行们');
+    const 列数 = 行们.reduce((a, x) => Math.max(a, x.length), 0);
+    if (c < 0 || r < 0 || r >= 行们.length || c >= 行们[r].length) {
+      throw R.valueErr(
+        `「斜坡」的格子 (${c}, ${r}) 不在地图里（地图是 ${列数} 列 × ${行们.length} 行）`, 0, 0);
+    }
+    if (!(d.get('斜坡们') instanceof Map)) d.set('斜坡们', new Map());
+    d.get('斜坡们').set(`${c},${r}`, 向);
+    return d;
+  }),
+
+  '是斜坡': new R.Builtin('是斜坡', (瓦片图, 列, 行) => {
+    const d = _要字典(瓦片图, '是斜坡', '瓦片图');
+    const 坡们 = d.get('斜坡们');
+    if (!(坡们 instanceof Map)) return null;
+    const c = Math.trunc(_要数(列, '是斜坡', '列'));
+    const r = Math.trunc(_要数(行, '是斜坡', '行'));
+    const v = 坡们.get(`${c},${r}`);
+    return v === undefined ? null : v;
+  }),
+
+  '取矩形内瓦片': new R.Builtin('取矩形内瓦片', (瓦片图, 矩形) => {
+    const d = _要字典(瓦片图, '取矩形内瓦片', '瓦片图');
+    const 宽 = R.unwrap(d.get('瓦片宽')), 高 = R.unwrap(d.get('瓦片高'));
+    const b = _要字典(矩形, '取矩形内瓦片', '矩形');
+    for (const 键 of ['x', 'y', '宽', '高']) {
+      if (!b.has(键)) throw R.valueErr(`「取矩形内瓦片」的矩形里缺「${键}」`, 0, 0);
+    }
+    const bx = _要数(b.get('x'), '取矩形内瓦片', 'x');
+    const by = _要数(b.get('y'), '取矩形内瓦片', 'y');
+    const bw = _要数(b.get('宽'), '取矩形内瓦片', '宽');
+    const bh = _要数(b.get('高'), '取矩形内瓦片', '高');
+    if (bw <= 0 || bh <= 0) {
+      throw R.valueErr('「取矩形内瓦片」的矩形宽高要大于 0', 0, 0);
+    }
+    const 行们 = d.get('行们');
+    const c0 = Math.max(0, Math.floor(bx / 宽)), c1 = Math.floor((bx + bw) / 宽);
+    const r0 = Math.max(0, Math.floor(by / 高)), r1 = Math.floor((by + bh) / 高);
+    const 出 = [];
+    for (let r = r0; r <= r1; r++) {
+      if (r >= 行们.length) break;
+      for (let c = c0; c <= c1; c++) {
+        if (c >= 行们[r].length) break;
+        出.push(new Map([['列', c], ['行', r], ['号', 行们[r][c]]]));
+      }
+    }
+    return 出;
+  }),
+
+  '最近可走格': new R.Builtin('最近可走格', (瓦片图, 碰撞层对象, x, y) => {
+    const d = _要字典(瓦片图, '最近可走格', '瓦片图');
+    const c = _要字典(碰撞层对象, '最近可走格', '碰撞层');
+    const 宽 = R.unwrap(d.get('瓦片宽')), 高 = R.unwrap(d.get('瓦片高'));
+    const 行们 = d.get('行们');
+    const 实心 = c.get('实心') || [];
+    const px = _要数(x, '最近可走格', 'x'), py = _要数(y, '最近可走格', 'y');
+    const 起列 = Math.floor(px / 宽), 起行 = Math.floor(py / 高);
+    for (let 圈 = 0; 圈 <= 16; 圈++) {
+      // 行优先遍历这一圈 —— 与 Python / Rust 同序，结果才可复现
+      for (let dr = -圈; dr <= 圈; dr++) {
+        for (let dc = -圈; dc <= 圈; dc++) {
+          if (Math.max(Math.abs(dr), Math.abs(dc)) !== 圈) continue;
+          const r = 起行 + dr, cc = 起列 + dc;
+          if (r < 0 || cc < 0 || r >= 行们.length || cc >= 行们[r].length) continue;
+          if (实心.includes(行们[r][cc])) continue;
+          return new Map([
+            ['列', cc], ['行', r],
+            // 强制浮点：`(1+0.5)*32` 在 JS 里是整数 48，Python 是 48.0 —— 显示会差一位
+            ['x', new R.FloatBox((cc + 0.5) * 宽)], ['y', new R.FloatBox((r + 0.5) * 高)],
+          ]);
+        }
+      }
+    }
+    return null;
+  }),
 };
 
 const MAP_FUNCS = {
@@ -8122,6 +8291,152 @@ const MAP_FUNCS = {
     }
     return null;
   }),
+
+  // ---- M197：Tiled TMX 互通 ---------------------------------------------
+  //
+  // 两处换算写死：`gid 0 → -1`（Tiled 用 0 表示空格，我们 0 是合法瓦片）、
+  // `gid n → n - firstgid`。只认 CSV 数据（Tiled 默认），别的编码明确报错。
+  //
+  // ⚠️ 这里用**扫描 + 正则**取 TMX，没有引 XML 库：TMX 是机器生成的，
+  //    结构就那几层；为一个模块拉一个解析器不值得（`word_mod` 也是这么干的）。
+  '从Tiled': new R.Builtin('从Tiled', (路径) => {
+    const fs = require('node:fs');
+    const p = pText(路径);
+    let 文;
+    try {
+      文 = fs.readFileSync(p, 'utf8');
+    } catch (e) {
+      if (e.code === 'ENOENT') throw R.fileErr(`找不到文件「${p}」`);
+      throw R.fileErr(`读不了「${p}」：${e.message}`);
+    }
+    const 根 = 文.match(/<map\b([^>]*)>/);
+    if (!根) {
+      throw R.valueErr(`「${p}」里找不到 <map> 标签 —— 这大概不是 Tiled 地图`, 0, 0);
+    }
+    const 属性 = (s2, 名) => {
+      const m = s2.match(new RegExp(名 + '="([^"]*)"'));
+      return m ? m[1] : '';
+    };
+    const 宽 = parseInt(属性(根[1], 'width'), 10) || 0;
+    const 高 = parseInt(属性(根[1], 'height'), 10) || 0;
+    const 瓦宽 = parseFloat(属性(根[1], 'tilewidth')) || 0;
+    const 瓦高 = parseFloat(属性(根[1], 'tileheight')) || 0;
+    if (宽 <= 0 || 高 <= 0) {
+      throw R.valueErr(`「${p}」的 map 缺 width / height（现在是 ${宽} × ${高}）`, 0, 0);
+    }
+    if (瓦宽 <= 0 || 瓦高 <= 0) {
+      throw R.valueErr(`「${p}」的 map 缺 tilewidth / tileheight`, 0, 0);
+    }
+    // 图集：第一个 tileset 的 <image source>
+    let 图集 = null;
+    let 首gid = 1;
+    const ts = 文.match(/<tileset\b([^>]*)>([\s\S]*?)<\/tileset>/);
+    if (ts) {
+      首gid = parseInt(属性(ts[1], 'firstgid'), 10) || 1;
+      const im = ts[2].match(/<image\b[^>]*source="([^"]*)"/);
+      if (im) 图集 = im[1];
+    }
+    const 层们 = [];
+    const re = /<layer\b([^>]*)>([\s\S]*?)<\/layer>/g;
+    let m;
+    while ((m = re.exec(文)) !== null) {
+      const 名 = 属性(m[1], 'name');
+      const dm = m[2].match(/<data\b([^>]*)>([\s\S]*?)<\/data>/);
+      if (!dm) {
+        const 空行 = [];
+        for (let r = 0; r < 高; r++) 空行.push(new Array(宽).fill(-1));
+        层们.push(new Map([['名', 名], ['行们', 空行]]));
+        continue;
+      }
+      const 编 = (属性(dm[1], 'encoding') || '').toLowerCase();
+      if (编 !== 'csv') {
+        throw R.valueErr(
+          `「${p}」的层「${名}」用的是 ${编 || '未标注'} 编码，这一版只认 csv`
+          + '（Tiled 里「地图 → 地图属性 → 图块层格式」改成 CSV 再存）', 0, 0);
+      }
+      const gid们 = dm[2].replace(/\n/g, ',').split(',')
+        .map((x) => x.trim()).filter((x) => x !== '')
+        .map((x) => {
+          const n = parseInt(x, 10);
+          if (Number.isNaN(n)) {
+            throw R.valueErr(`「${p}」的层「${名}」里有个格子不是整数：「${x}」`, 0, 0);
+          }
+          return n;
+        });
+      if (gid们.length !== 宽 * 高) {
+        throw R.valueErr(
+          `「${p}」的层「${名}」有 ${gid们.length} 个格子，应当是 ${宽} × ${高} = ${宽 * 高}`, 0, 0);
+      }
+      const 行们 = [];
+      for (let r = 0; r < 高; r++) {
+        const 行 = [];
+        for (let c = 0; c < 宽; c++) {
+          const g = gid们[r * 宽 + c];
+          行.push(g === 0 ? -1 : g - 首gid);
+        }
+        行们.push(行);
+      }
+      层们.push(new Map([['名', 名], ['行们', 行们]]));
+    }
+    return new Map([
+      ['瓦片宽', new R.FloatBox(瓦宽)],
+      ['瓦片高', new R.FloatBox(瓦高)],
+      ['图集', 图集],
+      ['层们', 层们],
+    ]);
+  }),
+
+  '存Tiled': new R.Builtin('存Tiled', (地图, 路径) => {
+    const fs = require('node:fs');
+    const d = _要字典(地图, '存Tiled', '地图');
+    const p = pText(路径);
+    const 层们 = (d.get('层们') || []).filter((l) => l instanceof Map);
+    if (!层们.length) throw R.valueErr('「存Tiled」的地图里一层都没有', 0, 0);
+    let 宽 = 0, 高 = 0;
+    for (const l of 层们) {
+      const 行们 = l.get('行们') || [];
+      高 = Math.max(高, 行们.length);
+      for (const r of 行们) 宽 = Math.max(宽, r.length);
+    }
+    if (!宽 || !高) throw R.valueErr('「存Tiled」的地图是空的（没有格子）', 0, 0);
+    const 瓦宽 = Math.round(R.unwrap(d.get('瓦片宽')));
+    const 瓦高 = Math.round(R.unwrap(d.get('瓦片高')));
+    const 图 = d.get('图集') || 'tiles.png';
+    const 转 = (s2) => String(s2).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const 出 = ['<?xml version="1.0" encoding="UTF-8"?>'];
+    出.push(`<map version="1.10" tiledversion="1.10.2" orientation="orthogonal"`
+      + ` renderorder="right-down" width="${宽}" height="${高}"`
+      + ` tilewidth="${瓦宽}" tileheight="${瓦高}" infinite="0"`
+      + ` nextlayerid="${层们.length + 1}" nextobjectid="1">`);
+    出.push(` <tileset firstgid="1" name="tiles" tilewidth="${瓦宽}" tileheight="${瓦高}">`);
+    出.push(`  <image source="${转(图)}"/>`);
+    出.push(' </tileset>');
+    层们.forEach((l, i) => {
+      const 名 = 转(l.get('名') || `层${i + 1}`);
+      const 行们 = l.get('行们') || [];
+      出.push(` <layer id="${i + 1}" name="${名}" width="${宽}" height="${高}">`);
+      出.push('  <data encoding="csv">');
+      for (let r = 0; r < 高; r++) {
+        const 行 = 行们[r] || [];
+        const gid = [];
+        for (let c = 0; c < 宽; c++) {
+          const 号 = c < 行.length ? 行[c] : -1;
+          gid.push(号 == null || 号 < 0 ? '0' : String(Math.trunc(号) + 1));
+        }
+        出.push(gid.join(',') + (r + 1 < 高 ? ',' : ''));
+      }
+      出.push('</data>');
+      出.push(' </layer>');
+    });
+    出.push('</map>');
+    try {
+      fs.writeFileSync(p, 出.join('\n') + '\n', 'utf8');
+    } catch (e) {
+      throw R.fileErr(`写不了「${p}」：${e.message}`);
+    }
+    return null;
+  }),
 };
 
 /** JSON 解析结果 → 基石的值（对象 → Map，数组 → 数组）。 */
@@ -8138,6 +8453,8 @@ function _json到值(x) {
 // 场景：登记表 + 当前名（模块级，与 Python 侧同形）
 const _场景们 = new Map();
 let _现在场景 = '';
+//: M197 转场：`{效果, 总, 已}`（null = 没在转场）。
+let _转场态 = null;
 const SCENE_FUNCS = {
   '定': new R.Builtin('定', (名, 选项) => {
     const 键 = R.pyStr(名);
@@ -8165,6 +8482,26 @@ const SCENE_FUNCS = {
     return true;
   }),
   '现在': new R.Builtin('现在', () => _现在场景),
+
+  // ---- M197：转场（按帧数，与 Rust 侧的说明一致）------------------------
+  //
+  // 📌 毫秒要靠时钟，而 wasm 没有系统时钟 ⇒ 三宿主会「同一段代码快慢不同」。
+  //    帧数是确定的：60 帧就是 60 帧。
+  '转场': new R.Builtin('转场', (效果, 帧数) => {
+    const 名 = pText(效果);
+    if (名 !== '淡出' && 名 !== '淡入' && 名 !== '擦除') {
+      throw R.valueErr(`「场景.转场」不认识的效果「${名}」—— 只能是：淡出 / 淡入 / 擦除`, 0, 0);
+    }
+    const 总 = Math.trunc(_要数(帧数, '转场', '帧数'));
+    if (总 <= 0) throw R.valueErr(`「场景.转场」的帧数要大于 0，现在是 ${总}`, 0, 0);
+    _转场态 = { 效果: 名, 总: 总, 已: 0 };
+    return true;
+  }),
+  '转场中': new R.Builtin('转场中', () => {
+    if (!_转场态 || _转场态.已 >= _转场态.总) return false;
+    _转场态.已 += 1;
+    return true;
+  }),
 };
 
 const STDLIB = {  '数学': new R.Module('数学', {
