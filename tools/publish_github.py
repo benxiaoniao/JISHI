@@ -559,6 +559,61 @@ def _notify_push() -> None:
 
 
 # ---------------------------------------------------------------------------
+# 发布前对账远端工作流（2026-11-14 加，**踩过两次才加**）
+# ---------------------------------------------------------------------------
+
+#: GitHub 上「有、本地没有」的 workflow 会被全量推送删掉 —— 而且**一声不响**。
+#:
+#: 🔴 为什么必须查（2026-11-13/14 实测）：`.github/workflows/sync-to-cnb.yml`
+#:    （GitHub → CNB 实时镜像）是作者**直接在网页上加的**，本地仓库没有。
+#:    而本脚本是 `git archive HEAD` 导出快照 + `git push -f` 覆盖 —— 快照里没它，
+#:    推上去就等于把它删了。作者的感受是「同步突然不跑了 / 每次发完版 CI 多一次红」，
+#:    查代码却什么都看不出来（代码一行没变）。同一份文件因此被手工加了两次
+#:    （`6f62f856`、`9fec66ff`，信息一模一样）。
+#:
+#: ⇒ 发布前拿远端清单跟快照比一次：**远端有、快照没有就停下**，把文件名打出来并
+#:   告诉你一行下载命令。确实要删就加 `--删工作流`（显式、可审计）。
+#: ⚠️ 查不到（断网 / API 挂）**不拦**：那是「不知道」，不是「有问题」，
+#:    不能因为查不了清单就挡住发版 —— 这条护栏只治它看得见的那一类。
+
+
+def _远端工作流() -> "list[str] | None":
+    """远端 `.github/workflows/` 下的文件名；取不到返回 None。"""
+    try:
+        d = _api(f"/contents/.github/workflows?ref={BRANCH}")
+    except Exception:                       # noqa: BLE001
+        return None
+    if not isinstance(d, list):
+        return None
+    return [x["name"] for x in d if x.get("type") == "file"]
+
+
+def _检查工作流(snapshot: Path) -> None:
+    """全量推送前对账：**远端多出来的 workflow 会被删**，先问一句。"""
+    远端 = _远端工作流()
+    if 远端 is None:
+        print("   ⚠️ 取不到远端 workflow 清单（网络？），这项检查跳过 —— "
+              "**不是通过了，是没查**")
+        return
+    本地 = {p.name for p in (snapshot / ".github" / "workflows").glob("*.yml")}
+    缺 = sorted(set(远端) - 本地)
+    if not 缺:
+        return
+    if "--删工作流" in sys.argv:
+        print(f"   （--删工作流）这 {len(缺)} 个会在远端被删掉：{'、'.join(缺)}")
+        return
+    raise SystemExit(
+        "发布中止：GitHub 上有这些 workflow，本地快照里没有 ——\n"
+        "全量推送会把它们**删掉**（而且不会报错）：\n  - "
+        + "\n  - ".join(缺)
+        + "\n\n它们大概是在网页上直接加的。先下到本地并提交：\n"
+        "  curl -sH 'Accept: application/vnd.github.raw' \\\n"
+        f"    'https://api.github.com{_API}/contents/.github/workflows/名字?ref={BRANCH}' \\\n"
+        "    -o .github/workflows/名字\n"
+        "\n确实想删就加 `--删工作流` 再跑一次。")
+
+
+# ---------------------------------------------------------------------------
 # 等 Release 结果（M122 加，用户 2026-10-18 定）
 # ---------------------------------------------------------------------------
 
@@ -726,6 +781,9 @@ def main() -> int:
 
     print("[2/4] 隐私屏蔽 + 终检")
     _sanitize(snapshot)
+
+    print("[2.5/4] 对账远端 workflow（全量推送会删掉远端多出来的）")
+    _检查工作流(snapshot)
 
     print("[3/4] 快照内初始化提交")
     commit_msg = cli_message(sys.argv) or default_commit_msg(
