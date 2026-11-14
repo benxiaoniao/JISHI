@@ -41,6 +41,7 @@ pub mod single_instance;
 // 不依赖 `native-window`：wasm 构建里也要有（它就是给 wasm 用的）。
 pub mod abi3;
 pub mod packcmd;    // M172：`jishi 打包`（四类产物）
+pub mod installer;  // M200：装 / 卸 / 升的判定与回滚（静默安装与向导共用一份）
 pub mod scope;      // R7.3：AST 作用域分析（scope.py 的移植，checker 与 LSP 共用）
 pub mod lsp;        // R7.3：语言服务器（lsp.py 的移植，`jishi-rs lsp`）
 pub mod run;        // R7.4：CLI 主入口（cli.py 的移植）

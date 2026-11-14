@@ -559,7 +559,7 @@ def 打包命令(argv: list) -> int:
     存根 = ""
     目标们 = ""
     安静 = False
-    不用inno = False
+    安装器 = "自研"
     保留iss = False
     i = 0
     while i < len(argv):
@@ -585,13 +585,17 @@ def 打包命令(argv: list) -> int:
         elif a in ("--安静", "-q", "--quiet"):
             安静 = True
         elif a in ("--不用inno", "--no-inno"):
-            不用inno = True
+            # 老开关留着（M198 的脚本里可能有），等价于新的显式选择
+            安装器 = "自研"
+        elif a in ("--安装器", "--installer"):
+            i += 1
+            安装器 = argv[i] if i < len(argv) else ""
         elif a in ("--保留iss", "--keep-iss"):
             保留iss = True
         elif a in ("-h", "--help"):
             print("用法：jishi 打包 [目录] [--出 目录] [--名字 X] [--版本 X] "
                   "[--入口 X] [--存根 路径] [--目标 便携,安装包,应用,压缩包] "
-                  "[--不用inno] [--保留iss] [--安静]")
+                  "[--安装器 自研|inno] [--保留iss] [--安静]")
             print()
             # 前半段模块说明（到「## 三条规矩」为止）——那段正是「四类产物是什么」
             print(__doc__.split("## 三条规矩")[0].split("\n", 1)[1].strip())
@@ -627,7 +631,22 @@ def 打包命令(argv: list) -> int:
     if 指定iscc and not os.path.isfile(指定iscc):
         print(f"错误：JISHI_ISCC 指到「{指定iscc}」，但那里没有 ISCC.exe", file=sys.stderr)
         return 2
-    iscc = "" if 不用inno else (指定iscc or 找iscc())
+    # M200：**自研是默认**（存根 + 自带向导）。Inno 从「默认」退成「可选」。
+    if 安装器 == "自研":
+        iscc = ""
+    elif 安装器 == "inno":
+        iscc = 指定iscc or 找iscc()
+        if not iscc:
+            print("错误：你指定了 `--安装器 inno`，但这台机器没找到 Inno Setup 的编译器"
+                  "（ISCC.exe）。", file=sys.stderr)
+            print("　　 装一个：winget install -e --id JRSoftware.InnoSetup", file=sys.stderr)
+            print("　　 或者去掉这个开关，用默认的**自研安装器**（自带向导，不需要 Inno）。",
+                  file=sys.stderr)
+            return 2
+    else:
+        print(f"错误：不认识的安装器「{安装器}」（只有「自研」和「inno」两种）",
+              file=sys.stderr)
+        return 2
 
     要哪些 = [x.strip() for x in 目标们.split(",") if x.strip()] if 目标们 else list(全部类型)
     for t in 要哪些:
@@ -701,17 +720,7 @@ def 打包命令(argv: list) -> int:
                 #    也顺带留住了。详见 `rust/src/bin/packstub.rs` 的 `子安装器名`。
                 包 = 编译iss(iss路径, 名字, 版本, 出, 临时, iscc)
             打包模块.安装包(包, 存根, 目标)
-            if not iscc:
-                # 🔴 降级要**当场说清**，`--安静` 也照说：产物类型变了，
-                #    脚本作者不看 stderr 就会一直以为拿到的是向导版。
-                因 = "你指定了 --不用inno" if 不用inno else \
-                    "这台机器没找到 Inno Setup 的编译器（ISCC.exe）"
-                print(f"⚠️  安装包没走 Inno 向导：{因}", file=sys.stderr)
-                print("　　 出的是「自解压存根版」：能装、能卸、「应用和功能」里有条目，"
-                      "但没有「选目录 / 选桌面快捷方式」的向导。", file=sys.stderr)
-                print("　　 要向导版：装 Inno Setup 6"
-                      "（winget install -e --id JRSoftware.InnoSetup），"
-                      "或用 JISHI_ISCC 指到 ISCC.exe。", file=sys.stderr)
+            # M200：自研是默认，这里不再有「降级」这回事（显式要 inno 又没 ISCC 已在上面报错）
             成品.append(("安装包", 目标))
             if 保留iss:
                 iss出 = os.path.join(出, f"{名字}-{版本}-windows-x64-setup.iss")

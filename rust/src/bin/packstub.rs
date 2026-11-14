@@ -46,6 +46,12 @@ use std::process::{Command, ExitCode};
 
 use jishi_ffi::json::Json;
 
+/// M200：自研安装向导（图形界面）。只在开了 `native-window` 特性时编进来 ——
+/// 关掉特性（小体积构建）就退化成控制台安装，功能不缺，只是没有窗口。
+#[cfg(feature = "native-window")]
+#[path = "packstub/向导.rs"]  // 🔴 中文模块名必须显式给路径（编译器不按中文名找文件）
+mod 向导;
+
 /// 尾部索引的魔数。与 Python `打包.安装包魔数` / Node 同一串。
 const 魔数: &[u8; 8] = b"JISHIPK1";
 /// 尾部索引长度：偏移 u64 + 长度 u64 + 魔数 8。
@@ -921,6 +927,113 @@ fn 安装(自身: &[u8], 包: &包, 目标: &Path, 静默: bool, 要path: bool) 
     Ok(())
 }
 
+/// M200：装之前先判「全新 / 升级 / 降级 / 相同」，再**带备份**执行。
+///
+/// 四条规矩，都是「不做就会静默出事」的：
+///
+/// 1. **版本相同不装**（除非 `--重装`）。双击两次同一个安装包不该产生两次升级，
+///    更不该把用户数据搞出新副本。
+/// 2. **往低版本装要显式要**（`--允许降级`）。默认拒绝并说清「装着的是哪个版本」——
+///    降级会丢掉新版本才有的功能，这不能是默认行为。
+/// 3. **先备份再动手**，装砸了整个还原（`installer::备份`）。
+/// 4. **升级只删「旧清单有、新清单没有」的文件** —— 用户自己放进安装目录的东西
+///    不在旧清单里，一个都不碰。这是「升级保留用户数据」的全部实现。
+fn 装并管升级(
+    自身: &[u8],
+    包: &包,
+    目标: &Path,
+    静默: bool,
+    要path: bool,
+    允许降级: bool,
+    重装: bool,
+) -> Result<(), String> {
+    use jishi_ffi::installer as 内核;
+
+    // ① 单实例：两个安装器同时写一个目录，轻则「文件被占用」，
+    //    重则**一边回滚一边写入**，装完是个混合体。
+    let _锁 = 内核::独占::抢(&包.名字);
+    if _锁.is_none() {
+        eprintln!(
+            "⚠️  已经有一个「{}」的安装正在进行，等它装完再来（同时装会互相踩）。",
+            包.名字
+        );
+        return Err("另一个安装器正在运行".to_string());
+    }
+
+    // ② 判定
+    let 目录 = 绝对路径(目标);
+    let 已装 = 内核::读已装(&目录);
+    let 动 = 内核::判断(已装.as_ref(), &包.版本, 允许降级);
+    match &动 {
+        内核::动作::相同 if !重装 => {
+            if !静默 {
+                println!("已经装的就是 {} —— 不再重复安装（要重装加 `--重装`）", 包.版本);
+            }
+            内核::日志(&format!("跳过（版本相同）：{}", 目录.display()));
+            return Ok(());
+        }
+        内核::动作::降级 { 从 } if !允许降级 => {
+            return Err(format!(
+                "装着更新的版本「{从}」，这个包是「{}」—— 默认不往下降级。\n\
+                 确实要降级：加 `--允许降级`（新版本才有的功能会丢）。",
+                包.版本
+            ));
+        }
+        _ => {}
+    }
+    if !静默 {
+        println!("{} → {}", 动.说明(), 目录.display());
+    }
+
+    // ③ 备份 → 装 → 成功丢弃 / 失败还原
+    let 备份 = 内核::备份::做(&目录, &包.名字)?;
+    内核::日志(&format!("开始（{}）→ {}", 动.说明(), 目录.display()));
+    match 安装(自身, 包, 目标, 静默, 要path) {
+        Ok(()) => {
+            备份.丢弃();
+            // ④ 升级：删掉「旧清单里有、新清单里没有」的文件
+            if let Some(旧) = &已装 {
+                let 新文件们: Vec<String> =
+                    包.文件们.iter().map(|(p, _, _)| p.clone()).collect();
+                let mut 删了 = 0usize;
+                for 相对 in 内核::该删的(旧, &新文件们) {
+                    if let Some(p) = 内核::相对路径(&目录, &相对) {
+                        if fs::remove_file(&p).is_ok() {
+                            删了 += 1;
+                        }
+                    }
+                }
+                if 删了 > 0 && !静默 {
+                    println!("  清掉 {删了} 个旧版本才有的文件（你自己的文件不在里面）");
+                }
+            }
+            内核::日志("完成");
+            if !静默 {
+                println!("{} 完成", 动.说明());
+            }
+            Ok(())
+        }
+        Err(e) => {
+            // ⚠️ 先取备份位置再还原：`还原()` 成功时会把副本删掉
+            let 位置 = 备份.备份位置();
+            let 还原好 = 备份.还原();
+            内核::日志(&format!(
+                "失败：{e}；回滚{}",
+                if 还原好 { "成功" } else { "失败" }
+            ));
+            if 还原好 {
+                Err(format!("{e}\n（安装失败，已经把原来的安装**原样还原**）"))
+            } else {
+                Err(format!(
+                    "{e}\n🔴 安装失败，而且**没能自动还原** —— 原来的文件在：\n  {}\n\
+                     把那个目录里的东西复制回来即可。",
+                    位置.map(|p| p.display().to_string()).unwrap_or_default()
+                ))
+            }
+        }
+    }
+}
+
 fn 卸载(目标: &Path, 静默: bool) -> Result<(), String> {
     let 清单路径 = 目标.join(清单名);
     let 文本 = fs::read_to_string(&清单路径)
@@ -1011,6 +1124,39 @@ fn 卸载(目标: &Path, 静默: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// 装完给用户的那句话（M200 向导模式）。
+///
+/// 🔴 为什么用系统消息框：向导是**双击启动的 GUI 程序**，没有控制台 ——
+///    `println` 出去的东西用户永远看不到，那等于「装完了什么都不说」。
+///    换成控制台输出只在 `--参数` 那条路上有意义（那里用户本来就在终端里）。
+fn 报消息(名字: &str, 版本: &str, 错误: Option<&str>) {
+    let 文 = match 错误 {
+        None => format!(
+            "「{名字} {版本}」装好了。\n\n去开始菜单里找它就能打开；\n不想要了就在「设置 → 应用」里卸载。"
+        ),
+        Some(e) => format!("「{名字} {版本}」没装上。\n\n{e}"),
+    };
+    #[cfg(windows)]
+    {
+        #[link(name = "user32")]
+        extern "system" {
+            fn MessageBoxW(h: isize, text: *const u16, caption: *const u16, ty: u32) -> i32;
+        }
+        fn 宽文(s: &str) -> Vec<u16> {
+            s.encode_utf16().chain(std::iter::once(0)).collect()
+        }
+        let 正文 = 宽文(&文);
+        let 标题 = 宽文("基石安装程序");
+        // 0 = MB_OK；0x40 = 信息图标；0x10 = 错误图标
+        let 图标 = if 错误.is_some() { 0x10 } else { 0x40 };
+        unsafe {
+            MessageBoxW(0, 正文.as_ptr(), 标题.as_ptr(), 图标);
+        }
+    }
+    #[cfg(not(windows))]
+    println!("{文}");
+}
+
 fn 用法() -> String {
     "用法：\n\
      \x20 setup.exe                 装到 %LOCALAPPDATA%\\Programs\\<名字>\n\
@@ -1059,6 +1205,9 @@ fn main() -> ExitCode {
     let mut 目标参数: Option<String> = None;
     let mut 快捷参数: Option<String> = None;
     let mut 动作 = "安装";
+    //: M200：往低版本装要显式要（默认拦下来问一句）；版本相同也重装也要显式要
+    let mut 允许降级 = false;
+    let mut 重装 = false;
     //: M198：认不出但看着像开关的参数（要等读到载荷才知道该不该透传）
     let mut 未知: Vec<String> = Vec::new();
     let mut i = 0;
@@ -1067,6 +1216,8 @@ fn main() -> ExitCode {
         match a {
             "/S" | "-s" | "--静默" => 静默 = true,
             "--加PATH" => 要path = true,
+            "--允许降级" | "--allow-downgrade" => 允许降级 = true,
+            "--重装" | "--reinstall" => 重装 = true,
             "--查看" | "--info" => 动作 = "查看",
             "--校验" | "--verify" => 动作 = "校验",
             "--卸载" | "--uninstall" => 动作 = "卸载",
@@ -1185,6 +1336,24 @@ fn main() -> ExitCode {
             } else {
                 println!("文件：{} 个", 包.文件们.len());
             }
+            // M200：顺带报「这台机器上装的是哪个版本、这次会做成什么动作」。
+            // 为什么放在 `--查看` 里：它是**只读**动作，脚本与判据都能安全调 ——
+            // 「升级会不会覆盖 / 会不会拒绝」这种问题不该靠真装一遍才知道。
+            let 查目录 = 目标参数
+                .clone()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    默认安装目录(if 包.名字.is_empty() { "程序" } else { &包.名字 })
+                });
+            let 已装 = jishi_ffi::installer::读已装(&绝对路径(&查目录));
+            match &已装 {
+                Some(旧) => println!("已装：{}（{}）", 旧.版本, 绝对路径(&查目录).display()),
+                None => println!("已装：无"),
+            }
+            println!(
+                "本次会：{}",
+                jishi_ffi::installer::判断(已装.as_ref(), &包.版本, false).说明()
+            );
             ExitCode::SUCCESS
         }
         "校验" => match 包.核对() {
@@ -1211,6 +1380,37 @@ fn main() -> ExitCode {
                     }
                 };
             }
+            // M200：**双击**（一个参数都没有）= 开向导。
+            // 带参数（`/S`、`--目标`…）一律走控制台那条 —— 脚本不该弹出窗口，
+            // 那会让「无人值守安装」卡在一个没人点的界面上（最坏的情况：
+            // CI 里挂到超时，而日志只有一个空白的窗口句柄）。
+            #[cfg(feature = "native-window")]
+            {
+            if args.is_empty() {
+                let 默认 = 默认安装目录(if 包.名字.is_empty() { "程序" } else { &包.名字 });
+                let 已装 = jishi_ffi::installer::读已装(&绝对路径(&默认));
+                let 字节数: i64 = 包.文件们.iter().map(|(_, 大小, _)| *大小).sum();
+                return match 向导::问(
+                    &包.名字,
+                    &包.版本,
+                    字节数,
+                    &默认,
+                    已装.as_ref().map(|x| x.版本.as_str()),
+                ) {
+                    Some(选) => {
+                        let 结果 = 装并管升级(&自身, &包, &选.目录, false, 选.加PATH, false, false);
+                        报消息(&包.名字, &包.版本, 结果.as_ref().err().map(|s| s.as_str()));
+                        match 结果 {
+                            Ok(()) => ExitCode::SUCCESS,
+                            Err(_) => ExitCode::FAILURE,
+                        }
+                    }
+                    // 用户点了取消 / 直接关窗 —— 不是错误
+                    None => ExitCode::SUCCESS,
+                };
+            }
+            }   // #[cfg(feature = "native-window")]
+
             // 普通包收到 Inno 的开关 = 用户拿错了安装包类型，别装作懂
             if let Some(a) = 未知.first() {
                 eprintln!("错误：不认识这个参数「{a}」\n{}", 用法());
@@ -1219,7 +1419,7 @@ fn main() -> ExitCode {
             let 目标 = 目标参数
                 .map(PathBuf::from)
                 .unwrap_or_else(|| 默认安装目录(if 包.名字.is_empty() { "程序" } else { &包.名字 }));
-            match 安装(&自身, &包, &目标, 静默, 要path) {
+            match 装并管升级(&自身, &包, &目标, 静默, 要path, 允许降级, 重装) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(e) => {
                     eprintln!("错误：{e}");

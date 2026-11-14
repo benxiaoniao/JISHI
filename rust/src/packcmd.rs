@@ -717,7 +717,7 @@ fn 找存根() -> String {
 fn 用法() -> String {
     "用法：jishi 打包 [目录] [--出 目录] [--名字 X] [--版本 X] [--入口 X]\n\
      \x20               [--存根 路径] [--目标 便携,安装包,应用,压缩包]\n\
-     \x20               [--不用inno] [--保留iss] [--安静]\n"
+     \x20               [--安装器 自研|inno] [--保留iss] [--安静]\n"
         .to_string()
 }
 
@@ -731,8 +731,10 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
     // M177：自带运行时
     let mut 带运行时 = false;
     let mut 引擎 = String::new();
-    // M198：向导版的两个开关
-    let mut 不用inno = false;
+    // M198/M200：安装器用哪一套。**默认自研**（存根 + 自带向导）——
+    // Inno 从「默认」退成「可选」：它要多装一个第三方编译器，
+    // 而我们自己的向导 M200 起能选目录、能加 PATH、能升级。
+    let mut 安装器 = "自研".to_string();
     let mut 保留iss = false;
     let mut i = 0;
     while i < argv.len() {
@@ -749,7 +751,9 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             "--存根" | "--stub" => 存根 = 取值(&mut i),
             "--目标" | "--targets" => 目标们 = 取值(&mut i),
             "--安静" | "-q" | "--quiet" => 安静 = true,
-            "--不用inno" | "--no-inno" => 不用inno = true,
+            // 老开关留着（M198 的脚本里可能有），等价于新的显式选择
+            "--不用inno" | "--no-inno" => 安装器 = "自研".to_string(),
+            "--安装器" | "--installer" => 安装器 = 取值(&mut i),
             "--保留iss" | "--keep-iss" => 保留iss = true,
             // M177：把引擎打进包里，装到没装过基石的机器上双击就能用
             "--自带运行时" | "--with-runtime" => 带运行时 = true,
@@ -843,15 +847,24 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
     }
     // M198：向导版的载荷要套在存根壳里（壳翻译老参数），所以存根仍然是必需的；
     // ISCC 决定的是「载荷是 Inno 向导还是散文件」
-    let iscc: Option<PathBuf> = if 不用inno {
-        None
-    } else {
-        match 找iscc() {
+    let iscc: Option<PathBuf> = match 安装器.as_str() {
+        // 自研：**不碰 Inno**（机器上装没装 ISCC 都不影响产物）
+        "自研" => None,
+        "inno" => match 找iscc() {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("错误：{e}");
+                // 🔴 显式要了 Inno 却没有 ISCC —— **报错，不偷偷换产物**。
+                //    静默降级的代价是「作者以为拿到的是向导版，装出来却不一样」，
+                //    那种事查起来要一整天（M198 就为它写过一大段说明）。
+                eprintln!("错误：你指定了 `--安装器 inno`，但{e}");
+                eprintln!("　　 装一个：winget install -e --id JRSoftware.InnoSetup");
+                eprintln!("　　 或者去掉这个开关，用默认的**自研安装器**（自带向导，不需要 Inno）。");
                 return ExitCode::from(2);
             }
+        },
+        other => {
+            eprintln!("错误：不认识的安装器「{other}」（只有「自研」和「inno」两种）");
+            return ExitCode::from(2);
         }
     };
     let mut 警告: Vec<String> = Vec::new();
@@ -929,18 +942,8 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             全.extend_from_slice(&(包字节.len() as u64).to_le_bytes());
             全.extend_from_slice(b"JISHIPK1");
             fs::write(&目标, &全).map_err(|e| format!("写安装包失败：{e}"))?;
-            // 🔴 降级要**当场说清**（`--安静` 也照说）：产物类型变了，
-            //    脚本作者不看 stderr 就会一直以为拿到的是向导版。
-            if iscc.is_none() {
-                let 因 = if 不用inno {
-                    "你指定了 --不用inno"
-                } else {
-                    "这台机器没找到 Inno Setup 的编译器（ISCC.exe）"
-                };
-                eprintln!("⚠️  安装包没走 Inno 向导：{因}");
-                eprintln!("　　 出的是「自解压存根版」：能装、能卸、「应用和功能」里有条目，但没有「选目录 / 选桌面快捷方式」的向导。");
-                eprintln!("　　 要向导版：装 Inno Setup 6（winget install -e --id JRSoftware.InnoSetup），或用 JISHI_ISCC 指到 ISCC.exe。");
-            }
+            // M200：**自研是默认**，这里不再是「降级」，不用警告 ——
+            // 只有显式要 `--安装器 inno` 却没 ISCC 才报错（那一段在上面）。
             成品.push(("安装包".to_string(), 目标));
             if 保留iss {
                 let iss出 = format!("{出}/{名字}-{版本}-windows-x64-setup.iss");

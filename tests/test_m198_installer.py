@@ -220,7 +220,7 @@ def test_模板编码是干净的UTF8且没有BOM():
 def test_生成的iss里有名字版本和默认目录(tmp_path):
     源 = _造源(tmp_path / "源")
     出 = tmp_path / "出"
-    文, 码 = _打包(源, 出, 额外=["--不用inno", "--保留iss"])
+    文, 码 = _打包(源, 出, 额外=["--安装器", "inno", "--保留iss"])
     assert 码 == 0, 文[-800:]
     iss = _iss(出)
     for 该有 in ["AppName=演练程序", "AppVersion=1.0.0", "AppId={{",
@@ -240,7 +240,7 @@ def test_AppId由名字派生_同名同id异名异id(tmp_path):
     出2 = tmp_path / "出2"
     出3 = tmp_path / "出3"
     for 目录, 名字 in ((出, "甲乙"), (出2, "甲乙"), (出3, "丙丁")):
-        文, 码 = _打包(源, 目录, 名字=名字, 额外=["--不用inno", "--保留iss"])
+        文, 码 = _打包(源, 目录, 名字=名字, 额外=["--安装器", "inno", "--保留iss"])
         assert 码 == 0, 文[-600:]
     # 只认**行首**的 `AppId=`：模板头部注释里也写着 `AppId={{…}`（讲占位符那段）
     def 取id(目录, 名字):
@@ -264,9 +264,9 @@ def test_两套命令行生成的iss逐字相同(tmp_path):
         pytest.skip("没编 jishi-rs（先 cargo build --release）")
     源 = _造源(tmp_path / "源")
     出py, 出rs = tmp_path / "出py", tmp_path / "出rs"
-    文, 码 = _打包(源, 出py, 额外=["--不用inno", "--保留iss"])
+    文, 码 = _打包(源, 出py, 额外=["--安装器", "inno", "--保留iss"])
     assert 码 == 0, 文[-600:]
-    文, 码 = _打包(源, 出rs, 额外=["--不用inno", "--保留iss"], exe=rust_exe_path())
+    文, 码 = _打包(源, 出rs, 额外=["--安装器", "inno", "--保留iss"], exe=rust_exe_path())
     assert 码 == 0, 文[-600:]
     a = _掩(_iss(出py), [出py])
     b = _掩(_iss(出rs), [出rs])
@@ -281,30 +281,43 @@ def test_两套命令行生成的iss逐字相同(tmp_path):
 # 三、没有 Inno 时的降级（CI 上照跑）
 # ---------------------------------------------------------------------------
 
-def test_没有inno要明确降级并说清怎么装(tmp_path):
-    """🔴 「不许静默降级」：产物类型变了，用户必须知道，而且要知道怎么办。"""
+def test_默认出自研安装器_不需要Inno(tmp_path):
+    """🔴 M200 起**默认就是自研安装器**：机器上有没有 Inno 都不影响产物。
+
+    M198 那会儿默认是 Inno，没 ISCC 就降级并打印一大段说明。现在反过来了 ——
+    Inno 退成 `--安装器 inno` 才要的东西。所以这条判据盯的是：
+
+    * **没有 ISCC 的机器上照样成功**（这是「脱离 Inno」的最小证据）；
+    * 产物是自研版（`--查看` 说载荷不是 Inno）；
+    * **不再打印「没走 Inno 向导」那类降级话** —— 自研不是降级，是默认。
+    """
     源 = _造源(tmp_path / "源")
     出 = tmp_path / "出"
     文, 码 = _打包(源, 出, 环境=_无inno环境(tmp_path))
-    assert 码 == 0, f"降级不该失败：{文[-600:]}"
-    assert "安装包没走 Inno 向导" in 文, 文[-600:]
-    assert "没找到 Inno Setup" in 文, 文[-600:]
-    assert "winget install" in 文 and "JISHI_ISCC" in 文, "得告诉用户怎么装 Inno"
+    assert 码 == 0, f"自研安装器不该依赖 Inno：{文[-600:]}"
+    assert "安装包没走 Inno 向导" not in 文, f"不该再喊降级了：{文[-600:]}"
     包 = 出 / "演练程序-1.0.0-windows-x64-setup.exe"
     assert 包.is_file(), sorted(x.name for x in 出.iterdir())
     # 判「载荷是什么」用 `--查看`（语义），别去产物里搜字节：
     # Inno 的 exe 在载荷 zip 里是**压缩**过的，搜字符串搜不到
     _, 文 = _跑程序(包, "--查看")
-    assert "Inno Setup 向导安装器" not in 文, f"降级出来的不该是向导版：{文[:300]}"
+    assert "Inno Setup 向导安装器" not in 文, f"默认不该是 Inno 包：{文[:300]}"
 
 
-def test_不用inno是明确的选择不是降级(tmp_path):
+def test_显式要inno_没装ISCC就报错不偷换(tmp_path):
+    """`--安装器 inno` + 找不到 ISCC ⇒ **报错退出**，不偷偷换成自研。
+
+    🔴 为什么要这条：静默换产物的代价是「作者以为拿到的是 Inno 版，装出来
+       却不一样」，而且**看起来一切正常** —— 那种事查起来要一整天（M198 就为
+       一个「悄悄降级」写过一整段说明）。要什么没给什么，就该当场说。
+
+    📌 老开关 `--不用inno` 仍然认（等价于 `--安装器 自研`），M198 的脚本不用改。
+    """
     源 = _造源(tmp_path / "源")
-    出 = tmp_path / "出"
-    文, 码 = _打包(源, 出, 额外=["--不用inno"])
-    assert 码 == 0, 文[-600:]
-    assert "你指定了 --不用inno" in 文, 文[-600:]
-
+    文, 码 = _打包(源, tmp_path / "出", 环境=_无inno环境(tmp_path),
+                  额外=["--安装器", "inno"])
+    assert 码 != 0, f"没 ISCC 却成功了：{文[-600:]}"
+    assert "ISCC" in 文 and "自研" in 文, f"得说清缺什么、有哪条退路：{文[-600:]}"
 
 def test_JISHI_ISCC指错地方要报错而不是忽略(tmp_path):
     """用户明确说了用哪个编译器 —— 那个文件不在，就该停下来说。"""
@@ -342,7 +355,8 @@ def 向导包(tmp_path_factory) -> dict:
     基 = tmp_path_factory.mktemp("m198向导")
     源 = _造源(基 / "源")
     出 = 基 / "出"
-    文, 码 = _打包(源, 出, 名字="M198自检", 版本="1.2.3", exe=rust_exe_path())
+    文, 码 = _打包(源, 出, 名字="M198自检", 版本="1.2.3",
+                  额外=["--安装器", "inno"], exe=rust_exe_path())
     assert 码 == 0, f"打包失败：{文[-1200:]}"
     包 = 出 / "M198自检-1.2.3-windows-x64-setup.exe"
     assert 包.is_file(), sorted(x.name for x in 出.iterdir())
