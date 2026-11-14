@@ -2432,6 +2432,13 @@ def _read_pkg_meta(pkg_dir: str, name: str, *, line=None, col=None,
         raise SemanticFuncError(
             f"包目录「{name}」里的 包.json 声明名字为「{meta['名字']}」，不一致",
             line=line, col=col, filename=filename)
+    # M201：与 `localpkg._read_meta` 同一条（本地包也要认「基石版本」）
+    from .packages import PackageVersionError, check_base_version
+
+    try:
+        check_base_version(meta, name)
+    except PackageVersionError as e:
+        raise SemanticFuncError(str(e), line=line, col=col, filename=filename)
     return meta
 
 
@@ -2522,22 +2529,42 @@ def _import_local_package(name: str, *, line=None, col=None,
             f"本地包「{name}」里没有 .jsh 模块文件",
             line=line, col=col, filename=filename)
 
-    builtin_names = set(new_builtins().keys())
-    exports: dict[str, Any] = {}
+    # 🔴 M201：**所有模块拼成一个源码，用一个 Interpreter 跑**。
+    #
+    # 以前是「每个 .jsh 各自一个 Interpreter」，于是两个真问题：
+    #
+    # ① **跨文件引用解析不到**：`兼容.jsh` 里的 `函数 打开()：返回 引擎_打开(路径)`
+    #    在定义时不求值，所以「跑起来了」看着没问题；一调用就「找不到名字 引擎_打开」
+    #    —— 而那个函数就在隔壁 `引擎.jsh` 里。编译期展开（`localpkg.shell_def`）
+    #    本来就是拼接，两条路各走一套，下游一跑就分叉。
+    #
+    # ② **与内建同名的导出被静默丢掉**：导出规则原来是「globals 里不是内建名」，
+    #    而包里的 `打开` / `关闭` / `插入` / `查询` / `删除` / `执行` 恰好与内建
+    #    同名 ⇒ 全被过滤掉。`jishi-rs`（编译期展开，按 `_export_names` 导）没问题，
+    #    Python 这条路报「模块里没有 打开」。
+    #
+    # 现在导出也按 `_export_names`（编译期那条路的同一套规则：`__X` → `X`、
+    # `_X` 不导出），两条路彻底一致。
+    from .jishilib import _export_names
+
+    片段: list[tuple[str, str]] = []
     for fn in jsh_files:
         path = os.path.join(pkg_dir, fn)
         with open(path, encoding="utf-8") as f:
-            source = f.read()
-        interp = Interpreter(filename=path)
-        # 注入依赖包，供本包模块直接引用（`依赖名.成员`）
-        for dep_name, dep_mod in deps.items():
-            interp.globals.set(dep_name, dep_mod)
-        program = parse_source(source, path)
-        interp.run(program)
-        for k, v in interp.globals.vars.items():
-            if k not in builtin_names and not k.startswith("_"):
-                exports[k] = v
-
+            片段.append((path, f.read()))
+    源码 = "".join(
+        t.replace("\r\n", "\n").replace("\r", "\n") + "\n" for _, t in 片段
+    )
+    program = parse_source(源码, 片段[0][0])
+    interp = Interpreter(filename=片段[0][0])
+    # 注入依赖包，供本包模块直接引用（`依赖名.成员`）
+    for dep_name, dep_mod in deps.items():
+        interp.globals.set(dep_name, dep_mod)
+    interp.run(program)
+    exports: dict[str, Any] = {}
+    for out, src in _export_names(program):
+        if src in interp.globals.vars:
+            exports[out] = interp.globals.vars[src]
     return Module(name, exports)
 
 

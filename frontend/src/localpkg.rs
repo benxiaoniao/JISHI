@@ -472,6 +472,61 @@ fn read_meta(pkg_dir: &str, name: &str, line: i64, col: i64) -> Result<MJ, PkgEr
     Ok(meta)
 }
 
+/// 检查 `包.json` 的「基石版本」（M201）：这个包要哪一版语言才跑得动。
+///
+/// ## 为什么要有这个字段
+///
+/// 下游项目（`基石数据库` 是第一个）会用到某个版本才有的标准库函数与语义修正。
+/// 没有声明时，用户拿旧语言装新包，报的是**「没有找到名字 X」** —— 那句话把人
+/// 指向「包的代码写错了」，而真正的原因是「你的语言太旧」。查这个要半天。
+///
+/// 语义与「依赖」的版本约束**同一套**（`version_satisfies`）：
+/// `">=0.3.4"` / `">0.3.3"` / `"0.3.4"`（裸版本 = 至少这个版本）。
+///
+/// ⚠️ 三个刻意的取舍：
+///
+/// * **缺字段 = 不校验**（老包一个都不改就能继续用）；
+/// * **字段写错类型**要报错，不能静默当没写 —— 那会让用户以为声明生效了；
+/// * **当前版本取 `env!("CARGO_PKG_VERSION")`**：`frontend` 的版本本来就是
+///   语言版本（`tests/test_m111_release.py` 钉着它与 `core` / `pyproject`
+///   一致）。不为此在 `expand` 上加参数 —— 那要三个调用方各改一遍，
+///   而它们本来就都等于语言版本。
+fn 检查基石版本(meta: &MJ, name: &str, line: i64, col: i64) -> Result<(), PkgErr> {
+    // 🔴 字段名是 **`基石版本`**，不是新造的「需要基石」：`packages.rs` 的
+    //    `check_base_version`（M145）早就用它了，一个能力不能有两个名字。
+    //    那处管的是「安装包」这条路；这里补的是「本地包展开」这条路。
+    let Some(值) = meta.get("基石版本") else {
+        return Ok(());
+    };
+    let 需要 = match 值 {
+        MJ::Str(s) => s.trim().to_string(),
+        _ => {
+            return Err(bad_hint(
+                format!("本地包「{name}」的 包.json 里「基石版本」要写成文本"),
+                "例如 \"基石版本\": \">=0.3.4\"".to_string(),
+                line,
+                col,
+            ))
+        }
+    };
+    if 需要.is_empty() {
+        return Ok(());
+    }
+    let 当前 = env!("CARGO_PKG_VERSION");
+    if version_satisfies(当前, &需要) {
+        return Ok(());
+    }
+    Err(bad_hint(
+        format!("包「{name}」要求的基石版本满足 {需要}，当前是 {当前}"),
+        format!(
+            "升级语言本体：`jishi 升级`（或去官网下满足 {需要} 的版本）。\n\
+             ⚠️ 别去改 包.json 把要求调低 —— 那只会变成运行时一句「没有这个函数」，更难查。"
+        ),
+        line,
+        col,
+    ))
+}
+
 /// 版本约束（与 `rust/src/packages.rs::version_satisfies` **同一套语义**）。
 ///
 /// ⚠️ 这里**不依赖宿主 crate**：`frontend` 是独立 crate（`core`/`rust`/`wasm`
@@ -571,6 +626,8 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>,
     stack.push(name.to_string());
 
     let meta = read_meta(&pkg_dir, name, line, col)?;
+    // M201：这个包要哪一版语言（缺字段 = 不校验，老包不受影响）
+    检查基石版本(&meta, name, line, col)?;
 
     // ---- 依赖：先各自建壳，再在本包体里注入一行赋值 ----
     let mut out: Vec<(String, Node)> = Vec::new();

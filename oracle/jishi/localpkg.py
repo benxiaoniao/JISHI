@@ -168,6 +168,17 @@ def _read_meta(pkg_dir: str, name: str, node, filename: str) -> dict:
     声明 = str(meta.get("名字") or "").strip()
     if 声明 and 声明 != name:
         _fail(f"包目录「{name}」里的 包.json 声明名字为「{声明}」，不一致", node, filename)
+
+    # M201：**本地包也要认「基石版本」**。
+    # 以前只在 `jishi 安装`（包管理）那条路上校验 —— 而「clone 下来直接放进
+    # `.jishi/packages/`」这种用法完全绕过它，声明等于没写：用户拿旧语言跑，
+    # 报的是「没有找到名字 X」，看代码看半天也想不到是版本问题。
+    from .packages import PackageVersionError, check_base_version
+
+    try:
+        check_base_version(meta, name)
+    except PackageVersionError as e:
+        _fail(str(e), node, filename)
     return meta
 
 

@@ -252,7 +252,19 @@ def check_base_version(meta: dict, name: str) -> None:
     ⚠️ 用 `version_satisfies` 判断（与依赖约束同一套语义），别自己写比较：
     否则 `>=0.2.10` 与 `0.2.9` 谁大就会各说各话。
     """
-    want = str(meta.get("基石版本") or "").strip()
+    # M201：**类型不对要报错，不能当没写**。
+    # 以前 `str(...)` 一把梭：`"基石版本": 3` 会变成约束 `'3'` —— 报的是
+    # 「要求的基石版本满足 '3'」，用户完全看不懂；而 `"基石版本": 假` 会变成
+    # `'False'`，静默当没写。Rust 侧（`frontend/localpkg.rs`）是显式报错的，
+    # 两条路要说同一句话。
+    raw = meta.get("基石版本")
+    if raw is None:
+        return
+    if not isinstance(raw, str):
+        raise PackageVersionError(
+            f'包「{name}」的 包.json 里「基石版本」要写成文本（现在是 {type(raw).__name__}），'
+            f'例如 "基石版本": ">=0.3.4"')
+    want = raw.strip()
     if not want:
         return
     from .version import VERSION
