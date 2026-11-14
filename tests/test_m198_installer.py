@@ -220,7 +220,7 @@ def test_模板编码是干净的UTF8且没有BOM():
 def test_生成的iss里有名字版本和默认目录(tmp_path):
     源 = _造源(tmp_path / "源")
     出 = tmp_path / "出"
-    文, 码 = _打包(源, 出, 额外=["--安装器", "inno", "--保留iss"])
+    文, 码 = _打包(源, 出, 额外=["--保留iss"])
     assert 码 == 0, 文[-800:]
     iss = _iss(出)
     for 该有 in ["AppName=演练程序", "AppVersion=1.0.0", "AppId={{",
@@ -240,7 +240,7 @@ def test_AppId由名字派生_同名同id异名异id(tmp_path):
     出2 = tmp_path / "出2"
     出3 = tmp_path / "出3"
     for 目录, 名字 in ((出, "甲乙"), (出2, "甲乙"), (出3, "丙丁")):
-        文, 码 = _打包(源, 目录, 名字=名字, 额外=["--安装器", "inno", "--保留iss"])
+        文, 码 = _打包(源, 目录, 名字=名字, 额外=["--保留iss"])
         assert 码 == 0, 文[-600:]
     # 只认**行首**的 `AppId=`：模板头部注释里也写着 `AppId={{…}`（讲占位符那段）
     def 取id(目录, 名字):
@@ -264,9 +264,9 @@ def test_两套命令行生成的iss逐字相同(tmp_path):
         pytest.skip("没编 jishi-rs（先 cargo build --release）")
     源 = _造源(tmp_path / "源")
     出py, 出rs = tmp_path / "出py", tmp_path / "出rs"
-    文, 码 = _打包(源, 出py, 额外=["--安装器", "inno", "--保留iss"])
+    文, 码 = _打包(源, 出py, 额外=["--保留iss"])
     assert 码 == 0, 文[-600:]
-    文, 码 = _打包(源, 出rs, 额外=["--安装器", "inno", "--保留iss"], exe=rust_exe_path())
+    文, 码 = _打包(源, 出rs, 额外=["--保留iss"], exe=rust_exe_path())
     assert 码 == 0, 文[-600:]
     a = _掩(_iss(出py), [出py])
     b = _掩(_iss(出rs), [出rs])
