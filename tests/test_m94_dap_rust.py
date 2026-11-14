@@ -160,6 +160,41 @@ def _split(data: bytes):
 
 
 
+def _秩序无关(报文们: list) -> tuple:
+    """把「`output` 事件」与「其余报文」分开，各自成一份可比形态。
+
+    🔴 为什么要第三道（M199 实测，Windows CI 连挂两次）：
+       `output` 是「VM 把程序的 stdout 泵出来」产生的**异步事件**，而
+       `stackTrace` 之类是**请求的响应**。两者谁先到，取决于「泵」与「处理请求」
+       的调度顺序 —— 本机与 ubuntu/macOS 上一直没撞，Windows runner 上撞了两次
+       （一次在第 9 条、一次在第 10 条，**位置不固定**，两条内容与总条数全对）。
+
+       ⚠️ 放行的范围**必须窄**：只要求「非 output 报文**逐条同序**相同」+
+       「output 报文**多重集**相同」。事件类型 / 数量 / 正文 / 其余相对顺序
+       有任何不一样，照样红 —— 那不是调度，是真分叉。
+    """
+    import json as _json
+
+    其余: list = []
+    输出: list = []
+    for raw in 报文们:
+        try:
+            d = _json.loads(raw)
+        except Exception:                       # noqa: BLE001
+            其余.append(raw)
+            continue
+        if isinstance(d, dict):
+            # ⚠️ `seq` 是**发送序号**：两条报文换了位置，序号自然跟着换 ——
+            #    所以两边都要去掉它再比（与 `_去seq` 同一条口径）。
+            d.pop("seq", None)
+            (输出 if d.get("event") == "output" else 其余).append(
+                _json.dumps(d, sort_keys=True, ensure_ascii=False))
+        else:
+            其余.append(raw.decode("utf-8", "replace"))
+    输出.sort()
+    return 其余, 输出
+
+
 def _去seq(报文们: list) -> list:
     """把每条报文最外层的 `seq` 去掉再比（其余字段一个不动）。
 
@@ -344,6 +379,11 @@ def test_对拍_报文逐字节(mode, tmp_path):
     #    （事件类型 / 事件数量 / 正文 / 相对顺序）照样红 —— 那不是调度问题，是真分叉。
     if _去seq(pa) == _去seq(pb):
         print(f"  ℹ 只差 `seq`（报文条数一致）—— 视为等价", flush=True)
+        return
+    # 第三道：**只差「`output` 事件与其它报文的先后」**（M199 / Windows CI 实测）
+    if _秩序无关(pa) == _秩序无关(pb):
+        print("  ℹ 只差 `output` 事件与响应的先后 —— 视为等价（异步泵出，天然竞态）",
+              flush=True)
         return
     for i in range(max(len(pa), len(pb))):
         x = pa[i] if i < len(pa) else b"<none>"
