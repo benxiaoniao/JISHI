@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>打砖块 · 基石</title>
+<!--
+  M188 的交付物：**一个能玩的游戏**。
+
+  页面只负责「一块画布 + 一句 `data-游戏`」。启动逻辑在 `游戏启动.js`（三个示例共用），
+  游戏逻辑一个字节都不在这里 —— 全在 `打砖块_游戏.jsh`。
+
+  为什么源码要 fetch，而不是内联进 `<script>`：
+    ① 窗口里与官网试玩页用的是**同一份**源码，抄成两份必然漂；
+    ② 改一行游戏逻辑不用碰 HTML。
+
+  ⚠️ 直接双击这个 .html **不行**：`file://` 下浏览器既不让 fetch 相邻文件，
+     也不让读 wasm。要么走 `jishi examples/desktop/打砖块.jsh`（它自带一个
+     只监听 127.0.0.1 的小服务），要么把它放在官网站点上。
+-->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+    background: #05070d; color: #94a3b8; user-select: none;
+    font: 14px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  #画布 {
+    display: block; border-radius: 12px; background: #0b1020;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .6), 0 0 0 1px #1e293b inset;
+    /* 画布的逻辑尺寸由「图形.准备」定（640×480）；小屏幕按比例缩 */
+    max-width: 96vw; max-height: 78vh;
+  }
+  #提示 {
+    display: none; max-width: 640px; padding: 10px 14px; border-radius: 10px;
+    background: #3b1d1d; color: #fca5a5; white-space: pre-wrap;
+  }
+  #底注 { opacity: .7; font-size: 13px; }
+  kbd {
+    padding: 1px 6px; border-radius: 4px; border: 1px solid #334155;
+    background: #111827; color: #cbd5e1; font: inherit; font-size: 12px;
+  }
+</style>
+</head>
+<body data-游戏="打砖块_游戏.jsh" data-标题="打砖块">
+  <canvas id="画布"></canvas>
+  <div id="提示"></div>
+  <div id="底注">鼠标移动挡板 · <kbd>←</kbd> <kbd>→</kbd> 也行 · 结束之后按 <kbd>空格</kbd> 重开 ·
+    <span title="浏览器规定：用户动手之前不许出声">点一下画面才有声音</span></div>
+  <script src="游戏启动.js"></script>
+</body>
+</html>

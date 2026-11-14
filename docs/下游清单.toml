@@ -1,0 +1,50 @@
+# 下游清单（M201）—— `tools/下游回归.py` 读这个文件
+#
+# ## 为什么要有一份清单
+#
+# 语言仓库里的判据只测**语言自己**。真实项目用的是**上一版**语言写的：语义改一点、
+# 报错文案改一句、别名删一个，项目可能悄悄坏掉，而本地全量依旧全绿。
+# 唯一能发现的办法就是「拿它跑一遍」——所以把下游钉成清单，发版前跑。
+#
+# ## 字段
+#
+# name            必填，同时是用来看日志/报告的名字
+# url             必填，git 地址（`--更新` 会重新 clone）
+# note            选填
+# local_packages  选填，仓库里的**同名目录**要复制到 `<克隆>`/.jishi/packages/ 下
+#                 （纯 .jsh 项目常用 junction；这里统一**复制**，跨平台，且不会
+#                  因为源目录被改而出现「时好时坏」）
+# [[downstream.steps]]
+#   name     必填
+#   cmd      必填，数组；第 1 项是脚本路径（相对克隆目录），其余是参数。
+#            第 1 项写 `jishi` = 用**当前仓库的引擎**跑（推荐，也是唯一安全的写法）
+#   expect   选填，stdout+stderr 里必须出现的子串（不写 = 只看退出码）
+#   timeout  选填，默认 300 秒
+#
+# ⚠️ 命令里写 `jishi` 会被替换成**当前仓库的引擎**（`rust/target/release/jishi-rs`，
+#    或 `--引擎 python` 时的 Python CLI）—— 绝不能拿系统装的那个版本跑，
+#    那样测的是「用户装的旧版」，不是「你刚改的这版」。
+#
+# ⚠️ 键名用 ASCII：TOML 的裸键只允许 A-Za-z0-9_-，中文键必须加引号。
+#    这里一律英文键 + 中文值 —— 省掉满屏引号，值照样是中文。
+
+[[downstream]]
+name = "基石数据库"
+url = "https://github.com/benxiaoniao/jishi-db.git"
+note = "纯基石写的数据库引擎（候选：替换内置 `数据库` 的 rusqlite 实现）"
+local_packages = ["基石数据库"]
+
+[[downstream.steps]]
+name = "自检"
+cmd = ["tools/自检.jsh"]
+expect = "selfcheck: OK"
+
+[[downstream.steps]]
+name = "冒烟"
+cmd = ["tests/冒烟_test.jsh"]
+expect = "108/108"
+
+[[downstream.steps]]
+name = "对拍（与内置数据库逐条比）"
+cmd = ["tests/对拍_test.jsh"]
+expect = "100/100"

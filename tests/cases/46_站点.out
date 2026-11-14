@@ -1,0 +1,56 @@
+1a47e90b
+1f47f0ea
+8
+真
+<a href="index.html">首页</a><a class="now" href="关于.html">关于</a>
+
+真
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>甲 · 我的博客</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">我的博客<span>blog</span></div>
+  <nav><a href="index.html">首页</a><a href="关于.html">关于</a></nav>
+</header>
+<main>
+&lt;b&gt;
+</main>
+<footer>单独署名</footer>
+</body>
+</html>
+
+2
+b.html / a.html
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://例子.cn/a.html</loc></url>
+  <url><loc>https://例子.cn/b.html</loc></url>
+</urlset>
+
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://例子.cn/x.html</loc></url>
+</urlset>
+
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>y.html</loc></url>
+</urlset>
+
+zh-CN ·  ·  · style.css
+真
+0
+真
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>z.html</loc></url>
+  <url><loc>…排后面.html</loc></url>
+  <url><loc>😀.html</loc></url>
+</urlset>
+

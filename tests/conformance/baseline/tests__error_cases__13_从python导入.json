@@ -1,0 +1,129 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": true,
+        "line": 1,
+        "name": "量子计算",
+        "类型": "Import"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "2924e7bb23ee26aec25615a5f2e9de6e26ed92b7de62e0016b6e4b6c531bc671",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            1,
+            -1,
+            1,
+            1,
+            3,
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": [],
+          "src_file": "",
+          "src_start": 0
+        }
+      ],
+      "consts": [],
+      "filename": "tests/error_cases/13_从python导入.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "量子计算"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 1,
+      "source_line": "导入 量子计算 从 python",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 1,
+      "source_line": "导入 量子计算 从 python",
+      "type": "NAME",
+      "value": "量子计算",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 9,
+      "line": 1,
+      "source_line": "导入 量子计算 从 python",
+      "type": "KEYWORD",
+      "value": "从",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 16,
+      "line": 1,
+      "source_line": "导入 量子计算 从 python",
+      "type": "NAME",
+      "value": "python",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "导入 量子计算 从 python",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:2ff72666e06fbe23",
+  "语料": "tests/error_cases/13_从python导入.jsh"
+}

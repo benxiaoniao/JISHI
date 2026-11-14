@@ -1,0 +1,432 @@
+# GitHub -> CNB 实时同步（分支 + 标签 + Releases 及附件）
+# 放到 GitHub 仓库的 .github/workflows/sync-to-cnb.yml
+# 需要在 GitHub 仓库 Settings -> Secrets and variables -> Actions 添加 Secret: CNB_TOKEN
+name: Sync to CNB
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  delete:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-to-cnb
+  cancel-in-progress: false
+
+env:
+  CNB_DOMAIN: cnb.cool
+  CNB_REPO: xumijiandeshanshuo/JISHI
+  GITHUB_REPO: benxiaoniao/JISHI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror all branches and tags to CNB
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+        run: |
+          set -euo pipefail
+          MIRROR="$RUNNER_TEMP/upstream.git"
+          git clone --bare "https://github.com/${GITHUB_REPO}.git" "$MIRROR"
+          git -C "$MIRROR" remote add cnb "https://cnb:${CNB_TOKEN}@${CNB_DOMAIN}/${CNB_REPO}.git"
+          git -C "$MIRROR" push --mirror cnb
+
+      - name: Sync Releases (metadata + assets)
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/sync_releases.py" <<'PYEOF'
+          #!/usr/bin/env python3
+          # -*- coding: utf-8 -*-
+          """GitHub Releases -> CNB Releases 幂等同步（含附件）。
+
+          用法:
+            CNB_TOKEN=xxx python3 sync_releases.py \
+                --github-repo benxiaoniao/JISHI \
+                --cnb-repo xumijiandeshanshuo/jishi
+
+          可选:
+            --tag v0.3.3        只同步指定 tag（GitHub Actions 的 release/tag 事件用）
+            --dry-run            只打印计划，不写 CNB
+            --include-drafts     同步草稿版本（默认跳过）
+            --overwrite          CNB 已存在同名附件时覆盖（默认跳过）
+            --max-releases N     最多处理 N 个版本（按 GitHub 返回顺序）
+
+          环境变量:
+            CNB_TOKEN            CNB 个人访问令牌，需 repo-release:rw（必需）
+            GITHUB_TOKEN         GitHub 令牌，可选，用于提高 API 限额/私有仓库
+            CNB_API_ENDPOINT     默认 https://api.cnb.cool
+
+          流程: 列出 GitHub Releases -> 对照 CNB 已有 Release -> 缺失则创建
+                -> 逐个比对附件名 -> 缺失则下载并用预签名 URL 上传 -> 确认。
+                可重复执行，不会重复创建 Release 或附件。
+          """
+          from __future__ import annotations
+
+          import argparse
+          import concurrent.futures
+          import json
+          import os
+          import sys
+          import tempfile
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from typing import Any
+
+          CNB_API = os.environ.get("CNB_API_ENDPOINT", "https://api.cnb.cool").rstrip("/")
+          GITHUB_API = "https://api.github.com"
+          UA = "github-to-cnb-release-sync/1.0"
+
+
+          def log(msg: str) -> None:
+              print(msg, flush=True)
+
+
+          def http(
+              method: str,
+              url: str,
+              *,
+              token: str = "",
+              body: dict | None = None,
+              raw: bytes | None = None,
+              accept: str = "application/json",
+              timeout: int = 600,
+          ) -> Any:
+              headers = {"User-Agent": UA, "Accept": accept}
+              if token:
+                  headers["Authorization"] = f"Bearer {token}"
+              data: bytes | None = None
+              if body is not None:
+                  data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+                  headers["Content-Type"] = "application/json; charset=utf-8"
+              if raw is not None:
+                  data = raw
+                  headers["Content-Type"] = "application/octet-stream"
+              req = urllib.request.Request(url, data=data, headers=headers, method=method)
+              last_err: Exception | None = None
+              for attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(req, timeout=timeout) as resp:
+                          payload = resp.read()
+                          text = payload.decode("utf-8", "replace").strip()
+                          if not text:
+                              return {}
+                          try:
+                              return json.loads(text)
+                          except json.JSONDecodeError:
+                              return {"raw": text}
+                  except urllib.error.HTTPError as exc:
+                      detail = exc.read()[:400].decode("utf-8", "replace")
+                      if exc.code == 404:
+                          raise Http404(f"HTTP 404 {url}") from exc
+                      last_err = RuntimeError(f"HTTP {exc.code} {method} {url}: {detail}")
+                      if exc.code in (429, 500, 502, 503, 504) and attempt < 2:
+                          time.sleep(2 ** attempt * 2)
+                          continue
+                      raise last_err from exc
+                  except (urllib.error.URLError, TimeoutError) as exc:
+                      last_err = exc
+                      if attempt < 2:
+                          time.sleep(2 ** attempt * 2)
+                          continue
+                      raise
+              raise last_err or RuntimeError("unreachable")
+
+
+          class Http404(Exception):
+              pass
+
+
+          def unwrap(obj: Any) -> Any:
+              """兼容 CNB 的 {data: ...} 包装与裸对象/数组。"""
+              if (isinstance(obj, dict) and "data" in obj
+                      and not any(k in obj for k in ("tag_name", "id", "release_id", "assets",
+                                                     "upload_url", "verify_url"))):
+                  return obj["data"]
+              return obj
+
+
+          def github_get(path: str, token: str) -> Any:
+              return http("GET", GITHUB_API + path, token=token,
+                          accept="application/vnd.github+json")
+
+
+          def cnb_get(path: str, token: str) -> Any:
+              return unwrap(http("GET", CNB_API + path, token=token,
+                                 accept="application/vnd.cnb.api+json"))
+
+
+          def cnb_post(path: str, token: str, body: dict | None = None) -> Any:
+              return unwrap(http("POST", CNB_API + path, token=token, body=body or {},
+                                 accept="application/vnd.cnb.api+json"))
+
+
+          def list_github_releases(repo: str, token: str) -> list[dict]:
+              out: list[dict] = []
+              for page in range(1, 11):
+                  chunk = github_get(f"/repos/{repo}/releases?per_page=100&page={page}", token)
+                  if not isinstance(chunk, list) or not chunk:
+                      break
+                  out.extend(chunk)
+                  if len(chunk) < 100:
+                      break
+              return out
+
+
+          def list_cnb_releases(repo: str, token: str) -> dict[str, dict]:
+              out: dict[str, dict] = {}
+              for page in range(1, 21):
+                  chunk = cnb_get(f"/{repo}/-/releases?page={page}&page_size=100", token)
+                  if not isinstance(chunk, list) or not chunk:
+                      break
+                  for rel in chunk:
+                      tag = rel.get("tag_name") or ""
+                      if tag:
+                          out[tag] = rel
+                  if len(chunk) < 100:
+                      break
+              return out
+
+
+          def cnb_release_assets(repo: str, token: str, rel_obj: Any) -> set[str]:
+              """优先用列表接口自带的 assets，避免逐个请求详情。"""
+              rel = unwrap(rel_obj) if isinstance(rel_obj, dict) else {}
+              assets = rel.get("assets") if isinstance(rel, dict) else None
+              if assets is None:
+                  rid = release_id(rel)
+                  if not rid:
+                      return set()
+                  try:
+                      detail = unwrap(cnb_get(f"/{repo}/-/releases/{rid}", token))
+                  except Http404:
+                      return set()
+                  assets = detail.get("assets", []) if isinstance(detail, dict) else []
+              return {a.get("name", "") for a in assets if isinstance(a, dict)}
+
+
+          def release_id(rel: Any) -> str:
+              if not isinstance(rel, dict):
+                  return ""
+              return str(rel.get("id") or rel.get("release_id") or "")
+
+
+          def download_asset(asset: dict, gh_token: str, dest: str) -> int:
+              url = asset.get("browser_download_url") or ""
+              errors: list[str] = []
+              if url:
+                  try:
+                      req = urllib.request.Request(url, headers={"User-Agent": UA})
+                      with urllib.request.urlopen(req, timeout=900) as resp, open(dest, "wb") as fh:
+                          size = 0
+                          while True:
+                              buf = resp.read(1024 * 1024)
+                              if not buf:
+                                  break
+                              fh.write(buf)
+                              size += len(buf)
+                      return size
+                  except Exception as exc:  # noqa: BLE001
+                      errors.append(f"browser_download_url: {exc}")
+              api_url = asset.get("url") or ""
+              if api_url and gh_token:
+                  try:
+                      req = urllib.request.Request(
+                          api_url,
+                          headers={"User-Agent": UA, "Authorization": f"Bearer {gh_token}",
+                                   "Accept": "application/octet-stream"},
+                      )
+                      with urllib.request.urlopen(req, timeout=900) as resp, open(dest, "wb") as fh:
+                          size = 0
+                          while True:
+                              buf = resp.read(1024 * 1024)
+                              if not buf:
+                                  break
+                              fh.write(buf)
+                              size += len(buf)
+                      return size
+                  except Exception as exc:  # noqa: BLE001
+                      errors.append(f"api asset url: {exc}")
+              raise RuntimeError("下载附件失败 " + asset.get("name", "?") + " :: " + " | ".join(errors))
+
+
+          def upload_asset(repo: str, token: str, rel_id: str, name: str, path: str,
+                           size: int, overwrite: bool) -> None:
+              up = cnb_post(
+                  f"/{repo}/-/releases/{rel_id}/asset-upload-url", token,
+                  {"asset_name": name, "size": size, "overwrite": overwrite, "ttl": 180},
+              )
+              if not isinstance(up, dict):
+                  up = unwrap(up) if isinstance(up, dict) else {}
+              upload_url = up.get("upload_url") or up.get("url") or ""
+              verify_url = up.get("verify_url") or ""
+              if not upload_url:
+                  raise RuntimeError(f"未取得上传地址: {str(up)[:300]}")
+              if verify_url.startswith("/"):
+                  verify_url = CNB_API + verify_url
+              with open(path, "rb") as fh:
+                  payload = fh.read()
+              http("PUT", upload_url, raw=payload, token="", timeout=1800)
+              if verify_url:
+                  http("POST", verify_url, token=token, body={}, timeout=300)
+              else:
+                  raise RuntimeError("未取得 verify_url，无法确认附件上传")
+
+
+          def sync_one_asset(asset: dict, repo: str, token: str, rid: str,
+                             gh_token: str, overwrite: bool) -> tuple[str, int, str | None]:
+              """下载 + 上传单个附件，供线程池调用。返回 (名称, 字节数, 错误信息)。"""
+              aname = asset.get("name") or "unknown"
+              tmpdir = tempfile.mkdtemp(prefix="cnb-sync-")
+              tmp = os.path.join(tmpdir, os.path.basename(aname) or "asset.bin")
+              try:
+                  size = download_asset(asset, gh_token, tmp)
+                  upload_asset(repo, token, rid, aname, tmp, size, overwrite)
+                  return aname, size, None
+              except Exception as exc:  # noqa: BLE001
+                  return aname, 0, str(exc)
+              finally:
+                  try:
+                      os.remove(tmp)
+                      os.rmdir(tmpdir)
+                  except OSError:
+                      pass
+
+
+          def main() -> int:
+              ap = argparse.ArgumentParser(description=__doc__)
+              ap.add_argument("--github-repo", required=True, help="owner/repo")
+              ap.add_argument("--cnb-repo", required=True, help="group/repo")
+              ap.add_argument("--tag", default="", help="只同步指定 tag")
+              ap.add_argument("--dry-run", action="store_true")
+              ap.add_argument("--include-drafts", action="store_true")
+              ap.add_argument("--overwrite", action="store_true")
+              ap.add_argument("--max-releases", type=int, default=0)
+              ap.add_argument("--workers", type=int, default=4,
+                              help="附件并发数（默认 4；首次全量同步建议 6-8）")
+              args = ap.parse_args()
+
+              cnb_token = os.environ.get("CNB_TOKEN", "").strip()
+              gh_token = os.environ.get("GITHUB_TOKEN", "").strip()
+              if not cnb_token and not args.dry_run:
+                  log("ERROR: 缺少环境变量 CNB_TOKEN")
+                  return 2
+
+              log(f"源: github.com/{args.github_repo}")
+              log(f"目标: cnb.cool/{args.cnb_repo}")
+              releases = list_github_releases(args.github_repo, gh_token)
+              if args.tag:
+                  releases = [r for r in releases if r.get("tag_name") == args.tag]
+                  if not releases:
+                      log(f"GitHub 上没有 release tag={args.tag}，跳过（可能只是普通 tag）")
+                      return 0
+              if not args.include_drafts:
+                  releases = [r for r in releases if not r.get("draft")]
+              if args.max_releases:
+                  releases = releases[: args.max_releases]
+              log(f"待处理 Release: {len(releases)} 个")
+
+              existing: dict[str, dict] = {}
+              if not args.dry_run:
+                  existing = list_cnb_releases(args.cnb_repo, cnb_token)
+                  log(f"CNB 已有 Release: {len(existing)} 个")
+
+              latest_tag = releases[0].get("tag_name") if releases else ""
+              total_assets = 0
+              failed: list[str] = []
+              # 由旧到新创建，保证 CNB 的 latest 落在最新版本上
+              for rel in reversed(releases):
+                  tag = rel.get("tag_name") or ""
+                  name = rel.get("name") or tag
+                  body = rel.get("body") or ""
+                  is_pre = bool(rel.get("prerelease"))
+                  gh_assets = rel.get("assets") or []
+                  log(f"\n[{tag}] {name} | 附件 {len(gh_assets)} 个")
+                  if args.dry_run:
+                      for a in gh_assets:
+                          log(f"    - {a.get('name')} ({a.get('size')} B)")
+                      continue
+
+                  rel_obj = existing.get(tag)
+                  if not rel_obj:
+                      payload = {
+                          "tag_name": tag,
+                          "name": name,
+                          "body": body,
+                          "draft": False,
+                          "prerelease": is_pre,
+                          "target_commitish": rel.get("target_commitish") or "",
+                      }
+                      if tag == latest_tag:
+                          payload["make_latest"] = "true"
+                      try:
+                          rel_obj = cnb_post(f"/{args.cnb_repo}/-/releases", cnb_token, payload)
+                          log("    CNB Release 已创建")
+                      except Exception as exc:  # noqa: BLE001
+                          if "409" in str(exc) or "already exists" in str(exc).lower():
+                              try:
+                                  rel_obj = cnb_get(
+                                      f"/{args.cnb_repo}/-/releases/tags/{urllib.parse.quote(tag)}",
+                                      cnb_token,
+                                  )
+                              except Exception as exc2:  # noqa: BLE001
+                                  failed.append(f"{tag}: 创建/查询失败 {exc2}")
+                                  continue
+                          else:
+                              failed.append(f"{tag}: 创建失败 {exc}")
+                              continue
+                      existing[tag] = rel_obj if isinstance(rel_obj, dict) else {}
+                  else:
+                      log("    CNB Release 已存在，保留原元数据")
+
+                  rid = release_id(existing.get(tag))
+                  if not rid:
+                      failed.append(f"{tag}: 未取得 CNB release_id")
+                      continue
+                  have = cnb_release_assets(args.cnb_repo, cnb_token, existing.get(tag))
+                  todo = [a for a in gh_assets
+                          if (a.get("name") or "")
+                          and (a.get("name") not in have or args.overwrite)]
+                  skipped = len(gh_assets) - len(todo)
+                  if skipped:
+                      log(f"    = {skipped} 个附件已存在，跳过")
+                  if todo:
+                      log(f"    ↑ {len(todo)} 个附件待同步（并发 {min(args.workers, len(todo))}）")
+                      with concurrent.futures.ThreadPoolExecutor(
+                              max_workers=max(1, args.workers)) as pool:
+                          futures = [
+                              pool.submit(sync_one_asset, a, args.cnb_repo, cnb_token, rid,
+                                          gh_token, args.overwrite)
+                              for a in todo
+                          ]
+                          for fut in concurrent.futures.as_completed(futures):
+                              aname, size, err = fut.result()
+                              if err:
+                                  failed.append(f"{tag}/{aname}: {err}")
+                                  log(f"    ! {aname} 失败: {err}")
+                              else:
+                                  have.add(aname)
+                                  total_assets += 1
+                                  log(f"    ✓ {aname} ({size} B) 完成")
+
+              log(f"\n完成：新建/上传附件 {total_assets} 个，失败 {len(failed)} 项")
+              for f in failed:
+                  log("  FAILED " + f)
+              return 1 if failed else 0
+
+
+          if __name__ == "__main__":
+              sys.exit(main())
+          PYEOF
+          python3 "$RUNNER_TEMP/sync_releases.py" \
+            --github-repo "${GITHUB_REPO}" --cnb-repo "${CNB_REPO}" --workers 8

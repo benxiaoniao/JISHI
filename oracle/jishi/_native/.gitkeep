@@ -1,0 +1,13 @@
+# 这个目录专放 C VM 预编译动态库（jsvm.dll / libjsvm.so / libjsvm.dylib）。
+#
+# 它必须**存在于 git 里**，哪怕一个动态库都没有：
+# `pyproject.toml` 的 `packages` 列了 `jishi._native`，setuptools 在
+# 「生成构建元数据」阶段就会检查该目录是否存在，缺了直接报
+#   error: package directory 'jishi/_native' does not exist
+# 而动态库本身被 .gitignore 排除（各平台产物、不入库），
+# 于是**干净检出（CI）里这个目录会是空的/不存在 → 构建失败**。
+# 2026-09-21 起 CI 连续全红就是这个原因（四平台都倒在「安装项目（可编辑）」）；
+# M45 收尾时用 `git archive` 导出干净树才复现出来——本地有已构建的 dll，
+# 所以永远看不出来。
+#
+# 本文件（.gitkeep）的唯一作用就是让这个目录在仓库里存在。

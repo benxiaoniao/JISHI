@@ -1,0 +1,6692 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 10,
+        "name": "站点",
+        "类型": "Import"
+      },
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 11,
+        "name": "html",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "line": 17,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "布局表",
+          "line": 17,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 15,
+              "keys": [
+                {
+                  "col": 5,
+                  "line": 18,
+                  "value": "标题后缀",
+                  "类型": "Str"
+                },
+                {
+                  "col": 5,
+                  "line": 19,
+                  "value": "品牌",
+                  "类型": "Str"
+                },
+                {
+                  "col": 5,
+                  "line": 20,
+                  "value": "品牌副",
+                  "类型": "Str"
+                },
+                {
+                  "col": 5,
+                  "line": 21,
+                  "value": "导航项",
+                  "类型": "Str"
+                },
+                {
+                  "col": 5,
+                  "line": 22,
+                  "value": "脚注",
+                  "类型": "Str"
+                },
+                {
+                  "col": 5,
+                  "line": 23,
+                  "value": "网址前缀",
+                  "类型": "Str"
+                }
+              ],
+              "line": 17,
+              "values": [
+                {
+                  "col": 12,
+                  "line": 18,
+                  "value": "小站",
+                  "类型": "Str"
+                },
+                {
+                  "col": 10,
+                  "line": 19,
+                  "value": "小站",
+                  "类型": "Str"
+                },
+                {
+                  "col": 11,
+                  "line": 20,
+                  "value": "demo",
+                  "类型": "Str"
+                },
+                {
+                  "col": 11,
+                  "elements": [
+                    {
+                      "col": 12,
+                      "elements": [
+                        {
+                          "col": 13,
+                          "line": 21,
+                          "value": "index.html",
+                          "类型": "Str"
+                        },
+                        {
+                          "col": 27,
+                          "line": 21,
+                          "value": "首页",
+                          "类型": "Str"
+                        }
+                      ],
+                      "line": 21,
+                      "类型": "List"
+                    },
+                    {
+                      "col": 34,
+                      "elements": [
+                        {
+                          "col": 35,
+                          "line": 21,
+                          "value": "文章.html",
+                          "类型": "Str"
+                        },
+                        {
+                          "col": 46,
+                          "line": 21,
+                          "value": "文章",
+                          "类型": "Str"
+                        }
+                      ],
+                      "line": 21,
+                      "类型": "List"
+                    }
+                  ],
+                  "line": 21,
+                  "类型": "List"
+                },
+                {
+                  "col": 10,
+                  "line": 22,
+                  "value": "由基石生成 · 站点模块示例",
+                  "类型": "Str"
+                },
+                {
+                  "col": 12,
+                  "line": 23,
+                  "value": "https://例子.cn",
+                  "类型": "Str"
+                }
+              ],
+              "类型": "Dict"
+            }
+          ],
+          "col": 14,
+          "func": {
+            "attr": "布局",
+            "col": 11,
+            "line": 17,
+            "obj": {
+              "col": 9,
+              "id": "站点",
+              "line": 17,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 17,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 22,
+              "left": {
+                "col": 14,
+                "left": {
+                  "col": 7,
+                  "index": {
+                    "col": 8,
+                    "line": 27,
+                    "value": "语言",
+                    "类型": "Str"
+                  },
+                  "line": 27,
+                  "obj": {
+                    "col": 4,
+                    "id": "布局表",
+                    "line": 27,
+                    "类型": "Name"
+                  },
+                  "类型": "Subscript"
+                },
+                "line": 27,
+                "op": "+",
+                "right": {
+                  "col": 16,
+                  "line": 27,
+                  "value": " / ",
+                  "类型": "Str"
+                },
+                "类型": "BinOp"
+              },
+              "line": 27,
+              "op": "+",
+              "right": {
+                "col": 27,
+                "index": {
+                  "col": 28,
+                  "line": 27,
+                  "value": "样式文件",
+                  "类型": "Str"
+                },
+                "line": 27,
+                "obj": {
+                  "col": 24,
+                  "id": "布局表",
+                  "line": 27,
+                  "类型": "Name"
+                },
+                "类型": "Subscript"
+              },
+              "类型": "BinOp"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 27,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 27,
+          "类型": "Call"
+        },
+        "line": 27,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 18,
+              "comparators": [
+                {
+                  "col": 20,
+                  "line": 28,
+                  "value": 0,
+                  "类型": "Num"
+                }
+              ],
+              "left": {
+                "args": [
+                  {
+                    "col": 10,
+                    "index": {
+                      "col": 11,
+                      "line": 28,
+                      "value": "样式",
+                      "类型": "Str"
+                    },
+                    "line": 28,
+                    "obj": {
+                      "col": 7,
+                      "id": "布局表",
+                      "line": 28,
+                      "类型": "Name"
+                    },
+                    "类型": "Subscript"
+                  }
+                ],
+                "col": 6,
+                "func": {
+                  "col": 4,
+                  "id": "长度",
+                  "line": 28,
+                  "类型": "Name"
+                },
+                "keywords": [],
+                "line": 28,
+                "类型": "Call"
+              },
+              "line": 28,
+              "ops": [
+                ">"
+              ],
+              "类型": "Compare"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 28,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 28,
+          "类型": "Call"
+        },
+        "line": 28,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 34,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "文章们",
+          "line": 34,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 9,
+          "elements": [
+            {
+              "col": 5,
+              "elements": [
+                {
+                  "col": 6,
+                  "line": 35,
+                  "value": "第一篇",
+                  "类型": "Str"
+                },
+                {
+                  "col": 13,
+                  "line": 35,
+                  "value": "今天学会了用基石建站。",
+                  "类型": "Str"
+                }
+              ],
+              "line": 35,
+              "类型": "List"
+            },
+            {
+              "col": 5,
+              "elements": [
+                {
+                  "col": 6,
+                  "line": 36,
+                  "value": "第二篇",
+                  "类型": "Str"
+                },
+                {
+                  "col": 13,
+                  "line": 36,
+                  "value": "样式指纹替我解决了缓存问题。",
+                  "类型": "Str"
+                }
+              ],
+              "line": 36,
+              "类型": "List"
+            }
+          ],
+          "line": 34,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 39,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "目录",
+          "line": 39,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "elements": [],
+          "line": 39,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "body": [
+          {
+            "col": 5,
+            "line": 41,
+            "op": "=",
+            "target": {
+              "col": 7,
+              "id": "条",
+              "line": 41,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 14,
+              "index": {
+                "col": 15,
+                "id": "i",
+                "line": 41,
+                "类型": "Name"
+              },
+              "line": 41,
+              "obj": {
+                "col": 11,
+                "id": "文章们",
+                "line": 41,
+                "类型": "Name"
+              },
+              "类型": "Subscript"
+            },
+            "类型": "Assign"
+          },
+          {
+            "col": 5,
+            "expr": {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 19,
+                      "line": 42,
+                      "value": "li",
+                      "类型": "Str"
+                    },
+                    {
+                      "args": [
+                        {
+                          "col": 33,
+                          "line": 42,
+                          "value": "a",
+                          "类型": "Str"
+                        },
+                        {
+                          "col": 39,
+                          "index": {
+                            "col": 40,
+                            "line": 42,
+                            "value": 0,
+                            "类型": "Num"
+                          },
+                          "line": 42,
+                          "obj": {
+                            "col": 38,
+                            "id": "条",
+                            "line": 42,
+                            "类型": "Name"
+                          },
+                          "类型": "Subscript"
+                        },
+                        {
+                          "col": 44,
+                          "keys": [
+                            {
+                              "col": 45,
+                              "line": 42,
+                              "value": "href",
+                              "类型": "Str"
+                            }
+                          ],
+                          "line": 42,
+                          "values": [
+                            {
+                              "col": 53,
+                              "line": 42,
+                              "value": "文章.html",
+                              "类型": "Str"
+                            }
+                          ],
+                          "类型": "Dict"
+                        }
+                      ],
+                      "col": 32,
+                      "func": {
+                        "attr": "标签",
+                        "col": 29,
+                        "line": 42,
+                        "obj": {
+                          "col": 25,
+                          "id": "html",
+                          "line": 42,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 42,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 18,
+                  "func": {
+                    "attr": "标签",
+                    "col": 15,
+                    "line": 42,
+                    "obj": {
+                      "col": 11,
+                      "id": "html",
+                      "line": 42,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 42,
+                  "类型": "Call"
+                }
+              ],
+              "col": 10,
+              "func": {
+                "attr": "追加",
+                "col": 7,
+                "line": 42,
+                "obj": {
+                  "col": 5,
+                  "id": "目录",
+                  "line": 42,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 42,
+              "类型": "Call"
+            },
+            "line": 42,
+            "类型": "ExprStmt"
+          }
+        ],
+        "col": 1,
+        "iter": {
+          "args": [
+            {
+              "col": 11,
+              "line": 40,
+              "value": 0,
+              "类型": "Num"
+            },
+            {
+              "args": [
+                {
+                  "col": 17,
+                  "id": "文章们",
+                  "line": 40,
+                  "类型": "Name"
+                }
+              ],
+              "col": 16,
+              "func": {
+                "col": 14,
+                "id": "长度",
+                "line": 40,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 40,
+              "类型": "Call"
+            }
+          ],
+          "col": 10,
+          "func": {
+            "col": 8,
+            "id": "范围",
+            "line": 40,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 40,
+          "类型": "Call"
+        },
+        "line": 40,
+        "target": {
+          "col": 4,
+          "id": "i",
+          "line": 40,
+          "类型": "Name"
+        },
+        "类型": "For"
+      },
+      {
+        "col": 1,
+        "line": 44,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "首页正文",
+          "line": 44,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 5,
+          "left": {
+            "col": 5,
+            "left": {
+              "col": 5,
+              "left": {
+                "args": [
+                  {
+                    "col": 19,
+                    "line": 44,
+                    "value": "h1",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 25,
+                    "line": 44,
+                    "value": "首页",
+                    "类型": "Str"
+                  }
+                ],
+                "col": 18,
+                "func": {
+                  "attr": "标签",
+                  "col": 15,
+                  "line": 44,
+                  "obj": {
+                    "col": 11,
+                    "id": "html",
+                    "line": 44,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 44,
+                "类型": "Call"
+              },
+              "line": 45,
+              "op": "+",
+              "right": {
+                "args": [
+                  {
+                    "col": 14,
+                    "line": 45,
+                    "value": "p",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 19,
+                    "line": 45,
+                    "value": "这一页是基石写出来的。",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 34,
+                    "keys": [
+                      {
+                        "col": 35,
+                        "line": 45,
+                        "value": "类名",
+                        "类型": "Str"
+                      }
+                    ],
+                    "line": 45,
+                    "values": [
+                      {
+                        "col": 41,
+                        "line": 45,
+                        "value": "lead",
+                        "类型": "Str"
+                      }
+                    ],
+                    "类型": "Dict"
+                  }
+                ],
+                "col": 13,
+                "func": {
+                  "attr": "标签",
+                  "col": 10,
+                  "line": 45,
+                  "obj": {
+                    "col": 6,
+                    "id": "html",
+                    "line": 45,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 45,
+                "类型": "Call"
+              },
+              "类型": "BinOp"
+            },
+            "line": 46,
+            "op": "+",
+            "right": {
+              "args": [
+                {
+                  "col": 14,
+                  "line": 46,
+                  "value": "h2",
+                  "类型": "Str"
+                },
+                {
+                  "col": 20,
+                  "line": 46,
+                  "value": "文章",
+                  "类型": "Str"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "标签",
+                "col": 10,
+                "line": 46,
+                "obj": {
+                  "col": 6,
+                  "id": "html",
+                  "line": 46,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 46,
+              "类型": "Call"
+            },
+            "类型": "BinOp"
+          },
+          "line": 47,
+          "op": "+",
+          "right": {
+            "args": [
+              {
+                "col": 16,
+                "id": "目录",
+                "line": 47,
+                "类型": "Name"
+              }
+            ],
+            "col": 15,
+            "func": {
+              "attr": "无序列表",
+              "col": 10,
+              "line": 47,
+              "obj": {
+                "col": 6,
+                "id": "html",
+                "line": 47,
+                "类型": "Name"
+              },
+              "类型": "Attr"
+            },
+            "keywords": [],
+            "line": 47,
+            "类型": "Call"
+          },
+          "类型": "BinOp"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 49,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "文章正文",
+          "line": 49,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 18,
+              "line": 49,
+              "value": "h1",
+              "类型": "Str"
+            },
+            {
+              "col": 24,
+              "line": 49,
+              "value": "文章",
+              "类型": "Str"
+            }
+          ],
+          "col": 17,
+          "func": {
+            "attr": "标签",
+            "col": 14,
+            "line": 49,
+            "obj": {
+              "col": 10,
+              "id": "html",
+              "line": 49,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 49,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "body": [
+          {
+            "col": 5,
+            "line": 51,
+            "op": "=",
+            "target": {
+              "col": 5,
+              "id": "文章正文",
+              "line": 51,
+              "类型": "Name"
+            },
+            "value": {
+              "col": 39,
+              "left": {
+                "col": 17,
+                "left": {
+                  "col": 12,
+                  "id": "文章正文",
+                  "line": 51,
+                  "类型": "Name"
+                },
+                "line": 51,
+                "op": "+",
+                "right": {
+                  "args": [
+                    {
+                      "col": 27,
+                      "line": 51,
+                      "value": "h2",
+                      "类型": "Str"
+                    },
+                    {
+                      "col": 34,
+                      "index": {
+                        "col": 35,
+                        "line": 51,
+                        "value": 0,
+                        "类型": "Num"
+                      },
+                      "line": 51,
+                      "obj": {
+                        "col": 33,
+                        "id": "条",
+                        "line": 51,
+                        "类型": "Name"
+                      },
+                      "类型": "Subscript"
+                    }
+                  ],
+                  "col": 26,
+                  "func": {
+                    "attr": "标签",
+                    "col": 23,
+                    "line": 51,
+                    "obj": {
+                      "col": 19,
+                      "id": "html",
+                      "line": 51,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 51,
+                  "类型": "Call"
+                },
+                "类型": "BinOp"
+              },
+              "line": 51,
+              "op": "+",
+              "right": {
+                "args": [
+                  {
+                    "col": 49,
+                    "line": 51,
+                    "value": "p",
+                    "类型": "Str"
+                  },
+                  {
+                    "col": 55,
+                    "index": {
+                      "col": 56,
+                      "line": 51,
+                      "value": 1,
+                      "类型": "Num"
+                    },
+                    "line": 51,
+                    "obj": {
+                      "col": 54,
+                      "id": "条",
+                      "line": 51,
+                      "类型": "Name"
+                    },
+                    "类型": "Subscript"
+                  }
+                ],
+                "col": 48,
+                "func": {
+                  "attr": "标签",
+                  "col": 45,
+                  "line": 51,
+                  "obj": {
+                    "col": 41,
+                    "id": "html",
+                    "line": 51,
+                    "类型": "Name"
+                  },
+                  "类型": "Attr"
+                },
+                "keywords": [],
+                "line": 51,
+                "类型": "Call"
+              },
+              "类型": "BinOp"
+            },
+            "类型": "Assign"
+          }
+        ],
+        "col": 1,
+        "iter": {
+          "col": 8,
+          "id": "文章们",
+          "line": 50,
+          "类型": "Name"
+        },
+        "line": 50,
+        "target": {
+          "col": 4,
+          "id": "条",
+          "line": 50,
+          "类型": "Name"
+        },
+        "类型": "For"
+      },
+      {
+        "col": 1,
+        "line": 53,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "页们",
+          "line": 53,
+          "类型": "Name"
+        },
+        "value": {
+          "col": 8,
+          "elements": [
+            {
+              "col": 5,
+              "keys": [
+                {
+                  "col": 6,
+                  "line": 54,
+                  "value": "路径",
+                  "类型": "Str"
+                },
+                {
+                  "col": 26,
+                  "line": 54,
+                  "value": "标题",
+                  "类型": "Str"
+                },
+                {
+                  "col": 38,
+                  "line": 54,
+                  "value": "正文",
+                  "类型": "Str"
+                }
+              ],
+              "line": 54,
+              "values": [
+                {
+                  "col": 12,
+                  "line": 54,
+                  "value": "index.html",
+                  "类型": "Str"
+                },
+                {
+                  "col": 32,
+                  "line": 54,
+                  "value": "首页",
+                  "类型": "Str"
+                },
+                {
+                  "col": 44,
+                  "id": "首页正文",
+                  "line": 54,
+                  "类型": "Name"
+                }
+              ],
+              "类型": "Dict"
+            },
+            {
+              "col": 5,
+              "keys": [
+                {
+                  "col": 6,
+                  "line": 55,
+                  "value": "路径",
+                  "类型": "Str"
+                },
+                {
+                  "col": 23,
+                  "line": 55,
+                  "value": "标题",
+                  "类型": "Str"
+                },
+                {
+                  "col": 35,
+                  "line": 55,
+                  "value": "正文",
+                  "类型": "Str"
+                }
+              ],
+              "line": 55,
+              "values": [
+                {
+                  "col": 12,
+                  "line": 55,
+                  "value": "文章.html",
+                  "类型": "Str"
+                },
+                {
+                  "col": 29,
+                  "line": 55,
+                  "value": "文章",
+                  "类型": "Str"
+                },
+                {
+                  "col": 41,
+                  "id": "文章正文",
+                  "line": 55,
+                  "类型": "Name"
+                }
+              ],
+              "类型": "Dict"
+            }
+          ],
+          "line": 53,
+          "类型": "List"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "line": 59,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "已渲染",
+          "line": 59,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 15,
+              "id": "页们",
+              "line": 59,
+              "类型": "Name"
+            },
+            {
+              "col": 19,
+              "id": "布局表",
+              "line": 59,
+              "类型": "Name"
+            }
+          ],
+          "col": 14,
+          "func": {
+            "attr": "渲染",
+            "col": 11,
+            "line": 59,
+            "obj": {
+              "col": 9,
+              "id": "站点",
+              "line": 59,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 59,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "left": {
+                "col": 4,
+                "left": {
+                  "col": 4,
+                  "left": {
+                    "col": 4,
+                    "left": {
+                      "col": 4,
+                      "line": 60,
+                      "value": "共 ",
+                      "类型": "Str"
+                    },
+                    "line": 60,
+                    "op": "+",
+                    "right": {
+                      "args": [
+                        {
+                          "args": [
+                            {
+                              "col": 4,
+                              "id": "已渲染",
+                              "line": 1,
+                              "类型": "Name"
+                            }
+                          ],
+                          "col": 3,
+                          "func": {
+                            "col": 1,
+                            "id": "长度",
+                            "line": 1,
+                            "类型": "Name"
+                          },
+                          "keywords": [],
+                          "line": 1,
+                          "类型": "Call"
+                        }
+                      ],
+                      "col": 4,
+                      "func": {
+                        "col": 4,
+                        "id": "$文本",
+                        "line": 60,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 60,
+                      "类型": "Call"
+                    },
+                    "类型": "BinOp"
+                  },
+                  "line": 60,
+                  "op": "+",
+                  "right": {
+                    "col": 4,
+                    "line": 60,
+                    "value": " 页，首页 ",
+                    "类型": "Str"
+                  },
+                  "类型": "BinOp"
+                },
+                "line": 60,
+                "op": "+",
+                "right": {
+                  "args": [
+                    {
+                      "args": [
+                        {
+                          "col": 10,
+                          "index": {
+                            "col": 11,
+                            "line": 1,
+                            "value": 1,
+                            "类型": "Num"
+                          },
+                          "line": 1,
+                          "obj": {
+                            "col": 7,
+                            "index": {
+                              "col": 8,
+                              "line": 1,
+                              "value": 0,
+                              "类型": "Num"
+                            },
+                            "line": 1,
+                            "obj": {
+                              "col": 4,
+                              "id": "已渲染",
+                              "line": 1,
+                              "类型": "Name"
+                            },
+                            "类型": "Subscript"
+                          },
+                          "类型": "Subscript"
+                        }
+                      ],
+                      "col": 3,
+                      "func": {
+                        "col": 1,
+                        "id": "长度",
+                        "line": 1,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 1,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 4,
+                  "func": {
+                    "col": 4,
+                    "id": "$文本",
+                    "line": 60,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 60,
+                  "类型": "Call"
+                },
+                "类型": "BinOp"
+              },
+              "line": 60,
+              "op": "+",
+              "right": {
+                "col": 4,
+                "line": 60,
+                "value": " 字节",
+                "类型": "Str"
+              },
+              "类型": "BinOp"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 60,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 60,
+          "类型": "Call"
+        },
+        "line": 60,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "line": 65,
+        "op": "=",
+        "target": {
+          "col": 3,
+          "id": "统计",
+          "line": 65,
+          "类型": "Name"
+        },
+        "value": {
+          "args": [
+            {
+              "col": 14,
+              "line": 65,
+              "value": "建站示例",
+              "类型": "Str"
+            },
+            {
+              "col": 22,
+              "id": "页们",
+              "line": 65,
+              "类型": "Name"
+            },
+            {
+              "col": 26,
+              "id": "布局表",
+              "line": 65,
+              "类型": "Name"
+            }
+          ],
+          "col": 13,
+          "func": {
+            "attr": "写站",
+            "col": 10,
+            "line": 65,
+            "obj": {
+              "col": 8,
+              "id": "站点",
+              "line": 65,
+              "类型": "Name"
+            },
+            "类型": "Attr"
+          },
+          "keywords": [],
+          "line": 65,
+          "类型": "Call"
+        },
+        "类型": "Assign"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "left": {
+                "col": 4,
+                "left": {
+                  "col": 4,
+                  "line": 66,
+                  "value": "页面 ",
+                  "类型": "Str"
+                },
+                "line": 66,
+                "op": "+",
+                "right": {
+                  "args": [
+                    {
+                      "col": 3,
+                      "index": {
+                        "col": 4,
+                        "line": 1,
+                        "value": "页面数",
+                        "类型": "Str"
+                      },
+                      "line": 1,
+                      "obj": {
+                        "col": 1,
+                        "id": "统计",
+                        "line": 1,
+                        "类型": "Name"
+                      },
+                      "类型": "Subscript"
+                    }
+                  ],
+                  "col": 4,
+                  "func": {
+                    "col": 4,
+                    "id": "$文本",
+                    "line": 66,
+                    "类型": "Name"
+                  },
+                  "keywords": [],
+                  "line": 66,
+                  "类型": "Call"
+                },
+                "类型": "BinOp"
+              },
+              "line": 66,
+              "op": "+",
+              "right": {
+                "col": 4,
+                "line": 66,
+                "value": " 个",
+                "类型": "Str"
+              },
+              "类型": "BinOp"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 66,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 66,
+          "类型": "Call"
+        },
+        "line": 66,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "left": {
+                "col": 4,
+                "line": 67,
+                "value": "样式表 ",
+                "类型": "Str"
+              },
+              "line": 67,
+              "op": "+",
+              "right": {
+                "args": [
+                  {
+                    "col": 3,
+                    "index": {
+                      "col": 4,
+                      "line": 1,
+                      "value": "样式文件",
+                      "类型": "Str"
+                    },
+                    "line": 1,
+                    "obj": {
+                      "col": 1,
+                      "id": "统计",
+                      "line": 1,
+                      "类型": "Name"
+                    },
+                    "类型": "Subscript"
+                  }
+                ],
+                "col": 4,
+                "func": {
+                  "col": 4,
+                  "id": "$文本",
+                  "line": 67,
+                  "类型": "Name"
+                },
+                "keywords": [],
+                "line": 67,
+                "类型": "Call"
+              },
+              "类型": "BinOp"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 67,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 67,
+          "类型": "Call"
+        },
+        "line": 67,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "left": {
+                "col": 4,
+                "line": 68,
+                "value": "站点地图 ",
+                "类型": "Str"
+              },
+              "line": 68,
+              "op": "+",
+              "right": {
+                "args": [
+                  {
+                    "col": 3,
+                    "index": {
+                      "col": 4,
+                      "line": 1,
+                      "value": "sitemap",
+                      "类型": "Str"
+                    },
+                    "line": 1,
+                    "obj": {
+                      "col": 1,
+                      "id": "统计",
+                      "line": 1,
+                      "类型": "Name"
+                    },
+                    "类型": "Subscript"
+                  }
+                ],
+                "col": 4,
+                "func": {
+                  "col": 4,
+                  "id": "$文本",
+                  "line": 68,
+                  "类型": "Name"
+                },
+                "keywords": [],
+                "line": 68,
+                "类型": "Call"
+              },
+              "类型": "BinOp"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 68,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 68,
+          "类型": "Call"
+        },
+        "line": 68,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "col": 4,
+              "line": 69,
+              "value": "把这个目录整个传上去就能访问。",
+              "类型": "Str"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 69,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 69,
+          "类型": "Call"
+        },
+        "line": 69,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 72,
+                  "value": "abc",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "资源指纹",
+                "col": 6,
+                "line": 72,
+                "obj": {
+                  "col": 4,
+                  "id": "站点",
+                  "line": 72,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 72,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 72,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 72,
+          "类型": "Call"
+        },
+        "line": 72,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "col": 12,
+                  "line": 73,
+                  "value": "abd",
+                  "类型": "Str"
+                }
+              ],
+              "col": 11,
+              "func": {
+                "attr": "资源指纹",
+                "col": 6,
+                "line": 73,
+                "obj": {
+                  "col": 4,
+                  "id": "站点",
+                  "line": 73,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 73,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 73,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 73,
+          "类型": "Call"
+        },
+        "line": 73,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "b97359f1af1a43b239c6f00ab0bca431214aca2538776169c0e80f9f3c90971e",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            10,
+            1,
+            3,
+            0,
+            0,
+            0,
+            10,
+            1,
+            31,
+            1,
+            0,
+            -1,
+            11,
+            1,
+            3,
+            1,
+            0,
+            0,
+            11,
+            1,
+            2,
+            0,
+            0,
+            0,
+            17,
+            9,
+            25,
+            2,
+            0,
+            0,
+            17,
+            11,
+            1,
+            0,
+            0,
+            0,
+            18,
+            5,
+            1,
+            1,
+            0,
+            0,
+            18,
+            12,
+            1,
+            2,
+            0,
+            0,
+            19,
+            5,
+            1,
+            1,
+            0,
+            0,
+            19,
+            10,
+            1,
+            3,
+            0,
+            0,
+            20,
+            5,
+            1,
+            4,
+            0,
+            0,
+            20,
+            11,
+            1,
+            5,
+            0,
+            0,
+            21,
+            5,
+            1,
+            6,
+            0,
+            0,
+            21,
+            13,
+            1,
+            7,
+            0,
+            0,
+            21,
+            27,
+            23,
+            2,
+            0,
+            0,
+            21,
+            12,
+            1,
+            8,
+            0,
+            0,
+            21,
+            35,
+            1,
+            9,
+            0,
+            0,
+            21,
+            46,
+            23,
+            2,
+            0,
+            0,
+            21,
+            34,
+            23,
+            2,
+            0,
+            0,
+            21,
+            11,
+            1,
+            10,
+            0,
+            0,
+            22,
+            5,
+            1,
+            11,
+            0,
+            0,
+            22,
+            10,
+            1,
+            12,
+            0,
+            0,
+            23,
+            5,
+            1,
+            13,
+            0,
+            0,
+            23,
+            12,
+            24,
+            6,
+            0,
+            0,
+            17,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            17,
+            14,
+            3,
+            3,
+            0,
+            0,
+            17,
+            1,
+            2,
+            4,
+            0,
+            0,
+            27,
+            1,
+            2,
+            3,
+            0,
+            0,
+            27,
+            4,
+            1,
+            14,
+            0,
+            0,
+            27,
+            8,
+            27,
+            0,
+            0,
+            0,
+            27,
+            7,
+            1,
+            15,
+            0,
+            0,
+            27,
+            16,
+            13,
+            0,
+            0,
+            0,
+            27,
+            14,
+            2,
+            3,
+            0,
+            0,
+            27,
+            24,
+            1,
+            16,
+            0,
+            0,
+            27,
+            28,
+            27,
+            0,
+            0,
+            0,
+            27,
+            27,
+            13,
+            0,
+            0,
+            0,
+            27,
+            22,
+            20,
+            1,
+            -1,
+            0,
+            27,
+            3,
+            38,
+            0,
+            0,
+            0,
+            27,
+            1,
+            2,
+            4,
+            0,
+            0,
+            28,
+            1,
+            2,
+            5,
+            0,
+            0,
+            28,
+            4,
+            2,
+            3,
+            0,
+            0,
+            28,
+            7,
+            1,
+            17,
+            0,
+            0,
+            28,
+            11,
+            27,
+            0,
+            0,
+            0,
+            28,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            28,
+            6,
+            1,
+            18,
+            0,
+            0,
+            28,
+            20,
+            15,
+            3,
+            0,
+            0,
+            28,
+            18,
+            20,
+            1,
+            -1,
+            0,
+            28,
+            3,
+            38,
+            0,
+            0,
+            0,
+            28,
+            1,
+            1,
+            19,
+            0,
+            0,
+            35,
+            6,
+            1,
+            20,
+            0,
+            0,
+            35,
+            13,
+            23,
+            2,
+            0,
+            0,
+            35,
+            5,
+            1,
+            21,
+            0,
+            0,
+            36,
+            6,
+            1,
+            22,
+            0,
+            0,
+            36,
+            13,
+            23,
+            2,
+            0,
+            0,
+            36,
+            5,
+            23,
+            2,
+            0,
+            0,
+            34,
+            9,
+            3,
+            6,
+            0,
+            0,
+            34,
+            1,
+            23,
+            0,
+            0,
+            0,
+            39,
+            8,
+            3,
+            7,
+            0,
+            0,
+            39,
+            1,
+            2,
+            8,
+            0,
+            0,
+            40,
+            8,
+            1,
+            18,
+            0,
+            0,
+            40,
+            11,
+            2,
+            5,
+            0,
+            0,
+            40,
+            14,
+            2,
+            6,
+            0,
+            0,
+            40,
+            17,
+            20,
+            1,
+            -1,
+            0,
+            40,
+            16,
+            20,
+            2,
+            -1,
+            0,
+            40,
+            10,
+            29,
+            0,
+            0,
+            0,
+            40,
+            1,
+            34,
+            67,
+            93,
+            0,
+            40,
+            1,
+            30,
+            91,
+            0,
+            0,
+            40,
+            1,
+            3,
+            9,
+            0,
+            0,
+            40,
+            1,
+            2,
+            6,
+            0,
+            0,
+            41,
+            11,
+            2,
+            9,
+            0,
+            0,
+            41,
+            15,
+            27,
+            0,
+            0,
+            0,
+            41,
+            14,
+            3,
+            10,
+            0,
+            0,
+            41,
+            5,
+            2,
+            7,
+            0,
+            0,
+            42,
+            5,
+            2,
+            1,
+            0,
+            0,
+            42,
+            11,
+            25,
+            11,
+            0,
+            0,
+            42,
+            15,
+            1,
+            23,
+            0,
+            0,
+            42,
+            19,
+            2,
+            1,
+            0,
+            0,
+            42,
+            25,
+            25,
+            11,
+            0,
+            0,
+            42,
+            29,
+            1,
+            24,
+            0,
+            0,
+            42,
+            33,
+            2,
+            10,
+            0,
+            0,
+            42,
+            38,
+            1,
+            18,
+            0,
+            0,
+            42,
+            40,
+            27,
+            0,
+            0,
+            0,
+            42,
+            39,
+            1,
+            25,
+            0,
+            0,
+            42,
+            45,
+            1,
+            8,
+            0,
+            0,
+            42,
+            53,
+            24,
+            1,
+            0,
+            0,
+            42,
+            44,
+            20,
+            3,
+            -1,
+            0,
+            42,
+            32,
+            20,
+            2,
+            -1,
+            0,
+            42,
+            18,
+            47,
+            0,
+            0,
+            0,
+            42,
+            10,
+            38,
+            0,
+            0,
+            0,
+            42,
+            5,
+            16,
+            67,
+            0,
+            0,
+            40,
+            1,
+            35,
+            0,
+            0,
+            0,
+            40,
+            1,
+            16,
+            95,
+            0,
+            0,
+            40,
+            1,
+            9,
+            0,
+            0,
+            0,
+            40,
+            1,
+            35,
+            0,
+            0,
+            0,
+            40,
+            1,
+            2,
+            1,
+            0,
+            0,
+            44,
+            11,
+            25,
+            11,
+            0,
+            0,
+            44,
+            15,
+            1,
+            26,
+            0,
+            0,
+            44,
+            19,
+            1,
+            7,
+            0,
+            0,
+            44,
+            25,
+            20,
+            2,
+            -1,
+            0,
+            44,
+            18,
+            2,
+            1,
+            0,
+            0,
+            45,
+            6,
+            25,
+            11,
+            0,
+            0,
+            45,
+            10,
+            1,
+            27,
+            0,
+            0,
+            45,
+            14,
+            1,
+            28,
+            0,
+            0,
+            45,
+            19,
+            1,
+            29,
+            0,
+            0,
+            45,
+            35,
+            1,
+            30,
+            0,
+            0,
+            45,
+            41,
+            24,
+            1,
+            0,
+            0,
+            45,
+            34,
+            20,
+            3,
+            -1,
+            0,
+            45,
+            13,
+            13,
+            0,
+            0,
+            0,
+            45,
+            5,
+            2,
+            1,
+            0,
+            0,
+            46,
+            6,
+            25,
+            11,
+            0,
+            0,
+            46,
+            10,
+            1,
+            31,
+            0,
+            0,
+            46,
+            14,
+            1,
+            9,
+            0,
+            0,
+            46,
+            20,
+            20,
+            2,
+            -1,
+            0,
+            46,
+            13,
+            13,
+            0,
+            0,
+            0,
+            46,
+            5,
+            2,
+            1,
+            0,
+            0,
+            47,
+            6,
+            25,
+            12,
+            0,
+            0,
+            47,
+            10,
+            2,
+            7,
+            0,
+            0,
+            47,
+            16,
+            20,
+            1,
+            -1,
+            0,
+            47,
+            15,
+            13,
+            0,
+            0,
+            0,
+            47,
+            5,
+            3,
+            13,
+            0,
+            0,
+            44,
+            1,
+            2,
+            1,
+            0,
+            0,
+            49,
+            10,
+            25,
+            11,
+            0,
+            0,
+            49,
+            14,
+            1,
+            26,
+            0,
+            0,
+            49,
+            18,
+            1,
+            9,
+            0,
+            0,
+            49,
+            24,
+            20,
+            2,
+            -1,
+            0,
+            49,
+            17,
+            3,
+            14,
+            0,
+            0,
+            49,
+            1,
+            2,
+            6,
+            0,
+            0,
+            50,
+            8,
+            29,
+            0,
+            0,
+            0,
+            50,
+            1,
+            34,
+            130,
+            153,
+            0,
+            50,
+            1,
+            30,
+            151,
+            0,
+            0,
+            50,
+            1,
+            3,
+            10,
+            0,
+            0,
+            50,
+            1,
+            2,
+            14,
+            0,
+            0,
+            51,
+            12,
+            2,
+            1,
+            0,
+            0,
+            51,
+            19,
+            25,
+            11,
+            0,
+            0,
+            51,
+            23,
+            1,
+            31,
+            0,
+            0,
+            51,
+            27,
+            2,
+            10,
+            0,
+            0,
+            51,
+            33,
+            1,
+            18,
+            0,
+            0,
+            51,
+            35,
+            27,
+            0,
+            0,
+            0,
+            51,
+            34,
+            20,
+            2,
+            -1,
+            0,
+            51,
+            26,
+            13,
+            0,
+            0,
+            0,
+            51,
+            17,
+            2,
+            1,
+            0,
+            0,
+            51,
+            41,
+            25,
+            11,
+            0,
+            0,
+            51,
+            45,
+            1,
+            27,
+            0,
+            0,
+            51,
+            49,
+            2,
+            10,
+            0,
+            0,
+            51,
+            54,
+            1,
+            32,
+            0,
+            0,
+            51,
+            56,
+            27,
+            0,
+            0,
+            0,
+            51,
+            55,
+            20,
+            2,
+            -1,
+            0,
+            51,
+            48,
+            13,
+            0,
+            0,
+            0,
+            51,
+            39,
+            3,
+            14,
+            0,
+            0,
+            51,
+            5,
+            16,
+            130,
+            0,
+            0,
+            50,
+            1,
+            35,
+            0,
+            0,
+            0,
+            50,
+            1,
+            16,
+            155,
+            0,
+            0,
+            50,
+            1,
+            9,
+            0,
+            0,
+            0,
+            50,
+            1,
+            35,
+            0,
+            0,
+            0,
+            50,
+            1,
+            1,
+            33,
+            0,
+            0,
+            54,
+            6,
+            1,
+            6,
+            0,
+            0,
+            54,
+            12,
+            1,
+            34,
+            0,
+            0,
+            54,
+            26,
+            1,
+            7,
+            0,
+            0,
+            54,
+            32,
+            1,
+            35,
+            0,
+            0,
+            54,
+            38,
+            2,
+            13,
+            0,
+            0,
+            54,
+            44,
+            24,
+            3,
+            0,
+            0,
+            54,
+            5,
+            1,
+            33,
+            0,
+            0,
+            55,
+            6,
+            1,
+            8,
+            0,
+            0,
+            55,
+            12,
+            1,
+            34,
+            0,
+            0,
+            55,
+            23,
+            1,
+            9,
+            0,
+            0,
+            55,
+            29,
+            1,
+            35,
+            0,
+            0,
+            55,
+            35,
+            2,
+            14,
+            0,
+            0,
+            55,
+            41,
+            24,
+            3,
+            0,
+            0,
+            55,
+            5,
+            23,
+            2,
+            0,
+            0,
+            53,
+            8,
+            3,
+            15,
+            0,
+            0,
+            53,
+            1,
+            2,
+            0,
+            0,
+            0,
+            59,
+            9,
+            25,
+            16,
+            0,
+            0,
+            59,
+            11,
+            2,
+            15,
+            0,
+            0,
+            59,
+            15,
+            2,
+            3,
+            0,
+            0,
+            59,
+            19,
+            20,
+            2,
+            -1,
+            0,
+            59,
+            14,
+            3,
+            17,
+            0,
+            0,
+            59,
+            1,
+            2,
+            4,
+            0,
+            0,
+            60,
+            1,
+            1,
+            36,
+            0,
+            0,
+            60,
+            4,
+            2,
+            18,
+            0,
+            0,
+            60,
+            4,
+            2,
+            5,
+            0,
+            0,
+            1,
+            1,
+            2,
+            17,
+            0,
+            0,
+            1,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            1,
+            3,
+            20,
+            1,
+            -1,
+            0,
+            60,
+            4,
+            13,
+            0,
+            0,
+            0,
+            60,
+            4,
+            1,
+            37,
+            0,
+            0,
+            60,
+            4,
+            13,
+            0,
+            0,
+            0,
+            60,
+            4,
+            2,
+            18,
+            0,
+            0,
+            60,
+            4,
+            2,
+            5,
+            0,
+            0,
+            1,
+            1,
+            2,
+            17,
+            0,
+            0,
+            1,
+            4,
+            1,
+            18,
+            0,
+            0,
+            1,
+            8,
+            27,
+            0,
+            0,
+            0,
+            1,
+            7,
+            1,
+            32,
+            0,
+            0,
+            1,
+            11,
+            27,
+            0,
+            0,
+            0,
+            1,
+            10,
+            20,
+            1,
+            -1,
+            0,
+            1,
+            3,
+            20,
+            1,
+            -1,
+            0,
+            60,
+            4,
+            13,
+            0,
+            0,
+            0,
+            60,
+            4,
+            1,
+            38,
+            0,
+            0,
+            60,
+            4,
+            13,
+            0,
+            0,
+            0,
+            60,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            60,
+            3,
+            38,
+            0,
+            0,
+            0,
+            60,
+            1,
+            2,
+            0,
+            0,
+            0,
+            65,
+            8,
+            25,
+            19,
+            0,
+            0,
+            65,
+            10,
+            1,
+            39,
+            0,
+            0,
+            65,
+            14,
+            2,
+            15,
+            0,
+            0,
+            65,
+            22,
+            2,
+            3,
+            0,
+            0,
+            65,
+            26,
+            20,
+            3,
+            -1,
+            0,
+            65,
+            13,
+            3,
+            20,
+            0,
+            0,
+            65,
+            1,
+            2,
+            4,
+            0,
+            0,
+            66,
+            1,
+            1,
+            40,
+            0,
+            0,
+            66,
+            4,
+            2,
+            18,
+            0,
+            0,
+            66,
+            4,
+            2,
+            20,
+            0,
+            0,
+            1,
+            1,
+            1,
+            41,
+            0,
+            0,
+            1,
+            4,
+            27,
+            0,
+            0,
+            0,
+            1,
+            3,
+            20,
+            1,
+            -1,
+            0,
+            66,
+            4,
+            13,
+            0,
+            0,
+            0,
+            66,
+            4,
+            1,
+            42,
+            0,
+            0,
+            66,
+            4,
+            13,
+            0,
+            0,
+            0,
+            66,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            66,
+            3,
+            38,
+            0,
+            0,
+            0,
+            66,
+            1,
+            2,
+            4,
+            0,
+            0,
+            67,
+            1,
+            1,
+            43,
+            0,
+            0,
+            67,
+            4,
+            2,
+            18,
+            0,
+            0,
+            67,
+            4,
+            2,
+            20,
+            0,
+            0,
+            1,
+            1,
+            1,
+            16,
+            0,
+            0,
+            1,
+            4,
+            27,
+            0,
+            0,
+            0,
+            1,
+            3,
+            20,
+            1,
+            -1,
+            0,
+            67,
+            4,
+            13,
+            0,
+            0,
+            0,
+            67,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            67,
+            3,
+            38,
+            0,
+            0,
+            0,
+            67,
+            1,
+            2,
+            4,
+            0,
+            0,
+            68,
+            1,
+            1,
+            44,
+            0,
+            0,
+            68,
+            4,
+            2,
+            18,
+            0,
+            0,
+            68,
+            4,
+            2,
+            20,
+            0,
+            0,
+            1,
+            1,
+            1,
+            45,
+            0,
+            0,
+            1,
+            4,
+            27,
+            0,
+            0,
+            0,
+            1,
+            3,
+            20,
+            1,
+            -1,
+            0,
+            68,
+            4,
+            13,
+            0,
+            0,
+            0,
+            68,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            68,
+            3,
+            38,
+            0,
+            0,
+            0,
+            68,
+            1,
+            2,
+            4,
+            0,
+            0,
+            69,
+            1,
+            1,
+            46,
+            0,
+            0,
+            69,
+            4,
+            20,
+            1,
+            -1,
+            0,
+            69,
+            3,
+            38,
+            0,
+            0,
+            0,
+            69,
+            1,
+            2,
+            4,
+            0,
+            0,
+            72,
+            1,
+            2,
+            0,
+            0,
+            0,
+            72,
+            4,
+            25,
+            21,
+            0,
+            0,
+            72,
+            6,
+            1,
+            47,
+            0,
+            0,
+            72,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            72,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            72,
+            3,
+            38,
+            0,
+            0,
+            0,
+            72,
+            1,
+            2,
+            4,
+            0,
+            0,
+            73,
+            1,
+            2,
+            0,
+            0,
+            0,
+            73,
+            4,
+            25,
+            21,
+            0,
+            0,
+            73,
+            6,
+            1,
+            48,
+            0,
+            0,
+            73,
+            12,
+            20,
+            1,
+            -1,
+            0,
+            73,
+            11,
+            20,
+            1,
+            -1,
+            0,
+            73,
+            3,
+            38,
+            0,
+            0,
+            0,
+            73,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": [],
+          "src_file": "",
+          "src_start": 0
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "标题后缀"
+        },
+        {
+          "t": "str",
+          "v": "小站"
+        },
+        {
+          "t": "str",
+          "v": "品牌"
+        },
+        {
+          "t": "str",
+          "v": "品牌副"
+        },
+        {
+          "t": "str",
+          "v": "demo"
+        },
+        {
+          "t": "str",
+          "v": "导航项"
+        },
+        {
+          "t": "str",
+          "v": "index.html"
+        },
+        {
+          "t": "str",
+          "v": "首页"
+        },
+        {
+          "t": "str",
+          "v": "文章.html"
+        },
+        {
+          "t": "str",
+          "v": "文章"
+        },
+        {
+          "t": "str",
+          "v": "脚注"
+        },
+        {
+          "t": "str",
+          "v": "由基石生成 · 站点模块示例"
+        },
+        {
+          "t": "str",
+          "v": "网址前缀"
+        },
+        {
+          "t": "str",
+          "v": "https://例子.cn"
+        },
+        {
+          "t": "str",
+          "v": "语言"
+        },
+        {
+          "t": "str",
+          "v": " / "
+        },
+        {
+          "t": "str",
+          "v": "样式文件"
+        },
+        {
+          "t": "str",
+          "v": "样式"
+        },
+        {
+          "t": "int",
+          "v": 0
+        },
+        {
+          "t": "str",
+          "v": "第一篇"
+        },
+        {
+          "t": "str",
+          "v": "今天学会了用基石建站。"
+        },
+        {
+          "t": "str",
+          "v": "第二篇"
+        },
+        {
+          "t": "str",
+          "v": "样式指纹替我解决了缓存问题。"
+        },
+        {
+          "t": "str",
+          "v": "li"
+        },
+        {
+          "t": "str",
+          "v": "a"
+        },
+        {
+          "t": "str",
+          "v": "href"
+        },
+        {
+          "t": "str",
+          "v": "h1"
+        },
+        {
+          "t": "str",
+          "v": "p"
+        },
+        {
+          "t": "str",
+          "v": "这一页是基石写出来的。"
+        },
+        {
+          "t": "str",
+          "v": "类名"
+        },
+        {
+          "t": "str",
+          "v": "lead"
+        },
+        {
+          "t": "str",
+          "v": "h2"
+        },
+        {
+          "t": "int",
+          "v": 1
+        },
+        {
+          "t": "str",
+          "v": "路径"
+        },
+        {
+          "t": "str",
+          "v": "标题"
+        },
+        {
+          "t": "str",
+          "v": "正文"
+        },
+        {
+          "t": "str",
+          "v": "共 "
+        },
+        {
+          "t": "str",
+          "v": " 页，首页 "
+        },
+        {
+          "t": "str",
+          "v": " 字节"
+        },
+        {
+          "t": "str",
+          "v": "建站示例"
+        },
+        {
+          "t": "str",
+          "v": "页面 "
+        },
+        {
+          "t": "str",
+          "v": "页面数"
+        },
+        {
+          "t": "str",
+          "v": " 个"
+        },
+        {
+          "t": "str",
+          "v": "样式表 "
+        },
+        {
+          "t": "str",
+          "v": "站点地图 "
+        },
+        {
+          "t": "str",
+          "v": "sitemap"
+        },
+        {
+          "t": "str",
+          "v": "把这个目录整个传上去就能访问。"
+        },
+        {
+          "t": "str",
+          "v": "abc"
+        },
+        {
+          "t": "str",
+          "v": "abd"
+        }
+      ],
+      "filename": "examples/tutorial/15_建站.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "站点",
+        "html",
+        "布局",
+        "布局表",
+        "打印",
+        "长度",
+        "文章们",
+        "目录",
+        "范围",
+        "i",
+        "条",
+        "标签",
+        "无序列表",
+        "首页正文",
+        "文章正文",
+        "页们",
+        "渲染",
+        "已渲染",
+        "$文本",
+        "写站",
+        "统计",
+        "资源指纹"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 10,
+      "source_line": "导入 站点",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 10,
+      "source_line": "导入 站点",
+      "type": "NAME",
+      "value": "站点",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 10,
+      "source_line": "导入 站点",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "导入 html",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 7,
+      "line": 11,
+      "source_line": "导入 html",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "导入 html",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 17,
+      "source_line": "令 布局表 = 站点.布局({",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 5,
+      "line": 17,
+      "source_line": "令 布局表 = 站点.布局({",
+      "type": "NAME",
+      "value": "布局表",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 17,
+      "source_line": "令 布局表 = 站点.布局({",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 17,
+      "source_line": "令 布局表 = 站点.布局({",
+      "type": "NAME",
+      "value": "站点",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 17,
+      "source_line": "令 布局表 = 站点.布局({",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 17,
+      "source_line": "令 布局表 = 站点.布局({",
+      "type": "NAME",
+      "value": "布局",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 17,
+      "source_line": "令 布局表 = 站点.布局({",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 17,
+      "source_line": "令 布局表 = 站点.布局({",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 10,
+      "line": 18,
+      "source_line": "    \"标题后缀\":\"小站\",",
+      "type": "STRING",
+      "value": "标题后缀",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 18,
+      "source_line": "    \"标题后缀\":\"小站\",",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 18,
+      "source_line": "    \"标题后缀\":\"小站\",",
+      "type": "STRING",
+      "value": "小站",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 18,
+      "source_line": "    \"标题后缀\":\"小站\",",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 8,
+      "line": 19,
+      "source_line": "    \"品牌\":\"小站\",",
+      "type": "STRING",
+      "value": "品牌",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 19,
+      "source_line": "    \"品牌\":\"小站\",",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 19,
+      "source_line": "    \"品牌\":\"小站\",",
+      "type": "STRING",
+      "value": "小站",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 19,
+      "source_line": "    \"品牌\":\"小站\",",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 9,
+      "line": 20,
+      "source_line": "    \"品牌副\":\"demo\",",
+      "type": "STRING",
+      "value": "品牌副",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 20,
+      "source_line": "    \"品牌副\":\"demo\",",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 16,
+      "line": 20,
+      "source_line": "    \"品牌副\":\"demo\",",
+      "type": "STRING",
+      "value": "demo",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 20,
+      "source_line": "    \"品牌副\":\"demo\",",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 9,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "STRING",
+      "value": "导航项",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 24,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "STRING",
+      "value": "index.html",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 30,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "STRING",
+      "value": "首页",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 43,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "STRING",
+      "value": "文章.html",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 45,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 49,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "STRING",
+      "value": "文章",
+      "类型": "Token"
+    },
+    {
+      "col": 50,
+      "end_col": 51,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 51,
+      "end_col": 52,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 53,
+      "line": 21,
+      "source_line": "    \"导航项\":[[\"index.html\", \"首页\"], [\"文章.html\", \"文章\"]],",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 8,
+      "line": 22,
+      "source_line": "    \"脚注\":\"由基石生成 · 站点模块示例\",",
+      "type": "STRING",
+      "value": "脚注",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 22,
+      "source_line": "    \"脚注\":\"由基石生成 · 站点模块示例\",",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 25,
+      "line": 22,
+      "source_line": "    \"脚注\":\"由基石生成 · 站点模块示例\",",
+      "type": "STRING",
+      "value": "由基石生成 · 站点模块示例",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 22,
+      "source_line": "    \"脚注\":\"由基石生成 · 站点模块示例\",",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 10,
+      "line": 23,
+      "source_line": "    \"网址前缀\":\"https://例子.cn\",  # sitemap 里用的绝对前缀",
+      "type": "STRING",
+      "value": "网址前缀",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 23,
+      "source_line": "    \"网址前缀\":\"https://例子.cn\",  # sitemap 里用的绝对前缀",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 26,
+      "line": 23,
+      "source_line": "    \"网址前缀\":\"https://例子.cn\",  # sitemap 里用的绝对前缀",
+      "type": "STRING",
+      "value": "https://例子.cn",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 23,
+      "source_line": "    \"网址前缀\":\"https://例子.cn\",  # sitemap 里用的绝对前缀",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 24,
+      "source_line": "})",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 24,
+      "source_line": "})",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 24,
+      "source_line": "})",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 6,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "NAME",
+      "value": "布局表",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 11,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "STRING",
+      "value": "语言",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 20,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "STRING",
+      "value": " / ",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 26,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "NAME",
+      "value": "布局表",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 33,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "STRING",
+      "value": "样式文件",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 27,
+      "source_line": "打印(布局表[\"语言\"] + \" / \" + 布局表[\"样式文件\"])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 9,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "NAME",
+      "value": "布局表",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "STRING",
+      "value": "样式",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "OP",
+      "value": ">",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 20,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 28,
+      "source_line": "打印(长度(布局表[\"样式\"]) > 0)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 34,
+      "source_line": "令 文章们 = [",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 5,
+      "line": 34,
+      "source_line": "令 文章们 = [",
+      "type": "NAME",
+      "value": "文章们",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 34,
+      "source_line": "令 文章们 = [",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 34,
+      "source_line": "令 文章们 = [",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 35,
+      "source_line": "    [\"第一篇\", \"今天学会了用基石建站。\"],",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 10,
+      "line": 35,
+      "source_line": "    [\"第一篇\", \"今天学会了用基石建站。\"],",
+      "type": "STRING",
+      "value": "第一篇",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 35,
+      "source_line": "    [\"第一篇\", \"今天学会了用基石建站。\"],",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 25,
+      "line": 35,
+      "source_line": "    [\"第一篇\", \"今天学会了用基石建站。\"],",
+      "type": "STRING",
+      "value": "今天学会了用基石建站。",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 35,
+      "source_line": "    [\"第一篇\", \"今天学会了用基石建站。\"],",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 35,
+      "source_line": "    [\"第一篇\", \"今天学会了用基石建站。\"],",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 36,
+      "source_line": "    [\"第二篇\", \"样式指纹替我解决了缓存问题。\"],",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 10,
+      "line": 36,
+      "source_line": "    [\"第二篇\", \"样式指纹替我解决了缓存问题。\"],",
+      "type": "STRING",
+      "value": "第二篇",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 36,
+      "source_line": "    [\"第二篇\", \"样式指纹替我解决了缓存问题。\"],",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 28,
+      "line": 36,
+      "source_line": "    [\"第二篇\", \"样式指纹替我解决了缓存问题。\"],",
+      "type": "STRING",
+      "value": "样式指纹替我解决了缓存问题。",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 36,
+      "source_line": "    [\"第二篇\", \"样式指纹替我解决了缓存问题。\"],",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 36,
+      "source_line": "    [\"第二篇\", \"样式指纹替我解决了缓存问题。\"],",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 37,
+      "source_line": "]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 37,
+      "source_line": "]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 39,
+      "source_line": "令 目录 = []",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 39,
+      "source_line": "令 目录 = []",
+      "type": "NAME",
+      "value": "目录",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 39,
+      "source_line": "令 目录 = []",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 39,
+      "source_line": "令 目录 = []",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 39,
+      "source_line": "令 目录 = []",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 39,
+      "source_line": "令 目录 = []",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "NAME",
+      "value": "i",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "NAME",
+      "value": "范围",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 11,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "NAME",
+      "value": "长度",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 19,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "NAME",
+      "value": "文章们",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 40,
+      "source_line": "遍历 i 在 范围(0, 长度(文章们)):",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 41,
+      "source_line": "    令 条 = 文章们[i]",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 41,
+      "source_line": "    令 条 = 文章们[i]",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 7,
+      "line": 41,
+      "source_line": "    令 条 = 文章们[i]",
+      "type": "NAME",
+      "value": "条",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 41,
+      "source_line": "    令 条 = 文章们[i]",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 13,
+      "line": 41,
+      "source_line": "    令 条 = 文章们[i]",
+      "type": "NAME",
+      "value": "文章们",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 41,
+      "source_line": "    令 条 = 文章们[i]",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 15,
+      "line": 41,
+      "source_line": "    令 条 = 文章们[i]",
+      "type": "NAME",
+      "value": "i",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 41,
+      "source_line": "    令 条 = 文章们[i]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 41,
+      "source_line": "    令 条 = 文章们[i]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "NAME",
+      "value": "目录",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "NAME",
+      "value": "追加",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "NAME",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "STRING",
+      "value": "li",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 28,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "NAME",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 35,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "STRING",
+      "value": "a",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 38,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "NAME",
+      "value": "条",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 40,
+      "end_col": 40,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 45,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 50,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "STRING",
+      "value": "href",
+      "类型": "Token"
+    },
+    {
+      "col": 51,
+      "end_col": 52,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 53,
+      "end_col": 61,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "STRING",
+      "value": "文章.html",
+      "类型": "Token"
+    },
+    {
+      "col": 62,
+      "end_col": 63,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 63,
+      "end_col": 64,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 64,
+      "end_col": 65,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 65,
+      "end_col": 66,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 42,
+      "source_line": "    目录.追加(html.标签(\"li\", html.标签(\"a\", 条[0], {\"href\": \"文章.html\"})))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 6,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "NAME",
+      "value": "首页正文",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "NAME",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "STRING",
+      "value": "h1",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 28,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "STRING",
+      "value": "首页",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 44,
+      "source_line": "令 首页正文 = (html.标签(\"h1\", \"首页\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "NAME",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 16,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "STRING",
+      "value": "p",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 31,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "STRING",
+      "value": "这一页是基石写出来的。",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 38,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "STRING",
+      "value": "类名",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 46,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "STRING",
+      "value": "lead",
+      "类型": "Token"
+    },
+    {
+      "col": 47,
+      "end_col": 48,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 49,
+      "line": 45,
+      "source_line": "    +html.标签(\"p\", \"这一页是基石写出来的。\", {\"类名\": \"lead\"})",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 46,
+      "source_line": "    +html.标签(\"h2\", \"文章\")",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 46,
+      "source_line": "    +html.标签(\"h2\", \"文章\")",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 46,
+      "source_line": "    +html.标签(\"h2\", \"文章\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 46,
+      "source_line": "    +html.标签(\"h2\", \"文章\")",
+      "type": "NAME",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 46,
+      "source_line": "    +html.标签(\"h2\", \"文章\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 17,
+      "line": 46,
+      "source_line": "    +html.标签(\"h2\", \"文章\")",
+      "type": "STRING",
+      "value": "h2",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 46,
+      "source_line": "    +html.标签(\"h2\", \"文章\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 23,
+      "line": 46,
+      "source_line": "    +html.标签(\"h2\", \"文章\")",
+      "type": "STRING",
+      "value": "文章",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 46,
+      "source_line": "    +html.标签(\"h2\", \"文章\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 47,
+      "source_line": "    +html.无序列表(目录))",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 47,
+      "source_line": "    +html.无序列表(目录))",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 47,
+      "source_line": "    +html.无序列表(目录))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 14,
+      "line": 47,
+      "source_line": "    +html.无序列表(目录))",
+      "type": "NAME",
+      "value": "无序列表",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 47,
+      "source_line": "    +html.无序列表(目录))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 47,
+      "source_line": "    +html.无序列表(目录))",
+      "type": "NAME",
+      "value": "目录",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 47,
+      "source_line": "    +html.无序列表(目录))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 20,
+      "line": 47,
+      "source_line": "    +html.无序列表(目录))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 47,
+      "source_line": "    +html.无序列表(目录))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 6,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "NAME",
+      "value": "文章正文",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 13,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "NAME",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 21,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "STRING",
+      "value": "h1",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 27,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "STRING",
+      "value": "文章",
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 49,
+      "source_line": "令 文章正文 = html.标签(\"h1\", \"文章\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 50,
+      "source_line": "遍历 条 在 文章们:",
+      "type": "KEYWORD",
+      "value": "遍历",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 4,
+      "line": 50,
+      "source_line": "遍历 条 在 文章们:",
+      "type": "NAME",
+      "value": "条",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 6,
+      "line": 50,
+      "source_line": "遍历 条 在 文章们:",
+      "type": "KEYWORD",
+      "value": "在",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 10,
+      "line": 50,
+      "source_line": "遍历 条 在 文章们:",
+      "type": "NAME",
+      "value": "文章们",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 50,
+      "source_line": "遍历 条 在 文章们:",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 50,
+      "source_line": "遍历 条 在 文章们:",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "INDENT",
+      "value": 4,
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 8,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NAME",
+      "value": "文章正文",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 15,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NAME",
+      "value": "文章正文",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 22,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NAME",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 30,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "STRING",
+      "value": "h2",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 33,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NAME",
+      "value": "条",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 35,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NUMBER",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": "+",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 44,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NAME",
+      "value": "html",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 46,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NAME",
+      "value": "标签",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 49,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 49,
+      "end_col": 51,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "STRING",
+      "value": "p",
+      "类型": "Token"
+    },
+    {
+      "col": 52,
+      "end_col": 53,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 54,
+      "end_col": 54,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NAME",
+      "value": "条",
+      "类型": "Token"
+    },
+    {
+      "col": 55,
+      "end_col": 56,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 56,
+      "end_col": 56,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NUMBER",
+      "value": 1,
+      "类型": "Token"
+    },
+    {
+      "col": 57,
+      "end_col": 58,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 58,
+      "end_col": 59,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 1,
+      "line": 51,
+      "source_line": "    文章正文 = 文章正文 + html.标签(\"h2\", 条[0]) + html.标签(\"p\", 条[1])",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 53,
+      "source_line": "令 页们 = [",
+      "type": "DEDENT",
+      "value": 0,
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 53,
+      "source_line": "令 页们 = [",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 53,
+      "source_line": "令 页们 = [",
+      "type": "NAME",
+      "value": "页们",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 53,
+      "source_line": "令 页们 = [",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 53,
+      "source_line": "令 页们 = [",
+      "type": "OP",
+      "value": "[",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "STRING",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 23,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "STRING",
+      "value": "index.html",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 29,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "STRING",
+      "value": "标题",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 35,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "STRING",
+      "value": "首页",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 38,
+      "end_col": 41,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "STRING",
+      "value": "正文",
+      "类型": "Token"
+    },
+    {
+      "col": 42,
+      "end_col": 43,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 44,
+      "end_col": 47,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "NAME",
+      "value": "首页正文",
+      "类型": "Token"
+    },
+    {
+      "col": 48,
+      "end_col": 49,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 49,
+      "end_col": 50,
+      "line": 54,
+      "source_line": "    {\"路径\": \"index.html\", \"标题\": \"首页\", \"正文\": 首页正文},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 6,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "OP",
+      "value": "{",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 9,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "STRING",
+      "value": "路径",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 20,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "STRING",
+      "value": "文章.html",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 26,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "STRING",
+      "value": "标题",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 32,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "STRING",
+      "value": "文章",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 38,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "STRING",
+      "value": "正文",
+      "类型": "Token"
+    },
+    {
+      "col": 39,
+      "end_col": 40,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "OP",
+      "value": ":",
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 44,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "NAME",
+      "value": "文章正文",
+      "类型": "Token"
+    },
+    {
+      "col": 45,
+      "end_col": 46,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "OP",
+      "value": "}",
+      "类型": "Token"
+    },
+    {
+      "col": 46,
+      "end_col": 47,
+      "line": 55,
+      "source_line": "    {\"路径\": \"文章.html\", \"标题\": \"文章\", \"正文\": 文章正文},",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 56,
+      "source_line": "]",
+      "type": "OP",
+      "value": "]",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 56,
+      "source_line": "]",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 5,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "NAME",
+      "value": "已渲染",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "NAME",
+      "value": "站点",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 13,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "NAME",
+      "value": "渲染",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "NAME",
+      "value": "页们",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 21,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "NAME",
+      "value": "布局表",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 59,
+      "source_line": "令 已渲染 = 站点.渲染(页们, 布局表)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 60,
+      "source_line": "打印(`共 {长度(已渲染)} 页，首页 {长度(已渲染[0][1])} 字节`)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 60,
+      "source_line": "打印(`共 {长度(已渲染)} 页，首页 {长度(已渲染[0][1])} 字节`)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 40,
+      "line": 60,
+      "source_line": "打印(`共 {长度(已渲染)} 页，首页 {长度(已渲染[0][1])} 字节`)",
+      "type": "FSTRING",
+      "value": [
+        [
+          "text",
+          "共 "
+        ],
+        [
+          "expr",
+          "长度(已渲染)"
+        ],
+        [
+          "text",
+          " 页，首页 "
+        ],
+        [
+          "expr",
+          "长度(已渲染[0][1])"
+        ],
+        [
+          "text",
+          " 字节"
+        ]
+      ],
+      "类型": "Token"
+    },
+    {
+      "col": 41,
+      "end_col": 42,
+      "line": 60,
+      "source_line": "打印(`共 {长度(已渲染)} 页，首页 {长度(已渲染[0][1])} 字节`)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 60,
+      "source_line": "打印(`共 {长度(已渲染)} 页，首页 {长度(已渲染[0][1])} 字节`)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "KEYWORD",
+      "value": "令",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "NAME",
+      "value": "统计",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "OP",
+      "value": "=",
+      "类型": "Token"
+    },
+    {
+      "col": 8,
+      "end_col": 9,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "NAME",
+      "value": "站点",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 11,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "NAME",
+      "value": "写站",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 19,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "STRING",
+      "value": "建站示例",
+      "类型": "Token"
+    },
+    {
+      "col": 20,
+      "end_col": 21,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "NAME",
+      "value": "页们",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 28,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "NAME",
+      "value": "布局表",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 65,
+      "source_line": "令 统计 = 站点.写站(\"建站示例\", 页们, 布局表)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 66,
+      "source_line": "打印(`页面 {统计[\"页面数\"]} 个`)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 66,
+      "source_line": "打印(`页面 {统计[\"页面数\"]} 个`)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 21,
+      "line": 66,
+      "source_line": "打印(`页面 {统计[\"页面数\"]} 个`)",
+      "type": "FSTRING",
+      "value": [
+        [
+          "text",
+          "页面 "
+        ],
+        [
+          "expr",
+          "统计[\"页面数\"]"
+        ],
+        [
+          "text",
+          " 个"
+        ]
+      ],
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 66,
+      "source_line": "打印(`页面 {统计[\"页面数\"]} 个`)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 66,
+      "source_line": "打印(`页面 {统计[\"页面数\"]} 个`)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 67,
+      "source_line": "打印(`样式表 {统计[\"样式文件\"]}`)  # 名字里带内容指纹",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 67,
+      "source_line": "打印(`样式表 {统计[\"样式文件\"]}`)  # 名字里带内容指纹",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 21,
+      "line": 67,
+      "source_line": "打印(`样式表 {统计[\"样式文件\"]}`)  # 名字里带内容指纹",
+      "type": "FSTRING",
+      "value": [
+        [
+          "text",
+          "样式表 "
+        ],
+        [
+          "expr",
+          "统计[\"样式文件\"]"
+        ]
+      ],
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 67,
+      "source_line": "打印(`样式表 {统计[\"样式文件\"]}`)  # 名字里带内容指纹",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 67,
+      "source_line": "打印(`样式表 {统计[\"样式文件\"]}`)  # 名字里带内容指纹",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 68,
+      "source_line": "打印(`站点地图 {统计[\"sitemap\"]}`)",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 68,
+      "source_line": "打印(`站点地图 {统计[\"sitemap\"]}`)",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 25,
+      "line": 68,
+      "source_line": "打印(`站点地图 {统计[\"sitemap\"]}`)",
+      "type": "FSTRING",
+      "value": [
+        [
+          "text",
+          "站点地图 "
+        ],
+        [
+          "expr",
+          "统计[\"sitemap\"]"
+        ]
+      ],
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 68,
+      "source_line": "打印(`站点地图 {统计[\"sitemap\"]}`)",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 68,
+      "source_line": "打印(`站点地图 {统计[\"sitemap\"]}`)",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 69,
+      "source_line": "打印(\"把这个目录整个传上去就能访问。\")",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 69,
+      "source_line": "打印(\"把这个目录整个传上去就能访问。\")",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 20,
+      "line": 69,
+      "source_line": "打印(\"把这个目录整个传上去就能访问。\")",
+      "type": "STRING",
+      "value": "把这个目录整个传上去就能访问。",
+      "类型": "Token"
+    },
+    {
+      "col": 21,
+      "end_col": 22,
+      "line": 69,
+      "source_line": "打印(\"把这个目录整个传上去就能访问。\")",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 69,
+      "source_line": "打印(\"把这个目录整个传上去就能访问。\")",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "NAME",
+      "value": "站点",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 10,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "NAME",
+      "value": "资源指纹",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 16,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "STRING",
+      "value": "abc",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 72,
+      "source_line": "打印(站点.资源指纹(\"abc\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "NAME",
+      "value": "站点",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 10,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "NAME",
+      "value": "资源指纹",
+      "类型": "Token"
+    },
+    {
+      "col": 11,
+      "end_col": 12,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 12,
+      "end_col": 16,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "STRING",
+      "value": "abd",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 18,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 73,
+      "source_line": "打印(站点.资源指纹(\"abd\"))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 73,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:ad7070f51bbb2b31",
+  "语料": "examples/tutorial/15_建站.jsh"
+}

@@ -1,0 +1,77 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": [
+      3,
+      4
+    ],
+    "修正": null,
+    "列": 3,
+    "提示": null,
+    "标题": "这里需要一个名字",
+    "消息": "这里需要一个属性名",
+    "渲染": "错误 E0204：这里需要一个名字（这里需要一个属性名）\n  ┌─ tests/error_cases/45_缺属性名.jsh:1:3\n  │\n  1 │ 甲.()\n    │   ~^\n  │",
+    "码": "E0204",
+    "行": 1,
+    "阶段": "语法"
+  },
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "甲.()",
+      "type": "NAME",
+      "value": "甲",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "甲.()",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 1,
+      "source_line": "甲.()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 1,
+      "source_line": "甲.()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "甲.()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:b7fc093453ab1935",
+  "语料": "tests/error_cases/45_缺属性名.jsh"
+}
