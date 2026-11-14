@@ -235,6 +235,89 @@ def _收集函数(节点们) -> list[dict]:
     return funcs
 
 
+def _基石默认文本(n) -> str:
+    """把基石 AST 里的一个默认值节点写成**人能读**的短文本（给语言卡用）。"""
+    from . import ast_nodes as _A
+
+    if isinstance(n, _A.Str):
+        return f"`{n.value}`"
+    值 = getattr(n, "value", None)
+    if isinstance(值, bool):          # `真` / `假` —— `isinstance(True, int)` 为真，先判它
+        return "真" if 值 else "假"
+    if isinstance(值, (int, float)):
+        return str(值)
+    名 = getattr(n, "id", None)
+    if isinstance(名, str):
+        return 名
+    return "…"
+
+
+def _基石文档(node) -> str:
+    """基石函数的文档：函数体第一条是字符串字面量就去它（约定见 `参数.jsh` 头）。"""
+    from . import ast_nodes as _A
+
+    if node.body:
+        第一 = node.body[0]
+        if isinstance(第一, _A.ExprStmt) and isinstance(第一.expr, _A.Str):
+            return 第一.expr.value.strip().split("\n")[0]
+    return ""
+
+
+def _函数签名_jsh(node, 导出名: str) -> dict:
+    """从基石的 `FuncDef` 抽 `{name, sig, doc}` —— 字段与 `_函数签名` **完全一致**。"""
+    参数们 = []
+    for i, 名 in enumerate(node.params):
+        默认 = node.defaults[i] if i < len(node.defaults) else None
+        参数们.append(名 if 默认 is None else f"{名}={_基石默认文本(默认)}")
+    return {
+        "name": 导出名,
+        "sig": f"{导出名}({', '.join(参数们)})",
+        "doc": _基石文档(node),
+    }
+
+
+def _基石库_api() -> dict:
+    """扫 `stdlib-jishi/*.jsh`（**用基石自己写的标准库**），抽导出函数的签名。
+
+    🔴 为什么语言卡以前看不到它们（M202a）：`_stdlib_api` 只读 `stdlib/*.py`
+    （**宿主兜底**那份）。`参数 / 容器 / 统计 / 迭代` 从 M52 起就搬成了 `.jsh`，
+    同时留着一份 .py —— 于是卡里能看到这 4 个模块，但看到的是**兜底那份**的签名。
+    一旦某个模块**只有 .jsh**（M202b 要挪的 `数据库` 就是），卡里一个字都没有：
+    AI 写代码时不知道有这个模块，人翻 `--lang-spec` 也查不到。
+
+    导出规则用 `jishilib._export_names`（`__X` → `X`、`_X` 不导出）—— 与
+    「`导入` 之后能看到哪些名字」**同一套规则**，不然卡里列的名字用户写不出来。
+    """
+    import os
+
+    from . import ast_nodes as _A
+    from . import parser as _jp
+    from .jishilib import _export_names, lib_dir
+
+    出: dict = {}
+    d = lib_dir()
+    if d is None:
+        return 出
+    for fn in sorted(os.listdir(d)):
+        if not fn.endswith(".jsh"):
+            continue
+        名 = fn[:-4]          # `.jsh` 是 4 个字符（`[:-3]` 会留下一个点）
+        try:
+            with open(os.path.join(d, fn), encoding="utf-8") as f:
+                源码 = f.read()
+            prog = _jp.parse_source(源码, fn)
+        except Exception:  # noqa: BLE001 —— 库文件坏了不该让整份语言卡失败
+            continue
+        定义 = {n.name: n for n in prog.body if isinstance(n, _A.FuncDef)}
+        funcs = []
+        for 导出, 源名 in _export_names(prog):
+            node = 定义.get(源名)
+            if node is not None:
+                funcs.append(_函数签名_jsh(node, 导出))
+        出[名] = funcs
+    return 出
+
+
 def _stdlib_api() -> list[dict]:
     """扫描 oracle/jishi/stdlib/*.py，提取每个模块导出的函数签名与说明。"""
     import os
@@ -253,6 +336,15 @@ def _stdlib_api() -> list[dict]:
             continue
         funcs = _收集函数(tree.body)
         mods.append({"module": name, "functions": funcs})
+
+    # M202a：**基石库层**也要进卡。
+    # 两边都有 ⇒ 以 .py 为准（它是契约；两边一致由 `test_m202a_langcard_jishilib.py`
+    # 盯着）；**只有 .jsh** ⇒ 从 .jsh 抽（否则卡里根本没有这个模块）。
+    有py = {m["module"] for m in mods}
+    for 名, funcs in _基石库_api().items():
+        if 名 not in 有py:
+            mods.append({"module": 名, "functions": funcs})
+    mods.sort(key=lambda m: m["module"])
     return mods
 
 

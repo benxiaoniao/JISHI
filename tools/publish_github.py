@@ -60,6 +60,35 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO_HTTPS = "https://github.com/benxiaoniao/JISHI.git"
+
+
+def _push_url() -> str:
+    """force push 用的 URL：带令牌就拼进去，没有就原样（走 credential helper）。
+
+    🔴 为什么要有它（M201）：GitHub 的 **OAuth 令牌（`gho_`，`gh` / GitHub
+    Desktop 登录拿到的都是）改不了 `.github/workflows/*`** —— 推一个含
+    workflow 改动的快照会被拒（`refusing to allow an OAuth App to create or
+    update workflow`）。只有带 `workflow` scope 的 PAT 才行。
+
+    优先级（用户 2026-11-14 定：`D:/code/GitHub token.txt` 是**长期的**令牌文件）：
+    环境变量 `JISHI_GITHUB_TOKEN` > `.workbuddy/github-token.txt`（不进仓库）
+    > `D:/code/GitHub token.txt` > 空（走 credential helper）。
+    ⚠️ 令牌只拼进 push 的 URL，不进日志：`print` 里仍打 `REPO_HTTPS`。
+    """
+    令牌 = os.environ.get("JISHI_GITHUB_TOKEN", "").strip()
+    if not 令牌:
+        for f in (ROOT / ".workbuddy" / "github-token.txt",
+                  Path("D:/code/GitHub token.txt")):
+            try:
+                if f.is_file():
+                    令牌 = f.read_text(encoding="utf-8").strip()
+                    if 令牌:
+                        break
+            except OSError:
+                continue
+    if not 令牌:
+        return REPO_HTTPS
+    return REPO_HTTPS.replace("https://", f"https://{令牌}@", 1)
 BRANCH = "master"
 
 #: **不上传的内部文档**：`(文件名, 抹引用时用的中性标签)`。
@@ -809,7 +838,7 @@ def main() -> int:
         print("⚠️ JISHI_GIT_INSECURE=1：本次**关掉了 git 的证书校验**"
               "（代理做 TLS 中转时的应急手段；不影响快照与屏蔽逻辑）")
     r = subprocess.run(
-        ["git", "push", "-f", REPO_HTTPS, f"{BRANCH}:{BRANCH}"],
+        ["git", "push", "-f", _push_url(), f"{BRANCH}:{BRANCH}"],
         cwd=snapshot, capture_output=True, text=True,
         encoding="utf-8", errors="replace", env=_git_env())
     if r.returncode != 0:
@@ -820,7 +849,7 @@ def main() -> int:
     if tag:
         _git("tag", "-f", tag, cwd=snapshot)
         r = subprocess.run(
-            ["git", "push", "-f", REPO_HTTPS, f"refs/tags/{tag}"],
+            ["git", "push", "-f", _push_url(), f"refs/tags/{tag}"],
             cwd=snapshot, capture_output=True, text=True,
             encoding="utf-8", errors="replace", env=_git_env())
         if r.returncode != 0:
