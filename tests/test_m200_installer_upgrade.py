@@ -41,9 +41,10 @@ from conftest import rust_exe_path  # noqa: E402
     reason="安装器真装一遍要写注册表卸载项与开始菜单 .lnk，非 Windows 上是空实现")
 
 
-def _跑(命令, 工作目录=None, 超时=300):
+def _跑(命令, 工作目录=None, 超时=300, 环境=None):
     r = subprocess.run([str(x) for x in 命令], capture_output=True, timeout=超时,
-                       cwd=str(工作目录) if 工作目录 else None, input=b"")
+                       cwd=str(工作目录) if 工作目录 else None, input=b"",
+                       env=环境)
     return r.returncode, (r.stdout + r.stderr).decode("utf-8", "replace")
 
 
@@ -72,8 +73,19 @@ def _看(包: Path, 目录: Path):
     return _跑([包, "--查看", "--目标", 目录])
 
 
-def _装(包: Path, 目录: Path, *额外):
-    return _跑([包, "--目标", 目录, *额外])
+def _装(包: Path, 目录: Path, *额外, 系统: bool = False):
+    """跑一次安装。
+
+    🔴 `系统=False`（默认）会带 `JISHI_SETUP_NO_SYSTEM=1`：不写注册表 /
+    开始菜单 / 桌面 / PATH。**这条是为了不再污染开发机** —— M200 第一轮的判据
+    装完从不卸载，结果在「设置 → 应用」里留下一条指着 `%TEMP%/pytest-…` 的
+    「升级演练」，点卸载报「找不到 uninstall.exe」（用户实测撞到的）。
+
+    要验系统集成的判据传 `系统=True`，并且**必须装到临时目录之外**、
+    在 fixture 里 `finally` 清干净。
+    """
+    环境 = None if 系统 else dict(os.environ, JISHI_SETUP_NO_SYSTEM="1")
+    return _跑([包, "--目标", 目录, *额外], 环境=环境)
 
 
 def _写假清单(目录: Path, 版本: str, 文件们=()):
@@ -254,9 +266,10 @@ def test_双击能开出向导窗口(tmp_path):
     这条只验**窗口真的出现、进程活着等用户点** —— 点「安装」之后的事
     由上面那几条覆盖（它们走 `--目标` 那条路，同一套 `装并管升级`）。
 
-    ⚠️ 为什么不能自动点：窗口里是 WebView2 渲染的 HTML，按钮是**页面元素**，
-       没有 Win32 控件句柄 —— `BM_CLICK` / `WM_COMMAND` 那一套对它无效
-       （M198 在 Inno 的向导上已经撞过同一堵墙）。人工验收项写进路线图。
+    ⚠️ 这里**故意不点**按钮：这条只回答「窗口起不起来」。
+       点下去之后的事由下面 `test_双击向导能自己装完_进度真的在走` 覆盖 ——
+       那条走 `JISHI_SETUP_AUTO`，注入的 JS 是 `document.getElementById("go").click()`，
+       即**页面真的点了一下**（不是绕过 UI 直接调安装函数）。
     """
     import ctypes
     import time
@@ -300,3 +313,277 @@ def test_双击能开出向导窗口(tmp_path):
         f"要么窗口没起来，要么标题不含「安装」")
     # 窗口起来之后**不该**顺手把东西装上（用户还没点）
     assert not (目录 / "清单.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# 四、M200 第二轮：用户实测撞出来的四件事
+# ---------------------------------------------------------------------------
+#
+# 1. 双击**闪黑窗** —— exe 是控制台子系统；
+# 2. 「设置 → 应用」里留着一条**点不动的**「升级演练」—— 判据在临时目录真装过，
+#    注册表项指着临时路径，测试结束临时目录被删，那条项永久留着；
+# 3. 卸载项图标是白板、还挂着「修改」按钮 —— `DisplayIcon` 指到 `.jsh`、
+#    `NoModify` 根本没写；
+# 4. 没有进度条 / 桌面快捷方式 / 「点安装」自动化不了。
+
+
+def _键(名字: str) -> str:
+    return "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" + 名字
+
+
+def _读卸载项(名字: str):
+    """读 HKCU 下那条卸载项；键不存在返回 `None`。"""
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _键(名字)) as k:
+            出 = {}
+            i = 0
+            while True:
+                try:
+                    名, 值, _类 = winreg.EnumValue(k, i)
+                except OSError:
+                    break
+                出[名] = 值
+                i += 1
+            return 出
+    except FileNotFoundError:
+        return None
+
+
+def _删卸载项(名字: str) -> None:
+    import winreg
+
+    try:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, _键(名字))
+    except FileNotFoundError:
+        pass
+
+
+def _桌面目录() -> Path:
+    """与安装器**同一套规则**：读 `User Shell Folders` 再展开 `%VAR%`。
+
+    不用 `~/Desktop`：OneDrive 会把桌面重定向，中文 Windows 的物理目录还可能
+    叫「桌面」—— 判据要是自己猜一个路径，就会出现「实现对了、判据红」。
+    """
+    import winreg
+
+    v = ""
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders",
+        ) as k:
+            v = winreg.QueryValueEx(k, "Desktop")[0]
+    except OSError:
+        pass
+    v = os.path.expandvars(v) if v else ""
+    return Path(v) if v else Path(os.path.expanduser("~")) / "Desktop"
+
+
+def _开始菜单(名字: str) -> Path:
+    return (
+        Path(os.environ["APPDATA"])
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / f"{名字}.lnk"
+    )
+
+
+def _安装日志() -> Path:
+    return Path(os.environ.get("LOCALAPPDATA", ".")) / "jishi-upgrade-backup" / "安装.log"
+
+
+def _日志快照() -> list:
+    try:
+        return _安装日志().read_text(encoding="utf-8", errors="replace").splitlines()
+    except FileNotFoundError:
+        return []
+
+
+@pytest.fixture
+def 真装(tmp_path):
+    """给「要写系统集成」的判据用的名字 + 目录，**事后一定清干净**。
+
+    🔴 目录**放在 `build/` 而不是 `tmp_path`**：这几条要验注册表 / 开始菜单 /
+    桌面，而 `tmp_path` 在 `%TEMP%` 下 —— 那等于每次跑完都在「设置 → 应用」里
+    留一条指向临时目录的死项（测试一结束路径就没了）。`build/` 下的目录由本
+    fixture 在收尾时删，注册表和 `.lnk` 也一起收。
+    """
+    名字 = f"M200自检{os.getpid()}"
+    目录 = ROOT / "build" / "m200_test" / f"{名字}-{tmp_path.name}"
+    shutil.rmtree(目录, ignore_errors=True)
+    _删卸载项(名字)
+    yield 名字, 目录
+    shutil.rmtree(目录, ignore_errors=True)
+    _删卸载项(名字)
+    for p in (_开始菜单(名字), _桌面目录() / f"{名字}.lnk", 目录):
+        try:
+            p.unlink()
+        except (FileNotFoundError, PermissionError, IsADirectoryError):
+            pass
+
+
+@只有win
+def test_查看在管道里也有输出(tmp_path):
+    """🔴 回归：改成 GUI 子系统之后，`--查看` 一度**一个字都不输出**。
+
+    根因：`接上控制台()` 无条件把 stdout 指向 `NUL`，把父进程给的**管道**
+    盖掉了（CI / pytest / `> log.txt` 都是管道或文件）。表现是
+    「退出码 0、输出空」—— 最坏的一种：看着成功。
+
+    这条判据只看一件事：**通过管道**能读到真内容。
+    """
+    包 = _造包(tmp_path, "1.0.0", {"程序.jsh": "打印(1)\n"})
+    码, 文 = _跑([包, "--查看"])
+    assert 码 == 0, 文[-400:]
+    assert "名字：升级演练" in 文, f"输出被弄丢了：{文!r}"
+    assert "本次会：" in 文, f"半截输出：{文!r}"
+
+
+@只有win
+def test_关掉系统集成就真的不写注册表(tmp_path):
+    """`JISHI_SETUP_NO_SYSTEM=1` ⇒ 文件照装，注册表 / 开始菜单 / 桌面全不碰。
+
+    🔴 这条开关是给**判据**用的，来历是用户实测：第一轮的判据装完从不卸载，
+    在「设置 → 应用」里留下一条指着 `%TEMP%/pytest-…/装/uninstall.exe` 的
+    「升级演练」；测试结束临时目录被删，那条项**永久**留着，点卸载报
+    「Windows 找不到文件 uninstall.exe」。
+
+    ⚠️ 安装器自己**没有**「装到临时目录就不集成」这条规则：那会把 M171/M177
+       的判据全弄红（它们正是在 `tmp_path` 里验系统集成）。职责分工是
+       「安装器照做，判据用开关把自己摘干净」。
+    """
+    名字 = f"临时装{os.getpid()}"
+    包 = _造包(tmp_path, "1.0.0", {"程序.jsh": "打印(1)\n"}, 名字=名字)
+    目录 = tmp_path / "装"
+    码, 文 = _装(包, 目录)          # 默认就带 JISHI_SETUP_NO_SYSTEM=1
+    assert 码 == 0, 文[-600:]
+    assert (目录 / "清单.json").is_file(), "文件该装还是要装"
+    assert "没做系统集成" in 文, f"得说清为什么没写卸载项：{文[-500:]}"
+    assert _读卸载项(名字) is None, "关掉集成了却还在写注册表"
+    assert not _开始菜单(名字).exists()
+    assert not (_桌面目录() / f"{名字}.lnk").exists()
+
+
+@只有win
+def test_桌面与卸载项_装了卸了都干净(tmp_path, 真装):
+    """桌面快捷方式（勾了才建）+ 卸载项的三个细节。
+
+    三个细节都是用户一眼能看见的：
+
+    * `DisplayName` 得是**程序名**（不是包文件名、不是安装目录名）；
+    * `DisplayIcon` 得是 `.exe` —— 指到 `.jsh` 只会在「应用」里显示**白板图标**；
+    * `NoModify` / `NoRepair` 得写 1 —— 否则那儿会挂一个「修改」按钮，
+      点下去把 `/MODIFY` 甩给卸载器，**什么也不会发生**。
+    """
+    名字, 目录 = 真装
+    包 = _造包(tmp_path, "1.0.0", {"程序.jsh": "打印(1)\n"}, 名字=名字)
+
+    码, 文 = _装(包, 目录, "--桌面", 系统=True)
+    assert 码 == 0, 文[-600:]
+
+    桌面 = _桌面目录() / f"{名字}.lnk"
+    assert 桌面.is_file(), f"勾了桌面却没建出来（{桌面}）"
+
+    项 = _读卸载项(名字)
+    assert 项 is not None, "卸载项没写"
+    assert 项["DisplayName"] == 名字
+    assert 项["DisplayVersion"] == "1.0.0"
+    assert str(项["InstallLocation"]).lower() == str(目录).lower()
+    assert str(项["DisplayIcon"]).lower().endswith(".exe"), (
+        f"图标指到了非 exe（{项['DisplayIcon']}）——『应用』里会是白板")
+    assert 项.get("NoModify") == 1 and 项.get("NoRepair") == 1
+    assert int(项.get("EstimatedSize", 0)) >= 1
+
+    码, 文 = _跑([目录 / "uninstall.exe", "--卸载"])
+    assert 码 == 0, 文[-600:]
+    assert not 目录.exists(), "安装目录没删干净"
+    assert not 桌面.exists(), "桌面快捷方式没删掉"
+    assert not _开始菜单(名字).exists(), "开始菜单没删掉"
+    assert _读卸载项(名字) is None, "卸载项没删掉"
+
+
+@只有win
+def test_卸载不因注册表项缺失而失败(tmp_path, 真装):
+    """卸载项要是已经被别处删了，卸载**照样成功**（文件才是主体）。
+
+    M200 第一轮这里是 `reg::删键(&键)?` —— 键不存在就让整个卸载返回错误，
+    于是「文件删得干干净净、退出码却是 1」，用户看到报错以为没卸掉。
+    """
+    名字, 目录 = 真装
+    包 = _造包(tmp_path, "1.0.0", {"程序.jsh": "打印(1)\n"}, 名字=名字)
+    码, 文 = _装(包, 目录, 系统=True)
+    assert 码 == 0, 文[-600:]
+    _删卸载项(名字)          # 模拟「被清理工具删了 / 当初就没写成功」
+
+    码, 文 = _跑([目录 / "uninstall.exe", "--卸载"])
+    assert 码 == 0, f"卸载该容错：{文[-600:]}"
+    assert not 目录.exists()
+
+
+@有桌面
+def test_双击向导能自己装完_进度真的在走(tmp_path, 真装):
+    """双击 → 页面**真的点一下「安装」**→ 后台装 → 关窗 → 退出码 0。
+
+    这条覆盖的是 M200 第一轮**根本跑不到**的那段：窗口里是 WebView2 渲染的
+    HTML，按钮没有 Win32 句柄，`BM_CLICK` 那套点不动它。做法是
+    `JISHI_SETUP_AUTO`：页面加载后由宿主注入
+    `document.getElementById("go").click()` —— 走的是 onclick → IPC → 安装，
+    和用户手点**同一条路**。
+
+    另外三条断言各防一个已发生的 bug：
+
+    * 进度 ≥ 3 条且到过 100% —— 防「画个框不动」；
+    * 用时 < 60 秒 —— 防「装完了窗口不自己关」（实测过一次 115 秒：
+      `请求关闭` 里用 thread_local 判活，后台线程永远判「没有窗口」）；
+    * 勾了桌面就必须有 `.lnk`。
+    """
+    名字, 目录 = 真装
+    包 = _造包(tmp_path, "1.0.0", {"程序.jsh": "打印(1)\n"}, 名字=名字)
+    前 = len(_日志快照())
+
+    env = dict(os.environ, JISHI_SETUP_AUTO=str(目录) + "|desk")
+    t0 = __import__("time").time()
+    r = subprocess.run([str(包)], env=env, capture_output=True, timeout=180)
+    用时 = __import__("time").time() - t0
+    文 = (r.stdout + r.stderr).decode("utf-8", "replace")
+    新增 = _日志快照()[前:]
+
+    assert r.returncode == 0, f"退出码 {r.returncode}：{文[-600:]}\n日志：{新增[-10:]}"
+    assert (目录 / "清单.json").is_file(), f"没装上：{新增[-10:]}"
+
+    进度 = [x for x in 新增 if "进度" in x]
+    assert len(进度) >= 3, f"进度没动（只有 {len(进度)} 条）：{新增[-10:]}"
+    assert any("100%" in x for x in 进度), f"没走到 100%：{进度[-5:]}"
+
+    assert 用时 < 60, f"装完了窗口没自己关（{用时:.0f} 秒）"
+    assert (_桌面目录() / f"{名字}.lnk").is_file(), "勾了桌面却没建"
+
+
+def _子系统(路径: Path) -> int:
+    """读 PE 可选头里的 `Subsystem`（2 = GUI，3 = 控制台）。"""
+    d = 路径.read_bytes()[:4096]
+    pe = int.from_bytes(d[0x3C:0x40], "little")
+    opt = pe + 24
+    return int.from_bytes(d[opt + 68 : opt + 70], "little")
+
+
+@只有win
+def test_双击不弹黑窗(tmp_path):
+    """安装器必须是 **GUI 子系统** —— 用户实测的第一条反馈就是「双击闪黑窗」。
+
+    控制台子系统（`Subsystem = 3`）的 exe 被双击时，Windows 会先给它分配一个
+    控制台窗口，于是用户看到黑框一闪（甚至一直挂着）。改成 GUI 子系统后
+    双击不分配控制台；从命令行用时靠 `AttachConsole` 借父进程那个，
+    所以 `--查看` 的输出照旧（见上一条判据）。
+
+    🔴 这条盯的是**产物**，不是源码：`windows_subsystem` 属性写在文件顶上，
+       被谁顺手删掉、或者 `#[cfg]` 条件写错（少了 `native-window` 特性），
+       编出来的就又是控制台程序，而所有功能判据都是绿的。
+    """
+    包 = _造包(tmp_path, "1.0.0", {"程序.jsh": "打印(1)\n"})
+    assert _子系统(包) == 2, (
+        f"Subsystem={_子系统(包)}（3 = 控制台）—— 双击会闪黑窗")
