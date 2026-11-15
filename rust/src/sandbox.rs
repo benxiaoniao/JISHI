@@ -296,7 +296,8 @@ pub fn compile_source(text: &str, filename: &str) -> Result<String, JishiError> 
     // 宿主的标准库是原生实现、25 个模块一个不缺（`--dump-stdlib`），
     // 所以不需要把 `.jsh` 源码编进来 —— 单二进制也就**不依赖源码目录**。
     // 行为与「展开了基石库层」的 Python 侧一致（M52 立的规矩，对拍盯着）。
-    let m = jishi_frontend::compiler::compile_program(&prog, filename, None, false);
+    let m = jishi_frontend::compiler::compile_program_embedded(
+        &prog, filename, crate::内嵌库模块(), false);
     Ok(jishi_frontend::serialize::dump_json(&m))
 }
 

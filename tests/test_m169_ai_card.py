@@ -85,7 +85,8 @@ def test_两层签名覆盖到了基石库层():
     import audit_ai_card
 
     库层 = {p.stem for p in audit_ai_card.库层目录.glob("*.jsh")}
-    assert 库层 == {"参数", "容器", "统计", "迭代"}, (
+    # M202b：`数据库` 整份搬进库层（.py 删了）⇒ 显式清单 +1
+    assert 库层 == {"参数", "容器", "统计", "迭代", "数据库"}, (
         f"基石库层的模块变了：{库层}。加了模块就来这里补，否则新模块的签名没人比对")
     报告 = audit_ai_card._查两层签名()
     assert not [x for x in 报告 if x.get("问题") == "宿主层没有同名模块，无法比对"]

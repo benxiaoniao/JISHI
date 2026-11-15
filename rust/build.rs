@@ -27,6 +27,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn main() {
+    生成内嵌库();
     println!("cargo:rerun-if-changed=build.rs");
 
     // 只在 Windows 上做；别的平台 wry 用的是系统框架，没有这份 DLL。
@@ -82,4 +83,39 @@ fn 找dll(目标: &Path, 架构: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+// ---------------------------------------------------------------------------
+// M202b：把「用基石写的标准库」里**宿主必须自带**的模块编进二进制
+// ---------------------------------------------------------------------------
+//
+// 为什么需要：Rust 宿主是**单二进制分发**（装完就一个 exe，旁边不放源码），
+// 所以它一直不展开 `stdlib-jishi/*.jsh`，靠自己的原生实现。`数据库` 在 M202b
+// 整份搬成了 `.jsh`（去 rusqlite），宿主就没有它了 —— 与其在 Rust 里再写一遍
+// 那个引擎（那正是「同一件事写三遍」，而且两份迟早各错一处），不如把**同一份源码**
+// 编进来，编译期走同一套展开逻辑。
+//
+// 📌 **只嵌 `数据库`**：`参数 / 容器 / 统计 / 迭代` 有宿主原生实现，且是热路径
+//    （`.jsh` 走字节码比原生慢，见 D45）。等 R7.6「分发形态」一起搬，那时再做决定。
+//
+// 新增一个「只有 .jsh、没有原生实现」的模块时，**必须**往下面这张表里加一行 ——
+// 忘了的后果是宿主上 `导入 X` 报「没有找到标准库模块」，`check_engines` 会当场抓到。
+fn 生成内嵌库() {
+    use std::fmt::Write as _;
+
+    let 库目录 = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("oracle")
+        .join("jishi").join("stdlib-jishi");
+    let 模块们 = ["数据库"];
+    let mut 表 = String::new();
+    表.push_str("// 自动生成（`rust/build.rs`）—— 请看那边的注释。\n");
+    表.push_str("pub static 内嵌库: &[(&str, &str)] = &[\n");
+    for 名 in 模块们 {
+        let 路径 = 库目录.join(format!("{}.jsh", 名));
+        println!("cargo:rerun-if-changed={}", 路径.display());
+        assert!(路径.is_file(), "缺少基石库模块：{}", 路径.display());
+        let _ = writeln!(表, "    ({:?}, include_str!({:?})),", 名, 路径.display().to_string());
+    }
+    表.push_str("];\n");
+    let 出 = Path::new(&std::env::var("OUT_DIR").unwrap()).join("stdlib_embed.rs");
+    std::fs::write(&出, 表).expect("写不出 stdlib_embed.rs");
 }

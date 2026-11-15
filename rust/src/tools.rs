@@ -571,7 +571,8 @@ fn run_one(名: &str) -> Result<(), Option<String>> {
             return Err(je.code);
         }
     };
-    let module = jishi_frontend::compiler::compile_program(&prog, 名, None, false);
+    let module = jishi_frontend::compiler::compile_program_embedded(
+        &prog, 名, crate::内嵌库模块(), false);
     let bytecode = jishi_frontend::serialize::dump_json(&module);
     crate::set_args(Vec::new());
     let mut vm = match crate::load_module(&bytecode) {

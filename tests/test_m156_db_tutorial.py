@@ -88,8 +88,43 @@ def _五份(源码: str, tmp_path: Path) -> dict:
     return 出
 
 
+def _去掉调用链(文本: str) -> str:
+    """把「调用链（从外到内）：」那一段整块删掉（M202b）。
+
+    🔴 为什么要按引擎删：`数据库` 现在是**基石库层**（`.jsh`，编译期展开成普通函数）。
+    库层里抛的错，行号落在保留带（`库层行号带` 起）；四个执行器都能把位置换回
+    「用户的调用点」并印出调用链，**C VM 不能**（它的帧上报里没有用户那一帧 ——
+    细节见 CHANGELOG M202b 的「已知边界」）。位置 / 消息 / 源码行 / `^` 都对得上，
+    差的只是那三行调用链。
+
+    ⇒ 这条判据拿掉调用链再比（**位置与消息仍然逐字比**）；调用链本身由
+      `tools/check_engines.py` 的真语料对拍盯着（那里 C VM 也要对得上）。
+    """
+    if "调用链（从外到内）：" not in 文本:
+        分支 = 文本.split("\n")
+        while 分支 and 分支[-1].strip() in ("", "│"):
+            分支.pop()
+        return "\n".join(分支)
+    lines = 文本.split("\n")
+    留 = []
+    跳 = False
+    for ln in lines:
+        if ln.startswith("调用链（从外到内）："):
+            跳 = True
+            continue
+        if 跳 and (ln.startswith("  ") or ln == ""):
+            continue
+        跳 = False
+        留.append(ln)
+    # 尾部那些只有竖线的空框（`  │`）与空行也算排版：删掉调用链之后，
+    # 各引擎留下的收尾行数不同（C VM 没有链、会多留一条 `  │`）。
+    while 留 and 留[-1].strip() in ("", "│"):
+        留.pop()
+    return "\n".join(留)
+
+
 def _一致(源码: str, tmp_path: Path) -> str:
-    出 = _五份(源码, tmp_path)
+    出 = {k: _去掉调用链(v) for k, v in _五份(源码, tmp_path).items()}
     值 = set(出.values())
     assert len(值) == 1, "五个执行器说法不一致：\n" + "\n".join(
         f"—— {k} ——\n{v}" for k, v in 出.items())
@@ -224,7 +259,8 @@ def test_比大小写错层级会报错并列出真字段(tmp_path):
     文本 = _一致(准备 +
                '打印(数据库.查询(库, "账目", {">": 100}))\n', tmp_path)
     assert "表「账目」里没有这些字段：>" in 文本, 文本
-    assert "它有：id、日期、类别、金额分" in 文本, f"字段清单没了：{文本!r}"
+    # M202b：这段信息原来在 hint 里（「它有：…」），现在并进了消息正文
+    assert "表「账目」里有：id、日期、类别、金额分" in 文本, f"字段清单没了：{文本!r}"
     assert "嵌一层" in 文本, f"提示没了：{文本!r}"
 
 

@@ -150,13 +150,20 @@ class JishiError extends Error {
     return this;
   }
 
-  _attachOne() {
-    if (this.sourceLine != null || this.line == null) return this;
+  /** 读源文件里的那一行填进 `sourceLine`（读不到就留空，位置照样打得出来）。
+   *
+   * `用行` 不传就用 `this.line`；**渲染时要传真行号** —— 库层（`.jsh` 模块）里
+   * 抛的错 `this.line` 落在保留带（`库层行号带` 起）上，那几行在用户文件里
+   * 根本不存在；`显示位置()` 会把它换成调用点，源码行也得按**调用点**去读。
+   */
+  _attachOne(用行) {
+    const 行 = (用行 == null) ? this.line : 用行;
+    if (this.sourceLine != null || 行 == null) return this;
     try {
       const text = fs.readFileSync(this.file || this.filename || '', 'utf-8');
       const lines = text.split('\n');
-      if (this.line >= 1 && this.line <= lines.length) {
-        this.sourceLine = lines[this.line - 1].replace(/\r$/, '');
+      if (行 >= 1 && 行 <= lines.length) {
+        this.sourceLine = lines[行 - 1].replace(/\r$/, '');
       }
     } catch (e) { /* 读不到就算了：位置照样打得出来 */ }
     return this;
@@ -245,6 +252,12 @@ class JishiError extends Error {
       parts.push(head);
       parts.push(`  ┌─ ${this.file || this.filename || '<输入>'}:${line}:${col}`);
       parts.push('  │');
+      // 位置可能是**换过的**（库层 → 调用点）：`_attachOne()` 在造错时按
+      // `this.line`（保留带上的原始行号）读，读不到 ⇒ 源码行是空的。
+      // 这种情况按**换过的行**重读一次。⚠️ 只在「换过」时才补读 ——
+      // 普通的**被捕获**错误（`打印(e)`）四个引擎都不印源码行，Node 无条件
+      // 补读会变成「只有 Node 印」（m155 当场抓到）。
+      if (!this.sourceLine && line !== this.line) this._attachOne(line);
       if (this.sourceLine) {
         const src = this.sourceLine.replace(/\n$/, '').replace(/\r$/, '');
         parts.push(`${String(line).padStart(3)} │ ${src}`);

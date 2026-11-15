@@ -146,9 +146,10 @@ def _查两层签名() -> list[dict]:
         模块 = 文件.stem
         try:
             mod = __import__(f"oracle.jishi.stdlib.{模块}", fromlist=["x"])
-        except Exception as e:                        # pragma: no cover
-            out = {"模块": 模块, "问题": "宿主层没有同名模块，无法比对", "细节": str(e)}
-            出.append(out)
+        except Exception:                             # noqa: BLE001
+            # M202b：宿主层**没有**这一份 ⇒ 没什么可对的（模块只有一个实现）。
+            # `数据库` 就是这样：整份搬进了 `.jsh`，`.py` 已删。
+            # ⚠️ 不报问题：这不是「两份不一致」，是「只有一份」。
             continue
         for 行 in 文件.read_text(encoding="utf-8").splitlines():
             m = _JSH函数头.match(行)
@@ -212,6 +213,9 @@ def _查模块清单() -> list[dict]:
     import oracle.jishi.stdlib as pkg
 
     真 = {m.name for m in pkgutil.iter_modules(pkg.__path__) if not m.name.startswith("_")}
+    # M202b：**基石库层（`.jsh`）的模块也是标准库**。只按 `.py` 算的话，
+    # `数据库`（整份搬进 .jsh、.py 已删）会被误报成「卡里有、但没有这个模块」。
+    真 |= {f.stem for f in 库层目录.glob("*.jsh") if not f.stem.startswith("_")}
     卡 = {m["module"] for m in build_lang_spec()["stdlib"]}
     出 = []
     for 名 in sorted(真 - 卡):

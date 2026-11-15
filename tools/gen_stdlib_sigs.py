@@ -86,7 +86,49 @@ def collect() -> dict[str, dict[str, list]]:
             funcs[f.name] = f.as_entry()
         if funcs:
             out[mod] = funcs
+
+    # M202b：**只存在于基石库层（`.jsh`）的模块**也要有签名。
+    # 判断规则与 `ai._stdlib_api` 一致：`.py` 有就以 `.py` 为准（它是契约），
+    # 没有才从 `.jsh` 抽。写在 `.jsh` 里的函数**同样是标准库**，宿主做命名参数
+    # 映射时必须认识它们 —— 否则 `数据库.查询(库, "t", 排序="金额")` 会因为
+    # 「表里没有这个签名」被拦下来，而它明明是个合法调用。
+    for mod, funcs in _jsh_sigs().items():
+        if mod not in out:
+            out[mod] = funcs
     return out
+
+
+def _jsh_sigs() -> dict[str, dict[str, list]]:
+    """扫 `oracle/jishi/stdlib-jishi/*.jsh`，返回与 `.py` 那边**同形状**的签名。
+
+    为什么不能只靠 `.py`：M202b 把 `数据库` 整个搬成了 `.jsh`（不再有 .py 兜底），
+    从那天起「事实源」里就少了一个模块 —— 签名表与语言卡会一起缺它。
+    """
+    from oracle.jishi import jishilib
+    from oracle.jishi import parser as jparser
+    from oracle.jishi import ast_nodes as A
+
+    d = Path(jishilib.lib_dir())
+    出: dict[str, dict[str, list]] = {}
+    if not d.is_dir():
+        return 出
+    for fn in sorted(d.glob("*.jsh")):
+        mod = fn.stem
+        try:
+            prog = jparser.parse_source(fn.read_text(encoding="utf-8"), fn.name)
+        except Exception:  # noqa: BLE001 —— 库文件坏了不该让整张表生成失败
+            continue
+        定义 = {n.name: n for n in prog.body if isinstance(n, A.FuncDef)}
+        函数们: dict[str, list] = {}
+        for 导出, 源名 in jishilib._export_names(prog):
+            node = 定义.get(源名)
+            if node is None:
+                continue
+            必填 = len(node.params) - len(node.defaults)
+            函数们[导出] = [必填, list(node.params), None]
+        if 函数们:
+            出[mod] = 函数们
+    return 出
 
 
 class _Sig:

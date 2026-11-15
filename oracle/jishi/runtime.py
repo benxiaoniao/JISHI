@@ -2298,6 +2298,15 @@ def do_import(name: str, from_python: bool = False, from_local: bool = False,
     try:
         mod = importlib.import_module(f"oracle.jishi.stdlib.{name}")
     except ImportError:
+        # 🔴 M202b：宿主层没有这份 `.py`，但**基石库层有 `.jsh`** ⇒ 在这里现加载。
+        #
+        # 正常路径上 `.jsh` 模块是**编译期展开**的（`jishilib.expand`），走不到这里。
+        # 但**树遍历不编译**（它是 AST 解释器），所以 `导入 数据库` 会落到这里 ——
+        # 而 `数据库.py` 在 M202b 删了。没有这一段，参考实现（语义基准！）连
+        # `导入 数据库` 都跑不了，五引擎对拍里树遍历那一栏直接是红的。
+        载入 = _import_jishilib(name, line=line, col=col, filename=filename)
+        if 载入 is not None:
+            return 载入
         # 📌 本地包与标准库是**两种导入语法**（本地包要写 `导入 X 从 本地包`），
         # 所以「装了包却只写 `导入 X`」是很容易踩的一脚 —— 这时只说
         # 「试试 导入 随机/数学」是**误导**（指向了完全不相干的模块）。
@@ -2444,6 +2453,42 @@ def _read_pkg_meta(pkg_dir: str, name: str, *, line=None, col=None,
 
 # 正在导入的包栈（检测循环依赖，如「甲 依赖 乙，乙 依赖 甲」）
 _IMPORT_STACK: list[str] = []
+
+
+def _import_jishilib(name: str, *, line=None, col=None, filename="<输入>"):
+    """把 `stdlib-jishi/<name>.jsh` 当模块**在运行时**加载（M202b）。
+
+    ## 为什么需要它
+
+    `.jsh` 标准库的正常路径是**编译期展开**（`jishilib.expand` 把整个模块包成
+    一个外壳函数，再就地替换 `导入`）。但**树遍历不编译** —— 它是 AST 解释器，
+    `导入` 直接进 `do_import`，走宿主层的 `stdlib/*.py`。
+
+    `参数 / 容器 / 统计 / 迭代` 一直有 `.py` 兜底，所以这条路没人发现有问题。
+    M202b 把 `数据库` 整份搬进 `.jsh` 并删掉了 `.py` ⇒ 树遍历当场
+    「没有找到标准库模块「数据库」」。而树遍历是**语义基准**，它跑不了的东西
+    不能算「支持」——所以在这里补一条**按同一份源码**加载的路。
+
+    导出规则与编译期完全一致（`jishilib._export_names`：`__X` → `X`、`_X` 不导出）。
+    返回 `None` = 没有这个 `.jsh`（调用方照旧报「没有找到标准库模块」）。
+    """
+    import os
+
+    from . import jishilib
+
+    path = jishilib.module_path(name)
+    if path is None:
+        return None
+    with open(path, encoding="utf-8") as f:
+        源码 = f.read().replace("\r\n", "\n").replace("\r", "\n")
+    program = parse_source(源码, os.path.basename(path))
+    interp = Interpreter(filename=path)
+    interp.run(program)
+    exports = {}
+    for 出, 源 in jishilib._export_names(program):
+        if 源 in interp.globals.vars:
+            exports[出] = interp.globals.vars[源]
+    return Module(name, exports)
 
 
 def _import_local_package(name: str, *, line=None, col=None,

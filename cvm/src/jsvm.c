@@ -799,7 +799,11 @@ static void note_frames(JsVm *vm) {
     int depth = vm->nframes - 1 - vm->stop_depth;
     if (depth < 0) depth = 0;
     if (depth > JS_MAX_FRAMES) depth = JS_MAX_FRAMES;
-    int32_t flat[JS_MAX_FRAMES * 3];
+    /* 末尾多留两个槽：**最外层（主）帧当前指令的 line/col**（M202b）。
+     * 用途：出错点在**基石库层**（`.jsh` 标准库，行号落在保留带里）时，
+     * 宿主只能拿「用户那行」来显示 —— 而主帧正停在调用它的那条语句上。
+     * 代价两个 int，换来「库层报错也能指到用户的调用行」。 */
+    int32_t flat[JS_MAX_FRAMES * 3 + 2];
     int n = 0;
     for (int i = vm->stop_depth + 1; i < vm->nframes; i++) {
         JsFrame *f = &vm->frames[i];
@@ -807,6 +811,21 @@ static void note_frames(JsVm *vm) {
         flat[n++] = f->call_line;
         flat[n++] = f->call_col;
     }
+    int 主行 = 0, 主列 = 0;
+    if (vm->nframes > 0) {
+        JsFrame *f0 = &vm->frames[0];
+        int ip = f0->ip - 1;               /* 出错的就是刚跑过的那条 */
+        if (f0->code_idx >= 0 && f0->code_idx < vm->ncodes) {
+            JsCode *c = &vm->codes[f0->code_idx];
+            if (ip >= 0 && ip < c->ninstrs) {
+                const int32_t *ins = &vm->instrs[(c->instr_off + ip) * 6];
+                主行 = ins[4];
+                主列 = ins[5];
+            }
+        }
+    }
+    flat[n] = 主行;
+    flat[n + 1] = 主列;
     /* depth 为 0 也要通知：宿主拿它当「这次没有调用链」，否则会留着上一次的旧值 */
     HC(vm, note_frames)(flat, depth);
 }

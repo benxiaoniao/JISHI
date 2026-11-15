@@ -252,7 +252,8 @@ fn run_file(o: &Opts) -> ExitCode {
         Err(e) => return report(&e, &filename, &lines, o.json_errors),
     };
 
-    let module = jishi_frontend::compiler::compile_program(&prog, &filename, None, false);
+    let module = jishi_frontend::compiler::compile_program_embedded(
+        &prog, &filename, crate::内嵌库模块(), false);
     let bytecode = jishi_frontend::serialize::dump_json(&module);
     crate::set_args(o.rest.clone());
     let mut vm = match crate::load_module(&bytecode) {

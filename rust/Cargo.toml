@@ -2,18 +2,14 @@
 name = "jishi-ffi"
 version = "0.1.0"
 edition = "2021"
-description = "基石（jishi）中文编程语言的 Rust 字节码解释器，消费 M13.1 的 JSON 字节码，脱离 Python 独立执行。前端用同一仓库的 `jishi-frontend`（路径依赖，不是第三方）。**唯一一个第三方依赖是 `rusqlite`**（M112 的 `数据库` 模块，见 `docs/设计决策.md` D78）—— 其余标准库（正则 / 加密 / 压缩 / 网络 / 表格）都是自己写的。"
+description = "基石（jishi）中文编程语言的 Rust 字节码解释器，消费 M13.1 的 JSON 字节码，脱离 Python 独立执行。前端用同一仓库的 `jishi-frontend`（路径依赖，不是第三方）。第三方依赖只剩 `encoding_rs`（M119 的 GBK 码表）；其余标准库（正则 / 加密 / 压缩 / 网络 / 表格 / 数据库）都是自己写的 —— `数据库` 在 M202b 换成了纯基石实现，`rusqlite` 已删（见 `docs/设计决策.md` D115）。"
 
 [features]
-# 🔴 **`sqlite` 默认开**：原生宿主（CLI / MCP / 对拍 / 浏览器之外的都算）要 `数据库` 模块。
-#    **wasm（浏览器试玩页）必须关掉它**（`default-features = false`）—— 那边链不了
-#    sqlite3.c。关掉之后 `导入 数据库` 会报一句**准确**的话（「这个平台没有内置 SQLite」），
-#    而不是含糊的「没有找到标准库模块」。
-default = ["sqlite", "native-window", "jit"]
-sqlite = ["dep:rusqlite"]
+# 默认档：原生窗口 + JIT。**M202b 起没有 `sqlite` 了** —— `数据库` 不再链 C 库，
+# 所以「小体积档」（`--no-default-features`）与默认档在标准库上**没有差别**。
+default = ["native-window", "jit"]
 # M174：原生窗口。**放在默认里** —— 用户装的就是这个发行版，`窗口.打开` 默认
-# 就该给他一个真窗口。要「小一点、只要应用模式」的可以
-# `--no-default-features --features sqlite`（判据里试的正是这一档能编过）。
+# 就该给他一个真窗口。要「小一点、只要应用模式」的可以 `--no-default-features`。
 # `dep:gtk` 只声明在 Linux 目标段里 —— 在 Windows/macOS 上它是空操作（Cargo 按目标
 # 解析可选依赖），不会去编 gtk。
 native-window = [
@@ -40,16 +36,10 @@ jishi-frontend = { path = "../frontend" }
 # **第二个第三方依赖**（用户 2026-10-18 拍板）：GBK 是两万多个码位的映射表，
 # 手写不现实；`encoding_rs` 是纯 Rust、零 unsafe、wasm 也能编（Firefox 在用同款）。
 encoding_rs = "0.8"
-# M112：`数据库` 模块的 SQLite。**唯一一个第三方依赖**（用户 2026-10-15 拍板）。
-#
-# 为什么破例：SQLite 是几万行 C 实现，重写既不现实、也拿不到生态（文件格式、
-# 外部工具链）；Python 侧用标准库 `sqlite3`、Node 侧用内置 `node:sqlite`，
-# **只有 Rust 侧要引依赖**。`bundled` = 把 sqlite3.c 一起编进来（不依赖系统库）。
-#
-# ⚠️ 代价（如实记）：① 发行包大一点；② **构建需要 C 编译器**（sqlite3.c 要编）——
-# 本机 `cargo build` 得让 gcc 在 PATH 里（`cvm/build.py` 的那套候选位置），
-# CI 上三个平台本来就装了。
-rusqlite = { version = "0.40", features = ["bundled"], optional = true }
+# 📌 **M202b 删掉了 `rusqlite`**：`数据库` 换成纯基石实现（`stdlib-jishi/数据库.jsh`），
+#    于是① 不再要 C 编译器编 sqlite3.c；② wasm 上也能用内存库；③ 发行包小一截。
+#    取舍见 `docs/设计决策.md` D115（它推翻了 D78）。
+
 
 # M174：**原生窗口**（`窗口.打开({原生: 真})`）。wry = 系统自带的 WebView
 # （Windows 用 WebView2、macOS 用 WKWebView、Linux 用 WebKitGTK），tao = 窗口与

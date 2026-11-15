@@ -28,6 +28,7 @@ from typing import Any, Optional
 
 from . import opcodes as O
 from . import runtime as R
+from .errors import 库层行号带
 from .errors import (DebugQuit, Frame, JishiError, RunBreak, RunContinue,
                      RunError, RunTypeError, RunValueError, iter_size_changed)
 from .opcodes import BINOP_TO_SYMBOL, CMPOP_TO_SYMBOL, BinOp, CmpOp, UnOp
@@ -1470,6 +1471,25 @@ class CvmHost:
                     # `抛出` 那条路：异常对象是 `make_error` 造的，宿主侧还没有
                     # pending —— 链挂到那个刚造的对象上（R5.1 修）。详见 `_fresh_error`。
                     self._fresh_error.trace = chain
+
+            # M202b：**库层报错要指回用户的调用行**。
+            # 行号落在保留带（`库层行号带` 起）= 错在 `stdlib-jishi/*.jsh` 里，
+            # 那几行在用户文件里不存在。C 侧现在额外送「主帧当前指令的 line/col」
+            # （flat[depth*3] / [depth*3+1]），拿它当显示位置。
+            # ⚠️ 只在「链里没有一个不在带里的帧」时才用 —— 有用户帧就以它为准。
+            主行 = flat[depth * 3] if flat[depth * 3] else None
+            主列 = flat[depth * 3 + 1] if flat[depth * 3 + 1] else None
+            链里有用户帧 = any(f.line is not None and f.line < 库层行号带
+                          for f in chain)
+            if (主行 is not None and 主行 < 库层行号带 and not 链里有用户帧):
+                for e in (self.pending, self._fresh_error):
+                    if e is None:
+                        continue
+                    行 = getattr(e, "line", None)
+                    if 行 is None or 行 >= 库层行号带:
+                        e.line = 主行
+                        e.col = 主列 or 1
+
             self._fresh_error = None
             return 0
         except BaseException:            # noqa: BLE001 - 记现场失败不该改变语义

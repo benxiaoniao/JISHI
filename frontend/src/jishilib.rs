@@ -66,6 +66,44 @@ fn module_path(lib_dir: &str, name: &str) -> Option<PathBuf> {
     }
 }
 
+/// 基石库模块从哪来：磁盘目录，还是**编进二进制的那份**。
+///
+/// ## 为什么要「编进二进制」这一档（M202b）
+///
+/// Rust 宿主是**单二进制分发**（装完就一个 exe，旁边不放源码）。所以它一直
+/// **不展开** `.jsh` 库，靠自己的原生实现（`参数 / 容器 / 统计 / 迭代` 各有一份）。
+/// M202b 把 `数据库` 整份搬成 `.jsh` 之后，宿主就没有它了 —— 要么再写一份 Rust
+/// 实现（那正是「同一件事写三遍」），要么把 `.jsh` 编进来。
+///
+/// 选后者：`rust/build.rs` 用 `include_str!` 把模块源码嵌进二进制，宿主编译时
+/// 走**同一份**展开逻辑。于是「五个执行器共用一份实现」在 `数据库` 上真的成立了，
+/// 而且**不用把源码文件跟着 exe 发**。
+pub enum 库来源<'a> {
+    /// 目录（Python 侧、以及宿主的 `--check` 之类开发路径用）
+    目录(&'a str),
+    /// 编进二进制的源码（`(模块名, 源码)`）
+    内存(&'a [(&'a str, &'a str)]),
+}
+
+impl<'a> 库来源<'a> {
+    /// 这个模块在不在。
+    fn 有(&self, name: &str) -> bool {
+        match self {
+            库来源::目录(d) => module_path(d, name).is_some(),
+            库来源::内存(m) => m.iter().any(|(n, _)| *n == name),
+        }
+    }
+
+    /// 读源码（**统一换行**：CRLF → LF，与 Python 侧 `shell_source` 同口径）。
+    fn 读(&self, name: &str) -> Option<String> {
+        let raw = match self {
+            库来源::目录(d) => std::fs::read_to_string(module_path(d, name)?).ok()?,
+            库来源::内存(m) => m.iter().find(|(n, _)| *n == name).map(|(_, s)| *s)?.to_string(),
+        };
+        Some(raw.replace("\r\n", "\n").replace('\r', "\n"))
+    }
+}
+
 /// 模块顶层**对外导出**的名字：`[(导出名, 源码里的名字), …]`。
 ///
 /// - `__X` → 导出为 **`X`**（显式改名。有的导出名是关键字，写不成函数名）
@@ -104,13 +142,12 @@ pub(crate) fn export_names(program: &Node) -> Vec<(String, String)> {
 }
 
 /// 把模块源码包成外壳函数源码。
-fn shell_source(lib_dir: &str, name: &str) -> String {
-    let path = module_path(lib_dir, name).expect("模块存在");
-    let source = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("读不到基石库模块 {:?}：{}", path, e));
-    let norm = source.replace("\r\n", "\n").replace('\r', "\n");
+fn shell_source(来源: &库来源, name: &str) -> String {
+    let norm = 来源
+        .读(name)
+        .unwrap_or_else(|| panic!("读不到基石库模块 {}", name));
 
-    let exports = match parse(&norm, path.to_str().unwrap_or("lib.jsh")) {
+    let exports = match parse(&norm, &format!("{}.jsh", name)) {
         Ok(p) => export_names(&p),
         Err(e) => panic!("基石库模块 {} 自身解析失败：{}", name, e.message),
     };
@@ -171,8 +208,8 @@ fn shift_j(v: &mut J, delta: i64) {
 }
 
 /// 解析出外壳函数的 `FuncDef` 节点（行号已整体减 1）。
-fn shell_def(lib_dir: &str, name: &str) -> Node {
-    let src = shell_source(lib_dir, name);
+fn shell_def(来源: &库来源, name: &str) -> Node {
+    let src = shell_source(来源, name);
     let want = shell_name(name);
     let program = match parse(&src, &format!("{}.jsh", name)) {
         Ok(p) => p,
@@ -195,7 +232,7 @@ fn shell_def(lib_dir: &str, name: &str) -> Node {
 // ---------------------------------------------------------------------------
 
 struct St<'a> {
-    lib_dir: &'a str,
+    来源: &'a 库来源<'a>,
     filename: &'a str,
     /// 已生成的外壳函数定义（**按首次出现的顺序**，Python 那边是 dict 的插入序）
     shells: Vec<(String, Node)>,
@@ -203,7 +240,7 @@ struct St<'a> {
 
 impl<'a> St<'a> {
     fn has(&self, name: &str) -> bool {
-        module_path(self.lib_dir, name).is_some()
+        self.来源.有(name)
     }
 }
 
@@ -281,7 +318,7 @@ fn visit(n: Node, st: &mut St) -> Node {
     }
     let shell = shell_name(&name);
     if !st.shells.iter().any(|(k, _)| *k == shell) {
-        let def = shell_def(st.lib_dir, &name);
+        let def = shell_def(st.来源, &name);
         st.shells.push((shell.clone(), def));
     }
     let alias = as_jstr(field(&n, "alias")).to_string();
@@ -320,33 +357,33 @@ fn visit(n: Node, st: &mut St) -> Node {
 }
 
 /// 先探一遍有没有用到基石库模块（没用到就省掉深拷贝）。
-fn collect(program: &Node, lib_dir: &str) -> Vec<String> {
+fn collect(program: &Node, 来源: &库来源) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for node in as_list(field(program, "body")) {
-        walk(node, lib_dir, &mut found);
+        walk(node, 来源, &mut found);
     }
     found
 }
 
-fn walk(v: &J, lib_dir: &str, found: &mut Vec<String>) {
+fn walk(v: &J, 来源: &库来源, found: &mut Vec<String>) {
     match v {
         J::Node(n) => {
             if n.kind == "Import" {
                 if !as_bool(field(n, "from_python")) && !as_bool(field(n, "from_local")) {
                     let name = as_jstr(field(n, "name")).to_string();
-                    if module_path(lib_dir, &name).is_some() && !found.contains(&name) {
+                    if 来源.有(&name) && !found.contains(&name) {
                         found.push(name);
                     }
                 }
                 return;
             }
             for (_, fv) in n.fields.iter() {
-                walk(fv, lib_dir, found);
+                walk(fv, 来源, found);
             }
         }
         J::List(items) => {
             for it in items.iter() {
-                walk(it, lib_dir, found);
+                walk(it, 来源, found);
             }
         }
         _ => {}
@@ -357,15 +394,25 @@ fn walk(v: &J, lib_dir: &str, found: &mut Vec<String>) {
 ///
 /// `lib_dir` 为 `None` 表示**关掉这一层**（`JISHI_NO_JISHILIB=1` 时 Python 侧传 None）。
 pub fn expand(program: &Node, lib_dir: Option<&str>, filename: &str) -> Node {
-    let lib_dir = match lib_dir {
-        Some(d) => d,
-        None => return program.clone(),
-    };
-    if collect(program, lib_dir).is_empty() {
+    match lib_dir {
+        Some(d) => expand_from(program, &库来源::目录(d), filename),
+        None => program.clone(),
+    }
+}
+
+/// 同 [`expand`]，但模块源码**由调用方给**（编进二进制的那份）。
+///
+/// Rust 宿主走这条：它是单二进制分发，旁边不放 `.jsh`（见 [`库来源`]）。
+pub fn expand_embedded(program: &Node, 模块们: &[(&str, &str)], filename: &str) -> Node {
+    expand_from(program, &库来源::内存(模块们), filename)
+}
+
+fn expand_from(program: &Node, 来源: &库来源, filename: &str) -> Node {
+    if collect(program, 来源).is_empty() {
         return program.clone();
     }
 
-    let mut st = St { lib_dir, filename, shells: Vec::new() };
+    let mut st = St { 来源, filename, shells: Vec::new() };
     let mut body: Vec<J> = as_list(field(program, "body"))
         .iter()
         .map(|x| map_item(x, &mut st))

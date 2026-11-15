@@ -134,19 +134,29 @@ def test_漂移检测_四个符号集合与Python一致():
     exempt = _host_exempt()
     # 宿主**没有**的模块（m51 已登记的有意豁免）：静态检查在两边会给出不同结论
     # 是**有意的** —— 宿主的单二进制里确实没有那个模块，报「未定义」是真话。
+    # M202b：**基石库层模块**（`stdlib-jishi/*.jsh`）不算「宿主模块」——
+    # 它们在编译期展开成普通函数，宿主的 `all_modules()` 里本来就没有。
+    # 不剔掉的话，每搬一个模块进库层，这条判据就红一次。
+    from oracle.jishi import jishilib
+
+    库层 = {m for m in ld.stdlib if jishilib.has(m)}
     want = {
         "keywords": sorted(ld.keywords),
         "builtins": sorted(ld.builtins),
-        "stdlib": sorted(set(ld.stdlib) - set(exempt)),
+        "stdlib": sorted(set(ld.stdlib) - set(exempt) - 库层),
         "exceptions": sorted(ld.exceptions),
     }
     # 差集必须**恰好**是登记的那几个 —— 冒出新的立刻报红。
-    missing = sorted(set(ld.stdlib) - set(got.get("stdlib", [])))
+    missing = sorted(set(ld.stdlib) - 库层 - set(got.get("stdlib", [])))
     assert missing == sorted(exempt), (
         f"标准库集合的差集与 m51 登记的豁免对不上：\n"
         f"  实际缺：{missing}\n  登记的：{sorted(exempt)}")
+    # `got` 那边也要剔：宿主还留着 `参数/容器/统计/迭代` 的原生实现（兜底），
+    # 它们**生效的**那份是 `.jsh` —— 与 `want` 同一条口径，否则「多出来的」永远红。
+    实际 = {k: (sorted(set(v) - 库层) if k == "stdlib" else v)
+            for k, v in got.items()}
     for key in want:
-        assert got.get(key) == want[key], (
+        assert 实际.get(key) == want[key], (
             f"符号集合「{key}」漂了：\n  Rust 独有：{sorted(set(got.get(key, [])) - set(want[key]))}\n"
             f"  Python 独有：{sorted(set(want[key]) - set(got.get(key, [])))}\n"
             "（Rust 侧那几处：内建 ← `rust/src/lib.rs::builtin_names()`、"

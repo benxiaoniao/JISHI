@@ -13,14 +13,12 @@
 //! | `表格` | `csv` 模块 | 自写 CSV 引号转义（`tables.rs`） |
 //! | 其余 | — | 薄封装 `std`（fs / path / env / time / process） |
 //!
-//! ## 依赖：**只有一个第三方**（M112 起）
+//! ## 依赖：**零第三方**（M202b 回到这条线上）
 //!
-//! 以前这里是「零第三方依赖」——`正则` / `加密` / `压缩` / `网络` / `表格` 全自己写。
-//! **M112 的 `数据库` 是唯一破例**：SQLite 是几万行 C 实现，重写不现实、也拿不到
-//! 生态（标准文件格式、外部工具链）⇒ 捆 `rusqlite`（`bundled`，把 sqlite3.c 一起编）。
-//! 用户 2026-10-15 拍板，取舍见 `docs/设计决策.md` D78。代价如实记：
-//! **构建需要 C 编译器**；浏览器试玩页（wasm）链不了它 ⇒ 那边关掉 `sqlite` 特性，
-//! `导入 数据库` 会明确报「这个平台没有内置 SQLite」。
+//! `正则` / `加密` / `压缩` / `网络` / `表格` 一直是自己写的；M112 曾经为 `数据库`
+//! 破例捆过 `rusqlite`（D78 的取舍），M202b 把 `数据库` 换成**纯基石实现**
+//! （`oracle/jishi/stdlib-jishi/数据库.jsh`，D115 推翻了 D78）之后，
+//! **第三方依赖清零** —— 也不用再要 C 编译器，wasm 上 `数据库` 照样能用（内存库）。
 //!
 //! ## 为什么每个模块一个文件
 //!
@@ -93,10 +91,9 @@ mod concurrent;
 mod server;
 mod router;
 mod excel;
-// M112 新增（数据持久化）：唯一一个**引了第三方依赖**的模块，见 `db.rs` 头注与 D78。
-// ⚠️ 它挂在 `sqlite` 特性后面 —— wasm（浏览器试玩页）关掉那个特性（链不了 sqlite3.c）。
-#[cfg(feature = "sqlite")]
-mod db;
+// 📌 M202b 起 `数据库` **不在这里**：它搬进了 `oracle/jishi/stdlib-jishi/数据库.jsh`
+//    （纯基石实现，五个执行器共用同一份）——于是本项目**没有任何第三方依赖**了，
+//    wasm 上也能用（内存库）。
 
 /// 标准库函数的统一返回类型（省得每处都写一长串）。
 pub(crate) type R = Result<Val, JishiError>;
@@ -159,12 +156,8 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         ("配置", config::module),
         // 2026-10-05：补上 `测试`（以前只有 Python 有，宿主挂 HOST_EXEMPT）
         ("测试", testmod::module),
-        // M112：数据持久化（SQLite，走 `rusqlite`）。⚠️ wasm 上**没有**这一项
-        // （见下面的 `module()` 里的专门报错）。
-        #[cfg(feature = "sqlite")]
-        ("数据库", db::module),
-        // M114：批量 IO 并发。⚠️ 与 `数据库` 不同，它**每个平台都在表里** ——
-        // 只是 wasm 上顺序执行（同一份结果，见 `concurrent.rs`）。
+        // M114：批量 IO 并发。⚠️ 它**每个平台都在表里**，只是 wasm 上顺序执行
+        // （同一份结果，见 `concurrent.rs`）。
         ("并发", concurrent::module),
         // M115：本地 HTTP 小服务。表里**每个平台都在**（wasm 上只是
         // `启动`/`空闲端口` 明确报「这个平台起不了」）。
@@ -185,19 +178,6 @@ pub(crate) fn module(name: &str) -> Result<Val, JishiError> {
         if *n == name {
             return Ok(Val::Module(Box::new((*n).to_string()), Box::new(build())));
         }
-    }
-    // 🔴 `数据库` 在**关掉 sqlite 特性的平台**（浏览器试玩页 / wasm）上不在表里。
-    //    这时候**不能**回落到下面那句笼统的「没有找到标准库模块」—— 那句会让人
-    //    以为**写错了名字**（M49a 的教训：提示要可操作，别把人带偏）。
-    #[cfg(not(feature = "sqlite"))]
-    if name == "数据库" {
-        // ⚠️ 全限定路径：这段只在**关掉 sqlite 特性**的平台上编译（wasm），
-        //    写进 `use` 会让原生构建报「导入了没用的东西」。
-        return Err(crate::err_with_hint(
-            "找不到这个函数",
-            "这个平台没有内置 SQLite（浏览器试玩页链不了它）",
-            "换桌面版/命令行版就能用 `导入 数据库` —— 单二进制里带着 SQLite".to_string(),
-        ));
     }
     // ⚠️ 类型名要写 Python 侧那个真名（`SemanticFuncError` 的 title，
     // E0302）—— 见 `lib.rs` 顶部「运行期错误的类型名」那段说明（R6.2）。

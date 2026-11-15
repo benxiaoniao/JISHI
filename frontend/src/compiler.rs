@@ -1740,6 +1740,21 @@ pub fn compile_program(program: &Node, filename: &str,
                        lib_dir: Option<&str>, fuse_method_call: bool) -> Module {
     // M52：先把「用基石写的标准库」展开进本程序
     let expanded = jishilib::expand(program, lib_dir, filename);
+    compile_expanded(&expanded, filename, fuse_method_call)
+}
+
+/// 同 [`compile_program`]，但基石库层的源码**是编进来的那份**（`(模块名, 源码)`）。
+///
+/// M202b：Rust 宿主是单二进制分发，旁边不放 `.jsh`。`数据库` 搬成 `.jsh` 之后
+/// 没有原生实现了 —— 与其再写一份 Rust，不如把同一份源码嵌进二进制（`rust/build.rs`
+/// 生成那张表）。展开逻辑与 Python 侧完全同一份（[`jishilib::expand_embedded`]）。
+pub fn compile_program_embedded(program: &Node, filename: &str,
+                                模块们: &[(&str, &str)], fuse_method_call: bool) -> Module {
+    let expanded = jishilib::expand_embedded(program, 模块们, filename);
+    compile_expanded(&expanded, filename, fuse_method_call)
+}
+
+fn compile_expanded(expanded: &Node, filename: &str, fuse_method_call: bool) -> Module {
 
     let m = Module {
         filename: filename.to_string(),

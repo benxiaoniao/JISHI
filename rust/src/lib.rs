@@ -40,6 +40,19 @@ pub mod single_instance;
 // M174：ABI 3 —— 页面里的基石代码 → 宿主（单向命令）。
 // 不依赖 `native-window`：wasm 构建里也要有（它就是给 wasm 用的）。
 pub mod abi3;
+/// M202b：**编进二进制的基石库模块**（`rust/build.rs` 生成的那张表）。
+///
+/// Rust 宿主是单二进制分发，旁边不放 `.jsh`；`数据库` 搬进 `.jsh` 之后没有
+/// 原生实现了，所以把那**同一份源码**嵌进来，编译期走同一套展开逻辑。
+mod 内嵌库 {
+    include!(concat!(env!("OUT_DIR"), "/stdlib_embed.rs"));
+}
+
+/// 给编译入口用的那张表（见 [`内嵌库`]）。
+pub(crate) fn 内嵌库模块() -> &'static [(&'static str, &'static str)] {
+    内嵌库::内嵌库
+}
+
 pub mod packcmd;    // M172：`jishi 打包`（四类产物）
 pub mod installer;  // M200：装 / 卸 / 升的判定与回滚（静默安装与向导共用一份）
 pub mod scope;      // R7.3：AST 作用域分析（scope.py 的移植，checker 与 LSP 共用）
@@ -1732,6 +1745,58 @@ impl JishiError {
 ///
 /// ⚠️ `_super_ok` 也带上：Python 侧它是 `setattr` 动态挂的，`jsonable` 会把它
 /// 一起序列化出来（`--ast` 的逐字节对拍就是靠这个对齐的）。
+/// AST JSON → `Node`（上面那个的**反向**，M202b 加）。
+///
+/// 为什么需要：`--walk`（树遍历参考执行器）吃的是 AST JSON，而 `数据库` 现在是
+/// 基石库层的 `.jsh` —— 它必须**先展开**再走，否则树遍历上 `导入 数据库` 直接
+/// 「没有找到标准库模块」。展开器吃 `Node`，所以要先把 Json 转回来。
+///
+/// 口径与 `ast_node_to_json` 对称：带 `类型` 的对象 = 节点，数组 = 列表，
+/// 其余标量原样。认不出的一律 `None`（调用方回落到「不展开」）。
+pub(crate) fn json_to_ast_node(v: &Json) -> Option<jishi_frontend::parser::Node> {
+    use jishi_frontend::parser::{Node as FNode, J as FJ};
+    let Json::Obj(m) = v else { return None };
+    let 类型 = match m.get("类型") {
+        Some(Json::Str(s)) => s.clone(),
+        _ => return None,
+    };
+    let mut n = FNode::new(Box::leak(类型.into_boxed_str()), 0, 0);
+    n.fields.clear();
+    for (k, val) in m.iter() {
+        if k == "类型" {
+            continue;
+        }
+        if k == "_super_ok" {
+            if let Json::Bool(b) = val {
+                n.super_ok = *b;
+            }
+            continue;
+        }
+        n.fields.push((Box::leak(k.clone().into_boxed_str()), json_to_ast_value(val)));
+    }
+    Some(n)
+}
+
+fn json_to_ast_value(v: &Json) -> jishi_frontend::parser::J {
+    use jishi_frontend::parser::J as FJ;
+    match v {
+        Json::Null => FJ::Null,
+        Json::Bool(b) => FJ::Bool(*b),
+        Json::Int(i) => match i64::try_from(*i) {
+            Ok(x) => FJ::Int(x),
+            Err(_) => FJ::Big(i.to_string()),
+        },
+        Json::Float(f) => FJ::Float(*f),
+        Json::Str(s) => FJ::Str(s.clone()),
+        Json::Arr(items) => FJ::List(items.iter().map(json_to_ast_value).collect()),
+        Json::Obj(_) => match json_to_ast_node(v) {
+            Some(n) => FJ::Node(Box::new(n)),
+            // 认不出的对象：当空节点带过去（宁可少展开，也别 panic）
+            None => FJ::Null,
+        },
+    }
+}
+
 pub(crate) fn ast_node_to_json(n: &jishi_frontend::parser::Node) -> Json {
     let mut m = std::collections::BTreeMap::new();
     m.insert("类型".to_string(), Json::Str(n.kind.to_string()));
@@ -7375,6 +7440,19 @@ pub fn run_walk(ast_text: &str, source_path: Option<&str>) -> Result<String, (St
     let ast = match json::parse(ast_text) {
         Ok(a) => a,
         Err(e) => return Err((String::new(), format!("AST JSON 解析失败：{e}"))),
+    };
+    // M202b：**先展开基石库层**再走。树遍历与字节码 VM 要比的是「同一个程序」，
+    // 而 `.jsh` 标准库是编译期展开进主程序的（`数据库` 整份就是这种）。
+    // 不展开的话，走 `导入 数据库` 会到运行期才发现「没有这个标准库模块」。
+    let ast = match json_to_ast_node(&ast) {
+        Some(node) => match jishi_frontend::jishilib::expand_embedded(
+            &node,
+            crate::内嵌库模块(),
+            source_path.unwrap_or("<AST>"),
+        ) {
+            expanded => ast_node_to_json(&expanded),
+        },
+        None => ast,
     };
     let mut w = walk::Walker::new();
     // M155：`打印(e)` 的位置框要印文件名 —— 树遍历的输入里没有它，从入口传进去。

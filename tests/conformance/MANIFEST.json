@@ -59,8 +59,8 @@
   "类别计数": {
     "examples": 44,
     "frontend": 1,
-    "lang": 128,
-    "stdlib": 4
+    "lang": 127,
+    "stdlib": 5
   },
   "语料": [
     {
@@ -247,7 +247,7 @@
     },
     {
       "id": "examples__tutorial__11_记账数据库",
-      "产物哈希": "sha256:0ec0324d5409ba3c",
+      "产物哈希": "sha256:0369162e96d48e78",
       "内容哈希": "sha256:ad02c4a9b1fba9e7",
       "类别": "examples",
       "路径": "examples/tutorial/11_记账数据库.jsh"
@@ -359,14 +359,14 @@
     },
     {
       "id": "examples__绕道探针__记账本__记账",
-      "产物哈希": "sha256:067bd7c8963b6edc",
+      "产物哈希": "sha256:1222c1f770c8ac0b",
       "内容哈希": "sha256:8f46752833fe1e0b",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/记账.jsh"
     },
     {
       "id": "examples__绕道探针__记账本__迁移",
-      "产物哈希": "sha256:2088d6257d7ab5cf",
+      "产物哈希": "sha256:02406a4f2d11cc18",
       "内容哈希": "sha256:12a659ad50e2a080",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/迁移.jsh"
@@ -384,6 +384,13 @@
       "内容哈希": "sha256:16ec44a849e424ad",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/容器.jsh"
+    },
+    {
+      "id": "oracle__jishi__stdlib-jishi__数据库",
+      "产物哈希": "sha256:62ea89bc1a5675ec",
+      "内容哈希": "sha256:cc7e2cc688478899",
+      "类别": "stdlib",
+      "路径": "oracle/jishi/stdlib-jishi/数据库.jsh"
     },
     {
       "id": "oracle__jishi__stdlib-jishi__统计",
@@ -618,14 +625,14 @@
     },
     {
       "id": "tests__cases__31_标准库_M112",
-      "产物哈希": "sha256:b13a24d0944d28bf",
+      "产物哈希": "sha256:790c8d40071e78bf",
       "内容哈希": "sha256:36b6ab3d3acbff99",
       "类别": "lang",
       "路径": "tests/cases/31_标准库_M112.jsh"
     },
     {
       "id": "tests__cases__32_标准库_M113",
-      "产物哈希": "sha256:3d3d9a5b8fb93b18",
+      "产物哈希": "sha256:8a77c90cdee9ccd6",
       "内容哈希": "sha256:89dedf32cee56818",
       "类别": "lang",
       "路径": "tests/cases/32_标准库_M113.jsh"
@@ -727,6 +734,13 @@
       "内容哈希": "sha256:8d097d1fc68d0231",
       "类别": "lang",
       "路径": "tests/cases/46_站点.jsh"
+    },
+    {
+      "id": "tests__cases__47_数据库_报错文案",
+      "产物哈希": "sha256:0b75386ffb6d9b95",
+      "内容哈希": "sha256:6d0e6b452d9c394f",
+      "类别": "lang",
+      "路径": "tests/cases/47_数据库_报错文案.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -1063,20 +1077,6 @@
       "内容哈希": "sha256:205c5e7a6fa58483",
       "类别": "lang",
       "路径": "tests/error_cases/47_方括号没闭合.jsh"
-    },
-    {
-      "id": "tests__error_cases__48_数据库_表不存在",
-      "产物哈希": "sha256:e71282bbfa8c826d",
-      "内容哈希": "sha256:315935052c15376c",
-      "类别": "lang",
-      "路径": "tests/error_cases/48_数据库_表不存在.jsh"
-    },
-    {
-      "id": "tests__error_cases__49_数据库_存不进的值",
-      "产物哈希": "sha256:ebf5b5e08cfcb587",
-      "内容哈希": "sha256:226c686f3e8cb565",
-      "类别": "lang",
-      "路径": "tests/error_cases/49_数据库_存不进的值.jsh"
     },
     {
       "id": "tests__error_cases__50_字节_比大小跨类型",

@@ -207,14 +207,38 @@ def test_检测本身真的能报红():
 
 
 def _expected_for(host: str) -> dict[str, list[str]]:
-    """某个宿主的期望家底 = Python 侧全量 − 该宿主登记过的豁免。"""
+    """某个宿主的期望家底 = Python 侧全量 − 该宿主登记过的豁免 − **基石库层模块**。
+
+    🔴 M202b：`导入 X` 有三条路 —— ①**基石库层**（`stdlib-jishi/X.jsh`，编译期展开，
+    五个执行器共用同一份）②宿主层（`stdlib/X.py` 与各宿主自己的实现）。这条判据
+    盯的是**②**：宿主必须覆盖 Python 侧写过的那些模块。搬进 ① 的模块（M202b 的
+    `数据库`，更早的 `参数 / 容器 / 统计 / 迭代`）**不该**要求宿主再实现一遍
+    —— 它们压根不经过宿主。不剔掉的话，搬一个模块就红一次，人会去把
+    `KNOWN_GAPS` 加满，闸门就废了。
+    """
+    from oracle.jishi import jishilib
+
     full = _py_stdlib()
     exempt = HOST_EXEMPT_BY_HOST.get(host, frozenset())
-    return {m: fns for m, fns in full.items() if m not in exempt}
+    return {m: fns for m, fns in full.items()
+            if m not in exempt and not jishilib.has(m)}
+
+
+def _去基石库层(家底: dict[str, list[str]]) -> dict[str, list[str]]:
+    """把「搬进 `stdlib-jishi/*.jsh`」的模块从**宿主家底**里剔掉。
+
+    宿主可能还留着老实现（`参数 / 容器 / 统计 / 迭代` 就是这样：M52 搬进 .jsh 之后
+    宿主里那份一直没删，当兜底）。它们**不算「多出来的」** —— 真正生效的是 .jsh
+    那一份（导入时先看基石库层）。所以两边都要按同一条口径过滤，否则这条判据
+    会逼着人把宿主的兜底实现删掉才能绿，而删了就没兜底了。
+    """
+    from oracle.jishi import jishilib
+
+    return {m: fns for m, fns in 家底.items() if not jishilib.has(m)}
 
 
 def test_Node_覆盖_python_侧标准库():
-    expected, actual = _expected_for("Node"), _node_stdlib()
+    expected, actual = _expected_for("Node"), _去基石库层(_node_stdlib())
     assert actual, "Node 报了个空家底？"
     assert _missing(expected, actual) == KNOWN_GAPS["Node"], (
         "Node 宿主与 Python 侧标准库有漂移：\n" + _report("Node", expected, actual))
@@ -223,7 +247,7 @@ def test_Node_覆盖_python_侧标准库():
 
 
 def test_Rust_覆盖_python_侧标准库():
-    expected, actual = _expected_for("Rust"), _rust_stdlib()
+    expected, actual = _expected_for("Rust"), _去基石库层(_rust_stdlib())
     assert actual, "Rust 报了个空家底？"
     assert _missing(expected, actual) == KNOWN_GAPS["Rust"], (
         "Rust 宿主与 Python 侧标准库有漂移：\n" + _report("Rust", expected, actual))

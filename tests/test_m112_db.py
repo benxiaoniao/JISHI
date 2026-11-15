@@ -1,17 +1,21 @@
 # -*- coding: utf-8 -*-
-"""M112：`数据库` 模块（数据持久化 / SQLite）。
+"""M112：`数据库` 模块（持久化 / 查询 / 汇总）。
 
 语料（`tests/cases/31_标准库_M112.jsh` + 两条 `error_cases`）管「五引擎逐字节一致」；
 这一份管**语料管不到**的那些点：
 
-1. **它真的是 SQLite** —— 用 Python 的 `sqlite3` 直接打开基石建的库（不是自造格式）；
+1. 🔴 **文件格式**（M202b 起变了）：**不再是 SQLite**，是「快照 + 追加日志」。
+   这一条以前写的是「它真的是 SQLite，用 sqlite3 打得开」—— 那是 M112 D78 的
+   立身之本，**M202b 明确推翻了它**（换成纯基石引擎，见 `docs/设计决策.md` D115）。
+   现在反过来验：文件头是基石格式、sqlite3 **打不开**它、拿 SQLite 文件去 `打开`
+   会得到一句「先用迁移工具转换」。
 2. **句柄语义**（同一路径 = 同一个连接、关掉之后报错可操作、`:memory:`）；
 3. **顺序是确定的**（默认插入顺序；排序时拿 rowid 兜底）；
 4. **类型映射**（真假 → 1/0、空 → NULL、精确小数 → 浮点、日期 → 文本）；
 5. **报错可操作**（不是光说「错了」，得说清下一步）；
 6. **`批量插入` 是事务**（中途出错全回滚）；
 7. **`汇总` 与 `表格.分组汇总` 同形状**（同一件事在语言里只该有一种形状）；
-8. **语言事实同步**（`--lang-spec` 里 15 个函数都在）。
+8. **语言事实同步**（`--lang-spec` 里 21 个函数都在）。
 
 ⚠️ 纪律：一律在 `tmp_path` 里跑（别在仓库根读写真实文件）——
    探针会往 cwd 写 `账目.db`。
@@ -58,55 +62,79 @@ def _错(源码: str, tmp: Path) -> JishiError:
 # 一、它真的是 SQLite（这条是 M112 的立身之本）
 # ---------------------------------------------------------------------------
 
-def test_基石建的库能用标准_sqlite3_打开(tmp_path):
-    """🔴 判据的核心：**不是自造格式**。
+def test_库文件是基石格式_不再是_SQLite(tmp_path):
+    """🔴 M202b 的**核心取舍**，明着钉住：文件格式换了。
 
-    用 Python 标准库的 `sqlite3` 直接打开基石刚建的库，把 schema 与数据读出来 ——
-    这条在「自己写一个存储」的方案下**不可能过**（`docs/设计决策.md` D78 之所以选
-    `rusqlite` 就是这个理由）。
+    以前这条是「用 `sqlite3` 打开基石建的库，读 schema 与数据」—— 那是 M112 的
+    立身之本（D78：宁可捆一个第三方依赖，也不要自造格式）。M202b 反过来：
+    引擎换成**用基石自己写的**那个（`基石数据库`），代价是格式不一样了。
+
+    所以这条现在验三件事，缺一条都说明「换得不清不楚」：
+
+    1. 文件头是 `#基石数据库 快照 格式=1`（自描述，不是谁也认不出的二进制）；
+    2. `sqlite3` **打不开**它（`file is not a database`）—— 这是代价，不掩饰；
+    3. 反过来，拿一个**真的 SQLite 库**去 `打开`，会得到一句能照着做的错
+       （「先用迁移工具转换」），而不是一句「格式不对」了事。
     """
     库 = tmp_path / f"{os.getpid()}_账目.db"
     _跑(f"""导入 数据库
 令 库 = 数据库.打开("{库.as_posix()}")
-数据库.建表(库, "账目", ["金额", "类别", "备注", "日期"])
-数据库.插入(库, "账目", {{"金额": 25.5, "类别": "餐饮", "备注": "午饭", "日期": "2026-10-01"}})
+数据库.建表(库, "账目", ["金额", "类别"])
+数据库.插入(库, "账目", {{"金额": 25.5, "类别": "餐饮"}})
 数据库.建索引(库, "账目", "类别")
 数据库.关闭(库)
 """, tmp_path)
 
-    conn = sqlite3.connect(str(库))            # 标准库，不经过基石
+    assert 库.is_file(), sorted(x.name for x in tmp_path.iterdir())
+    assert 库.read_text(encoding="utf-8").split("\n")[0] == "#基石数据库 快照 格式=1"
+
+    # ② 代价：sqlite3 读不了（不是「我们觉得读不了」，是标准库亲口说）
+    with pytest.raises(sqlite3.DatabaseError):
+        sqlite3.connect(str(库)).execute("SELECT 1 FROM 账目")
+
+    # ③ 反向：真的 SQLite 文件递过来，要给出迁移指引
+    旧 = tmp_path / f"{os.getpid()}_旧.db"
+    conn = sqlite3.connect(str(旧))
     try:
-        cols = [r[1] for r in conn.execute('PRAGMA table_info("账目")')]
-        assert cols == ["id", "金额", "类别", "备注", "日期"], cols
-        assert conn.execute('SELECT 类别, 金额 FROM 账目').fetchall() == [("餐饮", 25.5)]
-        idx = [r[1] for r in conn.execute('PRAGMA index_list("账目")')]
-        assert any("类别" in x for x in idx), idx
+        conn.execute("CREATE TABLE t (a)")
+        conn.commit()
     finally:
         conn.close()
+    错 = _错(f"""导入 数据库
+数据库.打开("{旧.as_posix()}")
+""", tmp_path)
+    assert "SQLite" in 错.message and "迁移" in 错.message, 错.message
 
 
-def test_参考实现的建表语句也能用同一个库(tmp_path):
-    """schema 兼容的另一半：Python 那边的 `CREATE TABLE IF NOT EXISTS` 认得我们建的库。"""
-    库 = tmp_path / f"{os.getpid()}_共.db"
-    _跑(f"""导入 数据库
+def test_迁移工具格式对得上(tmp_path):
+    """`jishi-db` 的 `tools/迁移.jsh` 产出的东西，这边的 `打开` 必须认得。
+
+    为什么这条不能少：迁移是「换格式」唯一给用户的出路。要是工具写出来的快照
+    跟引擎读的快照对不上，用户的数据就**卡在两代之间** —— 那比不能迁移更糟。
+    这里用「按快照格式手写一份」代替真跑那个工具（工具在下游仓库里，判据不该
+    依赖它）；格式的**契约**就是：首行 + 一段 JSON。
+    """
+    库 = tmp_path / f"{os.getpid()}_迁入.db"
+    数据 = {
+        "格式": 1,
+        "表们": {
+            "账目": {
+                "字段们": ["金额"],
+                "下一个id": 2,
+                "索引们": [],
+                "记录们": [{"id": 1, "金额": 25.5}],
+            }
+        },
+    }
+    库.write_text("#基石数据库 快照 格式=1\n" + json.dumps(数据, ensure_ascii=False),
+                 encoding="utf-8")
+    出 = _跑(f"""导入 数据库
 令 库 = 数据库.打开("{库.as_posix()}")
-数据库.建表(库, "账目", ["金额", "类别", "备注", "日期"])
-数据库.插入(库, "账目", {{"金额": 1, "类别": "甲", "备注": "", "日期": "2026-10-01"}})
+打印(数据库.表们(库))
+打印(数据库.查询(库, "账目"))
 数据库.关闭(库)
 """, tmp_path)
-
-    conn = sqlite3.connect(str(库))
-    try:
-        conn.execute("""CREATE TABLE IF NOT EXISTS 账目 (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            金额 REAL NOT NULL, 类别 TEXT NOT NULL,
-            备注 TEXT NOT NULL DEFAULT '', 日期 TEXT NOT NULL)""")
-        conn.execute("INSERT INTO 账目(金额, 类别, 备注, 日期) VALUES (?, ?, ?, ?)",
-                     (2.0, "乙", "", "2026-10-02"))
-        conn.commit()
-        assert conn.execute("SELECT COUNT(*) FROM 账目").fetchone()[0] == 2
-    finally:
-        conn.close()
+    assert 出 == "['账目']\n[{'id': 1, '金额': 25.5}]\n", repr(出)
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +160,9 @@ def test_关掉之后报错_而且给下一步(tmp_path):
 数据库.查询(库, "t")
 """, tmp_path)
     assert "还没打开" in 错.message
-    assert 错.hint and "数据库.打开" in 错.hint
+    # M202b：原来这条信息在 `错.hint` 里，而**纯基石实现造不出带 hint 的错误**
+    # （hint 是宿主 API 的事）。信息并进了消息正文 —— 判据跟着看正文。
+    assert "数据库.打开" in 错.message, 错.message
 
 
 def test_关闭是幂等的(tmp_path):
@@ -220,7 +250,8 @@ def test_整数超出范围会明确报错(tmp_path):
 数据库.建表(库, "t", ["a"])
 数据库.插入(库, "t", {"a": 10 ** 30})
 """, tmp_path)
-    assert "超出" in 错.message and 错.hint
+    assert "超出" in 错.message
+    assert "文本" in 错.message, "得给一条能走的路（存成文本）：" + 错.message
 
 
 def test_列表字典存不进去_给出修法(tmp_path):
@@ -231,7 +262,7 @@ def test_列表字典存不进去_给出修法(tmp_path):
 数据库.插入(库, "t", {{"a": {值}}})
 """, tmp_path)
         assert 词 in 错.message, 错.message
-        assert 错.hint and "json.文本化" in 错.hint
+        assert "json.文本化" in 错.message, 错.message
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +276,7 @@ def test_表不存在时把现有的表列出来(tmp_path):
 数据库.查询(库, "没有的")
 """, tmp_path)
     assert "没有表「没有的」" in 错.message
-    assert 错.hint and "账目" in 错.hint, "提示里要列出库里现有的表"
+    assert "账目" in 错.message, "消息里要列出库里现有的表：" + 错.message
 
 
 def test_字段写错时把有的字段列出来(tmp_path):
@@ -255,7 +286,7 @@ def test_字段写错时把有的字段列出来(tmp_path):
 数据库.插入(库, "表", {"丙": 1})
 """, tmp_path)
     assert "没有这些字段：丙" in 错.message
-    assert 错.hint and "甲、乙" in 错.hint
+    assert "甲、乙" in 错.message, "消息里要列出表里真有的字段：" + 错.message
 
 
 # ---------------------------------------------------------------------------
@@ -332,38 +363,44 @@ def test_语言卡里有数据库的全部函数():
 
 
 # ---------------------------------------------------------------------------
-# 九、wasm（浏览器试玩页）：**明确报「不可用」**，不许静默少一个模块
+# 九、M202b：**不再依赖 SQLite**（这一节原来是「wasm 上明确报不可用」）
 # ---------------------------------------------------------------------------
 
-def test_wasm_关掉了_sqlite_特性():
-    """🔴 浏览器里链不了 sqlite3.c ⇒ playground 上**没有** `数据库` 模块。
+def test_不再捆_rusqlite_数据库是纯基石实现():
+    """🔴 M202b 的核心变化：`数据库` 从「捆 rusqlite」变成「用基石自己写的那份」。
 
-    ⚠️ 关键是**报错要准**：不能回落到那句笼统的「没有找到标准库模块」——
-    那会让人以为**名字写错了**（M49a 的教训：提示要可操作）。这条判据钉三件事：
-    ① wasm 侧关掉默认特性；② `rust` 侧那段是 `cfg` 门控的；③ 有专门的中文报错。
+    以前这一节钉的是「wasm 上链不了 sqlite3.c ⇒ `导入 数据库` 要报一句准确的话」。
+    换实现之后那些都不成立了：**没有 C 依赖**，wasm 上照样能开内存库。
+    所以改成钉「真的没有 SQLite 了」—— 免得哪天有人把依赖加回来而没人发现：
+
+    1. `rust/Cargo.toml` 里没有 `rusqlite`、也没有 `sqlite` 特性；
+    2. `rust/src/stdlib/mod.rs` 里没有 `db` 模块、也没有 `cfg(feature = "sqlite")`；
+    3. 实现落在 `oracle/jishi/stdlib-jishi/数据库.jsh`（五个执行器共用这一份）。
     """
-    wasm = (ROOT / "wasm" / "Cargo.toml").read_text(encoding="utf-8")
-    assert "default-features = false" in wasm, "wasm 没关掉 `sqlite` 特性 —— 链不了 sqlite3.c"
-
-    rust = (ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8")
-    # ⚠️ 别写死整行：`default` 里**还会加别的特性**（M174 就加了 `native-window`）。
-    #    这条要钉的是「sqlite 在默认里」，不是「默认只有 sqlite」。
-    默认行 = [ln for ln in rust.splitlines() if ln.startswith("default = [")]
-    assert 默认行, "Cargo.toml 里没有 `default = [...]`"
-    assert '"sqlite"' in 默认行[0], f"`sqlite` 应当是默认开着的特性：{默认行[0]}"
-    assert "optional = true" in rust, "rusqlite 应当是可选依赖"
+    cargo = (ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8")
+    # 只看**真的依赖行**（注释里提一句「M202b 删掉了 rusqlite」是应该的）
+    依赖行 = [ln for ln in cargo.splitlines() if ln.strip().startswith("rusqlite")]
+    assert not 依赖行, f"Cargo.toml 里还有 rusqlite 依赖：{依赖行}"
+    assert 'sqlite = ["dep:rusqlite"]' not in cargo, "sqlite 特性没删干净"
 
     mod = (ROOT / "rust" / "src" / "stdlib" / "mod.rs").read_text(encoding="utf-8")
-    assert '#[cfg(feature = "sqlite")]' in mod, "db 模块没有 cfg 门控"
-    assert "这个平台没有内置 SQLite" in mod, "关掉 sqlite 的平台没有专门的报错"
+    assert '#[cfg(feature = "sqlite")]' not in mod, "mod.rs 里还有 sqlite 门控"
+    assert "db::module" not in mod, "mod.rs 还挂着 db 模块"
+    assert not (ROOT / "rust" / "src" / "stdlib" / "db.rs").exists(), "db.rs 没删"
+
+    assert (ROOT / "oracle" / "jishi" / "stdlib-jishi" / "数据库.jsh").is_file(), \
+        "基石库层里没有 数据库.jsh"
+    assert not (ROOT / "oracle" / "jishi" / "stdlib" / "数据库.py").exists(), \
+        "宿主层还留着 数据库.py（M202b 之后不该有第二份实现）"
 
 
-def test_wasm_里没有数据库模块():
-    """真的编一遍太慢（要 20+ 秒），这里查 wasm 侧**报给浏览器的模块表**。
+def test_wasm_上数据库不再被特性挡住():
+    """`导入 数据库` 不再有任何平台门槛 —— 它是普通的标准库模块（编译期展开）。
 
-    ⚠️ 不查字节码、查事实源：`wasm/jishi-wasm.js` 的模块列表是从 Rust 侧 `all_modules()`
-    出的 —— 拿 `rust` 侧的 cfg 门控与 wasm 侧的开关对照就够（上面那条已经钉住）。
-    这一条盯的是**「别哪天有人把 default-features 的写法改回去」**。"""
-    t = (ROOT / "wasm" / "Cargo.toml").read_text(encoding="utf-8")
-    assert "jishi-ffi" in t and "sqlite" not in t.split("[dependencies]")[1].split("features")[1], \
-        "wasm 的依赖行里不该出现 sqlite（那是宿主默认开的特性）"
+    ⚠️ 这里只查**静态事实**（不再有特性门控）；真编一遍 wasm 要 20 多秒，
+       由 `tools/build_wasm.py` 那一步管。wasm 上「能不能真用」取决于 `文件`
+       模块 —— 内存库（`":memory:"` / 空串）完全不碰文件，所以一定能用；
+       落盘库在 wasm 上会由 `文件` 报「这个平台没有文件系统」。
+    """
+    mod = (ROOT / "rust" / "src" / "stdlib" / "mod.rs").read_text(encoding="utf-8")
+    assert "没有内置 SQLite" not in mod, "那句「这个平台没有内置 SQLite」该删了"

@@ -88,7 +88,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **4734 项**；其中 126 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
+3. **测试命令**：`python -m pytest tests/`（当前 **4750 项**；其中 126 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
    .venv/Scripts/python.exe tools/test_all.py          # **两节一条命令**（见下）
@@ -296,15 +296,17 @@
   **构建一律走 `python core/build.py`**，别手敲 cargo。
 - ⚠️ **`jishi/_core.pyd` 不进仓库**（按当前 Python 的 ABI 编，换版本就得重编）。
   没有它而设了 `JISHI_FRONTEND=rust` → **明确报错并给修法**，绝不静默回落。
-- 🔴 **`rust/` 从 M112 起有第三方依赖了**（就一个：`rusqlite` bundled，给 `数据库` 模块）。
-  ⇒ **`cargo build` 现在需要 C 编译器**（要编 `sqlite3.c`）：
-  本机得让 gcc 出现在 PATH 里（候选位置照抄 `cvm/build.py` 的那套，
-  或用 `JISHI_MINGW` 指一个 MinGW 目录）；CI 三平台本来就装了 gcc。
-  报错长这样：`cc-rs: failed to find tool "gcc.exe"`。
-  ⚠️ **wasm 侧必须关掉它**：`wasm/Cargo.toml` 的 `jishi-ffi` 写了
-  `default-features = false`（浏览器链不了 sqlite3.c）；关掉之后 `导入 数据库`
-  会报一句**准确**的话（「这个平台没有内置 SQLite」），**不许**回落到
-  「没有找到标准库模块」那种会让人以为名字写错的提示。
+- 🔴 **`数据库` 现在是基石库层（`.jsh`），Rust 宿主靠「编进二进制」拿到它**
+  （M202b，见 D115）。三件事必须记住：
+  ① `rust/build.rs` 里有一张**模块表**（`include_str!`）—— 新增「只有 `.jsh`、
+     没有宿主原生实现」的模块时**必须**往里加一行，否则宿主上 `导入 X` 报
+     「没有找到标准库模块」（`check_engines` 会抓到）；
+  ② `import` 的顺序不能乱：`std::process::ExitCode` 那类东西与它无关，但要**重编**
+     `cargo build` 才把新 `.jsh` 编进去（改了 `.jsh` 不重编，跑的还是旧的）；
+  ③ **树遍历不编译**，它走 `runtime.do_import` 的「运行时加载 `.jsh`」那条路
+     —— 改 `.jsh` 的导出规则（`__X` → `X`）时，两边都要对。
+  📌 曾经这里有「`cargo build` 需要 C 编译器（sqlite3.c）」那条 —— **随 `rusqlite`
+  一起删掉了**：现在 `cargo build` 不需要 gcc（除非编 `cvm/`）。
 - 📌 **跑分要按「服务商的 RPM」配参数**（M121 加的）：`tools/eval_ai.py` 现在有
   `--并发`（同时跑几题）与 `--每分钟`（**全局**请求速率上限，默认 45，**连重试都管**）。
   🔴 **别再用 `--题间间隔` 当限流手段**：它只在「题目之间」睡，而同一题的

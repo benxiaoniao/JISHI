@@ -124,7 +124,9 @@ def test_清单写清了摆脱难度():
     段 = _清单段()
     # 只看「一、随发行版走」那张表（第二张表是构建期工具，列不同）
     一 = 段.split("### 二、", 1)[0]
-    表 = [ln for ln in 一.splitlines() if ln.startswith("| `")]
+    # M202b：`rusqlite` 那行保留在表里但划掉了（~~…~~）—— 「已摆脱」本身就是
+    # 这份清单要的结果，得数进去，否则每删一个依赖这条就红一次。
+    表 = [ln for ln in 一.splitlines() if ln.startswith("| `") or ln.startswith("| ~~`")]
     assert len(表) >= 9, f"清单表只有 {len(表)} 行，太少（是不是被删了？）"
     for 行 in 表:
         格 = [x.strip() for x in 行.strip("|").split("|")]
