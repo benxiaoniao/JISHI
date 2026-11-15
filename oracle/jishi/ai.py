@@ -348,8 +348,18 @@ def _stdlib_api() -> list[dict]:
     return mods
 
 
+#: 进程内缓存。M202b 起 `build_lang_spec` 要解析 `stdlib-jishi/*.jsh`
+#: （`数据库.jsh` 一份就 ~2950 行，实测整次构建 ~0.5 s）；调用方（LSP / AI 卡 /
+#: 判据）经常在一**个**进程里要多次取同一份 —— 没必要每次都重解析。
+#: 语言卡是「本次运行的语言事实」，进程内不会变，缓存安全。
+_SPEC_CACHE: dict | None = None
+
+
 def build_lang_spec() -> dict:
     """收集语言元数据，产出机器可读规格（关键字/运算符/内建/标准库/异常）。"""
+    global _SPEC_CACHE
+    if _SPEC_CACHE is not None:
+        return _SPEC_CACHE
     keywords = {
         k: KEYWORD_DESC.get(k, _tokenizer.KEYWORDS[k])
         for k in _tokenizer.KEYWORDS
@@ -379,7 +389,7 @@ def build_lang_spec() -> dict:
         "文件": list(FILE_METHODS.keys()),
         "小数": list(DECIMAL_METHODS.keys()),
     }
-    return {
+    spec = {
         "version": VERSION,
         "keywords": keywords,
         "operators": {
@@ -411,6 +421,8 @@ def build_lang_spec() -> dict:
             "builtins": PY_BUILTIN,
         },
     }
+    _SPEC_CACHE = spec
+    return spec
 
 
 def content_hash(spec: dict) -> str:

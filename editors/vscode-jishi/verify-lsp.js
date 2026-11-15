@@ -100,10 +100,18 @@ async function main() {
     textDocument: { uri }, ...params,
   });
 
-  await new Promise((r) => setTimeout(r, 400));
+  // ⚠️ **别用固定等待**：服务器首次诊断要先建语言卡（`build_lang_spec`，
+  // M202b 起要解析 2950 行的 `数据库.jsh`，实测 ~0.5 s，CI 慢机更久）。
+  // 固定 400 ms 在快机上勉强过、CI 上必挂（两平台同时红过）。
+  // 真实编辑器不挑这个 —— 诊断晚点到而已 —— 所以这里**轮询等**，上限 8 s。
+  let d = null;
+  for (let i = 0; i < 80; i++) {
+    d = 诊断.get(URI有错);
+    if (d) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
 
   console.log('\n── 诊断与快速修复（有错的那份）──────────');
-  const d = 诊断.get(URI有错);
   断言(!!d, '收到了 publishDiagnostics');
   const 有len = d && d.diagnostics.some((x) => x.message.includes('len'));
   断言(有len, '英文内建 `len` 被报了出来',
