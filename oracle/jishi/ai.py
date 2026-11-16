@@ -294,6 +294,22 @@ def _基石库_api() -> dict:
     from . import parser as _jp
     from .jishilib import _export_names, lib_dir
 
+    # ⚠️ 这一层**可以**缓存：它只取决于 `oracle/jishi/stdlib-jishi/*.jsh` 的
+    #    内容（发行物的一部分），与「本机装了什么包」无关。M202b 起要解析
+    #    `数据库.jsh`（~2950 行），实测 ~0.3 s —— LSP / AI 卡 / 判据在一个进程里
+    #    会反复要，值得缓存。键里带**每个文件的 大小+mtime**：改了 `.jsh`
+    #    不重启进程也不会读到旧的（判据里改文件再取卡是常事）。
+    指纹 = []
+    d0 = lib_dir()
+    if d0 is not None and os.path.isdir(d0):
+        for fn in sorted(os.listdir(d0)):
+            if fn.endswith(".jsh"):
+                st = os.stat(os.path.join(d0, fn))
+                指纹.append((fn, st.st_size, st.st_mtime_ns))
+    键 = tuple(指纹)
+    if _基石库_api._缓存键 == 键 and _基石库_api._缓存 is not None:
+        return dict(_基石库_api._缓存)
+
     出: dict = {}
     d = lib_dir()
     if d is None:
@@ -315,7 +331,14 @@ def _基石库_api() -> dict:
             if node is not None:
                 funcs.append(_函数签名_jsh(node, 导出))
         出[名] = funcs
+    _基石库_api._缓存键 = 键
+    _基石库_api._缓存 = dict(出)
     return 出
+
+
+#: `_基石库_api` 的进程内缓存（键 = 每个 `.jsh` 的 大小+mtime，见函数里的注释）
+_基石库_api._缓存键 = None  # type: ignore[attr-defined]
+_基石库_api._缓存 = None   # type: ignore[attr-defined]
 
 
 def _stdlib_api() -> list[dict]:
@@ -348,18 +371,15 @@ def _stdlib_api() -> list[dict]:
     return mods
 
 
-#: 进程内缓存。M202b 起 `build_lang_spec` 要解析 `stdlib-jishi/*.jsh`
-#: （`数据库.jsh` 一份就 ~2950 行，实测整次构建 ~0.5 s）；调用方（LSP / AI 卡 /
-#: 判据）经常在一**个**进程里要多次取同一份 —— 没必要每次都重解析。
-#: 语言卡是「本次运行的语言事实」，进程内不会变，缓存安全。
-_SPEC_CACHE: dict | None = None
-
-
 def build_lang_spec() -> dict:
-    """收集语言元数据，产出机器可读规格（关键字/运算符/内建/标准库/异常）。"""
-    global _SPEC_CACHE
-    if _SPEC_CACHE is not None:
-        return _SPEC_CACHE
+    """收集语言元数据，产出机器可读规格（关键字/运算符/内建/标准库/异常）。
+
+    ⚠️ **不要给整份结果加缓存**（试过，坏了）：卡里带「本机已装的包」，
+    而包会在同一个进程里被装/卸（判据、REPL 都这么干）。缓存住整份 spec
+    等于把包列表钉在第一次取到的时刻 —— `test_m90` 的漂移检测当场红
+    （Python 侧给旧哈希、Rust 侧现算新哈希）。**要缓存的是解析 `.jsh` 那一段**
+    （见 `_基石库_api`），不是整份结果。
+    """
     keywords = {
         k: KEYWORD_DESC.get(k, _tokenizer.KEYWORDS[k])
         for k in _tokenizer.KEYWORDS
@@ -421,7 +441,6 @@ def build_lang_spec() -> dict:
             "builtins": PY_BUILTIN,
         },
     }
-    _SPEC_CACHE = spec
     return spec
 
 

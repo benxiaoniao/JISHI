@@ -105,11 +105,16 @@ def test_漂移检测_与build_lang_spec逐字段相等():
 
     比字符串那两条更强的一点：它不依赖 CLI 的包装形式 —— 就算哪天两边**都**改成了
     另一种排版，内容对不对仍然查得出来。
-    """
-    from oracle.jishi.ai import build_lang_spec, content_hash
 
-    spec = build_lang_spec()
-    spec["content_hash"] = content_hash(spec)
+    ⚠️ Python 侧**起子进程**取（不在这里 import）：整轮测试跑下来，同进程里
+    前面的用例会留下状态（注册了内建、改过 `stdlib` 表…），`build_lang_spec()`
+    在**脏进程**里读出来的东西和干净 CLI 不一样 —— M203 收口时就这么红过一次
+    （Python 侧哈希对不上 Rust，单跑必过）。判据要问的是「CLI 对不对」，
+    那就去问 CLI。
+    """
+    out = _py_run("--lang-spec")
+    assert out[2] == 0, out[1]
+    spec = json.loads(out[0])
 
     r = _rust_run("--lang-spec")
     assert r[2] == 0, r[1]
@@ -182,7 +187,7 @@ def test_独立判据_lang_spec结构与关键事实():
     d = json.loads(r[0])
 
     assert list(d) == _TOP_KEYS, f"顶层键或顺序变了：{list(d)}"
-    assert d["version"] == "0.3.3", d["version"]
+    assert d["version"] == "0.3.4", d["version"]
     assert len(d["keywords"]) == 36 and list(d["keywords"])[0] == "令"
     assert d["keywords"]["令"] == "声明/赋值变量"
     assert [b["name"] for b in d["builtins"]] == _BUILTINS
@@ -274,7 +279,7 @@ def test_独立判据_ai_card关键段():
     r = _rust_run("--ai-card")
     assert r[2] == 0 and r[1] == "", (r[2], r[1][:200])
     out = r[0]
-    assert out.startswith("# 基石（jishi）语言卡 v0.3.3（"), out[:60]
+    assert out.startswith("# 基石（jishi）语言卡 v0.3.4（"), out[:60]
     for seg in ["## 关键字（全部）", "## 内建函数", "## 标准库（先 `导入 模块名`，再用 `模块.函数(参数)`；",
                 "## 对象方法", "## 运算符", "## 语法速览", "## 惯用法示例",
                 "## 常见错误对照（写中文，别写英文）", "## 报错怎么读、怎么查（M56）"]:
