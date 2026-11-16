@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 44,
     "frontend": 1,
-    "lang": 127,
+    "lang": 129,
     "stdlib": 5
   },
   "语料": [
@@ -743,6 +743,13 @@
       "路径": "tests/cases/47_数据库_报错文案.jsh"
     },
     {
+      "id": "tests__cases__48_GBK边界",
+      "产物哈希": "sha256:544dc548a26109af",
+      "内容哈希": "sha256:faec892c14a313c6",
+      "类别": "lang",
+      "路径": "tests/cases/48_GBK边界.jsh"
+    },
+    {
       "id": "tests__error_cases__01_未定义名字",
       "产物哈希": "sha256:6c22e8e65e3d11a7",
       "内容哈希": "sha256:68b1a07032a25887",
@@ -1296,6 +1303,13 @@
       "路径": "tests/error_cases/80_异常链未捕获.jsh"
     },
     {
+      "id": "tests__error_cases__81_GBK编不出",
+      "产物哈希": "sha256:f7f5088b4836eb7d",
+      "内容哈希": "sha256:666ca77ab9486766",
+      "类别": "lang",
+      "路径": "tests/error_cases/81_GBK编不出.jsh"
+    },
+    {
       "id": "tests__frontend_cases__01_超范围整数",
       "产物哈希": "sha256:1bc52c1865ce9809",
       "内容哈希": "sha256:1561165ea3eb6425",
@@ -1303,5 +1317,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 177
+  "语料数": 179
 }

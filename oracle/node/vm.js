@@ -20,6 +20,15 @@ function gbk反查() {
     const c = _gbk表.串[i];
     if (c !== '\u0000') m.set(c, _gbk表.槽位码号(i));
   }
+  // M204：与 Rust / Python 对齐的两处补充 ——
+  //   ① 18 个「编码专用」PUA 码位（解码方向收不到，编码要认）；
+  //   ② 欧元固定编成 0x80（表里 A2E3 也解成 €，但 WHATWG 编码器只认 0x80）。
+  for (const [cp, b] of Object.entries(_gbk表.编码专用 || {})) {
+    m.set(String.fromCodePoint(parseInt(cp, 16)), parseInt(b, 16));
+  }
+  for (const [cp, b] of Object.entries(_gbk表.单字节 || {})) {
+    m.set(String.fromCodePoint(Number(cp)), b);
+  }
   _gbk反查 = m;
   return m;
 }
@@ -4465,7 +4474,9 @@ const ENCODE_FUNCS = {
         if (cp < 0x80) { 出.push(cp); continue; }   // ASCII 与 GBK 兼容
         throw R.valueErr('这段文本里有 GBK 表示不了的字符（比如表情符号）');
       }
-      出.push(码 >> 8, 码 & 0xff);
+      // M204：单字节（ASCII 走上面的分支，0x80 是欧元）不能补成两个字节
+      if (码 < 0x100) 出.push(码);
+      else 出.push(码 >> 8, 码 & 0xff);
     }
     return new R.JishiBytes(Buffer.from(出));
   }),

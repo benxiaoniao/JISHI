@@ -1,22 +1,20 @@
 # -*- coding: utf-8 -*-
-"""生成 `oracle/node/gbk_table.js` —— Node 宿主用的 **GBK 编码表**。
+"""生成 GBK 码表的三份产物（**M204 起唯一来源**）。
 
-为什么要它：Node 只有 `TextDecoder('gbk')`（**解码**），**没有**编码方向的实现
-（`new TextEncoder('gbk')` 不报错，但永远按 UTF-8 编 —— 静默错，最坏的那种）。
-而 Python / Rust 都有真 codec。
+来源：`oracle/jishi/data/gbk_whatwg.txt`（WHATWG 的 gbk，M204 从 encoding_rs 导出、
+再与「基石编码库」的独立参考实现逐条对拍过：解码 24069 / 编码 24085，0 差异）。
 
-为什么是「码位顺序串」而不是对象：直接摊成 `{"字": 0x8140, …}` 有 **305 KB**；
-按「槽位顺序」拼成一个字符串只有 **~72 KB** —— 槽位到码号是纯算术：
+产物（三份都由这一个脚本生成，**别手改**）：
 
-    槽位 i = (高字节 - 0x81) * 191 + (低字节 - 0x40)
-    码号   = ((0x81 + floor(i / 191)) << 8) | (0x40 + i % 191)
+| 文件 | 谁用 |
+|---|---|
+| `rust/src/gbk_table.rs` | Rust 宿主（替换 `encoding_rs`） |
+| `oracle/jishi/stdlib/_gbk_table.py` | Python 参考实现 |
+| `oracle/node/gbk_table.js` | Node 宿主（只缺编码方向，解码走 `TextDecoder('gbk')`） |
 
-没映射的槽位放 U+0000（GBK 里那些空档）。
-
-用法（改了才要重跑；产物签入仓库）：
+用法（改了数据才要重跑；产物签入仓库）：
     python tools/gen_gbk_table.py
 """
-
 from __future__ import annotations
 
 import io
@@ -24,13 +22,189 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "oracle" / "node" / "gbk_table.js"
+DATA = ROOT / "oracle" / "jishi" / "data" / "gbk_whatwg.txt"
+OUT_RS = ROOT / "rust" / "src" / "gbk_table.rs"
+OUT_PY = ROOT / "oracle" / "jishi" / "stdlib" / "_gbk_table.py"
+OUT_JS = ROOT / "oracle" / "node" / "gbk_table.js"
 
-高们 = range(0x81, 0xFF)      # 0x81..0xFE
-低们 = range(0x40, 0xFF)      # 0x40..0xFE（191 个）
-每行 = len(低们)
+每行 = 191  # 低字节 0x40..0xFE 共 191 个
 
-模板 = """// 由 `tools/gen_gbk_table.py` 生成，**不要手改**。
+
+def 读数据() -> tuple[str, dict[int, int], dict[int, str]]:
+    串 = None
+    单字节: dict[int, int] = {}
+    专用: dict[int, str] = {}
+    for ln in DATA.read_text(encoding="utf-8").splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#"):
+            continue
+        if ln.startswith("槽位串: "):
+            串 = ln[len("槽位串: "):]
+        elif ln.startswith("单字节: "):
+            a, b = ln[len("单字节: "):].split("=")
+            单字节[int(a, 16)] = int(b, 16)
+        elif ln.startswith("编码专用: "):
+            a, b = ln[len("编码专用: "):].split("=")
+            专用[int(a, 16)] = b.lower()
+    assert 串 is not None, "数据文件里没有「槽位串」"
+    assert len(串) == 0x7F * 每行, f"槽位串长度不对：{len(串)}"
+    return 串, 单字节, 专用
+
+
+def 查表(串: str, 码: int) -> int:
+    """码号 → 码位（0 = 没映射）。单字节走 ASCII/€，双字节走槽位。"""
+    if 码 < 0x80:
+        return 码
+    if 码 == 0x80:
+        return 0x20AC
+    hi, lo = 码 >> 8, 码 & 0xFF
+    if not (0x81 <= hi <= 0xFE and 0x40 <= lo <= 0xFE):
+        return 0
+    i = (hi - 0x81) * 每行 + (lo - 0x40)
+    return ord(串[i])
+
+
+def 建反查(串: str, 专用: dict[int, str]) -> list[tuple[int, int]]:
+    """码位 → 码号（按码位升序，给二分查找用）。
+
+    ⚠️ 同一个码位可能对应多个码号（WHATWG 的 index 里有重复行）——
+    取**第一个**（码号小的），与 encoding_rs 的编码方向一致。
+    """
+    见: dict[int, int] = {}
+    for i, c in enumerate(串):
+        if c == "\u0000":
+            continue
+        码 = ((0x81 + i // 每行) << 8) | (0x40 + i % 每行)
+        见.setdefault(ord(c), 码)
+    for cp, bs in 专用.items():
+        assert cp not in 见, f"编码专用里 {cp:04X} 与正常表冲突"
+        见[cp] = int(bs, 16)
+    见[0x20AC] = 0x80   # WHATWG 编码器把欧元固定编成 0x80（表里 A2E3 也解成 €，但编码只认 0x80）
+    return sorted(见.items())
+
+
+def 写_rs(串: str, 单字节: dict[int, int], 反查: list[tuple[int, int]]) -> None:
+    # ⚠️ 别把两张表摊成 Rust 源码：槽位 24257 + 反查 23957 条，
+    #    源码会变成 ~600 KB（编译慢、diff 没法看）。改成两个小二进制（共 ~145 KB）
+    #    用 `include_bytes!` 吃进来 —— 零解析开销，也与「数据就是数据」的直觉一致。
+    槽位表 = b"".join((ord(c)).to_bytes(2, "little") for c in 串)
+    反查表 = b"".join(cp.to_bytes(2, "little") + 码.to_bytes(2, "little")
+                       for cp, 码 in 反查)
+    (OUT_RS.parent / "gbk_slots.bin").write_bytes(槽位表)
+    (OUT_RS.parent / "gbk_rev.bin").write_bytes(反查表)
+    文 = f'''// 由 `tools/gen_gbk_table.py` 生成，**不要手改**。
+//
+// GBK 码表（WHATWG Encoding Standard 的 gbk）。数据源：
+// `oracle/jishi/data/gbk_whatwg.txt`（M204 从 encoding_rs 导出，并与
+// 「基石编码库」的独立参考实现逐条对拍：解码 24069 / 编码 24085，0 差异）。
+//
+// 为什么自带这份表（M204）：`编码.GBK文本` / `文本GBK` 是唯一的第三方依赖
+// （`encoding_rs`）用途，为两个函数背一个 crate 不划算；而且 wasm 也能少一层。
+
+/// 槽位表：每项 2 字节（小端 u16），槽位 i → 码位（0 = 没映射）。
+const 槽位原始: &[u8; {len(串) * 2}] = include_bytes!("gbk_slots.bin");
+
+/// 反查表：每项 4 字节（码位 u16 + 码号 u16，小端），按码位**升序**。
+const 反查原始: &[u8; {len(反查) * 4}] = include_bytes!("gbk_rev.bin");
+
+/// 槽位数（= 0x7F * 191）。
+pub const 槽位个数: usize = {len(串)};
+
+/// 槽位 i → 码位（U+0000 = 没映射）。槽位码号是纯算术，见 `槽位码号`。
+#[inline]
+pub fn 槽位(i: usize) -> u16 {{
+    debug_assert!(i < 槽位个数);
+    u16::from_le_bytes([槽位原始[i * 2], 槽位原始[i * 2 + 1]])
+}}
+
+/// 码位 → 码号（查不到给 0）。
+pub fn 查编码(cp: u16) -> u16 {{
+    let 条数 = {len(反查)};
+    let (mut 低, mut 高) = (0usize, 条数);
+    while 低 < 高 {{
+        let 中 = (低 + 高) / 2;
+        let 表码位 = u16::from_le_bytes([反查原始[中 * 4], 反查原始[中 * 4 + 1]]);
+        match 表码位.cmp(&cp) {{
+            core::cmp::Ordering::Less => 低 = 中 + 1,
+            core::cmp::Ordering::Greater => 高 = 中,
+            core::cmp::Ordering::Equal => {{
+                return u16::from_le_bytes([反查原始[中 * 4 + 2], 反查原始[中 * 4 + 3]]);
+            }}
+        }}
+    }}
+    0
+}}
+
+/// 槽位下标 → 码号。
+#[inline]
+pub fn 槽位码号(i: usize) -> u16 {{
+    (((0x81 + i / {每行}) as u16) << 8) | ((0x40 + i % {每行}) as u16)
+}}
+'''
+    io.open(OUT_RS, "w", encoding="utf-8", newline="\n").write(文)
+
+
+def 写_py(串: str, 单字节: dict[int, int], 反查: list[tuple[int, int]]) -> None:
+    字面 = json.dumps(串, ensure_ascii=False)
+    文 = f'''# 由 `tools/gen_gbk_table.py` 生成，**不要手改**。
+#
+# GBK 码表（WHATWG）。数据源 `oracle/jishi/data/gbk_whatwg.txt`
+# （M204 从 encoding_rs 导出 + 与「基石编码库」参考实现逐条对拍 0 差异）。
+#
+# ⚠️ 换掉 Python 自带 `gbk` codec 的理由：内置 codec 是**传统 GBK**，
+# 在 GB18030 的少数边缘码位（U+E5E5 / PUA）上与 WHATWG 不一致，
+# 而 Rust 侧以前用 encoding_rs（WHATWG）⇒ 两边本来就在这些码位上不同。
+# M204 起三端统一走这张表。
+
+每行 = {每行}
+
+槽位串 = {字面}
+
+#: 18 个「编码专用」PUA 码位 → 码号（解码方向收不到它们，编码要认）
+编码专用: dict[int, int] = {{
+{chr(10).join(f"    {cp:#06x}: {码:#06x}," for cp, 码 in 反查 if cp >= 0xE000)}
+}}
+
+#: 码位 → 码号。**首次用时才建**（24000 条，摊源码要 540 KB，建一次 ~5 ms）
+_反查: dict[int, int] | None = None
+
+
+def 反查表() -> dict[int, int]:
+    global _反查
+    if _反查 is None:
+        表 = {{}}
+        for i, c in enumerate(槽位串):
+            if c == chr(0):
+                continue
+            表.setdefault(ord(c), ((0x81 + i // 每行) << 8) | (0x40 + i % 每行))
+        表.update(编码专用)
+        表[0x20AC] = 0x80   # 与 Rust 侧同一条：欧元固定 0x80
+        _反查 = 表
+    return _反查
+
+
+def 码号到码位(码: int) -> int:
+    """码号 → 码位（0 = 没映射）。"""
+    if 码 < 0x80:
+        return 码
+    if 码 == 0x80:
+        return 0x20AC
+    高, 低 = 码 >> 8, 码 & 0xFF
+    if not (0x81 <= 高 <= 0xFE and 0x40 <= 低 <= 0xFE):
+        return 0
+    return ord(槽位串[(高 - 0x81) * 每行 + (低 - 0x40)])
+'''
+    io.open(OUT_PY, "w", encoding="utf-8", newline="\n").write(文)
+
+
+def 写_js(串: str, 单字节: dict[int, int], 反查: list[tuple[int, int]]) -> None:
+    字面 = json.dumps(串, ensure_ascii=False)
+    映射数 = sum(1 for c in 串 if c != "\u0000")
+    专用 = json.dumps({f"{cp:04x}": f"{码:04x}" for cp, 码 in 反查 if cp in
+                        {0xE78D, 0xE78E, 0xE78F, 0xE790, 0xE791, 0xE792, 0xE793,
+                         0xE794, 0xE795, 0xE796, 0xE81E, 0xE826, 0xE82B, 0xE82C,
+                         0xE832, 0xE843, 0xE854, 0xE864}}, ensure_ascii=False)
+    文 = f'''// 由 `tools/gen_gbk_table.py` 生成，**不要手改**。
 //
 // GBK 的「码位 -> 字符」表：槽位 i 对应码号
 //   ((0x81 + floor(i/191)) << 8) | (0x40 + i % 191)
@@ -38,50 +212,40 @@ OUT = ROOT / "oracle" / "node" / "gbk_table.js"
 //
 // 为什么 Node 需要它：`TextDecoder('gbk')` 只能**解**，编不了；
 // `new TextEncoder('gbk')` 不报错但永远按 UTF-8 编（静默错）。
-// Python / Rust 都有真 codec，所以只有这一份是生成的。
 //
-// 共 __映射数__ 个有效槽位 / __总数__ 个槽位。
+// 共 {映射数} 个有效槽位 / {len(串)} 个槽位。
+// 另附：单字节 `0x80 → U+20AC`（欧元）、18 个 PUA 编码专用项（解码收不到，编码要认）。
 
-const 串 = __串__;
+const 串 = {字面};
 
 /** 每档低字节 0x40..0xFE 共 191 个。 */
-const 每行 = 191;
+const 每行 = {每行};
 
 /** 槽位下标 -> GBK 双字节码号。 */
-function 槽位码号(i) {
+function 槽位码号(i) {{
   return ((0x81 + Math.floor(i / 每行)) << 8) | (0x40 + (i % 每行));
-}
+}}
 
-module.exports = { 串, 每行, 槽位码号 };
-"""
+/** 单字节：码点 -> 字节（ASCII 恒等不列）。 */
+const 单字节 = {{ 0x20ac: 0x80 }};
 
+/** 编码专用（PUA）：码点十六进制串 -> 字节十六进制串。 */
+const 编码专用 = {专用};
 
-def 建表() -> str:
-    字符们 = []
-    for 高 in 高们:
-        for 低 in 低们:
-            try:
-                c = bytes([高, 低]).decode("gbk")
-            except UnicodeDecodeError:
-                c = ""
-            # 只收「恰好一个字符」的槽位：GBK 有几位会解成两个码位（组合符），
-            # 那些进不了「字符 -> 码号」的单射表，跳过。
-            字符们.append(c if len(c) == 1 else "\u0000")
-    return "".join(字符们)
+module.exports = {{ 串, 每行, 槽位码号, 单字节, 编码专用 }};
+'''
+    io.open(OUT_JS, "w", encoding="utf-8", newline="\n").write(文)
 
 
 def main() -> int:
-    串 = 建表()
-    映射数 = sum(1 for c in 串 if c != "\u0000")
-    # json.dumps 会正确转义引号 / 反斜杠 / 控制符，直接当 JS 字符串字面量用
-    字面 = json.dumps(串, ensure_ascii=False)
-    js = (模板.replace("__映射数__", str(映射数))
-              .replace("__总数__", str(len(串)))
-              .replace("__串__", 字面))
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    io.open(OUT, "w", encoding="utf-8", newline="\n").write(js)
-    print(f"写出 {OUT.relative_to(ROOT)}（{映射数} 个有效槽位，"
-          f"{len(js.encode('utf-8')) // 1024} KB）")
+    串, 单字节, 专用 = 读数据()
+    反查 = 建反查(串, 专用)
+    写_rs(串, 单字节, 反查)
+    写_py(串, 单字节, 反查)
+    写_js(串, 单字节, 反查)
+    print(f"槽位 {len(串)}（有效 {sum(1 for c in 串 if c != chr(0))}）· 反查 {len(反查)} 条")
+    for p in (OUT_RS, OUT_PY, OUT_JS):
+        print(f"  写出 {p.relative_to(ROOT)}（{p.stat().st_size // 1024} KB）")
     return 0
 
 

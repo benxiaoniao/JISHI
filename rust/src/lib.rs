@@ -10,6 +10,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 
 mod crypto;
+mod gbk_table;   // M204：GBK 码表（生成物，见 tools/gen_gbk_table.py）
 mod http;
 mod inflate;
 pub mod json;

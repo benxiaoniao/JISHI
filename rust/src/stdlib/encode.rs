@@ -245,21 +245,20 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 )),
             }
         },
-        // 🔴 M119：GBK。**这是本项目第二个第三方依赖**（`encoding_rs`）——
-        //    GBK 是两万多个码位的映射表，手写不现实。用户 2026-10-18 拍板。
-        // ⚠️ `encoding_rs` 拿不准的字符会**换成 `&#NNNNN;` 而不报错**（`had_errors`），
-        //    所以必须查那个标志位再决定报不报错 —— 沿用「不静默给错值」的规矩。
+        // M204：GBK 改成**自带的静态表**（`gbk_table.rs` + 两个 .bin，共 ~145 KB）——
+        //   以前为这两个函数背 `encoding_rs`（本项目第二个第三方依赖，M119 引入）。
+        // ⚠️ 语义与 encoding_rs **逐条对过**：解码 24069 / 编码 24085，0 差异
+        //    （导出后拿「基石编码库」的独立参考实现又对了一遍）。
         "GBK文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("GBK文本", args, 1, 1)?;
             let bs = to_bytes("GBK文本", &args[0])?;
-            let (text, _, 有错) = encoding_rs::GBK.decode(&bs);
-            if 有错 {
-                return Err(err(
+            match gbk_解码(&bs) {
+                Some(t) => Ok(Val::Str(t.into())),
+                None => Err(err(
                     "值错误",
                     "这些字节不是合法的 GBK 文本（可能有截断，或其实是别的编码）",
-                ));
+                )),
             }
-            Ok(Val::Str(text.into_owned().into()))
         },
         "文本GBK" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("文本GBK", args, 1, 1)?;
@@ -267,14 +266,13 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 Val::Str(t) => t.clone(),
                 v => return Err(err("值错误", format!("「文本GBK」要传文本（现在是「{}」）", display(v)))),
             };
-            let (bytes, _, 有错) = encoding_rs::GBK.encode(&s);
-            if 有错 {
-                return Err(err(
+            match gbk_编码(&s) {
+                Some(b) => Ok(Val::Bytes(std::rc::Rc::new(b))),
+                None => Err(err(
                     "值错误",
                     "这段文本里有 GBK 表示不了的字符（比如表情符号）",
-                ));
+                )),
             }
-            Ok(Val::Bytes(std::rc::Rc::new(bytes.into_owned())))
         },
         "字节文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("字节文本", args, 1, 1)?;
@@ -287,4 +285,74 @@ pub(crate) fn module() -> HashMap<String, Val> {
             })
         },
     }
+}
+
+// ---------------------------------------------------------------------------
+// GBK（M204：自带码表，替代 encoding_rs）
+// ---------------------------------------------------------------------------
+
+/// GBK 解码（WHATWG gbk）。**任何非法序列都返回 `None`** —— 不静默给 U+FFFD。
+///
+/// 规则（与 encoding_rs 的 gbk 解码器逐条对齐）：
+/// * `0x00..=0x7F` → 自身；
+/// * `0x80` → `U+20AC`（欧元，WHATWG 的 gbk 特例）；
+/// * `0x81..=0xFE` + `0x40..=0xFE`（不含 `0x7F`）→ 查表，表里没有就是非法；
+/// * **四字节序列（`0x30..=0x39` 打头）在 gbk 里是非法**（那是 gb18030 的能力）；
+/// * 结尾只剩一个首字节 → 非法。
+fn gbk_解码(bs: &[u8]) -> Option<String> {
+    let mut 出 = String::with_capacity(bs.len());
+    let mut i = 0;
+    while i < bs.len() {
+        let 首 = bs[i];
+        i += 1;
+        if 首 < 0x80 {
+            出.push(首 as char);
+            continue;
+        }
+        if 首 == 0x80 {
+            出.push('\u{20AC}');
+            continue;
+        }
+        if !(0x81..=0xFE).contains(&首) || i >= bs.len() {
+            return None;
+        }
+        let 次 = bs[i];
+        i += 1;
+        if !(0x40..=0xFE).contains(&次) || 次 == 0x7F {
+            return None;
+        }
+        let 槽 = (首 as usize - 0x81) * 191 + (次 as usize - 0x40);
+        let 码位 = crate::gbk_table::槽位(槽);
+        if 码位 == 0 {
+            return None;
+        }
+        出.push(char::from_u32(码位 as u32)?);
+    }
+    Some(出)
+}
+
+/// GBK 编码（WHATWG gbk）。**编不出来返回 `None`** —— 不静默换成 `?`。
+fn gbk_编码(s: &str) -> Option<Vec<u8>> {
+    let mut 出 = Vec::with_capacity(s.len() * 2);
+    for ch in s.chars() {
+        let cp = ch as u32;
+        if cp < 0x80 {
+            出.push(cp as u8);
+            continue;
+        }
+        if cp > 0xFFFF {
+            return None;
+        }
+        let 码 = crate::gbk_table::查编码(cp as u16);
+        if 码 == 0 {
+            return None;
+        }
+        if 码 < 0x100 {
+            出.push(码 as u8);
+        } else {
+            出.push((码 >> 8) as u8);
+            出.push((码 & 0xFF) as u8);
+        }
+    }
+    Some(出)
 }

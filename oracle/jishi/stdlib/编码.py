@@ -20,6 +20,7 @@ import urllib.parse as _py_url
 
 from ..errors import RunValueError
 from ..runtime import JishiBytes
+from . import _gbk_table as _gbk
 
 __all__ = [
     "base64编码", "base64解码", "十六进制编码", "十六进制解码",
@@ -173,23 +174,61 @@ def GBK文本(值) -> str:
     """把 **GBK 编码的字节**还原成文本（国内大量老的 CSV / TXT 就是 GBK）。
 
     解不出来时**明确报错**，不返回乱码 —— 与 `字节文本` 同一个规矩。
+
+    ⚠️ **M204 起不再用 Python 自带的 `gbk` codec**：那是传统 GBK，在 GB18030 的
+    少数边缘码位（`A6 D9` → U+FE10 vs PUA、`A3 A0` → U+3000 vs U+E5E5）上与
+    WHATWG（= Rust 侧 + 浏览器）不一致。三端统一走 `_gbk_table`（生成物）。
     """
-    raw = _to_bytes(值, "GBK文本")
-    try:
-        return raw.decode("gbk")
-    except UnicodeDecodeError:
-        raise RunValueError(
-            "这些字节不是合法的 GBK 文本（可能有截断，或其实是别的编码）")
+    raw = bytes(_to_bytes(值, "GBK文本"))
+    out = []
+    i = 0
+    n = len(raw)
+    while i < n:
+        b = raw[i]
+        i += 1
+        if b < 0x80:
+            out.append(chr(b))
+            continue
+        if b == 0x80:
+            out.append("\u20ac")
+            continue
+        if not (0x81 <= b <= 0xFE) or i >= n:
+            raise RunValueError(
+                "这些字节不是合法的 GBK 文本（可能有截断，或其实是别的编码）")
+        b2 = raw[i]
+        i += 1
+        if not (0x40 <= b2 <= 0xFE) or b2 == 0x7F:
+            raise RunValueError(
+                "这些字节不是合法的 GBK 文本（可能有截断，或其实是别的编码）")
+        cp = _gbk.码号到码位((b << 8) | b2)
+        if cp == 0:
+            raise RunValueError(
+                "这些字节不是合法的 GBK 文本（可能有截断，或其实是别的编码）")
+        out.append(chr(cp))
+    return "".join(out)
 
 
 def 文本GBK(值) -> JishiBytes:
     """把文本按 **GBK** 转成字节（写给只认 GBK 的旧软件用）。
 
     ⚠️ GBK 装不下的字符（表情符号、生僻字）会**明确报错**，不静默换成 `?`。
+    ⚠️ M204 起与 Rust 侧同一张 WHATWG 表（含 `U+20AC → 0x80` 与 18 个 PUA 编码专用项）。
     """
     if not isinstance(值, str):
         raise RunValueError("「文本GBK」要传文本")
-    try:
-        return JishiBytes(值.encode("gbk"))
-    except UnicodeEncodeError:
-        raise RunValueError("这段文本里有 GBK 表示不了的字符（比如表情符号）")
+    反查 = _gbk.反查表()
+    出 = bytearray()
+    for ch in 值:
+        cp = ord(ch)
+        if cp < 0x80:
+            出.append(cp)
+            continue
+        码 = 反查.get(cp)
+        if not 码:
+            raise RunValueError("这段文本里有 GBK 表示不了的字符（比如表情符号）")
+        if 码 < 0x100:
+            出.append(码)
+        else:
+            出.append(码 >> 8)
+            出.append(码 & 0xFF)
+    return JishiBytes(bytes(出))

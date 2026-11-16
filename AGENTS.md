@@ -324,9 +324,14 @@
   Python 的 `json.loads` 与 Rust 手写 parser 都**曾经**放过它们 —— M120 全改成拒绝。
   📌 **`时间.时区偏移` 给的是偏移不是时区名**：时区名在三家宿主上口径完全不同
   （Python 本地化长名 / Node IANA 名 / Rust 拿不到），只有偏移能对拍。
-  ⚠️ **`文本GBK`（编码方向）在 Node 上要靠一张生成的码表**
-  （`oracle/node/gbk_table.js`，`python tools/gen_gbk_table.py` 生成，**签入仓库**）。
-  Node 的 `TextEncoder('gbk')` **不报错但永远按 UTF-8 编** —— 静默错，别信它。
+  ⚠️ **GBK 码表现在三端共用一份数据、三个生成物**（M204，`python tools/gen_gbk_table.py`）：
+  `oracle/jishi/data/gbk_whatwg.txt`（WHATWG 原文，25 KB 文本）→
+  `rust/src/gbk_table.rs` + `gbk_slots.bin` / `gbk_rev.bin`（Rust 侧，替代 `encoding_rs`）、
+  `oracle/jishi/stdlib/_gbk_table.py`（Python 侧，替代内置 `gbk` codec）、
+  `oracle/node/gbk_table.js`（Node 侧，`TextDecoder('gbk')` 只能解、编不了）。
+  ✅ 三端逐条对过：解码 23940 / 编码 24085，**0 差异**；语料 `tests/cases/48_GBK边界.jsh`
+  钉住欧元（U+20AC→0x80）、`A6D9`→U+FE10、18 个 PUA 只编不解。
+  ⚠️ 别信 `TextEncoder('gbk')` —— **不报错但永远按 UTF-8 编**，静默错。
   ⚠️ **`容器`/`迭代`/`统计`/`参数` 在基石库层**（`stdlib-jishi/*.jsh`）：改的是 `.jsh`，
   但 `--lang-spec` 读的是**宿主层镜像** `stdlib/容器.py` —— **两处都要加**，否则
   函数能跑、**语言卡上看不到**（M117 踩到）。

@@ -32,10 +32,11 @@ jit = []
 # R7.1-c 起：宿主自己做前端（静态检查 / 格式化 / 后面的 LSP 都要 AST）。
 # 以前前端住在 `core/`（pyo3 扩展）里，宿主用不上 —— R7.1-a 把它抽成了独立 crate。
 jishi-frontend = { path = "../frontend" }
-# M119：`编码.GBK文本` / `文本GBK` 要真的 GBK 码表。
-# **第二个第三方依赖**（用户 2026-10-18 拍板）：GBK 是两万多个码位的映射表，
-# 手写不现实；`encoding_rs` 是纯 Rust、零 unsafe、wasm 也能编（Firefox 在用同款）。
-encoding_rs = "0.8"
+# 📌 **M204 删掉了 `encoding_rs`**：GBK 改成自带的静态表
+#    （`rust/src/gbk_table.rs` + `gbk_slots.bin` / `gbk_rev.bin`，共 ~145 KB，
+#    由 `tools/gen_gbk_table_v2.py` 从 WHATWG 数据生成）。
+#    语义逐条对过：解码 23940 / 编码 24085，0 差异。
+#    ⇒ 到 0.3.5 收口时，Rust 侧第三方依赖只剩 GUI 那四件。
 # 📌 **M202b 删掉了 `rusqlite`**：`数据库` 换成纯基石实现（`stdlib-jishi/数据库.jsh`），
 #    于是① 不再要 C 编译器编 sqlite3.c；② wasm 上也能用内存库；③ 发行包小一截。
 #    取舍见 `docs/设计决策.md` D115（它推翻了 D78）。
