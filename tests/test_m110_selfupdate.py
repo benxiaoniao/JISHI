@@ -484,3 +484,49 @@ def test_升级与卸载都在CLI用法里():
     r = _跑(["--help"])
     出 = r.stdout + r.stderr
     assert "升级" in 出 and "卸载" in 出, 出
+
+
+def test_升级源里有CNB镜像且排在GitHub前面():
+    """M203 起：国内镜像 CNB 进了默认源列表（用户 2026-11-16 定）。
+
+    为什么：GitHub 在国内不稳，而 CNB 镜像同步了同一套 release（清单与资产都在）。
+    顺序 = **官网 → CNB → GitHub**：官网是我们自己发布的落点，CNB 是它的国内镜像，
+    GitHub 只作最后兜底。这三条都在源码里钉死 —— 顺序一改，国内用户的体验就变了。
+    """
+    t = (ROOT / "rust" / "src" / "selfupdate.rs").read_text(encoding="utf-8")
+    i = t.index("pub const DEFAULT_RELEASE_INDEX_URLS")
+    块 = t[i:t.index("];", i)]
+    assert "cnb.cool" in 块, "默认源里没有 CNB 镜像"
+    assert 块.index("xn--3jsy75e.cn") < 块.index("cnb.cool") < 块.index("github.com"), \
+        "顺序该是 官网 → CNB → GitHub"
+    assert "[&str; 3]" in t[i:i + 80], "源数组改成 3 条了，长度标记也要跟着改"
+
+
+def test_源可以写短名():
+    """`--源 cnb` / `--源 github` / `--源 官网` —— 用户记不住长 URL。
+
+    判据在源码层面：短名表必须把这三个都映射到真地址（映射错了就等于没有）。
+    真跑一条会打网络，CI 上不该依赖外网 ⇒ 这里只钉映射表本身。
+    """
+    t = (ROOT / "rust" / "src" / "selfupdate.rs").read_text(encoding="utf-8")
+    i = t.index("pub fn 命名源")
+    块 = t[i:i + 800]
+    assert '"cnb"' in 块 and "CNB_RELEASE_INDEX" in 块
+    assert '"github"' in 块 and "github.com" in 块
+    assert '"官网"' in 块 and "xn--3jsy75e.cn" in 块
+    # 命令行解析必须真的走这个映射（不然短名会被当成「相对路径的清单地址」）
+    j = t.index('"--源" | "--index"')
+    assert "命名源(" in t[j:j + 400], "--源 没走短名映射"
+
+
+def test_CNB资产地址靠清单目录推得出来():
+    """`资产地址们` 的第一条 = 「清单自己的目录/文件名」。
+
+    CNB 的地址形态是 `…/-/releases/latest/download/jishi-release.json`，
+    资产同目录 ⇒ `…/-/releases/latest/download/<文件>`（实测 302 到 asset.cnb.cool）。
+    这条钉住「不写死 CNB 前缀也能取到资产」这个前提 —— 不然加源就得再加一份前缀常量。
+    """
+    t = (ROOT / "rust" / "src" / "selfupdate.rs").read_text(encoding="utf-8")
+    i = t.index("fn 资产地址们")
+    块 = t[i:i + 900]
+    assert "rsplit_once('/')" in 块, "资产地址没从清单目录推 —— 离线镜像/CNB 都会断"

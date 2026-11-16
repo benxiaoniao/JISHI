@@ -54,10 +54,30 @@ pub const RELEASE_VERSION: i64 = 1;
 /// （2026-10-14 发布 v0.2.3 时踩到 —— `softprops/action-gh-release` 的源码里就写着
 /// 「GitHub can rewrite uploaded asset names」，它把原名塞回 `label`）。
 /// 以前叫 `版本.json` ⇒ 「GitHub 兜底」那条永远 404。现改 `jishi-release.json`。
-pub const DEFAULT_RELEASE_INDEX_URLS: [&str; 2] = [
+pub const DEFAULT_RELEASE_INDEX_URLS: [&str; 3] = [
     "https://xn--3jsy75e.cn/download/jishi-release.json",
+    // CNB 镜像（国内，2026-11-16 用户建；GitHub 那套 release 会同步过去）。
+    // 资产地址由「清单自己的目录」推出来 = `…/-/releases/latest/download/<文件>`，
+    // 实测可用（302 → asset.cnb.cool）。放第二位：官网是最新发布的落点，
+    // CNB 是它的国内镜像；两个都在境内，GitHub 只作最后的兜底。
+    CNB_RELEASE_INDEX,
     "https://github.com/benxiaoniao/JISHI/releases/latest/download/jishi-release.json",
 ];
+
+/// CNB 镜像的清单地址（也是 `--源 cnb` 的简写目标）。
+pub const CNB_RELEASE_INDEX: &str =
+    "https://cnb.cool/xumijiandeshanshuo/JISHI/-/releases/latest/download/jishi-release.json";
+
+/// `--源` 的短名 → 清单地址。用户记不住长 URL，`--源 cnb` 就该够。
+pub fn 命名源(名: &str) -> Option<&'static str> {
+    match 名 {
+        "cnb" | "CNB" => Some(CNB_RELEASE_INDEX),
+        "github" | "GitHub" | "gh" => Some(
+            "https://github.com/benxiaoniao/JISHI/releases/latest/download/jishi-release.json"),
+        "官网" | "站点" | "site" => Some("https://xn--3jsy75e.cn/download/jishi-release.json"),
+        _ => None,
+    }
+}
 
 /// 覆盖默认清单来源的环境变量名。
 pub const RELEASE_INDEX_ENV_VAR: &str = "JISHI_RELEASE_INDEX";
@@ -667,7 +687,8 @@ pub fn cmd_update(rest: &[String]) -> i32 {
                 Err(e) => { eprintln!("{e}"); return 2; }
             },
             "--源" | "--index" => match 取值(rest, &mut i, "--源") {
-                Ok(v) => 源们.push(v),
+                // 短名（cnb / github / 官网）→ 清单地址；其它照旧当 URL / 本地路径
+                Ok(v) => 源们.push(命名源(&v).map(|u| u.to_string()).unwrap_or(v)),
                 Err(e) => { eprintln!("{e}"); return 2; }
             },
             _ if a.starts_with('-') => { eprintln!("未知选项：{a}"); return 2; }
@@ -874,7 +895,8 @@ fn 取清单(来源们: &[String]) -> Result<(Json, String), String> {
     Err(format!(
         "读不到基石的版本清单（试了 {} 个源）：\n  {}\n\
          　· 网络不通或被代理拦了 → 检查网络后重试\n\
-         　· 想换别的清单地址 → jishi 升级 --源 <地址>（或设 JISHI_RELEASE_INDEX）\n\
+         　· 想换别的清单地址 → jishi 升级 --源 <地址>（或设 JISHI_RELEASE_INDEX）
+         　· 想指定通道 → jishi 升级 --源 cnb / github / 官网\n\
          　· 想离线升级 → 先下好发行包，再 jishi 升级 --本地包 包.zip",
         来源们.len(),
         失败.join("\n  ")))

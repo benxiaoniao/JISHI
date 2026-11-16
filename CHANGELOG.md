@@ -1,5 +1,18 @@
 ## [未发布]
 
+### M209（部分）· `jishi 升级` 多了国内通道 CNB（2026-11-16）
+
+作者把仓库镜像到了 CNB（`cnb.cool/xumijiandeshanshuo/JISHI`，GitHub 的 release 会同步过去），
+`https://` 实测可用（清单 `…/-/releases/latest/download/jishi-release.json` 会 302 到
+`asset.cnb.cool`，资产同目录可取）。
+
+- 默认源列表从 2 条变 **3 条：官网 → CNB → GitHub**（官网是我们自己发布的落点，
+  CNB 是它的国内镜像，GitHub 兜底）；
+- `--源` 认短名：`cnb` / `github` / `官网`（记不住长 URL 也能指定通道）；
+- 资产地址**不用为 CNB 再写一份前缀** —— 它本来就从「清单所在目录」推
+  （`资产地址们` 的第一条），加源只是加一个 URL。
+- 判据 3 条（`test_m110_selfupdate`）：源顺序、短名映射、资产从清单目录推。
+
 ## [0.3.4] - 2026-11-16（**能干活 + 真安装**：JIT 内联/方法调用 · 数据分析 · 数据库 · Word/PDF · 图形游戏深化 · 自研安装器 · 去 rusqlite）
 
 > 一句话主菜：**从「能跑图形」走到「能干真活」** —— 表格/统计能算报表、`数据库`
