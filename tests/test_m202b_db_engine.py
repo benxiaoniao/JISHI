@@ -17,7 +17,7 @@ import io
 import os
 import subprocess
 import sys
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import pytest
@@ -30,14 +30,24 @@ from oracle.jishi.interpreter import run_source       # noqa: E402
 
 
 def _跑(源码: str, tmp: Path) -> str:
+    """跑一段程序，返回它打到 stdout 的东西。
+
+    ⚠️ **空输出必须能自证**：以前这里只返回 stdout，程序在 CI 上悄悄出错
+    （错误走 stderr、stdout 为空）时报告只剩 `AssertionError: ''` —— 查不动。
+    现在把 stderr 也接住：有错就带着错误原文炸出来。
+    """
     buf = io.StringIO()
+    错 = io.StringIO()
     cwd = os.getcwd()
     os.chdir(tmp)
     try:
-        with redirect_stdout(buf):
+        with redirect_stdout(buf), redirect_stderr(错):
             run_source(源码, filename="测.jsh")
     finally:
         os.chdir(cwd)
+    if not buf.getvalue() and 错.getvalue():
+        raise AssertionError(f"程序没有输出，但报了错：\n{错.getvalue()}")
+    return buf.getvalue()
     return buf.getvalue()
 
 
