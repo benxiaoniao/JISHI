@@ -1,0 +1,40 @@
+题集：82 题
+语言规格指纹：b51ee558（46939 字符）
+
+=== 跑分：Qwen/Qwen3.8-27B ===
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+  [汇总] Qwen/Qwen3.8-27B：耗时 1999.5 秒，token prompt 1830245 / completion 60811；请求 121 次（重试 36），实际 4 次/分钟／上限 15
+    ⚠️ 重试占 30% —— 已经撞限流了，把 `--每分钟` 调低，或 `--并发` 调低（撞 429 退避反而更慢）
+
+报告已**插到最前**：D:\code\基石\evals\跑分表.md（历史各节保留）

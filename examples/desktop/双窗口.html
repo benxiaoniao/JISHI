@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>双窗口</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 0;
+         display: flex; flex-direction: column; height: 100vh;
+         align-items: center; justify-content: center; gap: 18px; }
+  h1 { font-size: 20px; margin: 0; }
+  #我是 { font-size: 15px; opacity: .75; }
+  #动作 { font-size: 14px; opacity: .6; min-height: 1.2em; }
+  p { margin: 0; font-size: 13px; opacity: .55; max-width: 26em; text-align: center;
+      line-height: 1.7; }
+</style>
+</head>
+<body>
+<h1>我是其中一个窗口</h1>
+<div id="我是">（窗口号还没拿到）</div>
+<div id="动作">点上面的菜单试试</div>
+<p>同一个页面文件开在两个窗口里，各自是一份独立的基石引擎实例。</p>
+
+<script>
+(async () => {
+  const 我是 = document.getElementById("我是");
+  const 动作 = document.getElementById("动作");
+
+  // 宿主在页面初始化时注入的窗口号（多窗口时用来分辨「我是谁」）
+  我是.textContent = "窗口号：" + (window.__jishiWinId === undefined ? "?" : window.__jishiWinId);
+
+  try {
+    const JishiWasm = (await import("/__jishi/jishi-wasm.js")).default || window.JishiWasm;
+    const j = await JishiWasm.load("/__jishi/jishi_wasm.wasm");
+    // ⚠️ 这段是**基石代码**（跑在 wasm 里）。`窗口.设标题` 在这里走 ABI：
+    //    宿主按「消息来自哪个 WebView」判断改谁的标题 —— 页面根本不知道自己是几号。
+    const 源码 = [
+      "导入 窗口",
+      "函数 接菜单(动作)：",
+      "    窗口.设标题(\"点了「\" + 动作 + \"」\")",
+      "窗口.当(\"菜单\", 接菜单)",
+    ].join("\n");
+    const r = j.run(源码);
+    if (!r.ok) {
+      动作.textContent = "引擎报错：" + JSON.stringify(r.error);
+    }
+  } catch (e) {
+    动作.textContent = "引擎起不来：" + String((e && e.message) || e);
+  }
+})();
+</script>
+</body>
+</html>

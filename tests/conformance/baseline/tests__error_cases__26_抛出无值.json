@@ -1,0 +1,50 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": [
+      1,
+      2
+    ],
+    "修正": null,
+    "列": 1,
+    "提示": null,
+    "标题": "这里出现了意外的内容",
+    "消息": "「抛出」后面要写一个值（比如 抛出 值错误(\"说明\")）",
+    "渲染": "错误 E0201：这里出现了意外的内容（「抛出」后面要写一个值（比如 抛出 值错误(\"说明\")））\n  ┌─ tests/error_cases/26_抛出无值.jsh:1:1\n  │\n  1 │ 抛出\n    │ ~^\n  │",
+    "码": "E0201",
+    "行": 1,
+    "阶段": "语法"
+  },
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 1,
+      "source_line": "抛出",
+      "type": "KEYWORD",
+      "value": "抛出",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "抛出",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:bcf1e7c7a6b84144",
+  "语料": "tests/error_cases/26_抛出无值.jsh"
+}
