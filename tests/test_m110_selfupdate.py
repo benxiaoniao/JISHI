@@ -490,15 +490,17 @@ def test_升级源里有CNB镜像且排在GitHub前面():
     """M203 起：国内镜像 CNB 进了默认源列表（用户 2026-11-16 定）。
 
     为什么：GitHub 在国内不稳，而 CNB 镜像同步了同一套 release（清单与资产都在）。
-    顺序 = **官网 → CNB → GitHub**：官网是我们自己发布的落点，CNB 是它的国内镜像，
-    GitHub 只作最后兜底。这三条都在源码里钉死 —— 顺序一改，国内用户的体验就变了。
+    顺序 = **CNB → GitHub → 官网**（2026-11-16 用户第二次定）：
+    CNB 在境内、带宽够，排第一；GitHub 与我们发布流程同源，排第二；
+    **官网那台服务器流量要省着用**，只作最后兜底 —— 顺序一改，官网就可能被
+    升级请求打满，这条判据就是为了拦住那种改动。
     """
     t = (ROOT / "rust" / "src" / "selfupdate.rs").read_text(encoding="utf-8")
     i = t.index("pub const DEFAULT_RELEASE_INDEX_URLS")
     块 = t[i:t.index("];", i)]
     assert "cnb.cool" in 块, "默认源里没有 CNB 镜像"
-    assert 块.index("xn--3jsy75e.cn") < 块.index("cnb.cool") < 块.index("github.com"), \
-        "顺序该是 官网 → CNB → GitHub"
+    assert 块.index("cnb.cool") < 块.index("github.com") < 块.index("xn--3jsy75e.cn"), \
+        "顺序该是 CNB → GitHub → 官网（官网流量有限，只作兜底）"
     assert "[&str; 3]" in t[i:i + 80], "源数组改成 3 条了，长度标记也要跟着改"
 
 

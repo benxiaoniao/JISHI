@@ -493,6 +493,32 @@ fn main() -> ExitCode {
     if args[1] == "调试" || args[1] == "--debug" {
         return ExitCode::from(jishi_ffi::debugger::run_debug(&args[2..]) as u8);
     }
+    // M205：PNG 解码自检（`jishi --png信息 文件`）—— 给判据用，也给人用
+    // （「这个图标为什么设不上」时，先看它能不能解、解出来多大）。
+    // 输出 JSON：宽 / 高 / RGBA 的 SHA-256（判据拿它逐字节对拍 PIL 的结果）。
+    if args[1] == "--png信息" || args[1] == "--png-info" {
+        let Some(路) = args.get(2) else {
+            eprintln!("用法：jishi --png信息 <文件.png>");
+            return ExitCode::from(2);
+        };
+        let 字节 = match std::fs::read(路) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("读不到「{路}」：{e}");
+                return ExitCode::from(2);
+            }
+        };
+        match jishi_ffi::pngdec::解码摘要(&字节, 路) {
+            Ok((宽, 高, 摘要)) => {
+                println!("{{\"宽\": {宽}, \"高\": {高}, \"rgba_sha256\": \"{摘要}\"}}");
+                return ExitCode::SUCCESS;
+            }
+            Err(m) => {
+                eprintln!("{m}");
+                return ExitCode::from(2);
+            }
+        }
+    }
     if args[1] == "--mcp-spawn-probe" {
         return spawn_probe();
     }

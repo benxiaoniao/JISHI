@@ -302,10 +302,18 @@ def test_示例真的能起服务并回应(tmp_path):
         状态, 正文 = _取(端口, "/没有这个路径")
         assert 状态 == 404 and "没有这一页" in 正文, (状态, 正文)
         # 示例设的是「服务 10 个请求就退」：把剩下的补齐，让它自然结束
+        #
+        # 🔴 这里**必须容忍连不上**（2026-11-17 踩）：配额是 10，而上面已经打了 4 条，
+        #    下面这条循环最多再打 10 条 —— 第 7 条左右服务正好退掉，
+        #    `_取` 就会抛 `URLError(10061)`。本意是「陪它跑完」，
+        #    不是「每一条都必须连上」；真连不上就说明它已经退了，直接跳出。
         for _ in range(10):
             if proc.poll() is not None:
                 break
-            _取(端口, "/")
+            try:
+                _取(端口, "/")
+            except Exception:
+                break
         out, err = proc.communicate(timeout=20)
     finally:
         if proc.poll() is None:

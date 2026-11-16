@@ -55,13 +55,16 @@ pub const RELEASE_VERSION: i64 = 1;
 /// 「GitHub can rewrite uploaded asset names」，它把原名塞回 `label`）。
 /// 以前叫 `版本.json` ⇒ 「GitHub 兜底」那条永远 404。现改 `jishi-release.json`。
 pub const DEFAULT_RELEASE_INDEX_URLS: [&str; 3] = [
-    "https://xn--3jsy75e.cn/download/jishi-release.json",
-    // CNB 镜像（国内，2026-11-16 用户建；GitHub 那套 release 会同步过去）。
-    // 资产地址由「清单自己的目录」推出来 = `…/-/releases/latest/download/<文件>`，
-    // 实测可用（302 → asset.cnb.cool）。放第二位：官网是最新发布的落点，
-    // CNB 是它的国内镜像；两个都在境内，GitHub 只作最后的兜底。
+    // ① CNB 镜像（国内，2026-11-16 用户建；GitHub 那套 release 会同步过去）。
+    //    资产地址由「清单自己的目录」推出来 = `…/-/releases/latest/download/<文件>`，
+    //    实测可用（302 → asset.cnb.cool）。
+    //    🔴 **排第一**（用户 2026-11-16 定）：官网那台服务器的**流量要省着用**
+    //    —— 大多数升级请求从这里就满足了，官网只当兜底。
     CNB_RELEASE_INDEX,
+    // ② GitHub：与我们发布流程同源，但国内不稳。
     "https://github.com/benxiaoniao/JISHI/releases/latest/download/jishi-release.json",
+    // ③ 官网：最后兜底（流量有限，能不碰就不碰）。
+    "https://xn--3jsy75e.cn/download/jishi-release.json",
 ];
 
 /// CNB 镜像的清单地址（也是 `--源 cnb` 的简写目标）。

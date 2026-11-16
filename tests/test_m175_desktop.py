@@ -89,13 +89,17 @@ def test_八个新函数三宿主都在():
 
 
 def test_新依赖是可选特性wasm躲得开():
-    """`muda` / `tray-icon` / `rfd` / `png` 必须 optional 且挂在 native-window 下。
+    """`muda` / `tray-icon` / `rfd` 必须 optional 且挂在 native-window 下。
 
     这条是防「以后有人把 GUI 依赖弄成硬依赖」—— 那会让 **wasm 直接编不过**
     （`wasm/Cargo.toml` 用的是 `default-features = false`，只能躲开可选特性）。
+
+    📌 M205 之后 `png` **不在这个名单里了** —— 我们自己解 PNG，它已不是直接依赖
+    （仍作为 `muda` / `tray-icon` 的传递依赖存在，Windows 上不编）。所以这里反过来
+    钉一句：**`png` 不许再回到 Cargo.toml**。
     """
     cargo = (ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8")
-    for 名 in ("muda", "tray-icon", "rfd", "png"):
+    for 名 in ("muda", "tray-icon", "rfd"):
         片段 = [ln for ln in cargo.splitlines() if ln.startswith(f"{名} =")]
         assert 片段, f"Cargo.toml 里没有 `{名}`"
         断言 = 片段[0]
@@ -103,7 +107,10 @@ def test_新依赖是可选特性wasm躲得开():
         assert f'"dep:{名}"' not in cargo.split("native-window = ")[0].split("default = ")[1]
 
     assert '"dep:muda"' in cargo and '"dep:tray-icon"' in cargo, "native-window 特性没带上菜单/托盘"
-    assert '"dep:rfd"' in cargo and '"dep:png"' in cargo, "native-window 特性没带上对话框/图标解码"
+    assert '"dep:rfd"' in cargo, "native-window 特性没带上对话框"
+    assert not [ln for ln in cargo.splitlines() if ln.strip().startswith("png")], \
+        "`png` 又回到依赖里了 —— M205 已经换成自己的 pngdec"
+    assert '"dep:png"' not in cargo, "native-window 特性里还挂着 dep:png"
 
     wasm = (ROOT / "wasm" / "Cargo.toml").read_text(encoding="utf-8")
     assert "default-features = false" in wasm, "wasm 必须关掉默认特性，否则会去编 sqlite/GUI"

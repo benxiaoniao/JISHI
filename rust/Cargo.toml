@@ -13,7 +13,7 @@ default = ["native-window", "jit"]
 # `dep:gtk` 只声明在 Linux 目标段里 —— 在 Windows/macOS 上它是空操作（Cargo 按目标
 # 解析可选依赖），不会去编 gtk。
 native-window = [
-    "dep:wry", "dep:tao", "dep:muda", "dep:tray-icon", "dep:rfd", "dep:png", "dep:gtk",
+    "dep:wry", "dep:tao", "dep:muda", "dep:tray-icon", "dep:rfd", "dep:gtk",
 ]
 # **wasm 的 playground 专用**：给 VM 加「步数预算」（防死循环，见 `lib.rs` 的
 # `budget_tick`）。⚠️ **默认关** —— 开了它指令循环的回跳处会多一次判断，
@@ -64,7 +64,6 @@ tao = { version = "0.34", optional = true }
 #      · `muda`        菜单栏 / 右键菜单（Win32 HMENU · NSMenu · GTK）
 #      · `tray-icon`   托盘（Shell_NotifyIcon · NSStatusItem · libayatana-appindicator）
 #      · `rfd`         文件对话框（IFileDialog · NSOpenPanel · GTK）
-#      · `png`         托盘图标解码（纯 Rust，只有几千行；不解码就得让用户传 RGBA）
 #
 # ⚠️ 代价实测：crate 数 302 → **348**（+46）、冷构建 +28 秒。
 #
@@ -76,7 +75,9 @@ tao = { version = "0.34", optional = true }
 #      里**显式**开，而不是指望 tray-icon 替我们开（那属于「蹭别人的特性」）。
 muda = { version = "0.17", default-features = false, optional = true }
 tray-icon = { version = "0.21", default-features = false, optional = true }
-png = { version = "0.17", optional = true }
+# 📌 **M205 删掉了 `png`**（托盘 / 窗口图标的解码）：`rust/src/pngdec.rs` 自己解，
+#    复用 `inflate` 的 DEFLATE。支持灰度/RGB/调色板/灰度+α/RGBA、1/2/4/8/16 位、
+#    五种过滤器、Adam7 隔行 —— 判据拿 PIL 生成的样例逐字节对拍 RGBA。
 # 🔴 `rfd` 必须 `default-features = false`：它的默认特性 `xdg-portal` 会拉
 #    `ashpd` + `zbus`（一整套异步 D-Bus，几十个 crate）。Linux 改走 `gtk3` ——
 #    而 GTK3 本来就在（webkit2gtk 依赖它），等于零成本。见下方 `[target.'cfg(...)']`。

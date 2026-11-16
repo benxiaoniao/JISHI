@@ -157,10 +157,13 @@ fn fixed_tables() -> (Huff, Huff) {
     )
 }
 
-fn codes(b: &mut Bits, lit: &Huff, dist: &Huff, out: &mut Vec<u8>) -> Result<(), String> {
+fn codes(b: &mut Bits, lit: &Huff, dist: &Huff, out: &mut Vec<u8>, 上限: usize) -> Result<(), String> {
     loop {
         let sym = lit.decode(b)?;
         if sym < 256 {
+            if out.len() >= 上限 {
+                return Err("解压出来的数据超过上限".to_string());
+            }
             out.push(sym as u8);
             continue;
         }
@@ -180,6 +183,9 @@ fn codes(b: &mut Bits, lit: &Huff, dist: &Huff, out: &mut Vec<u8>) -> Result<(),
         if d > out.len() {
             return Err("回溯距离超过了已有数据".to_string());
         }
+        if out.len() + len > 上限 {
+            return Err("解压出来的数据超过上限".to_string());
+        }
         // 逐字节复制：`d` 可能小于 `len`（自重叠），不能用切片一次性拷
         let start = out.len() - d;
         for k in 0..len {
@@ -190,7 +196,7 @@ fn codes(b: &mut Bits, lit: &Huff, dist: &Huff, out: &mut Vec<u8>) -> Result<(),
 }
 
 /// 动态霍夫曼：先读码长表，再按 3 位一组展开。
-fn dynamic(b: &mut Bits, out: &mut Vec<u8>) -> Result<(), String> {
+fn dynamic(b: &mut Bits, out: &mut Vec<u8>, 上限: usize) -> Result<(), String> {
     const ORDER: [usize; 19] = [
         16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
     ];
@@ -243,11 +249,20 @@ fn dynamic(b: &mut Bits, out: &mut Vec<u8>) -> Result<(), String> {
     }
     let lit = Huff::build(&lengths[..hlit])?;
     let dist = Huff::build(&lengths[hlit..])?;
-    codes(b, &lit, &dist, out)
+    codes(b, &lit, &dist, out, 上限)
 }
 
 /// 解压一段**裸** deflate 数据（没有 zlib 的两字节头）。
 pub(crate) fn inflate_raw(data: &[u8]) -> Result<Vec<u8>, String> {
+    inflate_raw_至多(data, usize::MAX)
+}
+
+/// 同 `inflate_raw`，但解出来超过 `上限` 就**当场报错**（防解压炸弹）。
+///
+/// 为什么要有：PNG 的 IDAT 是压缩数据，一张 100 KB 的「图标」可以解出几十 GB
+/// （压缩比一千倍很平常）。M205 自己解 PNG 之后，这条防线得有 —— 上限由调用方
+/// 按 IHDR 算出的**精确大小**给出，超一个字节都是坏文件。
+pub(crate) fn inflate_raw_至多(data: &[u8], 上限: usize) -> Result<Vec<u8>, String> {
     let mut b = Bits::new(data);
     let mut out: Vec<u8> = Vec::new();
     loop {
@@ -258,15 +273,18 @@ pub(crate) fn inflate_raw(data: &[u8]) -> Result<Vec<u8>, String> {
                 b.align();
                 let len = b.bits(16)? as usize;
                 let _nlen = b.bits(16)?;
+                if out.len() + len > 上限 {
+                    return Err("解压出来的数据超过上限".to_string());
+                }
                 for _ in 0..len {
                     out.push(b.bits(8)? as u8);
                 }
             }
             1 => {
                 let (lit, dist) = fixed_tables();
-                codes(&mut b, &lit, &dist, &mut out)?;
+                codes(&mut b, &lit, &dist, &mut out, 上限)?;
             }
-            2 => dynamic(&mut b, &mut out)?,
+            2 => dynamic(&mut b, &mut out, 上限)?,
             _ => return Err("压缩块类型 3 是保留值".to_string()),
         }
         if last == 1 {

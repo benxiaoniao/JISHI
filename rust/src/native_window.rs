@@ -754,28 +754,17 @@ pub fn 读几何(窗号: u64) -> Option<几何> {
     })
 }
 
-/// 设窗口图标（`.png`）。解码用 `png` crate —— 它本来就是依赖（托盘图标在用）。
+/// 设窗口图标（`.png`）。解码走**自己的** `pngdec`（M205：`png` crate 已删）。
 ///
-/// ⚠️ **只收 8 位 RGBA** 的 PNG：`Icon::from_rgba` 要的就是这个格式，
-/// 别的位深/色彩类型要转换，这一版不做（宁可报一句清楚的话）。
+/// 以前只收 8 位 RGBA；M205 的解码器**统一出 8 位 RGBA**（灰度 / 调色板 /
+/// 16 位都在里面转好），所以现在**任何合法的 PNG 都能当图标** ——
+/// 报错只剩「文件坏了 / 格式不支持」这一类。
 pub fn 设图标(窗号: u64, 路径: &str) -> Result<bool, String> {
     let 数据 = std::fs::read(路径).map_err(|e| format!("读不到图标文件「{路径}」：{e}"))?;
-    let mut 读 = png::Decoder::new(std::io::Cursor::new(&数据))
-        .read_info()
-        .map_err(|e| format!("「{路径}」不是能读的 PNG：{e}"))?;
-    let mut 缓 = vec![0u8; 读.output_buffer_size()];
-    let 信息 = 读
-        .next_frame(&mut 缓)
-        .map_err(|e| format!("「{路径}」解不开：{e}"))?;
-    if 信息.color_type != png::ColorType::Rgba || 信息.bit_depth != png::BitDepth::Eight {
-        return Err(format!(
-            "「{路径}」的像素格式是 {:?}/{:?} —— 窗口图标只收 **8 位 RGBA** 的 PNG",
-            信息.color_type, 信息.bit_depth
-        ));
-    }
-    let 图 = tao::window::Icon::from_rgba(缓, 信息.width, 信息.height)
+    let 图 = crate::pngdec::解码(&数据, 路径)?;
+    let 图标 = tao::window::Icon::from_rgba(图.rgba, 图.宽, 图.高)
         .map_err(|e| format!("这个 PNG 当不了窗口图标：{e}"))?;
-    Ok(对窗口(窗号, |窗| 窗.set_window_icon(Some(图))).is_some())
+    Ok(对窗口(窗号, |窗| 窗.set_window_icon(Some(图标))).is_some())
 }
 
 /// 解析页面发来的命令（JSON：`{"op":"标题","arg":"已改名"}`）。
@@ -1309,41 +1298,12 @@ fn 内置图标() -> tray_icon::Icon {
 /// 读一张 PNG 当托盘图标。
 ///
 /// 只收 PNG：ICO/BMP/JPEG 各有各的坑，而 PNG 是唯一「一个解码器就能覆盖、
-/// 且带透明通道」的格式。`png` crate 只有几千行、纯 Rust。
+/// 且带透明通道」的格式。解码器是我们自己的（`pngdec`，M205）——
+/// 调色板 / 灰度 / 16 位 / 隔行都在里面转成 RGBA8，这里只管交给托盘。
 fn 读图标(路径: &str) -> Result<tray_icon::Icon, String> {
     let 字节 = std::fs::read(路径).map_err(|e| format!("读不到托盘图标「{路径}」：{e}"))?;
-    let mut 解码 = png::Decoder::new(&字节[..]);
-    // 把调色板/透明色/16 位统一成 8 位的 RGB(A) —— 后面就只用管四种颜色类型。
-    解码.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
-    let mut 读 = 解码
-        .read_info()
-        .map_err(|e| format!("「{路径}」不是合法 PNG：{e}"))?;
-    let mut 缓 = vec![0u8; 读.output_buffer_size()];
-    let 信 = 读
-        .next_frame(&mut 缓)
-        .map_err(|e| format!("「{路径}」解不开：{e}"))?;
-    let 原 = &缓[..信.buffer_size()];
-    let mut rgba: Vec<u8> = Vec::with_capacity((信.width * 信.height * 4) as usize);
-    match 信.color_type {
-        png::ColorType::Rgba => rgba.extend_from_slice(原),
-        png::ColorType::Rgb => {
-            for c in 原.chunks_exact(3) {
-                rgba.extend_from_slice(&[c[0], c[1], c[2], 255]);
-            }
-        }
-        png::ColorType::GrayscaleAlpha => {
-            for c in 原.chunks_exact(2) {
-                rgba.extend_from_slice(&[c[0], c[0], c[0], c[1]]);
-            }
-        }
-        png::ColorType::Grayscale => {
-            for c in 原 {
-                rgba.extend_from_slice(&[*c, *c, *c, 255]);
-            }
-        }
-        other => return Err(format!("「{路径}」的颜色类型 {other:?} 支持不了，换成普通 PNG")),
-    }
-    tray_icon::Icon::from_rgba(rgba, 信.width, 信.height)
+    let 图 = crate::pngdec::解码(&字节, 路径)?;
+    tray_icon::Icon::from_rgba(图.rgba, 图.宽, 图.高)
         .map_err(|e| format!("「{路径}」转不成托盘图标：{e}"))
 }
 
