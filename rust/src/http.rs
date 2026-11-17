@@ -1010,16 +1010,16 @@ mod client {
         let 名 = url.文本();
         let mut 收 = 收集器::新建(opt, &headers)
             .map_err(|m| err("运行期错误", format!("「{名}」{m}")))?;
-        if !余.is_empty() {
-            收.写(&余).map_err(|m| err("运行期错误", format!("「{名}」{m}")))?;
-        }
 
         // ---- 响应体：chunked / 定长 / 读到关闭 ----
         let 分块 = 头值(&headers, "transfer-encoding")
             .map(|v| v.to_ascii_lowercase().contains("chunked"))
             .unwrap_or(false);
         if 分块 {
-            let mut 解析 = 分块器::新建(流);
+            // 🔴 `余` 是「读头时多读进来的字节」，它属于**分块流**，得交给分块器
+            //    —— 不能当正文写进收集器（那会把 chunk 头混进正文；CI 上
+            //    example.com 的 gzip 正文就是这样变成「gzip 头不合法」的）。
+            let mut 解析 = 分块器::新建(流, 余);
             loop {
                 match 解析
                     .下一块()
@@ -1034,6 +1034,9 @@ mod client {
         } else if let Some(n) = 头值(&headers, "content-length")
             .and_then(|s| s.trim().parse::<usize>().ok())
         {
+            if !余.is_empty() {
+                收.写(&余).map_err(|m| err("运行期错误", format!("「{名}」{m}")))?;
+            }
             let mut 剩 = n.saturating_sub(收.已写);
             let mut buf = [0u8; 64 * 1024];
             while 剩 > 0 {
@@ -1049,6 +1052,9 @@ mod client {
                 剩 -= k;
             }
         } else {
+            if !余.is_empty() {
+                收.写(&余).map_err(|m| err("运行期错误", format!("「{名}」{m}")))?;
+            }
             let mut buf = [0u8; 64 * 1024];
             loop {
                 let k = 流
@@ -1144,8 +1150,9 @@ mod client {
     }
 
     impl<R: Read> 分块器<R> {
-        fn 新建(源: R) -> Self {
-            分块器 { 源, 缓: Vec::new(), 完: false }
+        /// `预读` 是「读响应头时多读进来的字节」—— 它已经是分块流的一部分。
+        fn 新建(源: R, 预读: Vec<u8>) -> Self {
+            分块器 { 源, 缓: 预读, 完: false }
         }
 
         fn 填(&mut self) -> std::io::Result<bool> {

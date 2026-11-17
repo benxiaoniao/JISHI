@@ -468,3 +468,73 @@ def test_Rust宿主的TLS也认JISHI_TLS_CA(tls端口, tmp_path):
                        capture_output=True, text=True, encoding="utf-8", env=环境)
     assert r.returncode == 0, (r.stderr or "")[:800]
     assert out_line(r.stdout) == "好了", r.stdout + (r.stderr or "")
+
+
+# ---------------------------------------------------------------------------
+# 十一、分块响应的「预读字节」（CI 上抓到的真 bug）
+# ---------------------------------------------------------------------------
+
+def _一次性服务(响应: bytes):
+    """起一个**一次性**的裸 socket 服务：accept 后把整段响应**一次 sendall**。
+
+    为什么要裸 socket：`http.server` 会把头与正文分开 flush，测不到
+    「读响应头时把正文也读进来了」这种情形 —— 而那正是 CI 上 example.com
+    报「gzip 头不合法」的根因（分块流的前几个字节被当正文吞了）。
+    """
+    srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    端口 = srv.getsockname()[1]
+
+    def 跑():
+        try:
+            c, _ = srv.accept()
+            with c:
+                c.recv(4096)
+                c.sendall(响应)
+        except OSError:
+            pass
+        finally:
+            srv.close()
+
+    threading.Thread(target=跑, daemon=True).start()
+    return 端口
+
+
+@pytest.mark.skipif(not RUST_EXE.is_file(), reason="发行版没编")
+def test_分块响应与头一起到达也不错位():
+    """分块响应 + 头和正文**同一次 send** ⇒ 正文不能错位（CI 抓到的真 bug）。"""
+    体 = b"5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n"
+    响应 = (b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n"
+            b"Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n" + 体)
+    端口 = _一次性服务(响应)
+    bc = tmp_bc_path(ROOT / "_tmp_m206_chunk.json")
+    from oracle.jishi.compiler import compile_source
+    源 = f'导入 网络\n打印(网络.获取("http://127.0.0.1:{端口}/"))\n'
+    bc.write_text(serialize.dumps(compile_source(源, "<t>")), encoding="utf-8")
+    r = subprocess.run([str(RUST_EXE), "--load-bytecode", str(bc)],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, (r.stderr or "")[:500]
+    assert out_line(r.stdout) == "hello world", r.stdout + (r.stderr or "")
+
+
+@pytest.mark.skipif(not RUST_EXE.is_file(), reason="发行版没编")
+def test_分块加gzip一起也能解():
+    """分块 + gzip 同时出现（真实 CDN 常态）：解出来必须是原文。"""
+    原 = "压缩过的正文也要按块传".encode("utf-8") * 20
+    压 = gzip.compress(原)
+    块们 = b"".join(b"%x\r\n" % len(压[i:i + 40]) + 压[i:i + 40] + b"\r\n"
+                   for i in range(0, len(压), 40)) + b"0\r\n\r\n"
+    响应 = (b"HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n"
+            b"Content-Type: text/plain\r\nTransfer-Encoding: chunked\r\n"
+            b"Connection: close\r\n\r\n" + 块们)
+    端口 = _一次性服务(响应)
+    bc = tmp_bc_path(ROOT / "_tmp_m206_chunkgz.json")
+    from oracle.jishi.compiler import compile_source
+    源 = f'导入 网络\n打印(长度(网络.获取("http://127.0.0.1:{端口}/")))\n'
+    bc.write_text(serialize.dumps(compile_source(源, "<t>")), encoding="utf-8")
+    r = subprocess.run([str(RUST_EXE), "--load-bytecode", str(bc)],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, (r.stderr or "")[:500]
+    assert out_line(r.stdout) == str(len(原.decode("utf-8"))), r.stdout + (r.stderr or "")
