@@ -670,8 +670,11 @@ fn 取值(rest: &[String], i: &mut usize, key: &str) -> Result<String, String> {
 }
 
 /// `jishi 升级 [--演练] [--源 <地址>] [--本地包 <文件>] [--版本 <版本>]`
+/// `jishi 升级 --看源 [--探] [--源 <地址>]` —— 只看源（不升级）
 pub fn cmd_update(rest: &[String]) -> i32 {
     let mut 演练 = false;
+    let mut 看源 = false;
+    let mut 探 = false;
     let mut 本地包: Option<String> = None;
     let mut 版本参数: Option<String> = None;
     let mut 源们: Vec<String> = Vec::new();
@@ -681,6 +684,9 @@ pub fn cmd_update(rest: &[String]) -> i32 {
         let key = a.split('=').next().unwrap_or("").to_string();
         match key.as_str() {
             "--演练" | "--dry-run" => 演练 = true,
+            "--看源" | "--sources" => 看源 = true,
+            // `--探` 只跟 `--看源` 一起用：真去取一遍清单，看谁通、字节一不一致
+            "--探" | "--probe" => 探 = true,
             "--本地包" | "--local" => match 取值(rest, &mut i, "--本地包") {
                 Ok(v) => 本地包 = Some(v),
                 Err(e) => { eprintln!("{e}"); return 2; }
@@ -700,6 +706,10 @@ pub fn cmd_update(rest: &[String]) -> i32 {
         i += 1;
     }
     let 来源们 = if 源们.is_empty() { 清单来源() } else { 源们 };
+
+    if 看源 {
+        return 列源(&来源们, 探);
+    }
 
     let 态 = 安装形态();
     let 本版 = 本机版本(&态);
@@ -882,6 +892,119 @@ fn 安装(
             }
         }
     }
+}
+
+/// 地址 → 短名（`命名源` 的反查）。给 `--看源` 用；认不出就给 `—`。
+///
+/// ⚠️ 要比对的是**去掉 `?t=` 的裸地址**：`清单来源()` 给 http(s) 地址带了防缓存
+/// 时间戳（见那条注释），按全串比会一个都对不上（M209 第一版就栽在这儿：
+/// 三个源全显示成「自定义源」）。
+fn 短名(地址: &str) -> &'static str {
+    let 裸 = 地址.split('?').next().unwrap_or(地址);
+    if 裸 == CNB_RELEASE_INDEX {
+        "cnb"
+    } else if 裸.contains("github.com/benxiaoniao/JISHI") {
+        "github"
+    } else if 裸.contains("xn--3jsy75e.cn") {
+        "官网"
+    } else {
+        "—"
+    }
+}
+
+/// 短名的「一句话定位」（只在 `--看源` 的表里出现）。
+fn 源说明(名: &str) -> &'static str {
+    match 名 {
+        "cnb" => "国内镜像（默认首选：带宽足、境内快）",
+        "github" => "与发布流程同源，国内不稳",
+        "官网" => "最后兜底（服务器流量有限，能不碰就不碰）",
+        _ => "自定义源",
+    }
+}
+
+/// `jishi 升级 --看源 [--探]` —— 把「取清单的顺序」摆出来。
+///
+/// 为什么要有这条：源顺序是**行为契约**（改一下全国用户的升级路径就变了），
+/// 而它藏在代码常量里，用户和排查的人看不见。摆出来之后，
+/// 「为什么我这儿升级慢」「到底先连谁」都能一眼答。
+///
+/// `探` 会**真去取一遍**（只取清单，不下载包），再比几份的字节数 / SHA256 ——
+/// 镜像同步漏了（CNB 还是上一版）当场就能看见。
+fn 列源(来源们: &[String], 探: bool) -> i32 {
+    println!("== 基石 jishi 升级 · 源列表 ==");
+    println!("  取清单顺序 = 从上到下，前一个失败自动试下一个：");
+    for (i, u) in 来源们.iter().enumerate() {
+        let 名 = 短名(u);
+        let 裸 = u.split('?').next().unwrap_or(u);
+        println!("  {}. {:<6} {}", i + 1, 名, 裸);
+        println!("     └ {}", 源说明(名));
+    }
+    if !探 {
+        println!();
+        println!("  加 `--探` 会真去取一遍清单（只看，不下载包）");
+        return 0;
+    }
+
+    println!();
+    let mut 摘要们: Vec<(String, usize, String, String)> = Vec::new();
+    let mut 坏 = 0;
+    for (i, u) in 来源们.iter().enumerate() {
+        match crate::packages::read_index_text(u) {
+            Ok(t) => {
+                let 和 = crate::crypto::sha256_hex(t.as_bytes());
+                let 前 = 和.chars().take(12).collect::<String>();
+                // 清单里那句「最新」才是升级真正用的东西 —— 也一起打出来
+                let 最新 = match parse_manifest(&t) {
+                    Ok(m) => to_text(m.get("最新").unwrap_or(&Json::Null)),
+                    Err(e) => {
+                        坏 += 1;
+                        println!("  {}. {:<6} 取到了，但不是合法清单：{e}", i + 1, 短名(u));
+                        continue;
+                    }
+                };
+                println!(
+                    "  {}. {:<6} 可取（{} 字节， sha256 {前}…， 最新 {最新}）",
+                    i + 1,
+                    短名(u),
+                    t.len()
+                );
+                摘要们.push((u.clone(), t.len(), 和, 最新));
+            }
+            Err(e) => {
+                坏 += 1;
+                println!("  {}. {:<6} 取不到：{e}", i + 1, 短名(u));
+            }
+        }
+    }
+    if 摘要们.len() >= 2 {
+        // 🔴 判「一不一致」的口径（2026-11-17 实测定，见 CHANGELOG M209）：
+        //    三份**整份**不一定相同 —— 官网留了全部历史版本（12 个），
+        //    镜像是发布资产（只带最新那一版）。对升级来说只要「最新」与
+        //    「那一版的记录」一致，历史留档多少不影响。
+        //    所以这里比 **最新版本号**；整份逐字节相同的再额外说一句。
+        let 首 = &摘要们[0].3;
+        let 版本同 = 摘要们.iter().all(|(_, _, _, v)| v == 首);
+        let 整份同 = 摘要们.iter().all(|(_, _, h, _)| h == &摘要们[0].2);
+        if 整份同 {
+            println!("  逐字节一致：是（{} 份完全相同）", 摘要们.len());
+        } else if 版本同 {
+            println!(
+                "  最新版本：三份都是 {首}（整份字节不同 —— 历史留档数量不一样，不影响升级）"
+            );
+        } else {
+            println!("  ⚠️ 最新版本**不一致** —— 镜像没同步到同一版：");
+            for (u, n, _, v) in &摘要们 {
+                println!("      {:<6} 最新 {v}（{n} 字节）", 短名(u));
+            }
+            println!("  　· 发版时跑 `python tools/check_mirrors.py` 会把三份摆在一起比");
+            return 1;
+        }
+    }
+    if 坏 == 来源们.len() {
+        println!("  全部取不到 —— 检查网络 / 代理；或 `--源 <地址>` 指一个本地文件试试");
+        return 1;
+    }
+    0
 }
 
 fn 取清单(来源们: &[String]) -> Result<(Json, String), String> {
