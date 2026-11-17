@@ -3278,12 +3278,27 @@ function net要成功(resp, 动作, 网址) {
   throw R.runErr(`${动作}「${网址}」失败：HTTP ${resp.status}`);
 }
 
+// 🔴 M206：Rust / Python 那边 `网络` 多了最后一个参数「选项」（大小上限 /
+// 重定向上限 / 允许降级 / 代理 / 解压）。Node 宿主这一版**没实现**那些护栏
+// —— 但**不许静默忽略**：用户写了 {"大小上限": 1000} 却没生效，比报错危险得多
+// （和「假成功」是同一类坑）。所以这里明确说「这个宿主还没有」。
+function net选项检查(选项) {
+  if (选项 === null || 选项 === undefined) return;
+  if (选项 instanceof Map && 选项.size === 0) return;
+  throw R.valueErr(
+    'Node 宿主这一版的 `网络` 还不支持「选项」参数（大小上限 / 重定向上限 / '
+    + '允许降级 / 代理 / 解压）—— 请用 Rust 宿主（jishi-rs）或 Python 侧跑；'
+    + '本宿主宁可报错，也不装作生效');
+}
+
 const NET_FUNCS = {
-  '获取': new R.Builtin('获取', (url, timeout = 10.0, 请求头 = null) => {
+  '获取': new R.Builtin('获取', (url, timeout = 10.0, 请求头 = null, 选项 = null) => {
+    net选项检查(选项);
     const r = netRequest('GET', url, null, timeout, netHeaders(请求头));
     return net要成功(r, '访问', pText(url)).bodyBuf.toString('utf8');
   }),
-  '提交': new R.Builtin('提交', (url, data = '', timeout = 10.0, 请求头 = null) => {
+  '提交': new R.Builtin('提交', (url, data = '', timeout = 10.0, 请求头 = null, 选项 = null) => {
+    net选项检查(选项);
     const h = netHeaders(请求头);
     if (!('content-type' in Object.fromEntries(
       Object.entries(h).map(([k, v]) => [k.toLowerCase(), v])))) {
@@ -3292,14 +3307,16 @@ const NET_FUNCS = {
     const r = netRequest('POST', url, data, timeout, h);
     return net要成功(r, '提交到', pText(url)).bodyBuf.toString('utf8');
   }),
-  '提交JSON': new R.Builtin('提交JSON', (url, 对象, timeout = 10.0, 请求头 = null) => {
+  '提交JSON': new R.Builtin('提交JSON', (url, 对象, timeout = 10.0, 请求头 = null, 选项 = null) => {
+    net选项检查(选项);
     const h = netHeaders(请求头);
     if (!h['Content-Type']) h['Content-Type'] = 'application/json; charset=utf-8';
     const body = jsonEncode(对象, null);
     const r = netRequest('POST', url, body, timeout, h);
     return net要成功(r, '提交到', pText(url)).bodyBuf.toString('utf8');
   }),
-  '获取JSON': new R.Builtin('获取JSON', (url, timeout = 10.0, 请求头 = null) => {
+  '获取JSON': new R.Builtin('获取JSON', (url, timeout = 10.0, 请求头 = null, 选项 = null) => {
+    net选项检查(选项);
     const r = netRequest('GET', url, null, timeout, netHeaders(请求头));
     const text = net要成功(r, '访问', pText(url)).bodyBuf.toString('utf8');
     try { return jsonDecode(text); } catch (e) {
@@ -3307,7 +3324,8 @@ const NET_FUNCS = {
         + `${e && e.message ? e.message : e}`);
     }
   }),
-  '获取详情': new R.Builtin('获取详情', (url, timeout = 10.0, 请求头 = null) => {
+  '获取详情': new R.Builtin('获取详情', (url, timeout = 10.0, 请求头 = null, 选项 = null) => {
+    net选项检查(选项);
     const r = netRequest('GET', url, null, timeout, netHeaders(请求头));
     const 头表 = new Map(Object.entries(r.headers).map(([k, v]) => [k, v]));
     return new Map([
@@ -3316,7 +3334,8 @@ const NET_FUNCS = {
       ['正文', r.bodyBuf.toString('utf8')],
     ]);
   }),
-  '下载': new R.Builtin('下载', (url, 路径, timeout = 10.0, 请求头 = null) => {
+  '下载': new R.Builtin('下载', (url, 路径, timeout = 10.0, 请求头 = null, 选项 = null) => {
+    net选项检查(选项);
     const r = netRequest('GET', url, null, timeout, netHeaders(请求头));
     net要成功(r, '下载', pText(url));
     fs.writeFileSync(pText(路径), r.bodyBuf);

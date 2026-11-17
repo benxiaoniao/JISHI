@@ -419,72 +419,75 @@ def test_regex_bad_pattern():
 
 
 # -- 网络（M10，mock 避免真实网络） -----------------------------------------
+#
+# ⚠️ M206 起「打桩点」变了：`网络` 不再直接 `urlopen`，而是自己造 opener
+#    （要接管重定向：数次数、拦 https→http 降级）。所以这里替换的是
+#    `网络._开` —— 它返回一个「有 `.open(req, timeout=…)` 的对象」，
+#    正是 `urllib` opener 的形状。判据的意图不变：**发什么 / 收什么 / 错了怎么报**。
+
+
+class _假响应:
+    def __init__(self, 体: bytes, 状态: int = 200, 头=None):
+        self._体 = 体
+        self.状态 = 状态
+        self.status = 状态
+        self.headers = 头 or {}
+
+    def read(self, n: int = -1) -> bytes:
+        if n is None or n < 0:
+            出, self._体 = self._体, b""
+            return 出
+        出, self._体 = self._体[:n], self._体[n:]
+        return 出
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _假装网络(monkeypatch, 响应=None, 记请求=None, 抛=None):
+    """把 `网络._开` 换成假 opener（判据用，不碰真网络）。"""
+    from oracle.jishi.stdlib import 网络 as _网
+
+    class _开:
+        def open(self, req, timeout=None):
+            if 记请求 is not None:
+                记请求["data"] = req.data
+                记请求["url"] = req.full_url
+            if 抛 is not None:
+                raise 抛
+            return 响应
+
+    monkeypatch.setattr(_网, "_开", lambda *a, **k: _开())
+
 
 def test_network_get(monkeypatch):
-    import urllib.request as _ur
-    from oracle.jishi import runtime as _rt
-
-    class _Resp:
-        def read(self):
-            return "你好，世界".encode("utf-8")
-        def __enter__(self):
-            return self
-        def __exit__(self, *a):
-            return False
-
-    monkeypatch.setattr(_ur, "urlopen", lambda *a, **k: _Resp())
+    _假装网络(monkeypatch, _假响应("你好，世界".encode("utf-8")))
     out = run_capture('导入 网络\n打印(网络.获取("http://example.com"))\n')
     assert out == "你好，世界\n"
 
 
 def test_network_get_error(monkeypatch):
     import urllib.error as _ue
-    import urllib.request as _ur
-
-    def _boom(*a, **k):
-        raise _ue.URLError("连接失败")
-    monkeypatch.setattr(_ur, "urlopen", _boom)
+    _假装网络(monkeypatch, 抛=_ue.URLError("连接失败"))
     with pytest.raises(JishiError) as ei:
         run_source('导入 网络\n网络.获取("http://example.com")\n')
     assert "失败" in str(ei.value)
 
 
 def test_network_post(monkeypatch):
-    import urllib.request as _ur
-
-    class _Resp:
-        def read(self):
-            return "已提交".encode("utf-8")
-        def __enter__(self):
-            return self
-        def __exit__(self, *a):
-            return False
-
-    captured = {}
-
-    def _fake_urlopen(req, *a, **k):
-        captured["data"] = req.data
-        return _Resp()
-
-    monkeypatch.setattr(_ur, "urlopen", _fake_urlopen)
+    记 = {}
+    _假装网络(monkeypatch, _假响应("已提交".encode("utf-8")), 记请求=记)
     out = run_capture(
         '导入 网络\n打印(网络.提交("http://x.com", "a=1"))\n')
     assert out == "已提交\n"
-    assert captured["data"] == b"a=1"
+    assert 记["data"] == b"a=1"
 
 
 def test_network_get_json(monkeypatch):
-    import urllib.request as _ur
-
-    class _Resp:
-        def read(self):
-            return '{"ok": true, "值": 42}'.encode("utf-8")
-        def __enter__(self):
-            return self
-        def __exit__(self, *a):
-            return False
-
-    monkeypatch.setattr(_ur, "urlopen", lambda *a, **k: _Resp())
+    _假装网络(monkeypatch, _假响应('{"ok": true, "值": 42}'.encode("utf-8")))
     out = run_capture(
         '导入 网络\n令 r = 网络.获取JSON("http://x.com/api")\n打印(r["值"])\n')
     assert out == "42\n"

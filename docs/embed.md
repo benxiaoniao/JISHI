@@ -255,9 +255,11 @@ rust/target/release/jishi-rs.exe 字节码.json   # 由 jishi --dump-bytecode �
    Python 的 `zipfile` / `gzip` 照样读得出来（测试里拿它当裁判）。
    ⚠️ 推论：**压缩后的字节各宿主不同** ⇒ 判据只比「解压结果 + 互相能否解开」，
    不比压缩产物本身。
-7. **非 Windows 平台上 `https://` 用不了**：那边走裸 `TcpStream`，没有 TLS，
-   于是 `网络.获取("https://…")` **明确报错**并说明原因（不静默降级成明文）。
-   Windows 侧绑 `winhttp.dll`，`https` 正常。
+7. ~~**非 Windows 平台上 `https://` 用不了**~~ —— **M206 已补上**：
+   Windows 走 `winhttp.dll`；Linux / macOS 走 `dlopen` 系统自带的 **OpenSSL**
+   （只做「设 SNI + 主机名校验 + 看校验结果」，加密与证书链交给 libssl）。
+   系统里确实没有 libssl 时**明确报错并说明装什么**，绝不静默降级成明文。
+   可以用 `JISHI_TLS_CA=<PEM>` 指定自签 CA（企业内网 / 判据）。
 
 > **可变容器的坑（M28 已修，值得记住）**：以前 `Val::List(Vec<Val>)` 是
 > **值类型**，`Clone` 是深拷贝，而 `get_attr` 拿到的 `obj` 又是拷贝——

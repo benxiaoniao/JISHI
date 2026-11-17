@@ -1,5 +1,82 @@
 ## [未发布]
 
+### M206 · 联网安全护栏 + 跨平台 HTTPS（2026-11-17）
+
+**一句话**：`网络` 从「能发请求」变成「**发得安全**」—— Linux / macOS 上
+`https://` 真能用了，同时补上六道以前没有的护栏。
+
+#### 一、跨平台 HTTPS：不引 crate，用系统自带的 OpenSSL
+
+Windows 一直走 `winhttp.dll`（TLS 由系统做）。之前 **Linux / macOS 上
+`https://` 是直接报错**——这一版把它补上：
+
+| 平台 | 怎么做的 |
+|---|---|
+| Windows | `WinHTTP`（不变；这一版改成**自己跟重定向**，见下） |
+| Linux | `dlopen` 依次找 `libssl.so.3` → `.so.1.1` → `.so`，配 `libcrypto` |
+| macOS | 先找 Homebrew 的 `libssl.3.dylib`，再退到系统 `/usr/lib/libssl.dylib` |
+
+我们只做三件事：**设 SNI、设主机名校验、看校验结果**（还有可选的
+`JISHI_TLS_CA=<PEM>` 支持企业自签 CA）。加密、握手、证书链全交给 libssl ——
+自己写 TLS 是另一回事（也不该写）。
+
+📌 为什么是 dlopen 而不是链接：各发行版版本五花八门，`#[link(name="ssl")]`
+在版本对不上时是**加载期崩**；dlopen 则是「找不到就报一句人话，并告诉用户
+`apt install libssl3` / `brew install openssl@3`」。
+
+#### 二、六道护栏（Rust / Python 两侧**逐条同一口径**）
+
+| 护栏 | 之前 | 现在 |
+|---|---|---|
+| **响应大小上限** | `WinHttpReadData` 往 `Vec` 里堆到底 —— 一个坏链接就能 OOM | 默认 **32 MB**，超了报「响应太大（已经 X 字节，上限 Y 字节）」；`选项["大小上限"]` 可改（0 = 不限） |
+| **`下载` 流式落盘** | 先整块读进内存再写文件（1 GB 文件 = 1 GB 内存） | 边读边写 `<路径>.part`，**成功才改名**；非 2xx 不留半截文件；默认不限大小 |
+| **重定向上限** | Windows 交给 WinHTTP（拦不住降级）；Unix 根本不跟 | 自己跟，上限 **5**；超了报「可能是重定向环」；支持相对地址 |
+| **跨协议降级禁止** | https 可以静默跳成 http | **直接报错**（`选项["允许降级"]=真` 才放行） |
+| **gzip / deflate** | 不解压（拿到的是一堆二进制） | 自动解压（复用自家 `inflate`），**解压后也受同一上限约束**（防解压炸弹） |
+| **代理** | 只有 Windows 的「系统设置」 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` + `选项["代理"]`；**认 `NO_PROXY`**；`"代理": "无"` = 强制直连（连环境变量都不看） |
+
+顺带补的：**请求头注入拦截**（值里带 CR/LF 直接拒 —— 那能把请求劈成两半）、
+**报错分类**（域名解析不了 / 连不上 / 连接被断开 / 请求超时 / 证书校验没过，五句不同的话）。
+
+接口：`选项` 是最后一个参数（`获取`/`获取JSON`/`获取详情`/`下载` 第 4 个，
+`提交`/`提交JSON` 第 5 个），一个字典装全部：
+`{"大小上限": 字节, "重定向上限": 次, "允许降级": 布尔, "代理": "http://…", "解压": 布尔}`。
+
+#### 三、判据（21 条）
+
+本地 HTTP 服务造各种坏情况：超限、gzip/deflate、连跳 3 次、跳转环、相对跳转、
+3 MB 落盘、chunked、代理（**指向自己的样例服务 + 假域名**，能取到内容就说明
+代理真生效）、头注入、域名解析不了、连不上。
+
+TLS 三条：公网真证书（`https://example.com`）、**自签证书必须被拒**、
+给了 `JISHI_TLS_CA` 就能连自签（仓库里带一份仅供判据用的证书，
+`tests/fixtures/tls/`）。
+
+#### 四、过程中踩到并修掉的五个坑（都写进注释了）
+
+1. `WinHTTP` 的「关自动重定向」是 `WinHttpSetOption(OPTION_DISABLE_FEATURE, …)`，
+   **不是** `WinHttpOpenRequest` 的 flag —— 当 flag 传 ⇒ `ERROR_INVALID_PARAMETER(87)`，
+   所有请求都失败，看错误码才知道。
+2. **gzip 不是 zlib**：`1f 8b 08` + 可选扩展 + deflate + 8 字节尾。按 zlib 两字节头
+   处理会得到「压缩方法 15」。
+3. Python 的 `build_opener()` **之后**再 `add_handler()` 不管用 —— 默认的
+   `ProxyHandler`/`HTTPSHandler` 已经排在前面（症状：设了代理走环境代理、
+   给了 CA 仍说「自签不吃」）。必须作为参数传给 `build_opener`。
+4. tls 模块里 `static 表` 会被函数参数遮蔽 —— Rust **不许**遮蔽 static；
+   静态量改名 `函数表缓存`。
+5. `cfg(not(windows))` 对 **wasm** 也成立，而 unix 那份要 `std::os::unix` ⇒
+   wasm 编不过。TCP/TLS 那条腿收紧成 `cfg(all(not(windows), unix))`，
+   wasm 给一个「这个平台没有网络能力」的桩。
+
+#### 五、如实记的边界
+
+- **Node 宿主的 `网络` 还没实现这些护栏**：传 `选项` 会**明确报错**
+  （「本宿主宁可报错，也不装作生效」），不会静默忽略。
+- **Windows 上不能用 `JISHI_TLS_CA`**：WinHTTP 只能用系统证书存储；
+  判据不许往用户机器里塞 CA，所以那条只跑非 Windows。
+- **macOS 依赖系统里那份 libssl**：实测要走 CI 的 macos job 才算数
+  （本机是 Windows，只能靠 `rustc --target aarch64-unknown-linux-gnu` 做类型检查）。
+
 ### M205 · 去 `png`：自己解 PNG（2026-11-16）
 
 **一句话**：托盘图标与窗口图标的解码不再借 `png` crate —— `rust/src/pngdec.rs`
