@@ -240,7 +240,9 @@ def test_独立判据_lang_spec结构与关键事实():
     # M197：游戏工具深化六模块 +19（瓦片 6 / 精灵 3 / 地图 2 / 场景 2 / 声音 4 /
     # 存档 2）⇒ **47 / 534**。
     # M199：`文件.追加行们`（批量追加，B1）⇒ **47 / 535**。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 535
+    # M207：`图形` 45 → 53（虚线 / 圆角矩形 / 九宫格 / 借画布 / 还画布 / 池信息 /
+    # 批量 / 截图）⇒ **47 / 543**。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 543
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

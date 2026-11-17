@@ -4774,6 +4774,11 @@ const GRAPHICS_FUNCS = {
   '填充路径': _noGraphics('填充路径'), '描边路径': _noGraphics('描边路径'),
   '线性渐变': _noGraphics('线性渐变'), '径向渐变': _noGraphics('径向渐变'),
   '设混合': _noGraphics('设混合'), '设透明度': _noGraphics('设透明度'),
+  // M207：虚线 / 圆角 / 九宫格 / 纹理池 / 批量 / 截图（命令行与 Node 上同样只报平台错）
+  '虚线': _noGraphics('虚线'), '圆角矩形': _noGraphics('圆角矩形'),
+  '九宫格': _noGraphics('九宫格'), '借画布': _noGraphics('借画布'),
+  '还画布': _noGraphics('还画布'), '池信息': _noGraphics('池信息'),
+  '批量': _noGraphics('批量'), '截图': _noGraphics('截图'),
 };
 
 const BROWSER_FUNCS = {

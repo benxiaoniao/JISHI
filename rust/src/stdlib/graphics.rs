@@ -155,6 +155,85 @@ fn 标量json(v: &Val) -> Result<String, JishiError> {
     })
 }
 
+/// 数字列表 → JSON（`虚线` 用：`[6, 4]` 这种「实线段 / 空隙」）。
+fn 数列json(v: &Val, 名: &str, 参: &str) -> Result<String, JishiError> {
+    let Val::List(items) = v else {
+        return Err(err(
+            "类型错误",
+            format!("「{名}」的{参}要一个数字列表（例如 [6, 4]），给的是{}", crate::type_label(v)),
+        ));
+    };
+    let 表 = items.borrow();
+    let mut 段: Vec<String> = Vec::with_capacity(表.len());
+    for it in 表.iter() {
+        let n = 数(it, 名, 参)?;
+        if n < 0.0 {
+            return Err(err("值错误", format!("「{名}」的{参}不能有负数，出现了 {n}")));
+        }
+        段.push(format!("{n}"));
+    }
+    Ok(format!("[{}]", 段.join(",")))
+}
+
+/// `批量` 的图元列表 → JSON：每项是 `["矩形", x, y, 宽, 高, {…样式…}]`。
+///
+/// 头一项是**图元名**（与 `图形.*` 同名：矩形 / 圆 / 椭圆 / 线 / 圆角矩形 / 文本 /
+/// 画图 / 九宫格），后面是它的参数。样式/选项是字典时序列化成对象。
+fn 图元们json(v: &Val) -> Result<String, JishiError> {
+    let Val::List(items) = v else {
+        return Err(err(
+            "类型错误",
+            format!(
+                "「批量」要一个图元列表（每项形如 [\"矩形\", 0, 0, 16, 16, {{\"填充\": \"#f00\"}}]），给的是{}",
+                crate::type_label(v)
+            ),
+        ));
+    };
+    let 表 = items.borrow();
+    let mut 段: Vec<String> = Vec::with_capacity(表.len());
+    for (i, it) in 表.iter().enumerate() {
+        let Val::List(元) = it else {
+            return Err(err(
+                "类型错误",
+                format!("「批量」第 {} 项不是列表（要 [图元名, 参数…]）", i + 1),
+            ));
+        };
+        let 元 = 元.borrow();
+        let Some(first) = 元.first() else {
+            return Err(err("值错误", format!("「批量」第 {} 项是空的", i + 1)));
+        };
+        let Val::Str(名) = first else {
+            return Err(err(
+                "类型错误",
+                format!("「批量」第 {} 项的第一项要图元名（文本）", i + 1),
+            ));
+        };
+        let mut 字: Vec<String> = Vec::with_capacity(元.len());
+        字.push(format!("\"{}\"", esc(名)));
+        for x in 元.iter().skip(1) {
+            match x {
+                Val::Dict(d) => {
+                    // 字典（样式 / 选项）→ 对象；键值都当标量
+                    let 项 = d.borrow().to_items();
+                    let mut kv: Vec<String> = Vec::with_capacity(项.len());
+                    for (k, val) in 项 {
+                        let 键 = match &k {
+                            Val::Str(s) => s.to_string(),
+                            other => crate::display(other),
+                        };
+                        kv.push(format!("\"{}\":{}", esc(&键), 标量json(&val)?));
+                    }
+                    kv.sort();  // 键顺序固定：同一段程序两次跑的字节相同
+                    字.push(format!("{{{}}}", kv.join(",")));
+                }
+                other => 字.push(标量json(other)?),
+            }
+        }
+        段.push(format!("[{}]", 字.join(",")));
+    }
+    Ok(format!("[{}]", 段.join(",")))
+}
+
 /// 样式字典 → JSON 文本。`空` ⇒ `"{}"`。
 ///
 /// 认这几个键（认不出的**报错**，不静默忽略 —— 打错一个键名却「看起来没效果」
@@ -937,6 +1016,104 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 ));
             }
             调("设透明度", &[Val::Float(值)])
+        },
+        // ---- M207：虚线 / 圆角 / 九宫格 / 纹理池 / 批量 / 截图 --------------
+        "虚线" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("虚线", args, 0, 1)?;
+            let 段 = match args.first() {
+                None | Some(Val::None_) => "[]".to_string(),
+                Some(v) => 数列json(v, "虚线", "段们")?,
+            };
+            调("虚线", &[Val::Str(段.into())])
+        },
+        "圆角矩形" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("圆角矩形", args, 5, 6)?;
+            let 半 = 数(&args[4], "圆角矩形", "圆角")?;
+            if 半 < 0.0 {
+                return Err(err("值错误", format!("「圆角矩形」的圆角不能是负数，现在是 {半}")));
+            }
+            let 样 = 样式json(args.get(5))?;
+            调("圆角矩形", &[
+                Val::Float(数(&args[0], "圆角矩形", "x")?),
+                Val::Float(数(&args[1], "圆角矩形", "y")?),
+                Val::Float(数(&args[2], "圆角矩形", "宽")?),
+                Val::Float(数(&args[3], "圆角矩形", "高")?),
+                Val::Float(半),
+                Val::Str(样.into()),
+            ])
+        },
+        "九宫格" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("九宫格", args, 6, 7)?;
+            let 边 = 数(&args[5], "九宫格", "边");
+            let 边 = match 边 {
+                Ok(v) if v <= 0.0 => {
+                    return Err(err("值错误", format!("「九宫格」的边要大于 0，现在是 {v}")));
+                }
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
+            let 样 = 选项json(args.get(6))?;
+            调("九宫格", &[
+                Val::Float(数(&args[0], "九宫格", "图")?),
+                Val::Float(数(&args[1], "九宫格", "x")?),
+                Val::Float(数(&args[2], "九宫格", "y")?),
+                Val::Float(数(&args[3], "九宫格", "宽")?),
+                Val::Float(数(&args[4], "九宫格", "高")?),
+                Val::Float(边),
+                Val::Str(样.into()),
+            ])
+        },
+        "借画布" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("借画布", args, 2, 2)?;
+            let 宽 = 数(&args[0], "借画布", "宽")?;
+            let 高 = 数(&args[1], "借画布", "高")?;
+            if 宽 < 1.0 || 高 < 1.0 {
+                return Err(err("值错误", format!("「借画布」的宽和高要大于 0，现在是 {宽} × {高}")));
+            }
+            if 宽 > 8192.0 || 高 > 8192.0 {
+                return Err(err("值错误", format!("「借画布」最大 8192 × 8192，现在是 {宽} × {高}")));
+            }
+            调("借画布", &[Val::Float(宽), Val::Float(高)])
+        },
+        "还画布" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("还画布", args, 1, 1)?;
+            调("还画布", &[Val::Float(数(&args[0], "还画布", "画布")?)])
+        },
+        "池信息" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            调("池信息", &[])
+        },
+        "批量" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("批量", args, 1, 1)?;
+            let 图元 = 图元们json(&args[0])?;
+            调("批量", &[Val::Str(图元.into())])
+        },
+        "截图" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            要画布()?;
+            // 让宿主把**当前目标画布**的像素整块给我（base64 的 RGBA），
+            // 再由这里的 `pngenc` 编成 PNG —— 编码器在我们手里，判据才能逐字节验。
+            let r = host_call("像素块", &[])?;
+            let d = 字典(&r, "截图", "结果")?;
+            let 宽 = 取数(&d, "宽", "截图")?;
+            let 高 = 取数(&d, "高", "截图")?;
+            let 数据 = d
+                .iter()
+                .find(|(k, _)| k == "数据")
+                .map(|(_, v)| v.clone())
+                .ok_or_else(|| err("运行期错误", "宿主没有返回像素数据"))?;
+            let b64 = 文本(&数据, "截图", "数据")?;
+            let 像素 = crate::stdlib::encode::b64_decode_pub(&b64)
+                .map_err(|e| err("运行期错误", format!("截图数据坏了：{}", e.message)))?;
+            let png = crate::pngenc::编码_rgba(宽 as u32, 高 as u32, &像素).ok_or_else(|| {
+                err(
+                    "运行期错误",
+                    format!(
+                        "截图的像素数不对（{宽}×{高} 应当是 {} 字节，实际 {}）",
+                        宽 as usize * 高 as usize * 4,
+                        像素.len()
+                    ),
+                )
+            })?;
+            Ok(Val::Bytes(std::rc::Rc::new(png)))
         },
         "停" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             要画布()?;

@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 mod crypto;
 mod gbk_table;   // M204：GBK 码表（生成物，见 tools/gen_gbk_table.py）
 pub mod pngdec;  // M205：PNG 解码（自己的，替掉 `png` crate；托盘/窗口图标用）
+pub mod pngenc;  // M207：PNG 编码（`图形.截图`；stored 块，不压缩也合法）
 mod http;
 mod inflate;
 pub mod json;

@@ -86,6 +86,9 @@
     this._离屏序 = 1;
     //: 当前绘制目标（`null` = 主画布）。**绘制函数一律看它，不看 `_ctx`**。
     this._目标 = null;
+    // M207：纹理池（按「宽x高」分组的空闲画布）与虚线样式
+    this._池 = { 空闲: {}, 借出: {}, 新建: 0 };
+    this._虚线 = [];
     //: 裁剪栈的层数（`设裁剪` +1，`清裁剪` -1）。
     this._裁剪层 = 0;
     //: 路径表：`句柄 → [[操作, ...参数], …]`。路径是**数据**，不是 ctx 状态。
@@ -478,6 +481,16 @@
       case "设混合": return this._g设混合(a);
       case "设透明度": return this._g设透明度(a);
 
+      // ---- M207：虚线 / 圆角 / 九宫格 / 纹理池 / 批量 / 截图 ----
+      case "虚线": return this._g虚线(a);
+      case "圆角矩形": return this._g圆角矩形(a);
+      case "九宫格": return this._g九宫格(a);
+      case "借画布": return this._g借画布(a);
+      case "还画布": return this._g还画布(a);
+      case "池信息": return this._g池信息();
+      case "批量": return this._g批量(a);
+      case "像素块": return this._g像素块();
+
       // ---- M186：帧循环的开与停（D110）----
       case "开帧": this._开帧(); return null;
       case "停帧": this._停帧(); return null;
@@ -608,6 +621,9 @@
     ctx.translate(-this._相机.x, -this._相机.y);
     if (this._混合) ctx.globalCompositeOperation = this._混合;
     if (this._透明 != null) ctx.globalAlpha = this._透明;
+    // M207：虚线是**持久状态**，和 混合/透明度 一样每条图元重设一次
+    // （`save/restore` 会把它弹回去 —— 不重设就变成「设了只管一条线」）
+    if (this._虚线 && this._虚线.length && ctx.setLineDash) ctx.setLineDash(this._虚线);
     try { f(ctx); } finally { ctx.restore(); }
   };
 
@@ -753,6 +769,238 @@
     var d = 块.ctx.getImageData(x, y, 1, 1).data;
     return [d[0], d[1], d[2], d.length > 3 ? d[3] : 255];
   };
+
+  // ---- M207：虚线 / 圆角 / 九宫格 / 纹理池 / 批量 / 截图 ---------------------
+
+  /** 虚线（`[]` = 实线）。存成状态，由 `_画` 每条图元重设。 */
+  Jishi.prototype._g虚线 = function (a) {
+    var 段 = JSON.parse(a[0] || "[]");
+    if (!Array.isArray(段)) throw new Error("虚线要一个数字列表，例如 [6, 4]");
+    for (var i = 0; i < 段.length; i++) {
+      var n = Number(段[i]);
+      if (!(n >= 0)) throw new Error("虚线的段长不能是负数：" + 段[i]);
+      段[i] = n;
+    }
+    this._虚线 = 段;
+    return null;
+  };
+
+  /**
+   * 圆角矩形。
+   *
+   * 📌 优先用原生 `roundRect`（Chrome 99+/Safari 16+）；没有就手写
+   * （`arcTo` 四段）—— 判据的假 canvas 两种都能对上。
+   */
+  Jishi.prototype._g圆角矩形 = function (a) {
+    var 自 = this;
+    var 圆 = Math.max(0, Number(a[4]) || 0);
+    this._画(function (ctx) {
+      var s = 自._样式(ctx, JSON.parse(a[5] || "{}"), "填充");
+      var x = a[0], y = a[1], w = a[2], h = a[3];
+      ctx.beginPath();
+      if (圆 > 0 && ctx.roundRect) {
+        ctx.roundRect(x, y, w, h, 圆);
+      } else if (圆 > 0 && ctx.arcTo) {
+        var r = Math.min(圆, Math.abs(w) / 2, Math.abs(h) / 2);
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      } else {
+        ctx.rect(x, y, w, h);
+      }
+      if (s.填 != null) ctx.fill();
+      if (s.描 != null) ctx.stroke();
+    });
+    return null;
+  };
+
+  /**
+   * 九宫格（9-slice）：四角不拉伸、四边单向拉伸、中心双向拉伸。
+   *
+   * 用途就一个：**同一张图当不同尺寸的按钮/面板**（一张圆角边框图，
+   * 做成 200×60 和 80×300 都不变形）。
+   */
+  Jishi.prototype._g九宫格 = function (a) {
+    var 项 = this._图[a[0]];
+    if (!项 || !项.就绪) return null;      // 没加载完：跳过这次绘制（同 画图）
+    var img = 项.img;
+    var sx = 0, sy = 0;
+    var sw = img.width || img.naturalWidth || 0;
+    var sh = img.height || img.naturalHeight || 0;
+    if (!sw || !sh) return null;
+    var dx = Number(a[1]) || 0, dy = Number(a[2]) || 0;
+    var dw = Number(a[3]) || sw, dh = Number(a[4]) || sh;
+    var 边 = Number(a[5]) || 0;
+    if (边 <= 0) throw new Error("九宫格的「边」要大于 0");
+    if (边 * 2 > sw || 边 * 2 > sh) {
+      throw new Error("九宫格的「边」(" + 边 + ") 太大了 —— 原图是 "
+        + sw + " × " + sh + "，边不能超过较短边的一半");
+    }
+    var 选 = JSON.parse(a[6] || "{}");
+    var 自 = this;
+    // 目标侧的角也用同一条边（保持像素比例）；边比目标还大时按目标的一半算
+    var d边 = Math.min(边, Math.abs(dw) / 2, Math.abs(dh) / 2);
+    this._画(function (ctx) {
+      if (选["透明度"] != null) ctx.globalAlpha = Number(选["透明度"]);
+      var 源x = [0, 边, sw - 边];
+      var 源w = [边, sw - 边 * 2, 边];
+      var 目x = [dx, dx + d边, dx + dw - d边];
+      var 目w = [d边, dw - d边 * 2, d边];
+      var 源y = [0, 边, sh - 边];
+      var 源h = [边, sh - 边 * 2, 边];
+      var 目y = [dy, dy + d边, dy + dh - d边];
+      var 目h = [d边, dh - d边 * 2, d边];
+      for (var 行 = 0; 行 < 3; 行++) {
+        for (var 列 = 0; 列 < 3; 列++) {
+          ctx.drawImage(img, 源x[列], 源y[行], 源w[列], 源h[行],
+                        目x[列], 目y[行], 目w[列], 目h[行]);
+        }
+      }
+    });
+    return null;
+  };
+
+  /**
+   * 借一块离屏画布（**复用池**）。
+   *
+   * 为什么要有：`离屏()` 每调一次就新建一块 canvas，每帧 100 块 = 每秒几千块，
+   * 内存与 GC 都受不了（画布是显存对象，不是普通数组）。借还池按「宽x高」分组，
+   * 同尺寸的反复用同一批。
+   *
+   * ⚠️ 借来的画布**不清空就是上一帧的画面**（比新建更糟）—— 所以这里**借出即清**。
+   */
+  Jishi.prototype._g借画布 = function (a) {
+    var 宽 = Math.max(1, Math.round(Number(a[0]) || 1));
+    var 高 = Math.max(1, Math.round(Number(a[1]) || 1));
+    var 键 = 宽 + "x" + 高;
+    if (!this._池) this._池 = { 空闲: {}, 借出: {}, 新建: 0 };
+    var 组 = this._池.空闲[键] || (this._池.空闲[键] = []);
+    var 块 = 组.pop();
+    if (!块) {
+      var doc = this._doc;
+      var cv = doc && doc.createElement ? doc.createElement("canvas") : null;
+      if (!cv) throw new Error("这个环境建不了离屏画布（没有 document.createElement）");
+      cv.width = 宽; cv.height = 高;
+      var ctx = cv.getContext && cv.getContext("2d");
+      if (!ctx) throw new Error("离屏画布拿不到 2d 上下文");
+      块 = { cv: cv, ctx: ctx, 宽: 宽, 高: 高, 键: 键 };
+      this._池.新建 += 1;
+    } else {
+      if (块.ctx.setTransform) 块.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      块.ctx.clearRect(0, 0, 宽, 高);
+    }
+    var id = this._离屏序++;
+    this._离屏们[id] = 块;
+    this._池.借出[id] = 块;
+    return id;
+  };
+
+  /** 还回池里。还的时候**不能**还是当前绘制目标（否则后面的图元会画进池子）。 */
+  Jishi.prototype._g还画布 = function (a) {
+    var id = Number(a[0]);
+    var 块 = this._池 && this._池.借出 ? this._池.借出[id] : null;
+    if (!块) {
+      throw new Error("画布 " + a[0] + " 不是借来的 —— 只有 借画布() 拿到的才能 还画布()");
+    }
+    if (this._目标 && this._目标 === 块) this._目标 = null;
+    delete this._池.借出[id];
+    delete this._离屏们[id];
+    (this._池.空闲[块.键] || (this._池.空闲[块.键] = [])).push(块);
+    return null;
+  };
+
+  /** 池的现状（判据用：借还 100 次之后 `新建` 应当只有个位数）。 */
+  Jishi.prototype._g池信息 = function () {
+    var 空 = 0;
+    var 组s = (this._池 && this._池.空闲) || {};
+    for (var k in 组s) if (Object.prototype.hasOwnProperty.call(组s, k)) 空 += 组s[k].length;
+    var 借 = 0;
+    for (var id in (this._池 && this._池.借出) || {}) {
+      if (Object.prototype.hasOwnProperty.call(this._池.借出, id)) 借 += 1;
+    }
+    return { 空闲: 空, 借出: 借, 新建: (this._池 && this._池.新建) || 0 };
+  };
+
+  /**
+   * 批量绘制：一次宿主调用画 N 个图元。
+   *
+   * 为什么要：每个图元一次 `host_call` 就是一次 wasm↔JS 的 JSON 往返
+   * （几百字节的字符串 + 解析）。200 个瓦片 = 200 次往返，实测比「画」本身贵得多。
+   * 批量把 200 次压成 1 次。
+   *
+   * 图元的形状：`["矩形", x, y, 宽, 高, {"填充": "#f00"}]` —— 头一项是图元名，
+   * 后面与 `图形.矩形(...)` 的参数**同一个顺序**（学一套就够）。
+   */
+  Jishi.prototype._g批量 = function (a) {
+    var 列 = JSON.parse(a[0] || "[]");
+    if (!Array.isArray(列)) throw new Error("批量要一个图元列表");
+    for (var i = 0; i < 列.length; i++) {
+      var 项 = 列[i];
+      if (!Array.isArray(项) || !项.length) {
+        throw new Error("批量第 " + (i + 1) + " 项不是 [图元名, 参数…]");
+      }
+      var 名 = String(项[0]);
+      var 参 = 项.slice(1).map(function (v) {
+        // 样式/选项在 JSON 里是对象；各图元实现按「JSON 文本」解析 ⇒ 转回去
+        return (v && typeof v === "object") ? JSON.stringify(v) : v;
+      });
+      this._一个图元(名, 参, i + 1);
+    }
+    return null;
+  };
+
+  /** 批量里的单项分发。能画的东西与 `图形.*` 同名（不认识的**报错**，不跳过）。 */
+  Jishi.prototype._一个图元 = function (名, 参, 序) {
+    switch (名) {
+      case "矩形": return this._g形状("rect", 参);
+      case "圆": return this._g形状("circle", 参);
+      case "椭圆": return this._g形状("ellipse", 参);
+      case "线": return this._g形状("line", 参);
+      case "多边形": return this._g多边形(参);
+      case "文本": return this._g文本(参);
+      case "圆角矩形": return this._g圆角矩形(参);
+      case "画图": return this._g画图(参, false);
+      case "画子图": return this._g画图(参, true);
+      case "九宫格": return this._g九宫格(参);
+      default:
+        throw new Error("批量第 " + 序 + " 项的图元「" + 名 + "」不认识"
+          + "（能用：矩形 / 圆 / 椭圆 / 线 / 多边形 / 文本 / 圆角矩形 / 画图 / 画子图 / 九宫格）");
+    }
+  };
+
+  /**
+   * 当前**目标画布**的整块像素（base64 的 RGBA）—— 给 `图形.截图` 用。
+   *
+   * 📌 给的是**位图**尺寸（含 devicePixelRatio）：逻辑 800×600 在 2 倍屏上是
+   * 1600×1200。PNG 的编码在 Rust 侧做（`pngenc`），所以判据能逐字节验。
+   */
+  Jishi.prototype._g像素块 = function () {
+    this._needCtx();                    // 没准备过就先准备一块
+    var 尺 = this._目标尺寸();
+    var dpr = this._目标dpr();
+    var 宽 = Math.max(1, Math.round(尺[0] * dpr));
+    var 高 = Math.max(1, Math.round(尺[1] * dpr));
+    var ctx = this._needCtx();
+    var im = ctx.getImageData(0, 0, 宽, 高);
+    return { 宽: 宽, 高: 高, 数据: 转base64(im.data) };
+  };
+
+  /** Uint8ClampedArray → base64（浏览器用 btoa、Node 用 Buffer，两边都不慢）。 */
+  function 转base64(字节) {
+    if (typeof Buffer !== "undefined" && Buffer.from) {
+      return Buffer.from(字节.buffer ? 字节 : 字节, 字节.byteOffset || 0,
+                        字节.byteLength || 字节.length).toString("base64");
+    }
+    var 段 = [];
+    var CH = 0x8000;
+    for (var i = 0; i < 字节.length; i += CH) {
+      段.push(String.fromCharCode.apply(null, 字节.subarray(i, i + CH)));
+    }
+    return root.btoa(段.join(""));
+  }
 
   // ---- M196：裁剪 ----------------------------------------------------------
 

@@ -91,7 +91,9 @@ fn b64_encode(data: &[u8]) -> String {
     String::from_utf8(out).unwrap()
 }
 
-fn b64_decode(s: &str) -> Result<Vec<u8>, crate::JishiError> {
+/// base64 解码。`pub(crate)`：`图形.截图` 要把宿主给的 base64 像素解回字节
+/// （不经过脚本层 —— 那会把几百 KB 数据来回穿两次）。
+pub(crate) fn b64_decode(s: &str) -> Result<Vec<u8>, crate::JishiError> {
     let bytes = s.as_bytes();
     if bytes.len() % 4 != 0 {
         return Err(err("值错误", format!("这不是合法的 base64 内容：{s}")));
@@ -355,4 +357,9 @@ fn gbk_编码(s: &str) -> Option<Vec<u8>> {
         }
     }
     Some(出)
+}
+
+/// 给同 crate 的其它模块用（`图形.截图`）：把 `JishiError` 原样抛出去。
+pub(crate) fn b64_decode_pub(s: &str) -> Result<Vec<u8>, crate::JishiError> {
+    b64_decode(s)
 }
