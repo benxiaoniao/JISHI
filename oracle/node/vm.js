@@ -7492,9 +7492,12 @@ const TILE_FUNCS = {
     const vw = c.has('宽') ? _要数(c.get('宽'), '画', '宽') : Infinity;
     const vh = c.has('高') ? _要数(c.get('高'), '画', '高') : Infinity;
     const 画子图 = STDLIB['图形'].attrs['画子图'].fn;
+    // M208：动画只影响「画成哪一帧」，碰撞 / 取格 仍看原号
+    const 映 = _动画映射(d);
     let 画了 = 0;
-    d.get('行们').forEach((行, r) => 行.forEach((号, col) => {
-      if (号 < 0) return;
+    d.get('行们').forEach((行, r) => 行.forEach((原号, col) => {
+      if (原号 < 0) return;
+      const 号 = 映.has(原号) ? 映.get(原号) : 原号;
       const x = col * 宽, y = r * 高;
       if (x + 宽 < vx || x > vx + vw || y + 高 < vy || y > vy + vh) return;
       画子图(d.get('图集'), (号 % 列数) * 宽, Math.floor(号 / 列数) * 高, 宽, 高,
@@ -7899,6 +7902,592 @@ const SCENE_FUNCS = {
   }),
 };
 
+// ---------------------------------------------------------------------------
+// M208：瓦片动画 / A* 寻路 / 操控 / 粒子 / 物理 / 帧统计
+//
+// 这几块要么是**纯逻辑**（粒子、物理、寻路、绑定表、动画 —— 三宿主都得算出同样的数），
+// 要么是**平台独占**（手柄、画粒子、帧统计 —— Node 上没有画布/键盘，报同一句错）。
+// ---------------------------------------------------------------------------
+
+/** 瓦片图里的动画表 → `Map<瓦片号, 当前帧号>`。只在 `瓦片.画` 里用。 */
+function _动画映射(d) {
+  const 出 = new Map();
+  const 表 = d.get('动画');
+  if (!(表 instanceof Map)) return 出;
+  for (const [k, 条] of 表) {
+    if (!(条 instanceof Map)) continue;
+    const 帧们 = 条.get('帧们');
+    if (!Array.isArray(帧们) || !帧们.length) continue;
+    const 序 = Number(条.get('序') ?? 0) % 帧们.length;
+    if (帧们[序] !== k) 出.set(k, 帧们[序]);
+  }
+  return 出;
+}
+
+Object.assign(TILE_FUNCS, {
+  // 加动画(瓦片图, 编号, 帧们, 帧率 = 8)
+  '加动画': new R.Builtin('加动画', (瓦片图, 编号, 帧们, 帧率) => {
+    const d = _要字典(瓦片图, '加动画', '瓦片图');
+    const 号 = Math.trunc(_要数(编号, '加动画', '编号'));
+    if (号 < 0) throw R.valueErr(`「加动画」的编号不能是负数（-1 是「空」），现在是 ${号}`, 0, 0);
+    if (!Array.isArray(帧们)) {
+      throw R.typeErr('「加动画」的帧们要整数列表（例如 [4, 5, 6]）', 0, 0);
+    }
+    const 帧 = 帧们.map((n, i) => {
+      const x = R.unwrap(n);
+      if (typeof x !== 'number' || !Number.isInteger(x)) {
+        throw R.valueErr(`「加动画」的帧们第 ${i + 1} 项要整数（瓦片号）`, 0, 0);
+      }
+      if (x < 0) {
+        throw R.valueErr(`「加动画」第 ${i + 1} 帧是负数（-1 是「空」）—— 要「空一帧」就别放它`, 0, 0);
+      }
+      return x;
+    });
+    if (!帧.length) {
+      throw R.valueErr('「加动画」的帧们不能是空列表 —— 至少给一帧（不然这块瓦片就没了）', 0, 0);
+    }
+    const r = (帧率 === undefined || 帧率 === null) ? 8 : _要数(帧率, '加动画', '帧率');
+    if (!(r > 0)) throw R.valueErr(`「加动画」的帧率要大于 0（单位：帧/秒），现在是 ${r}`, 0, 0);
+    let 表 = d.get('动画');
+    if (!(表 instanceof Map)) {
+      表 = new Map();
+      d.set('动画', 表);
+    }
+    const 条 = new Map();
+    条.set('帧们', 帧); 条.set('帧率', _小(r)); 条.set('累计', _小(0)); 条.set('序', 0);
+    表.set(号, 条);
+    return true;
+  }),
+  // 更新动画(瓦片图, 秒)
+  '更新动画': new R.Builtin('更新动画', (瓦片图, 秒) => {
+    const d = _要字典(瓦片图, '更新动画', '瓦片图');
+    const dt = _要数(秒, '更新动画', '秒');
+    if (dt < 0) throw R.valueErr(`「更新动画」的秒数不能是负数，现在是 ${dt}`, 0, 0);
+    const 表 = d.get('动画');
+    if (!(表 instanceof Map)) return 0;
+    let 动了 = 0;
+    for (const [, 条] of 表) {
+      if (!(条 instanceof Map)) continue;
+      const 帧们 = 条.get('帧们');
+      if (!Array.isArray(帧们) || !帧们.length) continue;
+      const 累计 = Number(R.unwrap(条.get('累计') ?? 0)) + dt * Number(R.unwrap(条.get('帧率') ?? 8));
+      const 跳 = Math.floor(累计);
+      const 序 = Number(条.get('序') ?? 0);
+      条.set('序', (序 + 跳) % 帧们.length);
+      条.set('累计', _小(累计 - 跳));
+      if (跳 > 0) 动了 += 1;
+    }
+    return 动了;
+  }),
+  // 动画帧(瓦片图, 编号)
+  '动画帧': new R.Builtin('动画帧', (瓦片图, 编号) => {
+    const d = _要字典(瓦片图, '动画帧', '瓦片图');
+    const 号 = Math.trunc(_要数(编号, '动画帧', '编号'));
+    const 映 = _动画映射(d);
+    return 映.has(号) ? 映.get(号) : 号;
+  }),
+});
+
+// ---- 地图.寻路（A*）------------------------------------------------------
+
+function _格坐标(v, 名, 参) {
+  if (Array.isArray(v)) {
+    if (v.length !== 2) {
+      throw R.valueErr(`「${名}」的${参}要给 [列, 行]（两个整数），现在有 ${v.length} 项`, 0, 0);
+    }
+    return [Math.trunc(_要数(v[0], 名, 参)), Math.trunc(_要数(v[1], 名, 参))];
+  }
+  if (v instanceof Map) {
+    for (const k of ['列', '行']) if (!v.has(k)) _缺(k, 名);
+    return [Math.trunc(_要数(v.get('列'), 名, '列')), Math.trunc(_要数(v.get('行'), 名, '行'))];
+  }
+  throw R.typeErr(`「${名}」的${参}要给 [列, 行] 或 {"列":…,"行":…}`, 0, 0);
+}
+
+function _实心列(v, 名) {
+  if (v === undefined || v === null) return [];
+  if (Array.isArray(v)) return v.map((x) => Math.trunc(R.unwrap(x)));
+  if (v instanceof Map) {
+    const x = v.get('实心');
+    if (x === undefined || x === null) return [];
+    if (!Array.isArray(x)) throw R.typeErr(`「${名}」的实心要给列表`, 0, 0);
+    return x.map((n) => Math.trunc(R.unwrap(n)));
+  }
+  throw R.typeErr(`「${名}」的实心要给列表或选项字典`, 0, 0);
+}
+
+/** 与 `物理` 同一口径：空表 ⇒ 非 -1 全实心。 */
+function _格实心(号, 实心) {
+  return 号 >= 0 && (!实心.length || 实心.includes(号));
+}
+
+Object.assign(MAP_FUNCS, {
+  // 寻路(瓦片图, 起, 终, 选项?) → [[列, 行], …]
+  '寻路': new R.Builtin('寻路', (瓦片图, 起, 终, 选项) => {
+    const d = _要字典(瓦片图, '寻路', '瓦片图');
+    const 行们 = d.get('行们') || [];
+    const s = _格坐标(起, '寻路', '起');
+    const t = _格坐标(终, '寻路', '终');
+    const 实心 = _实心列(选项, '寻路');
+    const 行数 = 行们.length;
+    const 列数 = 行们.reduce((a, r) => Math.max(a, r.length), 0);
+    for (const [名, p] of [['起', s], ['终', t]]) {
+      if (p[0] < 0 || p[1] < 0 || p[1] >= 行数 || p[0] >= 列数) {
+        throw R.valueErr(
+          `「寻路」的${名}点 (${p[0]}, ${p[1]}) 出界了 —— 这张图是 ${列数} 列 × ${行数} 行`, 0, 0);
+      }
+    }
+    const 号at = (p) => {
+      const 行 = 行们[p[1]];
+      if (!行) return -1;
+      return p[0] < 行.length ? 行[p[0]] : -1;
+    };
+    for (const [名, p] of [['起', s], ['终', t]]) {
+      if (_格实心(号at(p), 实心)) {
+        throw R.valueErr(`「寻路」的${名}点 (${p[0]}, ${p[1]}) 是实心瓦片（号 ${号at(p)}）`, 0, 0);
+      }
+    }
+    const 通 = (p) => {
+      if (p[0] < 0 || p[1] < 0 || p[1] >= 行数 || p[0] >= 列数) return false;
+      return !_格实心(号at(p), 实心);
+    };
+    const 键 = (p) => p[0] + ',' + p[1];
+    if (s[0] === t[0] && s[1] === t[1]) return [[s[0], s[1]]];
+    if (!通(s) || !通(t)) return [];
+    const 启 = (p) => {
+      const dx = Math.abs(p[0] - t[0]), dy = Math.abs(p[1] - t[1]);
+      return Math.max(dx, dy) * 1000 + Math.min(dx, dy) * 414;
+    };
+    const 向 = [[1, 0, 1000], [-1, 0, 1000], [0, 1, 1000], [0, -1, 1000],
+      [1, 1, 1414], [1, -1, 1414], [-1, 1, 1414], [-1, -1, 1414]];
+    const 已付 = new Map([[键(s), 0]]);
+    const 父 = new Map();
+    // 小顶堆：按 (f, g, 列, 行) 排 —— 同样的图每次跑出同一条路
+    const 堆 = [[启(s), 0, s[0], s[1]]];
+    const 压 = (x) => {
+      堆.push(x);
+      let i = 堆.length - 1;
+      while (i > 0) {
+        const 父i = (i - 1) >> 1;
+        if (小(堆[i], 堆[父i]) < 0) { const T = 堆[i]; 堆[i] = 堆[父i]; 堆[父i] = T; i = 父i; } else break;
+      }
+    };
+    const 弹 = () => {
+      const 顶 = 堆[0];
+      const 尾 = 堆.pop();
+      if (堆.length) {
+        堆[0] = 尾;
+        let i = 0;
+        for (;;) {
+          const l = i * 2 + 1, r = l + 1;
+          let 小i = i;
+          if (l < 堆.length && 小(堆[l], 堆[小i]) < 0) 小i = l;
+          if (r < 堆.length && 小(堆[r], 堆[小i]) < 0) 小i = r;
+          if (小i === i) break;
+          const T = 堆[i]; 堆[i] = 堆[小i]; 堆[小i] = T; i = 小i;
+        }
+      }
+      return 顶;
+    };
+    const 小 = (a, b) => (a[0] - b[0]) || (a[1] - b[1]) || (a[2] - b[2]) || (a[3] - b[3]);
+    while (堆.length) {
+      const [, g, c, r] = 弹();
+      const p = [c, r];
+      if (c === t[0] && r === t[1]) {
+        const 路 = [[t[0], t[1]]];
+        let q = t;
+        while (父.has(键(q))) {
+          q = 父.get(键(q));
+          路.push([q[0], q[1]]);
+        }
+        路.reverse();
+        return 路;
+      }
+      if ((已付.get(键(p)) ?? Infinity) < g) continue;
+      for (const [dc, dr, 价] of 向) {
+        const 新 = [c + dc, r + dr];
+        if (!通(新)) continue;
+        if (dc !== 0 && dr !== 0) {
+          // 对角：两侧都得通，否则就是从墙角缝里穿过去
+          if (!通([c + dc, r]) || !通([c, r + dr])) continue;
+        }
+        const 新g = g + 价;
+        if (新g < (已付.get(键(新)) ?? Infinity)) {
+          已付.set(键(新), 新g);
+          父.set(键(新), p);
+          压([新g + 启(新), 新g, 新[0], 新[1]]);
+        }
+      }
+    }
+    return [];
+  }),
+});
+
+// ---- 操控（动作 → 键）----------------------------------------------------
+//
+// 绑定表是**纯逻辑**（命令行也能绑、也能读回来）；按键状态与手柄要设备 ⇒ 平台错。
+// 文案与 Rust 的 `input::无输入`、Python 的 `_无输入` **逐字相同**。
+
+const CONTROL_无 = '这个平台没有键盘 / 手柄：「操控」模块只在网页 / 窗口里有'
+  + '（命令行和 Node 上没有输入设备）。';
+
+const _绑定表 = [];
+
+function _要文本键(v, 名) {
+  if (typeof v !== 'string') {
+    throw R.typeErr(`「${名}」的键名要文本（例如 "a" / "空格" / "ArrowLeft"）`, 0, 0);
+  }
+  if (!v.trim()) throw R.valueErr(`「${名}」的键名不能是空文本`, 0, 0);
+  return v;
+}
+
+const CONTROL_FUNCS = {
+  '绑定': new R.Builtin('绑定', (动作, 键们) => {
+    if (typeof 动作 !== 'string') throw R.typeErr('「绑定」的动作名要文本（例如 "左"）', 0, 0);
+    if (!动作.trim()) throw R.valueErr('「绑定」的动作名不能是空文本', 0, 0);
+    let ks;
+    if (typeof 键们 === 'string') ks = [_要文本键(键们, '绑定')];
+    else if (Array.isArray(键们)) ks = 键们.map((x) => _要文本键(R.unwrap(x), '绑定'));
+    else throw R.typeErr('「绑定」的键们要给文本或文本列表（例如 ["a", "ArrowLeft"]）', 0, 0);
+    const 清 = [];
+    for (const k of ks) if (!清.includes(k)) 清.push(k);
+    for (let i = _绑定表.length - 1; i >= 0; i--) if (_绑定表[i][0] === 动作) _绑定表.splice(i, 1);
+    if (清.length) { _绑定表.push([动作, 清]); return true; }
+    return false;
+  }),
+  '解绑': new R.Builtin('解绑', (动作) => {
+    if (typeof 动作 !== 'string') throw R.typeErr('「解绑」的动作名要文本', 0, 0);
+    const 前 = _绑定表.length;
+    for (let i = _绑定表.length - 1; i >= 0; i--) if (_绑定表[i][0] === 动作) _绑定表.splice(i, 1);
+    return _绑定表.length !== 前;
+  }),
+  '绑定表': new R.Builtin('绑定表', () => {
+    const m = new Map();
+    for (const [k, v] of _绑定表) m.set(k, v.slice());
+    return m;
+  }),
+  '按下': new R.Builtin('按下', () => { throw R.runErr(CONTROL_无, 0, 0); }),
+  '按过': new R.Builtin('按过', () => { throw R.runErr(CONTROL_无, 0, 0); }),
+  '轴': new R.Builtin('轴', () => { throw R.runErr(CONTROL_无, 0, 0); }),
+  '手柄': new R.Builtin('手柄', () => { throw R.runErr(CONTROL_无, 0, 0); }),
+};
+
+// ---- 粒子（纯逻辑；`画` 要画布）------------------------------------------
+
+const _MASK64 = (1n << 64n) - 1n;
+const _粒子键 = ['寿命', '速度', '角度', '重力', '尺寸', '颜色', '形状', '淡出'];
+
+function _粒默认() {
+  const m = new Map();
+  m.set('寿命', _小(1)); m.set('速度', [_小(60), _小(160)]);
+  m.set('角度', [_小(0), _小(360)]); m.set('重力', _小(300));
+  m.set('尺寸', [_小(2), _小(4)]); m.set('颜色', ['#ffffff']);
+  m.set('形状', '矩形'); m.set('淡出', true);
+  return m;
+}
+
+function _粒区间(选, 键, 谁) {
+  const v = 选.get(键);
+  if (v === undefined) throw R.runErr(`粒子选项里缺「${键}」（内部错误：默认值没填）`, 0, 0);
+  if (Array.isArray(v)) {
+    if (v.length !== 2) {
+      throw R.valueErr(`「${谁}」的「${键}」要给 [最小, 最大]，现在有 ${v.length} 项`, 0, 0);
+    }
+    const a = _要数(v[0], 谁, 键), b = _要数(v[1], 谁, 键);
+    if (a > b) throw R.valueErr(`「${谁}」的「${键}」区间反了：最小 ${a} 大于最大 ${b}`, 0, 0);
+    return [a, b];
+  }
+  const n = _要数(v, 谁, 键);
+  return [n, n];
+}
+
+function _粒颜色(选, 谁) {
+  const v = 选.get('颜色');
+  if (v === undefined) return ['#ffffff'];
+  if (typeof v === 'string') return [v];
+  if (Array.isArray(v)) {
+    const 出 = v.map((x) => {
+      if (typeof x !== 'string') throw R.typeErr(`「${谁}」的颜色要给文本`, 0, 0);
+      return x;
+    });
+    if (!出.length) throw R.valueErr(`「${谁}」的颜色列表是空的`, 0, 0);
+    return 出;
+  }
+  throw R.typeErr(`「${谁}」的颜色要给文本或文本列表`, 0, 0);
+}
+
+/** xorshift64*（BigInt）：**与 Rust / Python 同一套位运算**。
+ *
+ * 状态存成十进制**文本**：它要跨 2^53，而 JS 的 Number 到那儿就不精确了。
+ */
+function _粒摇(系统) {
+  let x = BigInt(系统.get('状态')) & _MASK64;
+  x ^= (x << 13n) & _MASK64;
+  x ^= x >> 7n;
+  x ^= (x << 17n) & _MASK64;
+  x &= _MASK64;
+  系统.set('状态', x.toString());
+  return Number(x >> 11n) / 9007199254740992;
+}
+
+function _是粒子系统(v, 名) {
+  if (!(v instanceof Map) || !v.has('粒子们') || !v.has('选项')) {
+    throw R.valueErr(`这个字典不是粒子系统 —— \`粒子.新建()\` 的返回值才认（「${名}」）`, 0, 0);
+  }
+  return v;
+}
+
+const PARTICLE_FUNCS = {
+  '新建': new R.Builtin('新建', (选项) => {
+    const 合 = _粒默认();
+    let 种 = 20261117;
+    if (选项 !== undefined && 选项 !== null) {
+      const d = _要字典(选项, '新建', '选项');
+      for (const [k, v] of d) {
+        if (k === '种子') {
+          const n = Math.trunc(_要数(v, '新建', '种子'));
+          if (n < 0) throw R.valueErr(`「新建」的种子不能是负数，现在是 ${n}`, 0, 0);
+          if (n > 9007199254740991) {
+            throw R.valueErr(`「新建」的种子最大 9007199254740991（2^53-1），现在是 ${n}`, 0, 0);
+          }
+          种 = n;
+          continue;
+        }
+        if (!_粒子键.includes(k)) {
+          throw R.valueErr(`粒子选项里没有「${k}」这一项 —— 能用的是：`
+            + '寿命 / 速度 / 角度 / 重力 / 尺寸 / 颜色 / 形状 / 淡出 / 种子', 0, 0);
+        }
+        合.set(k, v);
+      }
+    }
+    // 先过一遍校验（错在新建时报，而不是等第一次发射）
+    _粒区间(合, '寿命', '新建'); _粒区间(合, '速度', '新建');
+    _粒区间(合, '角度', '新建'); _粒区间(合, '尺寸', '新建');
+    _粒颜色(合, '新建');
+    const 形 = 合.get('形状') ?? '矩形';
+    if (形 !== '矩形' && 形 !== '圆') {
+      throw R.valueErr(`粒子的形状只有「矩形」和「圆」，给的是「${形}」`, 0, 0);
+    }
+    const m = new Map();
+    m.set('粒子们', []); m.set('选项', 合);
+    m.set('种子', 种); m.set('状态', String(种));
+    return m;
+  }),
+  '发射': new R.Builtin('发射', (系统, x, y, 数量, 选项) => {
+    const d = _是粒子系统(系统, '发射');
+    const px = _要数(x, '发射', 'x'), py = _要数(y, '发射', 'y');
+    const n = Math.trunc(_要数(数量, '发射', '数量'));
+    if (n < 0) throw R.valueErr(`「发射」的数量不能是负数，现在是 ${n}`, 0, 0);
+    if (n > 5000) throw R.valueErr(`「发射」一次最多 5000 个（现在要 ${n}）—— 要更多就多调几次`, 0, 0);
+    const 合 = new Map(d.get('选项'));
+    if (选项 !== undefined && 选项 !== null) {
+      const 复 = _要字典(选项, '发射', '选项');
+      for (const [k, v] of 复) {
+        if (!_粒子键.includes(k)) {
+          throw R.valueErr(`粒子选项里没有「${k}」这一项 —— 能用的是：`
+            + '寿命 / 速度 / 角度 / 重力 / 尺寸 / 颜色 / 形状 / 淡出', 0, 0);
+        }
+        合.set(k, v);
+      }
+    }
+    const [寿lo, 寿hi] = _粒区间(合, '寿命', '发射');
+    const [速lo, 速hi] = _粒区间(合, '速度', '发射');
+    const [角lo, 角hi] = _粒区间(合, '角度', '发射');
+    const [尺lo, 尺hi] = _粒区间(合, '尺寸', '发射');
+    const 色 = _粒颜色(合, '发射');
+    const 重 = _要数(合.get('重力') ?? 0, '发射', '重力');
+    const 形 = 合.get('形状') ?? '矩形';
+    const 淡 = !!合.get('淡出');
+    const 列 = d.get('粒子们');
+    const 间 = (lo, hi) => lo + (hi - lo) * _粒摇(d);
+    for (let i = 0; i < n; i++) {
+      const 寿 = Math.max(间(寿lo, 寿hi), 0.001);
+      const 速 = 间(速lo, 速hi);
+      const 角 = 间(角lo, 角hi) * Math.PI / 180;
+      const 尺 = 间(尺lo, 尺hi);
+      const 色一 = 色[Math.trunc(_粒摇(d) * 色.length) % 色.length];
+      const p = new Map();
+      p.set('x', _小(px)); p.set('y', _小(py));
+      p.set('速x', _小(速 * Math.cos(角))); p.set('速y', _小(-速 * Math.sin(角)));
+      p.set('寿', _小(寿)); p.set('总寿', _小(寿));
+      p.set('尺寸', _小(尺)); p.set('颜色', 色一);
+      p.set('重力', _小(重)); p.set('形状', 形); p.set('淡出', 淡);
+      列.push(p);
+    }
+    return n;
+  }),
+  '更新': new R.Builtin('更新', (系统, 秒) => {
+    const d = _是粒子系统(系统, '更新');
+    const dt = _要数(秒, '更新', '秒');
+    if (dt < 0) throw R.valueErr(`「更新」的秒数不能是负数，现在是 ${dt}`, 0, 0);
+    const 活 = [];
+    for (const p of d.get('粒子们')) {
+      const 寿 = Number(R.unwrap(p.get('寿'))) - dt;
+      if (寿 <= 0) continue;
+      p.set('寿', _小(寿));
+      const 速y = Number(R.unwrap(p.get('速y'))) + Number(R.unwrap(p.get('重力'))) * dt;
+      p.set('速y', _小(速y));
+      p.set('x', _小(Number(R.unwrap(p.get('x'))) + Number(R.unwrap(p.get('速x'))) * dt));
+      p.set('y', _小(Number(R.unwrap(p.get('y'))) + 速y * dt));
+      活.push(p);
+    }
+    d.set('粒子们', 活);
+    return 活.length;
+  }),
+  '数量': new R.Builtin('数量', (系统) => _是粒子系统(系统, '数量').get('粒子们').length),
+  '清': new R.Builtin('清', (系统) => {
+    const d = _是粒子系统(系统, '清');
+    const n = d.get('粒子们').length;
+    d.set('粒子们', []);
+    return n;
+  }),
+  // `画` 要画布 —— Node 上不假装能画
+  '画': _noGraphics('画'),
+};
+
+// ---- 物理（纯逻辑）-------------------------------------------------------
+
+function _体数(d, 键) {
+  const v = d.get(键);
+  return v === undefined ? 0 : Number(R.unwrap(v));
+}
+
+function _是体(v, 名) {
+  if (!(v instanceof Map) || !v.has('速x') || !v.has('在地')) {
+    throw R.valueErr(`这个字典不是体 —— \`物理.新建()\` 的返回值才认（「${名}」）`, 0, 0);
+  }
+  return v;
+}
+
+function _造地形(图, 选, 谁) {
+  const 行们 = 图.get('行们') || [];
+  const 瓦片宽 = _要数(图.get('瓦片宽'), 谁, '瓦片宽');
+  const 瓦片高 = _要数(图.get('瓦片高'), 谁, '瓦片高');
+  if (瓦片宽 <= 0 || 瓦片高 <= 0) throw R.valueErr(`「${谁}」的瓦片宽高必须大于 0`, 0, 0);
+  const 实心 = _实心列(选, 谁);
+  let 台阶 = 0;
+  if (选 instanceof Map && 选.has('台阶')) {
+    台阶 = _要数(选.get('台阶'), 谁, '台阶');
+    if (台阶 < 0) throw R.valueErr(`「${谁}」的台阶不能是负数，现在是 ${台阶}`, 0, 0);
+  }
+  const 撞 = (x, y, bw, bh) => {
+    if (bw <= 0 || bh <= 0) return false;
+    const 缩 = 0.001;
+    const c0 = Math.floor((x + 缩) / 瓦片宽), c1 = Math.floor((x + bw - 缩) / 瓦片宽);
+    const r0 = Math.floor((y + 缩) / 瓦片高), r1 = Math.floor((y + bh - 缩) / 瓦片高);
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        if (r < 0 || c < 0) continue;      // 图外当空
+        const 行 = 行们[r];
+        if (!行) continue;
+        const 号 = c < 行.length ? 行[c] : -1;
+        if (_格实心(号, 实心)) return true;
+      }
+    }
+    return false;
+  };
+  return {
+    撞,
+    通: (x, y, bw, bh) => !撞(x, y, bw, bh),
+    台阶,
+    瓦片宽, 瓦片高,
+  };
+}
+
+const PHYSICS_FUNCS = {
+  '新建': new R.Builtin('新建', (选项) => {
+    const d = _要字典(选项, '新建', '选项');
+    for (const 键 of ['x', 'y', '宽', '高']) if (!d.has(键)) _缺(键, '物理.新建');
+    const x = _要数(d.get('x'), '物理.新建', 'x');
+    const y = _要数(d.get('y'), '物理.新建', 'y');
+    const w = _要数(d.get('宽'), '物理.新建', '宽');
+    const h = _要数(d.get('高'), '物理.新建', '高');
+    if (w <= 0 || h <= 0) {
+      throw R.valueErr(`「物理.新建」的宽高要大于 0，现在是 ${w} × ${h}`, 0, 0);
+    }
+    const 重力 = d.has('重力') ? _要数(d.get('重力'), '新建', '重力') : 1600;
+    const 摩擦 = d.has('摩擦') ? _要数(d.get('摩擦'), '新建', '摩擦') : 0;
+    const 最大下落 = d.has('最大下落') ? _要数(d.get('最大下落'), '新建', '最大下落') : 900;
+    if (最大下落 <= 0) throw R.valueErr('「新建」的最大下落要大于 0', 0, 0);
+    const m = new Map();
+    m.set('x', _小(x)); m.set('y', _小(y)); m.set('宽', _小(w)); m.set('高', _小(h));
+    m.set('速x', _小(0)); m.set('速y', _小(0)); m.set('在地', false);
+    m.set('重力', _小(重力)); m.set('摩擦', _小(摩擦)); m.set('最大下落', _小(最大下落));
+    return m;
+  }),
+  '步': new R.Builtin('步', (体, 瓦片图, 秒, 选项) => {
+    const b = _是体(体, '步');
+    const 图 = _要字典(瓦片图, '步', '瓦片图');
+    const dt = _要数(秒, '步', '秒');
+    if (dt < 0) throw R.valueErr(`「步」的秒数不能是负数，现在是 ${dt}`, 0, 0);
+    if (dt === 0) return 体;
+    const 地 = _造地形(图, 选项, '步');
+    const w = _体数(b, '宽'), h = _体数(b, '高');
+    if (w <= 0 || h <= 0) throw R.valueErr('「步」的体宽高要大于 0（用 `物理.新建` 造体）', 0, 0);
+    const 重力 = _体数(b, '重力');
+    const 摩擦 = _体数(b, '摩擦');
+    const 最大下落 = Math.max(_体数(b, '最大下落'), 1);
+    let x = _体数(b, 'x'), y = _体数(b, 'y');
+    let 速x = _体数(b, '速x');
+    let 速y = Math.min(_体数(b, '速y') + 重力 * dt, 最大下落);
+    const 步长 = Math.max(Math.min(地.瓦片宽, 地.瓦片高) * 0.5, 0.5);
+
+    // ---- 水平 ----
+    const dx = 速x * dt;
+    const 段X = Math.max(Math.ceil(Math.abs(dx) / 步长), 1);
+    for (let i = 0; i < 段X; i++) {
+      const 一 = dx / 段X;
+      if (地.通(x + 一, y, w, h)) {
+        x += 一;
+      } else if (地.台阶 > 0 && 地.通(x, y - 地.台阶, w, h)
+                 && 地.通(x + 一, y - 地.台阶, w, h)) {
+        y -= 地.台阶;
+        x += 一;
+        b.set('在地', false);
+      } else {
+        速x = 0;
+        break;
+      }
+    }
+
+    // ---- 垂直 ----
+    const dy = 速y * dt;
+    const 段Y = Math.max(Math.ceil(Math.abs(dy) / 步长), 1);
+    let 落地 = false;
+    for (let i = 0; i < 段Y; i++) {
+      const 一 = dy / 段Y;
+      if (地.通(x, y + 一, w, h)) {
+        y += 一;
+      } else {
+        if (一 > 0) 落地 = true;
+        速y = 0;
+        break;
+      }
+    }
+
+    // ---- 摩擦（只在地面上）----
+    if (摩擦 > 0 && 落地) {
+      速x *= Math.max(1 - 摩擦 * dt, 0);
+      if (Math.abs(速x) < 1) 速x = 0;
+    }
+
+    const 在地 = 速y >= 0 && 地.撞(x, y + h, w, 0.5);
+    b.set('x', _小(x)); b.set('y', _小(y));
+    b.set('速x', _小(速x)); b.set('速y', _小(速y));
+    b.set('在地', !!(在地 || 落地));
+    return 体;
+  }),
+  '跳': new R.Builtin('跳', (体, 速度) => {
+    const b = _是体(体, '跳');
+    const 力 = (速度 === undefined || 速度 === null) ? 520 : _要数(速度, '跳', '速度');
+    if (力 <= 0) throw R.valueErr(`「跳」的速度要大于 0，现在是 ${力}`, 0, 0);
+    if (b.get('在地') !== true) return false;
+    b.set('速y', _小(-力));
+    b.set('在地', false);
+    return true;
+  }),
+};
+
 const STDLIB = {  '数学': new R.Module('数学', {
     '开方': new R.Builtin('开方', (x) => new R.FloatBox(Math.sqrt(x))),
     '平方': new R.Builtin('平方', (x) => x * x),
@@ -8238,14 +8827,30 @@ const STDLIB = {  '数学': new R.Module('数学', {
   '打包': new R.Module('打包', PACK_FUNCS),
   '窗口': new R.Module('窗口', WINDOW_FUNCS),
   // M186
-  '图形': new R.Module('图形', GRAPHICS_FUNCS),
+  '图形': new R.Module('图形', Object.assign(GRAPHICS_FUNCS, {
+    // M208：帧耗时直方图。Node 上没有 rAF 帧循环 ⇒ 与 Rust 命令行同一句
+    '帧统计': new R.Builtin('帧统计', () => {
+      throw R.runErr('还没有帧数据 —— 「帧统计」要在 `图形.运行` 的帧循环里读', 0, 0);
+    }),
+    '清帧统计': new R.Builtin('清帧统计', () => null),
+  })),
   // M187
-  '声音': new R.Module('声音', SOUND_FUNCS),
+  '声音': new R.Module('声音', Object.assign(SOUND_FUNCS, {
+    // M208：通道（Node 没有音频输出 ⇒ 与其它声音函数同一条平台错）
+    '建通道': new R.Builtin('建通道', () => { throw R.runErr(SOUND_无, 0, 0); }),
+    '通道音量': new R.Builtin('通道音量', () => { throw R.runErr(SOUND_无, 0, 0); }),
+    '播到': new R.Builtin('播到', () => { throw R.runErr(SOUND_无, 0, 0); }),
+    '通道们': new R.Builtin('通道们', () => { throw R.runErr(SOUND_无, 0, 0); }),
+  })),
   '精灵': new R.Module('精灵', SPRITE_FUNCS),
   '瓦片': new R.Module('瓦片', TILE_FUNCS),
   '地图': new R.Module('地图', MAP_FUNCS),
   '存档': new R.Module('存档', SAVE_FUNCS),
   '场景': new R.Module('场景', SCENE_FUNCS),
+  // M208
+  '操控': new R.Module('操控', CONTROL_FUNCS),
+  '粒子': new R.Module('粒子', PARTICLE_FUNCS),
+  '物理': new R.Module('物理', PHYSICS_FUNCS),
   // M185
   '托盘': new R.Module('托盘', TRAY_FUNCS),
   '剪贴板': new R.Module('剪贴板', CLIPBOARD_FUNCS),

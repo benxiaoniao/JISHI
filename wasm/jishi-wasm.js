@@ -452,6 +452,7 @@
         delete this._按过[键];       // 边沿：读一次就清
         return 有;
       }
+      case "手柄": return this._手柄(a[0]);
       case "鼠标": return { x: this._鼠标.x, y: this._鼠标.y,
                             左键: this._鼠标.左键, 右键: this._鼠标.右键 };
       case "滚轮": {
@@ -508,6 +509,10 @@
       case "声音淡入": return this._音淡入(a);
       case "声音淡出": return this._音淡出(a);
       case "声音静音": return this._音静音(a);
+      case "声音建通道": return this._音建通道(a);
+      case "声音通道音量": return this._音通道音量(a);
+      case "声音播到": return this._音播到(a);
+      case "声音通道们": return Object.keys(this._音().通道 || {});
       case "转场帧": return this._g转场帧(a);
 
       default: throw new Error("宿主里没有「" + op + "」这个操作");
@@ -1413,7 +1418,8 @@
     var 主 = ctx.createGain();
     主.gain.value = 1;
     主.connect(ctx.destination);
-    this._声 = { 上下文: ctx, 主: 主, 表: {}, 序: 1 };
+    // M208：通道（各自一个 GainNode，串在「主音量」前面）
+    this._声 = { 上下文: ctx, 主: 主, 表: {}, 序: 1, 通道: {} };
     var 解 = function () {
       if (ctx.state === "suspended" && ctx.resume) ctx.resume();
     };
@@ -1593,6 +1599,76 @@
   };
 
   /**
+   * 建一个声音通道（M208）：`建通道("音效", 0.8)`。
+   *
+   * 用途就一个：**分类调音量**（音效 0.8 / 音乐 0.4），而不是逐个声音去设。
+   * 通道是 `GainNode`，串在「主音量」前面 —— 主音量照样一声全关。
+   *
+   * 重复建同名通道 = **改它的音量**（幂等；游戏重开时不用先删）。
+   */
+  Jishi.prototype._音建通道 = function (a) {
+    var s = this._音();
+    var 名 = String(a[0]);
+    if (!名) throw new Error("「声音.建通道」的名字不能是空的");
+    var 量 = a.length > 1 ? Number(a[1]) : 1;
+    if (isNaN(量)) throw new Error("「声音.建通道」的音量要数字");
+    var 旧 = s.通道[名];
+    if (旧) {
+      旧.gain.value = 量;
+      return 名;
+    }
+    var 增 = s.上下文.createGain();
+    增.gain.value = 量;
+    增.connect(s.主);
+    s.通道[名] = 增;
+    return 名;
+  };
+
+  Jishi.prototype._音通道音量 = function (a) {
+    var s = this._音();
+    var 名 = String(a[0]);
+    var 增 = s.通道[名];
+    if (!增) {
+      throw new Error("没有「" + 名 + "」这个声音通道（先 `声音.建通道(\"" + 名 + "\")`）");
+    }
+    var 量 = Number(a[1]);
+    if (isNaN(量)) throw new Error("「声音.通道音量」的音量要数字");
+    增.gain.value = 量;
+    return 量;
+  };
+
+  /** 播到某个通道（与 `_音播放` 同一套，只是出口接在通道上）。 */
+  Jishi.prototype._音播到 = function (a) {
+    var s = this._音();
+    var 名 = String(a[0]);
+    var 增 = s.通道[名];
+    if (!增) {
+      throw new Error("没有「" + 名 + "」这个声音通道（先 `声音.建通道(\"" + 名 + "\")`）");
+    }
+    var 项 = this._音项(a[1]);
+    if (s.上下文.state !== "running") return false;
+    if (!项.缓冲) return false;
+    var 选 = {};
+    try { 选 = JSON.parse(a[2] || "{}") || {}; } catch (_) { 选 = {}; }
+    if (项.源) { try { 项.源.stop(); } catch (_) {} 项.源 = null; }
+    var 源 = s.上下文.createBufferSource();
+    源.buffer = 项.缓冲;
+    源.loop = !!选["循环"];
+    if (选["速度"] != null) 源.playbackRate.value = Number(选["速度"]) || 1;
+    var 自增 = s.上下文.createGain();
+    var 量 = 选["音量"] != null ? Number(选["音量"]) : 项.音量;
+    自增.gain.value = 量 == null || isNaN(量) ? 1 : 量;
+    源.connect(自增);
+    自增.connect(增);          // ← 与 _音播放 唯一的不同：出口是通道
+    项.源 = 源; 项.增 = 自增; 项.在放 = true;
+    源.onended = function () {
+      if (项.源 === 源) { 项.在放 = false; 项.源 = null; }
+    };
+    源.start(0);
+    return true;
+  };
+
+  /**
    * 挂输入监听（**只挂一次**）。
    *
    * ⚠️ 挂在 `window` 上而不是画布上：画布要能拿到焦点才收键盘，而刚插进去的
@@ -1631,6 +1707,43 @@
       自._滚.dx += Number(e.deltaX) || 0;
       自._滚.dy += Number(e.deltaY) || 0;
     }, { passive: true });
+  };
+
+  /**
+   * 读一个手柄（M208）。没连/没有 Gamepad API ⇒ **返回完整字典 + `连接: 假`**。
+   *
+   * 为什么不是返回 `空`：那样每一处用之前都得判空（`如果 柄 != 空 且 柄["左x"] …`）。
+   * 而「手柄没插」是**常态**，游戏该照跑 —— 给一个零值字典，调用方只需要看 `连接`。
+   *
+   * 死区 0.15：手柄摇杆回中后仍会飘几个百分点，不设死区的话角色会自己慢慢走。
+   * 轴向口径与浏览器一致：**上 / 左是负**（`左y` 向上 = -1）。
+   */
+  Jishi.prototype._手柄 = function (i) {
+    var 空 = { 连接: false, 左x: 0, 左y: 0, 右x: 0, 右y: 0, 按钮们: [], 扳机们: [] };
+    var nav = root && root.navigator;
+    if (!nav || !nav.getGamepads) return 空;
+    var 号 = Math.max(0, Math.round(Number(i) || 0));
+    var 柄 = null;
+    try { 柄 = nav.getGamepads()[号]; } catch (_) { 柄 = null; }
+    if (!柄 || !柄.connected) return 空;
+    var 死 = 0.15;
+    var 轴 = function (v) {
+      v = Number(v) || 0;
+      return Math.abs(v) < 死 ? 0 : v;
+    };
+    var 轴s = 柄.axes || [];
+    var 按 = [];
+    var 柄按 = 柄.buttons || [];
+    for (var j = 0; j < 柄按.length; j++) 按.push(!!(柄按[j] && 柄按[j].pressed));
+    var 板 = [];
+    if (柄按[6]) 板.push(Number(柄按[6].value) || 0);
+    if (柄按[7]) 板.push(Number(柄按[7].value) || 0);
+    return {
+      连接: true,
+      左x: 轴(轴s[0]), 左y: 轴(轴s[1]),
+      右x: 轴(轴s[2]), 右y: 轴(轴s[3]),
+      按钮们: 按, 扳机们: 板
+    };
   };
 
   /** 哪些键要吃掉默认行为（只吃方向键 / 空格 —— 别把 F5 也吃了）。 */

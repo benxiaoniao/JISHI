@@ -30,7 +30,7 @@ import json
 
 from ..errors import RunFileError, RunTypeError, RunValueError
 
-__all__ = ["读", "层", "从Tiled", "存Tiled"]
+__all__ = ["读", "层", "从Tiled", "存Tiled", "寻路"]
 
 
 def _规整(d):
@@ -240,3 +240,119 @@ def 存Tiled(地图, 路径):
 def _xml转义(s: str) -> str:
     return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
              .replace('"', "&quot;"))
+
+
+# ---------------------------------------------------------------------------
+# M208：A* 寻路
+# ---------------------------------------------------------------------------
+
+def _格坐标(v, 名, 参):
+    if isinstance(v, (list, tuple)):
+        if len(v) != 2:
+            raise RunValueError(f"「{名}」的{参}要给 [列, 行]（两个整数），现在有 {len(v)} 项")
+        return int(v[0]), int(v[1])
+    if isinstance(v, dict):
+        for k in ("列", "行"):
+            if k not in v:
+                raise RunValueError(f"「{名}」的字典里缺「{k}」")
+        return int(v["列"]), int(v["行"])
+    raise RunTypeError(
+        f"「{名}」的{参}要给 [列, 行] 或 {{\"列\":…,\"行\":…}}，给的是{type(v).__name__}")
+
+
+def _实心列(v, 名):
+    if v is None:
+        return []
+    if isinstance(v, (list, tuple)):
+        return [int(x) for x in v]
+    if isinstance(v, dict):
+        x = v.get("实心")
+        return [] if x is None else [int(n) for n in x]
+    raise RunTypeError(f"「{名}」的实心要给列表或选项字典，给的是{type(v).__name__}")
+
+
+def _格实心(号, 实心):
+    """与 `物理` 同一口径：空表 ⇒ 非 -1 全实心。"""
+    return 号 >= 0 and (not 实心 or 号 in 实心)
+
+
+def 寻路(瓦片图, 起, 终, 选项=None):
+    """M208：A* 寻路（8 向，对角不许穿墙角）。返回 `[[列, 行], …]`（含起终点）；走不通给 `[]`。
+
+    找不到路是**正常的游戏状态**（桥断了），不是错误 —— 所以返回空列表而不是抛异常。
+    起 / 终点落在实心格上才会报错（那通常是写错了坐标）。
+    """
+    import heapq
+
+    if not isinstance(瓦片图, dict):
+        raise RunTypeError(f"「寻路」的瓦片图要字典，给的是{type(瓦片图).__name__}")
+    raw = 瓦片图.get("行们") or []
+    行们 = [[-1 if c is None else int(c) for c in r] for r in raw]
+    s = _格坐标(起, "寻路", "起")
+    t = _格坐标(终, "寻路", "终")
+    实心 = _实心列(选项, "寻路")
+    行数 = len(行们)
+    列数 = max((len(r) for r in 行们), default=0)
+    for 名, p in (("起", s), ("终", t)):
+        if p[0] < 0 or p[1] < 0 or p[1] >= 行数 or p[0] >= 列数:
+            raise RunValueError(
+                f"「寻路」的{名}点 ({p[0]}, {p[1]}) 出界了 —— 这张图是 {列数} 列 × {行数} 行")
+
+    def 号at(p):
+        if p[1] >= 行数 or p[1] < 0:
+            return -1
+        行 = 行们[p[1]]
+        return 行[p[0]] if 0 <= p[0] < len(行) else -1
+
+    for 名, p in (("起", s), ("终", t)):
+        if _格实心(号at(p), 实心):
+            raise RunValueError(
+                f"「寻路」的{名}点 ({p[0]}, {p[1]}) 是实心瓦片（号 {号at(p)}）")
+
+    def 通(p):
+        if p[0] < 0 or p[1] < 0 or p[1] >= 行数 or p[0] >= 列数:
+            return False
+        return not _格实心(号at(p), 实心)
+
+    if s == t:
+        return [list(s)]
+    if not 通(s) or not 通(t):
+        return []
+
+    def 启(p):
+        dx = abs(p[0] - t[0])
+        dy = abs(p[1] - t[1])
+        return max(dx, dy) * 1000 + min(dx, dy) * 414
+
+    向 = [(1, 0, 1000), (-1, 0, 1000), (0, 1, 1000), (0, -1, 1000),
+          (1, 1, 1414), (1, -1, 1414), (-1, 1, 1414), (-1, -1, 1414)]
+    已付 = {s: 0}
+    父 = {}
+    堆 = [(启(s), 0, s[0], s[1])]
+    while 堆:
+        _, g, c, r = heapq.heappop(堆)
+        p = (c, r)
+        if p == t:
+            路 = [list(t)]
+            q = t
+            while q in 父:
+                q = 父[q]
+                路.append(list(q))
+            路.reverse()
+            return 路
+        if 已付.get(p, 1 << 62) < g:
+            continue
+        for dc, dr, 价 in 向:
+            新 = (c + dc, r + dr)
+            if not 通(新):
+                continue
+            if dc != 0 and dr != 0:
+                # 对角：两侧都得通，否则就是从墙角缝里穿过去
+                if not 通((c + dc, r)) or not 通((c, r + dr)):
+                    continue
+            新g = g + 价
+            if 新g < 已付.get(新, 1 << 62):
+                已付[新] = 新g
+                父[新] = p
+                heapq.heappush(堆, (新g + 启(新), 新g, 新[0], 新[1]))
+    return []

@@ -122,8 +122,8 @@ def test_模块函数数对得上():
     r = subprocess.run([str(rust_exe_path()), "--lang-spec"], capture_output=True, timeout=120)
     d = json.loads(r.stdout.decode("utf-8"))
     数 = {m["module"]: len(m["functions"]) for m in d["stdlib"]}
-    for 模块, 期望 in (("瓦片", 10), ("精灵", 10), ("地图", 4), ("场景", 5),
-                       ("声音", 10), ("存档", 6)):
+    for 模块, 期望 in (("瓦片", 13), ("精灵", 10), ("地图", 5), ("场景", 5),
+                       ("声音", 14), ("存档", 6)):
         assert 数[模块] == 期望, f"{模块} 应当是 {期望} 个函数，实际 {数[模块]}"
 
 

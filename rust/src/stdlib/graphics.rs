@@ -1115,6 +1115,56 @@ pub(crate) fn module() -> HashMap<String, Val> {
             })?;
             Ok(Val::Bytes(std::rc::Rc::new(png)))
         },
+        // ---- M208：帧耗时直方图（卡顿能定位）---------------------------------
+        //
+        // 帧统计(卡顿阈值 = 33.4) → {帧数, 平均, 最小, 最大, p95, 卡顿, 阈值, 桶们}
+        //
+        // 数据来自 **rAF 时间戳的差**（不是 Rust 取的时钟）：wasm 上没有可靠的
+        // 高精度时钟，而 `jishi_frame(ts)` 本来就拿到了「这一帧什么时候开始」。
+        // 只留最近 240 帧（≈4 秒 60fps）—— 卡顿问的是「现在」。
+        "帧统计" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("帧统计", args, 0, 1)?;
+            let 阈 = match args.first() {
+                None | Some(Val::None_) => 33.4,
+                Some(v) => 数(v, "帧统计", "卡顿阈值")?,
+            };
+            if !(阈 > 0.0) {
+                return Err(err("值错误", format!("「帧统计」的卡顿阈值要大于 0，现在是 {阈}")));
+            }
+            let Some(st) = crate::frame::帧统计(阈) else {
+                return Err(err_with_hint(
+                    "运行期错误",
+                    "还没有帧数据 —— 「帧统计」要在 `图形.运行` 的帧循环里读",
+                    "先 `图形.运行(...)`；命令行里没有帧循环，量不到".into(),
+                ));
+            };
+            let 桶们 = crate::list_new(
+                st.桶们
+                    .iter()
+                    .map(|(起, 止, 数)| {
+                        crate::dict_new(vec![
+                            (Val::Str("起".into()), Val::Float(*起)),
+                            (Val::Str("止".into()), Val::Float(*止)),
+                            (Val::Str("数".into()), Val::Int(*数 as i128)),
+                        ])
+                    })
+                    .collect(),
+            );
+            Ok(crate::dict_new(vec![
+                (Val::Str("帧数".into()), Val::Int(st.帧数 as i128)),
+                (Val::Str("平均".into()), Val::Float(st.平均)),
+                (Val::Str("最小".into()), Val::Float(st.最小)),
+                (Val::Str("最大".into()), Val::Float(st.最大)),
+                (Val::Str("p95".into()), Val::Float(st.p95)),
+                (Val::Str("卡顿".into()), Val::Int(st.卡顿 as i128)),
+                (Val::Str("阈值".into()), Val::Float(阈)),
+                (Val::Str("桶们".into()), 桶们),
+            ]))
+        },
+        "清帧统计" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            crate::frame::清帧耗时();
+            Ok(Val::None_)
+        },
         "停" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             要画布()?;
             let 有 = frame::有();

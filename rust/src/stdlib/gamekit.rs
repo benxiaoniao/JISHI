@@ -192,6 +192,145 @@ fn 二维(v: &Val, 名: &str, 参: &str) -> Result<Vec<Vec<i64>>, JishiError> {
     Ok(出)
 }
 
+/// 一块瓦片算不算实心。
+///
+/// 口径（`地图.寻路` 与 `物理.步` **共用这一份**）：
+///
+/// - `实心` 是**空** ⇒ **非 -1 的瓦片全实心**（画上去的就当墙 —— 平台游戏最常要的）；
+/// - `实心` 有列表 ⇒ **只有列表里的号实心**（草地、水这些可以走过去）。
+///
+/// 📌 为什么默认是「非空即实心」而不是「全都不实心」：后者意味着用户画完地图
+/// 发现角色直接掉下去，还得再抄一遍瓦片号。默认要能做出「能站的地图」。
+fn 格实心(号: i64, 实心: &[i64]) -> bool {
+    号 >= 0 && (实心.is_empty() || 实心.contains(&号))
+}
+
+/// 收「实心」选项（`{"实心": [1, 2]}`）；没有就是空表 = 非空瓦片全实心。
+fn 实心列(v: Option<&Val>, 名: &str) -> Result<Vec<i64>, JishiError> {
+    let Some(v) = v else { return Ok(Vec::new()) };
+    match v {
+        Val::None_ => Ok(Vec::new()),
+        // 直接给列表也收（判据与示例里这样写更短）
+        Val::List(_) => 整数列(v, 名, "实心"),
+        Val::Dict(d) => {
+            let raw = { 取(&d.borrow(), "实心") };
+            match raw {
+                Some(x) => 整数列(&x, 名, "实心"),
+                None => Ok(Vec::new()),
+            }
+        }
+        other => Err(err(
+            "类型错误",
+            format!("「{名}」的实心要给列表或选项字典，给的是{}", crate::type_label(other)),
+        )),
+    }
+}
+
+/// 收一个「格坐标」：`[列, 行]` 或 `{"列": …, "行": …}`。
+fn 格坐标(v: &Val, 名: &str, 参: &str) -> Result<(i64, i64), JishiError> {
+    match v {
+        Val::List(项) => {
+            let 项 = 项.borrow();
+            if 项.len() != 2 {
+                return Err(err(
+                    "值错误",
+                    format!("「{名}」的{参}要给 [列, 行]（两个整数），现在有 {} 项", 项.len()),
+                ));
+            }
+            Ok((
+                整数(&项[0], 名, &format!("{参}的列"))?,
+                整数(&项[1], 名, &format!("{参}的行"))?,
+            ))
+        }
+        Val::Dict(d) => {
+            let dd = d.borrow();
+            Ok((
+                整数(&取必(&dd, "列", 名)?, 名, &format!("{参}的列"))?,
+                整数(&取必(&dd, "行", 名)?, 名, &format!("{参}的行"))?,
+            ))
+        }
+        other => Err(err(
+            "类型错误",
+            format!("「{名}」的{参}要给 [列, 行] 或 {{\"列\":…,\"行\":…}}，给的是{}",
+                crate::type_label(other)),
+        )),
+    }
+}
+
+/// 整数列表（`瓦片.加动画` 的帧们用）。
+fn 整数列(v: &Val, 名: &str, 参: &str) -> Result<Vec<i64>, JishiError> {
+    let Val::List(items) = v else {
+        return Err(err(
+            "类型错误",
+            format!("「{名}」的「{参}」要整数列表（例如 [4, 5, 6]），给的是{}",
+                crate::type_label(v)),
+        ));
+    };
+    let 表 = items.borrow();
+    let mut 出 = Vec::with_capacity(表.len());
+    for (i, it) in 表.iter().enumerate() {
+        match it {
+            Val::Int(n) => 出.push(i64::try_from(*n).map_err(|_| {
+                err("值错误", format!("「{名}」的「{参}」第 {} 项超出整数范围", i + 1))
+            })?),
+            other => {
+                return Err(err(
+                    "值错误",
+                    format!("「{名}」的「{参}」第 {} 项要整数（瓦片号），给的是{}",
+                        i + 1, crate::type_label(other)),
+                ))
+            }
+        }
+    }
+    Ok(出)
+}
+
+/// 读一张瓦片图的「动画表」：`瓦片号 → 该号当前应当显示的帧号`。
+///
+/// 只在 `瓦片.画` 里用。**碰撞 / 取格 / 是实心 一律看原号** —— 动画是「画成什么」，
+/// 不是「那块地变成了什么」。混起来会让「会动的岩浆」突然变成能站的砖。
+fn 动画映射(d: &crate::Dict) -> HashMap<i64, i64> {
+    let mut 出: HashMap<i64, i64> = HashMap::new();
+    let Some(Val::Dict(动)) = 取(d, "动画") else {
+        return 出;
+    };
+    let 动 = 动.borrow();
+    for (k, v) in 动.to_items() {
+        let 号: i64 = match &k {
+            Val::Str(s) => match s.parse::<i64>() {
+                Ok(n) => n,
+                Err(_) => continue,
+            },
+            Val::Int(n) => *n as i64,
+            _ => continue,
+        };
+        let Val::Dict(条) = v else { continue };
+        let 条 = 条.borrow();
+        let (帧们, 序) = match (取(&条, "帧们"), 取(&条, "序")) {
+            (Some(Val::List(l)), Some(Val::Int(i))) => {
+                let v: Vec<i64> = l
+                    .borrow()
+                    .iter()
+                    .filter_map(|x| match x {
+                        Val::Int(n) => Some(*n as i64),
+                        _ => None,
+                    })
+                    .collect();
+                (v, i as usize)
+            }
+            _ => continue,
+        };
+        if 帧们.is_empty() {
+            continue;
+        }
+        let 当 = 帧们[序 % 帧们.len()];
+        if 当 != 号 {
+            出.insert(号, 当);
+        }
+    }
+    出
+}
+
 /// 二维整数数组 → `Val::List`（构造返回值用）。
 fn 二维值(行们: &[Vec<i64>]) -> Val {
     crate::list_new(
@@ -591,6 +730,139 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                 (Val::Str("行数".into()), Val::Int(行们.len() as i128)),
             ]))
         },
+        // ---- M208：瓦片动画 -------------------------------------------------
+        //
+        // 动画存在**瓦片图自己的字典**里（键 `动画`）：`{编号 → {帧们, 帧率, 累计, 序}}`。
+        // 为什么不另开一个「动画对象」：地图数据本来就在这个字典里，动画是**它的属性**
+        // （「4 号瓦片会动」），分开存会让「换地图」变成两件事。
+        //
+        // 加动画(瓦片图, 编号, 帧们, 帧率 = 8)
+        "加动画" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("加动画", args, 3, 4)?;
+            let d = 字典(&args[0], "加动画", "瓦片图")?;
+            let 编号 = 整数(&args[1], "加动画", "编号")?;
+            if 编号 < 0 {
+                return Err(err(
+                    "值错误",
+                    format!("「加动画」的编号不能是负数（-1 是「空」），现在是 {编号}"),
+                ));
+            }
+            let 帧们 = 整数列(&args[2], "加动画", "帧们")?;
+            if 帧们.is_empty() {
+                return Err(err(
+                    "值错误",
+                    "「加动画」的帧们不能是空列表 —— 至少给一帧（不然这块瓦片就没了）",
+                ));
+            }
+            if let Some(i) = 帧们.iter().position(|n| *n < 0) {
+                return Err(err(
+                    "值错误",
+                    format!("「加动画」第 {} 帧是负数（-1 是「空」）—— 要「空一帧」就别放它",
+                        i + 1),
+                ));
+            }
+            let 帧率 = match args.get(3) {
+                None | Some(Val::None_) => 8.0,
+                Some(v) => 数(v, "加动画", "帧率")?,
+            };
+            if !(帧率 > 0.0) {
+                return Err(err(
+                    "值错误",
+                    format!("「加动画」的帧率要大于 0（单位：帧/秒），现在是 {帧率}"),
+                ));
+            }
+
+            let 条 = dict_new(vec![
+                (Val::Str("帧们".into()), crate::list_new(
+                    帧们.iter().map(|n| Val::Int(*n as i128)).collect())),
+                (Val::Str("帧率".into()), Val::Float(帧率)),
+                (Val::Str("累计".into()), Val::Float(0.0)),
+                (Val::Str("序".into()), Val::Int(0)),
+            ]);
+            // 动画表不存在就建一个（`dict_set` 覆盖旧值，重复加同一号就是改动画）
+            let 表 = {
+                let 旧 = { 取(&d.borrow(), "动画") };
+                match 旧 {
+                    Some(Val::Dict(b)) => b,
+                    _ => {
+                        // `Dict` 的字段是私有的（没有 `Dict::new`）—— 走公开的
+                        // `dict_new` 造一个空字典再把里面的 `Rc` 拿出来
+                        let 空 = crate::dict_new(Vec::new());
+                        let Val::Dict(b) = 空 else { unreachable!() };
+                        dict_set(&mut d.borrow_mut(), Val::Str("动画".into()),
+                                 Val::Dict(b.clone()));
+                        b
+                    }
+                }
+            };
+            dict_set(&mut 表.borrow_mut(), Val::Int(编号 as i128), 条);
+            Ok(Val::Bool(true))
+        },
+        // 更新动画(瓦片图, 秒)
+        "更新动画" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("更新动画", args, 2)?;
+            let d = 字典(&args[0], "更新动画", "瓦片图")?;
+            let dt = 数(&args[1], "更新动画", "秒")?;
+            if dt < 0.0 {
+                return Err(err(
+                    "值错误",
+                    format!("「更新动画」的秒数不能是负数，现在是 {dt}"),
+                ));
+            }
+            let 表 = match { 取(&d.borrow(), "动画") } {
+                Some(Val::Dict(b)) => b,
+                _ => return Ok(Val::Int(0)),
+            };
+            let 项们: Vec<(Val, std::rc::Rc<RefCell<crate::Dict>>)> = 表
+                .borrow()
+                .to_items()
+                .into_iter()
+                .filter_map(|(k, v)| match v {
+                    Val::Dict(b) => Some((k, b)),
+                    _ => None,
+                })
+                .collect();
+            let mut 动了 = 0i64;
+            for (_, 条) in 项们 {
+                let mut c = 条.borrow_mut();
+                let 帧率 = match 取(&c, "帧率") {
+                    Some(v) => 数(&v, "更新动画", "帧率").unwrap_or(8.0),
+                    None => 8.0,
+                };
+                let 帧数 = match 取(&c, "帧们") {
+                    Some(Val::List(l)) => l.borrow().len(),
+                    _ => 0,
+                };
+                if 帧数 == 0 {
+                    continue;
+                }
+                let 累计 = match 取(&c, "累计") {
+                    Some(v) => 数(&v, "更新动画", "累计").unwrap_or(0.0),
+                    None => 0.0,
+                } + dt * 帧率;
+                // `floor` 一次跨多帧也照样对（一帧 100ms、帧率 30 时会跳 3 帧）
+                let 跳 = 累计.floor();
+                let 序 = match 取(&c, "序") {
+                    Some(Val::Int(i)) => i as i64,
+                    _ => 0,
+                };
+                let 新序 = (序 + 跳 as i64).rem_euclid(帧数 as i64);
+                dict_set(&mut c, Val::Str("累计".into()), Val::Float(累计 - 跳));
+                dict_set(&mut c, Val::Str("序".into()), Val::Int(新序 as i128));
+                if 跳 > 0.0 {
+                    动了 += 1;
+                }
+            }
+            Ok(Val::Int(动了 as i128))
+        },
+        // 动画帧(瓦片图, 编号) → 现在该显示的号（没动画就是原号）
+        "动画帧" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("动画帧", args, 2)?;
+            let d = 字典(&args[0], "动画帧", "瓦片图")?;
+            let 编号 = 整数(&args[1], "动画帧", "编号")?;
+            let 映 = 动画映射(&d.borrow());
+            Ok(Val::Int(*映.get(&编号).unwrap_or(&编号) as i128))
+        },
         // 画(瓦片图, 相机?) —— 相机 {"x","y","宽","高"}（世界坐标 + 视口大小）
         "画" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("画", args, 1, 2)?;
@@ -622,12 +894,15 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                     )
                 }
             };
+            // M208：动画只影响「画成哪一帧」，碰撞 / 取格 仍看原号
+            let 映 = 动画映射(&d.borrow());
             let mut 画了 = 0i64;
             for (r, 行) in 行们.iter().enumerate() {
-                for (c, 号) in 行.iter().enumerate() {
-                    if *号 < 0 {
+                for (c, 原号) in 行.iter().enumerate() {
+                    if *原号 < 0 {
                         continue;      // -1 = 空
                     }
+                    let 号 = 映.get(原号).unwrap_or(原号);
                     let x = c as f64 * 宽;
                     let y = r as f64 * 高;
                     // 视口裁剪：屏幕外的瓦片一条都不发（大地图上这是主要开销）
@@ -1248,7 +1523,141 @@ pub(crate) fn map_module() -> HashMap<String, Val> {
                 .map_err(|e| err("文件错误", format!("写不了「{p}」：{e}")))?;
             Ok(Val::None_)
         },
+
+        // ---- M208：A* 寻路 ------------------------------------------------
+        //
+        // 寻路(瓦片图, 起, 终, 选项?) → [[列, 行], …]（**含起点与终点**）
+        //
+        // 8 向；**对角不许穿墙角**（两个正交邻格都得通，否则怪会从缝里斜着钻墙）。
+        // 找不到路 ⇒ **空列表**（「走不过去」是正常的游戏状态，不是错误）。
+        "寻路" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("寻路", args, 3, 4)?;
+            let d = 字典(&args[0], "寻路", "瓦片图")?;
+            let 行们 = 图的格们(&d)?;
+            let 起 = 格坐标(&args[1], "寻路", "起")?;
+            let 终 = 格坐标(&args[2], "寻路", "终")?;
+            let 实心 = 实心列(args.get(3), "寻路")?;
+            let 行数 = 行们.len() as i64;
+            let 列数 = 行们.iter().map(|r| r.len()).max().unwrap_or(0) as i64;
+            let 越界 = |p: (i64, i64)| p.0 < 0 || p.1 < 0 || p.1 >= 行数 || p.0 >= 列数;
+            for (名, 点) in [("起", 起), ("终", 终)] {
+                if 越界(点) {
+                    return Err(err(
+                        "值错误",
+                        format!("「寻路」的{名}点 ({}, {}) 出界了 —— 这张图是 {} 列 × {} 行",
+                            点.0, 点.1, 列数, 行数),
+                    ));
+                }
+            }
+            let 号at = |p: (i64, i64)| -> i64 {
+                行们
+                    .get(p.1 as usize)
+                    .and_then(|r| r.get(p.0 as usize))
+                    .copied()
+                    .unwrap_or(-1)
+            };
+            for (名, 点) in [("起", 起), ("终", 终)] {
+                if 格实心(号at(点), &实心) {
+                    return Err(err_with_hint(
+                        "值错误",
+                        format!("「寻路」的{名}点 ({}, {}) 是实心瓦片（号 {}）",
+                            点.0, 点.1, 号at(点)),
+                        "起终点要落在能走的格子上；用 `瓦片.取` 看一下那一格是什么号".into(),
+                    ));
+                }
+            }
+            let 路 = a星(&行们, 起, 终, &实心);
+            Ok(crate::list_new(
+                路.into_iter()
+                    .map(|(c, r)| crate::list_new(vec![Val::Int(c as i128), Val::Int(r as i128)]))
+                    .collect(),
+            ))
+        },
     }
+}
+
+/// A*（M208）。代价用**千分之一格**的整数（`1000` / `1414`）——
+/// 浮点做优先队列的键要自己处理 NaN / 相等，整数省事且完全可复现。
+///
+/// 启发 = octile：`max(dx,dy)*1000 + min(dx,dy)*414`，在 8 向上**可采纳**，
+/// 也就是保证找到的是最短（按我们的代价）路径。
+fn a星(行们: &[Vec<i64>], 起: (i64, i64), 终: (i64, i64), 实心: &[i64]) -> Vec<(i64, i64)> {
+    use std::cmp::Reverse;
+    use std::collections::{BinaryHeap, HashMap};
+
+    let 行数 = 行们.len() as i64;
+    let 列数 = 行们.iter().map(|r| r.len()).max().unwrap_or(0) as i64;
+    let 通 = |p: (i64, i64)| -> bool {
+        if p.0 < 0 || p.1 < 0 || p.1 >= 行数 || p.0 >= 列数 {
+            return false;
+        }
+        let 号 = 行们
+            .get(p.1 as usize)
+            .and_then(|r| r.get(p.0 as usize))
+            .copied()
+            .unwrap_or(-1);
+        !格实心(号, 实心)
+    };
+    if 起 == 终 {
+        return vec![起];
+    }
+    if !通(起) || !通(终) {
+        return Vec::new();
+    }
+    let 启 = |p: (i64, i64)| -> i64 {
+        let dx = (p.0 - 终.0).abs();
+        let dy = (p.1 - 终.1).abs();
+        dx.max(dy) * 1000 + dx.min(dy) * 414
+    };
+
+    // 8 个方向 + 是否对角
+    const 向: [(i64, i64, i64); 8] = [
+        (1, 0, 1000), (-1, 0, 1000), (0, 1, 1000), (0, -1, 1000),
+        (1, 1, 1414), (1, -1, 1414), (-1, 1, 1414), (-1, -1, 1414),
+    ];
+
+    let mut 已付: HashMap<(i64, i64), i64> = HashMap::new();
+    let mut 父: HashMap<(i64, i64), (i64, i64)> = HashMap::new();
+    // (f, g, 点)：f 相同再比 g，最后比坐标 —— 保证**同一张图每次跑的顺序一致**
+    let mut 堆: BinaryHeap<Reverse<(i64, i64, i64, i64)>> = BinaryHeap::new();
+    已付.insert(起, 0);
+    堆.push(Reverse((启(起), 0, 起.0, 起.1)));
+    while let Some(Reverse((_, g, c, r))) = 堆.pop() {
+        let 点 = (c, r);
+        if 点 == 终 {
+            let mut 路 = vec![终];
+            let mut p = 终;
+            while let Some(q) = 父.get(&p) {
+                路.push(*q);
+                p = *q;
+            }
+            路.reverse();
+            return 路;
+        }
+        // 过期条目（同一个格被更便宜地更新过）
+        if 已付.get(&点).copied().unwrap_or(i64::MAX) < g {
+            continue;
+        }
+        for (dc, dr, 价) in 向 {
+            let 新 = (c + dc, r + dr);
+            if !通(新) {
+                continue;
+            }
+            if dc != 0 && dr != 0 {
+                // 对角：两侧都得通，否则就是「从墙角缝里穿过去」
+                if !通((c + dc, r)) || !通((c, r + dr)) {
+                    continue;
+                }
+            }
+            let 新g = g + 价;
+            if 新g < 已付.get(&新).copied().unwrap_or(i64::MAX) {
+                已付.insert(新, 新g);
+                父.insert(新, 点);
+                堆.push(Reverse((新g + 启(新), 新g, 新.0, 新.1)));
+            }
+        }
+    }
+    Vec::new()
 }
 
 /// XML 文本转义（只转这五个 —— 多转会把合法内容弄坏）。
@@ -1611,7 +2020,648 @@ pub(crate) fn scene_module() -> HashMap<String, Val> {
 }
 
 // ---------------------------------------------------------------------------
-// 注册（`mod.rs` 从这里取五个）
+// 粒子（M208）
+// ---------------------------------------------------------------------------
+
+/// 粒子的默认选项。`新建` 拿到的是这一份 + 用户覆盖。
+///
+/// 角度口径：**0 = 向右、90 = 向上**（数学口径；屏幕的 y 朝下，所以
+/// `vy = -sin(角度)`）。写 `角度: [60, 120]` 就是「往上喷一锥」。
+fn 粒子默认() -> Vec<(&'static str, Val)> {
+    vec![
+        ("寿命", Val::Float(1.0)),
+        ("速度", crate::list_new(vec![Val::Float(60.0), Val::Float(160.0)])),
+        ("角度", crate::list_new(vec![Val::Float(0.0), Val::Float(360.0)])),
+        ("重力", Val::Float(300.0)),
+        ("尺寸", crate::list_new(vec![Val::Float(2.0), Val::Float(4.0)])),
+        ("颜色", crate::list_new(vec![Val::Str("#ffffff".into())])),
+        ("形状", Val::Str("矩形".into())),
+        ("淡出", Val::Bool(true)),
+    ]
+}
+
+/// 粒子能认的选项名（打错就报错 —— 静默无效比报错浪费一晚上）。
+const 粒子键: [&str; 8] = ["寿命", "速度", "角度", "重力", "尺寸", "颜色", "形状", "淡出"];
+
+/// 合并选项：系统的默认值 + 这次调用覆盖的几项。
+fn 粒子选项(基: &crate::Dict, 复: Option<&Val>, 名: &str) -> Result<HashMap<String, Val>, JishiError> {
+    let mut 出: HashMap<String, Val> = HashMap::new();
+    for (k, v) in 基.to_items() {
+        出.insert(crate::display(&k), v);
+    }
+    if let Some(v) = 复 {
+        if !matches!(v, Val::None_) {
+            let d = 字典(v, 名, "选项")?;
+            for (k, val) in d.borrow().to_items() {
+                let k = crate::display(&k);
+                if !粒子键.contains(&k.as_str()) {
+                    return Err(err_with_hint(
+                        "值错误",
+                        format!("粒子选项里没有「{k}」这一项"),
+                        "能用的是：寿命 / 速度 / 角度 / 重力 / 尺寸 / 颜色 / 形状 / 淡出".into(),
+                    ));
+                }
+                出.insert(k, val);
+            }
+        }
+    }
+    Ok(出)
+}
+
+/// 一个数或「[最小, 最大]」→ 区间（单个数就是上下限相同）。
+fn 区间(选: &HashMap<String, Val>, 键: &str, 谁: &str) -> Result<(f64, f64), JishiError> {
+    let Some(v) = 选.get(键) else {
+        return Err(err("运行期错误", format!("粒子选项里缺「{键}」（内部错误：默认值没填）")));
+    };
+    match v {
+        Val::List(l) => {
+            let l = l.borrow();
+            if l.len() != 2 {
+                return Err(err(
+                    "值错误",
+                    format!("「{谁}」的「{键}」要给 [最小, 最大]，现在有 {} 项", l.len()),
+                ));
+            }
+            let a = 数(&l[0], 谁, 键)?;
+            let b = 数(&l[1], 谁, 键)?;
+            if a > b {
+                return Err(err(
+                    "值错误",
+                    format!("「{谁}」的「{键}」区间反了：最小 {a} 大于最大 {b}"),
+                ));
+            }
+            Ok((a, b))
+        }
+        other => {
+            let n = 数(other, 谁, 键)?;
+            Ok((n, n))
+        }
+    }
+}
+
+/// 颜色列表（给一个文本也收）。
+fn 颜色们(选: &HashMap<String, Val>, 谁: &str) -> Result<Vec<String>, JishiError> {
+    let Some(v) = 选.get("颜色") else {
+        return Ok(vec!["#ffffff".to_string()]);
+    };
+    match v {
+        Val::Str(s) => Ok(vec![s.to_string()]),
+        Val::List(l) => {
+            let mut 出 = Vec::new();
+            for x in l.borrow().iter() {
+                出.push(文本(x, 谁, "颜色")?);
+            }
+            if 出.is_empty() {
+                return Err(err("值错误", format!("「{谁}」的颜色列表是空的")));
+            }
+            Ok(出)
+        }
+        other => Err(err(
+            "类型错误",
+            format!("「{谁}」的颜色要给文本或文本列表，给的是{}", crate::type_label(other)),
+        )),
+    }
+}
+
+/// xorshift64\*：**确定性**的伪随机（同一种子 ⇒ 同一场爆炸）。
+///
+/// 为什么不直接用 `随机` 模块：那个是全局状态，取几个数就会被别处的调用插队，
+/// 判据里「同种子同样结果」就做不到了。粒子要的是**自己那条流**。
+fn 摇(种子: &mut u64) -> f64 {
+    let mut x = *种子;
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    *种子 = x;
+    // 取高 53 位当 [0,1)
+    (x >> 11) as f64 / (1u64 << 53) as f64
+}
+
+pub(crate) fn particle_module() -> HashMap<String, Val> {
+    table! { "粒子";
+        // 新建(选项?) → 粒子系统
+        "新建" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("新建", args, 0, 1)?;
+            let mut 合: HashMap<String, Val> =
+                粒子默认().into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+            let mut 种 = 20261117u64;
+            if let Some(v) = args.first() {
+                if !matches!(v, Val::None_) {
+                    let d = 字典(v, "新建", "选项")?;
+                    for (k, val) in d.borrow().to_items() {
+                        let k = crate::display(&k);
+                        if k == "种子" {
+                            let n = 整数(&val, "新建", "种子")?;
+                            if n < 0 {
+                                return Err(err(
+                                    "值错误",
+                                    format!("「新建」的种子不能是负数，现在是 {n}"),
+                                ));
+                            }
+                            // 🔴 上限 2^53-1：三宿主都要能**精确**存这个数（JS 的
+                            //    Number 只能精确表示到 2^53）。超了就让用户换一个 ——
+                            //    悄悄截断会让「同一个种子」在不同宿主上长出不同粒子。
+                            if n > 9_007_199_254_740_991 {
+                                return Err(err(
+                                    "值错误",
+                                    format!("「新建」的种子最大 9007199254740991（2^53-1），现在是 {n}"),
+                                ));
+                            }
+                            种 = n as u64;
+                            continue;
+                        }
+                        if !粒子键.contains(&k.as_str()) {
+                            return Err(err_with_hint(
+                                "值错误",
+                                format!("粒子选项里没有「{k}」这一项"),
+                                "能用的是：寿命 / 速度 / 角度 / 重力 / 尺寸 / 颜色 / 形状 / 淡出 / 种子".into(),
+                            ));
+                        }
+                        合.insert(k, val);
+                    }
+                }
+            }
+            // 先过一遍校验（错在 `新建` 时报，而不是等第一次发射）
+            let _ = 区间(&合, "寿命", "新建")?;
+            let _ = 区间(&合, "速度", "新建")?;
+            let _ = 区间(&合, "角度", "新建")?;
+            let _ = 区间(&合, "尺寸", "新建")?;
+            let _ = 颜色们(&合, "新建")?;
+            let 形 = match 合.get("形状") {
+                Some(Val::Str(s)) => s.to_string(),
+                _ => "矩形".to_string(),
+            };
+            if 形 != "矩形" && 形 != "圆" {
+                return Err(err_with_hint(
+                    "值错误",
+                    format!("粒子的形状只有「矩形」和「圆」，给的是「{形}」"),
+                    "圆形的「尺寸」是**半径**".into(),
+                ));
+            }
+            let 选 = crate::dict_new(
+                合.iter()
+                    .map(|(k, v)| (Val::Str(k.as_str().into()), v.clone()))
+                    .collect(),
+            );
+            Ok(dict_new(vec![
+                (Val::Str("粒子们".into()), crate::list_new(Vec::new())),
+                (Val::Str("选项".into()), 选),
+                // `种子` 是用户给的那个数（给人看）；`状态` 是**跑着的随机状态**，
+                // 存成十进制文本 —— 它要跨 2^53，而三宿主里只有 Rust/Python 有
+                // 大整数；文本是本文件里唯一「三边都精确」的写法。
+                (Val::Str("种子".into()), Val::Int(种 as i128)),
+                (Val::Str("状态".into()), Val::Str(种.to_string().into())),
+            ]))
+        },
+        // 发射(系统, x, y, 数量, 选项?)
+        "发射" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("发射", args, 4, 5)?;
+            let d = 字典(&args[0], "发射", "粒子系统")?;
+            let x = 数(&args[1], "发射", "x")?;
+            let y = 数(&args[2], "发射", "y")?;
+            let n = 整数(&args[3], "发射", "数量")?;
+            if n < 0 {
+                return Err(err("值错误", format!("「发射」的数量不能是负数，现在是 {n}")));
+            }
+            if n > 5000 {
+                return Err(err(
+                    "值错误",
+                    format!("「发射」一次最多 5000 个（现在要 {n}）—— 要更多就多调几次"),
+                ));
+            }
+            let (基, 列, mut 种) = {
+                let dd = d.borrow();
+                let 基 = match 取(&dd, "选项") {
+                    Some(Val::Dict(b)) => b,
+                    _ => {
+                        return Err(err(
+                            "值错误",
+                            "这个字典不是粒子系统 —— `粒子.新建()` 的返回值才认",
+                        ))
+                    }
+                };
+                let 列 = match 取(&dd, "粒子们") {
+                    Some(Val::List(l)) => l,
+                    _ => return Err(err("值错误", "粒子系统里缺「粒子们」（内部错误）")),
+                };
+                let 种 = match 取(&dd, "状态") {
+                    Some(Val::Str(t)) => t.parse::<u64>().unwrap_or(1),
+                    _ => 1u64,
+                };
+                (基, 列, 种)
+            };
+            let 合 = 粒子选项(&基.borrow(), args.get(4), "发射")?;
+            let (寿lo, 寿hi) = 区间(&合, "寿命", "发射")?;
+            let (速lo, 速hi) = 区间(&合, "速度", "发射")?;
+            let (角lo, 角hi) = 区间(&合, "角度", "发射")?;
+            let (尺lo, 尺hi) = 区间(&合, "尺寸", "发射")?;
+            let 色 = 颜色们(&合, "发射")?;
+            let 重 = match 合.get("重力") {
+                Some(v) => 数(v, "发射", "重力")?,
+                None => 0.0,
+            };
+            let 形 = match 合.get("形状") {
+                Some(Val::Str(s)) => s.to_string(),
+                _ => "矩形".to_string(),
+            };
+            let 淡 = match 合.get("淡出") {
+                Some(v) => 布尔(v, "发射", "淡出")?,
+                None => true,
+            };
+            let 取间 = |lo: f64, hi: f64, r: f64| lo + (hi - lo) * r;
+            let 要加: Vec<Val> = (0..n)
+                .map(|_| {
+                    let 寿 = 取间(寿lo, 寿hi, 摇(&mut 种)).max(0.001);
+                    let 速 = 取间(速lo, 速hi, 摇(&mut 种));
+                    let 角 = 取间(角lo, 角hi, 摇(&mut 种)).to_radians();
+                    let 尺 = 取间(尺lo, 尺hi, 摇(&mut 种));
+                    let 色 = 色[(摇(&mut 种) * 色.len() as f64) as usize % 色.len()].clone();
+                    dict_new(vec![
+                        (Val::Str("x".into()), Val::Float(x)),
+                        (Val::Str("y".into()), Val::Float(y)),
+                        (Val::Str("速x".into()), Val::Float(速 * 角.cos())),
+                        (Val::Str("速y".into()), Val::Float(-速 * 角.sin())),
+                        (Val::Str("寿".into()), Val::Float(寿)),
+                        (Val::Str("总寿".into()), Val::Float(寿)),
+                        (Val::Str("尺寸".into()), Val::Float(尺)),
+                        (Val::Str("颜色".into()), Val::Str(色.into())),
+                        (Val::Str("重力".into()), Val::Float(重)),
+                        (Val::Str("形状".into()), Val::Str(形.as_str().into())),
+                        (Val::Str("淡出".into()), Val::Bool(淡)),
+                    ])
+                })
+                .collect();
+            {
+                let mut 表 = 列.borrow_mut();
+                for v in 要加 {
+                    表.push(v);
+                }
+            }
+            dict_set(&mut d.borrow_mut(), Val::Str("状态".into()),
+                     Val::Str(种.to_string().into()));
+            Ok(Val::Int(n as i128))
+        },
+        // 更新(系统, 秒) → 还活着几个
+        "更新" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("更新", args, 2)?;
+            let d = 字典(&args[0], "更新", "粒子系统")?;
+            let dt = 数(&args[1], "更新", "秒")?;
+            if dt < 0.0 {
+                return Err(err("值错误", format!("「更新」的秒数不能是负数，现在是 {dt}")));
+            }
+            let 列 = match { 取(&d.borrow(), "粒子们") } {
+                Some(Val::List(l)) => l,
+                _ => return Err(err("值错误", "这个字典不是粒子系统 —— `粒子.新建()` 的返回值才认")),
+            };
+            let mut 表 = 列.borrow_mut();
+            for v in 表.iter_mut() {
+                let Val::Dict(pd) = v else { continue };
+                let mut p = pd.borrow_mut();
+                // 先把要用的字段全读出来再写回去：`读` 做成闭包会一直借着 `p`，
+                // 后面 `dict_set(&mut p, …)` 就编不过（E0502，M208 第一轮撞到）。
+                let 寿 = 体数(&p, "寿") - dt;
+                if 寿 <= 0.0 {
+                    dict_set(&mut p, Val::Str("寿".into()), Val::Float(寿));
+                    continue;
+                }
+                let 重 = 体数(&p, "重力");
+                let 速y = 体数(&p, "速y") + 重 * dt;
+                let 速x = 体数(&p, "速x");
+                let (x, y) = (体数(&p, "x"), 体数(&p, "y"));
+                dict_set(&mut p, Val::Str("寿".into()), Val::Float(寿));
+                dict_set(&mut p, Val::Str("速y".into()), Val::Float(速y));
+                dict_set(&mut p, Val::Str("x".into()), Val::Float(x + 速x * dt));
+                dict_set(&mut p, Val::Str("y".into()), Val::Float(y + 速y * dt));
+            }
+            表.retain(|v| match v {
+                Val::Dict(pd) => match 取(&pd.borrow(), "寿") {
+                    Some(x) => 数(&x, "更新", "寿").unwrap_or(0.0) > 0.0,
+                    None => false,
+                },
+                _ => false,
+            });
+            Ok(Val::Int(表.len() as i128))
+        },
+        // 数量(系统)
+        "数量" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("数量", args, 1)?;
+            let d = 字典(&args[0], "数量", "粒子系统")?;
+            match { 取(&d.borrow(), "粒子们") } {
+                Some(Val::List(l)) => Ok(Val::Int(l.borrow().len() as i128)),
+                _ => Err(err("值错误", "这个字典不是粒子系统 —— `粒子.新建()` 的返回值才认")),
+            }
+        },
+        // 清(系统) → 清掉几个
+        "清" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("清", args, 1)?;
+            let d = 字典(&args[0], "清", "粒子系统")?;
+            let 列 = match { 取(&d.borrow(), "粒子们") } {
+                Some(Val::List(l)) => l,
+                _ => return Err(err("值错误", "这个字典不是粒子系统 —— `粒子.新建()` 的返回值才认")),
+            };
+            let mut 表 = 列.borrow_mut();
+            let n = 表.len();
+            表.clear();
+            Ok(Val::Int(n as i128))
+        },
+        // 画(系统) → 画了几个（走 M207 的 `图形.批量`，一次通道）
+        "画" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("画", args, 1)?;
+            // 先过平台检查：**0 个粒子也算「要用画布」** —— 不先查的话，
+            // 命令行里「没有粒子」返回 0、「有粒子」报平台错，同一个函数两种命运。
+            super::graphics::要画布()?;
+            let d = 字典(&args[0], "画", "粒子系统")?;
+            let 列 = match { 取(&d.borrow(), "粒子们") } {
+                Some(Val::List(l)) => l,
+                _ => return Err(err("值错误", "这个字典不是粒子系统 —— `粒子.新建()` 的返回值才认")),
+            };
+            let mut 图元: Vec<String> = Vec::new();
+            for v in 列.borrow().iter() {
+                let Val::Dict(pd) = v else { continue };
+                let p = pd.borrow();
+                let 读 = |k: &str| -> f64 {
+                    match 取(&p, k) {
+                        Some(x) => 数(&x, "画", k).unwrap_or(0.0),
+                        None => 0.0,
+                    }
+                };
+                let 寿 = 读("寿");
+                if 寿 <= 0.0 {
+                    continue;
+                }
+                let 总 = 读("总寿").max(0.0001);
+                let 淡 = matches!(取(&p, "淡出"), Some(Val::Bool(true)));
+                let 透 = if 淡 { (寿 / 总).clamp(0.0, 1.0) } else { 1.0 };
+                let 色 = match 取(&p, "颜色") {
+                    Some(Val::Str(s)) => s.to_string(),
+                    _ => "#ffffff".to_string(),
+                };
+                let 形 = match 取(&p, "形状") {
+                    Some(Val::Str(s)) => s.to_string(),
+                    _ => "矩形".to_string(),
+                };
+                let (x, y, 尺) = (读("x"), 读("y"), 读("尺寸"));
+                let 样 = format!("{{\"填充\":\"{}\",\"透明度\":{:.3}}}", esc(&色), 透);
+                if 形 == "圆" {
+                    图元.push(format!("[\"圆\",{x:.3},{y:.3},{尺:.3},{样}]"));
+                } else {
+                    图元.push(format!(
+                        "[\"矩形\",{:.3},{:.3},{:.3},{:.3},{样}]",
+                        x - 尺, y - 尺, 尺 * 2.0, 尺 * 2.0
+                    ));
+                }
+            }
+            if 图元.is_empty() {
+                return Ok(Val::Int(0));
+            }
+            let json = format!("[{}]", 图元.join(","));
+            调("批量", &[Val::Str(json.into())])?;
+            Ok(Val::Int(图元.len() as i128))
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 物理（M208）—— 重力 / 摩擦 / 台阶 / 瓦片碰撞
+// ---------------------------------------------------------------------------
+
+/// 一块地形（给物理用）：瓦片图 + 实心规则。
+struct 地形 {
+    行们: Vec<Vec<i64>>,
+    瓦片宽: f64,
+    瓦片高: f64,
+    实心: Vec<i64>,
+}
+
+impl 地形 {
+    /// 这个矩形**撞不撞**实心。
+    ///
+    /// 📌 边界口径：**图外当空**（不挡）。为什么：平台游戏里「掉出地图」是常见
+    /// 结果（掉下去就死），把它当墙反而会让角色贴着看不见的天花板飘。
+    /// 想围栏就在地图边上自己画一圈墙。
+    fn 撞(&self, x: f64, y: f64, bw: f64, bh: f64) -> bool {
+        if bw <= 0.0 || bh <= 0.0 || self.瓦片宽 <= 0.0 || self.瓦片高 <= 0.0 {
+            return false;
+        }
+        // 缩一点点：**刚好贴着**边不算撞（否则贴墙走会被自己卡住）
+        const 缩: f64 = 0.001;
+        let c0 = ((x + 缩) / self.瓦片宽).floor() as i64;
+        let c1 = ((x + bw - 缩) / self.瓦片宽).floor() as i64;
+        let r0 = ((y + 缩) / self.瓦片高).floor() as i64;
+        let r1 = ((y + bh - 缩) / self.瓦片高).floor() as i64;
+        for r in r0..=r1 {
+            for c in c0..=c1 {
+                if r < 0 || c < 0 {
+                    continue; // 图外（上 / 左）当空
+                }
+                let 号 = self
+                    .行们
+                    .get(r as usize)
+                    .and_then(|行| 行.get(c as usize))
+                    .copied()
+                    .unwrap_or(-1);
+                if 格实心(号, &self.实心) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn 通(&self, x: f64, y: f64, bw: f64, bh: f64) -> bool {
+        !self.撞(x, y, bw, bh)
+    }
+}
+
+/// 从瓦片图 + 选项造一个 `地形`。
+fn 造地形(图: &std::rc::Rc<RefCell<crate::Dict>>, 选: Option<&Val>, 谁: &str)
+    -> Result<(地形, f64), JishiError>
+{
+    let (行们, 瓦片宽, 瓦片高) = {
+        let dd = 图.borrow();
+        (
+            图的格们(图)?,
+            数(&取必(&dd, "瓦片宽", 谁)?, 谁, "瓦片宽")?,
+            数(&取必(&dd, "瓦片高", 谁)?, 谁, "瓦片高")?,
+        )
+    };
+    if 瓦片宽 <= 0.0 || 瓦片高 <= 0.0 {
+        return Err(err("值错误", format!("「{谁}」的瓦片宽高必须大于 0")));
+    }
+    let 实心 = 实心列(选, 谁)?;
+    // 台阶从选项里取（`{"台阶": 8}`）
+    let mut 台阶 = 0.0;
+    if let Some(Val::Dict(d)) = 选 {
+        if let Some(v) = { 取(&d.borrow(), "台阶") } {
+            台阶 = 数(&v, 谁, "台阶")?;
+            if 台阶 < 0.0 {
+                return Err(err("值错误", format!("「{谁}」的台阶不能是负数，现在是 {台阶}")));
+            }
+        }
+    }
+    Ok((地形 { 行们, 瓦片宽, 瓦片高, 实心 }, 台阶))
+}
+
+/// 读体上的一个数（字段由 `物理.新建` 生成，缺了就是内部错）。
+fn 体数(d: &crate::Dict, 键: &str) -> f64 {
+    match 取(d, 键) {
+        Some(v) => 数(&v, "物理", 键).unwrap_or(0.0),
+        None => 0.0,
+    }
+}
+
+pub(crate) fn physics_module() -> HashMap<String, Val> {
+    table! { "物理";
+        // 新建({"x","y","宽","高","重力"?,"摩擦"?,"最大下落"?})
+        "新建" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("新建", args, 1)?;
+            let d = 字典(&args[0], "新建", "选项")?;
+            let dd = d.borrow();
+            let x = 字典里的数(&dd, "x", "物理.新建")?;
+            let y = 字典里的数(&dd, "y", "物理.新建")?;
+            let w = 字典里的数(&dd, "宽", "物理.新建")?;
+            let h = 字典里的数(&dd, "高", "物理.新建")?;
+            if w <= 0.0 || h <= 0.0 {
+                return Err(err(
+                    "值错误",
+                    format!("「物理.新建」的宽高要大于 0，现在是 {w} × {h}"),
+                ));
+            }
+            let 取数 = |k: &str, 默认: f64| -> Result<f64, JishiError> {
+                match 取(&dd, k) {
+                    Some(v) => 数(&v, "新建", k),
+                    None => Ok(默认),
+                }
+            };
+            let 重力 = 取数("重力", 1600.0)?;
+            let 摩擦 = 取数("摩擦", 0.0)?;
+            let 最大下落 = 取数("最大下落", 900.0)?;
+            if 最大下落 <= 0.0 {
+                return Err(err("值错误", "「新建」的最大下落要大于 0"));
+            }
+            Ok(dict_new(vec![
+                (Val::Str("x".into()), Val::Float(x)),
+                (Val::Str("y".into()), Val::Float(y)),
+                (Val::Str("宽".into()), Val::Float(w)),
+                (Val::Str("高".into()), Val::Float(h)),
+                (Val::Str("速x".into()), Val::Float(0.0)),
+                (Val::Str("速y".into()), Val::Float(0.0)),
+                (Val::Str("在地".into()), Val::Bool(false)),
+                (Val::Str("重力".into()), Val::Float(重力)),
+                (Val::Str("摩擦".into()), Val::Float(摩擦)),
+                (Val::Str("最大下落".into()), Val::Float(最大下落)),
+            ]))
+        },
+        // 步(体, 瓦片图, 秒, 选项?) → 体（原地改，也返回）
+        "步" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("步", args, 3, 4)?;
+            let b = 字典(&args[0], "步", "体")?;
+            let 图 = 字典(&args[1], "步", "瓦片图")?;
+            let dt = 数(&args[2], "步", "秒")?;
+            if dt < 0.0 {
+                return Err(err("值错误", format!("「步」的秒数不能是负数，现在是 {dt}")));
+            }
+            if dt == 0.0 {
+                return Ok(args[0].clone());
+            }
+            let (地, 台阶) = 造地形(&图, args.get(3), "步")?;
+            let mut bd = b.borrow_mut();
+            let (w, h) = (体数(&bd, "宽"), 体数(&bd, "高"));
+            if w <= 0.0 || h <= 0.0 {
+                return Err(err("值错误", "「步」的体宽高要大于 0（用 `物理.新建` 造体）"));
+            }
+            let 重力 = 体数(&bd, "重力");
+            let 摩擦 = 体数(&bd, "摩擦");
+            let 最大下落 = 体数(&bd, "最大下落").max(1.0);
+            let (mut x, mut y) = (体数(&bd, "x"), 体数(&bd, "y"));
+            let mut 速x = 体数(&bd, "速x");
+            let mut 速y = (体数(&bd, "速y") + 重力 * dt).min(最大下落);
+
+            // 子步长不超过「半个瓦片」：一帧 100ms、速度 900 ⇒ 90px，
+            // 而瓦片可能只有 16px —— 不分步就会**整块穿过去**（而且看起来像「随机消失」）。
+            let 步长 = (地.瓦片宽.min(地.瓦片高) * 0.5).max(0.5);
+
+            // ---- 水平 ----
+            let dx = 速x * dt;
+            let 段 = (dx.abs() / 步长).ceil().max(1.0) as i64;
+            for _ in 0..段 {
+                let 一 = dx / 段 as f64;
+                if 地.通(x + 一, y, w, h) {
+                    x += 一;
+                } else if 台阶 > 0.0
+                    && 地.通(x, y - 台阶, w, h)
+                    && 地.通(x + 一, y - 台阶, w, h)
+                {
+                    // 台阶：抬起来再走（走完靠重力落回去）
+                    y -= 台阶;
+                    x += 一;
+                    dict_set(&mut bd, Val::Str("在地".into()), Val::Bool(false));
+                } else {
+                    速x = 0.0;
+                    break;
+                }
+            }
+
+            // ---- 垂直 ----
+            let dy = 速y * dt;
+            let 段 = (dy.abs() / 步长).ceil().max(1.0) as i64;
+            let mut 落地 = false;
+            for _ in 0..段 {
+                let 一 = dy / 段 as f64;
+                if 地.通(x, y + 一, w, h) {
+                    y += 一;
+                } else {
+                    if 一 > 0.0 {
+                        落地 = true;
+                    }
+                    速y = 0.0;
+                    break;
+                }
+            }
+
+            // ---- 摩擦（只在地面上；空中保持惯性，跳起来才有手感）----
+            if 摩擦 > 0.0 && 落地 {
+                速x *= (1.0 - 摩擦 * dt).max(0.0);
+                if 速x.abs() < 1.0 {
+                    速x = 0.0;
+                }
+            }
+
+            // ---- 站没站在地上：脚下探一条 0.5px 的带子 ----
+            let 在地 = 速y >= 0.0 && 地.撞(x, y + h, w, 0.5);
+            dict_set(&mut bd, Val::Str("x".into()), Val::Float(x));
+            dict_set(&mut bd, Val::Str("y".into()), Val::Float(y));
+            dict_set(&mut bd, Val::Str("速x".into()), Val::Float(速x));
+            dict_set(&mut bd, Val::Str("速y".into()), Val::Float(速y));
+            dict_set(&mut bd, Val::Str("在地".into()), Val::Bool(在地 || 落地));
+            drop(bd);
+            Ok(args[0].clone())
+        },
+        // 跳(体, 速度 = 520) → 真 = 真跳了；假 = 在空中（没跳）
+        "跳" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("跳", args, 1, 2)?;
+            let b = 字典(&args[0], "跳", "体")?;
+            let 力 = match args.get(1) {
+                None | Some(Val::None_) => 520.0,
+                Some(v) => 数(v, "跳", "速度")?,
+            };
+            if 力 <= 0.0 {
+                return Err(err("值错误", format!("「跳」的速度要大于 0，现在是 {力}")));
+            }
+            let mut bd = b.borrow_mut();
+            if !matches!(取(&bd, "在地"), Some(Val::Bool(true))) {
+                // 空中不给跳（也不报错 —— 「按了但没跳起来」本来就是游戏的一部分）
+                return Ok(Val::Bool(false));
+            }
+            dict_set(&mut bd, Val::Str("速y".into()), Val::Float(-力));
+            dict_set(&mut bd, Val::Str("在地".into()), Val::Bool(false));
+            Ok(Val::Bool(true))
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 注册（`mod.rs` 从这里取）
 // ---------------------------------------------------------------------------
 
 pub(crate) use sprite_module as 精灵;
@@ -1619,3 +2669,5 @@ pub(crate) use tile_module as 瓦片;
 pub(crate) use map_module as 地图;
 pub(crate) use save_module as 存档;
 pub(crate) use scene_module as 场景;
+pub(crate) use particle_module as 粒子;
+pub(crate) use physics_module as 物理;

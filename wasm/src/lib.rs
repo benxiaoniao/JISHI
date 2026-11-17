@@ -319,6 +319,10 @@ pub extern "C" fn jishi_frame(ts: f64) -> i32 {
         (新号, dt)
     });
 
+    // M208：把这一帧的间隔记进直方图（`ts` 是 rAF 给的时间戳，精度够；
+    // 不用在 Rust 里再取时钟 —— wasm 上压根没有可靠的高精度时钟）
+    jishi_ffi::frame::记帧(dt);
+
     let o = opts();
     jishi_ffi::set_output_limit(&mut vm, Some(o.max_stdout));
     // 🔴 每帧清零（D110 §七）：不清的话一局游戏跑到某个总圈数就被当成死循环。

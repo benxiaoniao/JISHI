@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 44,
     "frontend": 1,
-    "lang": 129,
+    "lang": 130,
     "stdlib": 5
   },
   "语料": [
@@ -750,6 +750,13 @@
       "路径": "tests/cases/48_GBK边界.jsh"
     },
     {
+      "id": "tests__cases__49_游戏深化",
+      "产物哈希": "sha256:c9735ad9e96c1c56",
+      "内容哈希": "sha256:7274cec3ac8e2b3b",
+      "类别": "lang",
+      "路径": "tests/cases/49_游戏深化.jsh"
+    },
+    {
       "id": "tests__error_cases__01_未定义名字",
       "产物哈希": "sha256:6c22e8e65e3d11a7",
       "内容哈希": "sha256:68b1a07032a25887",
@@ -1317,5 +1324,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 179
+  "语料数": 180
 }

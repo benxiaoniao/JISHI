@@ -3682,7 +3682,19 @@ impl VM {
         // 从当前帧向外找 handler
         while !self.frames.is_empty() {
             let fi = self.frames.len() - 1;
-            if Some(fi) == stop_at { return Ok(false); }
+            // 🔴 M208 修：边界应当是「**低于** stop_at 才停」，不是「等于」。
+            //    旧写法（`== stop_at`）让「从宿主同步调进来的那一帧」里的
+            //    `尝试/捕获` **完全不生效** —— wasm 的 `每帧` 就是这种帧
+            //    （`跑一帧` → `调用值`），于是游戏每帧里的 `尝试` 形同虚设，
+            //    错误直接冲出帧循环（现象：`图形.帧统计()` 在 `尝试` 里仍然
+            //    报错、帧循环被停）。现在：这一帧自己的 handler 先试，
+            //    没有再往外走，走到边界以下就交还给调用方（与 `execute`
+            //    里那条 `Some(fi) == stop_at` 的「已经弹回调用方」是同一边界）。
+            if let Some(边界) = stop_at {
+                if fi < 边界 {
+                    return Ok(false);
+                }
+            }
             let h = self.frames[fi].handlers.last().cloned();
             if let Some(h) = h {
                 let sp = h.sp;
@@ -3720,7 +3732,13 @@ impl VM {
         let code = match s { Signal::Break => 1i64, Signal::Continue => 2i64 };
         while !self.frames.is_empty() {
             let fi = self.frames.len() - 1;
-            if Some(fi) == stop_at { return Ok(false); }
+            // 同上（M208）：边界是「低于 stop_at」，这样宿主同步调进来的那一帧
+            // 里的 `中断` / `继续` 也能被它自己的循环接住。
+            if let Some(边界) = stop_at {
+                if fi < 边界 {
+                    return Ok(false);
+                }
+            }
             let lp = self.frames[fi].loops.last().cloned();
             let h = self.frames[fi].handlers.last().cloned();
             let loop_wins = match (&lp, &h) {

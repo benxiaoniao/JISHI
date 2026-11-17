@@ -128,11 +128,14 @@ def _make_guard(opts: SandboxOpts):
                         line=line, col=col, filename=filename,
                         hint="如需系统访问，请显式开启 allow_network")
                 return
-            if name in ("浏览器", "图形", "声音", "精灵", "瓦片", "地图", "存档", "场景"):
+            if name in ("浏览器", "图形", "声音", "精灵", "瓦片", "地图", "存档", "场景",
+                        "操控", "粒子", "物理"):
                 # 🔴 M167：**沙箱不该拦它** —— 拦了 playground 就永远用不了交互
                 # （那正是这个模块存在的理由）。真实现只在 wasm 里；命令行 / Node
                 # 上「导入」成功、**调用时**报平台错（比「找不到模块」准确）。
-                # ⚠️ 与 Rust 侧 `sandbox.rs` 的 `"浏览器" => return Ok(())` 是同一处。
+                # M208 补了「操控 / 粒子 / 物理」—— 与 M167/M186 同一条理由：
+                # playground 里的游戏要能读键、放粒子、算物理。
+                # ⚠️ 与 Rust 侧 `sandbox.rs` 的 `"浏览器" | … => return Ok(())` 是同一处。
                 return
             if (name not in opts.allow_modules
                     and name not in opts.extra_stdlib):

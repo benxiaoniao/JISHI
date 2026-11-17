@@ -201,6 +201,45 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let 毫 = 毫秒(&args, 1, "淡出")?;
             host_call("声音淡出", &[Val::Float(号), Val::Float(毫)])
         },
+        // ---- M208：通道（分类调音量：音效 / 音乐 / 语音各一条）-----------
+        //
+        // 建通道(名, 音量 = 1) → 通道名（**幂等**：同名再建就是改音量）
+        "建通道" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("建通道", args, 1, 2)?;
+            要声音()?;
+            let 名 = 通道名(&args[0], "建通道")?;
+            let 量 = match args.get(1) {
+                None | Some(Val::None_) => 1.0,
+                Some(v) => 音量(&v, "建通道")?,
+            };
+            host_call("声音建通道", &[Val::Str(名.into()), Val::Float(量)])
+        },
+        // 通道音量(通道, 音量)
+        "通道音量" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("通道音量", args, 2)?;
+            要声音()?;
+            let 名 = 通道名(&args[0], "通道音量")?;
+            let 量 = 音量(&args[1], "通道音量")?;
+            host_call("声音通道音量", &[Val::Str(名.into()), Val::Float(量)])
+        },
+        // 播到(通道, 声音, 选项?)
+        "播到" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("播到", args, 2, 3)?;
+            要声音()?;
+            let 名 = 通道名(&args[0], "播到")?;
+            let 号 = 句柄(&args[1], "播到")?;
+            let 选 = 选项json(args.get(2))?;
+            host_call("声音播到", &[
+                Val::Str(名.into()),
+                Val::Float(号),
+                Val::Str(选.into()),
+            ])
+        },
+        // 通道们() → [名字…]（按建的时间顺序）
+        "通道们" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            要声音()?;
+            host_call("声音通道们", &[])
+        },
         "静音" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("静音", args, 0, 1)?;
             要声音()?;
@@ -229,4 +268,33 @@ fn 毫秒(args: &[Val], i: usize, 谁: &str) -> Result<f64, JishiError> {
         return Err(err("值错误", format!("「{谁}」的毫秒要大于 0，现在是 {v}")));
     }
     Ok(v)
+}
+
+/// 通道名（非空文本）。
+fn 通道名(v: &Val, 谁: &str) -> Result<String, JishiError> {
+    let 名 = match v {
+        Val::Str(s) => s.to_string(),
+        other => {
+            return Err(err(
+                "类型错误",
+                format!("「{谁}」的通道名要文本（例如 \"音效\"），给的是{}", crate::type_label(other)),
+            ))
+        }
+    };
+    if 名.trim().is_empty() {
+        return Err(err("值错误", format!("「{谁}」的通道名不能是空文本")));
+    }
+    Ok(名)
+}
+
+/// 音量（0~1；**超出范围就报错** —— 静默夹住会让「我把 1 写成 10」变成没听见）。
+fn 音量(v: &Val, 谁: &str) -> Result<f64, JishiError> {
+    let n = 数(v, 谁, "音量")?;
+    if !(0.0..=1.0).contains(&n) {
+        return Err(err(
+            "值错误",
+            format!("「{谁}」的音量要在 0~1 之间，现在是 {n}"),
+        ));
+    }
+    Ok(n)
 }

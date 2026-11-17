@@ -673,8 +673,24 @@ fn weekday_name(v: &Val) -> Result<String, JishiError> {
 static T0: OnceLock<Instant> = OnceLock::new();
 
 fn monotonic() -> f64 {
-    let start = T0.get_or_init(Instant::now);
-    start.elapsed().as_secs_f64()
+    // 🔴 `Instant::now()` 在 `wasm32-unknown-unknown` 上和 `SystemTime::now()`
+    //    是同一个坑：**直接 panic**（不是返回 0）。M188 只修了 `时间戳` 那条，
+    //    `高精度时间` 一直漏着 —— 网页/窗口里一调就「程序跑飞了」（trap），
+    //    而且报错里一个字都没提时间。M208 补上。
+    //
+    //    精度上的诚实交代：wasm 这边用的是宿主每帧塞进来的 `Date.now()`（毫秒），
+    //    **同一帧里连着调两次会拿到同一个值**。够用来量「一段代码跑了多久」
+    //    （跨帧的场景），量不了「一帧内的纳秒级差别」—— 那种场景本来也该用
+    //    `图形.帧统计()`（它的时间来自 rAF 的时间戳，精度是微秒级）。
+    #[cfg(target_arch = "wasm32")]
+    {
+        宿主现在.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1000.0
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let start = T0.get_or_init(Instant::now);
+        start.elapsed().as_secs_f64()
+    }
 }
 
 /// `睡眠` 用的锁——不共享状态，只是让多个线程同时 sleep 时不互相干扰。
@@ -792,16 +808,19 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
 /// `downcast_ref` 取回 —— 见 `crate::NativeObj` 的注释。
 pub(crate) struct 计时器状态 {
     名字: String,
-    起: Instant,
-    止: Option<Instant>,
+    起: f64,
+    止: Option<f64>,
     已打印: bool,
 }
 
 impl 计时器状态 {
     /// 从开始到「现在或停表点」的秒数（可多次读，**不停表**）。
+    ///
+    /// 📌 时间基准是 [`monotonic`]（不是 `Instant`）：wasm 上没有 `Instant`，
+    /// 用它会在**构造计时器**那一刻就 panic。
     fn 耗时秒(&self) -> f64 {
-        let 止 = self.止.unwrap_or_else(Instant::now);
-        止.saturating_duration_since(self.起).as_secs_f64()
+        let 止 = self.止.unwrap_or_else(monotonic);
+        (止 - self.起).max(0.0)
     }
 }
 
@@ -838,7 +857,7 @@ fn 计时_停(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
     need("停", args, 0)?;
     let mut st = 借状态可变(对象);
     if st.止.is_none() {
-        st.止 = Some(Instant::now());
+        st.止 = Some(monotonic());
     }
     Ok(Val::Float(st.耗时秒()))
 }
@@ -853,7 +872,7 @@ fn 计时_退出(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
     let 要打印 = {
         let mut st = 借状态可变(对象);
         if st.止.is_none() {
-            st.止 = Some(Instant::now());
+            st.止 = Some(monotonic());
         }
         if st.名字.is_empty() || st.已打印 {
             None
@@ -923,10 +942,23 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
         "睡眠" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("睡眠", args, 1)?;
             let secs = super::as_num(&args[0])?.max(0.0);
-            let guard = SLEEP_GUARD.get_or_init(|| Mutex::new(()));
-            let _hold = guard.lock();
-            std::thread::sleep(std::time::Duration::from_secs_f64(secs));
-            Ok(Val::None_)
+            // 🔴 wasm 上**没有线程可以睡**：`std::thread::sleep` 在
+            //    `wasm32-unknown-unknown` 上也是 panic（和 `Instant::now` 同一类）。
+            //    而浏览器主线程**本来就不该阻塞**（睡了整页卡住，渲染也停）——
+            //    所以这里直接返回：脚本继续跑，时间不会「停一下」。
+            //    要在游戏里「等一会儿」，正确写法是记时间戳、在 `每帧` 里比较。
+            #[cfg(target_arch = "wasm32")]
+            {
+                let _ = secs;
+                Ok(Val::None_)
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let guard = SLEEP_GUARD.get_or_init(|| Mutex::new(()));
+                let _hold = guard.lock();
+                std::thread::sleep(std::time::Duration::from_secs_f64(secs));
+                Ok(Val::None_)
+            }
         },
         "高精度时间" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("高精度时间", args, 0)?;
@@ -957,7 +989,7 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
                 计时器方法,
                 std::rc::Rc::new(std::cell::RefCell::new(计时器状态 {
                     名字,
-                    起: Instant::now(),
+                    起: monotonic(),
                     止: None,
                     已打印: false,
                 })),

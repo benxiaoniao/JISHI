@@ -13,6 +13,8 @@ __all__ = [
     "载入", "画", "碰", "取",
     # M197：碰撞层 / 斜坡 / 矩形取格 / 最近可走格
     "碰撞层", "是实心", "斜坡", "是斜坡", "取矩形内瓦片", "最近可走格",
+    # M208：瓦片动画
+    "加动画", "更新动画", "动画帧",
 ]
 
 
@@ -76,11 +78,14 @@ def 画(瓦片图, 相机=None):
     vy = float(c.get("y", 0))
     vw = float(c.get("宽", float("inf")))
     vh = float(c.get("高", float("inf")))
+    # M208：动画只影响「画成哪一帧」，碰撞 / 取格 仍看原号
+    映 = _动画映射(d)
     画了 = 0
     for r, 行 in enumerate(d["行们"]):
-        for col, 号 in enumerate(行):
-            if 号 < 0:
+        for col, 原号 in enumerate(行):
+            if 原号 < 0:
                 continue
+            号 = 映.get(原号, 原号)
             x = col * 宽
             y = r * 高
             if x + 宽 < vx or x > vx + vw or y + 高 < vy or y > vy + vh:
@@ -270,3 +275,86 @@ def 最近可走格(瓦片图, 碰撞层对象, x, y):
             return {"列": cc, "行": r,
                     "x": (cc + 0.5) * 宽, "y": (r + 0.5) * 高}
     return None
+
+
+# ---------------------------------------------------------------------------
+# M208：瓦片动画
+# ---------------------------------------------------------------------------
+
+def _动画映射(d):
+    """`瓦片号 → 当前该显示的帧号`（没有动画的号不在表里）。"""
+    出 = {}
+    表 = d.get("动画") or {}
+    for k, 条 in 表.items():
+        try:
+            号 = int(k)
+        except (TypeError, ValueError):
+            continue
+        帧们 = 条.get("帧们") or []
+        if not 帧们:
+            continue
+        序 = int(条.get("序", 0)) % len(帧们)
+        if 帧们[序] != 号:
+            出[号] = 帧们[序]
+    return 出
+
+
+def 加动画(瓦片图, 编号, 帧们, 帧率=8):
+    """M208：让 `编号` 这块瓦片按 `帧们` 轮播（`帧率` = 每秒几帧）。"""
+    d = _字典(瓦片图, "加动画")
+    if isinstance(编号, bool) or not isinstance(编号, int):
+        raise RunTypeError(f"「加动画」的编号要整数，给的是{type(编号).__name__}")
+    if 编号 < 0:
+        raise RunValueError(f"「加动画」的编号不能是负数（-1 是「空」），现在是 {编号}")
+    if not isinstance(帧们, (list, tuple)):
+        raise RunTypeError(f"「加动画」的帧们要整数列表（例如 [4, 5, 6]），给的是{type(帧们).__name__}")
+    帧 = []
+    for i, n in enumerate(帧们):
+        if isinstance(n, bool) or not isinstance(n, int):
+            raise RunValueError(f"「加动画」的帧们第 {i + 1} 项要整数（瓦片号）")
+        if n < 0:
+            raise RunValueError(f"「加动画」第 {i + 1} 帧是负数（-1 是「空」）—— 要「空一帧」就别放它")
+        帧.append(n)
+    if not 帧:
+        raise RunValueError("「加动画」的帧们不能是空列表 —— 至少给一帧（不然这块瓦片就没了）")
+    r = 8.0 if 帧率 is None else _数(帧率, "加动画", "帧率")
+    if not (r > 0):
+        raise RunValueError(f"「加动画」的帧率要大于 0（单位：帧/秒），现在是 {r}")
+    表 = d.get("动画")
+    if not isinstance(表, dict):
+        表 = {}
+        d["动画"] = 表
+    表[编号] = {"帧们": 帧, "帧率": r, "累计": 0.0, "序": 0}
+    return True
+
+
+def 更新动画(瓦片图, 秒):
+    """M208：推进动画（返回有几个真的换了帧）。"""
+    d = _字典(瓦片图, "更新动画")
+    dt = _数(秒, "更新动画", "秒")
+    if dt < 0:
+        raise RunValueError(f"「更新动画」的秒数不能是负数，现在是 {dt}")
+    表 = d.get("动画")
+    if not isinstance(表, dict):
+        return 0
+    动了 = 0
+    for 条 in 表.values():
+        帧们 = 条.get("帧们") or []
+        if not 帧们:
+            continue
+        累计 = float(条.get("累计", 0.0)) + dt * float(条.get("帧率", 8.0))
+        跳 = int(累计 // 1)
+        序 = int(条.get("序", 0))
+        条["序"] = (序 + 跳) % len(帧们)
+        条["累计"] = 累计 - 跳
+        if 跳 > 0:
+            动了 += 1
+    return 动了
+
+
+def 动画帧(瓦片图, 编号):
+    """M208：`编号` 现在该显示成哪一号（没动画就是原号）。"""
+    d = _字典(瓦片图, "动画帧")
+    if isinstance(编号, bool) or not isinstance(编号, int):
+        raise RunTypeError(f"「动画帧」的编号要整数，给的是{type(编号).__name__}")
+    return _动画映射(d).get(编号, 编号)
