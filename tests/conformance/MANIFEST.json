@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 44,
     "frontend": 1,
-    "lang": 130,
+    "lang": 131,
     "stdlib": 5
   },
   "语料": [
@@ -757,6 +757,13 @@
       "路径": "tests/cases/49_游戏深化.jsh"
     },
     {
+      "id": "tests__cases__50_多键排序与二分",
+      "产物哈希": "sha256:2be574fc7bea13d1",
+      "内容哈希": "sha256:9f23cb36f22dedd7",
+      "类别": "lang",
+      "路径": "tests/cases/50_多键排序与二分.jsh"
+    },
+    {
       "id": "tests__error_cases__01_未定义名字",
       "产物哈希": "sha256:6c22e8e65e3d11a7",
       "内容哈希": "sha256:68b1a07032a25887",
@@ -1324,5 +1331,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 180
+  "语料数": 181
 }

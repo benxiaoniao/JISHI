@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import decimal
+import functools
 import importlib
 from typing import Any, Optional
 
@@ -945,6 +946,69 @@ def _b_range(*args):
     raise RunTypeError("「范围」最多接受 3 个参数")
 
 
+def _二分参数(name, args):
+    """`二分查找` / `二分插入点` 的实参摊成 `(列表, 目标, 起点, 终点)`（M211）。"""
+    if not 2 <= len(args) <= 4:
+        raise RunTypeError(
+            f"「{name}」需要 2 到 4 个参数（有序列表, 目标, 起点=0, 终点=空），"
+            f"实际给了 {len(args)} 个")
+    seq = args[0]
+    if not isinstance(seq, list):
+        raise RunTypeError(
+            f"「{name}」的第一个参数要是有序列表，得到了「{type_name(seq)}」")
+    n = len(seq)
+
+    def 夹(v):
+        # ⚠️ 负数是**从末尾算**（与 Python 的 `bisect` 一致），再夹到 [0, n]
+        if type(v) is bool or not isinstance(v, int):
+            raise RunTypeError(
+                f"「{name}」的起点 / 终点要是整数，得到了「{type_name(v)}」")
+        x = n + v if v < 0 else v
+        return max(0, min(n, x))
+
+    起 = 夹(args[2]) if len(args) >= 3 else 0
+    终 = n if len(args) < 4 or args[3] is None else 夹(args[3])
+    return seq, args[1], 起, 终
+
+
+def _二分左界(seq, 目标, 起, 终):
+    """`[起, 终)` 里「不小于目标的第一项」的下标（`bisect_left` 语义）。"""
+    lo, hi = 起, 终
+    while lo < hi:
+        mid = lo + (hi - lo) // 2
+        try:
+            less = seq[mid] < 目标
+        except TypeError:
+            raise RunTypeError(
+                f"不能比较「{jishi_repr(seq[mid], top=True)}」"
+                f"和「{jishi_repr(目标, top=True)}」")
+        if less:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def _b_bisect(*args):
+    """`二分查找(有序列表, 目标, 起点=0, 终点=空)` → 下标，找不到给 -1。
+
+    🔴 列表**必须已经升序**。这里**不检查**是否有序：查一遍是 O(n)，二分的意义
+    （O(log n)）当场就没了。要保险就先 `列表.排序()`。
+    """
+    seq, 目标, 起, 终 = _二分参数("二分查找", args)
+    i = _二分左界(seq, 目标, 起, 终)
+    return i if i < 终 and seq[i] == 目标 else -1
+
+
+def _b_bisect_left(*args):
+    """`二分插入点(有序列表, 目标, 起点=0, 终点=空)` → 该插在第几个位置。
+
+    相等时给**最左**那个的位置（先来先排），配合 `列表.插入` 就是维护有序表。
+    """
+    seq, 目标, 起, 终 = _二分参数("二分插入点", args)
+    return _二分左界(seq, 目标, 起, 终)
+
+
 def _b_enumerate(*args):
     """`带下标(可迭代, 起始=0)`：造 [下标, 元素] 对。
 
@@ -1351,6 +1415,14 @@ def new_builtins() -> dict[str, Any]:
             "配对", _b_zip,
             "配对(甲, 乙, …)：按位置把多个列表配成 [甲[i], 乙[i], …]，"
             "长度取最短的那个"),
+        "二分查找": _Builtin(
+            "二分查找", _b_bisect,
+            "二分查找(有序列表, 目标, 起点=0, 终点=空)：给下标，找不到给 -1"
+            "（列表**必须已升序**，不检查）"),
+        "二分插入点": _Builtin(
+            "二分插入点", _b_bisect_left,
+            "二分插入点(有序列表, 目标, 起点=0, 终点=空)：该插在第几个位置"
+            "（相等取最左；配 列表.插入 维护有序表）"),
         "最大": _Builtin("最大", _b_max, "取列表中的最大值"),
         "最小": _Builtin("最小", _b_min, "取列表中的最小值"),
         "总和": _Builtin("总和", _b_sum, "求列表中所有数的和"),
@@ -2769,6 +2841,51 @@ def _m_list_sort_by(obj, args, node):
             hint="排序键要都是数字，或都是文本，不能混着来")
 
 
+def _比较符号(v):
+    """`排序按比较` 的比较函数返回值 → -1 / 0 / 1（M211）。
+
+    约定与 C 的 `qsort`、Python 的 `cmp_to_key` 一致：**负数 = 甲排在前、
+    0 = 平（保持原来的先后）、正数 = 乙排在前**。
+
+    🔴 **布尔明确拒绝**：`函数(甲, 乙)：甲 < 乙` 看着很自然，但真假会被当 0/1 用，
+    「1」读成「甲更大」—— 用户想说的「甲在前」正好反过来，**而且排得出来、
+    不报错**。静默反序比报错难查得多（M211 取舍，见 D117）。
+    """
+    if type(v) is bool:                      # 先判 bool：`isinstance(True, int)` 为真
+        raise RunTypeError(
+            "「排序按比较」的比较函数要返回一个数（负数排前面、0 相等、正数排后面），"
+            f"实际返回了「{type_name(v)}」")
+    if isinstance(v, JishiDecimal):
+        return -1 if v.value < 0 else (0 if v.value == 0 else 1)
+    if isinstance(v, float):
+        if v != v:                            # NaN 自己不等于自己
+            raise RunValueError(
+                "「排序按比较」的比较函数返回了 NaN —— 排不出顺序")
+        return -1 if v < 0 else (0 if v == 0 else 1)
+    if isinstance(v, int):
+        return -1 if v < 0 else (0 if v == 0 else 1)
+    raise RunTypeError(
+        "「排序按比较」的比较函数要返回一个数（负数排前面、0 相等、正数排后面），"
+        f"实际返回了「{type_name(v)}」")
+
+
+def _m_list_sort_by_cmp(obj, args, node):
+    """排序按比较（M211）：按**比较函数**排，返回新列表。
+
+    `排序按` 是「算一个键再比」，想「先按甲、甲相同再按乙」得拼复合键；
+    有了比较函数就照直写两段判断（多键排序）。
+    """
+    _need_args("排序按比较", args, node, 1, 1)
+    f = _as_func(args[0], "排序按比较", node)
+
+    def 比(甲, 乙):
+        return _比较符号(call_value(f, [甲, 乙], line=node.line, col=node.col))
+
+    # `sorted` 是**稳定**排序：比较函数说「平」的项保持原来的先后 ——
+    # 与 `排序按`（Python 的 `sorted` 也稳定）同一条承诺，多键排序靠它兜底。
+    return sorted(obj, key=functools.cmp_to_key(比))
+
+
 def _m_list_reduce(obj, args, node):
     """归约（M24.4）：把列表收敛成一个值。归约(函数(累计, 元素)：…, 初值)。"""
     _need_args("归约", args, node, 2, 2)
@@ -2927,6 +3044,7 @@ LIST_METHODS = {
     "映射": _m_list_map,
     "过滤": _m_list_filter,
     "排序按": _m_list_sort_by,
+    "排序按比较": _m_list_sort_by_cmp,
     "归约": _m_list_reduce,
 }
 

@@ -147,12 +147,14 @@ def _diff_json(got, want) -> str:
 
 #: 顶层键的**顺序**也是内容的一部分（Python 的 dict 保序）。
 _TOP_KEYS = ["version", "keywords", "operators", "builtins", "methods", "stdlib",
-             "exceptions", "error_codes", "check_codes", "python_equiv",
-             "content_hash"]
+             "module_docs", "exceptions", "error_codes", "check_codes",
+             "python_equiv", "content_hash"]
 
 #: 内建函数表（注册顺序 —— 顺序会进语言卡）。
 _BUILTINS = ["打印", "输入", "整数", "小数", "文本", "精确", "序数", "字符", "打开",
-             "进入上下文", "退出上下文", "长度", "范围", "带下标", "配对", "最大",
+             "进入上下文", "退出上下文", "长度", "范围", "带下标", "配对",
+             "二分查找", "二分插入点",
+             "最大",
              "最小", "总和", "类型", "位与", "位或", "位异或", "位取反", "左移",
              "右移", "反转", "断言", "是实例", "超", "集合"]
 

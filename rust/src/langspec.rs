@@ -69,8 +69,14 @@ fn build_spec() -> Vec<(String, Jv)> {
         ])
     }).collect()));
 
-    push("exceptions", str_arr(D::EXCEPTIONS));
+    // M211：模块级语义（`数据库` 的条件 / 空值 / 句柄，`文件` 的落盘）。
+    // ⚠️ 位置在 `stdlib` 与 `exceptions` 之间 —— 与 `ai.build_lang_spec()` 逐条对应，
+    // 键顺序是内容的一部分（`--lang-spec` 逐字节比）。
+    push("module_docs", Jv::Obj(D::MODULE_DOCS.iter().map(|(m, docs)| {
+        (m.to_string(), str_arr(docs))
+    }).collect()));
 
+    push("exceptions", str_arr(D::EXCEPTIONS));
     push("error_codes", Jv::Arr(D::ERROR_CODES.iter().map(|(code, cls, title, internal)| {
         Jv::Obj(vec![
             ("code".to_string(), s(code)),
@@ -398,6 +404,12 @@ pub fn render_ai_card(模块: Option<&str>, 任务: Option<&str>) -> Result<Stri
             }
         }
         let mut 行 = vec![format!("### `{名}`")];
+        // M211：模块级语义先说 —— 与 Python `_标准库段` 逐条对应
+        if let Some((_, docs)) = D::MODULE_DOCS.iter().find(|(m, _)| m == 名) {
+            for d in docs.iter() {
+                行.push(format!("- {d}"));
+            }
+        }
         for (_, sig, doc) in fns.iter() {
             行.push(if doc.is_empty() {
                 format!("- `{sig}`")

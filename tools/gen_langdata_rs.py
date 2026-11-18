@@ -121,6 +121,15 @@ def main() -> None:
     add("];")
     add("")
 
+    # ---- 模块级语义（M211）----
+    add("/// 模块级语义：模块 → 若干行（`数据库` 的条件/空值/句柄，`文件` 的落盘）。")
+    add("/// ⚠️ 顺序 = `ai._模块说明` 的书写顺序；卡片里按 `STDLIB` 的模块顺序查表。")
+    add("pub const MODULE_DOCS: &[(&str, &[&str])] = &[")
+    for 名, 行们 in spec.get("module_docs", {}).items():
+        add(f"    ({rs_str(名)}, {rs_strs(行们, '    ')}),")
+    add("];")
+    add("")
+
     # ---- 异常 ----
     add("/// 异常类型（有序；`捕获 X 为 e` 用）。")
     add(f"pub const EXCEPTIONS: &[&str] = {rs_strs(spec['exceptions'], '')};")

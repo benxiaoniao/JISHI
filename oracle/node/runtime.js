@@ -1945,6 +1945,18 @@ function newBuiltins() {
       for (let i = 0; i < n; i++) out.push(seqs.map((s) => s[i]));
       return out;
     }),
+    // M211：`二分查找` / `二分插入点`（列表必须**已升序**，见文档）。
+    // 与 Python / Rust 同一条口径：**不检查是否有序**（查一遍就是 O(n)，
+    // 二分的意思当场没了；宁可写进说明里）。
+    '二分查找': new Builtin('二分查找', (...args) => {
+      const [seq, 目标, 起, 终] = bisectArgs('二分查找', args);
+      const i = bisectLeft(seq, 目标, 起, 终);
+      return (i < 终 && valueEq(seq[i], 目标)) ? i : -1;
+    }),
+    '二分插入点': new Builtin('二分插入点', (...args) => {
+      const [seq, 目标, 起, 终] = bisectArgs('二分插入点', args);
+      return bisectLeft(seq, 目标, 起, 终);
+    }),
     '最大': new Builtin('最大', (...args) => {
       needBuiltinArgsAtLeast('最大', args, 1);
       return extremum(args, true);
@@ -2526,6 +2538,70 @@ function orderCompare(a, b) {
     return a.length === b.length ? 0 : (a.length < b.length ? -1 : 1);
   }
   return null;
+}
+
+/**
+ * `排序按比较` 的比较函数返回值 → -1 / 0 / 1（M211）。
+ *
+ * 约定与 C 的 `qsort`、Python 的 `cmp_to_key` 一致：**负数 = 甲排在前、
+ * 0 = 平（保持原来的先后）、正数 = 乙排在前**。
+ * 🔴 布尔明确拒绝（真假当 0/1 用会把顺序**悄悄反过来**，见 D117）。
+ */
+function listCmpSign(v) {
+  const bad = '「排序按比较」的比较函数要返回一个数（负数排前面、0 相等、正数排后面），'
+    + `实际返回了「${typeName(v)}」`;
+  if (typeof v === 'boolean') throw typeErr(bad);
+  if (isDecimal(v)) return compareDecimals(v, JishiDecimal.fromNumber(0));
+  if (typeof v === 'bigint') return v < 0n ? -1 : (v > 0n ? 1 : 0);
+  const x = isFloatBox(v) ? v.value : v;
+  if (typeof x === 'number') {
+    if (Number.isNaN(x)) {
+      throw valueErr('「排序按比较」的比较函数返回了 NaN —— 排不出顺序');
+    }
+    return x < 0 ? -1 : (x > 0 ? 1 : 0);
+  }
+  throw typeErr(bad);
+}
+
+/**
+ * `二分查找` / `二分插入点` 的实参摊开成 `[列表, 目标, 起点, 终点]`（M211）。
+ */
+function bisectArgs(name, args) {
+  if (args.length < 2 || args.length > 4) {
+    throw typeErr(`「${name}」需要 2 到 4 个参数（有序列表, 目标, 起点=0, 终点=空），`
+      + `实际给了 ${args.length} 个`);
+  }
+  const seq = args[0];
+  if (!Array.isArray(seq)) {
+    throw typeErr(`「${name}」的第一个参数要是有序列表，得到了「${typeName(seq)}」`);
+  }
+  const n = seq.length;
+  // 起点/终点：负数**从末尾算**（与 Python 的 bisect 一致），再夹到 [0, n]
+  const clamp = (v) => {
+    const x = typeof v === 'bigint' ? Number(v) : v;
+    if (typeof x !== 'number' || !Number.isInteger(x)) {
+      throw typeErr(`「${name}」的起点 / 终点要是整数，得到了「${typeName(v)}」`);
+    }
+    const y = x < 0 ? n + x : x;
+    return Math.max(0, Math.min(n, y));
+  };
+  const lo = args.length >= 3 ? clamp(args[2]) : 0;
+  const hi = (args.length < 4 || args[3] === null) ? n : clamp(args[3]);
+  return [seq, args[1], lo, hi];
+}
+
+/** `[lo, hi)` 里「不小于目标的第一项」的下标（bisect_left 语义）。 */
+function bisectLeft(seq, target, lo, hi) {
+  let a = lo, b = hi;
+  while (a < b) {
+    const mid = a + Math.floor((b - a) / 2);
+    const c = orderCompare(seq[mid], target);
+    if (c === null) {
+      throw typeErr(`不能比较「${pyStr(seq[mid])}」和「${pyStr(target)}」`);
+    }
+    if (c < 0) a = mid + 1; else b = mid;
+  }
+  return a;
 }
 
 function applyCompare(op, l, r, line, col) {
@@ -3181,6 +3257,14 @@ const LIST_METHODS = {
     }
     keyed.sort((a, b) => cmpVals(a[0], b[0]));
     return keyed.map((p) => p[1]);
+  },
+  '排序按比较': (obj, args, line, col) => {
+    needArgs('排序按比较', args, 1, 1, line, col);
+    ensureCallable(args[0], '排序按比较', line, col);
+    // ES2019 起 `Array.prototype.sort` 是**稳定**的：比较函数说「平」的项保序
+    // （与 Python 的 `sorted` / Rust 的归并排序同一条承诺，多键排序靠它兜底）
+    return obj.slice().sort((a, b) =>
+      listCmpSign(callValue(args[0], [a, b], line, col)));
   },
   '归约': (obj, args, line, col) => {
     needArgs('归约', args, 2, 2, line, col);

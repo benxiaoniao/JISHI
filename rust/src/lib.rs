@@ -4819,6 +4819,28 @@ pub(crate) fn compare(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
                     _ => return Err(err("运行期错误", "不支持的比较")),
                 }));
             }
+            // 🔴 M211：**列表**按字典序逐项比（`[1, 2] < [1, 3]` 为真）。
+            //
+            // 这一支和上面 TEXT 那支是同一类漏：`try_cmp_vals`（排序/最值用的
+            // 那张总序表）从 M33 起就支持列表，**但 `<` 运算符没走它** ——
+            // 于是 `[1, 2] < [1, 3]` 在 Python（原生 list 比较）、Node
+            // （`orderCompare` 递归）、C VM（回落 Python `apply_compare`）上都是
+            // `真`，只有 Rust 宿主掉进下面的 `to_num_pair` 报「E2002 类型错误」。
+            // 下游写 `基石数据库` 的人为此手写了逐项比较。
+            //
+            // 元素不可比（`[1] < ["a"]`）时 `try_cmp_vals` 给 None ⇒ 报「不能比较」
+            // —— 与 Python 抛 TypeError 后翻出来的那句同一个口径（外层两个列表）。
+            if let (Val::List(_), Val::List(_)) = (&l, &r) {
+                let ord = try_cmp_vals(&l, &r)
+                    .ok_or_else(|| err("类型错误", cmp_type_msg(&l, &r)))?;
+                return Ok(Val::Bool(match op {
+                    2 => ord == std::cmp::Ordering::Less,
+                    3 => ord == std::cmp::Ordering::Greater,
+                    4 => ord != std::cmp::Ordering::Greater,
+                    5 => ord != std::cmp::Ordering::Less,
+                    _ => return Err(err("运行期错误", "不支持的比较")),
+                }));
+            }
             // 混了浮点 / 精确小数（精确小数上面已分流）→ 仍走 f64。
             let (la, lb) = (l.clone(), r.clone());
             let (a, b) = to_num_pair(l, r)
@@ -5273,6 +5295,25 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             .map(|i| list_new(seqs.iter().map(|s| s[i].clone()).collect()))
             .collect();
         Ok(list_new(out))
+    }));
+    // M211：`二分查找` / `二分插入点`（列表必须**已升序**，见文档）。
+    // ⚠️ 不做「排序检查」：查一遍就是 O(n)，二分的意思（O(log n)）当场没了。
+    //    写进说明里，比悄悄多花一个数量级更诚实。
+    m.insert("二分查找".to_string(), crate::builtin("二分查找", |args, _vm| {
+        let (l, 目标, 起, 终) = 二分参数("二分查找", args)?;
+        let 项 = l.borrow();
+        let i = 二分左界(&项[..], &目标, 起, 终)?;
+        // 命中判定用 `cmp_vals`（不是 `==`）：`1` 与 `1.0` 在基石里是相等的
+        Ok(Val::Int(if i < 终 && cmp_vals(&项[i], &目标) == std::cmp::Ordering::Equal {
+            i as i128
+        } else {
+            -1
+        }))
+    }));
+    m.insert("二分插入点".to_string(), crate::builtin("二分插入点", |args, _vm| {
+        let (l, 目标, 起, 终) = 二分参数("二分插入点", args)?;
+        let 项 = l.borrow();
+        Ok(Val::Int(二分左界(&项[..], &目标, 起, 终)? as i128))
     }));
     // 变参：至少 1 个（M55 补检查 —— 以前 0 个参数走各自的兜底，
     // 文案与另两个引擎对不上）
@@ -6378,7 +6419,7 @@ fn need_span(lo: usize, hi: usize) -> String {
 // 加/删方法只改这里一处，别在下面的 `match` 里偷偷多写一个分支。
 const LIST_METHOD_NAMES: &[&str] = &[
     "追加", "插入", "移除", "弹出", "排序", "反转", "清空", "索引", "计数", "包含",
-    "映射", "过滤", "排序按", "归约",
+    "映射", "过滤", "排序按", "排序按比较", "归约",
 ];
 const DICT_METHOD_NAMES: &[&str] = &[
     "获取", "键", "值", "包含", "更新", "合并", "弹出", "清空",
@@ -7174,6 +7215,19 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
                 keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
                 Ok(list_new(keyed.into_iter().map(|(_, x)| x).collect()))
             }
+            // M211：按**比较函数**排（多键排序）。`排序按` 是「算一个键再比」，
+            // 想要「先按甲、甲相同再按乙」就只能拼一个复合键 —— 有了比较函数
+            // 就照直写 `函数(左, 右)：如果 左[0] != 右[0]：返回 …`。
+            (Val::List(l), "排序按比较") => {
+                need_args(&name, args, 1, 1)?;
+                let f = ensure_callable(&args[0], "排序按比较")?;
+                let snapshot: Vec<Val> = l.borrow().clone();
+                // ⚠️ 借用分开：闭包独占 `host`，`snapshot` 已经不借 `l` 了
+                let mut 比 = |a: &Val, b: &Val| -> Result<std::cmp::Ordering, JishiError> {
+                    比较符号(&host.call_value(f.clone(), vec![a.clone(), b.clone()])?)
+                };
+                Ok(list_new(归并排序(snapshot, &mut 比)?))
+            }
             (Val::List(l), "归约") => {
                 need_args(&name, args, 2, 2)?;
                 let f = ensure_callable(&args[0], "归约")?;
@@ -7241,6 +7295,122 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
             _ => Err(err("类型错误", format!("「{name}」方法调用未实现"))),
         }
     }
+
+/// M211：`排序按比较` 的比较函数返回值 → 顺序。
+///
+/// 约定与 C 的 `qsort` / Python 的 `cmp_to_key` 一致：**负数 = 甲排在前、
+/// 0 = 平（保持原来的先后）、正数 = 乙排在前**。
+///
+/// 🔴 **布尔明确拒绝**。`函数(甲, 乙)：甲 < 乙` 看着很自然，但真假会被当 0/1 用，
+/// 「1」读成「甲更大」—— 用户想说的「甲在前」正好反过来，**而且排得出来、
+/// 不报错**。静默反序比报错难查得多（M211 取舍，见 D117）。
+fn 比较符号(v: &Val) -> Result<std::cmp::Ordering, JishiError> {
+    match v {
+        Val::Int(i) => Ok(i.cmp(&0)),
+        Val::Dec(d) => Ok(d.cmp(&Dec::zero())),
+        Val::Float(f) => {
+            if f.is_nan() {
+                return Err(err("值错误",
+                    "「排序按比较」的比较函数返回了 NaN —— 排不出顺序"));
+            }
+            Ok(if *f < 0.0 { std::cmp::Ordering::Less }
+               else if *f > 0.0 { std::cmp::Ordering::Greater }
+               else { std::cmp::Ordering::Equal })
+        }
+        other => Err(err("类型错误", format!(
+            "「排序按比较」的比较函数要返回一个数（负数排前面、0 相等、正数排后面），\
+             实际返回了「{}」", type_label(other)))),
+    }
+}
+
+/// M211：**稳定**归并排序，比较函数可能报错。
+///
+/// 为什么不用 `slice::sort_by`：它的闭包返回值必须能当 `Ordering`，错误只能
+/// 塞进外层 `Option` 假装「相等」继续排 —— 那样**出错之后用户函数还会被叫**
+/// （有副作用时行为不可预期），而且是排完才知道出错。
+///
+/// 稳定性：相等时**先取左半**，平局的先后与原列表一致（`排序按` 也是稳定的，
+/// 多键排序就靠这条兜底）。
+fn 归并排序(项: Vec<Val>,
+            比: &mut dyn FnMut(&Val, &Val) -> Result<std::cmp::Ordering, JishiError>)
+    -> Result<Vec<Val>, JishiError> {
+    let n = 项.len();
+    if n <= 1 { return Ok(项); }
+    // ⚠️ `split_off(k)` 返回的是 **[k, len) 那一段**，自己留下 **[0, k)**。
+    // M211 第一次写时把返回值当成了前半 —— 平局的项整段倒序，而「按主键排」
+    // 看着完全正常，只有多键 / 全平局才露出来。
+    let mut 头 = 项;
+    let 尾 = 头.split_off(n / 2);
+    let 头 = 归并排序(头, 比)?;
+    let 尾 = 归并排序(尾, 比)?;
+
+    let mut 出 = Vec::with_capacity(n);
+    let (mut i, mut j) = (0usize, 0usize);
+    while i < 头.len() && j < 尾.len() {
+        // 先问「后面那个要不要排到前面那个之前」：相等时答案是否 ⇒ 取前面（稳定）
+        if 比(&尾[j], &头[i])? == std::cmp::Ordering::Less {
+            出.push(尾[j].clone());
+            j += 1;
+        } else {
+            出.push(头[i].clone());
+            i += 1;
+        }
+    }
+    出.extend_from_slice(&头[i..]);
+    出.extend_from_slice(&尾[j..]);
+    Ok(出)
+}
+
+/// 二分查找的两个内建（M211）共用的那一段：在 `[起点, 终点)` 里找**左边界**。
+///
+/// 返回「不小于目标的第一项」的下标（`bisect_left` 语义）；空区间就是 `起点`。
+/// 元素不可比（`[1]` 里找 `"a"`）报「不能比较」—— 与 `<` 运算符同一句话。
+fn 二分左界(项: &[Val], 目标: &Val, 起点: usize, 终点: usize)
+    -> Result<usize, JishiError> {
+    let (mut lo, mut hi) = (起点, 终点);
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let ord = 项[mid].partial_cmp(目标)
+            .ok_or_else(|| err("类型错误", cmp_type_msg(&项[mid], 目标)))?;
+        if ord == std::cmp::Ordering::Less { lo = mid + 1; } else { hi = mid; }
+    }
+    Ok(lo)
+}
+
+/// 把 `二分查找` / `二分插入点` 的实参摊成 `(列表, 目标, 起点, 终点)`。
+///
+/// 全在第 4 个参数都给了才算「给了终点」—— `空` 也算没给（`终点=空` 是默认值）。
+fn 二分参数(name: &str, args: &[Val]) -> Result<(JList, Val, usize, usize), JishiError> {
+    if args.len() < 2 || args.len() > 4 {
+        return Err(err("类型错误", format!(
+            "「{name}」需要 2 到 4 个参数（有序列表, 目标, 起点=0, 终点=空），\
+             实际给了 {} 个", args.len())));
+    }
+    let l = match &args[0] {
+        Val::List(l) => l.clone(),
+        other => return Err(err("类型错误", format!(
+            "「{name}」的第一个参数要是有序列表，得到了「{}」", type_label(other)))),
+    };
+    let n = l.borrow().len() as i128;
+    // 起点/终点按 Python `bisect` 的口径：负数**从末尾算**，再夹到 `[0, n]`
+    // ⚠️ 不用 `as_int`：它对布尔报「需要整数」，而这里要说清是**哪个参数**该是整数
+    let 夹 = |v: &Val| -> Result<usize, JishiError> {
+        let i = match v {
+            Val::Int(i) => *i,
+            other => return Err(err("类型错误", format!(
+                "「{name}」的起点 / 终点要是整数，得到了「{}」", type_label(other)))),
+        };
+        let x = if i < 0 { n + i } else { i };
+        Ok(x.max(0).min(n) as usize)
+    };
+    let 起 = match args.get(2) { Some(v) => 夹(v)?, None => 0 };
+    let 终 = match args.get(3) {
+        Some(Val::None_) | None => n as usize,
+        Some(v) => 夹(v)?,
+    };
+    Ok((l, args[1].clone(), 起, 终))
+}
+
 /// 形参绑定里**与执行器无关**的那一半：把实参 + 关键字实参排到形参位置上，
 /// 该报的错（个数太多 / 缺少 / 不认识的关键字）都在这里报。
 ///
