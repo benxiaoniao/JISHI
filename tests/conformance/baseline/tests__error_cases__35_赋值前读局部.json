@@ -7,7 +7,7 @@
         "op": "=",
         "target": {
           "col": 3,
-          "id": "全局",
+          "id": "次数",
           "line": 1,
           "类型": "Name"
         },
@@ -30,7 +30,7 @@
               "args": [
                 {
                   "col": 8,
-                  "id": "全局",
+                  "id": "次数",
                   "line": 4,
                   "类型": "Name"
                 }
@@ -55,7 +55,7 @@
             "op": "=",
             "target": {
               "col": 7,
-              "id": "全局",
+              "id": "次数",
               "line": 5,
               "类型": "Name"
             },
@@ -114,7 +114,7 @@
     "类型": "Program"
   },
   "bytecode": {
-    "checksum": "1365b11451d63a2324109bf3dcbd55b9024a66033ba68c5d4d0134781b46c034",
+    "checksum": "4c37981e5cdcff1ec0ee710ca162e4fd98b735a2ae4c1477fcd78431b9f5b81b",
     "format": "jishi-bytecode",
     "payload": {
       "codes": [
@@ -245,11 +245,11 @@
             1
           ],
           "local_hints": {
-            "1": "外层也有一个叫「全局」的变量。在这个函数里给它赋过值，它就成了这个函数的局部变量，赋值之前不能读取"
+            "1": "外层也有一个叫「次数」的变量。在这个函数里给它赋过值，它就成了这个函数的局部变量，赋值之前不能读取"
           },
           "local_names": [
             "值",
-            "全局"
+            "次数"
           ],
           "name": "读",
           "nlocals": 2,
@@ -289,7 +289,7 @@
       "kw_names": [],
       "main": 0,
       "names": [
-        "全局",
+        "次数",
         "值",
         "打印",
         "读"
@@ -303,7 +303,7 @@
       "col": 1,
       "end_col": 1,
       "line": 1,
-      "source_line": "令 全局 = 99",
+      "source_line": "令 次数 = 99",
       "type": "KEYWORD",
       "value": "令",
       "类型": "Token"
@@ -312,16 +312,16 @@
       "col": 3,
       "end_col": 4,
       "line": 1,
-      "source_line": "令 全局 = 99",
+      "source_line": "令 次数 = 99",
       "type": "NAME",
-      "value": "全局",
+      "value": "次数",
       "类型": "Token"
     },
     {
       "col": 6,
       "end_col": 7,
       "line": 1,
-      "source_line": "令 全局 = 99",
+      "source_line": "令 次数 = 99",
       "type": "OP",
       "value": "=",
       "类型": "Token"
@@ -330,7 +330,7 @@
       "col": 8,
       "end_col": 9,
       "line": 1,
-      "source_line": "令 全局 = 99",
+      "source_line": "令 次数 = 99",
       "type": "NUMBER",
       "value": 99,
       "类型": "Token"
@@ -339,7 +339,7 @@
       "col": 1,
       "end_col": 1,
       "line": 1,
-      "source_line": "令 全局 = 99",
+      "source_line": "令 次数 = 99",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -411,7 +411,7 @@
       "col": 1,
       "end_col": 1,
       "line": 4,
-      "source_line": "    打印(全局)",
+      "source_line": "    打印(次数)",
       "type": "INDENT",
       "value": 4,
       "类型": "Token"
@@ -420,7 +420,7 @@
       "col": 5,
       "end_col": 6,
       "line": 4,
-      "source_line": "    打印(全局)",
+      "source_line": "    打印(次数)",
       "type": "NAME",
       "value": "打印",
       "类型": "Token"
@@ -429,7 +429,7 @@
       "col": 7,
       "end_col": 8,
       "line": 4,
-      "source_line": "    打印(全局)",
+      "source_line": "    打印(次数)",
       "type": "OP",
       "value": "(",
       "类型": "Token"
@@ -438,16 +438,16 @@
       "col": 8,
       "end_col": 9,
       "line": 4,
-      "source_line": "    打印(全局)",
+      "source_line": "    打印(次数)",
       "type": "NAME",
-      "value": "全局",
+      "value": "次数",
       "类型": "Token"
     },
     {
       "col": 10,
       "end_col": 11,
       "line": 4,
-      "source_line": "    打印(全局)",
+      "source_line": "    打印(次数)",
       "type": "OP",
       "value": ")",
       "类型": "Token"
@@ -456,7 +456,7 @@
       "col": 5,
       "end_col": 1,
       "line": 4,
-      "source_line": "    打印(全局)",
+      "source_line": "    打印(次数)",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -465,7 +465,7 @@
       "col": 5,
       "end_col": 5,
       "line": 5,
-      "source_line": "    令 全局 = 值",
+      "source_line": "    令 次数 = 值",
       "type": "KEYWORD",
       "value": "令",
       "类型": "Token"
@@ -474,16 +474,16 @@
       "col": 7,
       "end_col": 8,
       "line": 5,
-      "source_line": "    令 全局 = 值",
+      "source_line": "    令 次数 = 值",
       "type": "NAME",
-      "value": "全局",
+      "value": "次数",
       "类型": "Token"
     },
     {
       "col": 10,
       "end_col": 11,
       "line": 5,
-      "source_line": "    令 全局 = 值",
+      "source_line": "    令 次数 = 值",
       "type": "OP",
       "value": "=",
       "类型": "Token"
@@ -492,7 +492,7 @@
       "col": 12,
       "end_col": 12,
       "line": 5,
-      "source_line": "    令 全局 = 值",
+      "source_line": "    令 次数 = 值",
       "type": "NAME",
       "value": "值",
       "类型": "Token"
@@ -501,7 +501,7 @@
       "col": 5,
       "end_col": 1,
       "line": 5,
-      "source_line": "    令 全局 = 值",
+      "source_line": "    令 次数 = 值",
       "type": "NEWLINE",
       "value": "\n",
       "类型": "Token"
@@ -570,6 +570,6 @@
       "类型": "Token"
     }
   ],
-  "内容哈希": "sha256:8c8aeb6ede3f3d3d",
+  "内容哈希": "sha256:846afb6f8222ddc8",
   "语料": "tests/error_cases/35_赋值前读局部.jsh"
 }

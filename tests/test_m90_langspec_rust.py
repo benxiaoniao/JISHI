@@ -190,7 +190,8 @@ def test_独立判据_lang_spec结构与关键事实():
 
     assert list(d) == _TOP_KEYS, f"顶层键或顺序变了：{list(d)}"
     assert d["version"] == "0.3.4", d["version"]
-    assert len(d["keywords"]) == 36 and list(d["keywords"])[0] == "令"
+    # M210 加了 `全局`（A2）：36 → **37**。
+    assert len(d["keywords"]) == 37 and list(d["keywords"])[0] == "令"
     assert d["keywords"]["令"] == "声明/赋值变量"
     assert [b["name"] for b in d["builtins"]] == _BUILTINS
     assert d["builtins"][0]["doc"] == "输出内容到屏幕"

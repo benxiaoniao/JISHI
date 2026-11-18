@@ -734,6 +734,7 @@ impl Parser {
             }
             match kw {
                 "令" => return Ok(Stmt::One(self.parse_assign(true)?)),
+                "全局" => return Ok(Stmt::One(self.parse_global()?)),
                 "如果" => return Ok(Stmt::One(self.parse_if()?)),
                 "遍历" => return Ok(Stmt::One(self.parse_for()?)),
                 "循环" => return Ok(Stmt::One(self.parse_loop()?)),
@@ -1175,6 +1176,43 @@ impl Parser {
            .f("target", tmp)
            .f("iter", it)
            .f("body", J::List(new_body)))
+    }
+
+    /// `全局 甲, 乙`（M210 / A2）—— 一行读完，不要冒号、不跟块。
+    fn parse_global(&mut self) -> R<Node> {
+        let start = self.advance();
+        let mut names: Vec<J> = Vec::new();
+        loop {
+            let t = self.cur().clone();
+            if t.kind != "NAME" {
+                return Err(self.err_tok(
+                    "E0201",
+                    format!("「全局」后面要跟变量名，看到的是「{}」", tok_text(&t)),
+                    Some("例如：全局 计数, 缓存".to_string()),
+                    &t,
+                    None,
+                ));
+            }
+            names.push(s(&tok_text(&t)));
+            self.advance();
+            if self.at_op(",") {
+                self.advance();
+                continue;
+            }
+            break;
+        }
+        if !self.at("NEWLINE") && self.cur().kind != "EOF" {
+            let t = self.cur().clone();
+            return Err(self.err_tok(
+                "E0201",
+                format!("「全局」后面多了「{}」—— 一行只写名字，用逗号隔开", tok_text(&t)),
+                Some("例如：全局 计数, 缓存".to_string()),
+                &t,
+                None,
+            ));
+        }
+        Ok(Node::new("Global", start.line as i64, start.col as i64)
+           .f("names", J::List(names)))
     }
 
     fn parse_loop(&mut self) -> R<Node> {

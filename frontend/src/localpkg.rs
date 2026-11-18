@@ -657,7 +657,6 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>,
         }
         依赖名.push(dep_name.clone());
     }
-    stack.pop();
 
     // ---- 源码拼起来（多份 .jsh 共享一个作用域，见 Python 侧文档第 2 条取舍）----
     let mut 源码 = String::new();
@@ -684,6 +683,18 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>,
     }
     let 首文件 = 首文件.unwrap_or_else(|| PathBuf::from(format!("{name}.jsh")));
     let 首路径 = 首文件.to_string_lossy().to_string();
+
+    // ---- M210 / F1：包自己也可能 `导入 X 从 本地包` ----------------------
+    //
+    // 以前只有 `包.json` 的 `依赖` 那一条路：包体里写 `导入 甲包 从 本地包`
+    // 会原样留在源码里，运行时那条 IMPORT 找不到本地包展开的入口 ⇒ 报
+    // 「运行时动态导入不支持『从 本地包』」，**整条包依赖链断在包内部**。
+    //
+    // 现在：扫一遍包源码里的本地包导入 —— 它们是**隐式依赖**（`包.json` 里
+    // 不必再写一遍），先各自建壳（依赖在前），再把那几行**清空**
+    // （保留行号：清空不是删除）。包体里那句 `甲包.问好(...)` 靠
+    // `prepend_body` 注入的 `甲包 = $造模块(...)` 拿到值。
+    源码 = 吸掉包内本地包导入(&源码, &首路径, &mut out, &mut 依赖名, stack, base, line, col)?;
 
     // 导出名：解析拼好的源码，取顶层「函数/类/赋值」的名字
     let program = parse(&源码, &首路径).map_err(|e| {
@@ -720,6 +731,7 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>,
                 // 就只有一边能跑，2026-10-27 实测撞到过）。
                 prepend_body(&mut def, &依赖名, line, col);
                 out.push((want, def));
+                stack.pop();
                 return Ok(out);
             }
         }
@@ -891,6 +903,49 @@ pub fn 脚本目录(filename: &str) -> Option<String> {
         Some(d) if !d.as_os_str().is_empty() => Some(d.to_string_lossy().to_string()),
         _ => None,
     }
+}
+
+/// 把包源码里的 `导入 X 从 本地包` 变成「隐式依赖 + 空行」（M210 / F1）。
+///
+/// 返回**改写后的源码**：被吸掉的那几行换成空行（**行号不能变** —— 包里的报错
+/// 是拿这个行号换算回文件的，删行会让所有报错整体偏移）。
+fn 吸掉包内本地包导入(
+    源码: &str,
+    首路径: &str,
+    壳们: &mut Vec<(String, Node)>,
+    依赖名: &mut Vec<String>,
+    stack: &mut Vec<String>,
+    base: Option<&str>,
+    行: i64,
+    列: i64,
+) -> Result<String, PkgErr> {
+    let 预 = parse(源码, 首路径)
+        .map_err(|e| bad(format!("本地包有语法错误：{}（第 {} 行）", e.message, e.line), 行, 列))?;
+    let 导入们: Vec<(String, i64, i64)> = local_imports(&预);
+    if 导入们.is_empty() {
+        return Ok(源码.to_string());
+    }
+    // 已经在 `依赖` 里声明过的不重复建壳（但**照样要清掉那一行**）
+    let mut 新依赖: Vec<(String, i64, i64)> = Vec::new();
+    for (n, l, c) in 导入们.iter() {
+        if !依赖名.iter().any(|x| x == n) && !新依赖.iter().any(|(x, _, _)| x == n) {
+            新依赖.push((n.clone(), *l, *c));
+        }
+    }
+    for (n, l, c) in 新依赖.iter() {
+        let mut sub = shell_defs(n, *l, *c, stack, base)?;
+        壳们.append(&mut sub);
+        依赖名.push(n.clone());
+    }
+    // 清空那几行（保留行号）
+    let mut 行们: Vec<String> = 源码.split('\n').map(|s| s.to_string()).collect();
+    for (_, l, _) in 导入们.iter() {
+        let i = (*l as usize).saturating_sub(1);
+        if i < 行们.len() {
+            行们[i] = String::new();
+        }
+    }
+    Ok(行们.join("\n"))
 }
 
 /// 把程序里所有 `导入 … 从 本地包` 展开掉，返回**新的** AST。

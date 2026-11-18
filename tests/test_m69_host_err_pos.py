@@ -130,10 +130,10 @@ _REGISTERED_CASES = {
     "文本转整数": '"abc".转整数()\n',
     "字典弹出缺键": '令 d = {"a"：1}\nd.弹出("b")\n',
     "赋值前读局部": (
-        '令 全局 = 99\n\n'
+        '令 次数 = 99\n\n'
         '函数 读(值)：\n'
-        '    打印(全局)\n'
-        '    令 全局 = 值\n\n'
+        '    打印(次数)\n'
+        '    令 次数 = 值\n\n'
         '读(1)\n'),
 }
 
@@ -211,10 +211,10 @@ def test_字节码里带着local_hints():
     assert hints, "「读」这个函数有阴影局部，应该带上 local_hints"
     (slot, text), = hints.items()
     assert text == (
-        "外层也有一个叫「全局」的变量。在这个函数里给它赋过值，"
+        "外层也有一个叫「次数」的变量。在这个函数里给它赋过值，"
         "它就成了这个函数的局部变量，赋值之前不能读取"), text
     # 槽位号与 `local_names` 对得上（不是瞎塞一个键）
-    assert codes["读"]["local_names"][int(slot)] == "全局"
+    assert codes["读"]["local_names"][int(slot)] == "次数"
 
 
 def test_local_hints往返不丢():
@@ -226,7 +226,7 @@ def test_local_hints往返不丢():
     cmod = serialize.loads(serialize.dumps(compile_source(src, "x.jsh")))
     got = {c.name: c.local_hints for c in cmod.codes}
     assert got.get("读"), f"还原之后提示语没了：{got}"
-    assert any("外层也有一个叫「全局」" in v for v in got["读"].values()), got
+    assert any("外层也有一个叫「次数」" in v for v in got["读"].values()), got
 
 
 def test_没有阴影局部就不塞键():

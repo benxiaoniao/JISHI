@@ -5541,6 +5541,27 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             "类「{defining}」没有基类，用不了「超()」——它用来调基类的方法")))?;
         Ok(Val::Super(Rc::new(SuperVal { instance: inst, base, defining })))
     }));
+    // ---- M210 / F1：`内建.名字(...)` 逃生口 ---------------------------------
+    //
+    // 场景（磐石 IDE / 基石数据库 都撞过）：包的门面导出了一个和**内建同名**的
+    // 东西 —— `基石数据库` 导出 `打开`（开数据库），于是 `打开("a.txt")` 拿到的是
+    // 它的那个；想开文件就没词了，只能 import 一个别名绕。
+    //
+    // 这里把内建表整份再包成一个模块对象 `内建`：`内建.打开("a.txt")` 直指内建。
+    // 为什么包遮不住它：`内建` 只在**这里**装一次，包能遮蔽的是普通名字。
+    {
+        let mut 表: HashMap<String, Val> = HashMap::with_capacity(m.len());
+        for (k, v) in m.iter() {
+            // `$造模块` 这类内部名字不给用户看（`$` 开头，词法器也写不出来）
+            if !k.starts_with('$') {
+                表.insert(k.clone(), v.clone());
+            }
+        }
+        m.insert(
+            "内建".to_string(),
+            Val::Module(Box::new("内建".to_string()), Box::new(表)),
+        );
+    }
     m
 }
 

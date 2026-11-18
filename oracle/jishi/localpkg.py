@@ -208,6 +208,67 @@ def _shift(node, delta: int) -> None:
     _shift_lines(node, delta)
 
 
+def _吸掉包内本地包导入(源码: str, defs: list, 依赖名: list, stack: list,
+                        脚本目录, node, filename: str):
+    """把包源码里的 `导入 X 从 本地包` 变成「隐式依赖 + 空行」（M210 / F1）。
+
+    以前只有 `包.json` 的 `依赖` 一条路：包体里写 `导入 甲包 从 本地包` 会原样
+    留在源码里，运行时那条 IMPORT 找不到本地包展开的入口 ⇒ 报「运行时动态导入
+    不支持『从 本地包』」—— **整条包依赖链断在包内部**。
+
+    现在：扫一遍包源码里的本地包导入，它们就是**隐式依赖**（`包.json` 里不必
+    再写一遍）；先各自建壳（依赖在前），再把那几行**清空**（保留行号 —— 包里
+    的报错拿这个行号换算回文件，删行会让所有报错整体偏移）。
+
+    ⚠️ 与 Rust 侧 `吸掉包内本地包导入` **同一条规则、同一个顺序**（判据
+    `test_m210_pkg` 拿同两个包在宿主与 Python 上各跑一遍对拍）。
+    """
+    from .errors import JishiError  # noqa: F401  （只为类型注释可读）
+    from .jishilib import _export_names  # noqa: F401
+    from .parser import parse_source
+
+    预 = parse_source(源码, filename)
+    导入们 = []
+    _扫本地包导入(预, 导入们)
+    if not 导入们:
+        return 源码, defs, 依赖名
+
+    新依赖 = []
+    for 名, 行, 列 in 导入们:
+        if 名 in 依赖名 or any(d == 名 for d, _, _ in 新依赖):
+            continue
+        新依赖.append((名, 行, 列))
+    for 名, 行, 列 in 新依赖:
+        defs += shell_def(名, node, filename, stack, 脚本目录)
+        依赖名.append(名)
+
+    行们 = 源码.split("\n")
+    for _, 行, _ in 导入们:
+        i = max(0, 行 - 1)
+        if i < len(行们):
+            行们[i] = ""
+    return "\n".join(行们), defs, 依赖名
+
+
+def _扫本地包导入(program, 出: list) -> None:
+    """收集 `(包名, 行, 列)`：深度优先，块体也进（与 `_collect` 同一套下探）。"""
+    import dataclasses
+
+    def walk(v):
+        if isinstance(v, A.Node):
+            if _is_local_import(v):
+                出.append((v.name, getattr(v, "line", 1) or 1, getattr(v, "col", 1) or 1))
+                return
+            for f in dataclasses.fields(v):
+                walk(getattr(v, f.name))
+        elif isinstance(v, (list, tuple)):
+            for x in v:
+                walk(x)
+
+    for n in program.body:
+        walk(n)
+
+
 def shell_def(name: str, node, filename: str, stack: Optional[list] = None,
               脚本目录: Optional[str] = None) -> list:
     """生成 `[依赖的外壳函数…, 本包的外壳函数]`（依赖在前，可直接插进程序顶部）。
@@ -268,6 +329,8 @@ def shell_def(name: str, node, filename: str, stack: Optional[list] = None,
         # 路径归一成绝对：Rust 侧也这么做，否则两边显示成两串不同的字
         段表.append((源码.count("\n") + 1, os.path.abspath(路径)))
         源码 += 内容.replace("\r\n", "\n").replace("\r", "\n") + "\n"
+    源码, defs, 依赖名 = _吸掉包内本地包导入(
+        源码, defs, 依赖名, stack, 脚本目录, node, filename)
     导出 = _export_names(parse_source(源码, 片段[0][0]))
     正文 = [("    " + line) if line.strip() else ""
             for line in 源码.split("\n")]

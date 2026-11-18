@@ -115,7 +115,7 @@ _EN_BUILTIN_HINTS = {
 # 英文语法基石没有对应 → 直接给说明
 _EN_UNSUPPORTED = {
     "pass": "空代码块直接写一个冒号「:」占位，不需要 pass",
-    "lambda": "基石没有匿名函数，请用「函数 名字(参数)：」定义",
+    "lambda": "基石没有 `lambda`；匿名函数写成 `函数(参数)：表达式`（只能一行）",
     "with": "基石暂不支持 with，可用「尝试/最终」管理资源",
     "del": "基石没有 del，变量不需要手动删除",
     "global": "基石没有 global，函数内可直接读写外层变量",
@@ -508,6 +508,32 @@ class Parser:
                 self._next()
         return stmts
 
+    def _parse_global(self) -> A.Node:
+        """`全局 甲, 乙`（M210 / A2）。
+
+        名字之间可以用逗号、顿号或空白；**一行读完**（不需要冒号、不跟代码块）。
+        """
+        t = self._next()                      # 吃掉「全局」
+        names: list[str] = []
+        while True:
+            nt = self._peek()
+            if nt.type != "NAME":
+                self._err(ParseUnexpectedError,
+                          f"「全局」后面要跟变量名，看到的是「{nt.value}」",
+                          hint="例如：全局 计数, 缓存", tok=nt)
+            names.append(nt.value)
+            self._next()
+            if self._at_op(",") or self._at_op("、"):
+                self._next()
+                continue
+            break
+        if not self._at("NEWLINE") and self._peek().type != "EOF":
+            bad = self._peek()
+            self._err(ParseUnexpectedError,
+                      f"「全局」后面多了「{bad.value}」—— 一行只写名字，用逗号隔开",
+                      hint="例如：全局 计数, 缓存", tok=bad)
+        return A.Global(line=t.line, col=t.col, names=names)
+
     # -- 语句 --------------------------------------------------------------
 
     def _parse_statement(self) -> A.Node:
@@ -519,6 +545,8 @@ class Parser:
                 return self._parse_expr_stmt()
             if kw == "令":
                 return self._parse_assign(decl=True)
+            if kw == "全局":
+                return self._parse_global()
             if kw == "如果":
                 return self._parse_if()
             if kw == "遍历":

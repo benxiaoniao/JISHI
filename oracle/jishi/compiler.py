@@ -33,14 +33,17 @@ FUNC_SCOPE = "function"
 # ---------------------------------------------------------------------------
 
 class _Scope:
-    __slots__ = ("kind", "name", "bound", "used", "cellvars", "freevars",
-                 "children", "parent")
+    __slots__ = ("kind", "name", "bound", "globals", "used", "cellvars",
+                 "freevars", "children", "parent")
 
     def __init__(self, kind: str, name: str = "<模块>",
                  parent: Optional["_Scope"] = None):
         self.kind = kind
         self.name = name
         self.bound: set[str] = set()
+        #: `全局 甲` 声明的名字（M210 / A2）：它们**不进 bound**，于是
+        #: 本作用域里对它们的读写都走 LOAD/STORE_GLOBAL —— 改的就是顶层那个。
+        self.globals: set[str] = set()
         self.used: set[str] = set()
         self.cellvars: set[str] = set()   # 本作用域绑定、被内层引用
         self.freevars: set[str] = set()   # 本作用域引用、由外层绑定
@@ -127,6 +130,10 @@ def _collect_stmt(st: A.Node, scope: _Scope,
     elif isinstance(st, A.Return):
         if st.value is not None:
             _collect_expr(st.value, scope, func_scopes)
+    elif isinstance(st, A.Global):
+        # `全局 甲, 乙`（M210 / A2）：记下来，收集完统一从 bound 里摘掉。
+        # 模块顶层写它只是把话说清楚（那里本来就是全局，摘不摘一样）。
+        scope.globals.update(st.names)
     elif isinstance(st, A.Import):
         scope.bound.add(st.alias or st.name)
     elif isinstance(st, A.Try):
@@ -219,6 +226,13 @@ def _collect_expr(e: A.Node, scope: _Scope, func_scopes: dict[int, _Scope]):
 # ---------------------------------------------------------------------------
 # 第 2 步：定种（后序）
 # ---------------------------------------------------------------------------
+
+def _walk_scopes(sc: _Scope):
+    """深度优先遍历所有作用域（含自己）。M210 / A2 用它统一摘 globals。"""
+    yield sc
+    for c in sc.children:
+        yield from _walk_scopes(c)
+
 
 def _resolve(scope: _Scope) -> None:
     for child in scope.children:
@@ -405,6 +419,8 @@ class _Emitter:
             self._c_loop(st)
         elif isinstance(st, A.While):
             self._c_while(st)
+        elif isinstance(st, A.Global):
+            pass        # 纯声明，不产生指令（M210 / A2）
         elif isinstance(st, A.Break):
             self.emit(O.Op.BREAK_LOOP, st)
         elif isinstance(st, A.Continue):
@@ -1160,6 +1176,13 @@ def compile_program(program: A.Program, filename: str = "<输入>",
     func_scopes: dict[int, _Scope] = {}
     root = _Scope(MODULE_SCOPE, "<模块>")
     _collect_stmts(program.body, root, func_scopes)
+    # M210 / A2：`全局` 声明的名字**不进局部**（函数作用域才需要摘；
+    # 模块作用域摘不摘都一样 —— 那里的 bound 本来就是「全局」）。
+    for sc in _walk_scopes(root):
+        if sc.globals:
+            sc.bound -= sc.globals
+            # 它们既不是局部也不是闭包单元：万一被外层同名捕获过，也摘掉
+            sc.cellvars.difference_update(sc.globals)
     _resolve(root)
 
     emit = _Emitter(cmod, func_scopes, root, fuse_method_call=fuse_method_call)

@@ -1311,7 +1311,7 @@ def is_internal_builtin(name: str, b: Any = None) -> bool:
 
 def new_builtins() -> dict[str, Any]:
     """返回一份全新的内建函数表（每个执行器实例一份）。"""
-    return {
+    return _装内建逃生口({
         "打印": _Builtin("打印", _b_print, "输出内容到屏幕"),
         "输入": _Builtin("输入", _b_input, "读取用户输入的一行文本"),
         "整数": _Builtin("整数", _b_int, "把值转成整数"),
@@ -1387,7 +1387,22 @@ def new_builtins() -> dict[str, Any]:
         "空": None,
         # 异常类型：既可 `抛出 值错误("…")`，也可 `捕获 值错误 为 e`
         **{name: ExcType(name, cls) for name, cls in EXCEPTION_TYPES.items()},
-    }
+    })
+
+
+def _装内建逃生口(d: dict) -> dict:
+    """加上 `内建` 这个模块对象（M210 / F1）—— `内建.打开(...)` 直指内建。
+
+    场景（磐石 IDE / 基石数据库 都撞过）：包的门面导出一个和**内建同名**的东西
+    （`基石数据库` 导出 `打开`），于是 `打开("a.txt")` 拿到的是包的那个；想开文件
+    就没词了。这里把内建表整份再包成一个模块对象：`内建.打开("a.txt")`。
+
+    为什么包遮不住它：`内建` 只在**这里**装一次，包能遮蔽的是普通名字。
+    ⚠️ 与 Rust 的 `lib.rs` 同名段、Node 的 `BUILTIN_ESCAPE` 同一套（判据盯着）。
+    """
+    表 = {k: v for k, v in d.items() if not k.startswith("$")}
+    d["内建"] = Module("内建", 表)
+    return d
 
 
 # ---------------------------------------------------------------------------

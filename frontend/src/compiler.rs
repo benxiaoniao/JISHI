@@ -269,6 +269,9 @@ struct Scope {
     kind: ScopeKind,
     name: String,
     bound: BTreeSet<String>,
+    ///: `全局 甲` 声明的名字（M210 / A2）：收集完从 `bound` 里摘掉，
+    ///: 于是本作用域对它们的读写都走 LOAD/STORE_GLOBAL。
+    globals: BTreeSet<String>,
     used: BTreeSet<String>,
     /// 本作用域绑定、被内层引用
     cellvars: BTreeSet<String>,
@@ -284,6 +287,7 @@ impl Scope {
             kind,
             name: name.to_string(),
             bound: BTreeSet::new(),
+            globals: BTreeSet::new(),
             used: BTreeSet::new(),
             cellvars: BTreeSet::new(),
             freevars: BTreeSet::new(),
@@ -353,6 +357,14 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
                 }
             }
             collect_expr(nf(n, "value"), scope, c);
+        }
+        "Global" => {
+            // `全局 甲, 乙`（M210 / A2）：记下来，收集完统一从 bound 摘。
+            for it in as_list(nf(n, "names")) {
+                if let J::Str(x) = it {
+                    c.scopes[scope].globals.insert(x.to_string());
+                }
+            }
         }
         "ExprStmt" => collect_expr(nf(n, "expr"), scope, c),
         "If" => {
@@ -822,6 +834,9 @@ impl<'a> Emitter<'a> {
             "For" => self.c_for(n),
             "Loop" => self.c_loop(n),
             "While" => self.c_while(n),
+            "Global" => {
+                // 纯声明，不产生指令（M210 / A2）
+            }
             "Break" => {
                 self.emit(op::BREAK_LOOP, Some(n), 0, 0, 0);
             }
@@ -1769,6 +1784,17 @@ fn compile_expanded(expanded: &Node, filename: &str, fuse_method_call: bool) -> 
     let mut c = Collector { scopes: Vec::new(), func_scopes: HashMap::new() };
     let root = c.add(ScopeKind::Module, "<模块>", None);
     collect_stmts(as_list(nf(&expanded, "body")), root, &mut c);
+    // M210 / A2：`全局` 声明的名字**不进局部**（模块作用域摘不摘都一样，
+    // 那里的 bound 本来就是「全局」；但摘掉也不会错，统一处理更省心）。
+    for sc in c.scopes.iter_mut() {
+        if !sc.globals.is_empty() {
+            let g = sc.globals.clone();
+            for name in g.iter() {
+                sc.bound.remove(name);
+                sc.cellvars.remove(name);
+            }
+        }
+    }
     resolve(&mut c.scopes, root);
 
     // ⚠️ **绝不能把 body 克隆出来再编**：`func_scopes` 的键是节点地址，

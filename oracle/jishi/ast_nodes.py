@@ -184,6 +184,17 @@ class Import(Node):
 
 
 @dataclass(kw_only=True)
+class Global(Node):
+    """`全局 甲, 乙`（M210 / A2）：这几个名字是**模块顶层**的变量。
+
+    写在函数体里 = 本函数对它们的赋值**改的是顶层那个**（不再静默变成局部）。
+    写在模块顶层 = 允许（只是把话说清楚），不影响生成什么。
+    """
+
+    names: list[str] = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
 class Pass(Node):
     """占位语句：什么都不做（用于空块）"""
 

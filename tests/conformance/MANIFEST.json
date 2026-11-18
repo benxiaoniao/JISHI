@@ -996,8 +996,8 @@
     },
     {
       "id": "tests__error_cases__35_赋值前读局部",
-      "产物哈希": "sha256:e4c59dd54bb58172",
-      "内容哈希": "sha256:8c8aeb6ede3f3d3d",
+      "产物哈希": "sha256:611a033633c95d56",
+      "内容哈希": "sha256:846afb6f8222ddc8",
       "类别": "lang",
       "路径": "tests/error_cases/35_赋值前读局部.jsh"
     },

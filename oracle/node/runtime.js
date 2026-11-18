@@ -1687,7 +1687,7 @@ const EXCEPTION_TYPES = {
 };
 
 function newBuiltins() {
-  return {
+  const d = {
     '打印': new Builtin('打印', (...args) => {
       // 用 fs.writeSync 而不是 process.stdout.write：后者对管道是**异步**的，
       // 与「输入()」的同步读 stdin 混用时，进程退出会丢掉没 flush 的字符
@@ -2032,6 +2032,15 @@ function newBuiltins() {
     // 异常类型：既是构造器也可用于捕获匹配
     ...Object.fromEntries(Object.entries(EXCEPTION_TYPES).map(([k, v]) => [k, v])),
   };
+  // M210 / F1：`内建.名字(...)` 逃生口 —— 包 / 模块遮住内建名时用它
+  // （`基石数据库` 导出 `打开` 之后，`打开("a.txt")` 拿的是它那个）。
+  // 包遮不住 `内建`：它只在这里装一次。
+  const 表 = {};
+  for (const [k, v] of Object.entries(d)) {
+    if (!k.startsWith('$')) 表[k] = v;
+  }
+  d['内建'] = new Module('内建', 表, { noPrefix: true });
+  return d;
 }
 
 function range(a, b, step) {
@@ -2054,9 +2063,14 @@ class Module {
     // json / 参数 / 日期 都有），只按函数名查会歧义。前缀在这里统一加，
     // 省得在两百多处 `new R.Builtin(...)` 手写（手写就是「写三遍」+ 漂移源）。
     // 名字只影响 `toString()` 的显示，不影响调用。
-    for (const k of Object.keys(attrs)) {
-      const v = attrs[k];
-      if (v instanceof Builtin) v.name = name + '.' + k;
+    // ⚠️ `noPrefix`：`内建` 这个「模块」装的是**同一批内建对象**（M210），
+    //    给它们改名会把全局的 `打印` 显示成 `<内建 内建.打印>` —— 判据
+    //    （`test_m32` 的 display 那条）当场就红。所以那一份不加前缀。
+    if (!(opts && opts.noPrefix)) {
+      for (const k of Object.keys(attrs)) {
+        const v = attrs[k];
+        if (v instanceof Builtin) v.name = name + '.' + k;
+      }
     }
     this.name = name;
     this.attrs = attrs;

@@ -71,11 +71,16 @@ class _Unbound:
 
 
 class Environment:
-    __slots__ = ("vars", "parent")
+    __slots__ = ("vars", "parent", "decl_globals")
 
-    def __init__(self, parent: Optional["Environment"] = None):
+    def __init__(self, parent: Optional["Environment"] = None, func: bool = False):
         self.vars: dict[str, Any] = {}
         self.parent = parent
+        #: 这一层**函数帧**里 `全局 甲` 声明过的名字（M210 / A2）；
+        #: 模块层与块层都是 `None`（块不另建环境，见 `exec_block`）。
+        #: 挂在这里而不是解释器的栈上：两条调用路径（`__call__` 与
+        #: `_eval_call`）都要用，栈就得两处各压一次、各弹一次 —— 迟早漏一边。
+        self.decl_globals: Optional[set[str]] = set() if func else None
 
     def get(self, name: str) -> Any:
         env = self
@@ -152,7 +157,7 @@ class UserFunction:
                 f"但传了 {len(args) + len(kwargs)} 个",
                 line=line, col=col, filename=filename)
 
-        call_env = Environment(parent=self.closure)
+        call_env = Environment(parent=self.closure, func=True)
         for i in range(min(len(args), npos)):
             call_env.set(self.params[i], args[i])
         if star_pos >= 0:
@@ -226,7 +231,9 @@ class UserFunction:
 
             scope = _Scope(FUNC_SCOPE, self.name)
             _collect_stmts(self.body, scope, {})
-            cached = frozenset(scope.bound)
+            # M210 / A2：`全局` 声明过的**不是**局部（否则会被种上「未赋值」
+            # 哨兵，读它就报「赋值之前被用到了」）。
+            cached = frozenset(scope.bound - scope.globals)
             self._assigned = cached
         return cached
 
@@ -382,12 +389,29 @@ class Interpreter:
             self._do_try(stmt, env)
         elif isinstance(stmt, A.Raise):
             self._do_raise(stmt, env)
+        elif isinstance(stmt, A.Global):
+            # M210 / A2：`全局 甲, 乙` —— 记在**当前函数帧**上。
+            # 模块顶层写它没有意义（那时本来就在全局），当空操作。
+            if env.decl_globals is not None:
+                env.decl_globals.update(stmt.names)
         elif isinstance(stmt, A.Pass):
             pass
         else:
             raise RunError(f"还不支持的语句：{type(stmt).__name__}",
                            line=getattr(stmt, "line", 1),
                            col=getattr(stmt, "col", 1), filename=self.filename)
+
+    def _set_name(self, name: str, value, env: Environment) -> None:
+        """赋值到名字（M210 / A2）：`全局` 声明过的写**模块环境**，其余写当前环境。
+
+        ⚠️ 与字节码那条路必须同语义：那边是「声明过 ⇒ 不进 bound ⇒
+        STORE_GLOBAL」，这边就是「写 self.globals」。两边由 `test_m210_global`
+        拿同一段程序在五个引擎上对拍。
+        """
+        if env.decl_globals and name in env.decl_globals:
+            self.globals.set(name, value)
+        else:
+            env.set(name, value)
 
     def _do_assign(self, stmt: A.Assign, env: Environment) -> None:
         value = self.eval_expr(stmt.value, env)
@@ -408,14 +432,14 @@ class Interpreter:
         if isinstance(target, A.Name):
             name = target.id
             if stmt.op == "=":
-                env.set(name, value)
+                self._set_name(name, value, env)
             else:
                 # 复合赋值：x += v → x = x + v
                 old = self._lookup(name, env, stmt)
                 op = stmt.op[:-1]  # 去掉 =
                 new = R.apply_binop(op, old, value, line=stmt.line,
                                     col=stmt.col, filename=self.filename)
-                env.set(name, new)
+                self._set_name(name, new, env)
             return
         if isinstance(target, A.Subscript):
             obj = self.eval_expr(target.obj, env)
