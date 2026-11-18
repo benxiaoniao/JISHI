@@ -13,6 +13,7 @@ mod crypto;
 mod gbk_table;   // M204：GBK 码表（生成物，见 tools/gen_gbk_table.py）
 pub mod pngdec;  // M205：PNG 解码（自己的，替掉 `png` crate；托盘/窗口图标用）
 pub mod pngenc;  // M207：PNG 编码（`图形.截图`；stored 块，不压缩也合法）
+mod fasthash;   // M212：字典/集合的快哈希（FxHash 风格 + 进程随机种子）
 mod http;
 mod inflate;
 pub mod json;
@@ -132,7 +133,7 @@ pub(crate) type JList = Rc<RefCell<Vec<Val>>>;
 #[derive(Clone)]
 pub(crate) struct Dict {
     items: Vec<(Val, Val)>,
-    index: HashMap<DictKey, usize>,
+    index: fasthash::快表<DictKey, usize>,
 }
 
 /// 字典键的「可哈希规范化」—— 保证 `==` 相等的两个值哈希到**同一个** `DictKey`。
@@ -232,12 +233,12 @@ pub(crate) struct Set {
     items: Vec<Option<Val>>,
     /// 空洞个数（`len()` 要减掉）。
     holes: usize,
-    index: HashMap<DictKey, usize>,
+    index: fasthash::快表<DictKey, usize>,
 }
 
 impl Set {
     fn new() -> Set {
-        Set { items: Vec::new(), holes: 0, index: HashMap::new() }
+        Set { items: Vec::new(), holes: 0, index: fasthash::快表::default() }
     }
     /// 按插入顺序迭代，**跳过空洞**。
     fn iter(&self) -> impl Iterator<Item = &Val> {
@@ -292,7 +293,8 @@ impl Set {
     /// 压掉空洞：重建 `items` 与 `index`（下标全变，必须一起重建）。
     fn compact(&mut self) {
         let mut items: Vec<Option<Val>> = Vec::with_capacity(self.len());
-        let mut index: HashMap<DictKey, usize> = HashMap::with_capacity(self.index.len());
+        let mut index: fasthash::快表<DictKey, usize> = fasthash::快表::with_capacity_and_hasher(
+            self.index.len(), Default::default());
         for slot in self.items.drain(..) {
             if let Some(v) = slot {
                 if let Some(k) = set_key(&v) {
@@ -323,13 +325,13 @@ pub(crate) type JSet = Rc<RefCell<Set>>;
 /// 两者合起来与逐个 `==` 等价（`set_key` 与 `Val::eq` 一致），
 /// 而正常输入（元素都是数字 / 文本）走全索引，O(n+m)。
 struct Lookup<'a> {
-    index: HashMap<DictKey, usize>,
+    index: fasthash::快表<DictKey, usize>,
     rest: Vec<&'a Val>,
 }
 
 impl<'a> Lookup<'a> {
     fn build(vals: &'a [Val]) -> Lookup<'a> {
-        let mut index = HashMap::new();
+        let mut index = fasthash::快表::default();
         let mut rest = Vec::new();
         for (i, v) in vals.iter().enumerate() {
             match set_key(v) {
@@ -589,7 +591,7 @@ pub(crate) fn list_new(items: Vec<Val>) -> Val {
 
 /// 造一个字典值。
 pub(crate) fn dict_new(pairs: Vec<(Val, Val)>) -> Val {
-    let mut d = Dict { items: Vec::with_capacity(pairs.len()), index: HashMap::new() };
+    let mut d = Dict { items: Vec::with_capacity(pairs.len()), index: fasthash::快表::default() };
     for (k, v) in pairs {
         dict_set(&mut d, k, v);
     }
@@ -6270,11 +6272,25 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
             // 🔴 M164：**非负下标不必先 `chars().count()`** —— `chars().nth(j)`
             // 本来就知道越界没有，先数一遍等于白扫一次。
             //
-            // ⚠️ 这里**故意不做 `is_ascii()` 的 ASCII 快路径**：同刻 A/B 实测
-            // 加了它反而**慢 3.3%**（中文短串上一个多出来的分支，比省下的那次
-            // 扫描更贵）。本项目的老规矩：**通了再留，不通就删**。
+            // 🔴 M212：**长 ASCII 串**再快一层。`chars().nth(j)` 是逐字节解码，
+            // 2 万字符取末尾实测 **1.37 µs**；改成「先把前 j+1 个字节扫一遍
+            // `is_ascii`（按 8 字节一组，vectorize 过），是就直接取字节」，
+            // 同一件事 **0.55 µs**。
+            //
+            // ⚠️ **阈值 256**：M164 试过无条件加这条，在中文短串上反而慢 3.3%
+            //    （多一个分支比省下的那点扫描更贵）—— 所以只在「够长」时才试。
+            // ⚠️ 不缓存「这串是不是纯 ASCII」：`Val::Str` 是裸 `Rc<str>`，
+            //    想带标志位就得动 `Val` 布局（0.4.0 的对象重做）。按指针做缓存
+            //    **不安全**（字符串释放后指针会被复用，缓存会给出错误的字符）。
             if i >= 0 {
-                return match s.chars().nth(i as usize) {
+                let j = i as usize;
+                if s.len() >= 256 && j < s.len() {
+                    let b = s.as_bytes();
+                    if b[..=j].is_ascii() {
+                        return Ok(单字符(b[j] as char));
+                    }
+                }
+                return match s.chars().nth(j) {
                     Some(c) => Ok(单字符(c)),
                     None => Err(err("索引错误", STR_INDEX_MSG)),
                 };

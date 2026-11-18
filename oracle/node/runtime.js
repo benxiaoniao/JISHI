@@ -3613,6 +3613,7 @@ module.exports = {
   iterSizeErr, ITER_SIZE_CHANGED, ITER_SIZE_CHANGED_HINT,
   JishiError, RunBreak, RunContinue,
   typeName, truthy, display, pyStr, pyRepr,
+  floatText,       // M212：`json.转文本` 里写小数要用它（`0.0` 不能写成 `0`）
   ensureCallable,   // M122：`HTTP路由.加路由` 要校验「处理」是函数
   FloatBox, isFloatBox, unwrap,
   JishiDecimal, isDecimal, toDecimal, compareDecimals,

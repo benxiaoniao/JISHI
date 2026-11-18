@@ -1128,6 +1128,11 @@ function jsonEncode(v, indent) {
         'JSON 只有文本，先把字节转成文本再放，比如 编码.base64编码(字节)');
     }
     if (R.isDecimal(x)) return x.toString();
+    // 🔴 M212：**小数（FloatBox）必须拆箱**。漏了这一支会掉到最后的
+    // `JSON.stringify(String(x))` ⇒ `{"金额": "[object Object]"}`，
+    // 而且**不报错** —— 数据库落盘、任何 `json.转文本` 带小数的程序都中招
+    // （M212 写数据库三宿主对拍时撞出来的：Node 上写进去的金额全变成这串）。
+    if (R.isFloatBox(x)) return R.floatText(x.value);
     // 有缩进时：元素前换行缩进一层、收尾换行回到本层（Python 的 indent 规则）；
     // 无缩进时：`', '` 与 `': '`——Python 的默认分隔符就是带空格的
     const nl = compact ? '' : '\n' + pad((depth + 1) * Number(indent));

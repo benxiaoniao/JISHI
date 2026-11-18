@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 44,
     "frontend": 1,
-    "lang": 131,
+    "lang": 132,
     "stdlib": 5
   },
   "语料": [
@@ -247,8 +247,8 @@
     },
     {
       "id": "examples__tutorial__11_记账数据库",
-      "产物哈希": "sha256:0369162e96d48e78",
-      "内容哈希": "sha256:ad02c4a9b1fba9e7",
+      "产物哈希": "sha256:ce49ea9a928eaa21",
+      "内容哈希": "sha256:62c7825de2816819",
       "类别": "examples",
       "路径": "examples/tutorial/11_记账数据库.jsh"
     },
@@ -359,14 +359,14 @@
     },
     {
       "id": "examples__绕道探针__记账本__记账",
-      "产物哈希": "sha256:1222c1f770c8ac0b",
+      "产物哈希": "sha256:ca79b8ae8d1de127",
       "内容哈希": "sha256:8f46752833fe1e0b",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/记账.jsh"
     },
     {
       "id": "examples__绕道探针__记账本__迁移",
-      "产物哈希": "sha256:02406a4f2d11cc18",
+      "产物哈希": "sha256:69258ca155503efb",
       "内容哈希": "sha256:12a659ad50e2a080",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/迁移.jsh"
@@ -387,8 +387,8 @@
     },
     {
       "id": "oracle__jishi__stdlib-jishi__数据库",
-      "产物哈希": "sha256:62ea89bc1a5675ec",
-      "内容哈希": "sha256:cc7e2cc688478899",
+      "产物哈希": "sha256:7b6ea5cc297ec266",
+      "内容哈希": "sha256:5850cd5ca03c814d",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/数据库.jsh"
     },
@@ -625,14 +625,14 @@
     },
     {
       "id": "tests__cases__31_标准库_M112",
-      "产物哈希": "sha256:790c8d40071e78bf",
+      "产物哈希": "sha256:9c080f1fcfead23d",
       "内容哈希": "sha256:36b6ab3d3acbff99",
       "类别": "lang",
       "路径": "tests/cases/31_标准库_M112.jsh"
     },
     {
       "id": "tests__cases__32_标准库_M113",
-      "产物哈希": "sha256:8a77c90cdee9ccd6",
+      "产物哈希": "sha256:dd7bea8c87ae3aa1",
       "内容哈希": "sha256:89dedf32cee56818",
       "类别": "lang",
       "路径": "tests/cases/32_标准库_M113.jsh"
@@ -737,7 +737,7 @@
     },
     {
       "id": "tests__cases__47_数据库_报错文案",
-      "产物哈希": "sha256:0b75386ffb6d9b95",
+      "产物哈希": "sha256:88a9f1b0f24beea5",
       "内容哈希": "sha256:6d0e6b452d9c394f",
       "类别": "lang",
       "路径": "tests/cases/47_数据库_报错文案.jsh"
@@ -762,6 +762,13 @@
       "内容哈希": "sha256:9f23cb36f22dedd7",
       "类别": "lang",
       "路径": "tests/cases/50_多键排序与二分.jsh"
+    },
+    {
+      "id": "tests__cases__51_json小数",
+      "产物哈希": "sha256:f73ef957cae9908e",
+      "内容哈希": "sha256:6c26110cbdd4b76c",
+      "类别": "lang",
+      "路径": "tests/cases/51_json小数.jsh"
     },
     {
       "id": "tests__error_cases__01_未定义名字",
@@ -1331,5 +1338,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 181
+  "语料数": 182
 }

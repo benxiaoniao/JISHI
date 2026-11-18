@@ -11,6 +11,7 @@ import ast
 import hashlib
 import json
 import sys
+from pathlib import Path
 from typing import Any, Optional
 
 from . import parser as _parser
@@ -341,8 +342,12 @@ _基石库_api._缓存键 = None  # type: ignore[attr-defined]
 _基石库_api._缓存 = None   # type: ignore[attr-defined]
 
 
-def _stdlib_api() -> list[dict]:
-    """扫描 oracle/jishi/stdlib/*.py，提取每个模块导出的函数签名与说明。"""
+def _stdlib_api_现算() -> list[dict]:
+    """扫描 oracle/jishi/stdlib/*.py，提取每个模块导出的函数签名与说明。
+
+    ⚠️ 这是**真去解析源码**的那一份。外面 `_stdlib_api()` 先看预生成的签名表
+    （M212），表过期/缺失才落到这里。
+    """
     import os
 
     pkg_dir = _stdlib_dir()
@@ -369,6 +374,111 @@ def _stdlib_api() -> list[dict]:
             mods.append({"module": 名, "functions": funcs})
     mods.sort(key=lambda m: m["module"])
     return mods
+
+
+# ---------------------------------------------------------------------------
+# 预生成的签名表（M212 · ⑤ `--ai-card` 冷启动）
+# ---------------------------------------------------------------------------
+#
+# 冷启动的大头是把 **49 个 `.py` + 15 个 `.jsh`** 逐个 `ast.parse`：本机实测
+# 0.32 秒，而 `--ai-card` / `--lang-spec` / LSP 起一次就要付一遍（LSP 是长驻、
+# 进程内有缓存，可 CLI 每次都是新进程）。
+#
+# 做法：`tools/gen_stdlib_sigs.py` 把它预生成成 `data/stdlib_sigs.json`，
+# 取卡时先比**内容指纹**，对得上就直接用。
+#
+# ⚠️ **按内容 sha256 校验，不按 mtime**：换台机器 clone 下来 mtime 全是新的，
+#    按 mtime 校验等于永远不命中（等于白做）；内容哈希跨机器一致。
+# ⚠️ **只缓存「模块 → 签名」，不缓存整份 spec** —— M203 那条坑：整份缓存会把
+#    「本机已装的包」钉在第一次取到的时刻（`test_m90` 的漂移检测当场红）。
+签名表路径 = Path(__file__).with_name("data") / "stdlib_sigs.json"
+
+#: 缓存格式版本。**解析逻辑一改就要改这个串**（否则老缓存会给出旧签名）——
+#: 内容哈希只能发现「源码变了」，发现不了「抽取代码变了」。
+签名表格式 = "M212v1"
+
+
+def _签名源文件们() -> list[tuple[str, Path]]:
+    """参与签名的全部源文件：`(相对标识, 路径)`。"""
+    import os
+
+    出: list[tuple[str, Path]] = []
+    pkg_dir = _stdlib_dir()
+    for fn in sorted(os.listdir(pkg_dir)):
+        if fn.endswith(".py") and not fn.startswith("_"):
+            出.append((f"stdlib/{fn}", Path(pkg_dir) / fn))
+    from .jishilib import lib_dir
+
+    d = lib_dir()
+    if d is not None and os.path.isdir(d):
+        for fn in sorted(os.listdir(d)):
+            if fn.endswith(".jsh"):
+                出.append((f"jishilib/{fn}", Path(d) / fn))
+    return 出
+
+
+def _签名指纹() -> dict[str, str]:
+    """`{相对标识: sha256 前 16 位}` —— 签名表的缓存键。
+
+    哈希本身要读一遍全部 .py/.jsh（本机 ~1 MB ≈ 5 ms），比 `ast.parse` 便宜
+    两个数量级，而且**跨机器可比**。给判据/CI 用来发现「源码改了但表没重生成」。
+    """
+    import hashlib
+
+    出: dict[str, str] = {}
+    for 标识, 路径 in _签名源文件们():
+        try:
+            数据 = 路径.read_bytes()
+        except OSError:
+            continue
+        出[标识] = hashlib.sha256(数据).hexdigest()[:16]
+    return 出
+
+
+def 读签名表() -> list[dict] | None:
+    """读预生成的签名表；**指纹或格式对不上就给 `None`**（调用方回落到现算）。"""
+    try:
+        原文 = 签名表路径.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        数据 = json.loads(原文)
+    except ValueError:
+        return None
+    if 数据.get("格式") != 签名表格式:
+        return None
+    if 数据.get("文件") != _签名指纹():
+        return None
+    模块们 = 数据.get("stdlib")
+    return 模块们 if isinstance(模块们, list) else None
+
+
+def _stdlib_api() -> list[dict]:
+    """标准库签名表：**先读预生成的**（M212），对不上再真解析。
+
+    进程内再缓一层（键 = 指纹）：LSP / REPL 会在一个进程里反复要卡。
+    """
+    global _stdlib_api_缓存键, _stdlib_api_缓存
+    指纹 = _签名指纹()
+    if _stdlib_api_缓存 is not None and _stdlib_api_缓存键 == 指纹:
+        return _stdlib_api_缓存
+    表 = 读签名表()
+    if 表 is None:
+        表 = _stdlib_api_现算()
+    _stdlib_api_缓存键 = 指纹
+    _stdlib_api_缓存 = 表
+    return 表
+
+
+_stdlib_api_缓存键: dict[str, str] | None = None
+_stdlib_api_缓存: list[dict] | None = None
+
+
+def 清签名表缓存() -> None:
+    """丢掉进程内缓存（判据/工具改了源码后重取卡用）。"""
+    global _stdlib_api_缓存键, _stdlib_api_缓存
+    _stdlib_api_缓存键 = None
+    _stdlib_api_缓存 = None
 
 
 def build_lang_spec() -> dict:
@@ -622,8 +732,10 @@ _模块说明: dict[str, list[str]] = {
         "要挑空行只能 `{\"字段\": {\"非空\": 假}}`；其它比较碰到空的记录值都不命中。",
         "**汇总**给的是**两层字典**：`{组值: {\"个数\", \"总和\", \"平均\", \"最大\", \"最小\"}}`；"
         "`汇总(库, 表, 按, 求和)` 的 `按` 是**分组列**、`求和` 才是被统计的列。",
-        "**句柄是共享的**：同一个路径开两次拿到同一个库；`关闭` 才把改动落成快照 —— "
-        "关之前**没提交**的事务会**丢弃**。",
+        "**句柄是共享的**：同一个路径开两次拿到同一个库；关之前**没提交**的事务会**丢弃**。",
+        "**一个库 = 两个文件**：`<路径>`（快照）+ `<路径>.log`（还没并进快照的改动）。"
+        "`关闭` **不再**整份重写快照（M212），所以**删库要把两个文件一起删**"
+        "（只删 `.db` 也行：`打开` 会把孤儿日志清掉）。",
         "**能存的类型**：整数 / 小数 / 文本 / 字节 / 空 / 布尔 / 精确小数；"
         "列表与字典**存不进**（先 `json.文本化` 存文本）。排序时类型序是 `空 < 数字 < 文本 < 字节`。",
     ],
@@ -634,7 +746,7 @@ _模块说明: dict[str, list[str]] = {
         "要「真的落盘」现在没有 API。",
         "别在循环里用 `文件.追加文本`（每行开关一次文件）；抓一个句柄 "
         "`令 f = 打开(路径, \"追加\")` 再循环 `f.写行(...)`，实测快 5 倍以上。",
-        "数据库不是这套语义：那边 `提交` 才落定、`关闭` 才落快照（见 `数据库` 那一节）。",
+        "数据库不是这套语义：那边 `提交` 才落定、改动先进 `<库>.log`（见 `数据库` 那一节）。",
     ],
 }
 
