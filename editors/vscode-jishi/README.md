@@ -11,13 +11,28 @@
 >
 > ⚠️ 基石**不发布到 PyPI**，**没有 `pip install jishi` 这条命令**。
 > 只有要改语言实现的人才从源码装：
-> `pip install git+https://github.com/benxiaoniao/JISHI.git`（需本机 Python 3.10+）。
+> `pip install git+https://github.com/benxiaoniao/JISHI.git`
+> （要 **Python 3.13+** 与 **Rust 工具链** —— 正式实现是 Rust，Python 那套只作判据基准）。
 >
 > `jishi` 不在 PATH 上时，在设置里指明它——语言服务与调试共用这一项：
 >
 > ```json
 > { "jishi.server.command": "D:/jishi/jishi.exe" }
 > ```
+
+## 装扩展
+
+扩展**不在商店里**，用 `.vsix` 手动装：VSCode 左侧「扩展」→ 右上角 `…` →
+「从 VSIX 安装…」→ 选 `vscode-jishi-<版本>.vsix`。
+
+| 项 | 现在 |
+|---|---|
+| 扩展版本 | **0.4.13**（`package.json` 里那份，**只增不减**） |
+| 配套基石 | **0.3.x**（`jishi --version` 看得到） |
+| 更新方式 | 新版 `.vsix` 覆盖安装；装完 `Ctrl+Shift+P` → `Developer: Reload Window` |
+
+📌 **扩展与语言各走各的版本线**：语言 0.3.5 配扩展 0.4.13 是正常的，
+不要求两个数字一样（以前文档写成「版本号一致」，那是错的）。
 
 ## 能力
 

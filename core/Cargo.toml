@@ -1,6 +1,6 @@
 [package]
 name = "jishi-core"
-version = "0.3.4"
+version = "0.3.5"
 edition = "2021"
 description = "基石（jishi）前端核心的 **Python 扩展壳** —— 前端本身在 `../frontend`（R7.1-a 起从本 crate 抽出去，好让独立宿主二进制也能用），这里只做「Rust 值 ↔ Python 对象」的搬运 + 错误映射。"
 license = "MIT-0"

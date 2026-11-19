@@ -53,11 +53,11 @@
   ],
   "格式版本": 3,
   "生成环境": {
-    "jishi": "0.3.4",
+    "jishi": "0.3.5",
     "python": "3.13.14"
   },
   "类别计数": {
-    "examples": 44,
+    "examples": 43,
     "frontend": 1,
     "lang": 132,
     "stdlib": 5
@@ -125,13 +125,6 @@
       "内容哈希": "sha256:bbc5fd61581c46ba",
       "类别": "examples",
       "路径": "examples/packages/数学工具/计算.jsh"
-    },
-    {
-      "id": "examples__projects__基石自述站__生成",
-      "产物哈希": "sha256:7e805da777751743",
-      "内容哈希": "sha256:42e609bdf5fba932",
-      "类别": "examples",
-      "路径": "examples/projects/基石自述站/生成.jsh"
     },
     {
       "id": "examples__projects__小网站__网站",
@@ -1338,5 +1331,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 182
+  "语料数": 181
 }

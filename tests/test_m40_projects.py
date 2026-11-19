@@ -225,9 +225,7 @@ def test_python_reference_implementations_run(tmp_path):
         if not ref.exists() or project.name in ("网页采集", "小网站"):
             continue
         args = [sys.executable, str(ref)]
-        if project.name == "基石自述站":
-            args += [str(tmp_path / "站点"), str(ROOT)]
-        elif project.name in data_arg:
+        if project.name in data_arg:
             args += [str(project / data_arg[project.name])]
         elif project.name == "待办清单":
             args += ["列出"]
@@ -242,4 +240,6 @@ def test_python_reference_implementations_run(tmp_path):
         assert r.returncode == 0, (project.name,
                                    r.stderr.decode("utf-8", "replace")[-400:])
         done.append(project.name)
-    assert len(done) >= 5, done
+    # M212 之后：`基石自述站` 已删（2026-11-18，官网 /about/ 一起下线），
+    # 剩下能跑参考实现的是 4 个（`网页采集` / `小网站` 在上面显式跳过）。
+    assert len(done) >= 4, done

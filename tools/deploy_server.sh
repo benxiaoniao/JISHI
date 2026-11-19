@@ -57,7 +57,9 @@ fi
 
 echo "== 3/4 构建 =="
 python3 tools/build_site.py              # 文档站 + 官网六页（build_home.py）
-python3 -m oracle.jishi.cli examples/projects/基石自述站/生成.jsh
+# ⚠️ 2026-11-18：`基石自述站` 那个示例已删（它的产物就是官网的 /about/，
+#    内容早就与现状对不上，用户要求整体下线）。这里**不再生成**；
+#    `site_sync.sh` 会顺手把 web 根上的 `about/` 清掉。
 
 echo "== 4/4 同步到 web 根 + 装 Nginx =="
 # 具体动作都在 `site_sync.sh` 里（两个部署入口共用一份，避免漂移）：
