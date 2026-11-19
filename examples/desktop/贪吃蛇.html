@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>贪吃蛇 · 基石</title>
+<!--
+  M188 的第二个示例。页面只有「一块画布 + 一句 data-游戏」——
+  启动逻辑在 `游戏启动.js`，游戏逻辑全在 `贪吃蛇_游戏.jsh`。
+
+  ⚠️ 直接双击 .html 不行（`file://` 下既不能 fetch 相邻文件，也读不了 wasm）。
+     走 `jishi examples/desktop/贪吃蛇.jsh`，或者把它放在站点上。
+-->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+    background: #05070d; color: #94a3b8; user-select: none;
+    font: 14px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  #画布 {
+    display: block; border-radius: 12px; background: #0b1020;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .6), 0 0 0 1px #1e293b inset;
+    max-width: 96vw; max-height: 78vh;
+  }
+  #提示 {
+    display: none; max-width: 480px; padding: 10px 14px; border-radius: 10px;
+    background: #3b1d1d; color: #fca5a5; white-space: pre-wrap;
+  }
+  #底注 { opacity: .7; font-size: 13px; }
+  kbd {
+    padding: 1px 6px; border-radius: 4px; border: 1px solid #334155;
+    background: #111827; color: #cbd5e1; font: inherit; font-size: 12px;
+  }
+</style>
+</head>
+<body data-游戏="贪吃蛇_游戏.jsh" data-标题="贪吃蛇">
+  <canvas id="画布"></canvas>
+  <div id="提示"></div>
+  <div id="底注"><kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> 或
+    <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> 转弯 · <kbd>空格</kbd> 重开 ·
+    <span title="浏览器规定：用户动手之前不许出声">点一下画面才有声音</span></div>
+  <script src="游戏启动.js"></script>
+</body>
+</html>

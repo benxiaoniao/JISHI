@@ -1,0 +1,104 @@
+{
+  "ast": null,
+  "bytecode": null,
+  "diagnostics": {
+    "下划线": [
+      1,
+      1
+    ],
+    "修正": null,
+    "列": 1,
+    "提示": "写法：在方法里写 超().方法名(参数)——例如 超().初始化(名字)",
+    "标题": "这里出现了意外的内容",
+    "消息": "「超()」只能在类的方法里用（用它调基类的同名方法）",
+    "渲染": "错误 E0201：这里出现了意外的内容（「超()」只能在类的方法里用（用它调基类的同名方法））\n  ┌─ tests/error_cases/42_类外超.jsh:1:1\n  │\n  1 │ 超().叫()\n    │ ^\n  │\n  提示：写法：在方法里写 超().方法名(参数)——例如 超().初始化(名字)",
+    "码": "E0201",
+    "行": 1,
+    "阶段": "语法"
+  },
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "超().叫()",
+      "type": "NAME",
+      "value": "超",
+      "类型": "Token"
+    },
+    {
+      "col": 2,
+      "end_col": 3,
+      "line": 1,
+      "source_line": "超().叫()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 1,
+      "source_line": "超().叫()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 1,
+      "source_line": "超().叫()",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 5,
+      "end_col": 5,
+      "line": 1,
+      "source_line": "超().叫()",
+      "type": "NAME",
+      "value": "叫",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 1,
+      "source_line": "超().叫()",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 1,
+      "source_line": "超().叫()",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "超().叫()",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 1,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:dc06b5765a7bb07e",
+  "语料": "tests/error_cases/42_类外超.jsh"
+}

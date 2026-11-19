@@ -1,0 +1,106 @@
+题集：160 题
+语言规格指纹：100097d0（54479 字符）
+
+=== 跑分：Qwen/Qwen3.8-27B ===
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+    ⚠ 跳过（RemoteDisconnected：Remote end closed connection without resp）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+    ⚠ 跳过（RemoteDisconnected：Remote end closed connection without resp）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，3s 后重试
+      ⏳ 网络异常，6s 后重试
+      ⏳ 限流/故障，12s 后重试（第 3/4 次）
+      ⏳ 限流/故障，24s 后重试（第 4/4 次）
+    ⚠ 跳过（HTTP 526：<!DOCTYPE html>
+<html>
+<style>
+  @import url(https:）
