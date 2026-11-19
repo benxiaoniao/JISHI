@@ -418,18 +418,27 @@ def test_签名表与现算逐字节一致():
     assert 缓存 == 现算, "签名表和现算不一致"
 
 
-def test_签名表过期能被发现():
-    """改一个 `.jsh` 的内容 ⇒ 指纹变了 ⇒ `读签名表()` 给 None（回落现算）。"""
+def test_签名表过期能被发现(monkeypatch):
+    """源码内容一变 ⇒ 指纹对不上 ⇒ `读签名表()` 给 None（回落现算）。
+
+    ⚠️ **不去改真实源文件**（曾经那么写过，然后想到：测试中途被杀就会把一个
+    被 git 跟踪的 `.py` 留成改过的样子，后面所有用例跟着红）。这里只把
+    「算出来的指纹」换掉 —— 校验逻辑是同一个入口。
+    """
     from oracle.jishi import ai
 
-    真 = ai._签名源文件们()[0][1]
-    原文 = 真.read_bytes()
-    try:
-        真.write_bytes(原文 + b"\n# M212 cache probe\n")
-        assert ai.读签名表() is None, "源码变了还认旧表 —— 指纹校验没生效"
-    finally:
-        真.write_bytes(原文)
-    assert ai.读签名表() is not None, "恢复后该重新命中"
+    真指纹 = ai._签名指纹()
+    assert ai.读签名表() is not None, "基线：现在该命中"
+
+    改过 = dict(真指纹)
+    第一个 = sorted(改过)[0]
+    改过[第一个] = "0" * 16
+    monkeypatch.setattr(ai, "_签名指纹", lambda: 改过)
+    assert ai.读签名表() is None, "源码变了还认旧表 —— 指纹校验没生效"
+
+    缺一个 = {k: v for k, v in 真指纹.items() if k != 第一个}
+    monkeypatch.setattr(ai, "_签名指纹", lambda: 缺一个)
+    assert ai.读签名表() is None, "少了一个文件也要判过期"
 
 
 def test_签名表覆盖所有模块():

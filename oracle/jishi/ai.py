@@ -422,6 +422,12 @@ def _签名指纹() -> dict[str, str]:
 
     哈希本身要读一遍全部 .py/.jsh（本机 ~1 MB ≈ 5 ms），比 `ast.parse` 便宜
     两个数量级，而且**跨机器可比**。给判据/CI 用来发现「源码改了但表没重生成」。
+
+    🔴 **先把 `\\r\\n` 归一成 `\\n` 再哈希**（M212 在 CI 上撞出来的）：
+    同一个仓库在 Windows 上工作区是 CRLF、Linux/macOS 上是 LF —— 直接哈希
+    原始字节，同一份代码在三个平台上有三个指纹，签名表就**只在生成它的那台
+    机器上命中**（CI 全红、本地全绿）。而解析这两类文件走的是**文本模式**
+    （universal newlines），内容本来就一样 —— 归一之后与「解析看到的东西」一致。
     """
     import hashlib
 
@@ -431,7 +437,7 @@ def _签名指纹() -> dict[str, str]:
             数据 = 路径.read_bytes()
         except OSError:
             continue
-        出[标识] = hashlib.sha256(数据).hexdigest()[:16]
+        出[标识] = hashlib.sha256(数据.replace(b"\r\n", b"\n")).hexdigest()[:16]
     return 出
 
 
