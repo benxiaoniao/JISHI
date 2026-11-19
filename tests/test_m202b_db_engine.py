@@ -30,30 +30,45 @@ from oracle.jishi.interpreter import run_source       # noqa: E402
 
 
 def _跑(源码: str, tmp: Path) -> str:
-    """跑一段程序，返回它打到 stdout 的东西。
+    """跑一段程序，返回它写到 stdout 的东西（**起真进程**）。
 
     ⚠️ **空输出必须能自证**：以前这里只返回 stdout，程序在 CI 上悄悄出错
     （错误走 stderr、stdout 为空）时报告只剩 `AssertionError: ''` —— 查不动。
-    现在把 stderr 也接住：有错就带着错误原文炸出来。
+
+    🔴 **2026-11-19 改成子进程**：Linux CI 上 `test_用事务_抛错就回滚` 稳定红
+    （`出 == ''`），但 pytest 的 `Captured stdout call` 里四条输出一条不少 ——
+    程序确实打印了，可那些字节**没进 `redirect_stdout` 的那个 StringIO**。
+    试着改成「抓 fd 1」也不行：pytest 自己的 `sys.stdout` 是包在**另一个 fd**
+    上的对象，`dup2(1)` 抓不到它（本机当场复现：文件里空空，pytest 却抓到了）。
+    这类判据要问的是「用户敲 `jishi 测.jsh` 看到什么」，那就**真的起一个进程**：
+    捕获语义与 pytest 无关，五个引擎里 Python 参考实现也照样能跑。
     """
-    buf = io.StringIO()
-    错 = io.StringIO()
-    cwd = os.getcwd()
-    os.chdir(tmp)
-    try:
-        with redirect_stdout(buf), redirect_stderr(错):
-            run_source(源码, filename="测.jsh")
-    finally:
-        os.chdir(cwd)
-    if not buf.getvalue() and 错.getvalue():
-        raise AssertionError(f"程序没有输出，但报了错：\n{错.getvalue()}")
-    return buf.getvalue()
-    return buf.getvalue()
+    文件 = tmp / "测.jsh"
+    文件.write_text(源码, encoding="utf-8", newline="\n")
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(文件)],
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", cwd=str(ROOT), timeout=120)
+    文 = (r.stdout or "").replace("\r\n", "\n")
+    错文 = r.stderr or ""
+    if r.returncode != 0 and not 文:
+        raise AssertionError(f"程序没有输出，但失败退出（{r.returncode}）：\n{错文}")
+    return 文
 
 
 def _错(源码: str, tmp: Path) -> JishiError:
-    with pytest.raises(JishiError) as ei:
-        _跑(源码, tmp)
+    """跑一段**必然报错**的程序，拿到那个异常对象（**进程内跑**）。
+
+    ⚠️ 与 `_跑` 分工不同：`_跑` 走子进程（要的是「用户看到的 stdout」），
+    这条要的是**异常对象本身**（行号 / 类型 / 消息），只能在进程内拿。
+    它不看 stdout，所以不受「谁在写 stdout」那类问题影响。
+    """
+    cwd = os.getcwd()
+    os.chdir(tmp)
+    try:
+        with pytest.raises(JishiError) as ei:
+            run_source(源码, filename="测.jsh")
+    finally:
+        os.chdir(cwd)
     return ei.value
 
 
