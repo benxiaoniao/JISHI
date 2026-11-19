@@ -5014,6 +5014,22 @@ impl PartialEq for Val {
             }
             // 实例没有自定义 `==`，按身份比（Python 同）
             (Val::Instance(a), Val::Instance(b)) => Rc::ptr_eq(a, b),
+            // 🔴 M213b（W17）：**函数值、内建、类、文件、宿主对象都按身份比**。
+            // 这几支以前**统统落到 `_ => false`** —— 于是 `f == f` 给「假」，
+            // 而 Python / Node 给「真」（函数是同一对象）。语料里没有「函数比函数」
+            // 这个形状，所以 `check_engines` 一直没抓到。
+            //
+            // ⚠️ 只比**同一性**、不比「名字相同」：两个分开定义的 `函数 f()` 仍然是
+            // 两个对象（Python 同）。`Val::Builtin` 同理 —— `长度 == 长度` 为真，
+            // 但用户自己写的 `函数 长度()` 与内建不是同一个对象。
+            (Val::Func(a), Val::Func(b)) => Rc::ptr_eq(a, b),
+            (Val::WalkFn(a), Val::WalkFn(b)) => Rc::ptr_eq(a, b),
+            (Val::Builtin(a), Val::Builtin(b)) => Rc::ptr_eq(a, b),
+            // 类按**身份序号**比：`Class` 是 `Box`（`Val::clone` 会深拷贝），
+            // 指针比会变成「同一个类也不相等」；`id` 才是身份（与 `IdKey` 同源）。
+            (Val::Class(a), Val::Class(b)) => a.id == b.id,
+            (Val::File(a), Val::File(b)) => Rc::ptr_eq(a, b),
+            (Val::Native(a), Val::Native(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }

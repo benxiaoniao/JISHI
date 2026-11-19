@@ -81,6 +81,12 @@ def _collect_stmt(st: A.Node, scope: _Scope,
         elif isinstance(st.target, A.TargetList):
             for name_node in st.target.names:
                 scope.bound.add(name_node.id)
+        else:
+            # M213b（W3/W4/W21 同一根因）：非「名字」的赋值目标（下标 / 属性）
+            # 里的名字是**读**，必须进 used —— 否则包模块被包成外壳函数之后，
+            # 内层函数捕获不到模块顶层名字，运行期报 E0301。
+            # 与 Rust 侧 `collect_stmt` 的 else 分支逐字对应，改一处必须改另一处。
+            _collect_expr(st.target, scope, func_scopes)
         _collect_expr(st.value, scope, func_scopes)
     elif isinstance(st, A.ExprStmt):
         _collect_expr(st.expr, scope, func_scopes)

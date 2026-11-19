@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 43,
     "frontend": 1,
-    "lang": 132,
+    "lang": 134,
     "stdlib": 5
   },
   "语料": [
@@ -764,6 +764,20 @@
       "路径": "tests/cases/51_json小数.jsh"
     },
     {
+      "id": "tests__cases__52_函数相等",
+      "产物哈希": "sha256:c2f9b8bb8b8c7ac3",
+      "内容哈希": "sha256:32b249b9ce61f01e",
+      "类别": "lang",
+      "路径": "tests/cases/52_函数相等.jsh"
+    },
+    {
+      "id": "tests__cases__53_下标赋值目标",
+      "产物哈希": "sha256:4e765df11d021e69",
+      "内容哈希": "sha256:e9489ba65816bc10",
+      "类别": "lang",
+      "路径": "tests/cases/53_下标赋值目标.jsh"
+    },
+    {
       "id": "tests__error_cases__01_未定义名字",
       "产物哈希": "sha256:6c22e8e65e3d11a7",
       "内容哈希": "sha256:68b1a07032a25887",
@@ -1331,5 +1345,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 181
+  "语料数": 183
 }

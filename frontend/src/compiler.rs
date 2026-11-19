@@ -355,6 +355,15 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
                         c.scopes[scope].bound.insert(id);
                     }
                 }
+            } else {
+                // 🔴 M213b（W3 / W4 / W21 同一个根因）：**非「名字」的赋值目标**
+                // （下标 `配置["x"] = v` / 属性 `类名.表[k] = v`）里的名字是**读**，
+                // 必须进 `used`。否则：本地包与基石库层会把模块包成外壳函数
+                // （`__本地包_X__()`），模块顶层名字是那个函数的**局部**，内层函数
+                // 只有「被收集到 used」才会捕获成闭包单元 —— 漏了就是运行期
+                // `E0301 找不到名字`，而脚本里恰好没事（顶层是真全局），很难查。
+                // 下标里的**索引表达式**同理（`idx[内建_文本(id)] = 子`）。
+                collect_expr(target, scope, c);
             }
             collect_expr(nf(n, "value"), scope, c);
         }
