@@ -42,10 +42,11 @@ expect = "selfcheck: OK"
 [[downstream.steps]]
 name = "冒烟"
 cmd = ["tests/冒烟_test.jsh"]
-# 0.2.0 起下游把题库扩到 150 条（M203 之后同步过）；数字变了这里要跟着改
-expect = "150/150"
+# `re:` = 正则；`(\d+)/\1` 要求「分子 == 分母」（全过）。下游自己扩题
+# （150 → 170 条，0.3.0）不用再改这边 —— 2026-11-20 起。
+expect = 're:(\d+)/\1 通过'
 
 [[downstream.steps]]
 name = "对拍（与内置数据库逐条比）"
 cmd = ["tests/对拍_test.jsh"]
-expect = "100/100"
+expect = 're:(\d+)/\1 一致'

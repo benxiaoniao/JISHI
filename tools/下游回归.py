@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import re
 import subprocess
 import sys
 import time
@@ -191,8 +192,15 @@ def 跑一步(项名: str, 目录: Path, 步: dict, 引擎: list, 显示名: str
     期望 = 步["期望"].strip()
     if r.returncode != 0:
         return False, 用时, f"退出码 {r.returncode}\n{文}"
-    if 期望 and 期望 not in 文:
-        return False, 用时, f"输出里没有「{期望}」\n{文}"
+    if 期望:
+        # `re:` 前缀 = 正则（2026-11-20）。下游会**自己扩题**（150 → 170 条），
+        # 写死数字的期望每扩一次就打一次 CI。用 `(\d+)/\1 通过` 这类形状，
+        # 「分子 == 分母」本身就是判据，扩题不用改这边。
+        if 期望.startswith("re:"):
+            if not re.search(期望[3:], 文):
+                return False, 用时, f"输出里没有匹配「{期望[3:]}」的行\n{文}"
+        elif 期望 not in 文:
+            return False, 用时, f"输出里没有「{期望}」\n{文}"
     return True, 用时, 文
 
 
