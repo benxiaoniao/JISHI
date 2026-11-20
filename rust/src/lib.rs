@@ -556,7 +556,16 @@ pub(crate) enum Val {
     /// 循环信号要先经过 finally 代码，再到外层循环，中间得能放在值栈上。
     /// 1 = 中断，2 = 继续。
     LoopSignal(i64),
-    BoundMethod(Box<BoundMethod>),
+    /// 🔴 M215：**用户方法内联在 `Val` 里**（`Rc<Func>` + 实例 = 16 字节，装得下）。
+    ///
+    /// 原来它和 `Builtin` 挤在 `Box<BoundMethod>` 里 ⇒ 每次 `实例.方法()`
+    /// 都要一次 `malloc` + 一次 `free`，而方法调用本来就只是「首参预先绑定的
+    /// 函数」。拆出来之后这条路径**零分配**（`Rc` 计数 +1 而已）。
+    UserMethod { func: Rc<Func>, instance: JInst },
+    /// **内建方法**（列表 / 文本 / 字典 / 集合 / 文件 / 精确小数的方法）。
+    ///
+    /// 载荷大（名字 + 接收者 + 取属性时的位置），装箱 —— 它不在这条热路径上。
+    BoundMethod(Rc<BoundMethod>),
     Cell(JCell),
     /// `超()` 的返回值（M56）。见 `SuperVal`。
     Super(Rc<SuperVal>),
@@ -870,7 +879,7 @@ pub(crate) fn set_push(s: &mut Set, v: Val) -> Result<(), JishiError> {
                 "集合的元素要是不可变的（数字、文本…）；列表和字典放不进去".to_string()))
         }
         Val::Func(_) | Val::WalkFn(_) | Val::Class(_) | Val::Builtin(_)
-        | Val::BoundMethod(_) | Val::Cell(_) => {
+        | Val::BoundMethod(_) | Val::UserMethod { .. } | Val::Cell(_) => {
             return Err(err("类型错误",
                 format!("「{}」不能放进集合（Rust 宿主没有可用的身份）", display(&v))))
         }
@@ -946,14 +955,17 @@ struct Func {
 #[derive(Clone)]
 pub(crate) struct Class {
     pub(crate) name: String,
-    pub(crate) methods: HashMap<String, Val>,
+    /// 🔴 M215：**快表而不是默认 `HashMap`**。方法调用密集的基准里每次
+    /// `实例.方法()` 要在这上面查一次，默认的 SipHash 对 3 字节的中文名字
+    /// 也要走完整套算法；`fasthash` 是 M212 给字典换的那套（FxHash 风格）。
+    pub(crate) methods: fasthash::快表<String, Val>,
     /// 类变量（M34 补上 M23.3）。
     ///
     /// 必须是 `Rc<RefCell<…>>`：`Instance` 里存的是 `Class` 的**值拷贝**，
     /// 用普通 `HashMap` 的话 `类名.计数 = 5` 只改到类自己那一份，已经造出来的
     /// 实例看不到（Python 侧实例持的是类引用，看得见）。共享一份才一致
     /// ——与 M28/M29 给容器、实例换 `Rc<RefCell>` 是同一个理由。
-    pub(crate) class_vars: Rc<RefCell<HashMap<String, Val>>>,
+    pub(crate) class_vars: Rc<RefCell<fasthash::快表<String, Val>>>,
     /// **祖先类的身份序号**（最近的在最前），M55 补。
     ///
     /// 为什么需要：Rust 侧建类时是「**把基类的方法表展开合并**」（见
@@ -1079,7 +1091,8 @@ impl ExcValue {
 #[derive(Clone)]
 pub(crate) struct Instance {
     pub(crate) class: Class,
-    pub(crate) fields: HashMap<String, Val>,
+    /// 🔴 M215：同 `Class::methods` —— 属性读的热路径。
+    pub(crate) fields: fasthash::快表<String, Val>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1437,10 +1450,8 @@ pub(crate) fn type_label(v: &Val) -> String {
         Val::ExcType(_) => "异常类型".to_string(),
         // 被捕获的异常：Python / Node 的 `类型(e)` 都给「异常」（M56）
         Val::Exc(_) => "异常".to_string(),
-        Val::BoundMethod(bm) => match bm.as_ref() {
-            BoundMethod::Builtin { .. } => "内建方法".to_string(),
-            BoundMethod::User { .. } => "方法".to_string(),
-        },
+        Val::UserMethod { .. } => "方法".to_string(),
+        Val::BoundMethod(_) => "内建方法".to_string(),
         // 环境记录（`遍历 x 在 …` 的内部用途）不该被用户看到，
         // 但类型名总要给一个——与 Python 侧同样是兜底
         _ => "其他".to_string(),
@@ -1453,9 +1464,8 @@ pub(crate) enum BoundMethod {
     /// `line`/`col` 是**取属性时**的位置（`X.方法` 那一处）—— 方法内部报错
     /// 用它，与 Python 的 `_BoundMethod.__call__` 同源（R6.6）。
     Builtin { name: String, receiver: Box<Val>, line: i64, col: i64 },
-    /// 🔴 M165c：`func` 是 `Rc<Func>`（原来是 `Func` 值）。
-    /// 深拷贝一个 `Func` = 三次 malloc，而 `实例.方法()` 每次调用都要来一次。
-    User { func: Rc<Func>, instance: JInst, name: String },
+    // 🔴 M215：**`User` 变体搬出去了** —— 见 `Val::UserMethod`。
+    // 它现在内联在 `Val` 里，不再走 `Box`（每次方法调用省一次 malloc + free）。
 }
 
 // ---------------------------------------------------------------------------
@@ -3203,8 +3213,6 @@ impl VM {
                     let knames: Vec<String> = if kwi >= 0 { self.module.kw_names[kwi as usize].clone() } else { Vec::new() };
                     let nkw = knames.len();
                     let fn_base = self.stack.len() - (1 + nargs + nkw);
-                    // 取 fn 和 args
-                    let fn_val = self.stack[fn_base].clone();
                     // 🔴 M179：实参拷进**复用缓冲**，不再每次 `to_vec()`。
                     //
                     // 为什么：`to_vec()` 是每次调用一次 malloc + 一次 free。
@@ -3216,8 +3224,15 @@ impl VM {
                     参.clear();
                     参.extend_from_slice(&self.stack[fn_base + 1 .. fn_base + 1 + nargs]);
                     let kwvals: Vec<Val> = if nkw > 0 { self.stack[fn_base + 1 + nargs ..].to_vec() } else { Vec::new() };
-                    // 截栈
-                    self.stack.truncate(fn_base);
+                    // 截栈 —— **只截到 fn 那一格**，回头把 fn 本身 `pop` 出来。
+                    //
+                    // 🔴 M215：原来是 `stack[fn_base].clone()` 再 `truncate(fn_base)`。
+                    // 对 `Val::BoundMethod(Box<…>)` 来说那个 clone 是**深拷贝**：
+                    // 一次 `Box::new` + 一次 `name: String` 分配 + 两份 memcpy。
+                    // 方法调用密集的基准里，等于**每次调用白花两次 malloc**。
+                    // 改成 pop 就是 move，零分配。
+                    self.stack.truncate(fn_base + 1);
+                    let fn_val = self.stack.pop().unwrap_or(Val::None_);
                     // M190：**函数级 JIT**。能走机器码就直接拿结果，不建帧。
                     // 判据见 D114 的「三道闸」——任何一条不满足都退回去走解释器。
                     //
@@ -3274,6 +3289,23 @@ impl VM {
                             self.arg_buf = 参;
                             self.stack.push(Val::Instance(inst));
                         }
+                        // 🔴 M215：**用户方法内联**（`Val::UserMethod`），零分配。
+                        // 它与下面 `Val::Func` 那条共用同一条压帧路径 —— 方法不过是
+                        // 「首参预先绑定的函数」。
+                        Val::UserMethod { func, instance } => {
+                                    参.insert(0, Val::Instance(instance));
+                                    let r = self.push_func_frame(Some((fi, ip)), &func, &参,
+                                                                 &knames, &kwvals, fn_base,
+                                                                 (ins.line, ins.col), false);
+                                    self.arg_buf = 参;
+                                    r?;
+                                    fi = self.frames.len() - 1;
+                                    code_idx = self.frames[fi].code_idx;
+                                    ip = self.frames[fi].ip;
+                                    base = self.frames[fi].base;
+                                    instrs = &module.codes[code_idx].instrs;
+                                    continue;
+                        }
                         Val::BoundMethod(bm) => {
                             // ⚠️ **内建方法携带的「取属性位置」**（R6.6）：方法内部的
                             // 错要落在 `X.方法` 上（`a.追加()` 指那一列 `.`），
@@ -3283,52 +3315,24 @@ impl VM {
                             // 那边 Python 也用调用点，本来就一致。
                             let bm_pos = match bm.as_ref() {
                                 BoundMethod::Builtin { line, col, .. } => Some((*line, *col)),
-                                BoundMethod::User { .. } => None,
                             };
-                            match *bm {
-                                BoundMethod::User { func, instance, .. } => {
-                                    // 用户方法：把实例放进第一个形参（自身），再压新帧。
-                                    // 与「函数」调用共用一条压帧路径——方法不过是个
-                                    // 首参被预先绑定的函数。
-                                    // 实例插到缓冲**最前面**（1~3 个元素的 memmove，
-                                    // 比再分配一个 Vec 便宜）：方法 = 首参预先绑定的函数。
-                                    参.insert(0, Val::Instance(instance));
-                                    // ⚠️ **关键字参数要一起传下去**（R6.7）：以前这里
-                                    // 写的是 `&[]`，于是 `o.方法(不存在的名=1)` 的 kwargs
-                                    // 被**静默丢掉**、报成「缺少参数：x」（看着像另一件事），
-                                    // 而 Python / Node 报「函数「方法」没有叫「不存在」的参数」。
-                                    // 宿主静默丢参数是本项目最恨的一类 bug（M51 修过同款）。
-                                    let r = self.push_func_frame(Some((fi, ip)), &func, &参,
-                                                                 &knames, &kwvals, fn_base,
-                                                                 (ins.line, ins.col), false);
-                                    self.arg_buf = 参;
-                                    r?;
-                                    // M163：同「函数调用」——不返回，换帧继续
-                                    fi = self.frames.len() - 1;
-                                    code_idx = self.frames[fi].code_idx;
-                                    ip = self.frames[fi].ip;
-                                    base = self.frames[fi].base;
-                                    instrs = &module.codes[code_idx].instrs;
-                                    continue;
-                                }
-                                builtin => {
-                                    reject_kwargs("这个方法", &knames)?;
-                                    let bound_out = self.call_bound(builtin, &参);
-                                    self.arg_buf = 参;
-                                    match bound_out {
-                                        Ok(out) => self.stack.push(out),
-                                        Err(mut e) => {
-                                            // 只补「还没填过」的 —— 与 `fill_error_loc`
-                                            // 同一条规矩（内层更准的不许被覆盖）。
-                                            if let Some((l, c)) = bm_pos {
-                                                if e.line.is_none() && l > 0 {
-                                                    e.line = Some(l);
-                                                    e.col = Some(c);
-                                                }
-                                            }
-                                            return Err(e);
+                            // ⚠️ **关键字参数要一起传下去**（R6.7）：`o.方法(不存在的名=1)`
+                            // 的 kwargs 不许被静默丢掉（M51 修过同款）。
+                            reject_kwargs("这个方法", &knames)?;
+                            let bound_out = self.call_bound((*bm).clone(), &参);
+                            self.arg_buf = 参;
+                            match bound_out {
+                                Ok(out) => self.stack.push(out),
+                                Err(mut e) => {
+                                    // 只补「还没填过」的 —— 与 `fill_error_loc`
+                                    // 同一条规矩（内层更准的不许被覆盖）。
+                                    if let Some((l, c)) = bm_pos {
+                                        if e.line.is_none() && l > 0 {
+                                            e.line = Some(l);
+                                            e.col = Some(c);
                                         }
                                     }
+                                    return Err(e);
                                 }
                             }
                         }
@@ -3469,16 +3473,36 @@ impl VM {
                     self.stack.push(dict_new(pairs));
                 }
                 op::GET_ATTR => {
-                    let name = self.module.names[ins.a as usize].clone();
+                    // 🔴 M215：**不再 clone 名字**。原来是
+                    // `self.module.names[ins.a as usize].clone()` —— 每次属性访问
+                    // 一次 `String` 分配 + 拷贝 + 释放。属性读的基准里这是
+                    // **170 ns 里的一大半**（同机 CPython 读属性约 20 ns）。
+                    // `get_attr` 是自由函数、只吃 `&str`，直接借常量池就行。
                     let obj = self.stack.pop().unwrap_or(Val::None_);
-                    let out = get_attr(obj, &name, ins.line, ins.col)?;
+                    let name = &self.module.names[ins.a as usize];
+                    // 🔴 M215：**实例字段命中的内联快路径**。
+                    // `get_attr` 是个几百行的分发函数（模块 / 实例 / 类 / 超 /
+                    // 异常 / 七八种内建类型），每次属性访问都要进去 match 一遍。
+                    // 而最常见的 `自己.值` / `对象.字段` 只要一次查表 ——
+                    // 在这里先试一次，命中就不进那个大函数。
+                    let out = match &obj {
+                        Val::Instance(inst) => {
+                            // 一层 `borrow` 同时做「查字段」和「未命中就往下走」
+                            let 字段 = inst.borrow().fields.get(name.as_str()).cloned();
+                            match 字段 {
+                                Some(v) => v,
+                                None => instance_attr_after_fields(inst, name)?,
+                            }
+                        }
+                        _ => get_attr(obj, name, ins.line, ins.col)?,
+                    };
                     self.stack.push(out);
                 }
                 op::SET_ATTR => {
-                    let name = self.module.names[ins.a as usize].clone();
                     let val = self.stack.pop().unwrap_or(Val::None_);
                     let obj = self.stack.pop().unwrap_or(Val::None_);
-                    set_attr(obj, &name, val)?;
+                    let name = &self.module.names[ins.a as usize];
+                    set_attr(obj, name, val)?;
                 }
                 op::GET_ITEM => {
                     let idx = self.stack.pop().unwrap_or(Val::None_);
@@ -3533,7 +3557,7 @@ impl VM {
                     } else {
                         let bm = get_attr(obj, "追加", ins.line, ins.col)?;
                         if let Val::BoundMethod(bm) = bm {
-                            self.call_bound(*bm, &[val])?;
+                            self.call_bound((*bm).clone(), &[val])?;
                         }
                         self.stack.push(Val::None_);
                     }
@@ -3542,7 +3566,7 @@ impl VM {
                     let n = ins.a as usize;
                     let has_base = ins.b != 0;
                     let name = display(&self.stack.pop().unwrap_or(Val::None_));
-                    let mut methods = HashMap::new();
+                    let mut methods: fasthash::快表<String, Val> = fasthash::快表::default();
                     if n > 0 {
                         let l = self.stack.len();
                         let fns: Vec<Val> = self.stack.drain(l - n..).collect();
@@ -3553,7 +3577,7 @@ impl VM {
                     // 类变量（M34）：先把基类的那份**拷进来**（不是共用同一个
                     // `Rc`）——与 Python 侧「子类持有独立的类变量表」一致；
                     // 子类自己声明的随后由 SET_ATTR 覆盖上去。
-                    let mut class_vars: HashMap<String, Val> = HashMap::new();
+                    let mut class_vars: fasthash::快表<String, Val> = fasthash::快表::default();
                     // 祖先链的序号（M55）：最近的在最前，`是实例` 靠它走继承
                     let mut base_ids: Vec<usize> = Vec::new();
                     // 基类**本身**（M56）：`超()` 要沿链找「定义类」再取它的基类，
@@ -3923,11 +3947,9 @@ impl VM {
         match callee {
             Val::Builtin(b) => (b.f)(&args, self),
             Val::Func(func) => self.call_frame(&func, args, None),
-            Val::BoundMethod(bm) => match *bm {
-                BoundMethod::User { func, instance, .. } =>
-                    self.call_frame(&func, args, Some(Val::Instance(instance))),
-                builtin => self.call_bound(builtin, &args),
-            },
+            Val::UserMethod { func, instance } =>
+                self.call_frame(&func, args, Some(Val::Instance(instance))),
+            Val::BoundMethod(bm) => self.call_bound((*bm).clone(), &args),
             other => Err(err("类型错误",
                 format!("「{}」不能当函数调用", display(&other)))),
         }
@@ -3955,7 +3977,7 @@ impl VM {
     /// 造实例：先建空对象，再调它的 `初始化`（首参是实例自己）。
     fn make_instance(&mut self, class: Class, args: &[Val]) -> Result<JInst, JishiError> {
         let inst = Rc::new(RefCell::new(Instance {
-            class: class.clone(), fields: HashMap::new(),
+            class: class.clone(), fields: fasthash::快表::default(),
         }));
         if let Some(Val::Func(f)) = class.methods.get("初始化").cloned() {
             let mut all = Vec::with_capacity(args.len() + 1);
@@ -4001,15 +4023,12 @@ impl VM {
     /// 表里的方法都先 `borrow_mut()` 改**共享容器本身**，改完原变量能看见；
     /// 需要回调用户函数的那几个（映射/过滤/排序按/归约）先**快照**再回调，
     /// 否则「拿着 RefCell 的借用去回调」会撞上运行时借用冲突。
+    /// ⚠️ M215：只剩内建方法了 —— 用户方法走 `Val::UserMethod`（内联、零分配），
+    /// 不再经过这里。
     fn call_bound(&mut self, bm: BoundMethod, args: &[Val]) -> Result<Val, JishiError> {
-        match bm {
-            BoundMethod::User { func, instance, .. } =>
-                self.call_frame(&func, args.to_vec(), Some(Val::Instance(instance))),
-            BoundMethod::Builtin { name, receiver, .. } => {
-                // 方法表是**自由函数**（树遍历也用同一份），见它的文档注释。
-                call_builtin_method(self, name, *receiver, args)
-            }
-        }
+        let BoundMethod::Builtin { name, receiver, .. } = bm;
+        // 方法表是**自由函数**（树遍历也用同一份），见它的文档注释。
+        call_builtin_method(self, name, *receiver, args)
     }
     /// 内建方法分发表（列表 / 字典 / 文本 / 集合 / 文件）。
     ///
@@ -4354,7 +4373,7 @@ pub(crate) fn display(v: &Val) -> String {
         Val::ExcType(t) => format!("<异常类型 {t}>"),
         // 只在「信号穿过 finally」的内部流程里短暂出现，用户看不到
         Val::LoopSignal(c) => if *c == 1 { "中断".to_string() } else { "继续".to_string() },
-        Val::BoundMethod(_) => "<方法>".to_string(),
+        Val::BoundMethod(_) | Val::UserMethod { .. } => "<方法>".to_string(),
         Val::Cell(_) => "<单元>".to_string(),
         // 与 Python 侧 `JishiSuper.__repr__` 一致
         Val::Super(sp) => format!("<超 {}>", sp.defining),
@@ -5693,7 +5712,8 @@ fn matches_annotation(tname: &str, v: &Val) -> Option<bool> {
         "空" => matches!(v, Val::None_),
         "函数" => matches!(v, Val::Func(_) | Val::WalkFn(_) | Val::Class(_)
                                 | Val::Builtin(..)
-                                | Val::ExcType(_) | Val::BoundMethod(_)),
+                                | Val::ExcType(_) | Val::BoundMethod(_)
+                                | Val::UserMethod { .. }),
         "任意" | "值" => true,
         _ => return None,               // 不认识的标注：只作文档
     })
@@ -6080,6 +6100,44 @@ fn 模块没有这个的提示(模块名: &str, 函数们: &HashMap<String, Val>
     }
 }
 
+/// 实例属性查找的**后半段**：字段表没命中之后（类变量 → 类方法）。
+///
+/// 🔴 M215 抽出来的理由：字节码 VM 的 `GET_ATTR` 在**指令里**先试一次字段表
+/// （最常见的 `自己.值` 命中就不进 `get_attr` 那个几百行的分发函数），
+/// 没命中才调这里。两边共用同一份后续逻辑 —— 不许各写一份（`test_m51` 盯着）。
+///
+/// `inst_rc` 已经确认是**实例**，所以这里不再 match 类型。
+pub(crate) fn instance_attr_after_fields(inst_rc: &JInst, attr: &str) -> Result<Val, JishiError> {
+    let inst = inst_rc.borrow();
+    // 类变量（M23.3）：实例上没有就看类的（构造时已把基类的并进来）。
+    //
+    // 🔴 M215：**空表直接跳过**。绝大多数类没有类变量，而 `get` 里那趟 hash
+    // 在方法调用上是白花的（`is_empty` 是一次 len 读）。
+    {
+        let vars = inst.class.class_vars.borrow();
+        if !vars.is_empty() {
+            if let Some(v) = vars.get(attr) {
+                return Ok(v.clone());
+            }
+        }
+    }
+    if let Some(f) = inst.class.methods.get(attr) {
+        if let Val::Func(fu) = f {
+            // 绑定时把实例一起带上——调用时它会被放进第一个形参（自身）
+            return Ok(Val::UserMethod {
+                func: fu.clone(), instance: inst_rc.clone() });
+        }
+        // 树遍历的方法值（R6 主体 ④）：同样「绑上实例」，只是用树遍历
+        // 自己的函数值 —— 共享函数体、只换 `self_val`。
+        if let Val::WalkFn(wf) = f {
+            return Ok(Val::WalkFn(Rc::new(
+                wf.bind_self(Val::Instance(inst_rc.clone())))));
+        }
+    }
+    let cls = inst.class.name.clone();
+    Err(err("类型错误", format!("「{cls}」没有属性「{attr}」")))
+}
+
 pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
     -> Result<Val, JishiError> {
     match obj {
@@ -6092,28 +6150,8 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
             // 等于**空头承诺**。现在分两种：是对象方法就点出来；真没有就列出有什么。
             模块没有这个的提示(&n, &attrs, attr))),
         Val::Instance(inst_rc) => {
-            let inst = inst_rc.borrow();
-            if let Some(v) = inst.fields.get(attr) { return Ok(v.clone()); }
-            // 类变量（M23.3）：实例上没有就看类的（构造时已把基类的并进来）
-            if let Some(v) = inst.class.class_vars.borrow().get(attr) {
-                return Ok(v.clone());
-            }
-            if let Some(f) = inst.class.methods.get(attr) {
-                if let Val::Func(fu) = f {
-                    // 绑定时把实例一起带上——调用时它会被放进第一个形参（自身）
-                    return Ok(Val::BoundMethod(Box::new(BoundMethod::User {
-                        func: fu.clone(), instance: inst_rc.clone(),
-                        name: attr.to_string() })));
-                }
-                // 树遍历的方法值（R6 主体 ④）：同样「绑上实例」，只是用树遍历
-                // 自己的函数值 —— 共享函数体、只换 `self_val`。
-                if let Val::WalkFn(wf) = f {
-                    return Ok(Val::WalkFn(Rc::new(
-                        wf.bind_self(Val::Instance(inst_rc.clone())))));
-                }
-            }
-            let cls = inst.class.name.clone();
-            Err(err("类型错误", format!("「{cls}」没有属性「{attr}」")))
+            if let Some(v) = inst_rc.borrow().fields.get(attr) { return Ok(v.clone()); }
+            instance_attr_after_fields(&inst_rc, attr)
         }
         Val::Class(c) => {
             if let Some(v) = c.class_vars.borrow().get(attr) { return Ok(v.clone()); }
@@ -6123,9 +6161,8 @@ pub(crate) fn get_attr(obj: Val, attr: &str, line: i64, col: i64)
         // 与 Python 侧 `get_attr` 同语义（那边看 `obj.defining.base`）。
         Val::Super(sp) => {
             if let Some(Val::Func(fu)) = sp.base.methods.get(attr) {
-                return Ok(Val::BoundMethod(Box::new(BoundMethod::User {
-                    func: fu.clone(), instance: sp.instance.clone(),
-                    name: attr.to_string() })));
+                return Ok(Val::UserMethod {
+                    func: fu.clone(), instance: sp.instance.clone() });
             }
             // 树遍历的方法值（同 Instance 分支）
             if let Some(Val::WalkFn(wf)) = sp.base.methods.get(attr) {
@@ -6509,7 +6546,7 @@ fn gated_method(names: &[&str], kind: &str, name: &str, receiver: Val,
     }
     let bm = BoundMethod::Builtin {
         name: name.to_string(), receiver: Box::new(receiver), line, col };
-    Ok(Val::BoundMethod(Box::new(bm)))
+    Ok(Val::BoundMethod(Rc::new(bm)))
 }
 
 fn str_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
@@ -6544,7 +6581,7 @@ fn native_method(name: &str, obj: Rc<NativeObj>, line: i64, col: i64)
             format!("「{}」没有方法「{name}」", obj.type_name),
             format!("可用的方法：{}", avail.join("、"))));
     }
-    Ok(Val::BoundMethod(Box::new(BoundMethod::Builtin {
+    Ok(Val::BoundMethod(Rc::new(BoundMethod::Builtin {
         name: name.to_string(),
         receiver: Box::new(Val::Native(obj)),
         line,
@@ -6713,7 +6750,7 @@ pub(crate) const EXCEPTION_NAMES: [&str; 9] = [
 /// 检查一个参数确实可调用（`映射`/`过滤`/`排序按`/`归约` 的报错要说清是哪个方法）。
 fn ensure_callable(v: &Val, name: &str) -> Result<Val, JishiError> {
     let ok = matches!(v, Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_)
-                      | Val::BoundMethod(_));
+                      | Val::BoundMethod(_) | Val::UserMethod { .. });
     if !ok {
         return Err(err("类型错误", format!(
             "「{name}」需要一个函数作为参数，但给的是「{}」", type_label(v))));

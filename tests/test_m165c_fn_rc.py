@@ -106,19 +106,25 @@ def _归一(文: str) -> str:
 # ---------------------------------------------------------------------------
 
 def test_Func是Rc而不是值():
-    """`Val::Func` 与 `BoundMethod::User.func` 都必须是 `Rc<Func>`。
+    """`Val::Func` 与**方法值里的 `func`** 都必须是 `Rc<Func>`。
 
     改回值类型不会红任何行为测试 —— 只会让每次函数调用多三次 malloc
     （实测一次空调用从 294ns 涨回 461ns，「递归斐波那契」慢 23%）。
+
+    📌 M215 起「方法值」有两个落脚处，这条判据**两处都盯**：
+    - `Val::UserMethod { func: Rc<Func>, instance }` —— 用户方法（内联，零分配）
+    - `BoundMethod` 只剩内建方法，里面没有 `func`
     """
     源码 = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
     assert "Func(Rc<Func>)" in 源码, (
         "`Val::Func` 不是 `Rc<Func>` —— 每次函数调用会深拷贝一个 88 字节的 `Func`"
         "（里面还有字符串和两个 Vec，共三次 malloc）")
     assert "Func(Box<Func>)" not in 源码, "`Val::Func` 又变回 `Box<Func>` 了"
-    assert "User { func: Rc<Func>," in 源码, (
-        "`BoundMethod::User.func` 不是 `Rc<Func>` —— `实例.方法()` 每次调用都会深拷贝")
-    assert "User { func: Func," not in 源码, "`BoundMethod::User.func` 又变回值类型了"
+    # 方法值：M215 拆成了 `Val::UserMethod`（内联）—— 盯它，也盯住「别退回值类型」
+    assert "UserMethod { func: Rc<Func>, instance: JInst }" in 源码, (
+        "`Val::UserMethod.func` 不是 `Rc<Func>` —— `实例.方法()` 每次调用都会深拷贝")
+    assert "UserMethod { func: Func," not in 源码, "`Val::UserMethod.func` 退回了值类型"
+    assert "User { func: Func," not in 源码, "方法值的 `func` 退回了值类型"
 
 
 # ---------------------------------------------------------------------------

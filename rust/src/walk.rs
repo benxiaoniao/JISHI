@@ -682,8 +682,8 @@ impl Walker {
             return Err(e);
         }
         // ---- 方法 / 类变量分开 ----
-        let mut methods: HashMap<String, Val> = HashMap::new();
-        let mut class_vars: HashMap<String, Val> = HashMap::new();
+        let mut methods: crate::fasthash::快表<String, Val> = crate::fasthash::快表::default();
+        let mut class_vars: crate::fasthash::快表<String, Val> = crate::fasthash::快表::default();
         for (k, v) in body_vars {
             if matches!(v, Val::WalkFn(_)) {
                 methods.insert(k, v);
@@ -723,7 +723,7 @@ impl Walker {
     fn make_instance(&mut self, c: Class, args: Vec<Val>) -> Result<Val, JishiError> {
         let inst = Rc::new(RefCell::new(Instance {
             class: c.clone(),
-            fields: HashMap::new(),
+            fields: crate::fasthash::快表::default(),
         }));
         if c.methods.contains_key("初始化") {
             // 类上取到的是**未绑定**的函数，所以实例要自己塞到第一个实参
@@ -1272,26 +1272,26 @@ impl Walker {
             // 内建类型的方法（列表 / 文本 / 字典 / 集合 / 文件 / 精确小数）：
             // **走共用的那张方法表**（`call_builtin_method` 是自由函数）——
             // 与字节码 VM 逐字同一套语义，不另写一份。
-            Val::BoundMethod(bm) => match *bm {
-                BoundMethod::Builtin { name, receiver, line, col } => {
-                    match call_builtin_method(self, name, *receiver, &args) {
-                        Ok(v) => Ok(v),
-                        Err(mut e) => {
-                            // ⚠️ 方法内部报错：位置用「取属性」那处（`a.追加` 的 `a`），
-                            // 与字节码 VM 的 `call_bound` 同口径（`bm_pos`）。不用 Call
-                            // 节点的位置（那是 `追加()` 的 `追加`，差好几列）。
-                            if e.line.is_none() && line > 0 {
-                                e.line = Some(line);
-                                e.col = Some(col);
-                            }
-                            Err(e)
+            Val::BoundMethod(bm) => {
+                let BoundMethod::Builtin { name, receiver, line, col } = (*bm).clone();
+                match call_builtin_method(self, name, *receiver, &args) {
+                    Ok(v) => Ok(v),
+                    Err(mut e) => {
+                        // ⚠️ 方法内部报错：位置用「取属性」那处（`a.追加` 的 `a`），
+                        // 与字节码 VM 的 `call_bound` 同口径（`bm_pos`）。不用 Call
+                        // 节点的位置（那是 `追加()` 的 `追加`，差好几列）。
+                        if e.line.is_none() && line > 0 {
+                            e.line = Some(line);
+                            e.col = Some(col);
                         }
+                        Err(e)
                     }
                 }
-                // 树遍历造不出 `BoundMethod::User`（它用 `Val::WalkFn`）
-                BoundMethod::User { name, .. } => Err(err("运行期错误", format!(
-                    "树遍历参考执行器拿到了字节码的方法值「{name}」（内部错误）"))),
-            },
+            }
+            // 树遍历造不出字节码侧的用户方法值（它用 `Val::WalkFn`）——
+            // 而 `Val::UserMethod` 里那个 `Func` 是字节码的函数，树遍历跑不了。
+            Val::UserMethod { func, .. } => Err(err("运行期错误", format!(
+                "树遍历参考执行器拿到了字节码的方法值「{}」（内部错误）", func.name))),
             // 调用一个**异常类型** = 抛出一个带消息的异常。
             // `抛出 值错误("x")` 走的就是这一句：`值错误` 求值成 `Val::ExcType`，
             // 加括号调用 = 造异常。与字节码 VM 的同一分支逐字同源。
@@ -1626,22 +1626,21 @@ impl BuiltinHost for Walker {
         match callee {
             Val::WalkFn(f) => self.call_walk_fn(f, args, &[], &[], None),
             Val::Class(c) => self.make_instance(*c, args),
-            Val::BoundMethod(bm) => match *bm {
-                BoundMethod::Builtin { name, receiver, line, col } => {
-                    match call_builtin_method(self, name, *receiver, &args) {
-                        Ok(v) => Ok(v),
-                        Err(mut e) => {
-                            if e.line.is_none() && line > 0 {
-                                e.line = Some(line);
-                                e.col = Some(col);
-                            }
-                            Err(e)
+            Val::BoundMethod(bm) => {
+                let BoundMethod::Builtin { name, receiver, line, col } = (*bm).clone();
+                match call_builtin_method(self, name, *receiver, &args) {
+                    Ok(v) => Ok(v),
+                    Err(mut e) => {
+                        if e.line.is_none() && line > 0 {
+                            e.line = Some(line);
+                            e.col = Some(col);
                         }
+                        Err(e)
                     }
                 }
-                BoundMethod::User { name, .. } => Err(err("运行期错误", format!(
-                    "树遍历参考执行器拿到了字节码的方法值「{name}」（内部错误）"))),
-            },
+            }
+            Val::UserMethod { func, .. } => Err(err("运行期错误", format!(
+                "树遍历参考执行器拿到了字节码的方法值「{}」（内部错误）", func.name))),
             Val::Builtin(b) => (b.f)(&args, self),
             other => Err(err("类型错误",
                 format!("「{}」不能当函数调用", display(&other)))),
