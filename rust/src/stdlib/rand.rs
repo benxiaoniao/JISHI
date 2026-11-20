@@ -107,9 +107,9 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let span = (hi - lo) as u128 + 1;
             if span > u64::MAX as u128 {
                 // 区间大到没法均匀取——退化成「取一个中间值」，别静默给偏置结果
-                return Ok(Val::Int(lo));
+                return Ok(Val::Int(crate::jint::JInt::new(lo)));
             }
-            Ok(Val::Int(lo + below(span as u64) as i128))
+            Ok(Val::Int(crate::jint::JInt::new(lo + below(span as u64) as i128)))
         },
         "随机小数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("随机小数", args, 0)?;

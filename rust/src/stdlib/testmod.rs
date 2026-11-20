@@ -126,7 +126,7 @@ fn 摘要(e: &JishiError) -> String {
 /// 把算出来的数字取绝对值（`abs`）。
 fn 取绝对值(v: Val) -> Val {
     match v {
-        Val::Int(i) => Val::Int(i.abs()),
+        Val::Int(i) => Val::Int(crate::jint::JInt::new(i.get().abs())),
         Val::Float(f) => Val::Float(f.abs()),
         其它 => 其它,
     }
@@ -392,11 +392,11 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 (s.记录.len(), 通过, 失败, 出错, 跳过)
             });
             Ok(dict_new(vec![
-                (Val::Str("用例".to_string().into()), Val::Int(用例 as i128)),
-                (Val::Str("通过".to_string().into()), Val::Int(通过 as i128)),
-                (Val::Str("失败".to_string().into()), Val::Int(失败 as i128)),
-                (Val::Str("出错".to_string().into()), Val::Int(出错 as i128)),
-                (Val::Str("跳过".to_string().into()), Val::Int(跳过 as i128)),
+                (Val::Str("用例".to_string().into()), Val::Int(crate::jint::JInt::new(用例 as i128))),
+                (Val::Str("通过".to_string().into()), Val::Int(crate::jint::JInt::new(通过 as i128))),
+                (Val::Str("失败".to_string().into()), Val::Int(crate::jint::JInt::new(失败 as i128))),
+                (Val::Str("出错".to_string().into()), Val::Int(crate::jint::JInt::new(出错 as i128))),
+                (Val::Str("跳过".to_string().into()), Val::Int(crate::jint::JInt::new(跳过 as i128))),
             ]))
         },
         "汇总" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {

@@ -201,7 +201,7 @@ pub(crate) fn 值_of(j: &crate::json::Json) -> Val {
     match j {
         Json::Null => Val::None_,
         Json::Str(s) => Val::Str(s.as_str().into()),
-        Json::Int(n) => Val::Int(*n),
+        Json::Int(n) => Val::Int(crate::jint::JInt::new(*n)),
         Json::Float(f) => Val::Float(*f),
         Json::Bool(b) => Val::Bool(*b),
         Json::Arr(a) => crate::list_new(a.iter().map(值_of).collect()),

@@ -706,7 +706,7 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
             if !(1..=12).contains(&m) {
                 return Err(err("值错误", format!("月份要在 1~12 之间（现在是 {m}）")));
             }
-            Ok(Val::Int(月天数(y, m as u32) as i128))
+            Ok(Val::Int(crate::jint::JInt::new(月天数(y, m as u32) as i128)))
         },
         "今天" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("今天", args, 0)?;
@@ -752,9 +752,9 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
             need("相差天数", args, 2)?;
             let (y1, m1, d1) = parse_date(&args[0])?;
             let (y2, m2, d2) = parse_date(&args[1])?;
-            Ok(Val::Int(
+            Ok(Val::Int(crate::jint::JInt::new(
                 (days_from_civil(y1, m1, d1) - days_from_civil(y2, m2, d2)) as i128,
-            ))
+            )))
         },
         "早于" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("早于", args, 2)?;
@@ -780,15 +780,15 @@ pub(crate) fn date_module() -> HashMap<String, Val> {
         },
         "今年" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("今年", args, 0)?;
-            Ok(Val::Int(local_now().year as i128))
+            Ok(Val::Int(crate::jint::JInt::new(local_now().year as i128)))
         },
         "本月" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("本月", args, 0)?;
-            Ok(Val::Int(local_now().month as i128))
+            Ok(Val::Int(crate::jint::JInt::new(local_now().month as i128)))
         },
         "本年天数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("本年天数", args, 0)?;
-            Ok(Val::Int(days_in_year(local_now().year) as i128))
+            Ok(Val::Int(crate::jint::JInt::new(days_in_year(local_now().year) as i128)))
         },
     }
 }
@@ -915,12 +915,12 @@ pub(crate) fn time_module() -> HashMap<String, Val> {
             need("此刻", args, 0)?;
             let n = local_now();
             let pairs = vec![
-                (Val::Str("年".into()), Val::Int(n.year as i128)),
-                (Val::Str("月".into()), Val::Int(n.month as i128)),
-                (Val::Str("日".into()), Val::Int(n.day as i128)),
-                (Val::Str("时".into()), Val::Int(n.hour as i128)),
-                (Val::Str("分".into()), Val::Int(n.minute as i128)),
-                (Val::Str("秒".into()), Val::Int(n.second as i128)),
+                (Val::Str("年".into()), Val::Int(crate::jint::JInt::new(n.year as i128))),
+                (Val::Str("月".into()), Val::Int(crate::jint::JInt::new(n.month as i128))),
+                (Val::Str("日".into()), Val::Int(crate::jint::JInt::new(n.day as i128))),
+                (Val::Str("时".into()), Val::Int(crate::jint::JInt::new(n.hour as i128))),
+                (Val::Str("分".into()), Val::Int(crate::jint::JInt::new(n.minute as i128))),
+                (Val::Str("秒".into()), Val::Int(crate::jint::JInt::new(n.second as i128))),
                 (Val::Str("星期".into()), Val::Str(WD_CN[n.weekday as usize].to_string().into())),
             ];
             Ok(crate::dict_new(pairs))

@@ -372,10 +372,10 @@ pub(crate) fn val_to_jv(v: &Val) -> Result<Jv, String> {
         Val::None_ => Jv::Null,
         Val::Bool(b) => Jv::Bool(*b),
         Val::Int(i) => {
-            if let Ok(small) = i64::try_from(*i) {
+            if let Ok(small) = i64::try_from(i.get()) {
                 Jv::Int(small)
             } else {
-                Jv::Int128(*i)
+                Jv::Int128(i.get())
             }
         }
         Val::Float(f) => Jv::Float(*f),

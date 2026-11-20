@@ -23,7 +23,7 @@ const NOT_GIVEN: &str = "\u{0}未给\u{0}";
 fn is_given(v: Option<&Val>) -> bool {
     match v {
         None => false,
-        Some(Val::Str(s)) => s.as_ref() != NOT_GIVEN,
+        Some(Val::Str(s)) => &**s != NOT_GIVEN,
         Some(_) => true,
     }
 }
@@ -137,7 +137,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let p = as_path("写JSON", &args[0])?;
             let indent = match args.get(2) {
                 None => 2usize,
-                Some(Val::Int(n)) if *n >= 0 => *n as usize,
+                Some(Val::Int(n)) if n.get() >= 0 => n.get() as usize,
                 Some(_) => return Err(err("类型错误", "「缩进」要传 0 或正整数")),
             };
             let text = super::jsonmod::to_text(&args[1], Some(indent))?;

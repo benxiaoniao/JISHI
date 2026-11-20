@@ -238,12 +238,12 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let a = 任按着(&k负)?;
             let b = 任按着(&k正)?;
             // 两边都按着 ⇒ 0（不是「都算」，那会让角色原地抖）；与手柄的死区同口径
-            Ok(Val::Int(match (a, b) {
+            Ok(Val::Int(crate::jint::JInt::new(match (a, b) {
                 (true, true) => 0,
                 (true, false) => -1,
                 (false, true) => 1,
                 (false, false) => 0,
-            }))
+            })))
         },
         // 绑定表() → {动作: [键们], …}（顺序 = 绑定顺序）
         "绑定表" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {

@@ -89,7 +89,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "唯一标识字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("唯一标识字节", args, 0, 0)?;
             Ok(list_new(
-                uuid4_bytes().iter().map(|b| Val::Int(*b as i128)).collect(),
+                uuid4_bytes().iter().map(|b| Val::Int(crate::jint::JInt::new(*b as i128))).collect(),
             ))
         },
     }

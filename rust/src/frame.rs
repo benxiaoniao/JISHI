@@ -228,7 +228,7 @@ pub fn 跑一帧(vm: &mut crate::VM, 帧号: i64, 间隔毫秒: f64) -> Result<(
         vm,
         每帧,
         vec![
-            crate::Val::Int(帧号 as i128),
+            crate::Val::Int(crate::jint::JInt::new(帧号 as i128)),
             crate::Val::Float(间隔毫秒),
         ],
     )?;

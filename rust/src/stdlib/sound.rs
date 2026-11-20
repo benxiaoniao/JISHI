@@ -46,7 +46,7 @@ fn 要声音() -> Result<(), JishiError> {
 /// 收一个数（整数 / 浮点都收）。
 fn 数(v: &Val, 名: &str, 参: &str) -> Result<f64, JishiError> {
     match v {
-        Val::Int(i) => Ok(*i as f64),
+        Val::Int(i) => Ok(i.get() as f64),
         Val::Float(f) => Ok(*f),
         other => Err(err(
             "类型错误",
@@ -58,7 +58,7 @@ fn 数(v: &Val, 名: &str, 参: &str) -> Result<f64, JishiError> {
 /// 收一个句柄（`载入` 的返回值）。
 fn 句柄(v: &Val, 名: &str) -> Result<f64, JishiError> {
     match v {
-        Val::Int(i) => Ok(*i as f64),
+        Val::Int(i) => Ok(i.get() as f64),
         Val::Float(f) => Ok(*f),
         Val::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
         other => Err(err_with_hint(
@@ -104,7 +104,7 @@ fn 选项json(v: Option<&Val>) -> Result<String, JishiError> {
 fn 是非(v: &Val) -> Result<String, JishiError> {
     match v {
         Val::Bool(b) => Ok((if *b { "true" } else { "false" }).to_string()),
-        Val::Int(i) => Ok((if *i != 0 { "true" } else { "false" }).to_string()),
+        Val::Int(i) => Ok((if i.get() != 0 { "true" } else { "false" }).to_string()),
         other => Err(err(
             "类型错误",
             format!("这个选项要 `真` / `假`，给的是{}", crate::type_label(other)),

@@ -43,7 +43,7 @@ fn 取(d: &Val, key: &str) -> Result<Option<Val>, crate::JishiError> {
         Val::Dict(m) => Ok(m
             .borrow()
             .iter()
-            .find(|(k, _)| matches!(k, Val::Str(s) if s.as_ref() == key))
+            .find(|(k, _)| matches!(k, Val::Str(s) if &**s == key))
             .map(|(_, v)| v.clone())),
         other => Err(err(
             "类型错误",
@@ -222,7 +222,7 @@ fn 清单成值(项们: &[一项], 选: &选项, 总: i128) -> Val {
         .map(|t| {
             crate::dict_new(vec![
                 (Val::Str("路径".into()), Val::Str(t.路径.clone().into())),
-                (Val::Str("大小".into()), Val::Int(t.大小)),
+                (Val::Str("大小".into()), Val::Int(crate::jint::JInt::new(t.大小))),
                 (Val::Str("sha256".into()), Val::Str(t.sha256.clone().into())),
             ])
         })
@@ -232,8 +232,8 @@ fn 清单成值(项们: &[一项], 选: &选项, 总: i128) -> Val {
         (Val::Str("版本".into()), Val::Str(选.版本.clone().into())),
         (Val::Str("平台".into()), Val::Str(选.平台.clone().into())),
         (Val::Str("入口".into()), Val::Str(选.入口.clone().into())),
-        (Val::Str("文件数".into()), Val::Int(项们.len() as i128)),
-        (Val::Str("字节数".into()), Val::Int(总)),
+        (Val::Str("文件数".into()), Val::Int(crate::jint::JInt::new(项们.len() as i128))),
+        (Val::Str("字节数".into()), Val::Int(crate::jint::JInt::new(总))),
         (Val::Str("文件们".into()), crate::list_new(文件们)),
     ])
 }
@@ -343,7 +343,7 @@ fn 清单成值从json(j: &crate::json::Json) -> Val {
                         ),
                         (
                             Val::Str("大小".into()),
-                            Val::Int(f.get("大小").and_then(|v| v.as_i128()).unwrap_or(0)),
+                            Val::Int(crate::jint::JInt::new(f.get("大小").and_then(|v| v.as_i128()).unwrap_or(0))),
                         ),
                         (
                             Val::Str("sha256".into()),
@@ -361,8 +361,8 @@ fn 清单成值从json(j: &crate::json::Json) -> Val {
         (Val::Str("版本".into()), Val::Str(取文("版本").into())),
         (Val::Str("平台".into()), Val::Str(取文("平台").into())),
         (Val::Str("入口".into()), Val::Str(取文("入口").into())),
-        (Val::Str("文件数".into()), Val::Int(取数("文件数"))),
-        (Val::Str("字节数".into()), Val::Int(取数("字节数"))),
+        (Val::Str("文件数".into()), Val::Int(crate::jint::JInt::new(取数("文件数")))),
+        (Val::Str("字节数".into()), Val::Int(crate::jint::JInt::new(取数("字节数")))),
         (Val::Str("文件们".into()), crate::list_new(文件们)),
     ])
 }

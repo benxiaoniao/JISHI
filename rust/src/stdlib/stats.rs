@@ -16,7 +16,7 @@ use crate::{err, Val};
 /// （不是 ）。所以这里不能一律 ——那会让输出变成 。
 fn f64v(x: f64) -> Val {
     if x.fract() == 0.0 && x.is_finite() && x.abs() < 9.0e18 {
-        Val::Int(x as i128)
+        Val::Int(crate::jint::JInt::new(x as i128))
     } else {
         Val::Float(x)
     }
@@ -32,7 +32,7 @@ fn nums(name: &str, v: &Val) -> Result<Vec<f64>, crate::JishiError> {
     let mut out = Vec::with_capacity(items.len());
     for (i, x) in items.iter().enumerate() {
         match x {
-            Val::Int(n) => out.push(*n as f64),
+            Val::Int(n) => out.push(n.get() as f64),
             Val::Float(f) => out.push(*f),
             other => {
                 return Err(err(
@@ -59,7 +59,7 @@ fn need_nonempty(name: &str, xs: Vec<f64>) -> Result<Vec<f64>, crate::JishiError
 /// 与 Python 侧 `isinstance(v, int)` 一致）。
 fn as_int_arg(name: &str, v: &Val) -> Result<i128, crate::JishiError> {
     match v {
-        Val::Int(n) => Ok(*n),
+        Val::Int(n) => Ok(n.get()),
         _ => Err(err("类型错误", format!("「{name}」要传整数"))),
     }
 }
@@ -366,7 +366,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("移动平均", args, 1, 2)?;
             let 窗口 = match args.get(1) {
                 None | Some(Val::None_) => 3i128,
-                Some(Val::Int(v)) => *v,
+                Some(Val::Int(v)) => v.get(),
                 Some(other) => {
                     return Err(err(
                         "类型错误",
@@ -408,7 +408,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("直方图", args, 1, 2)?;
             let 箱数 = match args.get(1) {
                 None | Some(Val::None_) => 10i128,
-                Some(Val::Int(v)) => *v,
+                Some(Val::Int(v)) => v.get(),
                 Some(other) => {
                     return Err(err(
                         "类型错误",
@@ -434,7 +434,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             if lo == hi {
                 let pairs = vec![
                     (Val::Str("边界".into()), crate::list_new(vec![Val::Float(lo), f64v(hi)])),
-                    (Val::Str("计数".into()), crate::list_new(vec![Val::Int(xs.len() as i128)])),
+                    (Val::Str("计数".into()), crate::list_new(vec![Val::Int(crate::jint::JInt::new(xs.len() as i128))])),
                 ];
                 return Ok(crate::dict_new(pairs));
             }
@@ -456,7 +456,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 (Val::Str("边界".into()), crate::list_new(边界)),
                 (
                     Val::Str("计数".into()),
-                    crate::list_new(计数.into_iter().map(Val::Int).collect()),
+                    crate::list_new(计数.into_iter().map(|n| Val::Int(crate::jint::JInt::new(n))).collect()),
                 ),
             ];
             Ok(crate::dict_new(pairs))
@@ -471,7 +471,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 ));
             }
             let t = match &args[1] {
-                Val::Int(v) => *v as f64,
+                Val::Int(v) => v.get() as f64,
                 Val::Float(f) => *f,
                 other => {
                     return Err(err(

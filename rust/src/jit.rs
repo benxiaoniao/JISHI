@@ -454,7 +454,7 @@ impl 分配 {
 fn 取整(常量们: &[Val], 下标: i64) -> Option<i64> {
     match 常量们.get(usize::try_from(下标).ok()?) {
         // `i64` 装不下就不能编：机器码只做 64 位算术，而那部分由解释器负责。
-        Some(Val::Int(v)) => i64::try_from(*v).ok(),
+        Some(Val::Int(v)) => i64::try_from(v.get()).ok(),
         _ => None,
     }
 }
@@ -848,7 +848,7 @@ fn 认循环(
                     .ok_or("常量下标越界")?;
                 match c {
                     Val::Int(v) => {
-                        let v = i64::try_from(*v).map_err(|_| "常量不是 i64 范围内的整数")?;
+                        let v = i64::try_from(v.get()).map_err(|_| "常量不是 i64 范围内的整数")?;
                         前.出.push(指令::压数(v));
                         前.压(类型::整数);
                     }

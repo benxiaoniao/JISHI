@@ -75,7 +75,7 @@ pub(crate) fn 要画布() -> Result<(), JishiError> {
 /// 收一个数（`整数` 或 `浮点` 都收）。
 fn 数(v: &Val, 名: &str, 参: &str) -> Result<f64, JishiError> {
     match v {
-        Val::Int(i) => Ok(*i as f64),
+        Val::Int(i) => Ok(i.get() as f64),
         Val::Float(f) => Ok(*f),
         Val::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
         other => Err(err(
@@ -1145,18 +1145,18 @@ pub(crate) fn module() -> HashMap<String, Val> {
                         crate::dict_new(vec![
                             (Val::Str("起".into()), Val::Float(*起)),
                             (Val::Str("止".into()), Val::Float(*止)),
-                            (Val::Str("数".into()), Val::Int(*数 as i128)),
+                            (Val::Str("数".into()), Val::Int(crate::jint::JInt::new(*数 as i128))),
                         ])
                     })
                     .collect(),
             );
             Ok(crate::dict_new(vec![
-                (Val::Str("帧数".into()), Val::Int(st.帧数 as i128)),
+                (Val::Str("帧数".into()), Val::Int(crate::jint::JInt::new(st.帧数 as i128))),
                 (Val::Str("平均".into()), Val::Float(st.平均)),
                 (Val::Str("最小".into()), Val::Float(st.最小)),
                 (Val::Str("最大".into()), Val::Float(st.最大)),
                 (Val::Str("p95".into()), Val::Float(st.p95)),
-                (Val::Str("卡顿".into()), Val::Int(st.卡顿 as i128)),
+                (Val::Str("卡顿".into()), Val::Int(crate::jint::JInt::new(st.卡顿 as i128))),
                 (Val::Str("阈值".into()), Val::Float(阈)),
                 (Val::Str("桶们".into()), 桶们),
             ]))

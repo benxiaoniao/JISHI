@@ -429,7 +429,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             if !meta.is_file() {
                 return Err(err("值错误", format!("「{p}」不是文件")));
             }
-            Ok(Val::Int(meta.len() as i128))
+            Ok(Val::Int(crate::jint::JInt::new(meta.len() as i128)))
         },
         "修改时间" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("修改时间", args, 1)?;

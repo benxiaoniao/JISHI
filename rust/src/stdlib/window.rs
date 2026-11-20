@@ -181,7 +181,7 @@ fn 取(d: &Val, key: &str) -> Result<Option<Val>, crate::JishiError> {
         Val::Dict(m) => Ok(m
             .borrow()
             .iter()
-            .find(|(k, _)| matches!(k, Val::Str(s) if s.as_ref() == key))
+            .find(|(k, _)| matches!(k, Val::Str(s) if &**s == key))
             .map(|(_, v)| v.clone())),
         other => Err(err(
             "类型错误",
@@ -204,7 +204,7 @@ fn 取文(d: &Val, key: &str, 默认: &str) -> Result<String, crate::JishiError>
 fn 取数(d: &Val, key: &str, 默认: i128) -> Result<i128, crate::JishiError> {
     match 取(d, key)? {
         None | Some(Val::None_) => Ok(默认),
-        Some(Val::Int(i)) => Ok(i),
+        Some(Val::Int(i)) => Ok(i.get()),
         Some(other) => Err(err(
             "值错误",
             format!("「{key}」要传整数（像素），给的是{}", crate::type_label(&other)),
@@ -937,7 +937,7 @@ fn 取末尾句柄(
 ) -> Result<Option<i128>, crate::JishiError> {
     match args.get(必填) {
         None | Some(Val::None_) => Ok(None),
-        Some(Val::Int(i)) => Ok(Some(*i)),
+        Some(Val::Int(i)) => Ok(Some(i.get())),
         Some(other) => Err(err(
             "类型错误",
             format!(
@@ -951,7 +951,7 @@ fn 取末尾句柄(
 fn 取句柄参数(args: &[Val], 名: &str) -> Result<Option<i128>, crate::JishiError> {
     match args.get(1) {
         None | Some(Val::None_) => Ok(None),
-        Some(Val::Int(i)) => Ok(Some(*i)),
+        Some(Val::Int(i)) => Ok(Some(i.get())),
         Some(other) => Err(err(
             "类型错误",
             format!(
@@ -1181,7 +1181,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
     table! { "窗口";
         "打开" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("打开", args, 1, 1)?;
-            Ok(Val::Int(打开(&args[0])?))
+            Ok(Val::Int(crate::jint::JInt::new(打开(&args[0])?)))
         },
         "关闭" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             // M174：**省略句柄 = 关掉「自己所在的那个窗口」**。
@@ -1203,7 +1203,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             need_range("关闭", args, 1, 1)?;
             let 句柄 = match &args[0] {
-                Val::Int(i) => *i,
+                Val::Int(i) => i.get(),
                 other => return Err(err("类型错误", format!("「关闭」要窗口句柄（整数），给的是{}", crate::type_label(other)))),
             };
             Ok(Val::Bool(关闭(句柄)))
@@ -1227,7 +1227,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 other => return Err(err("类型错误", format!("「在运行」要窗口句柄（整数），给的是{}", crate::type_label(other)))),
             };
             let mut 表 = 表().lock().unwrap();
-            let 活着 = match 取记录(句柄, &mut 表) {
+            let 活着 = match 取记录(句柄.get(), &mut 表) {
                 Some(记录) if 记录.原生 => {
                     let 窗号 = 记录.窗号;
                     drop(表);
@@ -1260,7 +1260,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                         "「等」要窗口句柄（整数），给的是{}", crate::type_label(other))))
                 }
             };
-            Ok(Val::Int(等(句柄)))
+            Ok(Val::Int(crate::jint::JInt::new(等(句柄.map(|v| v.get())))))
         },
         // -- M175：桌面集成（菜单 / 托盘 / 单实例 / 文件对话框 / 页面事件） --
         //
@@ -1331,7 +1331,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     收尾(号);
                 }
             }
-            Ok(Val::Int(数 as i128))
+            Ok(Val::Int(crate::jint::JInt::new(数 as i128)))
         },
 
         // ---- M185：几何 / 图标 / 进度 / 提示 -------------------------------
@@ -1462,7 +1462,7 @@ enum 几何操作 {
 /// 所以不像别的函数那样只收 `Int`。
 fn 数参(v: &Val, 名: &str, 位: &str) -> Result<f64, crate::JishiError> {
     match v {
-        Val::Int(i) => Ok(*i as f64),
+        Val::Int(i) => Ok(i.get() as f64),
         Val::Float(f) => Ok(*f),
         other => Err(err(
             "类型错误",

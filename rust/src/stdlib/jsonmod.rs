@@ -275,7 +275,7 @@ impl<'a> P<'a> {
                 .map_err(|_| Self::fail())
         } else {
             match text.parse::<i128>() {
-                Ok(i) => Ok(Val::Int(i)),
+                Ok(i) => Ok(Val::Int(crate::jint::JInt::new(i))),
                 // 超出 i128 就退化成小数（Python 是任意精度整数，这里如实报错）
                 Err(_) => Err(err(
                     "值错误",
@@ -405,7 +405,7 @@ impl<'a> P<'a> {
             let v = self.value()?;
             // 重复键：保留首次出现的位置、用最后一次的值（Python 的 dict 行为）
             if let Some(slot) = pairs.iter_mut().find(|(pk, _)| {
-                matches!(pk, Val::Str(s) if s.as_ref() == k.as_str())
+                matches!(pk, Val::Str(s) if &**s == k.as_str())
             }) {
                 slot.1 = v;
             } else {

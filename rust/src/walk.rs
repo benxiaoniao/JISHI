@@ -221,7 +221,7 @@ impl Scope {
 fn loop_count(v: &Val) -> Result<i128, JishiError> {
     let bad = || err("类型错误", format!("「{}」不是有效的循环次数", display(v)));
     Ok(match v {
-        Val::Int(i) => *i,
+        Val::Int(i) => i.get(),
         Val::Bool(b) => i128::from(*b),
         Val::Float(f) if f.is_finite() => *f as i128,
         Val::Str(s) => s.trim().parse::<i128>().map_err(|_| bad())?,
@@ -975,7 +975,7 @@ impl Walker {
             return Ok(Val::Bool(b));
         }
         if let Some(i) = v.as_i128() {
-            return Ok(Val::Int(i));
+            return Ok(Val::Int(crate::jint::JInt::new(i)));
         }
         v.as_f64().map(Val::Float)
             .ok_or_else(|| self.bad("Num 的 value 不是数字", n))

@@ -1732,7 +1732,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             o.headers = h;
             let r = 执行(&raw, &o)?;
             Ok(crate::dict_new(vec![
-                (Val::Str("状态".to_string().into()), Val::Int(r.status as i128)),
+                (Val::Str("状态".to_string().into()), Val::Int(crate::jint::JInt::new(r.status as i128))),
                 (Val::Str("响应头".to_string().into()), 头表(&r.headers)),
                 (Val::Str("正文".to_string().into()),
                  Val::Str(String::from_utf8_lossy(&r.body).to_string().into())),
@@ -1760,7 +1760,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
             let r = 执行(&raw, &o)?;
             let r = 要成功(r, "下载", &raw)?;
-            Ok(Val::Int(r.字节数 as i128))
+            Ok(Val::Int(crate::jint::JInt::new(r.字节数 as i128)))
         },
     }
 }

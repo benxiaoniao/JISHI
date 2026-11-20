@@ -24,13 +24,13 @@ fn to_bytes(name: &str, v: &Val) -> Result<Vec<u8>, crate::JishiError> {
             for (i, x) in items.iter().enumerate() {
                 match x {
                     Val::Int(n) => {
-                        if !(0..=255).contains(n) {
+                        if !(0..=255).contains(&n.get()) {
                             return Err(err(
                                 "值错误",
                                 format!("「{name}」里第 {} 个超出范围（要 0-255）：{}", i + 1, n),
                             ));
                         }
-                        out.push(*n as u8);
+                        out.push(n.get() as u8);
                     }
                     other => {
                         return Err(err(

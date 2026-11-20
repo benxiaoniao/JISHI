@@ -109,7 +109,7 @@ fn 取必(d: &crate::Dict, 键: &str, 谁: &str) -> Result<Val, JishiError> {
 /// 收一个数（整数 / 浮点都收）。
 fn 数(v: &Val, 名: &str, 参: &str) -> Result<f64, JishiError> {
     match v {
-        Val::Int(i) => Ok(*i as f64),
+        Val::Int(i) => Ok(i.get() as f64),
         Val::Float(f) => Ok(*f),
         other => Err(err(
             "类型错误",
@@ -121,7 +121,7 @@ fn 数(v: &Val, 名: &str, 参: &str) -> Result<f64, JishiError> {
 /// 收一个整数。
 fn 整数(v: &Val, 名: &str, 参: &str) -> Result<i64, JishiError> {
     match v {
-        Val::Int(i) => i64::try_from(*i)
+        Val::Int(i) => i64::try_from(i.get())
             .map_err(|_| err("值错误", format!("「{名}」的「{参}」超出整数范围"))),
         Val::Float(f) if f.fract() == 0.0 => Ok(*f as i64),
         other => Err(err(
@@ -146,7 +146,7 @@ fn 文本(v: &Val, 名: &str, 参: &str) -> Result<String, JishiError> {
 fn 布尔(v: &Val, 名: &str, 参: &str) -> Result<bool, JishiError> {
     match v {
         Val::Bool(b) => Ok(*b),
-        Val::Int(i) => Ok(*i != 0),
+        Val::Int(i) => Ok(i.get() != 0),
         other => Err(err(
             "类型错误",
             format!("「{名}」的「{参}」要 `真` / `假`，给的是{}", crate::type_label(other)),
@@ -175,7 +175,7 @@ fn 二维(v: &Val, 名: &str, 参: &str) -> Result<Vec<Vec<i64>>, JishiError> {
         let mut 行 = Vec::with_capacity(cols.borrow().len());
         for (j, c) in cols.borrow().iter().enumerate() {
             match c {
-                Val::Int(n) => 行.push(i64::try_from(*n).unwrap_or(i64::MAX)),
+                Val::Int(n) => 行.push(i64::try_from(n.get()).unwrap_or(i64::MAX)),
                 // `空` 当「没有瓦片」—— 手写地图数据时比写 `-1` 自然
                 Val::None_ => 行.push(-1),
                 other => {
@@ -270,7 +270,7 @@ fn 整数列(v: &Val, 名: &str, 参: &str) -> Result<Vec<i64>, JishiError> {
     let mut 出 = Vec::with_capacity(表.len());
     for (i, it) in 表.iter().enumerate() {
         match it {
-            Val::Int(n) => 出.push(i64::try_from(*n).map_err(|_| {
+            Val::Int(n) => 出.push(i64::try_from(n.get()).map_err(|_| {
                 err("值错误", format!("「{名}」的「{参}」第 {} 项超出整数范围", i + 1))
             })?),
             other => {
@@ -301,7 +301,7 @@ fn 动画映射(d: &crate::Dict) -> HashMap<i64, i64> {
                 Ok(n) => n,
                 Err(_) => continue,
             },
-            Val::Int(n) => *n as i64,
+            Val::Int(n) => n.get() as i64,
             _ => continue,
         };
         let Val::Dict(条) = v else { continue };
@@ -312,11 +312,11 @@ fn 动画映射(d: &crate::Dict) -> HashMap<i64, i64> {
                     .borrow()
                     .iter()
                     .filter_map(|x| match x {
-                        Val::Int(n) => Some(*n as i64),
+                        Val::Int(n) => Some(n.get() as i64),
                         _ => None,
                     })
                     .collect();
-                (v, i as usize)
+                (v, i.get() as usize)
             }
             _ => continue,
         };
@@ -336,7 +336,7 @@ fn 二维值(行们: &[Vec<i64>]) -> Val {
     crate::list_new(
         行们
             .iter()
-            .map(|r| crate::list_new(r.iter().map(|n| Val::Int(*n as i128)).collect()))
+            .map(|r| crate::list_new(r.iter().map(|n| Val::Int(crate::jint::JInt::new(*n as i128))).collect()))
             .collect(),
     )
 }
@@ -369,9 +369,9 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
                 (Val::Str("图".into()), Val::Float(图)),
                 (Val::Str("帧宽".into()), Val::Float(宽)),
                 (Val::Str("帧高".into()), Val::Float(高)),
-                (Val::Str("列数".into()), Val::Int(列.max(1) as i128)),
-                (Val::Str("行数".into()), Val::Int(行.max(1) as i128)),
-                (Val::Str("当前".into()), Val::Int(0)),
+                (Val::Str("列数".into()), Val::Int(crate::jint::JInt::new(列.max(1) as i128))),
+                (Val::Str("行数".into()), Val::Int(crate::jint::JInt::new(行.max(1) as i128))),
+                (Val::Str("当前".into()), Val::Int(crate::jint::JInt::new(0))),
                 (Val::Str("在播".into()), Val::Str("".into())),
                 (Val::Str("累计".into()), Val::Float(0.0)),
                 (Val::Str("动画".into()), dict_new(Vec::new())),
@@ -419,10 +419,10 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
                 if 帧们.is_empty() {
                     // 没给帧们 ⇒ 整个图集按顺序播
                     let n = match 取(&dd, "列数") {
-                        Some(Val::Int(c)) => c as i64,
+                        Some(Val::Int(c)) => c.get() as i64,
                         _ => 1,
                     } * match 取(&dd, "行数") {
-                        Some(Val::Int(r)) => r as i64,
+                        Some(Val::Int(r)) => r.get() as i64,
                         _ => 1,
                     };
                     帧们 = (0..n.max(1)).collect();
@@ -430,7 +430,7 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
             }
             let mut dd = d.borrow_mut();
             let 表 = dict_new(vec![
-                (Val::Str("帧们".into()), crate::list_new(帧们.iter().map(|n| Val::Int(*n as i128)).collect())),
+                (Val::Str("帧们".into()), crate::list_new(帧们.iter().map(|n| Val::Int(crate::jint::JInt::new(*n as i128))).collect())),
                 (Val::Str("速度".into()), Val::Float(速度)),
                 (Val::Str("循环".into()), Val::Bool(循环)),
             ]);
@@ -439,7 +439,7 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
             }
             设(&mut dd, "在播", Val::Str(名.as_str().into()));
             设(&mut dd, "累计", Val::Float(0.0));
-            设(&mut dd, "当前", Val::Int(帧们[0] as i128));
+            设(&mut dd, "当前", Val::Int(crate::jint::JInt::new(帧们[0] as i128)));
             // M197：重新播就把「播完了」清掉
             设(&mut dd, "完成", Val::Bool(false));
             Ok(args[0].clone())
@@ -458,7 +458,7 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
             let d = 字典(&args[0], "设帧", "精灵")?;
             let 号 = 整数(&args[1], "设帧", "号")?;
             let mut dd = d.borrow_mut();
-            设(&mut dd, "当前", Val::Int(号 as i128));
+            设(&mut dd, "当前", Val::Int(crate::jint::JInt::new(号 as i128)));
             Ok(Val::Bool(true))
         },
         // 更新(精灵, 间隔毫秒) —— 推进动画
@@ -488,13 +488,13 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
                 if let Some(Val::List(l)) = 取(&项, "帧们") {
                     for x in l.borrow().iter() {
                         if let Val::Int(n) = x {
-                            帧们.push(*n as i64);
+                            帧们.push(n.get() as i64);
                         }
                     }
                 }
                 let 速度 = match 取(&项, "速度") {
                     Some(Val::Float(f)) => f,
-                    Some(Val::Int(i)) => i as f64,
+                    Some(Val::Int(i)) => i.get() as f64,
                     _ => 12.0,
                 };
                 let 循环 = matches!(取(&项, "循环"), Some(Val::Bool(true)));
@@ -509,7 +509,7 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
                 _ => 0.0,
             } + 间隔;
             let mut 当前 = match 取(&dd, "当前") {
-                Some(Val::Int(i)) => i as i64,
+                Some(Val::Int(i)) => i.get() as i64,
                 _ => 帧们[0],
             };
             let mut 位 = 帧们.iter().position(|n| *n == 当前).unwrap_or(0);
@@ -534,7 +534,7 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
             }
             设(&mut dd, "累计", Val::Float(累计));
             if 变 {
-                设(&mut dd, "当前", Val::Int(当前 as i128));
+                设(&mut dd, "当前", Val::Int(crate::jint::JInt::new(当前 as i128)));
             }
             Ok(Val::Bool(变))
         },
@@ -620,12 +620,12 @@ pub(crate) fn sprite_module() -> HashMap<String, Val> {
             let 行数 = (图高 / 帧高).floor() as i64;
             let 帧数 = 列数 * 行数;
             Ok(dict_new(vec![
-                (Val::Str("列数".into()), Val::Int(列数 as i128)),
-                (Val::Str("行数".into()), Val::Int(行数 as i128)),
-                (Val::Str("帧数".into()), Val::Int(帧数 as i128)),
+                (Val::Str("列数".into()), Val::Int(crate::jint::JInt::new(列数 as i128))),
+                (Val::Str("行数".into()), Val::Int(crate::jint::JInt::new(行数 as i128))),
+                (Val::Str("帧数".into()), Val::Int(crate::jint::JInt::new(帧数 as i128))),
                 (
                     Val::Str("帧们".into()),
-                    crate::list_new((0..帧数).map(|n| Val::Int(n as i128)).collect()),
+                    crate::list_new((0..帧数).map(|n| Val::Int(crate::jint::JInt::new(n as i128))).collect()),
                 ),
             ]))
         },
@@ -726,8 +726,8 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                 (Val::Str("瓦片宽".into()), Val::Float(宽)),
                 (Val::Str("瓦片高".into()), Val::Float(高)),
                 (Val::Str("行们".into()), 二维值(&行们)),
-                (Val::Str("列数".into()), Val::Int(列数)),
-                (Val::Str("行数".into()), Val::Int(行们.len() as i128)),
+                (Val::Str("列数".into()), Val::Int(crate::jint::JInt::new(列数))),
+                (Val::Str("行数".into()), Val::Int(crate::jint::JInt::new(行们.len() as i128))),
             ]))
         },
         // ---- M208：瓦片动画 -------------------------------------------------
@@ -774,10 +774,10 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
 
             let 条 = dict_new(vec![
                 (Val::Str("帧们".into()), crate::list_new(
-                    帧们.iter().map(|n| Val::Int(*n as i128)).collect())),
+                    帧们.iter().map(|n| Val::Int(crate::jint::JInt::new(*n as i128))).collect())),
                 (Val::Str("帧率".into()), Val::Float(帧率)),
                 (Val::Str("累计".into()), Val::Float(0.0)),
-                (Val::Str("序".into()), Val::Int(0)),
+                (Val::Str("序".into()), Val::Int(crate::jint::JInt::new(0))),
             ]);
             // 动画表不存在就建一个（`dict_set` 覆盖旧值，重复加同一号就是改动画）
             let 表 = {
@@ -795,7 +795,7 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                     }
                 }
             };
-            dict_set(&mut 表.borrow_mut(), Val::Int(编号 as i128), 条);
+            dict_set(&mut 表.borrow_mut(), Val::Int(crate::jint::JInt::new(编号 as i128)), 条);
             Ok(Val::Bool(true))
         },
         // 更新动画(瓦片图, 秒)
@@ -811,7 +811,7 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
             }
             let 表 = match { 取(&d.borrow(), "动画") } {
                 Some(Val::Dict(b)) => b,
-                _ => return Ok(Val::Int(0)),
+                _ => return Ok(Val::Int(crate::jint::JInt::new(0))),
             };
             let 项们: Vec<(Val, std::rc::Rc<RefCell<crate::Dict>>)> = 表
                 .borrow()
@@ -843,17 +843,17 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                 // `floor` 一次跨多帧也照样对（一帧 100ms、帧率 30 时会跳 3 帧）
                 let 跳 = 累计.floor();
                 let 序 = match 取(&c, "序") {
-                    Some(Val::Int(i)) => i as i64,
+                    Some(Val::Int(i)) => i.get() as i64,
                     _ => 0,
                 };
                 let 新序 = (序 + 跳 as i64).rem_euclid(帧数 as i64);
                 dict_set(&mut c, Val::Str("累计".into()), Val::Float(累计 - 跳));
-                dict_set(&mut c, Val::Str("序".into()), Val::Int(新序 as i128));
+                dict_set(&mut c, Val::Str("序".into()), Val::Int(crate::jint::JInt::new(新序 as i128)));
                 if 跳 > 0.0 {
                     动了 += 1;
                 }
             }
-            Ok(Val::Int(动了 as i128))
+            Ok(Val::Int(crate::jint::JInt::new(动了 as i128)))
         },
         // 动画帧(瓦片图, 编号) → 现在该显示的号（没动画就是原号）
         "动画帧" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -861,7 +861,7 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
             let d = 字典(&args[0], "动画帧", "瓦片图")?;
             let 编号 = 整数(&args[1], "动画帧", "编号")?;
             let 映 = 动画映射(&d.borrow());
-            Ok(Val::Int(*映.get(&编号).unwrap_or(&编号) as i128))
+            Ok(Val::Int(crate::jint::JInt::new(*映.get(&编号).unwrap_or(&编号) as i128)))
         },
         // 画(瓦片图, 相机?) —— 相机 {"x","y","宽","高"}（世界坐标 + 视口大小）
         "画" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -926,7 +926,7 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                     画了 += 1;
                 }
             }
-            Ok(Val::Int(画了 as i128))
+            Ok(Val::Int(crate::jint::JInt::new(画了 as i128)))
         },
         // 碰(瓦片图, {"x","y","宽","高"}) → 命中的瓦片号（去重、升序）
         "碰" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -966,7 +966,7 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                 }
             }
             中.sort_unstable();
-            Ok(crate::list_new(中.into_iter().map(|n| Val::Int(n as i128)).collect()))
+            Ok(crate::list_new(中.into_iter().map(|n| Val::Int(crate::jint::JInt::new(n as i128))).collect()))
         },
         // 取(瓦片图, 列, 行) → 号（越界 / 空 = -1）
         "取" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -986,7 +986,7 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                 }
                 None => -1,
             };
-            Ok(Val::Int(号 as i128))
+            Ok(Val::Int(crate::jint::JInt::new(号 as i128)))
         },
 
         // ---- M197：碰撞层 / 斜坡 / 矩形取格 / 最近可走格 --------------------
@@ -1025,7 +1025,7 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                 (Val::Str("图".into()), Val::Dict(d.clone())),
                 (
                     Val::Str("实心".into()),
-                    crate::list_new(号们.into_iter().map(|n| Val::Int(n as i128)).collect()),
+                    crate::list_new(号们.into_iter().map(|n| Val::Int(crate::jint::JInt::new(n as i128))).collect()),
                 ),
             ]))
         },
@@ -1047,7 +1047,7 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                     .borrow()
                     .iter()
                     .filter_map(|v| match v {
-                        Val::Int(n) => Some(*n as i64),
+                        Val::Int(n) => Some(n.get() as i64),
                         _ => None,
                     })
                     .collect(),
@@ -1121,8 +1121,8 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
             need("取矩形内瓦片", args, 2)?;
             let d = 字典(&args[0], "取矩形内瓦片", "瓦片图")?;
             let dd = d.borrow();
-            let 宽 = 数(&取(&dd, "瓦片宽").unwrap_or(Val::Int(1)), "取矩形内瓦片", "瓦片宽")?;
-            let 高 = 数(&取(&dd, "瓦片高").unwrap_or(Val::Int(1)), "取矩形内瓦片", "瓦片高")?;
+            let 宽 = 数(&取(&dd, "瓦片宽").unwrap_or(Val::Int(crate::jint::JInt::new(1))), "取矩形内瓦片", "瓦片宽")?;
+            let 高 = 数(&取(&dd, "瓦片高").unwrap_or(Val::Int(crate::jint::JInt::new(1))), "取矩形内瓦片", "瓦片高")?;
             let 行们 = 二维(&取(&dd, "行们").unwrap_or(Val::None_), "取矩形内瓦片", "行们")?;
             drop(dd);
             let 矩 = 字典(&args[1], "取矩形内瓦片", "矩形")?;
@@ -1148,9 +1148,9 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                 for c in c0..=c1 {
                     match 行.get(c as usize) {
                         Some(号) => 出.push(crate::dict_new(vec![
-                            (Val::Str("列".into()), Val::Int(c as i128)),
-                            (Val::Str("行".into()), Val::Int(r as i128)),
-                            (Val::Str("号".into()), Val::Int(*号 as i128)),
+                            (Val::Str("列".into()), Val::Int(crate::jint::JInt::new(c as i128))),
+                            (Val::Str("行".into()), Val::Int(crate::jint::JInt::new(r as i128))),
+                            (Val::Str("号".into()), Val::Int(crate::jint::JInt::new(*号 as i128))),
                         ])),
                         None => break,
                     }
@@ -1162,8 +1162,8 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
             need("最近可走格", args, 4)?;
             let d = 字典(&args[0], "最近可走格", "瓦片图")?;
             let c = 字典(&args[1], "最近可走格", "碰撞层")?;
-            let 宽 = 数(&取(&d.borrow(), "瓦片宽").unwrap_or(Val::Int(1)), "最近可走格", "瓦片宽")?;
-            let 高 = 数(&取(&d.borrow(), "瓦片高").unwrap_or(Val::Int(1)), "最近可走格", "瓦片高")?;
+            let 宽 = 数(&取(&d.borrow(), "瓦片宽").unwrap_or(Val::Int(crate::jint::JInt::new(1))), "最近可走格", "瓦片宽")?;
+            let 高 = 数(&取(&d.borrow(), "瓦片高").unwrap_or(Val::Int(crate::jint::JInt::new(1))), "最近可走格", "瓦片高")?;
             let 行们 = 二维(
                 &取(&d.borrow(), "行们").unwrap_or(Val::None_),
                 "最近可走格",
@@ -1174,7 +1174,7 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                     .borrow()
                     .iter()
                     .filter_map(|v| match v {
-                        Val::Int(n) => Some(*n as i64),
+                        Val::Int(n) => Some(n.get() as i64),
                         _ => None,
                     })
                     .collect(),
@@ -1204,8 +1204,8 @@ pub(crate) fn tile_module() -> HashMap<String, Val> {
                             continue;
                         }
                         return Ok(crate::dict_new(vec![
-                            (Val::Str("列".into()), Val::Int(cc as i128)),
-                            (Val::Str("行".into()), Val::Int(r as i128)),
+                            (Val::Str("列".into()), Val::Int(crate::jint::JInt::new(cc as i128))),
+                            (Val::Str("行".into()), Val::Int(crate::jint::JInt::new(r as i128))),
                             (Val::Str("x".into()), Val::Float((cc as f64 + 0.5) * 宽)),
                             (Val::Str("y".into()), Val::Float((r as f64 + 0.5) * 高)),
                         ]));
@@ -1266,7 +1266,7 @@ pub(crate) fn map_module() -> HashMap<String, Val> {
                 for l in 层们.borrow().iter() {
                     if let Val::Dict(ld) = l {
                         if let Some(Val::Str(n)) = 取(&ld.borrow(), "名") {
-                            if n.as_ref() == 名 {
+                            if &*n == 名 {
                                 return Ok(l.clone());
                             }
                         }
@@ -1343,7 +1343,7 @@ pub(crate) fn map_module() -> HashMap<String, Val> {
                     Some(x) => x,
                     None => {
                         let 空行: Vec<Val> = (0..高)
-                            .map(|_| crate::list_new(vec![Val::Int(-1); 宽 as usize]))
+                            .map(|_| crate::list_new(vec![Val::Int(crate::jint::JInt::new(-1)); 宽 as usize]))
                             .collect();
                         层们.push(dict_new(vec![
                             (Val::Str("名".into()), Val::Str(名.as_str().into())),
@@ -1394,7 +1394,7 @@ pub(crate) fn map_module() -> HashMap<String, Val> {
                     let mut 行: Vec<Val> = Vec::with_capacity(宽 as usize);
                     for c0 in 0..宽 as usize {
                         let g = gid们[r * 宽 as usize + c0];
-                        行.push(Val::Int(if g == 0 { -1 } else { g - 首gid } as i128));
+                        行.push(Val::Int(crate::jint::JInt::new(if g == 0 { -1 } else { g - 首gid } as i128)));
                     }
                     行们.push(crate::list_new(行));
                 }
@@ -1500,7 +1500,7 @@ pub(crate) fn map_module() -> HashMap<String, Val> {
                             .as_ref()
                             .and_then(|cs| cs.get(c))
                             .and_then(|v| match v {
-                                Val::Int(n) => Some(*n as i64),
+                                Val::Int(n) => Some(n.get() as i64),
                                 _ => None,
                             })
                             .unwrap_or(-1);
@@ -1569,7 +1569,7 @@ pub(crate) fn map_module() -> HashMap<String, Val> {
             let 路 = a星(&行们, 起, 终, &实心);
             Ok(crate::list_new(
                 路.into_iter()
-                    .map(|(c, r)| crate::list_new(vec![Val::Int(c as i128), Val::Int(r as i128)]))
+                    .map(|(c, r)| crate::list_new(vec![Val::Int(crate::jint::JInt::new(c as i128)), Val::Int(crate::jint::JInt::new(r as i128))]))
                     .collect(),
             ))
         },
@@ -1843,7 +1843,7 @@ pub(crate) fn save_module() -> HashMap<String, Val> {
                 )?;
             }
             super::browser::host_call("删本地", &[Val::Str(索引键.into())])?;
-            Ok(Val::Int(名们.len() as i128))
+            Ok(Val::Int(crate::jint::JInt::new(名们.len() as i128)))
         },
 
         // ---- M197：槽们 / 自动存 -------------------------------------------
@@ -2209,7 +2209,7 @@ pub(crate) fn particle_module() -> HashMap<String, Val> {
                 // `种子` 是用户给的那个数（给人看）；`状态` 是**跑着的随机状态**，
                 // 存成十进制文本 —— 它要跨 2^53，而三宿主里只有 Rust/Python 有
                 // 大整数；文本是本文件里唯一「三边都精确」的写法。
-                (Val::Str("种子".into()), Val::Int(种 as i128)),
+                (Val::Str("种子".into()), Val::Int(crate::jint::JInt::new(种 as i128))),
                 (Val::Str("状态".into()), Val::Str(种.to_string().into())),
             ]))
         },
@@ -2299,7 +2299,7 @@ pub(crate) fn particle_module() -> HashMap<String, Val> {
             }
             dict_set(&mut d.borrow_mut(), Val::Str("状态".into()),
                      Val::Str(种.to_string().into()));
-            Ok(Val::Int(n as i128))
+            Ok(Val::Int(crate::jint::JInt::new(n as i128)))
         },
         // 更新(系统, 秒) → 还活着几个
         "更新" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -2340,14 +2340,14 @@ pub(crate) fn particle_module() -> HashMap<String, Val> {
                 },
                 _ => false,
             });
-            Ok(Val::Int(表.len() as i128))
+            Ok(Val::Int(crate::jint::JInt::new(表.len() as i128)))
         },
         // 数量(系统)
         "数量" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("数量", args, 1)?;
             let d = 字典(&args[0], "数量", "粒子系统")?;
             match { 取(&d.borrow(), "粒子们") } {
-                Some(Val::List(l)) => Ok(Val::Int(l.borrow().len() as i128)),
+                Some(Val::List(l)) => Ok(Val::Int(crate::jint::JInt::new(l.borrow().len() as i128))),
                 _ => Err(err("值错误", "这个字典不是粒子系统 —— `粒子.新建()` 的返回值才认")),
             }
         },
@@ -2362,7 +2362,7 @@ pub(crate) fn particle_module() -> HashMap<String, Val> {
             let mut 表 = 列.borrow_mut();
             let n = 表.len();
             表.clear();
-            Ok(Val::Int(n as i128))
+            Ok(Val::Int(crate::jint::JInt::new(n as i128)))
         },
         // 画(系统) → 画了几个（走 M207 的 `图形.批量`，一次通道）
         "画" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
@@ -2412,11 +2412,11 @@ pub(crate) fn particle_module() -> HashMap<String, Val> {
                 }
             }
             if 图元.is_empty() {
-                return Ok(Val::Int(0));
+                return Ok(Val::Int(crate::jint::JInt::new(0)));
             }
             let json = format!("[{}]", 图元.join(","));
             调("批量", &[Val::Str(json.into())])?;
-            Ok(Val::Int(图元.len() as i128))
+            Ok(Val::Int(crate::jint::JInt::new(图元.len() as i128)))
         },
     }
 }

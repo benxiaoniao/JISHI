@@ -100,7 +100,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let mut 小 = 0f64;
             for x in &items {
                 match x {
-                    Val::Int(i) => { 整 += i; }
+                    Val::Int(i) => { 整 += i.get(); }
                     Val::Bool(b) => { 整 += if *b { 1 } else { 0 }; }
                     Val::Float(f) => { 小 += f; 有小数 = true; }
                     other => {
@@ -114,7 +114,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             if 有小数 {
                 Ok(Val::Float(小 + 整 as f64))
             } else {
-                Ok(Val::Int(整))
+                Ok(Val::Int(crate::jint::JInt::new(整)))
             }
         },
         "计数" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
@@ -127,7 +127,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     n += 1;
                 }
             }
-            Ok(Val::Int(n))
+            Ok(Val::Int(crate::jint::JInt::new(n)))
         },
         // M106 补：`归约` / `分区`（行为与基石库层 `stdlib-jishi/迭代.jsh` 一致）
         "归约" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
@@ -172,7 +172,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "累积" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("累积", args, 1, 2)?;
             let items = to_vec(&args[0])?;
-            let mut acc = if args.len() > 1 { args[1].clone() } else { Val::Int(0) };
+            let mut acc = if args.len() > 1 { args[1].clone() } else { Val::Int(crate::jint::JInt::new(0)) };
             let mut out: Vec<Val> = Vec::with_capacity(items.len());
             for x in items {
                 // 用基石自己的 `+`（文本拼接、列表相加都算数），不是数值加法

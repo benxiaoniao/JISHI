@@ -120,7 +120,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     Some(Val::Str(s)) => s,
                     _ => continue,
                 };
-                if 路由方法.as_ref() != "*" && 路由方法.as_ref() != 方法.as_str() {
+                if &*路由方法 != "*" && &*路由方法 != 方法.as_str() {
                     continue;
                 }
                 let 路由路径 = match dict_get(&d.borrow(), &Val::Str("路径".into())) {

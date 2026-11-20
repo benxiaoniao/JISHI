@@ -112,7 +112,7 @@ fn 百分号解码(s: &str) -> String {
 /// 而这里要说清**是谁**要整数。
 fn 要整数(v: &Val, 谁: &str) -> Result<i128, JishiError> {
     match v {
-        Val::Int(i) => Ok(*i),
+        Val::Int(i) => Ok(i.get()),
         _ => Err(err("类型错误", format!("{谁}要是整数"))),
     }
 }
@@ -390,8 +390,8 @@ fn 起服务(
         }
     }
     Ok(dict_new(vec![
-        (Val::Str("端口".into()), Val::Int(实际)),
-        (Val::Str("请求数".into()), Val::Int(收到)),
+        (Val::Str("端口".into()), Val::Int(crate::jint::JInt::new(实际))),
+        (Val::Str("请求数".into()), Val::Int(crate::jint::JInt::new(收到))),
     ]))
 }
 
@@ -446,7 +446,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     .map_err(|e| err("运行期错误", format!("问不到空闲端口：{e}")))?;
                 let p = l.local_addr().map(|a| a.port()).unwrap_or(0);
                 drop(l);
-                return Ok(Val::Int(p as i128));
+                return Ok(Val::Int(crate::jint::JInt::new(p as i128)));
             }
             #[cfg(target_arch = "wasm32")]
             {

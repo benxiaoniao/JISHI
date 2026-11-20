@@ -56,7 +56,7 @@ fn 取字典(v: &Val, 键: &str) -> Option<Val> {
 
 fn 到数(v: &Val) -> Option<f64> {
     match v {
-        Val::Int(i) => Some(*i as f64),
+        Val::Int(i) => Some(i.get() as f64),
         Val::Float(f) => Some(*f),
         _ => None,
     }
@@ -106,7 +106,7 @@ fn 当前内容(v: &Val) -> Result<Rc<std::cell::RefCell<Vec<Val>>>, crate::Jish
 
 fn 要数(v: &Val, 谁: &str, 名: &str) -> Result<f64, crate::JishiError> {
     match v {
-        Val::Int(i) => Ok(*i as f64),
+        Val::Int(i) => Ok(i.get() as f64),
         Val::Float(f) => {
             if !f.is_finite() {
                 return Err(err("值错误", format!("「{谁}」的 {名} 不能是 NaN 或无穷")));
@@ -147,7 +147,7 @@ fn 要颜色(v: Option<&Val>, 谁: &str) -> Result<(f64, f64, f64), crate::Jishi
     let mut 出 = [0.0f64; 3];
     for (i, x) in 项.iter().enumerate() {
         let f = match x {
-            Val::Int(v) => *v as f64,
+            Val::Int(v) => v.get() as f64,
             Val::Float(v) => *v,
             other => {
                 return Err(err(
@@ -1417,7 +1417,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let 页 = crate::dict_new(vec![(字("内容"), crate::list_new(Vec::new()))]);
             页们.borrow_mut().push(页);
             let 数 = 页们.borrow().len();
-            Ok(Val::Int(数 as i128))
+            Ok(Val::Int(crate::jint::JInt::new(数 as i128)))
         },
         "写文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("写文本", args, 2, 5)?;
@@ -1568,7 +1568,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         },
         "页数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("页数", args, 1, 1)?;
-            Ok(Val::Int(打开(&as_text(&args[0]))?.len() as i128))
+            Ok(Val::Int(crate::jint::JInt::new(打开(&as_text(&args[0]))?.len() as i128)))
         },
         "读文本" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("读文本", args, 1, 1)?;
@@ -1580,7 +1580,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 })
                 .collect();
             Ok(crate::dict_new(vec![
-                (字("页数"), Val::Int(页值.len() as i128)),
+                (字("页数"), Val::Int(crate::jint::JInt::new(页值.len() as i128))),
                 (字("页们"), crate::list_new(页值)),
             ]))
         },

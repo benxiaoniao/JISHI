@@ -62,7 +62,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let mut 出: Vec<(Val, Val)> = Vec::new();
             for (i, v) in items.iter().enumerate() {
                 if 见过.insert(display(v), ()).is_none() {
-                    出.push((v.clone(), Val::Int(i as i128)));
+                    出.push((v.clone(), Val::Int(crate::jint::JInt::new(i as i128))));
                 }
             }
             Ok(dict_new(出))
@@ -77,7 +77,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             Ok(dict_new(
                 count_pairs(&items)
                     .into_iter()
-                    .map(|(k, n)| (k, Val::Int(n)))
+                    .map(|(k, n)| (k, Val::Int(crate::jint::JInt::new(n))))
                     .collect(),
             ))
         },
@@ -101,7 +101,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 pairs
                     .into_iter()
                     .take(n as usize)
-                    .map(|(k, c)| list_new(vec![k, Val::Int(c)]))
+                    .map(|(k, c)| list_new(vec![k, Val::Int(crate::jint::JInt::new(c))]))
                     .collect(),
             ))
         },

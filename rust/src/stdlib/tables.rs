@@ -348,7 +348,7 @@ fn 数值们(值们: &[Val], 列名: &str, 谁: &str) -> Result<Vec<f64>, JishiE
             continue;
         }
         let f = match v {
-            Val::Int(i) => *i as f64,
+            Val::Int(i) => i.get() as f64,
             Val::Float(f) => *f,
             Val::Bool(b) => {
                 if *b {
@@ -390,9 +390,9 @@ fn 聚合(
     谁: &str,
 ) -> Result<Option<Val>, JishiError> {
     if 方式 == "计数" {
-        return Ok(Some(Val::Int(
+        return Ok(Some(Val::Int(crate::jint::JInt::new(
             值们.iter().filter(|v| !缺失(v)).count() as i128
-        )));
+        ))));
     }
     let 数 = 数值们(值们, 列名, 谁)?;
     if 数.is_empty() {
@@ -631,7 +631,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
             let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
             let pairs = vec![
-                (Val::Str("个数".into()), Val::Int(count as i128)),
+                (Val::Str("个数".into()), Val::Int(crate::jint::JInt::new(count as i128))),
                 (Val::Str("总和".into()), Val::Float(total)),
                 (Val::Str("平均".into()), Val::Float(avg)),
                 (Val::Str("最大".into()), Val::Float(max)),
@@ -680,7 +680,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 out.push((
                     k,
                     crate::dict_new(vec![
-                        (Val::Str("个数".into()), Val::Int(count as i128)),
+                        (Val::Str("个数".into()), Val::Int(crate::jint::JInt::new(count as i128))),
                         (Val::Str("总和".into()), Val::Float(total)),
                         (Val::Str("平均".into()), Val::Float(total / count as f64)),
                         (
@@ -1121,7 +1121,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let 归一 = |v: &Val, 默认: i128| -> Result<usize, JishiError> {
                 let mut i = match v {
                     Val::None_ => 默认,
-                    Val::Int(x) => *x,
+                    Val::Int(x) => x.get(),
                     other => as_text(other).parse::<i128>().map_err(|_| {
                         err("类型错误", format!("「切片行」的行号要是整数，给的是「{}」", display(other)))
                     })?,
@@ -1207,7 +1207,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     };
                     let 数值 = |v: &Val| -> Option<f64> {
                         match v {
-                            Val::Int(x) => Some(*x as f64),
+                            Val::Int(x) => Some(x.get() as f64),
                             Val::Float(f) => Some(*f),
                             Val::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
                             Val::Str(s) => s.trim().parse::<f64>().ok(),
@@ -1218,7 +1218,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                         "文本" => Val::Str(display(&v).into()),
                         "整数" => {
                             let f = 数值(&v).ok_or_else(|| 转不了(&v))?;
-                            Val::Int(f as i128)
+                            Val::Int(crate::jint::JInt::new(f as i128))
                         }
                         _ => {
                             let f = 数值(&v).ok_or_else(|| 转不了(&v))?;
@@ -1362,7 +1362,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 for (k, js) in &桶 {
                     rows.push(vec![
                         Val::Str(k.as_str().into()),
-                        Val::Int(js.len() as i128),
+                        Val::Int(crate::jint::JInt::new(js.len() as i128)),
                     ]);
                 }
                 return Ok(table_new(headers, rows));

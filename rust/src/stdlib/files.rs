@@ -123,7 +123,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("文件错误", format!("打开「{p}」准备追加失败：{e}")))?;
             f.write_all(&内容)
                 .map_err(|e| err("文件错误", format!("往「{p}」追加字节失败：{e}")))?;
-            Ok(Val::Int(内容.len() as i128))
+            Ok(Val::Int(crate::jint::JInt::new(内容.len() as i128)))
         },
         // 🔴 M199 / B1：批量追加。逐行 `追加文本` 每行**开关一次文件**
         //    （`基石数据库` 的 WAL 实测 0.2 ms/次，建索引时是主要开销）。
@@ -250,7 +250,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need("文件大小", args, 1)?;
             let p = as_text(&args[0]);
             match fs::metadata(&p) {
-                Ok(m) if m.is_file() => Ok(Val::Int(m.len() as i128)),
+                Ok(m) if m.is_file() => Ok(Val::Int(crate::jint::JInt::new(m.len() as i128))),
                 _ => Err(err("文件错误", format!("找不到文件「{p}」，没法获取大小"))),
             }
         },

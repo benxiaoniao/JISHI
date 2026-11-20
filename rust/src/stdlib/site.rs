@@ -103,7 +103,7 @@ fn 取(d: &Val, key: &str) -> Result<Option<Val>, crate::JishiError> {
         Val::Dict(m) => Ok(m
             .borrow()
             .iter()
-            .find(|(k, _)| matches!(k, Val::Str(s) if s.as_ref() == key))
+            .find(|(k, _)| matches!(k, Val::Str(s) if &**s == key))
             .map(|(_, v)| v.clone())),
         other => Err(err(
             "类型错误",
@@ -496,7 +496,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 return Err(err("运行期错误", format!("写文件失败：{e}")));
             }
             Ok(crate::dict_new(vec![
-                (Val::Str("页面数".into()), Val::Int(页数)),
+                (Val::Str("页面数".into()), Val::Int(crate::jint::JInt::new(页数))),
                 (Val::Str("样式文件".into()), Val::Str(真名.into())),
                 (Val::Str("指纹".into()), Val::Str(印.into())),
                 (Val::Str("sitemap".into()), Val::Str("sitemap.xml".into())),

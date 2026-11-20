@@ -14,6 +14,7 @@ mod gbk_table;   // M204：GBK 码表（生成物，见 tools/gen_gbk_table.py�
 pub mod pngdec;  // M205：PNG 解码（自己的，替掉 `png` crate；托盘/窗口图标用）
 pub mod pngenc;  // M207：PNG 编码（`图形.截图`；stored 块，不压缩也合法）
 mod fasthash;   // M212：字典/集合的快哈希（FxHash 风格 + 进程随机种子）
+mod jint;       // M214：整数的「对齐 8」存储壳（语义仍是 i128，Val 32 → 24）
 mod http;
 mod inflate;
 pub mod json;
@@ -446,11 +447,15 @@ pub(crate) fn builtin(name: &'static str,
 pub(crate) enum Val {
     None_,
     Bool(bool),
-    // i128 而不是 i64（M32）：i64 装不下 `2 ** 62`、`2 ** 64` 这些常见写法，
+    // 语义是 i128（M32）：i64 装不下 `2 ** 62`、`2 ** 64` 这些常见写法，
     // 而且溢出会**静默回绕**（`9223372036854775807 + 1` 变成负数）——那是最
     // 危险的一类错。i128 覆盖到约 1.7e38，超出时明确报错而不是给错值。
-    // 真正的任意精度整数留待需要时再做（Python/JS 侧是任意精度的）。
-    Int(i128),
+    //
+    // 🔴 M214：**存的不是裸 `i128`，而是 `JInt`**（同一份 16 字节，但对齐 8）。
+    //    裸 `i128` 的对齐是 16 ⇒ 整个 `Val` 被顶到 32 字节；`JInt` 对齐 8
+    //    ⇒ `Val` 24（25% 的复制量就这么省下来的，见 `jint.rs` 的说明）。
+    //    语义**一点没变**（还是 i128 范围、还是超界报错），只是壳子。
+    Int(jint::JInt),
     Float(f64),
     /// 🔴 M165b：**`Rc<str>` 而不是 `String`**。
     ///
@@ -615,7 +620,14 @@ fn dict_key(v: &Val) -> Option<DictKey> {
         // 哈希必须跟着一致，否则 `d[真]` 与 `d[1]` 会裂成两个键。
         // Node 侧的 `setKey` 一直这么做（注释里写着「Python 里 True == 1」）。
         Val::Bool(b) => Some(DictKey::Int(if *b { 1 } else { 0 })),
-        Val::Int(i) if i.abs() < INT_KEY_LIMIT => Some(DictKey::Int(*i)),
+        Val::Int(i) => {
+            let n = i.get();
+            if n.abs() < INT_KEY_LIMIT {
+                Some(DictKey::Int(n))
+            } else {
+                None
+            }
+        }
         Val::Float(f) => {
             // `-0.0 == 0.0` 为真，所以先归一到正零
             let f = if *f == 0.0 { 0.0 } else { *f };
@@ -645,7 +657,7 @@ fn set_key(v: &Val) -> Option<DictKey> {
     match v {
         Val::None_ => Some(DictKey::None_),
         Val::Bool(b) => Some(DictKey::Int(if *b { 1 } else { 0 })),  // 见 `dict_key`
-        Val::Int(i) => Some(DictKey::Int(*i)),
+        Val::Int(i) => Some(DictKey::Int(i.get())),
         Val::Float(f) => {
             if f.is_nan() {
                 return None;
@@ -1342,7 +1354,7 @@ fn file_call(name: &str, f: Rc<RefCell<FileHandle>>,
             need_args(name, args, 0, 0)?;
             let mut h = f.borrow_mut();
             h.check(name)?;
-            Ok(Val::Int(h.tell()? as i128))
+            Ok(Val::Int(crate::jint::JInt::new(h.tell()? as i128)))
         }
         "定位" => {
             need_args(name, args, 1, 1)?;
@@ -2453,8 +2465,8 @@ impl VM {
         let mut 值 = [0i64; 3];
         for (i, v) in 实参.iter().enumerate() {
             match v {
-                Val::Int(x) if *x >= i64::MIN as i128 && *x <= i64::MAX as i128 => {
-                    值[i] = *x as i64;
+                Val::Int(x) if x.get() >= i64::MIN as i128 && x.get() <= i64::MAX as i128 => {
+                    值[i] = x.get() as i64;
                 }
                 _ => return None,
             }
@@ -2501,7 +2513,7 @@ impl VM {
         let (v, 标志) = x.调用(值, self.frames.len());
         // — 闸 3：溢出等去优化 ⇒ 丢掉结果，走解释器 —
         if 标志 == 0 {
-            Some(Val::Int(v as i128))
+            Some(Val::Int(crate::jint::JInt::new(v as i128)))
         } else {
             let n = 去优化次数.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
             if std::env::var("JISHI_JIT_DEBUG").is_ok() && n <= 10 {
@@ -2727,7 +2739,7 @@ impl VM {
                 // 按**编译期定下来的类型**收值：整数进 i64，浮点进它的位模式。
                 // 类型对不上就整段不进（编译时是按「当前值的类型」定型的）。
                 match (计划, 取到) {
-                    (crate::jit::类型::整数, Some(Val::Int(x))) => match i64::try_from(*x) {
+                    (crate::jit::类型::整数, Some(Val::Int(x))) => match i64::try_from(x.get()) {
                         Ok(y) => 值.push(y),
                         // 超出 i64：机器码只做 64 位算术，这一圈交给解释器
                         Err(_) => {
@@ -2786,7 +2798,7 @@ impl VM {
             元素.push(个数 as i64);
             for v in 列.iter().skip(起点) {
                 match v {
-                    Val::Int(x) => match i64::try_from(*x) {
+                    Val::Int(x) => match i64::try_from(x.get()) {
                         Ok(y) => 元素.push(y),
                         Err(_) => {
                             if self.jit.调试么() {
@@ -2857,7 +2869,7 @@ impl VM {
     ) {
         for (k, 槽) in 槽们.iter().enumerate() {
             let 新值 = match 槽型[k] {
-                crate::jit::类型::整数 => Val::Int(值[k] as i128),
+                crate::jit::类型::整数 => Val::Int(crate::jint::JInt::new(值[k] as i128)),
                 crate::jit::类型::浮点 => Val::Float(f64::from_bits(值[k] as u64)),
             };
             match 槽 {
@@ -3592,8 +3604,8 @@ impl VM {
                 }
                 op::LOOP_SETUP => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    let n = match v { Val::Int(i) => i, Val::Float(f) => f as i128, _ => return Err(err("类型错误", format!("「{}」不是有效的循环次数", display(&v)))) };
-                    self.frames[fi].locals[ins.a as usize] = Val::Int(n);
+                    let n = match v { Val::Int(i) => i.get(), Val::Float(f) => f as i128, _ => return Err(err("类型错误", format!("「{}」不是有效的循环次数", display(&v)))) };
+                    self.frames[fi].locals[ins.a as usize] = Val::Int(crate::jint::JInt::new(n));
                     self.frames[fi].locals_set[ins.a as usize] = true;
                 }
                 op::SETUP_TRY => {
@@ -4211,7 +4223,7 @@ pub(crate) fn truthy(v: Val) -> bool {
     match v {
         Val::None_ => false,
         Val::Bool(b) => b,
-        Val::Int(i) => i != 0,
+        Val::Int(i) => i.get() != 0,
         Val::Float(f) => f != 0.0,
         Val::Str(s) => !s.is_empty(),
         // 字节（M113）：空字节是假（与 Python 的 `bool(b"")` 一致）。
@@ -4467,9 +4479,9 @@ pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
         // 整数加减乘用 checked：i128 也会到边界，release 模式下溢出是
         // **静默回绕**（给一个错的数）。到边界就报错——本宿主不做任意精度，
         // 但也绝不悄悄给错值（M32）。
-        0 => match (l, r) { (Int(a), Int(b)) => Int(big_ok(a.checked_add(b))?), (a, b) => numeric_add(a, b)? },
-        1 => match (l, r) { (Int(a), Int(b)) => Int(big_ok(a.checked_sub(b))?), (a, b) => numeric_sub(a, b)? },
-        2 => match (l, r) { (Int(a), Int(b)) => Int(big_ok(a.checked_mul(b))?), (a, b) => numeric_mul(a, b)? },
+        0 => match (l, r) { (Int(a), Int(b)) => { let (a, b) = (a.get(), b.get()); Int(crate::jint::JInt::new(big_ok(a.checked_add(b))?)) }, (a, b) => numeric_add(a, b)? },
+        1 => match (l, r) { (Int(a), Int(b)) => { let (a, b) = (a.get(), b.get()); Int(crate::jint::JInt::new(big_ok(a.checked_sub(b))?)) }, (a, b) => numeric_sub(a, b)? },
+        2 => match (l, r) { (Int(a), Int(b)) => { let (a, b) = (a.get(), b.get()); Int(crate::jint::JInt::new(big_ok(a.checked_mul(b))?)) }, (a, b) => numeric_mul(a, b)? },
         // ⚠️ 除零的**消息是空的**（Python 侧就是 `RunZeroDivisionError("")`）：
         // 标题已经是「不能除以零」，再来一条同义的消息会让 `e.消息` 与三个
         // Python 执行器不一样（R6.2 对齐）。渲染那边本来就会跳过空消息。
@@ -4481,8 +4493,8 @@ pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
         // 顺带也快：省掉「转 f64 → 算 → 转回来」三轮转换。
         4 => match (&l, &r) {
             (Int(a), Int(b)) => {
-                if *b == 0 { return Err(err("除零错误", "")); }
-                Int(floor_div(*a, *b)?)
+                if b.get() == 0 { return Err(err("除零错误", "")); }
+                Int(crate::jint::JInt::new(floor_div(a.get(), b.get())?))
             }
             // 有浮点参与时结果仍是浮点（Python `7.5 // 2` 是 `3.0`，不是 `3`）
             _ => {
@@ -4493,8 +4505,8 @@ pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
         },
         5 => match (&l, &r) {
             (Int(a), Int(b)) => {
-                if *b == 0 { return Err(err("除零错误", "")); }
-                Int(floor_mod(*a, *b)?)
+                if b.get() == 0 { return Err(err("除零错误", "")); }
+                Int(crate::jint::JInt::new(floor_mod(a.get(), b.get())?))
             }
             _ => {
                 let (a, b) = to_num_pair_op(l, r, "%")?;
@@ -4507,6 +4519,7 @@ pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
             // 而不是 float（M32）。用快速幂，免得 `1 ** 1000000000` 这类
             // 退化成十亿次循环；真溢出时由 big_ok 报错。
             if let (Int(a), Int(b)) = (l.clone(), r.clone()) {
+                let (a, b) = (a.get(), b.get());
                 if b >= 0 {
                     let mut base = a;
                     let mut e = b as u128;
@@ -4516,7 +4529,7 @@ pub(crate) fn binop(op: i64, l: Val, r: Val) -> Result<Val, JishiError> {
                         e >>= 1;
                         if e > 0 { base = big_ok(base.checked_mul(base))?; }
                     }
-                    return Ok(Int(acc));
+                    return Ok(Int(crate::jint::JInt::new(acc)));
                 }
             }
             let (a, b) = to_num_pair(l, r)?;
@@ -4557,7 +4570,7 @@ fn numeric_add(a: Val, b: Val) -> Result<Val, JishiError> {
     // 副本（只在出错的那条路上才会用到）。
     let (la, lb) = (a.clone(), b.clone());
     match (a, b) {
-        (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x as f64 + y)),
+        (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x.get() as f64 + y)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x + y)),
         (Val::Str(x), Val::Str(y)) => Ok(Val::Str(format!("{x}{y}").into())),
         // 字节（M113）：只能字节拼字节 —— 与文本拼会掉到 `_` 那条报错（D79 §三）
@@ -4578,8 +4591,8 @@ fn numeric_add(a: Val, b: Val) -> Result<Val, JishiError> {
 
 fn numeric_sub(a: Val, b: Val) -> Result<Val, JishiError> {
     match (a, b) {
-        (Val::Int(x), Val::Float(y)) => Ok(Val::Float(x as f64 - y)),
-        (Val::Float(x), Val::Int(y)) => Ok(Val::Float(x - y as f64)),
+        (Val::Int(x), Val::Float(y)) => Ok(Val::Float(x.get() as f64 - y)),
+        (Val::Float(x), Val::Int(y)) => Ok(Val::Float(x - y.get() as f64)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x - y)),
         _ => Err(err("类型错误", "不支持的减法")),
     }
@@ -4587,20 +4600,20 @@ fn numeric_sub(a: Val, b: Val) -> Result<Val, JishiError> {
 
 fn numeric_mul(a: Val, b: Val) -> Result<Val, JishiError> {
     match (a, b) {
-        (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x as f64 * y)),
+        (Val::Int(x), Val::Float(y)) | (Val::Float(y), Val::Int(x)) => Ok(Val::Float(x.get() as f64 * y)),
         (Val::Float(x), Val::Float(y)) => Ok(Val::Float(x * y)),
-        (Val::Str(s), Val::Int(n)) | (Val::Int(n), Val::Str(s)) => Ok(Val::Str(s.repeat(n as usize).into())),
+        (Val::Str(s), Val::Int(n)) | (Val::Int(n), Val::Str(s)) => Ok(Val::Str(s.repeat(n.get() as usize).into())),
         // 字节（M113）：重复 n 遍，n <= 0 给空字节（与 `文本 * n` 同口径）
         (Val::Bytes(b), Val::Int(n)) | (Val::Int(n), Val::Bytes(b)) => {
             let mut out: Vec<u8> = Vec::new();
-            for _ in 0..n.max(0) { out.extend_from_slice(&b); }
+            for _ in 0..n.get().max(0) { out.extend_from_slice(&b); }
             Ok(Val::Bytes(Rc::new(out)))
         }
         // `[1, 2] * 2` 同样造新列表
         (Val::List(l), Val::Int(n)) | (Val::Int(n), Val::List(l)) => {
             let src = l.borrow();
             let mut out = Vec::new();
-            for _ in 0..n.max(0) { out.extend(src.iter().cloned()); }
+            for _ in 0..n.get().max(0) { out.extend(src.iter().cloned()); }
             Ok(list_new(out))
         }
         // M155：**序列 × 非整数** —— 与 Python 侧同一条话
@@ -4640,9 +4653,9 @@ pub(crate) fn to_num_pair(a: Val, b: Val) -> Result<(f64, f64), JishiError> {
 pub(crate) fn to_num_pair_op(a: Val, b: Val, op: &str) -> Result<(f64, f64), JishiError> {
     let la = a.clone();
     let lb = b.clone();
-    let x = match a { Val::Int(i) => i as f64, Val::Float(f) => f,
+    let x = match a { Val::Int(i) => i.get() as f64, Val::Float(f) => f,
         _ => return Err(err("类型错误", arith_type_msg(&la, &lb, op))) };
-    let y = match b { Val::Int(i) => i as f64, Val::Float(f) => f,
+    let y = match b { Val::Int(i) => i.get() as f64, Val::Float(f) => f,
         _ => return Err(err("类型错误", arith_type_msg(&la, &lb, op))) };
     Ok((x, y))
 }
@@ -4665,7 +4678,7 @@ fn to_dec(v: &Val) -> Result<Dec, JishiError> {
         Val::Dec(d) => Ok((**d).clone()),
         Val::Bool(b) => Err(err("类型错误", format!(
             "布尔值「{}」不能当精确小数", if *b { "真" } else { "假" }))),
-        Val::Int(i) => Ok(Dec { coef: BigInt::from_i128(*i), exp: 0 }),
+        Val::Int(i) => Ok(Dec { coef: BigInt::from_i128(i.get()), exp: 0 }),
         Val::Float(f) => Dec::from_f64(*f).ok_or_else(|| err("类型错误",
             format!("「{f}」不能变成精确小数（不是有限数）"))),
         Val::Str(s) => Dec::parse(s).ok_or_else(|| err("类型错误",
@@ -4729,7 +4742,7 @@ fn dec_call(name: &str, d: &Dec, args: &[Val]) -> Result<Val, JishiError> {
             need_args(name, args, 0, 1)?;
             let digits = match args.first() {
                 None => 2i128,
-                Some(v) => match v { Val::Int(i) => *i, _ => return Err(err("类型错误",
+                Some(v) => match v { Val::Int(i) => i.get(), _ => return Err(err("类型错误",
                     "「舍入」的位数要是整数")) },
             };
             // 金额场景用「四舍五入」（HalfUp），而不是默认的银行家舍入——
@@ -4885,7 +4898,7 @@ fn contains(container: &Val, item: &Val) -> Result<bool, JishiError> {
             // `空字节 在 任意字节` 为真（与 Python 的 `b"" in b"abc"` 一致）
             Val::Bytes(t) => Ok(t.is_empty()
                 || b.windows(t.len()).any(|w| w == t.as_slice())),
-            Val::Int(n) => Ok((0..=255).contains(n) && b.contains(&(*n as u8))),
+            Val::Int(n) => Ok((0..=255).contains(&n.get()) && b.contains(&(n.get() as u8))),
             Val::Bool(t) => Ok(b.contains(&(if *t { 1u8 } else { 0u8 }))),
             other => Err(err("类型错误", format!(
                 "不能在字节里找「{}」，只能找某个字节值（整数 0-255）或另一串字节",
@@ -4979,13 +4992,13 @@ impl PartialEq for Val {
             // 于是 `{真, 1}` 在 Rust 上是两个元素、`真 在 [1]` 是假。
             // 语料里没有这个形状，所以全语料体检一直绿的。
             (Val::Bool(a), Val::Int(b)) | (Val::Int(b), Val::Bool(a)) => {
-                (*a as i128) == *b
+                (*a as i128) == b.get()
             }
             (Val::Bool(a), Val::Float(b)) | (Val::Float(b), Val::Bool(a)) => {
                 (if *a { 1.0 } else { 0.0 }) == *b
             }
             (Val::Int(a), Val::Int(b)) => a == b,
-            (Val::Int(a), Val::Float(b)) | (Val::Float(b), Val::Int(a)) => *a as f64 == *b,
+            (Val::Int(a), Val::Float(b)) | (Val::Float(b), Val::Int(a)) => a.get() as f64 == *b,
             (Val::Float(a), Val::Float(b)) => a == b,
             (Val::Str(a), Val::Str(b)) => a == b,
             // 字节按内容比（M113）；跨类型走到最后的 `_ => false` —— 也就是
@@ -5044,11 +5057,11 @@ impl PartialEq for Val {
 /// 一量才发现「共用的那一份」自己就是分叉源。
 pub(crate) fn unary_neg(v: Val) -> Result<Val, JishiError> {
     match v {
-        Val::Int(i) => Ok(Val::Int(-i)),
+        Val::Int(i) => Ok(Val::Int(crate::jint::JInt::new(-i.get()))),
         Val::Float(f) => Ok(Val::Float(-f)),
         Val::Dec(d) => Ok(Val::Dec(Rc::new(d.neg()))),
         // 布尔按整数取负：对齐 Python（`-True` 是 `-1`，bool 是 int 的子类）。
-        Val::Bool(b) => Ok(Val::Int(if b { -1 } else { 0 })),
+        Val::Bool(b) => Ok(Val::Int(crate::jint::JInt::new(if b { -1 } else { 0 }))),
         other => Err(err("类型错误",
             format!("「{}」不能取负号", display(&other)))),
     }
@@ -5064,7 +5077,7 @@ pub(crate) fn unary_neg(v: Val) -> Result<Val, JishiError> {
 /// 位运算混进逻辑值只会让人困惑 —— 明确报错，与 Python / JS 侧一致。
 fn as_bit_int(v: &Val, func: &str) -> Result<i128, JishiError> {
     match v {
-        Val::Int(i) => Ok(*i),
+        Val::Int(i) => Ok(i.get()),
         _ => Err(err("类型错误", format!(
             "「{}」需要整数，但收到「{}」（{}）", func, display(v), type_label(v)))),
     }
@@ -5156,14 +5169,14 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         // 类型本身不对（列表/字典/集合）→ **类型错误**。
         match &args[0] {
             Val::Int(i) => Ok(Val::Int(*i)),
-            Val::Float(f) => Ok(Val::Int(*f as i128)),
-            Val::Bool(b) => Ok(Val::Int(if *b { 1 } else { 0 })),
-            Val::Str(s) => s.parse::<i128>().map(Val::Int)
+            Val::Float(f) => Ok(Val::Int(crate::jint::JInt::new(*f as i128))),
+            Val::Bool(b) => Ok(Val::Int(crate::jint::JInt::new(if *b { 1 } else { 0 }))),
+            Val::Str(s) => s.parse::<i128>().map(|n| Val::Int(crate::jint::JInt::new(n)))
                 .map_err(|_| err("值错误", format!("「{s}」不能转成整数"))),
             // M156：**精确小数按截断取整**（向零）—— 与 `整数(8.5)` → 8、
             // 以及 Python 的 `int(Decimal("8.5"))` 同一口径。
             // 以前落进下面那条兜底，报「不能转成整数」；另外三个执行器都给 8。
-            Val::Dec(d) => d.to_i128_trunc().map(Val::Int).ok_or_else(|| err(
+            Val::Dec(d) => d.to_i128_trunc().map(|n| Val::Int(crate::jint::JInt::new(n))).ok_or_else(|| err(
                 "值错误",
                 format!("「{}」太大了，放不进整数", display(&args[0])),
             )),
@@ -5176,7 +5189,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     m.insert("小数".to_string(), crate::builtin("小数", |args, _vm| {
         need_builtin_args("小数", args, 1, 1)?;
         match &args[0] {
-            Val::Int(i) => Ok(Val::Float(*i as f64)),
+            Val::Int(i) => Ok(Val::Float(i.get() as f64)),
             Val::Float(f) => Ok(Val::Float(*f)),
             Val::Bool(b) => Ok(Val::Float(if *b { 1.0 } else { 0.0 })),
             Val::Str(s) => s.parse::<f64>().map(Val::Float)
@@ -5212,12 +5225,12 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     m.insert("长度".to_string(), crate::builtin("长度", |args, vm| {
         need_builtin_args("长度", args, 1, 1)?;
         match &args[0] {
-            Val::Str(s) => Ok(Val::Int(s.chars().count() as i128)),
-            Val::List(l) => Ok(Val::Int(l.borrow().len() as i128)),
-            Val::Dict(d) => Ok(Val::Int(d.borrow().len() as i128)),
-            Val::Set(s) => Ok(Val::Int(s.borrow().len() as i128)),
+            Val::Str(s) => Ok(Val::Int(crate::jint::JInt::new(s.chars().count() as i128))),
+            Val::List(l) => Ok(Val::Int(crate::jint::JInt::new(l.borrow().len() as i128))),
+            Val::Dict(d) => Ok(Val::Int(crate::jint::JInt::new(d.borrow().len() as i128))),
+            Val::Set(s) => Ok(Val::Int(crate::jint::JInt::new(s.borrow().len() as i128))),
             // 字节（M113）：字节个数
-            Val::Bytes(b) => Ok(Val::Int(b.len() as i128)),
+            Val::Bytes(b) => Ok(Val::Int(crate::jint::JInt::new(b.len() as i128))),
             // 定义了「迭代」的自定义对象也能求长度（M24.1）：既然能遍历，
             // 数一数有几个元素是自然的事，不必再要求作者额外写一个方法。
             Val::Instance(i) => {
@@ -5226,7 +5239,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
                     let it = vm.make_iter(args[0].clone())?;
                     let mut cur = it;
                     while iter_next(&mut cur)?.is_some() { n += 1; }
-                    Ok(Val::Int(n))
+                    Ok(Val::Int(crate::jint::JInt::new(n)))
                 } else {
                     // M155：**带上那个值**（Python / Node 一直带，宿主漏了）。
                     Err(err("类型错误",
@@ -5252,8 +5265,8 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             _ => (as_int(&args[0])?, as_int(&args[1])?, as_int(&args[2])?),
         };
         let mut out = Vec::new();
-        if step > 0 { let mut i = a; while i < b { out.push(Val::Int(i)); i += step; } }
-        else if step < 0 { let mut i = a; while i > b { out.push(Val::Int(i)); i += step; } }
+        if step > 0 { let mut i = a; while i < b { out.push(Val::Int(crate::jint::JInt::new(i))); i += step; } }
+        else if step < 0 { let mut i = a; while i > b { out.push(Val::Int(crate::jint::JInt::new(i))); i += step; } }
         Ok(list_new(out))
     }));
     // M41：`带下标` / `配对`（Python 的 enumerate / zip 同语义）。
@@ -5280,7 +5293,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             .into_iter()
             .enumerate()
             .map(|(i, v)| {
-                let idx = Val::Int(start + i as i128);
+                let idx = Val::Int(crate::jint::JInt::new(start + i as i128));
                 list_new(vec![idx, v])
             })
             .collect();
@@ -5322,16 +5335,16 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         let 项 = l.borrow();
         let i = 二分左界(&项[..], &目标, 起, 终)?;
         // 命中判定用 `cmp_vals`（不是 `==`）：`1` 与 `1.0` 在基石里是相等的
-        Ok(Val::Int(if i < 终 && cmp_vals(&项[i], &目标) == std::cmp::Ordering::Equal {
+        Ok(Val::Int(crate::jint::JInt::new(if i < 终 && cmp_vals(&项[i], &目标) == std::cmp::Ordering::Equal {
             i as i128
         } else {
             -1
-        }))
+        })))
     }));
     m.insert("二分插入点".to_string(), crate::builtin("二分插入点", |args, _vm| {
         let (l, 目标, 起, 终) = 二分参数("二分插入点", args)?;
         let 项 = l.borrow();
-        Ok(Val::Int(二分左界(&项[..], &目标, 起, 终)? as i128))
+        Ok(Val::Int(crate::jint::JInt::new(二分左界(&项[..], &目标, 起, 终)? as i128)))
     }));
     // 变参：至少 1 个（M55 补检查 —— 以前 0 个参数走各自的兜底，
     // 文案与另两个引擎对不上）
@@ -5355,20 +5368,20 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     // 加运算符要动三执行器 + 两宿主 + 词法器），改成一小组内建。
     m.insert("位与".to_string(), crate::builtin("位与", |args, _vm| {
         need_builtin_args("位与", args, 2, 2)?;
-        Ok(Val::Int(as_bit_int(&args[0], "位与")? & as_bit_int(&args[1], "位与")?))
+        Ok(Val::Int(crate::jint::JInt::new(as_bit_int(&args[0], "位与")? & as_bit_int(&args[1], "位与")?)))
     }));
     m.insert("位或".to_string(), crate::builtin("位或", |args, _vm| {
         need_builtin_args("位或", args, 2, 2)?;
-        Ok(Val::Int(as_bit_int(&args[0], "位或")? | as_bit_int(&args[1], "位或")?))
+        Ok(Val::Int(crate::jint::JInt::new(as_bit_int(&args[0], "位或")? | as_bit_int(&args[1], "位或")?)))
     }));
     m.insert("位异或".to_string(), crate::builtin("位异或", |args, _vm| {
         need_builtin_args("位异或", args, 2, 2)?;
-        Ok(Val::Int(as_bit_int(&args[0], "位异或")? ^ as_bit_int(&args[1], "位异或")?))
+        Ok(Val::Int(crate::jint::JInt::new(as_bit_int(&args[0], "位异或")? ^ as_bit_int(&args[1], "位异或")?)))
     }));
     m.insert("位取反".to_string(), crate::builtin("位取反", |args, _vm| {
         need_builtin_args("位取反", args, 1, 1)?;
         // `!a`（补码取反）= `-a - 1`，与 Python 的 `~a` 一致
-        Ok(Val::Int(!as_bit_int(&args[0], "位取反")?))
+        Ok(Val::Int(crate::jint::JInt::new(!as_bit_int(&args[0], "位取反")?)))
     }));
     m.insert("左移".to_string(), crate::builtin("左移", |args, _vm| {
         need_builtin_args("左移", args, 2, 2)?;
@@ -5380,7 +5393,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             return Err(err("类型错误",
                            "「左移」的结果超出整数范围（Rust 宿主整数到 i128 就到边界）"));
         }
-        a.checked_shl(n as u32).map(Val::Int).ok_or_else(|| {
+        a.checked_shl(n as u32).map(|v| Val::Int(crate::jint::JInt::new(v))).ok_or_else(|| {
             err("类型错误", "「左移」的结果超出整数范围（Rust 宿主整数到 i128 就到边界）")
         })
     }));
@@ -5391,9 +5404,9 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
         // 位数 ≥ 128 时 Python 给 0（或负数给 -1）——这里照做，别报错：
         // 「右移」的结果一定在范围内，没有边界问题
         if n >= 128 {
-            return Ok(Val::Int(if a < 0 { -1 } else { 0 }));
+            return Ok(Val::Int(crate::jint::JInt::new(if a < 0 { -1 } else { 0 })));
         }
-        Ok(Val::Int(a >> n))
+        Ok(Val::Int(crate::jint::JInt::new(a >> n)))
     }));
     // 类型标注的参数校验（M24.3）：编译器把校验发射成函数自己的前导字节码，
     // 宿主实现这个内建就自动获得这项能力（M32 补齐，JS 侧是 M30 补的）。
@@ -5429,7 +5442,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             return Err(err("值错误", format!(
                 "「序数」要**正好一个**字符，但给的是 {} 个：「{s}」", s.chars().count())));
         }
-        Ok(Val::Int(first as i128))
+        Ok(Val::Int(crate::jint::JInt::new(first as i128)))
     }));
     m.insert("字符".to_string(), crate::builtin("字符", |args, _vm| {
         need_builtin_args("字符", args, 1, 1)?;
@@ -5439,7 +5452,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             other => return Err(err("类型错误", format!(
                 "「字符」要一个整数码点，得到了「{}」", type_label(other)))),
         };
-        let cp = u32::try_from(n).ok()
+        let cp = u32::try_from(n.get()).ok()
             .and_then(char::from_u32)
             .ok_or_else(|| err("值错误", format!(
                 "码点 {n} 超出范围，合法范围是 0 到 1114111")))?;
@@ -5688,7 +5701,7 @@ fn check_args(desc: &Val, values: &Val, func_name: &Val) -> Result<Val, JishiErr
 }
 
 pub(crate) fn as_int(v: &Val) -> Result<i128, JishiError> {
-    match v { Val::Int(i) => Ok(*i), _ => Err(err("类型错误", "需要整数")) }
+    match v { Val::Int(i) => Ok(i.get()), _ => Err(err("类型错误", "需要整数")) }
 }
 
 /// 排序/最值时用的比较（没法比的键给「相等」，让调用方自己判可比性）。
@@ -5804,15 +5817,15 @@ fn b_sum(args: &[Val], _vm: &mut dyn BuiltinHost) -> Result<Val, JishiError> {
     for it in &items {
         match it {
             Val::Int(i) => {
-                if is_float { acc_f += *i as f64; }
-                else { acc_int = big_ok(acc_int.checked_add(*i))?; }
+                if is_float { acc_f += i.get() as f64; }
+                else { acc_int = big_ok(acc_int.checked_add(i.get()))?; }
             }
             Val::Float(f) => { if !is_float { acc_f = acc_int as f64; is_float = true; } acc_f += *f; }
             other => return Err(err("类型错误", format!(
                 "「{}」不能求和，需要一个全是数字的列表", display(other)))),
         }
     }
-    Ok(if is_float { Val::Float(acc_f) } else { Val::Int(acc_int) })
+    Ok(if is_float { Val::Float(acc_f) } else { Val::Int(crate::jint::JInt::new(acc_int)) })
 }
 
 /// 标准库模块（M33）：具体实现在 `stdlib.rs`，这里只是一个转发。
@@ -6273,18 +6286,19 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
     match (obj, idx) {
         (Val::List(l), Val::Int(i)) => {
             let l = l.borrow();
-            match norm_index(i, l.len()) {
+            match norm_index(i.get(), l.len()) {
                 Some(j) => Ok(l[j].clone()),
                 None => Err(err("索引错误", INDEX_MSG)),
             }
         }
         // 字节（M113）：下标给**整数** 0-255（与 Python 的 `b"abc"[0]` 一致）
-        (Val::Bytes(b), Val::Int(i)) => match norm_index(i, b.len()) {
-            Some(j) => Ok(Val::Int(b[j] as i128)),
+        (Val::Bytes(b), Val::Int(i)) => match norm_index(i.get(), b.len()) {
+            Some(j) => Ok(Val::Int(crate::jint::JInt::new(b[j] as i128))),
             None => Err(err("索引错误", BYTES_INDEX_MSG)),
         },
         (Val::Dict(d), k) => dict_get(&d.borrow(), &k).ok_or_else(|| err("键错误", missing_key_msg(&k))),
         (Val::Str(s), Val::Int(i)) => {
+            let i = i.get();
             // 🔴 M164：**非负下标不必先 `chars().count()`** —— `chars().nth(j)`
             // 本来就知道越界没有，先数一遍等于白扫一次。
             //
@@ -6295,9 +6309,10 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
             //
             // ⚠️ **阈值 256**：M164 试过无条件加这条，在中文短串上反而慢 3.3%
             //    （多一个分支比省下的那点扫描更贵）—— 所以只在「够长」时才试。
-            // ⚠️ 不缓存「这串是不是纯 ASCII」：`Val::Str` 是裸 `Rc<str>`，
-            //    想带标志位就得动 `Val` 布局（0.4.0 的对象重做）。按指针做缓存
-            //    **不安全**（字符串释放后指针会被复用，缓存会给出错误的字符）。
+            // ⚠️ M214 试过「两层文本形态（内联 + 偏移缓存）」：单个场景（中文长串
+            //    取下标 4.7 → 0.24 µs）确实快，但**堆串要两次分配**，字符串拼接 /
+            //    比较 / 切片 / 文本列表全掉 20~40%，几何 1.75 → 1.40 —— 整段回退，
+            //    详见 CHANGELOG 的 M214 一行。要再做，得先有「单次分配的堆串」。
             if i >= 0 {
                 let j = i as usize;
                 if s.len() >= 256 && j < s.len() {
@@ -6384,7 +6399,7 @@ fn set_item(obj: Val, idx: Val, val: Val) -> Result<(), JishiError> {
         (Val::List(l), Val::Int(i)) => {
             let mut l = l.borrow_mut();
             // 负下标先折算（R6.5）：`列[-1] = 9` 改最后一个元素（Python 语义）
-            match norm_index(i, l.len()) {
+            match norm_index(i.get(), l.len()) {
                 Some(j) => {
                     l[j] = val;
                     Ok(())
@@ -6712,7 +6727,7 @@ fn as_iterable(v: &Val, what: &str) -> Result<Vec<Val>, JishiError> {
         // 字节（M113）：逐个给**整数** 0-255（与 Python 的 `list(b"abc")` 一致）。
         // ⚠️ 这一点务必记牢：`总和(字节)` 会因此**静默**变成「字节值之和」——
         // 所以 `b_sum` / `b_max` / `b_min` 里各有一条显式拦截（D79 §三）。
-        Val::Bytes(b) => Ok(b.iter().map(|x| Val::Int(*x as i128)).collect()),
+        Val::Bytes(b) => Ok(b.iter().map(|x| Val::Int(crate::jint::JInt::new(*x as i128))).collect()),
         Val::Dict(d) => Ok(d.borrow().iter().map(|(k, _)| k.clone()).collect()),
         other => Err(err("类型错误", format!(
             "「{}」不能当{what}用，需要列表、文本、集合或字典", display(other)))),
@@ -6963,7 +6978,7 @@ pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
         // 字节（M113）：**快照**就行 —— 字节本来就不可变，不存在
         // 「遍历中改大小」那种问题。逐个给整数 0-255。
         Val::Bytes(b) => Ok(reversed_iter(
-            b.iter().map(|x| Val::Int(*x as i128)).collect())),
+            b.iter().map(|x| Val::Int(crate::jint::JInt::new(*x as i128))).collect())),
         Val::Dict(d) => {
             let items: Vec<Val> = d.borrow().iter().map(|(k, _)| k.clone()).collect();
             let expect = items.len();
@@ -7104,8 +7119,8 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
             (Val::List(l), "排序") => { need_args(&name, args, 0, 0)?; l.borrow_mut().sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); Ok(Val::None_) }
             (Val::List(l), "反转") => { need_args(&name, args, 0, 0)?; l.borrow_mut().reverse(); Ok(Val::None_) }
             (Val::List(l), "清空") => { need_args(&name, args, 0, 0)?; l.borrow_mut().clear(); Ok(Val::None_) }
-            (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.borrow().iter().position(|x| *x == args[0]).map(|i| Val::Int(i as i128)).ok_or_else(|| err("值错误", "找不到元素")) }
-            (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(l.borrow().iter().filter(|x| **x == args[0]).count() as i128)) }
+            (Val::List(l), "索引") => { need_args(&name, args, 1, 1)?; l.borrow().iter().position(|x| *x == args[0]).map(|i| Val::Int(crate::jint::JInt::new(i as i128))).ok_or_else(|| err("值错误", "找不到元素")) }
+            (Val::List(l), "计数") => { need_args(&name, args, 1, 1)?; Ok(Val::Int(crate::jint::JInt::new(l.borrow().iter().filter(|x| **x == args[0]).count() as i128))) }
             (Val::List(l), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(l.borrow().contains(&args[0]))) }
             (Val::List(l), "移除") => {
                 need_args(&name, args, 1, 1)?;
@@ -7191,16 +7206,16 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
                 // ⚠️ `str::find` 给的是**字节**偏移，而基石/Python 的口径是
                 // **字符**偏移（`"你好吗".查找("吗") == 2`）。含中文时两者不等，
                 // 得把前缀的字符数出来。
-                Ok(Val::Int(match s.find(needle.as_ref()) {
+                Ok(Val::Int(crate::jint::JInt::new(match s.find(needle.as_ref()) {
                     Some(b) => s[..b].chars().count() as i128,
                     None => -1,
-                }))
+                })))
             }
             (Val::Str(s), "替换") => { need_args(&name, args, 2, 2)?; let a = display(&args[0]); let b = display(&args[1]); Ok(Val::Str(s.replace(&a, &b).into())) }
             (Val::Str(s), "包含") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.contains(&display(&args[0])))) }
             (Val::Str(s), "开头是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.starts_with(&display(&args[0])))) }
             (Val::Str(s), "结尾是") => { need_args(&name, args, 1, 1)?; Ok(Val::Bool(s.ends_with(&display(&args[0])))) }
-            (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i128>().map(Val::Int).map_err(|_| err("值错误", format!("「{s}」不能转成整数"))) }
+            (Val::Str(s), "转整数") => { need_args(&name, args, 0, 0)?; s.parse::<i128>().map(|n| Val::Int(crate::jint::JInt::new(n))).map_err(|_| err("值错误", format!("「{s}」不能转成整数"))) }
             (Val::Str(s), "转小数") => { need_args(&name, args, 0, 0)?; s.parse::<f64>().map(Val::Float).map_err(|_| err("值错误", "不能转成小数")) }
             // -- 列表高阶方法（数据流水线，M29）--
             (Val::List(l), "映射") => {
@@ -7338,7 +7353,7 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
 /// 不报错**。静默反序比报错难查得多（M211 取舍，见 D117）。
 fn 比较符号(v: &Val) -> Result<std::cmp::Ordering, JishiError> {
     match v {
-        Val::Int(i) => Ok(i.cmp(&0)),
+        Val::Int(i) => Ok(i.get().cmp(&0)),
         Val::Dec(d) => Ok(d.cmp(&Dec::zero())),
         Val::Float(f) => {
             if f.is_nan() {
@@ -7428,7 +7443,7 @@ fn 二分参数(name: &str, args: &[Val]) -> Result<(JList, Val, usize, usize), 
     // ⚠️ 不用 `as_int`：它对布尔报「需要整数」，而这里要说清是**哪个参数**该是整数
     let 夹 = |v: &Val| -> Result<usize, JishiError> {
         let i = match v {
-            Val::Int(i) => *i,
+            Val::Int(i) => i.get(),
             other => return Err(err("类型错误", format!(
                 "「{name}」的起点 / 终点要是整数，得到了「{}」", type_label(other)))),
         };
@@ -7603,11 +7618,11 @@ fn try_cmp_vals(a: &Val, b: &Val) -> Option<std::cmp::Ordering> {
         (Val::Bool(x), Val::Bool(y)) => Some(x.cmp(y)),
         // 布尔在 Python 里就是整数（`真 == 1`），排序也要按数值
         (Val::Bool(x), Val::Int(y)) | (Val::Int(y), Val::Bool(x)) => {
-            Some((*x as i128).cmp(y))
+            Some((*x as i128).cmp(&y.get()))
         }
         (Val::Int(x), Val::Int(y)) => Some(x.cmp(y)),
-        (Val::Int(x), Val::Float(y)) => (*x as f64).partial_cmp(y),
-        (Val::Float(x), Val::Int(y)) => x.partial_cmp(&(*y as f64)),
+        (Val::Int(x), Val::Float(y)) => (x.get() as f64).partial_cmp(y),
+        (Val::Float(x), Val::Int(y)) => x.partial_cmp(&(y.get() as f64)),
         (Val::Float(x), Val::Float(y)) => x.partial_cmp(y),
         (Val::Str(x), Val::Str(y)) => Some(x.cmp(y)),
         // 字节之间按**字典序**比（M113，与 Python 的 bytes 一致）；
@@ -7756,9 +7771,9 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
                     Json::Str(t) => t.parse::<i128>().ok(),
                     other => other.as_i128(),
                 };
-                Val::Int(parsed.ok_or_else(|| {
+                Val::Int(crate::jint::JInt::new(parsed.ok_or_else(|| {
                     format!("整数常量超出范围（Rust 宿主支持到 i128）：{raw:?}")
-                })?)
+                })?))
             }
             "float" => Val::Float(c.get("v").and_then(|x| x.as_f64()).unwrap_or(0.0)),
             "str" => Val::Str(c.get("v").and_then(|x| x.as_str()).unwrap_or("").to_string().into()),

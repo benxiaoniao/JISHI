@@ -44,7 +44,7 @@ fn 表<R>(f: impl FnOnce(&mut Vec<Parser>) -> R) -> R {
 
 fn 取下标(v: &Val) -> Result<usize, crate::JishiError> {
     match v {
-        Val::Int(i) if *i >= 1 => Ok((*i - 1) as usize),
+        Val::Int(i) if i.get() >= 1 => Ok((i.get() - 1) as usize),
         _ => Err(err("类型错误", "这个值不是参数解析器（要用 参数.新建(...) 造一个）")),
     }
 }
@@ -155,7 +155,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 t.push(Parser { name: 名, desc: 说明, specs: Vec::new() });
                 t.len()
             });
-            Ok(Val::Int(n as i128))
+            Ok(Val::Int(crate::jint::JInt::new(n as i128)))
         },
         "选项" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("选项", args, 2, 4)?;
@@ -206,7 +206,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // 那就得真能省）。省了就用本进程的命令行参数 —— 与 Python 侧
             // `_本进程参数()`、Node 侧 `process.argv.slice(2)` 同一条口径。
             need_range("解析", args, 1, 2)?;
-            let 是句柄 = matches!(&args[0], Val::Int(i) if *i >= 1);
+            let 是句柄 = matches!(&args[0], Val::Int(i) if i.get() >= 1);
             let 省了 = args.len() == 1;
             if !是句柄 {
                 let 参 = match args.get(1) {

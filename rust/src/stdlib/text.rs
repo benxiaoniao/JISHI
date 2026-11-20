@@ -249,7 +249,7 @@ fn fmt_one(v: &Val, spec: &str) -> String {
     let ty = if i < chars.len() { Some(chars[i]) } else { None };
 
     let num = match v {
-        Val::Int(n) => *n as f64,
+        Val::Int(n) => n.get() as f64,
         Val::Float(f) => *f,
         Val::Bool(b) => {
             if *b {
@@ -578,7 +578,7 @@ fn 对齐表(args: &[Val]) -> R {
     }
     let 小数位 = match args.get(1) {
         None => None,
-        Some(Val::Int(n)) if *n >= 0 && *n <= 10 => Some(*n as usize),
+        Some(Val::Int(n)) if n.get() >= 0 && n.get() <= 10 => Some(n.get() as usize),
         Some(Val::Int(n)) => {
             return Err(err(
                 "值错误",
@@ -685,7 +685,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         },
         "显示宽度" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("显示宽度", args, 1)?;
-            Ok(Val::Int(display_width(&super::as_text(&args[0])) as i128))
+            Ok(Val::Int(crate::jint::JInt::new(display_width(&super::as_text(&args[0])) as i128)))
         },
         "左对齐" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("左对齐", args, 2, 3)?;
@@ -740,7 +740,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let s = super::as_text(&args[0]);
             let sub = super::as_text(&args[1]);
             if sub.is_empty() {
-                return Ok(Val::Int(s.chars().count() as i128 + 1));
+                return Ok(Val::Int(crate::jint::JInt::new(s.chars().count() as i128 + 1)));
             }
             // 不重叠计数：`'aaa'.count('aa')` 是 1
             let mut count = 0i128;
@@ -752,7 +752,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     break;
                 }
             }
-            Ok(Val::Int(count))
+            Ok(Val::Int(crate::jint::JInt::new(count)))
         },
         "是数字" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("是数字", args, 1)?;

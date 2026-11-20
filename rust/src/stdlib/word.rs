@@ -270,7 +270,7 @@ fn 读文档(路径: &Val) -> Result<Val, crate::JishiError> {
     Ok(crate::dict_new(vec![
         (字("段落"), crate::list_new(段落)),
         (字("表格"), crate::list_new(表格们)),
-        (字("图片数"), Val::Int(图片数)),
+        (字("图片数"), Val::Int(crate::jint::JInt::new(图片数))),
         (字("页眉"), Val::Str(页眉.as_str().into())),
         (字("页脚"), Val::Str(页脚.as_str().into())),
     ]))
@@ -317,7 +317,7 @@ fn 段落XML(块: &Val) -> String {
         }
         match 取字典(opt, "字号") {
             Some(Val::Float(f)) => r属性.push_str(&format!("<w:sz w:val=\"{}\"/>", (f * 2.0).round() as i64)),
-            Some(Val::Int(i)) => r属性.push_str(&format!("<w:sz w:val=\"{}\"/>", i * 2)),
+            Some(Val::Int(i)) => r属性.push_str(&format!("<w:sz w:val=\"{}\"/>", i.get() * 2)),
             _ => {}
         }
     }
@@ -458,7 +458,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("加标题", args, 2, 3)?;
             let 级 = match args.get(2) {
                 None | Some(Val::None_) => 1i128,
-                Some(Val::Int(v)) => *v,
+                Some(Val::Int(v)) => v.get(),
                 Some(o) => {
                     return Err(err(
                         "值错误",
@@ -500,7 +500,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                             }
                             "字号" => {
                                 let f = match v {
-                                    Val::Int(i) => i as f64,
+                                    Val::Int(i) => i.get() as f64,
                                     Val::Float(f) => f,
                                     _ => {
                                         return Err(err(

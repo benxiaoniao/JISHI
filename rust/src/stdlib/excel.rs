@@ -204,7 +204,7 @@ fn 单元格(片段: &str, 共享: &[String]) -> Val {
                 }
             } else {
                 match 值.trim().parse::<i128>() {
-                    Ok(i) => Val::Int(i),
+                    Ok(i) => Val::Int(crate::jint::JInt::new(i)),
                     Err(_) => match 值.trim().parse::<f64>() {
                         Ok(f) => Val::Float(f),
                         Err(_) => Val::Str(值.into()),

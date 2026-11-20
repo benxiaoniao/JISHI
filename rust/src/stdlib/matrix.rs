@@ -91,7 +91,7 @@ fn 要方形(name: &str, m: &[Vec<Val>]) -> Result<(), crate::JishiError> {
 
 fn 取整数(name: &str, v: &Val, 中文: &str) -> Result<i128, crate::JishiError> {
     match v {
-        Val::Int(n) => Ok(*n),
+        Val::Int(n) => Ok(n.get()),
         _ => Err(err(
             "类型错误",
             format!("「{name}」的{中文}要是整数，给的是 {}", crate::display(v)),
@@ -103,13 +103,13 @@ fn 取整数(name: &str, v: &Val, 中文: &str) -> Result<i128, crate::JishiErro
 fn 算(a: &Val, b: &Val, op: char) -> Val {
     if let (Val::Int(x), Val::Int(y)) = (a, b) {
         let r = match op {
-            '+' => x.checked_add(*y),
-            '-' => x.checked_sub(*y),
-            '*' => x.checked_mul(*y),
+            '+' => x.get().checked_add(y.get()),
+            '-' => x.get().checked_sub(y.get()),
+            '*' => x.get().checked_mul(y.get()),
             _ => None,
         };
         if let Some(v) = r {
-            return Val::Int(v);
+            return Val::Int(crate::jint::JInt::new(v));
         }
     }
     let (x, y) = (as_num(a).unwrap_or(0.0), as_num(b).unwrap_or(0.0));
@@ -198,7 +198,7 @@ fn 定形(v: i128) -> Val {
     if v.abs() > 安全整数上限 {
         Val::Float(v as f64)
     } else {
-        Val::Int(v)
+        Val::Int(crate::jint::JInt::new(v))
     }
 }
 
@@ -208,7 +208,7 @@ fn 取整矩阵(m: &[Vec<Val>]) -> Option<Vec<Vec<i128>>> {
         let mut r = Vec::with_capacity(行.len());
         for v in 行 {
             match v {
-                Val::Int(n) => r.push(*n),
+                Val::Int(n) => r.push(n.get()),
                 _ => return None,
             }
         }
@@ -236,7 +236,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 ));
             }
             let 初值 = match args.get(2) {
-                None => Val::Int(0),
+                None => Val::Int(crate::jint::JInt::new(0)),
                 Some(v) if 是数(v) => v.clone(),
                 Some(v) => {
                     return Err(err(
@@ -266,7 +266,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             for i in 0..n {
                 let mut 行 = Vec::with_capacity(n);
                 for j in 0..n {
-                    行.push(Val::Int(if i == j { 1 } else { 0 }));
+                    行.push(Val::Int(crate::jint::JInt::new(if i == j { 1 } else { 0 })));
                 }
                 出.push(Val::List(std::rc::Rc::new(std::cell::RefCell::new(行))));
             }
@@ -275,12 +275,12 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "行数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("行数", args, 1, 1)?;
             let m = 取矩阵("行数", &args[0])?;
-            Ok(Val::Int(m.len() as i128))
+            Ok(Val::Int(crate::jint::JInt::new(m.len() as i128)))
         },
         "列数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("列数", args, 1, 1)?;
             let m = 取矩阵("列数", &args[0])?;
-            Ok(Val::Int(m[0].len() as i128))
+            Ok(Val::Int(crate::jint::JInt::new(m[0].len() as i128)))
         },
         "转置" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("转置", args, 1, 1)?;
@@ -316,7 +316,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             for i in 0..a.len() {
                 let mut 行 = Vec::with_capacity(b[0].len());
                 for j in 0..b[0].len() {
-                    let mut 合 = Val::Int(0);
+                    let mut 合 = Val::Int(crate::jint::JInt::new(0));
                     for k in 0..b.len() {
                         let 积 = 算(&a[i][k], &b[k][j], '*');
                         合 = 算(&合, &积, '+');
@@ -446,7 +446,7 @@ fn 精确解(a: &[Vec<Val>], b: &[Val]) -> Option<Vec<Val>> {
             for c in 0..n {
                 行.push(if c == i {
                     match b[r] {
-                        Val::Int(v) => v,
+                        Val::Int(v) => v.get(),
                         _ => return None,
                     }
                 } else {
@@ -460,7 +460,7 @@ fn 精确解(a: &[Vec<Val>], b: &[Val]) -> Option<Vec<Val>> {
             return None;
         }
         if 分子 % 底 == 0 {
-            解.push(Val::Int(分子 / 底));
+            解.push(Val::Int(crate::jint::JInt::new(分子 / 底)));
         } else {
             解.push(Val::Float(分子 as f64 / 底 as f64));
         }

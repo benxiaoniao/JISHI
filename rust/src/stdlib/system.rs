@@ -343,7 +343,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let n = std::thread::available_parallelism()
                 .map(|x| x.get())
                 .unwrap_or(1);
-            Ok(Val::Int(n as i128))
+            Ok(Val::Int(crate::jint::JInt::new(n as i128)))
         },
         "处理器" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("处理器", args, 0)?;
@@ -395,7 +395,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             Ok(crate::dict_new(vec![
                 (Val::Str("输出".into()), Val::Str(out.into())),
                 (Val::Str("错误".into()), Val::Str(errout.into())),
-                (Val::Str("退出码".into()), Val::Int(code as i128)),
+                (Val::Str("退出码".into()), Val::Int(crate::jint::JInt::new(code as i128))),
             ]))
         },
         // M134：**同时**跑一批命令，**结果顺序 = 输入顺序**（沿用 M114 那条）。
@@ -420,7 +420,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 crate::dict_new(vec![
                     (Val::Str("输出".into()), Val::Str(out.into())),
                     (Val::Str("错误".into()), Val::Str(errout.into())),
-                    (Val::Str("退出码".into()), Val::Int(code as i128)),
+                    (Val::Str("退出码".into()), Val::Int(crate::jint::JInt::new(code as i128))),
                 ])
             }).collect();
             Ok(crate::list_new(列表))
@@ -429,7 +429,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("退出码", args, 1, 2)?;
             let t = timeout_of(args.get(1))?;
             let (code, _, _) = run_capture(&args[0], t)?;
-            Ok(Val::Int(code as i128))
+            Ok(Val::Int(crate::jint::JInt::new(code as i128)))
         },
         "主机名" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("主机名", args, 0)?;

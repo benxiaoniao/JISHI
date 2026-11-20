@@ -83,13 +83,13 @@ fn 要非空(mut xs: Vec<Val>, name: &str) -> Result<Vec<Val>, crate::JishiError
 fn 算(a: &Val, b: &Val, 运算: char) -> Val {
     if let (Val::Int(x), Val::Int(y)) = (a, b) {
         let r = match 运算 {
-            '+' => x.checked_add(*y),
-            '-' => x.checked_sub(*y),
-            '*' => x.checked_mul(*y),
+            '+' => x.get().checked_add(y.get()),
+            '-' => x.get().checked_sub(y.get()),
+            '*' => x.get().checked_mul(y.get()),
             _ => None,
         };
         if let Some(v) = r {
-            return Val::Int(v);
+            return Val::Int(crate::jint::JInt::new(v));
         }
         // 整数溢出就退回小数（Python 那边是大整数，行为差别只在极端值上）
     }
@@ -104,7 +104,7 @@ fn 算(a: &Val, b: &Val, 运算: char) -> Val {
 
 fn 取整数参数(name: &str, v: &Val, 哪: &str) -> Result<i128, crate::JishiError> {
     match v {
-        Val::Int(n) => Ok(*n),
+        Val::Int(n) => Ok(n.get()),
         _ => Err(err(
             "类型错误",
             format!("「{name}」的{哪}要是整数，给的是 {}", crate::display(v)),
@@ -121,7 +121,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 return Err(err("值错误", format!("「构造」的个数不能是负数（给的是 {n}）")));
             }
             let 初值 = match args.get(1) {
-                None => Val::Int(0),
+                None => Val::Int(crate::jint::JInt::new(0)),
                 Some(Val::Int(_)) | Some(Val::Float(_)) => args[1].clone(),
                 Some(other) => {
                     return Err(err(
@@ -175,7 +175,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let a = nums("点积", &args[0])?;
             let b = nums("点积", &args[1])?;
             同长(&a, &b, "点积")?;
-            let mut 合 = Val::Int(0);
+            let mut 合 = Val::Int(crate::jint::JInt::new(0));
             for (x, y) in a.iter().zip(&b) {
                 合 = 算(&合, &算(x, y, '*'), '+');
             }
@@ -184,7 +184,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "和" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("和", args, 1, 1)?;
             let a = nums("和", &args[0])?;
-            let mut 合 = Val::Int(0);
+            let mut 合 = Val::Int(crate::jint::JInt::new(0));
             for x in &a {
                 合 = 算(&合, x, '+');
             }
@@ -225,7 +225,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "维数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("维数", args, 1, 1)?;
             let a = nums("维数", &args[0])?;
-            Ok(Val::Int(a.len() as i128))
+            Ok(Val::Int(crate::jint::JInt::new(a.len() as i128)))
         },
         "切片" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("切片", args, 2, 3)?;

@@ -87,10 +87,10 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "平方" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("平方", args, 1)?;
             match &args[0] {
-                Val::Int(i) => Ok(Val::Int(crate::big_ok(i.checked_mul(*i))?)),
+                Val::Int(i) => Ok(Val::Int(crate::jint::JInt::new(crate::big_ok(i.get().checked_mul(i.get()))?))),
                 Val::Bool(b) => {
                     let i = if *b { 1i128 } else { 0 };
-                    Ok(Val::Int(i * i))
+                    Ok(Val::Int(crate::jint::JInt::new(i * i)))
                 }
                 Val::Dec(d) => Ok(Val::Dec(std::rc::Rc::new(d.mul(d)))),
                 v => Ok(Val::Float(as_num(v)? * as_num(v)?)),
@@ -133,18 +133,18 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let x = as_num(&args[0]).map_err(|_| {
                 err("类型错误", format!("「{}」不能取符号（需要数字）", display(&args[0])))
             })?;
-            Ok(Val::Int(if x > 0.0 {
+            Ok(Val::Int(crate::jint::JInt::new(if x > 0.0 {
                 1
             } else if x < 0.0 {
                 -1
             } else {
                 0
-            }))
+            })))
         },
         "绝对值" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("绝对值", args, 1)?;
             match &args[0] {
-                Val::Int(i) => Ok(Val::Int(crate::big_ok(i.checked_abs())?)),
+                Val::Int(i) => Ok(Val::Int(crate::jint::JInt::new(crate::big_ok(i.get().checked_abs())?))),
                 Val::Bool(b) => Ok(Val::Bool(*b)),
                 Val::Float(f) => Ok(Val::Float(f.abs())),
                 Val::Dec(d) => Ok(Val::Dec(std::rc::Rc::new(d.abs()))),
@@ -154,12 +154,12 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "向上取整" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("向上取整", args, 1)?;
             let x = as_num(&args[0])?;
-            Ok(Val::Int(to_big(x.ceil())?))
+            Ok(Val::Int(crate::jint::JInt::new(to_big(x.ceil())?)))
         },
         "向下取整" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("向下取整", args, 1)?;
             let x = as_num(&args[0])?;
-            Ok(Val::Int(to_big(x.floor())?))
+            Ok(Val::Int(crate::jint::JInt::new(to_big(x.floor())?)))
         },
         "四舍五入" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("四舍五入", args, 1, 2)?;
@@ -180,7 +180,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             };
             let 文本 = super::十进制_舍入(&源, n);
             if n <= 0 {
-                Ok(Val::Int(文本.parse::<i128>().unwrap_or(0)))
+                Ok(Val::Int(crate::jint::JInt::new(文本.parse::<i128>().unwrap_or(0))))
             } else {
                 Ok(Val::Float(文本.parse::<f64>().unwrap_or(0.0)))
             }
@@ -198,7 +198,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // ⚠️ 只补反余弦，反正弦/反正切先不做（没有真实需求）。
             need("反余弦", args, 1)?;
             let x = match &args[0] {
-                Val::Int(i) => *i as f64,
+                Val::Int(i) => i.get() as f64,
                 Val::Float(f) => *f,
                 other => {
                     return Err(err(
@@ -249,17 +249,17 @@ pub(crate) fn module() -> HashMap<String, Val> {
         },
         "最大公约数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("最大公约数", args, 2)?;
-            Ok(Val::Int(gcd(as_intish(&args[0])?, as_intish(&args[1])?)))
+            Ok(Val::Int(crate::jint::JInt::new(gcd(as_intish(&args[0])?, as_intish(&args[1])?))))
         },
         "最小公倍数" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("最小公倍数", args, 2)?;
             let a = as_intish(&args[0])?;
             let b = as_intish(&args[1])?;
             if a == 0 || b == 0 {
-                return Ok(Val::Int(0));
+                return Ok(Val::Int(crate::jint::JInt::new(0)));
             }
             // 先除后乘，免得中间结果白白溢出（Python 的 lcm 也是这么算的）
-            Ok(Val::Int(crate::big_ok((a / gcd(a, b)).checked_mul(b.abs()))?))
+            Ok(Val::Int(crate::jint::JInt::new(crate::big_ok((a / gcd(a, b)).checked_mul(b.abs()))?)))
         },
         "阶乘" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("阶乘", args, 1)?;
@@ -276,7 +276,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 r = crate::big_ok(r.checked_mul(i))?;
                 i += 1;
             }
-            Ok(Val::Int(r))
+            Ok(Val::Int(crate::jint::JInt::new(r)))
         },
     };
     with_values!(m,

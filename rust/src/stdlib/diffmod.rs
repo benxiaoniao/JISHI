@@ -134,7 +134,7 @@ fn opcodes(a: &[String], b: &[String]) -> Vec<Op> {
 
 fn int_arg(name: &str, v: &crate::Val) -> Result<usize, crate::JishiError> {
     match v {
-        Val::Int(n) if *n >= 0 => Ok(*n as usize),
+        Val::Int(n) if n.get() >= 0 => Ok(n.get() as usize),
         _ => Err(err("类型错误", format!("「{name}」要传 0 或正整数"))),
     }
 }
@@ -151,7 +151,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 let item = |mark: &str, no: usize, s: &str| {
                     list_new(vec![
                         Val::Str(mark.to_string().into()),
-                        Val::Int(no as i128),
+                        Val::Int(crate::jint::JInt::new(no as i128)),
                         Val::Str(s.to_string().into()),
                     ])
                 };

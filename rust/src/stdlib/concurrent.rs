@@ -33,7 +33,7 @@ const 最大线程数: usize = 32;
 // `pub(crate)`：`系统.并行执行` 借它做路数校验（文案只有这一处，别再抄一份）
 pub(crate) fn 线程数(v: &Val) -> Result<usize, JishiError> {
     let n = match v {
-        Val::Int(i) => *i,
+        Val::Int(i) => i.get(),
         Val::Float(f) => *f as i128,
         other => {
             return Err(err(

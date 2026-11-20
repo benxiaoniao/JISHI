@@ -319,7 +319,7 @@ pub(crate) fn as_text(v: &Val) -> String {
 /// 值 → f64。布尔按 0/1（Python 里 `真` 就是整数 1）。
 pub(crate) fn as_num(v: &Val) -> Result<f64, JishiError> {
     match v {
-        Val::Int(i) => Ok(*i as f64),
+        Val::Int(i) => Ok(i.get() as f64),
         Val::Float(f) => Ok(*f),
         Val::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
         _ => Err(err(
@@ -332,7 +332,7 @@ pub(crate) fn as_num(v: &Val) -> Result<f64, JishiError> {
 /// 值 → i128。对齐 Python 的 `int(x)`：小数向零截断、文本按十进制解析。
 pub(crate) fn as_intish(v: &Val) -> Result<i128, JishiError> {
     match v {
-        Val::Int(i) => Ok(*i),
+        Val::Int(i) => Ok(i.get()),
         Val::Float(f) => Ok(*f as i128),
         Val::Bool(b) => Ok(if *b { 1 } else { 0 }),
         Val::Str(s) => s
