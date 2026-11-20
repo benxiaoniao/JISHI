@@ -1236,7 +1236,7 @@ pub(crate) fn map_module() -> HashMap<String, Val> {
                 // 传字典：直接用（**wasm 里只能这样** —— 那边没有文件系统）
                 Val::Dict(_) => args[0].clone(),
                 Val::Str(p) => {
-                    let 文 = std::fs::read_to_string(p.as_ref()).map_err(|e| {
+                    let 文 = std::fs::read_to_string(p.as_str()).map_err(|e| {
                         err_with_hint(
                             "文件错误",
                             format!("读不了地图「{p}」：{e}"),

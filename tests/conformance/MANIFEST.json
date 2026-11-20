@@ -59,7 +59,7 @@
   "类别计数": {
     "examples": 43,
     "frontend": 1,
-    "lang": 134,
+    "lang": 135,
     "stdlib": 5
   },
   "语料": [
@@ -778,6 +778,13 @@
       "路径": "tests/cases/53_下标赋值目标.jsh"
     },
     {
+      "id": "tests__cases__54_文本表示边界",
+      "产物哈希": "sha256:92294e49c89bef55",
+      "内容哈希": "sha256:72aae4e7f3be1bb9",
+      "类别": "lang",
+      "路径": "tests/cases/54_文本表示边界.jsh"
+    },
+    {
       "id": "tests__error_cases__01_未定义名字",
       "产物哈希": "sha256:6c22e8e65e3d11a7",
       "内容哈希": "sha256:68b1a07032a25887",
@@ -1345,5 +1352,5 @@
       "路径": "tests/frontend_cases/01_超范围整数.jsh"
     }
   ],
-  "语料数": 183
+  "语料数": 184
 }

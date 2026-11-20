@@ -430,7 +430,7 @@ fn non_json_name(v: &Val) -> &'static str {
         Val::LoopSignal(_) => "int",
         Val::Cell(_) => "cell",
         Val::Super(_) => "super",
-        Val::ListIter(_) | Val::GuardedIter(_) => "iterator",
+        Val::ListIter(_) | Val::GuardedIter(_) | Val::StrIter(_) => "iterator",
         // 上面那些能把 JSON 说清楚的值走不到这里。
         _ => "object",
     }

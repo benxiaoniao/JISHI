@@ -20,6 +20,7 @@
 
 import os
 import shutil
+import random
 import socket
 import subprocess
 import sys
@@ -217,10 +218,26 @@ def _端口空闲(port: int) -> bool:
 
 
 def _挑端口(首选: int = 8137) -> int:
-    for 候选 in (首选, 首选 + 1, 首选 + 2, 0):
-        if 候选 == 0 or _端口空闲(候选):
+    """挑一个**真能 bind 上**的端口。
+
+    🔴 2026-11-20 修正：原来的回退是 `0`（「让系统随机分配」）—— 那是个**死路**：
+    服务会绑到一个测试不知道的端口，而 `_等端口(0)` 永远连不上 ⇒ 报「20 秒内没起来」。
+
+    什么时候会走到那个回退：**首选端口落进 Windows 的保留段**。
+    本机实测 `netsh int ipv4 show excludedportrange protocol=tcp` 里
+    8085–8184 / 8185–8284 整段被 Hyper-V / WSL 占着，8137 正好在里面，
+    `bind` 直接 `WSAEACCES`（而 `connect_ex` 是通的 —— 两个判法在这里分叉）。
+
+    现在改成：首选不成就**在高位随机试**，直到真绑得上。
+    """
+    for 候选 in (首选, 首选 + 1, 首选 + 2):
+        if _端口空闲(候选):
             return 候选
-    return 0
+    for _ in range(200):
+        候选 = random.randint(20000, 60000)
+        if _端口空闲(候选):
+            return 候选
+    raise AssertionError("找不到空闲端口（20000–60000 试了 200 次都不行）")
 
 
 def _等端口(port: int, 上限秒: float = 20.0) -> bool:

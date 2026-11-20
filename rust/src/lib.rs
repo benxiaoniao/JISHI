@@ -15,6 +15,7 @@ pub mod pngdec;  // M205：PNG 解码（自己的，替掉 `png` crate；托盘/
 pub mod pngenc;  // M207：PNG 编码（`图形.截图`；stored 块，不压缩也合法）
 mod fasthash;   // M212：字典/集合的快哈希（FxHash 风格 + 进程随机种子）
 mod jint;       // M214：整数的「对齐 8」存储壳（语义仍是 i128，Val 32 → 24）
+mod jstr;       // M214b：文本的 16 字节表示（≤7B 内联 + 一次分配的堆串）
 mod http;
 mod inflate;
 pub mod json;
@@ -146,7 +147,7 @@ enum DictKey {
     /// 归一到一起的判据是 `Val::eq`：`1 == 1.0`、`真 == 1`、`假 == 0`
     /// 都是真 → 它们的哈希键必须相同（哈希与相等必须一致）。
     Int(i128),
-    Str(Rc<str>),
+    Str(jstr::JStr),
     /// 字节（M113）：与 `Val::Bytes` 一一对应，**可以当字典键 / 集合成员**。
     Bytes(Vec<u8>),
     /// **非整数浮点**（`1.5` / `±inf`）。存 `to_bits()`，`-0.0` 已归一成正零。
@@ -464,10 +465,14 @@ pub(crate) enum Val {
     /// 一遍。实测读一个 5 字的串要 **387 ns**、1000 字要 **655 ns**，
     /// 而读一个整数只要 124 ns（CPython 这里几乎为 0，它只是引用计数 +1）。
     ///
-    /// 换成 `Rc<str>`：克隆变 O(1)，`Val` 从 32 字节降到 24（`Int(i128)` 也是 16）。
-    /// `Rc<str>` 有 `Deref<Target = str>` ⇒ 绝大多数 `s.len()` / `s.chars()` /
-    /// `&*s` 不用改；要 `String` 的地方显式 `.to_string()`。
-    Str(Rc<str>),
+    /// M165b 换成 `Rc<str>`：克隆变 O(1)，`Val` 从 32 字节降到 24。
+    /// M214b 再换成 `jstr::JStr`：它也有 `Deref<Target = str>`，但多了**两层**——
+    /// ≤7 字节的串直接内联在 16 字节槽里（不分配、不动引用计数），长串是
+    /// **一次分配**的 thin pointer 堆串（带 ascii / 字符数缓存）。
+    ///
+    /// 🔴 M214 试过 `Rc<Heap>{Box<str>}` 的两层形态，堆串变两次分配 ⇒
+    /// 字符串热路径全掉 20~40%，整段回退。这里的堆串**必须**保持一次分配。
+    Str(jstr::JStr),
     /// 字节（M113）：**不可变的字节串**。见 `docs/设计决策.md` D79。
     ///
     /// 显示成 `字节(0C FF 00)`，`类型()` 给「字节」。**故意没有字面量**——
@@ -573,6 +578,20 @@ pub(crate) enum Val {
     /// 会**报错**；而快照会让这件事**静默过去**（悄悄用旧数据继续跑）。
     /// 所以每步核对一次原容器的 `len()`，不一致就报同一条基石错误。
     GuardedIter(Rc<RefCell<GuardedIter>>),
+    /// **文本的惰性迭代器**（M214b）：只记「串 + 下一个字符的字节位置」。
+    ///
+    /// 以前是 `s.chars().map(单字符).collect::<Vec<_>>()` + **整段反转**
+    /// —— 遍历 2 万字符要先分配 480 KB、再反转一遍、再从尾部一个个弹。
+    /// 实测 **2.13 ms vs 同长度列表 0.18 ms**（慢 11 倍），而那 11 倍里
+    /// 跟字符串本身有关的只有一个字符的构造（M214b 已内联），其余全是
+    /// 「materialize + 反转」的搬运。
+    ///
+    /// 现在每次只取一个字符：`&s[byte..].chars().next()` 是 **O(1) 摊销**
+    /// （顺序迭代不需要偏移表），不进堆、不反转、不整段快照。
+    ///
+    /// ⚠️ 文本**不可变**，所以没有集合/字典那种「遍历中改大小」的护栏需求
+    /// —— 不像 `GuardedIter` 要每步核对 `len()`。
+    StrIter(Rc<RefCell<StrIter>>),
 }
 
 /// 带大小护栏的迭代器状态：快照（保序）+ 已取下标 + 原容器 + 期望大小。
@@ -587,6 +606,16 @@ pub(crate) struct GuardedIter {
 pub(crate) struct ListIter {
     pub list: JList,
     pub idx: usize,
+}
+
+/// 文本迭代器的状态：串 + **下一个字符的起始字节**。
+///
+/// 为什么记字节位置而不是字符下标：基石的 `文本[i]` 是**按码点**下标的
+/// （`"中文"[1] == "文"`），从字符下标折成字节要数前缀（O(n)）；而顺序
+/// 迭代本来就知道「上一个字符到哪儿结束」，记字节位置就是 **O(1) 摊销**。
+pub(crate) struct StrIter {
+    pub s: jstr::JStr,
+    pub byte: usize,
 }
 
 /// 造一个列表值（把裸 Vec 包成共享容器）。
@@ -4275,7 +4304,7 @@ pub(crate) fn display(v: &Val) -> String {
         Val::Slice(s) => slice_repr(s),
         // 活迭代器是**内部值**（只有 `FOR_ITER` 看得见），但 `display` 得有个分支。
         // 与 Python 侧对迭代器的处理一致：不假装它是列表。
-        Val::ListIter(_) | Val::GuardedIter(_) => "<迭代器>".to_string(),
+        Val::ListIter(_) | Val::GuardedIter(_) | Val::StrIter(_) => "<迭代器>".to_string(),
         Val::List(l) => {
             let items: Vec<String> = l.borrow().iter().map(py_repr).collect();
             format!("[{}]", items.join(", "))
@@ -5225,7 +5254,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     m.insert("长度".to_string(), crate::builtin("长度", |args, vm| {
         need_builtin_args("长度", args, 1, 1)?;
         match &args[0] {
-            Val::Str(s) => Ok(Val::Int(crate::jint::JInt::new(s.chars().count() as i128))),
+            Val::Str(s) => Ok(Val::Int(crate::jint::JInt::new(s.char_count() as i128))),
             Val::List(l) => Ok(Val::Int(crate::jint::JInt::new(l.borrow().len() as i128))),
             Val::Dict(d) => Ok(Val::Int(crate::jint::JInt::new(d.borrow().len() as i128))),
             Val::Set(s) => Ok(Val::Int(crate::jint::JInt::new(s.borrow().len() as i128))),
@@ -6157,42 +6186,25 @@ pub(crate) fn set_attr(obj: Val, attr: &str, val: Val) -> Result<(), JishiError>
     }
 }
 
-/// 单字符的 `Val` **只造一次**（M179 的单态特化）。
+/// 单字符的 `Val`。M214b 起是**纯内联**，不分配、不动引用计数。
 ///
-/// ## 为什么值得
+/// ## 演进
 ///
-/// `遍历 字 在 文本` 与 `文[i]` 每取一个字符都要 `c.to_string()` +
-/// `Rc<str>` —— **两次堆操作**，用完还要释放。基准「文本下标」实测每次
-/// **179 ns**（同机 CPython 约 90 ns），大头就是这两次分配。
+/// - M179：加了 256 槽的 `thread_local` 缓存（按码点低 8 位）。
+///   解决了「同一段文本反复遍历」的大部分分配，但**命中也要过一遍**
+///   `RefCell::borrow_mut` + `Rc::clone`（原子增）+ 出作用域的 `Drop`（原子减）。
+/// - M214 实测：遍历 2 万字符 **2.13 ms**，同样长度的列表只要 **0.18 ms** ——
+///   每字符多花约 96 ns，全是那两趟引用计数与 TLS 访问。
+/// - M214b：`JStr` 支持 ≤7 字节内联 ⇒ 单字符（UTF-8 ≤4 字节）**完全不需要堆**。
+///   缓存表随之删掉：内联比「查表 + 原子增」还便宜，留着只是多一层开销。
 ///
-/// 缓存之后同一个字符只造一次，之后是「一次命中 + `Rc` 计数 +1」。
+/// ## 语义
 ///
-/// ## 为什么语义上是安全的
-///
-/// `Val::Str(Rc<str>)` **不可变** —— 共享同一个 `Rc<str>` 与新建一个内容相同的
-/// 完全等价（比较按内容；生产代码里没有任何地方拿 `Rc::ptr_eq` 当语义用）。
-///
-/// ## 为什么不无限长
-///
-/// 256 个槽直接映射（按码点低 8 位），**上限固定**：每项最多一个码点。
-/// 命中率对「同一段文本反复遍历 / 反复下标」很高（基准里 5 个字符 × 15000 次），
-/// 对随机大字符集就是一直不命中 —— 那也只是退回原来的路，不会更慢一个量级。
+/// `Val::Str` 不可变、按内容比较（M165b 起就是这样）—— 每个字符造一份新的
+/// 内联值，与共享同一个 `Rc` 完全等价。
+#[inline]
 fn 单字符(c: char) -> Val {
-    thread_local! {
-        static 槽: RefCell<Vec<Option<(char, Val)>>> = RefCell::new(vec![None; 256]);
-    }
-    槽.with(|k| {
-        let mut k = k.borrow_mut();
-        let i = (c as u32 as usize) & 255;
-        if let Some((c0, v0)) = &k[i] {
-            if *c0 == c {
-                return v0.clone();
-            }
-        }
-        let v = Val::Str(c.to_string().into());
-        k[i] = Some((c, v.clone()));
-        v
-    })
+    Val::Str(jstr::JStr::from(c))
 }
 
 /// **负下标折算**（R6.5）：`列[-1]` 是最后一个元素 —— 与 Python 一致。
@@ -6299,36 +6311,27 @@ pub(crate) fn get_item(obj: Val, idx: Val) -> Result<Val, JishiError> {
         (Val::Dict(d), k) => dict_get(&d.borrow(), &k).ok_or_else(|| err("键错误", missing_key_msg(&k))),
         (Val::Str(s), Val::Int(i)) => {
             let i = i.get();
-            // 🔴 M164：**非负下标不必先 `chars().count()`** —— `chars().nth(j)`
-            // 本来就知道越界没有，先数一遍等于白扫一次。
+            // 🔴 M214b：这段现在只剩三行 —— 快路径搬进了 `jstr::JStr`。
             //
-            // 🔴 M212：**长 ASCII 串**再快一层。`chars().nth(j)` 是逐字节解码，
-            // 2 万字符取末尾实测 **1.37 µs**；改成「先把前 j+1 个字节扫一遍
-            // `is_ascii`（按 8 字节一组，vectorize 过），是就直接取字节」，
-            // 同一件事 **0.55 µs**。
+            // 演进：M164 发现「非负下标不必先数一遍」；M212 加了「前缀 `is_ascii`
+            // 扫一遍」的长串快路径（1.37 → 0.55 µs），但那是**每次下标都扫**；
+            // M214b 把 ascii 结论**跟着串走**（建串时懒算一次、之后读缓存），
+            // 于是 ASCII 串取下标是**一次字节访问**，连阈值分支都不用了。
             //
-            // ⚠️ **阈值 256**：M164 试过无条件加这条，在中文短串上反而慢 3.3%
-            //    （多一个分支比省下的那点扫描更贵）—— 所以只在「够长」时才试。
-            // ⚠️ M214 试过「两层文本形态（内联 + 偏移缓存）」：单个场景（中文长串
-            //    取下标 4.7 → 0.24 µs）确实快，但**堆串要两次分配**，字符串拼接 /
-            //    比较 / 切片 / 文本列表全掉 20~40%，几何 1.75 → 1.40 —— 整段回退，
-            //    详见 CHANGELOG 的 M214 一行。要再做，得先有「单次分配的堆串」。
+            // 负下标仍要 `char_count()`（要从末尾折算）—— 那一步也有缓存，
+            // 非 ASCII 长串不会反复数。
+            // 🔴 正下标**不数总数**（M164 的结论仍然成立）：越界由 `char_at`
+            // 自己返回 `None`，先 `char_count()` 等于白扫一遍。只有负下标
+            // 要从末尾折算，才需要总数。
             if i >= 0 {
-                let j = i as usize;
-                if s.len() >= 256 && j < s.len() {
-                    let b = s.as_bytes();
-                    if b[..=j].is_ascii() {
-                        return Ok(单字符(b[j] as char));
-                    }
-                }
-                return match s.chars().nth(j) {
+                return match s.char_at(i as usize) {
                     Some(c) => Ok(单字符(c)),
                     None => Err(err("索引错误", STR_INDEX_MSG)),
                 };
             }
-            let n = s.chars().count();
+            let n = s.char_count();
             match norm_index(i, n) {
-                Some(j) => Ok(Val::Str(s.chars().nth(j).unwrap().to_string().into())),
+                Some(j) => Ok(单字符(s.char_at(j).expect("已按 char_count 归一"))),
                 None => Err(err("索引错误", STR_INDEX_MSG)),
             }
         }
@@ -6973,8 +6976,9 @@ pub(crate) fn make_iterator(obj: Val) -> Result<Val, JishiError> {
             Ok(Val::GuardedIter(Rc::new(RefCell::new(GuardedIter {
                 items, idx: 0, src: Val::Set(s), expect }))))
         }
-        Val::Str(s) => Ok(reversed_iter(
-            s.chars().map(|c| 单字符(c)).collect())),
+        // M214b：文本改**惰性**迭代（详见 `Val::StrIter`）。以前这里要
+        // `collect::<Vec<_>>()` + `reversed_iter()` 整段 materialize。
+        Val::Str(s) => Ok(Val::StrIter(Rc::new(RefCell::new(StrIter { s, byte: 0 })))),
         // 字节（M113）：**快照**就行 —— 字节本来就不可变，不存在
         // 「遍历中改大小」那种问题。逐个给整数 0-255。
         Val::Bytes(b) => Ok(reversed_iter(
@@ -7038,6 +7042,39 @@ pub(crate) fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
             } else {
                 Ok(None)
             }
+        }
+        // 文本（M214b）：每次取一个字符，**O(1) 摊销**，不分配、不反转。
+        //
+        // ASCII 走**字节直读**（一次读 + 一次 8 字节写入）；非 ASCII 才解码。
+        // 这一条分开写不是「过早优化」：遍历英文文本是基准里的大头，
+        // `chars().next()` 的解码分支在 2 万次循环里是要花钱的。
+        Val::StrIter(st) => {
+            let mut st = st.borrow_mut();
+            let i = st.byte;
+            // 借用只在这个块里活着 —— 下面要改 `st.byte`（同一块 `RefCell`）
+            let mut 段 = [0u8; 4];
+            let mut n = 0usize;
+            {
+                let b = st.s.as_str().as_bytes();
+                if i >= b.len() {
+                    return Ok(None);
+                }
+                let x = b[i];
+                if x < 0x80 {
+                    st.byte = i + 1;
+                    return Ok(Some(Val::Str(jstr::JStr::from_ascii(x))));
+                }
+                // 非 ASCII：按**首字节**判长度，直接拷那段字节。
+                //
+                // 以前是 `chars().next()` 解码出 `char`、再 `encode_utf8` 编回去 ——
+                // 一个中文字符要走两遍 UTF-8 状态机；这里只判一个首字节。
+                // 安全：`byte` 恒落在字符边界上（每次 += 上一段的长度），
+                // 且 `s` 本身是合法 `&str` ⇒ 取出的那一段一定合法、不会越界。
+                n = if x < 0xE0 { 2 } else if x < 0xF0 { 3 } else { 4 };
+                段[..n].copy_from_slice(&b[i..i + n]);
+            }
+            st.byte = i + n;
+            Ok(Some(Val::Str(jstr::JStr::from_utf8_prefix(&段[..n]))))
         }
         Val::List(l) => {
             // ⚠️ `pop()` 而不是 `remove(0)` —— 后者每次搬移整个 Vec（O(n)），
@@ -7206,7 +7243,7 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
                 // ⚠️ `str::find` 给的是**字节**偏移，而基石/Python 的口径是
                 // **字符**偏移（`"你好吗".查找("吗") == 2`）。含中文时两者不等，
                 // 得把前缀的字符数出来。
-                Ok(Val::Int(crate::jint::JInt::new(match s.find(needle.as_ref()) {
+                Ok(Val::Int(crate::jint::JInt::new(match s.find(needle.as_str()) {
                     Some(b) => s[..b].chars().count() as i128,
                     None => -1,
                 })))
