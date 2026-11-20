@@ -134,7 +134,23 @@ pub(crate) type JList = Rc<RefCell<Vec<Val>>>;
 /// 迭代顺序必须确定（同一程序两次运行输出相同）。
 #[derive(Clone)]
 pub(crate) struct Dict {
+    /// 插入序的键值对。**删除打墓碑、不搬移**（见下面 `dead`）。
     items: Vec<(Val, Val)>,
+    /// 墓碑位：`dead[i]` 为真 ⇒ `items[i]` 已被删除。
+    ///
+    /// 🔴 M216：**以前删除是 O(n) 的**（`Vec::remove` 搬移 + 再遍历整个 `index`
+    /// 修正下标，两遍）。于是「删 n 个」= O(n²)：实测 8000 个键删一半 **91 ms**，
+    /// 而这个斜率在数据库里会变成「删 100 万行要几分钟」。
+    ///
+    /// 现在删除是 **O(1)**（置 `dead[i]`、从 `index` 摘掉），空洞过半时压缩一次
+    /// —— 与 `Set` 用的是同一套（那份注释写得细，见它）。
+    ///
+    /// ⚠️ 为什么不用 `Vec<Option<(Val, Val)>>`：`Option` 能不能压到 48 字节要靠
+    /// 「`Val` 有没有 niche」这个**编译器实现细节**，涨到 56 就是 +17% 内存 ——
+    /// 而每个数据库行都是一个字典，这个差价会被放大。`Vec<bool>` 是 1 字节/项，稳。
+    dead: Vec<bool>,
+    /// 墓碑个数（`len()` 要减掉它）。
+    holes: usize,
     index: fasthash::快表<DictKey, usize>,
 }
 
@@ -160,40 +176,111 @@ enum DictKey {
 pub(crate) type JDict = Rc<RefCell<Dict>>;
 
 impl Dict {
-    /// 按插入顺序迭代（与旧的 `Vec` 版 `.iter()` 同形，减少调用点改动）。
-    fn iter(&self) -> std::slice::Iter<'_, (Val, Val)> {
-        self.items.iter()
+    pub(crate) fn new() -> Dict {
+        Dict { items: Vec::new(), dead: Vec::new(), holes: 0,
+               index: fasthash::快表::default() }
     }
-    fn iter_mut(&mut self) -> std::slice::IterMut<'_, (Val, Val)> {
-        self.items.iter_mut()
+    /// 第 `i` 项是不是墓碑。
+    ///
+    /// 🔴 `dead` **只在第一次删除时才分配**（`get` 落空 = 全是活的）。
+    /// 这个不是微优化：每个数据库行都是一个字典，20k 行就多 20k 次 `Vec<bool>`
+    /// 的 malloc，而其中**一个都不会删**。
+    #[inline]
+    fn is_dead(&self, i: usize) -> bool {
+        matches!(self.dead.get(i), Some(true))
+    }
+    /// 按插入顺序迭代（**跳过墓碑**）。
+    fn iter(&self) -> DictIter<'_> {
+        DictIter { items: self.items.iter(), dead: &self.dead, i: 0 }
+    }
+    fn iter_mut(&mut self) -> DictIterMut<'_> {
+        DictIterMut { items: self.items.iter_mut(), dead: &self.dead, i: 0 }
     }
     fn is_empty(&self) -> bool {
-        self.items.is_empty()
+        self.len() == 0
     }
     fn len(&self) -> usize {
-        self.items.len()
+        self.items.len() - self.holes
     }
     fn clear(&mut self) {
         self.items.clear();
+        self.dead.clear();
+        self.holes = 0;
         self.index.clear();
+    }
+    /// 追加一对（**不查重**，调用方保证是新的）。
+    fn push_live(&mut self, k: Val, v: Val) {
+        self.items.push((k, v));
+        // `dead` 空 = 「还没有墓碑」，不用跟着长；已经在跟踪时才补一格
+        if !self.dead.is_empty() {
+            self.dead.push(false);
+        }
     }
     /// 拆出底层有序项（**放弃索引**）。调用方要对项做重排 / 消费时用——
     /// 重排之后 `index` 就失效了，不能再当字典用（所以是**消费**掉）。
     pub(crate) fn into_items(self) -> Vec<(Val, Val)> {
-        self.items
+        let Dict { items, dead, .. } = self;
+        if dead.is_empty() {
+            return items;
+        }
+        items.into_iter().zip(dead).filter(|(_, d)| !*d).map(|(kv, _)| kv).collect()
     }
-    /// 克隆出有序项（不动索引）。
+    /// 克隆出有序项（不动索引；**跳过墓碑**）。
     pub(crate) fn to_items(&self) -> Vec<(Val, Val)> {
-        self.items.clone()
+        self.iter().cloned().collect()
     }
 }
 
 /// `for (k, v) in &字典` 也能走（按插入顺序）。
+/// `&Dict` / `&mut Dict` 的迭代器 —— **跳过墓碑**。
+///
+/// 手写而不是 `impl Iterator`：`IntoIterator for &Dict` 需要一个**具名类型**
+/// （关联类型不能是 `impl Trait`）。
+pub(crate) struct DictIter<'a> {
+    items: std::slice::Iter<'a, (Val, Val)>,
+    dead: &'a [bool],
+    i: usize,
+}
+impl<'a> Iterator for DictIter<'a> {
+    type Item = &'a (Val, Val);
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let kv = self.items.next()?;
+            let i = self.i;
+            self.i += 1;
+            // `dead` 空 = 一个墓碑都没有（见 `Dict::is_dead` 的注释）
+            if !matches!(self.dead.get(i), Some(true)) { return Some(kv); }
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.items.len()))
+    }
+}
+
+pub(crate) struct DictIterMut<'a> {
+    items: std::slice::IterMut<'a, (Val, Val)>,
+    dead: &'a [bool],
+    i: usize,
+}
+impl<'a> Iterator for DictIterMut<'a> {
+    type Item = &'a mut (Val, Val);
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let kv = self.items.next()?;
+            let i = self.i;
+            self.i += 1;
+            if !matches!(self.dead.get(i), Some(true)) { return Some(kv); }
+        }
+    }
+}
+
 impl<'a> IntoIterator for &'a Dict {
     type Item = &'a (Val, Val);
-    type IntoIter = std::slice::Iter<'a, (Val, Val)>;
+    type IntoIter = DictIter<'a>;
     fn into_iter(self) -> Self::IntoIter {
-        self.items.iter()
+        DictIter { items: self.items.iter(), dead: &self.dead, i: 0 }
     }
 }
 
@@ -201,7 +288,7 @@ impl IntoIterator for Dict {
     type Item = (Val, Val);
     type IntoIter = std::vec::IntoIter<(Val, Val)>;
     fn into_iter(self) -> Self::IntoIter {
-        self.items.into_iter()
+        self.into_items().into_iter()
     }
 }
 
@@ -210,10 +297,10 @@ impl IntoIterator for Dict {
 /// 会给出 `false`，而 Python / JS / C 侧都给 `真`。顺手修掉这个跨语言分叉。
 impl PartialEq for Dict {
     fn eq(&self, other: &Self) -> bool {
-        if self.items.len() != other.items.len() {
+        if self.len() != other.len() {
             return false;
         }
-        self.items.iter().all(|(k, v)| {
+        self.iter().all(|(k, v)| {
             dict_get(other, k).map(|ov| &ov == v).unwrap_or(false)
         })
     }
@@ -634,9 +721,39 @@ pub(crate) fn list_new(items: Vec<Val>) -> Val {
 
 /// 造一个字典值。
 pub(crate) fn dict_new(pairs: Vec<(Val, Val)>) -> Val {
-    let mut d = Dict { items: Vec::with_capacity(pairs.len()), index: fasthash::快表::default() };
+    // 🔴 M216：**按已知容量一次建好**，不再逐对 `dict_set`。
+    // 逐对走 `dict_set` 的问题：① `Vec` 按 0→4→8 多次 realloc（一个 4 字段的
+    // 行就是 3 次）；② 每对都要过一遍 `dict_set` 的分支与哈希。
+    // `dict_new` 是 JSON 解析的主干 —— 一个 20k 行的库要建 20k 个这样的字典。
+    let n = pairs.len();
+    let mut d = Dict {
+        items: Vec::with_capacity(n),
+        dead: Vec::new(),
+        holes: 0,
+        index: fasthash::快表::with_capacity_and_hasher(n, Default::default()),
+    };
     for (k, v) in pairs {
-        dict_set(&mut d, k, v);
+        match dict_key(&k) {
+            Some(kk) => match d.index.entry(kk) {
+                // 重复键：**保留首次出现的位置、用最后一次的值**（Python 口径）
+                std::collections::hash_map::Entry::Occupied(e) => {
+                    d.items[*e.get()].1 = v;
+                }
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(d.items.len());
+                    d.items.push((k, v));
+                }
+            },
+            None => {
+                // 不可哈希的键：线性找（这种字典很小，且极少）
+                let 旧 = d.items.iter().enumerate().find(|(_, (ek, _))| *ek == k)
+                    .map(|(i, _)| i);
+                match 旧 {
+                    Some(i) => d.items[i].1 = v,
+                    None => d.items.push((k, v)),
+                }
+            }
+        }
     }
     Val::Dict(Rc::new(RefCell::new(d)))
 }
@@ -727,16 +844,25 @@ pub(crate) fn dict_set(d: &mut Dict, k: Val, v: Val) {
                 d.items[*e.get()].1 = v;
             }
             std::collections::hash_map::Entry::Vacant(e) => {
+                // ⚠️ 不能调 `d.push_live()` —— `e` 还借着 `d.index`，
+                //    而同字段分离借用只对**直接字段访问**成立。
                 let pos = d.items.len();
                 d.items.push((k, v));
+                if !d.dead.is_empty() {
+                    d.dead.push(false);
+                }
                 e.insert(pos);
             }
         }
     } else {
-        if let Some(slot) = d.items.iter_mut().find(|(ek, _)| *ek == k) {
-            slot.1 = v;
+        // 不可哈希的键（列表 / 字典 / NaN…）：线性找，**跳过墓碑**
+        let found = d.items.iter().enumerate()
+            .find(|(i, (ek, _))| !d.is_dead(*i) && ek == &k)
+            .map(|(i, _)| i);
+        if let Some(i) = found {
+            d.items[i].1 = v;
         } else {
-            d.items.push((k, v));
+            d.push_live(k, v);
         }
     }
 }
@@ -746,7 +872,31 @@ pub(crate) fn dict_get(d: &Dict, k: &Val) -> Option<Val> {
     if let Some(key) = dict_key(k) {
         return d.index.get(&key).map(|&pos| d.items[pos].1.clone());
     }
-    d.items.iter().find(|(ek, _)| ek == k).map(|(_, v)| v.clone())
+    d.items.iter().enumerate()
+        .find(|(i, (ek, _))| !d.is_dead(*i) && ek == k)
+        .map(|(_, (_, v))| v.clone())
+}
+
+/// 压掉墓碑：重建 `items` 与 `index`（下标全变，必须一起重建）。
+///
+/// 与 `Set::compact` 同一套路。摊还：空洞过半才压一次 ⇒ n 次删除大约压一次。
+fn dict_compact(d: &mut Dict) {
+    let mut items: Vec<(Val, Val)> = Vec::with_capacity(d.len());
+    let mut index: fasthash::快表<DictKey, usize> = fasthash::快表::with_capacity_and_hasher(
+        d.index.len(), Default::default());
+    for (i, kv) in std::mem::take(&mut d.items).into_iter().enumerate() {
+        if !matches!(d.dead.get(i), Some(true)) {
+            if let Some(k) = dict_key(&kv.0) {
+                index.insert(k, items.len());
+            }
+            items.push(kv);
+        }
+    }
+    d.items = items;
+    // 压完一个墓碑都没有 ⇒ `dead` 回到「未分配」，下次删除时才重新长出来
+    d.dead.clear();
+    d.holes = 0;
+    d.index = index;
 }
 
 /// 字典的键值对（**按插入顺序**）—— M115 `HTTP服务端` 拼响应头要用。
@@ -754,18 +904,17 @@ pub(crate) fn dict_get(d: &Dict, k: &Val) -> Option<Val> {
 /// ⚠️ `Dict.items` 是私有的，别的模块看不到；与其把字段开成 `pub(crate)`，
 /// 不如给一个**只读拷贝**的口子 —— 免得外面绕过 `dict_set` 直接改内部结构。
 pub(crate) fn dict_items(d: &Dict) -> Vec<(Val, Val)> {
-    d.items.clone()
+    d.to_items()
 }
 
 fn dict_contains(d: &Dict, k: &Val) -> bool {
     if let Some(key) = dict_key(k) {
         return d.index.contains_key(&key);
     }
-    d.items.iter().any(|(ek, _)| ek == k)
+    d.items.iter().enumerate().any(|(i, (ek, _))| !d.is_dead(i) && ek == k)
 }
 
 /// 删一个键，返回被删的值；没有返回 None。
-/// ⚠️ 删除会让 `items` 里后面的元素前移，所以 `index` 里 >pos 的位置都要 -1。
 fn dict_remove(d: &mut Dict, k: &Val) -> Option<Val> {
     let key = dict_key(k);
     let pos = match key {
@@ -774,15 +923,27 @@ fn dict_remove(d: &mut Dict, k: &Val) -> Option<Val> {
             d.index.remove(&kk);
             pos
         }
-        None => d.items.iter().position(|(ek, _)| ek == k)?,
+        None => d.items.iter().enumerate()
+            .find(|(i, (ek, _))| !d.is_dead(*i) && ek == k)
+            .map(|(i, _)| i)?,
     };
-    let removed = d.items.remove(pos).1;
-    if pos < d.items.len() {
-        for idx in d.index.values_mut() {
-            if *idx > pos {
-                *idx -= 1;
-            }
-        }
+    // 🔴 M216：**打墓碑，不搬移**。原来这里是
+    //   `items.remove(pos)`（O(n) 搬移）+ 再遍历整个 `index` 修正下标（又一遍 O(n)），
+    //   于是「删 n 个」= O(n²)：8000 个键删一半实测 **91 ms**。
+    // 现在 O(1)（摘索引 + 置墓碑），空洞过半时压缩一次，摊还 O(1)。
+    // ⚠️ 键和值都换成 `None_` —— 否则大字符串还被这个墓碑位置holding着，
+    //    内存等于没释放（压缩之前一直占着）。
+    if d.dead.is_empty() {
+        // 第一次删除才把墓碑表长出来（空表 = 「全活」，见 `is_dead`）
+        d.dead.resize(d.items.len(), false);
+    }
+    d.dead[pos] = true;
+    d.holes += 1;
+    let removed = std::mem::replace(&mut d.items[pos].1, Val::None_);
+    let _旧键 = std::mem::replace(&mut d.items[pos].0, Val::None_);
+    drop(_旧键);
+    if d.holes * 2 > d.items.len() {
+        dict_compact(d);
     }
     Some(removed)
 }

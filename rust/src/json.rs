@@ -73,7 +73,7 @@ impl Json {
 }
 
 pub fn parse(text: &str) -> Result<Json, String> {
-    let mut p = Parser { bytes: text.as_bytes(), pos: 0 };
+    let mut p = Parser { bytes: text.as_bytes(), text, pos: 0 };
     let v = p.parse_value()?;
     p.skip_ws();
     if p.pos != p.bytes.len() {
@@ -84,6 +84,9 @@ pub fn parse(text: &str) -> Result<Json, String> {
 
 struct Parser<'a> {
     bytes: &'a [u8],
+    /// 原文（与 `bytes` 同源）。用途：**无转义的字符串可以零拷贝切片**。
+    /// 是 `&str` ⇒ 任何切片都必然是合法 UTF-8（不用再验一遍）。
+    text: &'a str,
     pos: usize,
 }
 
@@ -174,6 +177,32 @@ impl<'a> Parser<'a> {
 
     fn parse_string(&mut self) -> Result<String, String> {
         self.pos += 1; // "
+        // 🟢 M216：**无转义字符串零拷贝切片的快路径**。
+        //
+        // 原来是一律「逐字节 `out.push()`」—— 对 `"类别"` 这种 6 字节的键，
+        // 就是 6 次 push + 一次 String 分配；一个 1.5 MB 的快照里有 8 万个
+        // 这样的短串。快路径只做「扫到引号」+ 一次切片转换（`&str` 切片天然
+        // 是合法 UTF-8，不用验）。
+        //
+        // 有转义的走下面的慢路径（`\n` / `\uXXXX` 这些必须真解）。
+        {
+            let 起 = self.pos;
+            let mut i = 起;
+            while i < self.bytes.len() {
+                match self.bytes[i] {
+                    b'"' => {
+                        // 安全：`text` 是 `&str`，任意字节边界上的切片都合法
+                        //（`bytes[i] == b'"'` 且 `i` 由逐字节推进得到，
+                        //  引号本身是 1 字节 ASCII ⇒ `i` 必是字符边界）。
+                        let s = unsafe { self.text.get_unchecked(起..i) };
+                        self.pos = i + 1;
+                        return Ok(s.to_string());
+                    }
+                    b'\\' => break, // 有转义，退回慢路径
+                    _ => i += 1,
+                }
+            }
+        }
         let mut out = String::new();
         loop {
             let c = match self.peek() {

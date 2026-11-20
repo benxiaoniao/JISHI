@@ -220,7 +220,7 @@ impl<'a> P<'a> {
         match self.b[self.i] {
             b'{' => self.object(),
             b'[' => self.array(),
-            b'"' => Ok(Val::Str(self.string()?.into())),
+            b'"' => Ok(Val::Str(self.string()?)),
             b't' => self.literal("true", Val::Bool(true)),
             b'f' => self.literal("false", Val::Bool(false)),
             b'n' => self.literal("null", Val::None_),
@@ -285,15 +285,42 @@ impl<'a> P<'a> {
         }
     }
 
-    fn string(&mut self) -> Result<String, JishiError> {
+    fn string(&mut self) -> Result<crate::jstr::JStr, JishiError> {
         self.i += 1; // 跳过开头引号
+        // 🟢 M216：**无转义字符串走零拷贝切片**。
+        //
+        // 原来是一律逐字符 `out.push_str` —— 数据库快照里 `"类别"` 这种 6 字节键、
+        // `"类7"` 这种短值，每次都要 `String::new()`（一次 malloc）再按字符 push。
+        // 20k 行 × 4 字段 ≈ 8 万个串，全在白花分配。
+        //
+        // 快路径只做「扫到收尾引号」+ 一次切片（`&str` 切片天然合法 UTF-8）
+        // ⇒ 短串直接内联进 `JStr`，**一次分配都不做**。
+        {
+            let 起 = self.i;
+            let mut i = 起;
+            while i < self.b.len() {
+                match self.b[i] {
+                    b'"' => {
+                        // 安全：`b` 是 `&str` 的字节，引号是 1 字节 ASCII，
+                        // 扫到这里必是字符边界。
+                        let s = unsafe {
+                            std::str::from_utf8_unchecked(&self.b[起..i])
+                        };
+                        self.i = i + 1;
+                        return Ok(crate::jstr::JStr::new(s));
+                    }
+                    b'\\' => break,
+                    _ => i += 1,
+                }
+            }
+        }
         let mut out = String::new();
         while self.i < self.b.len() {
             let c = self.b[self.i];
             match c {
                 b'"' => {
                     self.i += 1;
-                    return Ok(out);
+                    return Ok(crate::jstr::JStr::new(&out));
                 }
                 b'\\' => {
                     self.i += 1;
@@ -403,14 +430,13 @@ impl<'a> P<'a> {
             }
             self.i += 1;
             let v = self.value()?;
-            // 重复键：保留首次出现的位置、用最后一次的值（Python 的 dict 行为）
-            if let Some(slot) = pairs.iter_mut().find(|(pk, _)| {
-                matches!(pk, Val::Str(s) if &**s == k.as_str())
-            }) {
-                slot.1 = v;
-            } else {
-                pairs.push((Val::Str(k.into()), v));
-            }
+            // 🔴 M216：**不在这里查重**。原来每个键都 `pairs.iter_mut().find(…)`
+            // 线性扫一遍 ⇒ 一个 k 键的对象是 **O(k²)**（数据库行 k=3~10 还凑合，
+            // 大 JSON 对象就爆）。
+            //
+            // 语义不变：`dict_new` 用哈希去重，`dict_set` 命中已有键时**只换值、
+            // 保留首次出现的位置** —— 正是「Python dict」那条规矩。
+            pairs.push((Val::Str(k), v));
             self.ws();
             if self.i >= self.b.len() {
                 return self.error("对象没有收尾的 }");
