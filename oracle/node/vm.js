@@ -1108,6 +1108,205 @@ const SYS_FUNCS = {
   '参数': new R.Builtin('参数', () => process.argv.slice(3)),
 };
 
+// -- 进程（M217）--
+//
+// 🔴 **为什么是 Worker**：VM 跑在**同步**主循环里，`child.stdout` 的 'data'
+// 事件永远轮不到（事件循环被 VM 占着）。M161 的「同步 HTTP」踩过同一条，
+// 结论也一样：**Worker + SharedArrayBuffer + Atomics.wait** ——
+//   ① 主线程起一个 Worker（同进程内的线程，不碰 EXE）；
+//   ② Worker 里异步 `spawn` 子进程、收 'data'、按行拆；
+//   ③ 主线程 `Atomics.wait` 阻塞，Worker 把答复写进共享内存并 `notify`。
+//
+// ⚠️ 与 M161 的差别：那边「一次请求一个 Worker、用完 terminate」；
+//    这里句柄要活得比一次调用长，所以 Worker 是**常驻**的、协议是双向的。
+//    实现在 `process_worker.js`（单独一个文件 —— 塞进模板字符串里
+//    转义会多到看不清）。
+//
+// 📌 协议（Int32Array 前 9 格）：
+//   [0] 响应就绪（主线程等它）  [1] 响应类型  [2] 响应字节数  [3] 响应整数
+//   [4] 请求码                  [5] 请求整数  [6] 请求字节数
+//   [8] 请求序号（Worker 看它变）
+const _路径 = require('path');
+
+/** 每个句柄的共享内存：控制格 64 字节 + 命令区 64 KB + 回区 4 MB */
+const 进程共享大小 = 64 + 65536 + 4 * 1024 * 1024;
+const 进程命令上限 = 65536;
+
+class 进程句柄 extends R.JishiNative {
+  constructor(worker, sab) {
+    // 类型名与显示都跟 Rust 的 `NativeObj` / Python 的 `_jishi_type_name` 对齐
+    super('进程', {}, {});
+    this.w = worker;
+    this.sab = sab;
+    this.i32 = new Int32Array(sab, 0, 16);
+    this.命令区 = new Uint8Array(sab, 64, 进程命令上限);
+    this.回区 = new Uint8Array(sab, 64 + 进程命令上限, 4 * 1024 * 1024);
+    this.序号 = 0;
+  }
+}
+
+function 取进程句柄(v, 名) {
+  if (v instanceof 进程句柄) return v;
+  throw R.typeErr(`「${名}」要传 \`进程.启动\` 拿到的句柄（现在是「${R.typeName(v)}」）`);
+}
+
+/** 超时参数 → 毫秒（-1 = 一直等）。省略 = -1。 */
+function 超时毫秒(v, 名) {
+  if (v === undefined || v === null) return -1;
+  // ⚠️ Node 的小数是 `FloatBox` 包着的（`0.2` 不是 `number`）——
+  //    直接 `typeof v !== 'number'` 会把**所有**小数超时判成类型错。
+  const 数 = R.unwrap(v);
+  if (typeof 数 !== 'number' || !Number.isFinite(数)) {
+    throw R.typeErr(`「${名}」的超时要给秒数（省略 = 一直等）`);
+  }
+  if (数 < 0) throw R.valueErr(`「${名}」的超时不能是负数（给的是 ${数}）`);
+  return Math.round(数 * 1000);
+}
+
+/**
+ * 给 Worker 发一个请求并等答复。
+ *
+ * `等毫秒` 是**主线程自己的护栏**（比 Worker 的截止时间宽几秒）：
+ * Worker 那边算错了也只是这里先醒、报一句内部超时，不会把 VM 永久冻住。
+ */
+function 进程请求(h, 码, 文本, 数值, 等毫秒) {
+  const b = Buffer.from(文本 === undefined || 文本 === null ? '' : String(文本), 'utf8');
+  if (b.length > 进程命令上限) {
+    throw R.runErr(`要写进子进程的文本太长了（单次上限 ${进程命令上限} 字节）`);
+  }
+  h.命令区.set(b);
+  h.i32[6] = b.length;
+  h.i32[5] = 数值 | 0;
+  h.i32[4] = 码;
+  Atomics.store(h.i32, 0, 0);
+  h.序号 += 1;
+  Atomics.store(h.i32, 8, h.序号);
+  const 结果 = 等毫秒 === null
+    ? Atomics.wait(h.i32, 0, 0)
+    : Atomics.wait(h.i32, 0, 0, 等毫秒);
+  if (结果 === 'timed-out' || h.i32[0] !== 1) {
+    throw R.runErr('子进程没有及时回应（宿主内部超时；子进程可能卡死了）');
+  }
+  const 型 = h.i32[1];
+  const 长 = h.i32[2];
+  const 数 = h.i32[3];
+  const 文 = 长 > 0 ? Buffer.from(h.回区.subarray(0, 长)).toString('utf8') : '';
+  h.i32[0] = 0;
+  if (型 === 6) throw R.runErr(文 || '子进程操作失败');
+  return { 型, 文, 数 };
+}
+
+const PROCESS_FUNCS = {
+  '启动': new R.Builtin('启动', (命令, argv, 选项) => {
+    const 名 = pText(命令);
+    const 参 = (argv === undefined || argv === null) ? [] : argv;
+    if (!Array.isArray(参)) throw R.typeErr('「启动」的参数们要给文本列表');
+    let 目录 = null;
+    let 环境 = null;
+    let 合并 = false;
+    if (选项 !== undefined && 选项 !== null) {
+      const 是字典 = (选项 instanceof Map)
+        || (typeof 选项 === 'object' && 选项 !== null);
+      if (!是字典) throw R.typeErr('「启动」的选项要给字典（可省略）');
+      const 取 = (k) => (选项 instanceof Map ? 选项.get(k) : 选项[k]);
+      const 目 = 取('目录');
+      if (目 !== undefined && 目 !== null && 目 !== '') 目录 = pText(目);
+      const 环 = 取('环境');
+      if (环 !== undefined && 环 !== null) {
+        if (!(环 instanceof Map) && typeof 环 !== 'object') {
+          throw R.valueErr('「启动」的「环境」要给字典');
+        }
+        环境 = Object.assign({}, process.env);
+        const 项 = 环 instanceof Map ? [...环.entries()] : Object.entries(环);
+        for (const [k, v] of 项) 环境[String(k)] = pText(v);
+      }
+      const 合 = 取('合并错误');
+      合并 = !!(合 !== undefined && 合 !== null && R.truthy(合));
+    }
+    const sab = new SharedArrayBuffer(进程共享大小);
+    const w = new _worker.Worker(_路径.join(__dirname, 'process_worker.js'), {
+      workerData: { sab, 命令: 名, argv: 参.map((x) => pText(x)), 目录, 环境, 合并 },
+    });
+    // 🔴 `unref`：子进程句柄不该把 Node 进程钉住 —— 脚本跑完就该退出，
+    //    哪怕子进程还活着（与 Python 的 `Popen` 一个行为）。
+    w.unref();
+    const h = new 进程句柄(w, sab);
+    // 握手：Worker 起来后（或起不来）一定回一条
+    Atomics.wait(h.i32, 0, 0, 10000);
+    if (h.i32[0] !== 1) {
+      w.terminate();
+      throw R.runErr(`起不来进程「${名}」：宿主没有回应`);
+    }
+    const 型 = h.i32[1];
+    const 长 = h.i32[2];
+    const 文 = 长 > 0 ? Buffer.from(h.回区.subarray(0, 长)).toString('utf8') : '';
+    h.i32[0] = 0;
+    if (型 === 6) {
+      w.terminate();
+      throw R.runErr(文 || `起不来进程「${名}」`);
+    }
+    return h;
+  }),
+  '写文本': new R.Builtin('写文本', (句柄, 内容) => {
+    const h = 取进程句柄(句柄, '写文本');
+    进程请求(h, 0, pText(内容), 0, 30000);
+    return true;
+  }),
+  '写行': new R.Builtin('写行', (句柄, 内容) => {
+    const h = 取进程句柄(句柄, '写行');
+    const 行 = (内容 === undefined || 内容 === null) ? '' : pText(内容);
+    进程请求(h, 0, 行 + '\n', 0, 30000);
+    return true;
+  }),
+  '读行': new R.Builtin('读行', (句柄, 超时) => {
+    const h = 取进程句柄(句柄, '读行');
+    const 毫秒 = 超时毫秒(超时, '读行');
+    const r = 进程请求(h, 1, '', 毫秒, 毫秒 < 0 ? null : 毫秒 + 5000);
+    return r.型 === 1 ? r.文 : null;
+  }),
+  '读错误行': new R.Builtin('读错误行', (句柄, 超时) => {
+    const h = 取进程句柄(句柄, '读错误行');
+    const 毫秒 = 超时毫秒(超时, '读错误行');
+    const r = 进程请求(h, 2, '', 毫秒, 毫秒 < 0 ? null : 毫秒 + 5000);
+    return r.型 === 1 ? r.文 : null;
+  }),
+  '在运行': new R.Builtin('在运行', (句柄) => {
+    const h = 取进程句柄(句柄, '在运行');
+    return 进程请求(h, 3, '', 0, 10000).型 === 3;
+  }),
+  '终止': new R.Builtin('终止', (句柄) => {
+    const h = 取进程句柄(句柄, '终止');
+    return 进程请求(h, 4, '', 0, 15000).型 === 3;
+  }),
+  '等待': new R.Builtin('等待', (句柄, 超时) => {
+    const h = 取进程句柄(句柄, '等待');
+    const 毫秒 = 超时毫秒(超时, '等待');
+    const r = 进程请求(h, 5, '', 毫秒, 毫秒 < 0 ? null : 毫秒 + 5000);
+    return r.型 === 5 ? r.数 : null;
+  }),
+  '退出码': new R.Builtin('退出码', (句柄) => {
+    const h = 取进程句柄(句柄, '退出码');
+    const r = 进程请求(h, 6, '', 0, 10000);
+    return r.型 === 5 ? r.数 : null;
+  }),
+  // M217 顺带补的一对（数据库 `.lock` 的陈旧锁回收要用）
+  '进程号': new R.Builtin('进程号', () => process.pid),
+  '存在': new R.Builtin('存在', (号) => {
+    const 数 = R.unwrap(号);
+    if (typeof 数 !== 'number' || !Number.isInteger(数)) {
+      throw R.typeErr('「存在」要传进程号（整数），比如 进程.进程号()');
+    }
+    if (数 <= 0) return false;
+    try {
+      process.kill(数, 0);
+      return true;
+    } catch (e) {
+      // EPERM = 有这个进程、只是不归我管 ⇒ **算活着**（保守，见 Python 侧同名的注释）
+      return e && e.code === 'EPERM';
+    }
+  }),
+};
+
 // -- json（M30）--
 // **不能直接用 `JSON.stringify`**：Python 的 `json.dumps` 默认分隔符是
 // `', '` 和 `': '`，而 JS 的没有空格（`{"a":1}`）——不自己写就会与
@@ -8805,6 +9004,8 @@ const STDLIB = {  '数学': new R.Module('数学', {
   }),
   '表格': new R.Module('表格', TABLE_FUNCS),
   '系统': new R.Module('系统', SYS_FUNCS),
+  // M217：子进程句柄（Worker + 共享内存，见 `PROCESS_FUNCS` 上方那段）
+  '进程': new R.Module('进程', PROCESS_FUNCS),
   'json': new R.Module('json', JSON_FUNCS),
   '正则': new R.Module('正则', RE_FUNCS),
   '路径': new R.Module('路径', PATH_FUNCS),

@@ -240,7 +240,7 @@
     },
     {
       "id": "examples__tutorial__11_记账数据库",
-      "产物哈希": "sha256:a6edead4fd9ae4ac",
+      "产物哈希": "sha256:558ba4954ba58683",
       "内容哈希": "sha256:62c7825de2816819",
       "类别": "examples",
       "路径": "examples/tutorial/11_记账数据库.jsh"
@@ -352,14 +352,14 @@
     },
     {
       "id": "examples__绕道探针__记账本__记账",
-      "产物哈希": "sha256:5e0d1b5c412d259e",
+      "产物哈希": "sha256:d29c58df117cd420",
       "内容哈希": "sha256:8f46752833fe1e0b",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/记账.jsh"
     },
     {
       "id": "examples__绕道探针__记账本__迁移",
-      "产物哈希": "sha256:7c60b186012c9487",
+      "产物哈希": "sha256:b75aa18796b394da",
       "内容哈希": "sha256:12a659ad50e2a080",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/迁移.jsh"
@@ -380,8 +380,8 @@
     },
     {
       "id": "oracle__jishi__stdlib-jishi__数据库",
-      "产物哈希": "sha256:110f53323ddaf9fc",
-      "内容哈希": "sha256:56cd55aab41a8851",
+      "产物哈希": "sha256:6d066cc0968cb05e",
+      "内容哈希": "sha256:5bfc70005751dc41",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/数据库.jsh"
     },
@@ -618,14 +618,14 @@
     },
     {
       "id": "tests__cases__31_标准库_M112",
-      "产物哈希": "sha256:f8ad71a662d629b7",
+      "产物哈希": "sha256:25fb7d6f02cb4ade",
       "内容哈希": "sha256:36b6ab3d3acbff99",
       "类别": "lang",
       "路径": "tests/cases/31_标准库_M112.jsh"
     },
     {
       "id": "tests__cases__32_标准库_M113",
-      "产物哈希": "sha256:5934358f1c6c6f8e",
+      "产物哈希": "sha256:96239ac6cfae1aaf",
       "内容哈希": "sha256:89dedf32cee56818",
       "类别": "lang",
       "路径": "tests/cases/32_标准库_M113.jsh"
@@ -730,7 +730,7 @@
     },
     {
       "id": "tests__cases__47_数据库_报错文案",
-      "产物哈希": "sha256:740e8a5fa54edd22",
+      "产物哈希": "sha256:b16b2dbd135afc6f",
       "内容哈希": "sha256:6d0e6b452d9c394f",
       "类别": "lang",
       "路径": "tests/cases/47_数据库_报错文案.jsh"

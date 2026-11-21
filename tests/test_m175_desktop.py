@@ -479,7 +479,13 @@ def test_存本地跨次还在_同一个程序永远同一个端口(tmp_path):
     if not WASM.is_file():
         pytest.skip("还没构建 wasm（tools/build_wasm.py）")
 
-    (tmp_path / "页.html").write_text(_存本地页, encoding="utf-8", newline="\n")
+    # 🔴 键里带**本进程 pid**：`localStorage` 是按 origin（≈ 端口）存的，
+    #    而端口是「页面目录 → 散列」—— 两次 pytest 的临时目录名可能落到**同一个端口**，
+    #    于是上一轮留下的「有值」会让这一轮的「第一次」判据假红（M217 实测撞到：
+    #    单独跑必过、并行跑偶发）。键带上 pid 之后，跨轮次不可能串味。
+    (tmp_path / "页.html").write_text(
+        _存本地页.replace("计数", f"计数_{os.getpid()}"),
+        encoding="utf-8", newline="\n")
     标题 = f"M176 存本地 {os.getpid()}"
     (tmp_path / "程序.jsh").write_text(
         f'导入 窗口\n令 窗 = 窗口.打开({{"标题": "{标题}", "页面": "页.html"}})\n窗口.等(窗)\n',

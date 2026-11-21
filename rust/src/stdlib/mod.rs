@@ -49,6 +49,8 @@ mod path;
 // M188：`设种子` 要给 wasm 入口用（`随机` 在 wasm 上没有时钟，见 rand.rs）
 pub mod rand;
 mod system;
+// M217：`进程`（子进程句柄）。wasm 上模块也在表里，只是用的时候报平台错。
+mod process;
 pub(crate) mod tables;
 pub(crate) mod word;
 pub(crate) mod pdf;
@@ -136,6 +138,8 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         ("日期", datetime::date_module),
         ("时间", datetime::time_module),
         ("系统", system::module),
+        // M217：子进程句柄（交互式：边写边读、stderr 分流、超时、终止）
+        ("进程", process::module),
         ("加密", crate::crypto::module),
         ("压缩", crate::zip::module),
         ("表格", tables::module),
