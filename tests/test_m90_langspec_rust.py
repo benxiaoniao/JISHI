@@ -253,7 +253,7 @@ def test_独立判据_lang_spec结构与关键事实():
     # M217：新模块 `进程`（启动 / 写文本 / 写行 / 读行 / 读错误行 / 在运行 /
     # 终止 / 等待 / 退出码）+ `进程号` / `存在`（W13 的陈旧锁回收要用）
     # ⇒ **51 模块 / 580 函数**。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 580
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 582
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

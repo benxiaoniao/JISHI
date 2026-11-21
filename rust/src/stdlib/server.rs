@@ -27,7 +27,7 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 
-use super::{as_text, need_range, table, R};
+use super::{as_text, need, need_range, table, R};
 use crate::{dict_items, dict_new, err, list_new, BuiltinHost, JishiError, Val};
 
 /// 状态码 → 原因短语。**认不得的状态码留空**（不硬编一个假的英文短语）。
@@ -459,7 +459,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
             }
         },
         "启动" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
-            need_range("启动", args, 2, 3)?;
+            need_range("启动", args, 2, 4)?;
             let 端口 = 要整数(&args[0], "端口")?;
             let 处理函数 = args[1].clone();
             if !matches!(
@@ -479,7 +479,239 @@ pub(crate) fn module() -> HashMap<String, Val> {
             if 上限 < 0 {
                 return Err(err("值错误", format!("最多请求数不能是负数，现在是 {上限}")));
             }
+            // M218：`非阻塞=真` ⇒ 返回**服务句柄**，由用户自己的循环调 `处理一轮`
+            let 非阻塞 = match args.get(3) {
+                None | Some(Val::None_) => false,
+                Some(v) => crate::truthy(v.clone()),
+            };
+            if 非阻塞 {
+                return 起非阻塞服务(端口, 处理函数, 上限);
+            }
             起服务(端口, 处理函数, 上限, vm)
         },
+        // `启动非阻塞(端口=8000, 处理函数, 最多请求数=0)` —— M218 的主入口。
+        //
+        // 为什么不让人写 `启动(0, 处理, 非阻塞=真)`：命名参数**不许跳过**中间
+        // 的可选参数（三宿主一致），而 `最多请求数` 是第三位（教程里有
+        // `启动(端口, 处理, 10)` 这种位置写法，不能把它挪到第四位）。
+        // 与其让人写 `启动(0, 处理, 空, 非阻塞=真)`，不如给个读起来顺的名字。
+        "启动非阻塞" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("启动非阻塞", args, 2, 3)?;
+            let 端口 = 要整数(&args[0], "端口")?;
+            let 处理函数 = args[1].clone();
+            if !matches!(
+                处理函数,
+                Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_) | Val::BoundMethod(_)
+            ) {
+                return Err(err(
+                    "类型错误",
+                    "「启动非阻塞」的第二个参数要一个**处理函数**：它收一个「请求」字典",
+                ));
+            }
+            let 上限 = match args.get(2) {
+                None | Some(Val::None_) => 0i128,
+                Some(v) => 要整数(v, "最多请求数")?,
+            };
+            if 上限 < 0 {
+                return Err(err("值错误", format!("最多请求数不能是负数，现在是 {上限}")));
+            }
+            起非阻塞服务(端口, 处理函数, 上限)
+        },
     }
+}
+
+// ---------------------------------------------------------------------------
+// 非阻塞服务（M218）
+// ---------------------------------------------------------------------------
+//
+// 为什么要有：阻塞的服务循环会把**同一进程里的窗口消息泵**饿死 ——
+// 磐石 IDE 实测：窗口白着、页面永远加载不出来（L-3 / L-10）。
+// 现在把「收一个请求」拆成一拍：用户在自己的循环里（`每帧` / `当` 循环）
+// 调一次 `处理一轮`，收完就返回。
+//
+// 🔴 **不开线程**：单 VM 单线程，处理函数必须跑在用户脚本的线程上
+// （否则「处理函数里改全局」就不是同一个世界了）。所以这里是
+// 「把监听设成非阻塞 + 一次只收这么多」，不是后台线程。
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) struct 服务状态 {
+    监听: std::net::TcpListener,
+    处理函数: Val,
+    上限: i128,
+    收到: i128,
+    端口: u16,
+    关了: bool,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 借(对象: &crate::NativeObj) -> std::cell::Ref<'_, 服务状态> {
+    std::cell::Ref::map(对象.state.borrow(), |s| {
+        s.downcast_ref::<服务状态>().expect("NativeObj 应是服务")
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 借可变(对象: &crate::NativeObj) -> std::cell::RefMut<'_, 服务状态> {
+    std::cell::RefMut::map(对象.state.borrow_mut(), |s| {
+        s.downcast_mut::<服务状态>().expect("NativeObj 应是服务")
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 服务_处理一轮(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+                 vm: &mut dyn BuiltinHost) -> R {
+    need_range("处理一轮", args, 0, 1)?;
+    let mut 最多 = match args.first() {
+        None | Some(Val::None_) => 1i128,
+        Some(v) => 要整数(v, "最多")?,
+    };
+    if 最多 < 0 {
+        return Err(err("值错误", format!("「处理一轮」的最多不能是负数，现在是 {最多}")));
+    }
+    if 最多 == 0 {
+        最多 = 1;
+    }
+    let mut 做了 = 0i128;
+    while 做了 < 最多 {
+        // 先看配额，再看有没有连接 —— 两个都是「不阻塞」的
+        let (流, 处理函数) = {
+            let st = 借(对象);
+            if st.关了 || (st.上限 > 0 && st.收到 >= st.上限) {
+                break;
+            }
+            match st.监听.accept() {
+                Ok((流, _)) => (流, st.处理函数.clone()),
+                // 没有连接在等（非阻塞的常态）⇒ 这一轮就到此为止
+                Err(_) => break,
+            }
+        };
+        let 应答 = 处理一条(流, &处理函数, vm);
+        if let Some(文) = 应答 {
+            借可变(对象).收到 += 1;
+            做了 += 1;
+            let _ = 文; // 已经写回给客户端了（在 `处理一条` 里）
+        }
+    }
+    Ok(Val::Int(crate::jint::JInt::new(做了 as i128)))
+}
+
+/// 处理**一个**连接：读完请求 → 调处理函数 → 写回响应。
+///
+/// 返回 `Some(())` = **算一个请求**；`None` = 空连接（连上就断/超时），**不算**。
+/// 与阻塞版同一条口径（M115 的坑：端口探测把「最多请求数」吃掉了）。
+#[cfg(not(target_arch = "wasm32"))]
+fn 处理一条(
+    流: std::net::TcpStream,
+    处理函数: &Val,
+    vm: &mut dyn BuiltinHost,
+) -> Option<()> {
+    use std::io::Write;
+    // 🔴 **先把它设回阻塞**：Windows 上从非阻塞监听里 `accept` 出来的 socket
+    //    会**继承非阻塞**，于是 `read()` 立刻 `WouldBlock` ⇒ 读不到请求直接关连接
+    //    （客户端看到的是 `ConnectionReset`，服务端「什么都没处理」——M218 实测踩到）。
+    let _ = 流.set_nonblocking(false);
+    // 半个连接不许把整轮拖住：读请求设个上限
+    let _ = 流.set_read_timeout(Some(std::time::Duration::from_secs(2)));
+    let mut 流 = 流;
+    let 原始 = match 读原始请求(&mut 流) {
+        Ok(t) => t,
+        Err(_) => return None,
+    };
+    if 原始.is_empty() {
+        return None;
+    }
+    let 文本 = match 解析请求字典(&原始) {
+        Ok(请求) => match vm.call_value(处理函数.clone(), vec![请求]) {
+            Ok(应答) => 把应答变文本(&应答).unwrap_or_else(|e| {
+                构造响应文本(500, &错误首行(&e), 默认内容类型, None).unwrap_or_default()
+            }),
+            Err(e) => 构造响应文本(500, &错误首行(&e), 默认内容类型, None)
+                .unwrap_or_default(),
+        },
+        Err(e) => 构造响应文本(400, &e.message, 默认内容类型, None).unwrap_or_default(),
+    };
+    let _ = 流.write_all(文本.as_bytes());
+    let _ = 流.flush();
+    Some(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 服务_端口(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+             _vm: &mut dyn BuiltinHost) -> R {
+    need("端口", args, 0)?;
+    Ok(Val::Int(crate::jint::JInt::new(借(对象).端口 as i128)))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 服务_请求数(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+               _vm: &mut dyn BuiltinHost) -> R {
+    need("请求数", args, 0)?;
+    Ok(Val::Int(crate::jint::JInt::new(借(对象).收到 as i128)))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 服务_关闭(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+             _vm: &mut dyn BuiltinHost) -> R {
+    need("关闭", args, 0)?;
+    let mut st = 借可变(对象);
+    if st.关了 {
+        return Ok(Val::Bool(false)); // 幂等
+    }
+    st.关了 = true;
+    // `TcpListener` 没有 `close()`：把监听**换成一个空壳**（绑 127.0.0.1:0 再丢掉）
+    // 是多余的 —— 直接靠 `关了` 标志停收，`Drop` 时 OS 自己关。
+    // 但「关了之后端口要立刻能复用」是用户的真实期待，所以这里显式 drop：
+    // 用一个临时 listener 占位，把原来的换出去 drop 掉。
+    let 占位 = std::net::TcpListener::bind(("127.0.0.1", 0));
+    if let Ok(新) = 占位 {
+        let 旧 = std::mem::replace(&mut st.监听, 新);
+        drop(旧);
+    }
+    Ok(Val::Bool(true))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+static 服务方法: &[(&str, crate::NativeFn)] = &[
+    ("处理一轮", 服务_处理一轮),
+    ("端口", 服务_端口),
+    ("请求数", 服务_请求数),
+    ("关闭", 服务_关闭),
+];
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 起非阻塞服务(端口: i128, 处理函数: Val, 上限: i128) -> Result<Val, JishiError> {
+    if !(0..=65535).contains(&端口) {
+        return Err(err("值错误", format!("端口要在 0–65535 之间，现在是 {端口}")));
+    }
+    let 监听 = std::net::TcpListener::bind(("127.0.0.1", 端口 as u16))
+        .map_err(|e| err("运行期错误", format!("起不了服务：{e}")))?;
+    let 实际 = 监听
+        .local_addr()
+        .map_err(|e| err("运行期错误", format!("读不到端口：{e}")))?
+        .port();
+    // 🔴 非阻塞的关键：`accept` 立刻返回 `WouldBlock`，于是「处理一轮」是**一拍**
+    监听
+        .set_nonblocking(true)
+        .map_err(|e| err("运行期错误", format!("设不了非阻塞：{e}")))?;
+    Ok(crate::native_obj(
+        "服务",
+        服务方法,
+        std::rc::Rc::new(std::cell::RefCell::new(服务状态 {
+            监听,
+            处理函数,
+            上限,
+            收到: 0,
+            端口: 实际,
+            关了: false,
+        })),
+    ))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn 起非阻塞服务(_端口: i128, _处理函数: Val, _上限: i128) -> Result<Val, JishiError> {
+    Err(crate::err_with_hint(
+        "运行期错误",
+        "浏览器（wasm）里起不了本地服务：这里没有 socket",
+        "要在页面里取数据用 `网络.获取`；本地服务请用命令行宿主".into(),
+    ))
 }

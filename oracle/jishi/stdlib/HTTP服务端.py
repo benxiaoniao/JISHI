@@ -42,7 +42,7 @@ from urllib.parse import unquote_to_bytes
 from ..errors import RunTypeError, RunValueError
 from ..runtime import type_name
 
-__all__ = ["解析请求", "构造响应", "启动", "空闲端口"]
+__all__ = ["解析请求", "构造响应", "启动", "启动非阻塞", "空闲端口", "服务句柄"]
 
 #: 状态码 → 原因短语。**认不得的状态码就留空**（不硬编一个假的英文短语）。
 _原因 = {
@@ -273,7 +273,8 @@ def _读原始请求(处理) -> str:
     return "\r\n".join([首行] + 头行们) + "\r\n\r\n" + 体
 
 
-def 启动(端口: int = 8000, 处理函数=None, 最多请求数: int = 0) -> dict:
+def 启动(端口: int = 8000, 处理函数=None, 最多请求数: int = 0,
+       非阻塞: bool = False):
     """起一个 HTTP 服务，**阻塞**着收请求，每个请求调一次 `处理函数`。
 
     返回 `{"端口": 实际端口, "请求数": 收到几个}`。
@@ -293,6 +294,8 @@ def 启动(端口: int = 8000, 处理函数=None, 最多请求数: int = 0) -> d
     上限 = _要整数(最多请求数, "最多请求数")
     if 上限 < 0:
         raise RunValueError(f"最多请求数不能是负数，现在是 {上限}")
+    if 非阻塞:
+        return _起非阻塞(端口号, 处理函数, 上限)
 
     记录 = {"请求数": 0}
 
@@ -360,3 +363,197 @@ def 启动(端口: int = 8000, 处理函数=None, 最多请求数: int = 0) -> d
     finally:
         服务.server_close()
     return {"端口": 实际, "请求数": 记录["请求数"]}
+
+
+# ---------------------------------------------------------------------------
+# 非阻塞（M218）：`启动(…, 非阻塞=真)` → 句柄，自己循环里 `处理一轮`
+# ---------------------------------------------------------------------------
+#
+# 为什么需要：阻塞的服务循环会把**同一进程里的窗口消息泵**饿死
+# （磐石 IDE 实测：窗口白着、页面永远加载不出来，见 L-3 / L-10）。
+# 现在把「收一个请求」拆成一拍：用户在自己的循环里（`每帧` / `当` 循环）
+# 调一次 `处理一轮`，收完就返回。
+#
+# 🔴 **不开线程**：单 VM 单线程，处理函数要跑在用户脚本的线程上
+# （否则「处理函数里改全局」就不是同一个世界了）。所以这里是
+# 「把 accept 设成非阻塞 + 一次只收这么多」，不是后台线程。
+
+class 服务句柄:
+    """非阻塞服务的句柄。方法见模块文档：`处理一轮` / `端口` / `请求数` / `关闭`。"""
+
+    _jishi_type_name = "服务"
+
+    def __init__(self, 监听, 处理函数, 上限):
+        self._监听 = 监听
+        self._处理函数 = 处理函数
+        self._上限 = 上限
+        self._收到 = 0
+        self._关 = False
+        监听.setblocking(False)
+        self._端口 = int(监听.getsockname()[1])
+
+    def __repr__(self):                      # pragma: no cover - 显示用
+        return "<服务 对象>"
+
+    # -- 内部：一个连接 --
+    def _一条(self, 连接):
+        from ..errors import JishiError
+
+        连接.settimeout(2.0)                 # 半个连接不许把整轮拖住
+        try:
+            原始 = _读一条原始请求(连接)
+        except OSError:
+            return None                      # 空连接 / 超时：**不算请求**
+        if not 原始:
+            return None
+        try:
+            请求 = 解析请求(原始)
+        except JishiError as 错:
+            return 构造响应(400, str(错.message))
+        try:
+            return _把应答变成文本(self._处理函数(请求))
+        except JishiError as 错:
+            return 构造响应(500, _错误首行(错))
+        except Exception as 错:              # noqa: BLE001
+            return 构造响应(500, str(错))
+
+    def 处理一轮(self, 最多: int = 1) -> int:
+        """收几个请求就回来（默认 1 个）。返回**这一轮真处理了几个**。
+
+        - 没有连接在等 ⇒ 立刻返回 `0`（不阻塞、不睡）；
+        - `最多` 只是这一轮的上限，不是总数；
+        - 达到 `启动` 时给的 `最多请求数` 之后，这里永远返回 0（不再收）。
+        """
+        if self._关:
+            return 0
+        最多 = _要整数(最多, "最多")
+        if 最多 < 0:
+            raise RunValueError(f"「处理一轮」的最多不能是负数，现在是 {最多}")
+        if 最多 == 0:
+            最多 = 1
+        做了 = 0
+        while 做了 < 最多:
+            if self._上限 > 0 and self._收到 >= self._上限:
+                break
+            try:
+                连接, _ = self._监听.accept()
+            except BlockingIOError:
+                break
+            except OSError:
+                break
+            try:
+                应答 = self._一条(连接)
+                if 应答 is None:
+                    continue
+                try:
+                    连接.sendall(应答.encode("utf-8"))
+                except OSError:
+                    pass
+                self._收到 += 1
+                做了 += 1
+            finally:
+                try:
+                    连接.close()
+                except OSError:
+                    pass
+        return 做了
+
+    def 端口(self) -> int:
+        """这个服务实际监听在哪个端口（`启动(0, …)` 时用它拿系统分配的号）。"""
+        return self._端口
+
+    def 请求数(self) -> int:
+        """到现在为止**真处理过**多少个请求（空连接不算）。"""
+        return self._收到
+
+    def 关闭(self) -> bool:
+        """关掉监听。已经关过 ⇒ 假（幂等）。"""
+        if self._关:
+            return False
+        self._关 = True
+        try:
+            self._监听.close()
+        except OSError:
+            pass
+        return True
+
+
+def 启动非阻塞(端口: int = 8000, 处理函数=None, 最多请求数: int = 0) -> 服务句柄:
+    """起一个**非阻塞**的 HTTP 服务，返回句柄 —— 你在自己的循环里调 `处理一轮`。
+
+    ```jishi
+    导入 HTTP服务端
+    令 服 = HTTP服务端.启动非阻塞(0, 处理)
+    当 还在跑：
+        服.处理一轮(8)        # 收完就返回，没连接就立刻返回 0
+    ```
+
+    ## 为什么非要它（而不是 `启动(…, 非阻塞=真)`）
+
+    两件事叠在一起：
+
+    1. 阻塞的 `启动` 会把**同一进程里的窗口消息泵**饿死 —— 磐石 IDE 实测：
+       窗口白着、页面永远加载不出来（路线图 L-3 / L-10）；
+    2. `启动` 的第三个位置参数是 `最多请求数`（教程里就写着
+       `启动(端口, 处理, 10)`），所以 `非阻塞` 只能排在第四位；而命名参数
+       **不许跳过中间的可选参数**（三宿主一致）—— 于是
+       `启动(0, 处理, 非阻塞=真)` 会报「跳过了最多请求数」。
+
+    ⇒ 与其让人写 `启动(0, 处理, 空, 非阻塞=真)`，不如给一个读起来顺的名字。
+
+    ⚠️ **不开线程**：处理函数跑在**你自己的**线程上（单 VM 单线程），
+    所以「处理函数里改全局」和脚本里其它地方是同一个世界。
+    """
+    return 启动(端口, 处理函数, 最多请求数, True)
+
+
+def _起非阻塞(端口号: int, 处理函数, 上限: int) -> 服务句柄:
+    import socket as _socket
+
+    监听 = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    # Windows 上 `SO_REUSEADDR` 的语义与 POSIX 不同（会允许抢占），但本地小服务
+    # 反复起停很常见 —— 不设它的话「刚关掉又起」会报端口被占用。只监听 127.0.0.1，
+    # 抢占风险可以接受。
+    监听.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+    try:
+        监听.bind(("127.0.0.1", 端口号))
+        监听.listen(64)
+    except OSError as 错:
+        try:
+            监听.close()
+        except OSError:
+            pass
+        raise RunValueError(f"起不了服务：{错}")
+    return 服务句柄(监听, 处理函数, 上限)
+
+
+def _读一条原始请求(连接) -> str:
+    """从**裸 socket** 读一条完整请求（读到头结束，再按 Content-Length 读正文）。
+
+    与 `_读原始请求`（给 http.server 用的那个）是同一件事的两条入口 ——
+    那边是「http.server 已经拆好了、我们重拼」，这边是「原样读字节」。
+    最后都交给 `解析请求`（**只有一份解析实现**）。
+    """
+    缓冲 = b""
+    while b"\r\n\r\n" not in 缓冲:
+        块 = 连接.recv(4096)
+        if not 块:
+            return ""                        # 连上就断：空连接
+        缓冲 += 块
+        if len(缓冲) > 8 * 1024 * 1024:      # 防御：头不许超过 8 MB
+            return ""
+    头, 体 = 缓冲.split(b"\r\n\r\n", 1)
+    长度 = 0
+    for 行 in 头.split(b"\r\n")[1:]:
+        名, _, 值 = 行.partition(b":")
+        if 名.strip().lower() == b"content-length":
+            try:
+                长度 = int(值.strip() or b"0")
+            except ValueError:
+                长度 = 0
+    while len(体) < 长度:
+        块 = 连接.recv(65536)
+        if not 块:
+            break
+        体 += 块
+    return (头 + b"\r\n\r\n" + 体[:长度]).decode("utf-8", "replace")

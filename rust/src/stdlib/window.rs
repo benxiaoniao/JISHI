@@ -1129,19 +1129,31 @@ fn 事件名(v: &Val) -> Result<String, crate::JishiError> {
         }
     };
     match 名.as_str() {
-        "菜单" | "拖放" | "托盘" | "再次启动" => Ok(名),
+        "菜单" | "拖放" | "托盘" | "再次启动" | "调用" => Ok(名),
         other => Err(err_with_hint(
             "值错误",
             format!("没有「{other}」这个宿主事件"),
-            "能接的是：菜单 / 拖放 / 托盘 / 再次启动".into(),
+            "能接的是：菜单 / 拖放 / 托盘 / 再次启动 / 调用（M218：宿主主动叫页面）"
+                .into(),
         )),
     }
 }
 
 /// `窗口.当(事件名, 函数)`：页面里登记「宿主事件 → 基石函数」。
 ///
-/// 事件有四个：`菜单`（参数 = 动作名）、`拖放`（参数 = 路径，多个用换行分隔）、
-/// `托盘`（参数 = "点击"）、`再次启动`（参数 = 第二个实例的命令行参数）。
+/// 事件有五个：
+///
+/// | 事件 | 载荷 |
+/// |---|---|
+/// | `菜单` | 动作名 |
+/// | `拖放` | **JSON 文本**：`{"路径们": [...]}`（M218 改；以前是换行分隔的路径串） |
+/// | `托盘` | `"点击"` |
+/// | `再次启动` | 第二个实例的命令行参数 |
+/// | `调用` | **JSON 文本**：`{"函数": 名字, "载荷": 宿主给的}`（M218：`窗口.调用页面`） |
+///
+/// 📌 为什么 `调用` 只有一个入口、由页面再按 `函数` 分发：自定义事件名不设白名单
+/// 的话，`窗口.当("菜单栏", f)` 这种**错字永远不报错**（事件就是不来）。
+/// 一个入口 + 一个分发函数，两头都保住了。
 fn 当(事件: &str, 函数: &str) -> Result<bool, crate::JishiError> {
     #[cfg(target_arch = "wasm32")]
     {
@@ -1212,6 +1224,37 @@ pub(crate) fn module() -> HashMap<String, Val> {
         // 为什么不把句柄放前面（跟 关闭/等/在运行 一致）：可选参数必须在末尾，
         // 否则 `设标题("新标题")` 这一个参数既可能是标题也可能是句柄，
         // 签名表（从 Python 侧生成）就没法表达「第二个可以不给」。
+        // M218 ②：**宿主主动叫页面** —— `window.__jishiWin(事件名, 载荷)`。
+        //
+        // 为什么不是「宿主直接调用户的基石函数」：页面里的基石代码跑在 wasm 里，
+        // 宿主够不着它的函数表；页面里 `窗口.当("事件名", 函数)` 登记过之后，
+        // 由页面自己的胶水去调（见 `wasm/jishi-wasm.js` 的 `__jishiWin`）。
+        "调用页面" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("调用页面", args, 2, 3)?;
+            let 句柄 = match &args[0] {
+                Val::Int(i) => i.get(),
+                other => return Err(err(
+                    "类型错误",
+                    format!("「调用页面」要窗口句柄（整数），给的是{}", crate::type_label(other)),
+                )),
+            };
+            let 事件 = match &args[1] {
+                Val::Str(s) => s.to_string(),
+                other => return Err(err(
+                    "类型错误",
+                    format!("「调用页面」的事件名要文本，给的是{}", crate::type_label(other)),
+                )),
+            };
+            // 载荷：文本原样传；字典/列表按 JSON 传（页面那边 `json.解析` 就是结构化值）
+            let 载荷 = match args.get(2) {
+                None | Some(Val::None_) => String::new(),
+                Some(Val::Str(s)) => s.to_string(),
+                Some(v) => crate::stdlib::jsonmod::to_text(v, None).map_err(|e| {
+                    err("类型错误", format!("「调用页面」的载荷没法变成 JSON：{}", e.message))
+                })?,
+            };
+            调用页面(句柄, &事件, &载荷)
+        },
         "设标题" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("设标题", args, 1, 2)?;
             let 新 = match &args[0] {
@@ -1674,6 +1717,45 @@ fn 设标题(新: &str, 句柄: Option<i128>) -> Result<bool, crate::JishiError>
                 "这个构建没有原生窗口能力",
                 "用完整发行版，或者在页面里改 document.title".into(),
             ));
+        }
+    }
+}
+
+/// M218 ②：宿主主动叫页面（`窗口.调用页面(句柄, 事件名, 载荷)`）。
+///
+/// 只有**原生窗口**能叫：应用模式（浏览器 `--app=`）是另一个进程里的浏览器，
+/// 宿主这边没有句柄能往里执行脚本。
+fn 调用页面(句柄: i128, 事件名: &str, 载荷: &str) -> Result<Val, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = (句柄, 事件名, 载荷);
+        return Err(err_with_hint(
+            "运行期错误",
+            "页面里叫不了自己（你就跑在这个页面里）",
+            "要「页面叫页面」直接调函数就行；`窗口.调用页面` 是给宿主用的".into(),
+        ));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 窗号 = 原生窗号(Some(句柄), "叫页面")?;
+            if crate::native_window::调用页面(窗号, 事件名, 载荷) {
+                return Ok(Val::Bool(true));
+            }
+            // 事件循环已经停了：窗口全关了 / `等()` 已经返回。
+            // 这时页面**确实没了**，但「窗口关掉之后还在叫」是调用方的时序问题，
+            // 不是错误 —— 与 `后台执行脚本` 同一条口径（返回假）。
+            Ok(Val::Bool(false))
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = (句柄, 事件名, 载荷);
+            Err(err_with_hint(
+                "运行期错误",
+                "这个构建没有原生窗口（`原生窗口` 特性没开），叫不了页面",
+                "发行版自带这个特性；自己编的话加 `--features native-window`".into(),
+            ))
         }
     }
 }
