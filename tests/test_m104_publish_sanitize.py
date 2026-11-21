@@ -1,0 +1,131 @@
+# -*- coding: utf-8 -*-
+"""M104：发布脚本的「抹引用」只许动文档（`.md`），**不许动源码/测试**。
+
+## 为什么单独立一条
+
+2026-10-09 才逮到的真 bug：`_sanitize()` 抹内部文档引用时，把
+`.py` / `.json` / `.txt` 也算进了「要抹的文件」里。后果是
+`tests/test_m58_frontend_contract.py` 里那句
+
+    assert "前端契约.md" in names, ...
+
+在**发布快照**里被抹成了
+
+    assert "内部前端契约（未公开）" in names, ...
+
+于是这条用例在 **CI（跑的就是屏蔽快照）上必失败**，而在**本地源码树
+（没有这一步）永远绿** —— 一句「CI 红、本地绿」卡了很久，根因就在这里。
+
+抹引用的目的是「公开**文档**里不留死链」，那是 `.md` 的事；源码与测试里的
+路径字面量不是链接。这条判据把「只动 `.md`」钉住。
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+
+import publish_github as pg                                          # noqa: E402
+
+#: 测试里那句「像真测试一样断言文件名」的代码（**必须逐字节不变**）。
+_SAMPLE_PY = ('def test_x():\n'
+              '    assert "前端契约.md" in names, f"没进屏蔽列表：{names}"\n')
+
+
+def _make_min_snapshot(tmp: Path) -> Path:
+    """造一棵最小可跑的「快照」树。
+
+    ⚠️ `_sanitize` 会**无条件**读 `README.md` 与 `docs/设计决策.md`，
+    所以这两份必须有，否则它自己会崩 —— 那不是本判据要测的东西。
+    """
+    (tmp / "docs").mkdir(parents=True)
+    (tmp / "tests").mkdir()
+    (tmp / "README.md").write_text("# 基石\n\n公开文档：docs/语言规格.md\n",
+                                   encoding="utf-8")
+    (tmp / "docs" / "设计决策.md").write_text("# 设计决策\n", encoding="utf-8")
+    # 内部文档：应被整个删掉
+    (tmp / "docs" / "前端契约.md").write_text("# 前端契约\n", encoding="utf-8")
+    (tmp / "docs" / "内部运维.md").write_text("# 内部运维\n", encoding="utf-8")
+    # ✅ **路线图是公开的**（2026-11-07 起）：它必须原样活下来
+    (tmp / "docs" / "路线图.md").write_text("# 路线图\n", encoding="utf-8")
+    # 公开文档里指向内部文档的引用：应被中性化
+    (tmp / "docs" / "语言规格.md").write_text(
+        "见 [前端契约](前端契约.md) 与 `前端契约.md`。\n", encoding="utf-8")
+    # 源码 / 测试里的同名字面量：**不该被改**
+    (tmp / "tests" / "sample.py").write_text(_SAMPLE_PY, encoding="utf-8")
+    return tmp
+
+
+def test_只中性化_md_源码与测试原样不动(tmp_path):
+    snap = _make_min_snapshot(tmp_path)
+    pg._sanitize(snap)
+
+    # 1. 内部文档删干净了
+    assert not (snap / "docs" / "前端契约.md").exists()
+    assert not (snap / "docs" / "内部运维.md").exists()
+    # ✅ **路线图是公开的**（2026-11-07 用户定）：谁把它加回屏蔽名单，
+    #    公开仓库里就又只剩死链了 —— 这条反向断言钉住新策略
+    assert (snap / "docs" / "路线图.md").exists(), (
+        "路线图应当公开（2026-11-07 起）：它不该再被发布脚本删掉")
+
+    # 2. 公开文档里的引用被中性化了
+    spec = (snap / "docs" / "语言规格.md").read_text(encoding="utf-8")
+    assert "前端契约.md" not in spec, spec
+    assert "内部前端契约（未公开）" in spec, spec
+
+    # 3. 🔴 **源码/测试一个字没动** —— 这条就是本文件存在的理由
+    assert (snap / "tests" / "sample.py").read_text(encoding="utf-8") == _SAMPLE_PY
+
+
+def test_内部文档名单是脚本自己的事实():
+    """判据依赖 `INTERNAL_DOCS` 里确实有 `前端契约.md`（别哪天被删了还以为在测）。"""
+    names = {n for n, _ in pg.INTERNAL_DOCS}
+    assert "前端契约.md" in names, names
+
+
+# ---------------------------------------------------------------------------
+# M104b：内部运维文档里的密钥要被刮出来当隐私模式（2026-11-08 加）
+# ---------------------------------------------------------------------------
+
+def test_刮密钥只认长串_地址和短串不算(tmp_path):
+    """`_内部密钥()` 的判据：`://` / 空格 / 太短 ⇒ 不是密钥。
+
+    🔴 为什么这条必须有：AI 跑分的三把 key 记在 `docs/内部运维.md` 里（唯一不上传的文件），
+    发布前要**拿它们去扫快照**。刮错了的后果是双向的 ——
+    刮不到 ⇒ 密钥真漏了也报绿；刮太宽（把地址当密钥）⇒ 每份文档都「含隐私」，发布直接卡死。
+
+    ⚠️ 这里用的是**假 key**（长得像、但不对应任何服务）：本文件是公开的。
+    """
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "内部运维.md").write_text(
+        "## 四、通道\n"
+        "\n"
+        "```text\n"
+        # ① 正常写法：长串、无空格、无 ://
+        "API Key：aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbb\n"
+        # ② 原文件第 2、3 段的坑：标签写反了，密钥挂在「API 地址」下面
+        "API 地址：cccccccccccccccccccccccccccccccc\n"
+        # ③ 反过来：地址挂在「API Key」下面 —— **不能**当成密钥
+        "API Key：https://api.example.com/v1\n"
+        # ④ 太短：不是密钥
+        "密钥：abc123\n"
+        "```\n",
+        encoding="utf-8")
+
+    got = pg._内部密钥(tmp_path)
+    值 = [v for _, v in got]
+    assert "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbb" in 值, got
+    assert "cccccccccccccccccccccccccccccccc" in 值, "标签写反的那把也要刮到"
+    assert "https://api.example.com/v1" not in 值, "地址不是密钥"
+    assert "abc123" not in 值, "短串不是密钥"
+    assert len(got) == 2, got
+    # 报错时只用前缀（`aaaaaa…`），别把密钥打出去
+    assert all(p.endswith("…") and len(p) < 12 for p, _ in got), got
+
+
+def test_没有内部运维文档时不算错(tmp_path):
+    """别人 clone 的是**公开仓库**（没有那份文件）—— 那种情况该安静返回空。"""
+    assert pg._内部密钥(tmp_path) == []

@@ -1,0 +1,28 @@
+{
+  "格式": "jishi-package-index",
+  "版本": 1,
+  "包": {
+    "图片格式转换": {
+      "版本": "1.0.0",
+      "下载地址": "https://raw.githubusercontent.com/benxiaoniao/JISHI/master/packages/%E4%B8%8B%E8%BD%BD/%E5%9B%BE%E7%89%87%E6%A0%BC%E5%BC%8F%E8%BD%AC%E6%8D%A2-1.0.0.zip",
+      "描述": "图片格式转换：读 BMP / PPM / PGM，写 BMP / PPM / PNG（纯基石实现，不依赖任何外部程序）",
+      "入口": "图片格式转换.jsh",
+      "校验和": "sha256:ac2dbe0b7ac719797bff2e3f6569e507bf93b1742446c7c65dbd86b05ae1735f"
+    },
+    "基础库": {
+      "版本": "1.0.0",
+      "下载地址": "https://raw.githubusercontent.com/benxiaoniao/JISHI/master/packages/%E4%B8%8B%E8%BD%BD/%E5%9F%BA%E7%A1%80%E5%BA%93-1.0.0.zip",
+      "描述": "演示用基础库：提供翻倍/平方两个工具函数",
+      "校验和": "sha256:1290bb455e0c609ec5bed95c79ed19b3f0b7521e1699a682937258af1c594b13"
+    },
+    "数学工具": {
+      "版本": "2.0.0",
+      "下载地址": "https://raw.githubusercontent.com/benxiaoniao/JISHI/master/packages/%E4%B8%8B%E8%BD%BD/%E6%95%B0%E5%AD%A6%E5%B7%A5%E5%85%B7-2.0.0.zip",
+      "依赖": {
+        "基础库": ">=1.0.0"
+      },
+      "描述": "演示用：依赖基础库，提供 立方 与 平方和",
+      "校验和": "sha256:c2a058a37016f6511dae64408bdc7f54bf258c1e931c08ec694a1b43298dd6c8"
+    }
+  }
+}
