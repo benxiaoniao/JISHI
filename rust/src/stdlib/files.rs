@@ -33,6 +33,52 @@ fn write_bytes(path: &str, data: &[u8]) -> Result<(), JishiError> {
     fs::write(path, data).map_err(|e| err("文件错误", format!("写文件「{path}」失败：{e}")))
 }
 
+/// 「字节」这个参数收什么（M220）。
+///
+/// 两种都收：**真字节**（`编码.十六进制解码(...)` / `文件.读字节(...)` 给的），
+/// 以及**0–255 的整数列表**。
+///
+/// 为什么加后一种：`营造框架` 那边（W6）手里常常就是一串整数（比如从
+/// `字节[i]` 逐个攒出来的、或者协议里算出来的），以前必须先
+/// `编码.十六进制解码(编码.十六进制编码(...))` 绕一圈 —— 那既是绕道，
+/// 又容易在内联 `FF` / `00` 上出错。
+///
+/// ⚠️ **越界/非整数要逐项点名**（第几项、值是什么）：静默截断成 `&0xFF`
+/// 是本项目最恨的那类「不报错的错答案」。
+fn 要字节值(v: &Val, 谁: &str) -> Result<Vec<u8>, JishiError> {
+    match v {
+        Val::Bytes(b) => Ok(b.as_ref().clone()),
+        Val::List(_) => {
+            let 项们 = super::to_vec(v)?;
+            let mut 出 = Vec::with_capacity(项们.len());
+            for (i, 项) in 项们.iter().enumerate() {
+                match 项 {
+                    Val::Int(n) if (0..=255).contains(&n.get()) => 出.push(n.get() as u8),
+                    other => {
+                        return Err(err(
+                            "文件错误",
+                            format!(
+                                "「{谁}」的列表里第 {} 项不是 0–255 的整数：{}",
+                                i + 1,
+                                crate::display(other)
+                            ),
+                        ))
+                    }
+                }
+            }
+            Ok(出)
+        }
+        other => Err(err(
+            "文件错误",
+            format!(
+                "「{谁}」要传字节或 0–255 的整数列表，得到的是「{}」；文本请用 `{}`",
+                crate::type_label(other),
+                if 谁 == "写字节" { "写文本" } else { "追加文本" }
+            ),
+        )),
+    }
+}
+
 /// 递归复制目录树（M118 / 台账 R207）。
 fn 复制目录树(src: &Path, dst: &Path) -> std::io::Result<()> {
     fs::create_dir_all(dst)?;
@@ -75,15 +121,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "写字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("写字节", args, 2)?;
             let p = as_text(&args[0]);
-            let data = match &args[1] {
-                Val::Bytes(b) => b.as_ref().clone(),
-                other => {
-                    return Err(err(
-                        "文件错误",
-                        format!("「写字节」要传字节，得到了「{}」", crate::display(other)),
-                    ))
-                }
-            };
+            let data = 要字节值(&args[1], "写字节")?;
             write_bytes(&p, &data)?;
             Ok(Val::None_)
         },
@@ -104,18 +142,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "追加字节" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("追加字节", args, 2)?;
             let p = as_text(&args[0]);
-            let 内容 = match &args[1] {
-                Val::Bytes(b) => b.clone(),
-                v => {
-                    return Err(err(
-                        "文件错误",
-                        format!(
-                            "「追加字节」要的是**字节**（现在是「{}」）；文本请用 `追加文本`",
-                            crate::display(v)
-                        ),
-                    ))
-                }
-            };
+            let 内容 = 要字节值(&args[1], "追加字节")?;
             let mut f = fs::OpenOptions::new()
                 .create(true)
                 .append(true)

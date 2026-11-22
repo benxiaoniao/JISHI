@@ -242,6 +242,15 @@ typedef struct JsHost {
        宿主实现：`r = get_attr(obj, name); call(r, args)`。 */
     int (*method_call)  (JVal *obj, int name_idx, JVal *args, int nargs,
                          JVal *out, int gline, int gcol, int line, int col);
+    /* 通用「运行期错误」（M220）：给「消息是数据、类型是运行期错误」的场合用
+       （目前只有裸 `抛出` 找不到可重抛的异常这一处）。
+
+       为什么不复用 `raise_internal`：那个给的是「内部错误」（宿主自己的 bug），
+       而这条是**用户程序写错了**（裸「抛出」写在了 `捕获` 之外）—— 两个类型的
+       报错文案与后续提示都不一样，混用会让用户以为是语言坏了。
+
+       `msg` 是 UTF-8 的 C 串（**借用**，回调返回后 C 侧不再持有）。 */
+    int (*raise_runtime)    (const char *msg, int line, int col);
 } JsHost;
 
 /* ------------------------------------------------------------------ */

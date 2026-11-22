@@ -507,6 +507,12 @@ pub fn render_ai_card(模块: Option<&str>, 任务: Option<&str>) -> Result<Stri
 /// ⚠️ 报的是**字符数**，不是精确 token —— 两边都按这个口径比，不假装知道 tokenizer。
 pub fn 卡统计() -> Vec<(String, usize)> {
     let mut 出 = vec![("全量".to_string(), render_ai_card(None, None).unwrap_or_default().chars().count())];
+    // 已装包段占多少（M149 / Python 侧同一口径）：装了包才列 ——
+    // 没装时 `--统计` 的输出与以前一样。
+    let 包段 = 已装的包段();
+    if !包段.is_empty() {
+        出.push(("已装包".to_string(), 包段.chars().count()));
+    }
     for (名, _) in D::STDLIB.iter() {
         if ["文本", "表格", "数据库"].contains(名) {
             出.push((format!("模块:{名}"),

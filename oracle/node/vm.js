@@ -460,6 +460,16 @@ class VM {
           } else if (op === Op.POP_TRY) {
             if (frame.handlers.length) frame.handlers.pop();
           } else if (op === Op.THROW) {
+            // M220：`a === 1` = 裸 `抛出` ⇒ 重抛当前正在处理的异常
+            if (ins.a === 1) {
+              frame.ip = ip;
+              const handled = this._findHandled();
+              if (handled === null || handled === undefined) {
+                throw R.runErr('没有正在处理的异常可以重抛 —— 裸「抛出」只能写在'
+                  + '「捕获」或「最终」里；要抛新错误写 抛出 值错误("说明")');
+              }
+              throw R.makeException(handled, ins.line, ins.col, null);
+            }
             const v = stack.pop();
             frame.ip = ip;
             // 「正在处理的异常」（M148）：ip 此刻已指向这条 THROW，拿它比捕获区
@@ -2523,6 +2533,36 @@ const PATH_FUNCS = {
 // 薄封装 `fs`，对齐 Python 侧 `jishi/stdlib/文件.py`。
 // `路径拼接` 走 **posix**（Python 侧用的是 PurePosixPath，永远给 `/`），
 // 而 `文件名`/`扩展名` 会把 `\` 也当分隔符（Python 侧先把 `\` 换成 `/`）。
+/**
+ * 「字节」这个参数收什么（M220）。
+ *
+ * 两种都收：**真字节**（`编码.十六进制解码(...)` / `文件.读字节(...)` 给的），
+ * 以及**0–255 的整数列表**（`营造框架` W6：手里常常就是一串整数，
+ * 以前得 `十六进制解码(十六进制编码(...))` 绕一圈）。
+ *
+ * ⚠️ 越界/非整数**逐项点名**（第几项、值是什么）—— 静默截断成 `&0xFF`
+ * 是本项目最恨的那类「不报错的错答案」。与另外两个宿主逐字一致。
+ */
+function _要字节值(数据, 谁) {
+  if (R.isBytes(数据)) return Buffer.from(数据.buf);
+  if (Array.isArray(数据)) {
+    const 出 = Buffer.alloc(数据.length);
+    for (let i = 0; i < 数据.length; i += 1) {
+      const 项 = 数据[i];
+      // ⚠️ 布尔是「真/假」，不是 1/0
+      if (typeof 项 === 'boolean' || !Number.isInteger(项) || 项 < 0 || 项 > 255) {
+        throw R.fileErr(`「${谁}」的列表里第 ${i + 1} 项不是 0–255 的整数：`
+          + R.display(项));
+      }
+      出[i] = 项;
+    }
+    return 出;
+  }
+  const 文本用 = 谁 === '写字节' ? '写文本' : '追加文本';
+  throw R.fileErr(`「${谁}」要传字节或 0–255 的整数列表，得到的是「${R.typeName(数据)}」；`
+    + `文本请用 \`${文本用}\``);
+}
+
 const FILE_FUNCS = {
   '写文本': new R.Builtin('写文本', (p, content) => {
     fs.writeFileSync(pText(p), pText(content), 'utf8');
@@ -2542,20 +2582,14 @@ const FILE_FUNCS = {
     return new R.JishiBytes(fs.readFileSync(target));
   }),
   '写字节': new R.Builtin('写字节', (p, data) => {
-    if (!R.isBytes(data)) {
-      throw R.fileErr(`「写字节」要传字节，得到了「${R.display(data)}」`);
-    }
-    fs.writeFileSync(pText(p), data.buf);
+    fs.writeFileSync(pText(p), _要字节值(data, '写字节'));
     return null;
   }),
   // 🔴 M118：`追加字节`。只收**字节**（M113 的类型），文本走 `追加文本`。
   '追加字节': new R.Builtin('追加字节', (p, data) => {
-    if (!R.isBytes(data)) {
-      throw R.fileErr(`「追加字节」要的是**字节**（现在是「${R.display(data)}」）；`
-        + '文本请用 `追加文本`');
-    }
-    fs.appendFileSync(pText(p), data.buf);
-    return data.buf.length;
+    const 内容 = _要字节值(data, '追加字节');
+    fs.appendFileSync(pText(p), 内容);
+    return 内容.length;
   }),
   '复制目录': new R.Builtin('复制目录', (from, to) => {
     const src = pText(from);
@@ -3606,7 +3640,11 @@ const NET_FUNCS = {
   '获取详情': new R.Builtin('获取详情', (url, timeout = 10.0, 请求头 = null, 选项 = null) => {
     net选项检查(选项);
     const r = netRequest('GET', url, null, timeout, netHeaders(请求头));
-    const 头表 = new Map(Object.entries(r.headers).map(([k, v]) => [k, v]));
+    // 键小写 + 排序：三个宿主从网络上拿到的顺序本来就不一样，而字典显示是
+    // 插入序 —— 不排的话 `打印(响应头)` 三行不同的字（M220）
+    const 头表 = new Map(Object.entries(r.headers)
+      .map(([k, v]) => [k.toLowerCase(), v])
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)));
     return new Map([
       ['状态', r.status],
       ['响应头', 头表],
@@ -6192,13 +6230,15 @@ const WINDOW_FUNCS = {
       if (typeof v !== 'string') throw R.valueErr(`「${k}」要传文本`);
       return v;
     };
+    // M220：整数字面量之外也收**小数**，内部四舍五入（比例换算出来一定是小数，
+    // 而窗口尺寸的物理单位就是整像素）。与另外两个宿主同一口径。
     const 取数 = (k, 默认) => {
-      const v = 选项.has(k) ? 选项.get(k) : undefined;
+      const v = 选项.has(k) ? R.unwrap(选项.get(k)) : undefined;
       if (v === undefined || v === null) return 默认;
-      if (typeof v !== 'number' || !Number.isInteger(v)) {
-        throw R.valueErr(`「${k}」要传整数（像素）`);
+      if (typeof v !== 'number' || !Number.isFinite(v)) {
+        throw R.valueErr(`「${k}」要传数（像素）`);
       }
-      return v;
+      return Math.round(v);
     };
     const 页面 = 取文('页面', '');
     const 服务 = 取文('服务', '');

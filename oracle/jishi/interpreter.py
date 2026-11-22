@@ -715,9 +715,15 @@ class Interpreter:
     # 抛出
     def _do_raise(self, stmt: A.Raise, env: Environment) -> None:
         if stmt.value is None:
-            raise RunTypeError(
-                "「抛出」后面要写一个值（比如 抛出 值错误(\"说明\")）",
-                line=stmt.line, col=stmt.col, filename=self.filename)
+            # M220：**裸 `抛出`** = 重抛当前正在处理的异常（类型/消息/起因链都保住）。
+            # 没有可重抛的 ⇒ 「运行期错误」并说清该写在哪 —— 与字节码三个执行器逐字一致。
+            if not self._handling:
+                raise RunError(
+                    "没有正在处理的异常可以重抛 —— 裸「抛出」只能写在"
+                    "「捕获」或「最终」里；要抛新错误写 抛出 值错误(\"说明\")",
+                    line=stmt.line, col=stmt.col, filename=self.filename)
+            raise R.make_exception(self._handling[-1], line=stmt.line, col=stmt.col,
+                                   filename=self.filename, cause=None)
         value = self.eval_expr(stmt.value, env)
         raise R.make_exception(value, line=stmt.line, col=stmt.col,
                                filename=self.filename,

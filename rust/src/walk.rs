@@ -1463,10 +1463,19 @@ impl Walker {
     fn exec_raise(&mut self, n: &Json) -> Result<Flow, JishiError> {
         let v = match n.get("value") {
             Some(node) if !matches!(node, Json::Null) => self.eval(node)?,
-            // 前端在**解析期**就拦下裸 `抛出`（`tests/error_cases/26_抛出无值.jsh`
-            // 考的就是它），所以这里到不了 —— 留着是为了「不静默」。
-            _ => return Err(err("类型错误",
-                "「抛出」后面要写一个值（比如 抛出 值错误(\"说明\")）")),
+            // M220：裸 `抛出` = **重抛当前正在处理的异常**（类型/消息/起因链都保住），
+            // 与 Python `Interpreter._do_raise` / 字节码 VM 的 `THROW a=1` 逐字同源。
+            // 捕获之外裸抛 ⇒ 运行期错误，文案与另外三个执行器**逐字一致**。
+            _ => {
+                let Some(处理中) = self.handling.last().cloned() else {
+                    return Err(err(
+                        "运行期错误",
+                        "没有正在处理的异常可以重抛 —— 裸「抛出」只能写在「捕获」或「最终」里；\
+                         要抛新错误写 抛出 值错误(\"说明\")",
+                    ));
+                };
+                return Err(make_exception(处理中, None));
+            }
         };
         // M148：正在处理某个异常时又抛 → 挂成它的「起因」
         let cause = self.handling.last().cloned();

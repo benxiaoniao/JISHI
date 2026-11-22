@@ -359,6 +359,9 @@ CB_RAISE_ARGC = CFUNCTYPE(c_int, c_int, c_int, c_int, c_int)
 CB_RAISE_BAD_KW = CFUNCTYPE(c_int, c_int, c_int, c_int, c_int)
 CB_RAISE_MISSING = CFUNCTYPE(c_int, c_int, _IPV, c_int, c_int, c_int)
 CB_RAISE_INTERNAL = CFUNCTYPE(c_int, c_char_p)
+#: 通用「运行期错误」（M220）：消息 + 行 + 列。给「消息是数据、类型是
+#: 运行期错误」的场合用（目前只有裸 `抛出` 找不到可重抛的异常）。
+CB_RAISE_RUNTIME = CFUNCTYPE(c_int, c_char_p, c_int, c_int)
 CB_LIST_APPEND = CFUNCTYPE(c_int, _JPV, _JPV, c_int, c_int)
 #: 批量追加（M46 阶段一③）：handle + C 侧值数组（**借用**）+ 个数。
 #: C 侧「追加延迟合并写」的落盘口——把「循环里追加 N 次」的 N 次回调压成 1 次。
@@ -437,6 +440,8 @@ class JsHost(Structure):
         ("dict_setitem_many", CB_DICT_SETITEM_MANY),
         # M48 追加：同上（**差一行就是 NULL 函数指针 → 段错误**，M48 踩过）
         ("method_call", CB_METHOD_CALL),
+        # M220 追加：同上，**只能加在末尾**
+        ("raise_runtime", CB_RAISE_RUNTIME),
     ]
 
 
@@ -643,6 +648,7 @@ class CvmHost:
             dict_setitem_many=CB_DICT_SETITEM_MANY(
                 self._cb_dict_setitem_many),
             method_call=CB_METHOD_CALL(self._cb_method_call),
+            raise_runtime=CB_RAISE_RUNTIME(self._cb_raise_runtime),
         )
         self.lib.jsvm_set_host(self.vm, byref(self._cb))
 
@@ -1755,6 +1761,16 @@ class CvmHost:
         text = msg.decode("utf-8", "replace") if isinstance(msg, bytes) \
             else str(msg)
         self.pending = RunError(text)
+        return -1
+
+    def _cb_raise_runtime(self, msg, line, col):
+        """通用「运行期错误」（M220）：与 `raise_internal` 的区别是**带上行列**，
+        而且类型是「运行期错误」不是「内部错误」（这是用户程序写错，
+        不是语言坏了）。⚠️ `filename` 也要带上 —— 不带就渲染成 `<输入>`，
+        与树遍历 / 字节码 VM 的 `文件:行:列` 两个样（check_engines 逐字比）。"""
+        text = msg.decode("utf-8", "replace") if isinstance(msg, bytes) else str(msg)
+        self.pending = RunError(text, line=line, col=col,
+                                filename=getattr(self, "filename", None) or "<输入>")
         return -1
 
     # -- 基石函数回流 ---------------------------------------------------------

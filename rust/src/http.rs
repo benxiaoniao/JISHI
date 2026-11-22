@@ -2323,9 +2323,25 @@ fn 要成功(r: Resp, 动作: &str, 网址: &str) -> Result<Resp, JishiError> {
 }
 
 /// 响应头列表 → 字典（同名头合并成 `a, b`）。
+/// 响应头 → 字典（`获取详情` / 流句柄共用）。
+///
+/// 🔴 M220：**键一律小写、并且按键排序**。
+///
+/// 小写：HTTP 里头名大小写不敏感，而 Node 宿主的 `fetch` 拿不到原始大小写
+/// （`Headers` 一律小写）—— 三个宿主要逐字一致就只能统一。
+///
+/// 排序：**三个宿主从网络上拿到的顺序本来就不一样**（WinHTTP 按它自己的表、
+/// Python 按收到的顺序、Node 按 `Headers` 的内部顺序）。字典的显示是**插入序**，
+/// 所以不排序的话 `打印(详情["响应头"])` 在三个宿主上是三行不同的字
+/// —— 判据没法逐字节比，用户换宿主也会看到「同一个接口两种输出」。
+/// 头顺序在 HTTP 里没有语义（`Set-Cookie` 除外，这里已经按 `, ` 合并了），
+/// 排一下最省事。
+///
+/// 同名的多个头用 `, ` 连起来（RFC 9110 §5.3 的合并规则）。
 fn 头表(headers: &[(String, String)]) -> Val {
     let mut 出: Vec<(Val, Val)> = Vec::new();
-    for (k, v) in headers {
+    for (原k, v) in headers {
+        let k = &原k.to_ascii_lowercase();
         match 出.iter_mut().find(|(kk, _)| crate::display(kk) == *k) {
             Some((_, val)) => {
                 // 🔴 M165b：`Val::Str` 里面是 `Rc<str>`（不可变），要拼接只能重造一个
@@ -2337,6 +2353,7 @@ fn 头表(headers: &[(String, String)]) -> Val {
             None => 出.push((Val::Str(k.clone().into()), Val::Str(v.clone().into()))),
         }
     }
+    出.sort_by(|(a, _), (b, _)| crate::display(a).cmp(&crate::display(b)));
     crate::dict_new(出)
 }
 

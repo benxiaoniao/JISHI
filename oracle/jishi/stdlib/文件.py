@@ -9,7 +9,7 @@ import tempfile as _py_tempfile
 from pathlib import Path as _py_Path, PurePosixPath as _py_PurePosixPath
 
 from ..errors import RunFileError
-from ..runtime import jishi_repr, JishiBytes
+from ..runtime import jishi_repr, JishiBytes, type_name
 
 __all__ = [
     "写文本", "读文本", "追加文本", "追加行们", "写行", "按行读",
@@ -66,14 +66,46 @@ def 读字节(路径) -> JishiBytes:
         raise RunFileError(f"读文件「{路径}」失败：{e}")
 
 
+def _要字节值(值, 谁: str) -> bytes:
+    """「字节」这个参数收什么（M220）。
+
+    两种都收：**真字节**（`编码.十六进制解码(...)` / `文件.读字节(...)` 给的），
+    以及**0–255 的整数列表**。
+
+    为什么加后一种：`营造框架` 那边（W6）手里常常就是一串整数（`字节[i]` 攒出来的、
+    或者协议里算出来的），以前必须先 `编码.十六进制解码(编码.十六进制编码(...))`
+    绕一圈 —— 既是绕道，又容易在内联 `FF` / `00` 上出错。
+
+    ⚠️ **越界/非整数逐项点名**（第几项、值是什么）：静默截断成 `&0xFF`
+    是本项目最恨的那类「不报错的错答案」。
+    """
+    if isinstance(值, JishiBytes):
+        return bytes(值.value)
+    if isinstance(值, (list, tuple)):
+        # ⚠️ bool 是 int 的子类：`[真, 假]` 不该被当成 [1, 0]
+        出 = bytearray()
+        for i, 项 in enumerate(值):
+            if isinstance(项, bool) or not isinstance(项, int) or not 0 <= 项 <= 255:
+                raise RunFileError(
+                    f"「{谁}」的列表里第 {i + 1} 项不是 0–255 的整数："
+                    f"{jishi_repr(项, top=True)}")
+            出.append(项)
+        return bytes(出)
+    文本用 = "写文本" if 谁 == "写字节" else "追加文本"
+    raise RunFileError(
+        f"「{谁}」要传字节或 0–255 的整数列表，得到的是「{type_name(值)}」；"
+        f"文本请用 `{文本用}`")
+
+
 def 写字节(路径, 字节) -> None:
-    """把字节写进文件（覆盖原有内容）。"""
-    if not isinstance(字节, JishiBytes):
-        raise RunFileError(
-            f"「写字节」要传字节，得到了「{jishi_repr(字节, top=True)}」")
+    """把字节写进文件（覆盖原有内容）。
+
+    `字节` 也可以是 **0–255 的整数列表**（M220）。
+    """
+    数据 = _要字节值(字节, "写字节")
     try:
         with open(_path(路径), "wb") as f:
-            f.write(字节.value)
+            f.write(数据)
     except OSError as e:
         raise RunFileError(f"写文件「{路径}」失败：{e}")
 
@@ -217,15 +249,13 @@ def 追加字节(路径, 内容) -> int:
     与 `写字节` 的分工：`写字节` 是整份覆盖，这个是往后接 —— 分片下载、
     边跑边写日志流都用它。
     """
-    # ⚠️ 基石里的字节是 `JishiBytes`（不是 Python 的 `bytes`）—— 与 `写字节` 同一个判据。
-    if not isinstance(内容, JishiBytes):
-        raise RunFileError(
-            f"「追加字节」要的是**字节**（现在是「{jishi_repr(内容, top=True)}」）；"
-            "文本请用 `追加文本`")
+    # ⚠️ 基石里的字节是 `JishiBytes`（不是 Python 的 `bytes`）—— 与 `写字节` 同一个判据；
+    #    M220 起同样收 0–255 的整数列表。
+    内容 = _要字节值(内容, "追加字节")
     p = _path(路径)
     try:
         with open(p, "ab") as f:
-            n = f.write(内容.value)
+            n = f.write(内容)
     except OSError as e:
         raise RunFileError(f"往「{路径}」追加失败：{e}")
     return n

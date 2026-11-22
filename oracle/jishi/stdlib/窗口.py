@@ -263,11 +263,21 @@ def _取文本(选项: dict, 键: str, 默认: str = "") -> str:
 
 
 def _取数(选项: dict, 键: str, 默认: int) -> int:
+    """取一个**像素数**（宽 / 高）。
+
+    M220：整数字面量之外也收**小数**，内部四舍五入 —— 比例换算
+    （`宽 = 屏宽 * 0.8`）出来一定是小数，而窗口尺寸的物理单位就是整像素。
+    与 Rust 侧 `取数` 同一口径（那边 `读几何` 也是数）。
+    """
     v = 选项.get(键)
     if v is None:
         return 默认
-    if isinstance(v, bool) or not isinstance(v, int):
-        raise RunValueError(f"「{键}」要传整数（像素）")
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        raise RunValueError(f"「{键}」要传数（像素）")
+    if isinstance(v, float):
+        if v != v or v in (float("inf"), float("-inf")):
+            raise RunValueError(f"「{键}」要是有限的数，给的是 {v}")
+        return int(round(v))
     return v
 
 

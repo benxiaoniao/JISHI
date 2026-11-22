@@ -1240,6 +1240,17 @@ def _b_assert(condition, message=None):
 _TYPE_NAMES = frozenset(
     {"整数", "小数", "文本", "列表", "字典", "布尔", "空", "函数"})
 
+#: `类型()` 可能给出的**全部内建类型名**（M220，给 `是实例(x, "字典")` 校验用）。
+#: ⚠️ 与 Rust `内建类型名()` / Node `BUILTIN_TYPE_NAMES` **逐字一致** ——
+#: 判据会把整张表跑一遍（每个名字都得被认），少一个就红。
+#:
+#: 📌 不含 `类 甲` / `甲 实例` / 宿主对象名（`计时器`）：那些是**动态**的。
+_BUILTIN_TYPE_NAMES = frozenset({
+    "空", "布尔", "整数", "小数", "文本", "字节", "精确小数", "datetime",
+    "表格", "切片", "原样片段", "列表", "字典", "集合", "文件", "函数",
+    "方法", "内建函数", "模块", "异常类型", "异常", "内建方法", "其他",
+})
+
 
 def _b_super(instance, class_name):
     """超（M23.4）：解析期被脱糖成 `超(自身, "定义类名")`，这里实现语义。
@@ -1339,7 +1350,19 @@ def _instance_of(actual: "JishiClass", target: "JishiClass") -> bool:
 
 
 def _b_isinstance(value, cls):
-    """是实例（M23.1）：判断值是不是某个类（或其子类）的实例。"""
+    """是实例（M23.1）：判断值是不是某个类（或其子类）的实例。
+
+    M220：第二个参数也可以给**类型名文本**（`是实例(x, "字典")`）——
+    等价于 `类型(x) == "字典"`。`营造框架`（W8）里大家写的是
+    `是实例(x, 字典)`（不带引号）⇒ 那是名字、基石没有这个变量 ⇒ E0301。
+    """
+    if isinstance(cls, str):
+        if cls not in _BUILTIN_TYPE_NAMES:
+            raise RunValueError(
+                f"「{cls}」不是内建类型名",
+                hint='判断内建类型写 `是实例(值, "字典")`（名字加引号），'
+                     '或 `类型(值) == "字典"`；判断**类**直接写类名：`是实例(对象, 甲)`')
+        return type_name(value) == cls
     if not isinstance(cls, JishiClass):
         hint = "用法：是实例(对象, 类名)"
         # 常见误用：第二参数写成内建转换函数（整数/文本…），想判断内建类型。
@@ -1348,7 +1371,7 @@ def _b_isinstance(value, cls):
             hint = (f"「{cls.name}」是转换函数，不是类。"
                     f"判断内建类型请写：类型(值) == \"{cls.name}\"")
         raise RunTypeError(
-            f"「是实例」的第二个参数要是一个类，但给的是「{type_name(cls)}」",
+            f"「是实例」的第二个参数要是一个类或类型名（文本），但给的是「{type_name(cls)}」",
             hint=hint)
     if not isinstance(value, JishiInstance):
         return False

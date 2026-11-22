@@ -760,6 +760,22 @@ class VM:
                         if frame.handlers:
                             frame.handlers.pop()
                     elif op == Op.THROW:
+                        # M220：`ins.a == 1` = 裸 `抛出` ⇒ 重抛当前正在处理的异常
+                        # （类型/消息/起因链都由那个异常对象自带）。
+                        if ins.a == 1:
+                            frame.ip = ip
+                            handled = self._find_handled()
+                            if handled is None:
+                                # ⚠️ 位置要带上（M220 全量撞出来的）：树遍历、C VM
+                                #    都带 `┌─ 文件:行:列`，字节码 VM 不带就是三条
+                                #    渲染两个样 —— `check_engines` 的逐字对拍就红。
+                                raise RunError(
+                                    "没有正在处理的异常可以重抛 —— 裸「抛出」只能写在"
+                                    "「捕获」或「最终」里；要抛新错误写 抛出 值错误(\"说明\")",
+                                    line=ins.line, col=ins.col, filename=filename)
+                            raise R.make_exception(
+                                handled, line=ins.line, col=ins.col, filename=filename,
+                                cause=None)
                         v = stack.pop()
                         frame.ip = ip
                         if isinstance(v, DebugQuit):

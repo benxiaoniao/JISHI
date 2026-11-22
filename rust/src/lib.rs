@@ -1572,8 +1572,23 @@ fn file_call(name: &str, f: Rc<RefCell<FileHandle>>,
 }
 
 /// 值的类型名（中文），与内建「类型」一致。
-pub(crate) fn type_label(v: &Val) -> String {
-    match v {
+/// `类型()` 可能给出的**内建**类型名（M220，给 `是实例(x, "字典")` 校验用）。
+///
+/// ⚠️ **与另外两个宿主逐字一致**（Python `_BUILTIN_TYPE_NAMES` / Node
+/// `BUILTIN_TYPE_NAMES`）：判据会把整张表跑一遍（每个名字都得被认），
+/// 少一个就红。
+///
+/// 📌 不含 `类 甲` / `甲 实例` / 宿主对象名（`计时器`）—— 那些是**动态**的，
+/// 用户要判断就写类名本身。
+pub(crate) fn 内建类型名() -> &'static [&'static str] {
+    &[
+        "空", "布尔", "整数", "小数", "文本", "字节", "精确小数", "datetime",
+        "表格", "切片", "原样片段", "列表", "字典", "集合", "文件", "函数",
+        "方法", "内建函数", "模块", "异常类型", "异常", "内建方法", "其他",
+    ]
+}
+
+pub(crate) fn type_label(v: &Val) -> String {    match v {
         Val::None_ => "空".to_string(),
         Val::Bool(_) => "布尔".to_string(),
         Val::Int(_) => "整数".to_string(),
@@ -3840,6 +3855,23 @@ impl VM {
                     }
                 }
                 op::THROW => {
+                    // M220：`a == 1` = **裸 `抛出`**（编译器标的）⇒ 重抛当前正在
+                    // 处理的异常。**类型、消息、起因链全保住**（`make_exception`
+                    // 收到的是捕获到的异常对象，它自带 `ExcValue`）。
+                    //
+                    // 为什么不用「弹出的是 `空`」来判断：`抛出 空` 是另一个意思
+                    // （抛一个消息为「空」的通用异常，一直如此），按值判断会把
+                    // 两件事搅在一起 —— 同一位置按值换意思正是 D89 禁的那种。
+                    if ins.a == 1 {
+                        return match self.find_handled() {
+                            Some(h) => Err(make_exception(h, None)),
+                            None => Err(err(
+                                "运行期错误",
+                                "没有正在处理的异常可以重抛 —— 裸「抛出」只能写在\
+                                 「捕获」或「最终」里；要抛新错误写 抛出 值错误(\"说明\")",
+                            )),
+                        };
+                    }
                     let v = self.stack.pop().unwrap_or(Val::None_);
                     // 循环信号借道 finally：CHECK_SIGNAL 后的 THROW 会重新抛出它，
                     // 这时要还原成「信号」而不是错误（对齐 Python 侧的块栈语义）
@@ -5774,10 +5806,31 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     }));
     m.insert("是实例".to_string(), crate::builtin("是实例", |args, _vm| {
         need_builtin_args("是实例", args, 2, 2)?;
+        // M220：第二个参数也可以给**类型名文本**（`是实例(x, "字典")`）。
+        //
+        // 为什么加：`营造框架`（W8）里大家写的就是 `是实例(x, 字典)` —— 但那是个
+        // **名字**，而基石没有叫「字典」的变量 ⇒ E0301 找不到名字，报得离现场很远。
+        // 允许文本之后，`是实例(x, "字典")` 就等于 `类型(x) == "字典"`（后者一直有效）。
+        //
+        // ⚠️ 文本**只认内建类型名**（`内建类型名` 那张表）：错别字要给错，
+        //    不能静默给假 —— 「不报错的错答案」是本项目最恨的那类。
+        if let Val::Str(名) = &args[1] {
+            if !内建类型名().contains(&名.as_str()) {
+                return Err(err_with_hint(
+                    "值错误",
+                    format!("「{}」不是内建类型名", 名),
+                    "判断内建类型写 `是实例(值, \"字典\")`（名字加引号），\
+                     或 `类型(值) == \"字典\"`；判断**类**直接写类名：`是实例(对象, 甲)`"
+                        .to_string(),
+                ));
+            }
+            return Ok(Val::Bool(type_label(&args[0]) == 名.as_str()));
+        }
         let cls = match &args[1] {
             Val::Class(c) => c,
             other => return Err(err("类型错误", format!(
-                "「是实例」的第二个参数要是一个类，但给的是「{}」", type_label(other)))),
+                "「是实例」的第二个参数要是一个类或类型名（文本），但给的是「{}」",
+                type_label(other)))),
         };
         Ok(Val::Bool(match &args[0] {
             // 沿**祖先链的序号**找（`base_ids` 在建类时算好）——与 Python 侧

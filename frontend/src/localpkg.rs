@@ -55,20 +55,51 @@ pub fn shell_name(name: &str) -> String {
 ///
 /// `line` / `col` 一律是**用户那条 `导入` 语句**的位置 —— 壳函数的源码不在
 /// 用户的文件里，把箭头指到包里去只会让人更糊涂。
+///
+/// 📌 **例外（M220）**：包里的 `.jsh` 有**语法错**时，位置要给**包里那个文件**
+/// （`file` + 它内部的行列）。理由：那是用户写的代码，错在哪儿就得指到哪儿；
+/// 指到 `导入` 那行等于让人自己去找（`营造框架` W11 的原话）。
+/// 这时 `code` 也带上解析器给的那个（E0204 …）—— 包的语法错**就是**语法错，
+/// 不该被包一层「找不到这个函数」（E0302）糊过去。
 #[derive(Debug, Clone)]
 pub struct PkgErr {
     pub message: String,
     pub hint: Option<String>,
     pub line: i64,
     pub col: i64,
+    /// 出错的文件（包内模块的**真实路径**）。`None` = 用入口脚本。
+    pub file: Option<String>,
+    /// 语法错的错误码（E0204 …）。`None` = 语义错（E0302）。
+    pub code: Option<&'static str>,
+    /// 解析器给的下划线范围 / 机器可读替换建议，原样带走。
+    pub underline: Option<(usize, usize)>,
+    pub fix: Option<(String, String)>,
 }
 
 fn bad(message: String, line: i64, col: i64) -> PkgErr {
-    PkgErr { message, hint: None, line, col }
+    PkgErr { message, hint: None, line, col,
+             file: None, code: None, underline: None, fix: None }
 }
 
 fn bad_hint(message: String, hint: String, line: i64, col: i64) -> PkgErr {
-    PkgErr { message, hint: Some(hint), line, col }
+    PkgErr { message, hint: Some(hint), line, col,
+             file: None, code: None, underline: None, fix: None }
+}
+
+/// 段表：拼接源码里的行号 → （真实文件, 该文件内的行号）（M220）。
+///
+/// `段表` 是「(起始行, 路径)」且**按加入顺序升序**：找最后一个起始行 ≤ 目标行
+/// 的那一段即可。
+fn 段表定位(段表: &[(i64, String)], 拼接行: i64) -> Option<(String, i64)> {
+    let mut 命中: Option<&(i64, String)> = None;
+    for 段 in 段表 {
+        if 段.0 <= 拼接行 {
+            命中 = Some(段);
+        } else {
+            break;
+        }
+    }
+    命中.map(|(起, 路)| (路.clone(), 拼接行 - 起 + 1))
 }
 
 // ---------------------------------------------------------------------------
@@ -694,12 +725,28 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>,
     // 不必再写一遍），先各自建壳（依赖在前），再把那几行**清空**
     // （保留行号：清空不是删除）。包体里那句 `甲包.问好(...)` 靠
     // `prepend_body` 注入的 `甲包 = $造模块(...)` 拿到值。
-    源码 = 吸掉包内本地包导入(&源码, &首路径, &mut out, &mut 依赖名, stack, base, line, col)?;
+    源码 = 吸掉包内本地包导入(&源码, &首路径, &mut out, &mut 依赖名, stack, base, line, col, &段表)?;
 
     // 导出名：解析拼好的源码，取顶层「函数/类/赋值」的名字
     let program = parse(&源码, &首路径).map_err(|e| {
-        bad(format!("本地包「{name}」的模块有语法错误：{}（第 {} 行）", e.message, e.line),
-            line, col)
+        // M220：**语法错要指到包里的那个文件和行**（不是入口脚本的第 1 行）。
+        // `e.line` 是拼接源码里的行号，用段表折回「哪个文件、文件里第几行」。
+        // 错误码也原样带走 —— 包的语法错就是语法错，不该被包成
+        // 「找不到这个函数」（E0302），那样 `E0204` 的修法提示全丢了。
+        let (file, 行) = match 段表定位(&段表, e.line as i64) {
+            Some((f, l)) => (Some(f), l),
+            None => (None, e.line as i64),
+        };
+        PkgErr {
+            message: e.message,
+            hint: e.hint,
+            line: 行.max(1),
+            col: e.col as i64,
+            file,
+            code: Some(e.code),
+            underline: e.underline,
+            fix: e.fix,
+        }
     })?;
     let exports = export_names(&program);
     let pairs: Vec<String> = exports.iter()
@@ -909,6 +956,7 @@ pub fn 脚本目录(filename: &str) -> Option<String> {
 ///
 /// 返回**改写后的源码**：被吸掉的那几行换成空行（**行号不能变** —— 包里的报错
 /// 是拿这个行号换算回文件的，删行会让所有报错整体偏移）。
+#[allow(clippy::too_many_arguments)]
 fn 吸掉包内本地包导入(
     源码: &str,
     首路径: &str,
@@ -918,9 +966,25 @@ fn 吸掉包内本地包导入(
     base: Option<&str>,
     行: i64,
     列: i64,
+    段表: &[(i64, String)],
 ) -> Result<String, PkgErr> {
-    let 预 = parse(源码, 首路径)
-        .map_err(|e| bad(format!("本地包有语法错误：{}（第 {} 行）", e.message, e.line), 行, 列))?;
+    let 预 = parse(源码, 首路径).map_err(|e| {
+        // M220：与下面那次解析同口径 —— 指到包里的文件和行，错误码照搬。
+        let (file, 内行) = match 段表定位(段表, e.line as i64) {
+            Some((f, l)) => (Some(f), l),
+            None => (None, e.line as i64),
+        };
+        PkgErr {
+            message: e.message,
+            hint: e.hint,
+            line: 内行.max(1),
+            col: e.col as i64,
+            file,
+            code: Some(e.code),
+            underline: e.underline,
+            fix: e.fix,
+        }
+    })?;
     let 导入们: Vec<(String, i64, i64)> = local_imports(&预);
     if 导入们.is_empty() {
         return Ok(源码.to_string());

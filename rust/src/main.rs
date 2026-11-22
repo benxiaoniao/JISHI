@@ -547,6 +547,14 @@ fn main() -> ExitCode {
             eprintln!("--ai-card 后面跟的是**模块名**；要跑脚本请写 `jishi {m}`（或者把 --ai-card 放到脚本名后面）");
             return ExitCode::from(2);
         }
+        // M220：`--ai-card --统计` **只**出尺寸表（以前在 Rust 侧漏了这条分支，
+        // 于是它照样打印整张卡 —— 与 Python 侧两个答案）。
+        if 参数们.iter().any(|a| *a == "--统计") {
+            for (名, 大小) in jishi_ffi::langspec::卡统计() {
+                println!("{名}\t{大小}");
+            }
+            return ExitCode::SUCCESS;
+        }
         match jishi_ffi::langspec::render_ai_card(模块, 任务) {
             Ok(文) => println!("{文}"),
             Err(e) => {

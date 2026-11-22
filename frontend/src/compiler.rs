@@ -870,11 +870,15 @@ impl<'a> Emitter<'a> {
                 let v = nf(n, "value");
                 if !is_null(v) {
                     self.compile_expr(v);
+                    self.emit(op::THROW, Some(n), 0, 0, 0);
                 } else {
+                    // M220：**裸 `抛出`** = 重抛当前正在处理的异常。
+                    // `a = 1` 是给 VM 的标记（`抛出 空` 是另一回事：那会抛一个
+                    // 消息为「空」的通用异常，行为不变）。
                     let ci = self.const_idx(Const::None);
                     self.emit(op::LOAD_CONST, Some(n), ci, 0, 0);
+                    self.emit(op::THROW, Some(n), 1, 0, 0);
                 }
-                self.emit(op::THROW, Some(n), 0, 0, 0);
             }
             // 空块占位（`:` / `通过`）：树遍历里它是一次真实的 `exec_stmt`
             "Pass" => {

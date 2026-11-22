@@ -619,6 +619,16 @@ impl Parser {
             Value::Str(x) => x.as_str(),
             _ => return None,
         };
+        // M220：`不` 也点名 —— 中文语感里「不」就是否定，写 `如果 不 甲` 时
+        // 报错指在下一行/冒号上，人根本看不出是「不」的问题。
+        // ⚠️ **不新增关键字**（语法面冻结，M36）：只在报错里指路。
+        if v == "不" {
+            return Some(
+                "「不」不是关键字，会被当成名字 —— 逻辑非要写「非」：\
+                 `如果 不 甲` 要写成 `如果 非 甲`"
+                    .to_string(),
+            );
+        }
         if !matches!(v, "且" | "并且" | "而且" | "或者" | "但是" | "可是") {
             return None;
         }
@@ -641,7 +651,16 @@ impl Parser {
                 }
             }
         }
-        let 提 = Self::逻辑近义词(self.cur());
+        // M220：与 `expect_colon` 同一件事 —— 还要看**前一个** token。
+        // `如果 不 甲` 这种写法在**行尾**报错时（本函数），当前 token 可能
+        // 已经是下一行的开头，光看当前 token 点不到「不」。
+        let 提 = Self::逻辑近义词(self.cur()).or_else(|| {
+            if self.pos > 0 {
+                Self::逻辑近义词(&self.toks[self.pos - 1])
+            } else {
+                None
+            }
+        });
         Err(self.err_here(
             E_UNEXPECTED,
             "这一行没写完，但下一行已经开始了——是不是少了个符号？", 提))
@@ -654,7 +673,17 @@ impl Parser {
         }
         // 典型：`当 真 且 假：` —— 报「少了个冒号」并指在「且」上，
         // 但用户看不出是「且」的问题。点名。
-        let 提 = Self::逻辑近义词(self.cur());
+        //
+        // M220：还要看**前一个** token —— `如果 不 甲：` 里条件只解析出 `不`
+        // （一个名字），冒号检查时当前 token 已经是 `甲` 了，光看当前 token
+        // 永远点不到「不」。
+        let 提 = Self::逻辑近义词(self.cur()).or_else(|| {
+            if self.pos > 0 {
+                Self::逻辑近义词(&self.toks[self.pos - 1])
+            } else {
+                None
+            }
+        });
         Err(self.err_here(
             E_COLON,
             format!("「{}」后面要跟冒号「：」，然后换行缩进写代码块", kw), 提))
@@ -1575,11 +1604,11 @@ impl Parser {
 
     fn parse_raise(&mut self) -> R<Node> {
         let start = self.advance();
+        // M220：**裸 `抛出`** = 重抛当前正在处理的异常（类型、消息、起因链都保住）。
+        // Python 的 `raise` 就是这样；模板里「捕获了、记一笔、再抛出去」是常规写法，
+        // 以前必须 `捕获 异常 为 e:` 才能 `抛出 e` —— 不绑定就没法重抛。
         if self.at("NEWLINE") || self.at("DEDENT") || self.cur().kind == "EOF" {
-            return Err(self.err_tok(
-                E_UNEXPECTED,
-                "「抛出」后面要写一个值（比如 抛出 值错误(\"说明\")）",
-                None, &start, None));
+            return Ok(Node::new("Raise", start.line as i64, start.col as i64));
         }
         let value = self.parse_expr(0, true)?;
         Ok(Node::new("Raise", start.line as i64, start.col as i64)

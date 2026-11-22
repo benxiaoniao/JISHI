@@ -455,10 +455,27 @@ class Parser:
     _逻辑近义词 = ("且", "并且", "而且", "或者", "但是", "可是")
 
     def _逻辑提示(self):
-        t = self._peek()
-        if t.type != "NAME" or t.value not in self._逻辑近义词:
-            return None
-        return f"「{t.value}」不是关键字，会被当成名字 —— 逻辑运算符只有 与 / 或 / 非"
+        """当前 token（必要时看**前一个**）是不是「逻辑近义词」。
+
+        M220 补两点：
+        ① `不` 也点名 —— 中文语感里「不」就是否定，写 `如果 不 甲` 时
+           报错指在冒号/下一行上，人看不出是「不」的问题；
+           ⚠️ **不新增关键字**（语法面冻结，M36），只在报错里指路。
+        ② 冒号检查时当前 token 可能已经越过了那个词（`如果 不 甲：` 里
+           条件只解析出 `不`，届时 cur 是 `甲`）⇒ 回头看一个。
+        """
+        候选 = [self._peek()]
+        if self.pos > 0:
+            候选.append(self.tokens[self.pos - 1])
+        for t in 候选:
+            if t is None or t.type != "NAME":
+                continue
+            if t.value == "不":
+                return ("「不」不是关键字，会被当成名字 —— 逻辑非要写「非」："
+                        "`如果 不 甲` 要写成 `如果 非 甲`")
+            if t.value in self._逻辑近义词:
+                return f"「{t.value}」不是关键字，会被当成名字 —— 逻辑运算符只有 与 / 或 / 非"
+        return None
 
     def _expect_newline(self):
         if self._at("NEWLINE"):
@@ -1232,11 +1249,10 @@ class Parser:
 
     # 抛出
     def _parse_raise(self) -> A.Node:
+        """`抛出 <值>` / **裸 `抛出`**（M220：重抛当前正在处理的异常）。"""
         start = self._next()
         if self._at("NEWLINE") or self._at("DEDENT") or self._peek().type == "EOF":
-            self._err(ParseUnexpectedError,
-                      "「抛出」后面要写一个值（比如 抛出 值错误(\"说明\")）",
-                      tok=start)
+            return A.Raise(value=None, line=start.line, col=start.col)
         value = self._parse_expr()
         return A.Raise(value=value, line=start.line, col=start.col)
 

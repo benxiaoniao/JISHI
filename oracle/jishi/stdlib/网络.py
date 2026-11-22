@@ -296,6 +296,21 @@ def _发(网址, 方法: str, 体, 超时, 请求头, 动作: str, 解码: bool 
             for k, v in getattr(resp, "headers", {}).items():
                 头表[k] = (头表[k] + ", " + v) if k in 头表 else v
 
+            def 小写头() -> dict:
+                """给用户看的响应头：**键一律小写**（M220，与另外两个宿主一致）。
+
+                HTTP 里头名大小写不敏感，而 Node 宿主的 `fetch` 拿不到原始大小写
+                —— 三个宿主要逐字一致就只能统一。同名的多个头用 `, ` 连起来
+                （RFC 9110 §5.3 的合并规则，与 Rust 侧 `头表` 同一口径）。
+                """
+                合: dict = {}
+                for k, v in 头表.items():
+                    低 = str(k).lower()
+                    合[低] = (合[低] + ", " + v) if 低 in 合 else v
+                # 按键排序：三个宿主从网络上拿到的顺序本来就不一样，而字典显示
+                # 是**插入序** —— 不排的话 `打印(响应头)` 三行不同的字（M220）
+                return {k: 合[k] for k in sorted(合)}
+
             # ---- 重定向：自己跟（数次数 + 拦降级）----
             if 状态 in (301, 302, 303, 307, 308) and 头表.get("Location"):
                 if 已跳 >= o["重定向上限"]:
@@ -339,11 +354,11 @@ def _发(网址, 方法: str, 体, 超时, 请求头, 动作: str, 解码: bool 
                     except OSError:
                         pass
                     raise RunError(f"写文件「{落盘}」失败：{e}")
-                return {"状态": 状态, "响应头": 头表, "正文": b"", "字节数": len(正文)}
+                return {"状态": 状态, "响应头": 小写头(), "正文": b"", "字节数": len(正文)}
 
             return {
                 "状态": 状态,
-                "响应头": 头表,
+                "响应头": 小写头(),
                 "正文": 正文.decode("utf-8", errors="replace") if 解码 else 正文,
                 "字节数": len(正文),
             }

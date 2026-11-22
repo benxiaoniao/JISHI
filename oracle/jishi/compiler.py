@@ -936,9 +936,12 @@ class _Emitter:
     def _c_raise(self, st: A.Raise):
         if st.value is not None:
             self.compile_expr(st.value)
+            self.emit(O.Op.THROW, st)
         else:
+            # M220：**裸 `抛出`** = 重抛当前正在处理的异常（`a = 1` 是给 VM 的标记）。
+            # `抛出 空` 是另一回事：抛一个消息为「空」的通用异常，行为不变。
             self.emit(O.Op.LOAD_CONST, st, self.const_idx(None))
-        self.emit(O.Op.THROW, st)
+            self.emit(O.Op.THROW, st, a=1)
 
     # -- 表达式 -------------------------------------------------------------
 

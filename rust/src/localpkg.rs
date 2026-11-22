@@ -50,10 +50,28 @@ pub fn expand(program: &jishi_frontend::parser::Node, filename: &str)
     // 找不到再退回 cwd 与用户目录。原来是只看 cwd ⇒「把库放在脚本旁边」不成立。
     let base = jishi_frontend::localpkg::脚本目录(filename);
     jishi_frontend::localpkg::expand_at(program, base.as_deref()).map_err(|e| {
-        let mut err = crate::err("找不到这个函数", e.message);
+        // M220：包里的**语法错**要按语法错报（E0204 …），并且位置指到包里那个文件。
+        // 以前一律包成「找不到这个函数」（E0302）+ 入口脚本的位置 —— 两处都不对：
+        // ① 错误码错了，`E0204` 那一套修法提示（「换个说法就行…」）全丢；
+        // ② 位置指到 `导入` 那行，用户拿着它去包里找不到第 5 行。
+        // ⚠️ 语义错（没有这个包 / 循环依赖 / 版本不满足）仍然走 E0302 —— 渲染层
+        //    按码选格式（`错误 E0302：…（…）` vs `错误（…）：…`），码丢了就退回
+        //    老格式，与 Python 的 `SemanticFuncError` 两个样（M220 全量撞出来的）。
+        let (标题, 码) = match e.code {
+            Some(c) => (
+                crate::errcodes::title(c).unwrap_or("找不到这个函数").to_string(),
+                c.to_string(),
+            ),
+            None => ("找不到这个函数".to_string(), "E0302".to_string()),
+        };
+        let mut err = crate::err(&标题, e.message);
+        err.code = Some(码);
         err.line = Some(if e.line > 0 { e.line } else { 1 });
         err.col = Some(if e.col > 0 { e.col } else { 1 });
         err.hint = e.hint;
+        err.file = e.file;
+        err.underline = e.underline.map(|(a, b)| (a as i64, b as i64));
+        err.fix = e.fix;
         // 位置由上面的行列决定；`filename` 交给渲染层（它本来就吃这一份）
         let _ = filename;
         err

@@ -2202,6 +2202,32 @@ static int run_loop(JsVm *vm) {
                 break;
 
             case JS_OP_THROW: {
+                /* M220：`a == 1` = 裸 `抛出` ⇒ 重抛当前正在处理的异常。
+                   值栈上那条 `LOAD_CONST 空` 就是为此压的，这里弹掉不用。 */
+                if (a == 1) {
+                    JVal cause, exc;
+                    (void)POP(vm);
+                    SAVE_IP();
+                    if (!find_handled(vm, &cause)) {
+                        /* 报错直接交给宿主（它把 pending 设好），这里只要跳去分发 */
+                        HC(vm, raise_runtime)(
+                            "没有正在处理的异常可以重抛 —— 裸「抛出」只能写在"
+                            "「捕获」或「最终」里；要抛新错误写 抛出 值错误(\"说明\")",
+                            line, col);
+                        goto dispatch_err;
+                    } else {
+                        retain_val(vm, cause);
+                        if (HC(vm, make_error)(&cause, line, col, NULL, &exc) != 0) {
+                            release_val(vm, cause);
+                            goto dispatch_err;
+                        }
+                        release_val(vm, cause);
+                    }
+                    clear_pending_err(vm);
+                    retain_val(vm, exc);
+                    vm->pending_err = exc;
+                    goto dispatch_err;
+                }
                 JVal v = POP(vm), exc, cause;
                 SAVE_IP();
                 /* 「正在处理的异常」（M148）：`SAVE_IP` 之后才查 ——

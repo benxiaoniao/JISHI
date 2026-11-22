@@ -1672,6 +1672,15 @@ class ExcType {
 }
 
 // 异常类型注册表（与 Python EXCEPTION_TYPES 对齐）
+//: `类型()` 可能给出的**全部内建类型名**（M220，给 `是实例(x, "字典")` 校验用）。
+//: ⚠️ 与 Rust `内建类型名()` / Python `_BUILTIN_TYPE_NAMES` **逐字一致**。
+//: 📌 不含 `类 甲` / `甲 实例` / 宿主对象名（`计时器`）：那些是**动态**的。
+const BUILTIN_TYPE_NAMES = new Set([
+  '空', '布尔', '整数', '小数', '文本', '字节', '精确小数', 'datetime',
+  '表格', '切片', '原样片段', '列表', '字典', '集合', '文件', '函数',
+  '方法', '内建函数', '模块', '异常类型', '异常', '内建方法', '其他',
+]);
+
 const EXCEPTION_TYPES = {
   '异常': new ExcType('异常'),
   '运行期错误': new ExcType('运行期错误'),
@@ -1777,12 +1786,22 @@ function newBuiltins() {
     '是实例': new Builtin('是实例', (...args) => {
       needBuiltinArgs('是实例', args, 2, 2);
       const cls = args[1];
+      // M220：第二个参数也可以给**类型名文本**（`是实例(x, "字典")`）
+      if (typeof cls === 'string') {
+        if (!BUILTIN_TYPE_NAMES.has(cls)) {
+          throw valueErr(`「${cls}」不是内建类型名`,
+            undefined, undefined,
+            '判断内建类型写 `是实例(值, "字典")`（名字加引号），或 `类型(值) == "字典"`；'
+            + '判断**类**直接写类名：`是实例(对象, 甲)`');
+        }
+        return typeName(args[0]) === cls;
+      }
       if (!(cls instanceof JishiClass)) {
         // 常见误用：第二个参数写成转换函数（整数/文本…）。
         // ⚠️ Python 侧这里还给一条 `hint`（「X 是转换函数，不是类…」），
         // 但 Node 的 `JishiError` **没有 hint 字段** —— 属宿主错误信息模型的
         // 既有边界（M54 记过：宿主没有 Python 侧那套错误码与提示目录）。
-        throw typeErr(`「是实例」的第二个参数要是一个类，但给的是「${typeName(cls)}」`);
+        throw typeErr(`「是实例」的第二个参数要是一个类或类型名（文本），但给的是「${typeName(cls)}」`);
       }
       const v = args[0];
       if (!(v instanceof JishiInstance)) return false;

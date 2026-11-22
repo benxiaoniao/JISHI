@@ -201,13 +201,28 @@ fn 取文(d: &Val, key: &str, 默认: &str) -> Result<String, crate::JishiError>
     }
 }
 
+/// 取一个**像素数**（宽 / 高）。
+///
+/// M220：整数字面量之外也收**小数**，内部四舍五入。为什么 —— 比例换算
+/// （`宽 = 屏宽 * 0.8`）出来一定是小数，而窗口尺寸的物理单位就是整像素；
+/// 让它自己取整，比逼用户满世界写 `取整(...)` 强。与 `读几何` 那边
+/// 「几何量是数」的口径一致（那边给小数是因为 DPI 缩放下确实带小数）。
 fn 取数(d: &Val, key: &str, 默认: i128) -> Result<i128, crate::JishiError> {
     match 取(d, key)? {
         None | Some(Val::None_) => Ok(默认),
         Some(Val::Int(i)) => Ok(i.get()),
+        Some(Val::Float(f)) => {
+            if !f.is_finite() {
+                return Err(err("值错误", format!("「{key}」要是有限的数，给的是 {f}")));
+            }
+            Ok(f.round() as i128)
+        }
         Some(other) => Err(err(
             "值错误",
-            format!("「{key}」要传整数（像素），给的是{}", crate::type_label(&other)),
+            format!(
+                "「{key}」要传数（像素），给的是{}",
+                crate::type_label(&other)
+            ),
         )),
     }
 }
