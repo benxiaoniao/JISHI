@@ -69,6 +69,9 @@ mod matrix;
 // 两个都是「默认构建有：托盘靠 tray-icon / 剪贴板靠裸 Win32」，零新依赖。
 mod tray;
 mod clipboard;
+// M221：`通知`（跨平台发 + Windows 点击回调）—— 与 `托盘` 同一套路，
+// Windows 靠裸 Win32（`Shell_NotifyIconW` + message-only 窗口），零新依赖。
+mod notify;
 // M186：`图形`（2D 画布 / 输入 / 帧循环）—— **只在 wasm 里真做**，
 // 其余宿主报同一句平台错（与 `浏览器` 同边界，见 `graphics.rs` 头注与 D110）。
 pub(crate) mod graphics;
@@ -130,6 +133,8 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         // M185
         ("托盘", tray::module),
         ("剪贴板", clipboard::module),
+        // M221
+        ("通知", notify::module),
         ("数学", math::module),
         ("文本", text::module),
         ("随机", rand::module),

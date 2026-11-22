@@ -6371,6 +6371,32 @@ const WINDOW_FUNCS = {
   '设图标': new R.Builtin('设图标', () => _要原生('设图标', '用 Rust 发行版')),
   '进度': new R.Builtin('进度', () => _要原生('进度', '任务栏进度是 Windows 的概念')),
   '提示': new R.Builtin('提示', () => _要原生('提示', '系统提示这一版只做了 Windows')),
+
+  // ---- M221：窗口生命周期 + 常驻 ------------------------------------------
+  // 同上一批：只有 Rust 宿主 + 原生窗口能做，这里明确报「做不到」。
+  '显示': new R.Builtin('显示', () => _要原生('显示', '用 Rust 发行版（窗口.打开 默认就是原生窗口）')),
+  '隐藏': new R.Builtin('隐藏', () => _要原生('隐藏', '用 Rust 发行版；托盘常驻程序用 窗口.隐藏 + 托盘.当')),
+  '可见': new R.Builtin('可见', () => _要原生('可见', '用 Rust 发行版')),
+  '读标题': new R.Builtin('读标题', () => _要原生('读标题', '用 Rust 发行版；应用模式的标题就是页面的 <title>')),
+  '关闭到托盘': new R.Builtin('关闭到托盘', () => _要原生('关闭到托盘', '用 Rust 发行版；记得先 窗口.设托盘')),
+  '最小化到托盘': new R.Builtin('最小化到托盘', () => _要原生('最小化到托盘', '用 Rust 发行版')),
+  '常驻': new R.Builtin('常驻', () => _要原生('常驻', '用 Rust 发行版；脚本里写 窗口.常驻(处理一轮)')),
+};
+
+// ---- M221：通知（本宿主没有系统通知能力；口径与 Rust / Python 统一）----
+//
+// `发` / `关闭` **返回假 + 往 stderr 说一句**（通知是锦上添花，没有它程序
+// 该照常跑完）；`当` 明确报错（订阅静默不生效最难查）。
+const NOTIFY_FUNCS = {
+  '发': new R.Builtin('发', (标题, 正文) => {
+    process.stderr.write('通知没发出去：这个宿主没有系统通知能力（用 Rust 发行版的原生窗口）\n');
+    return false;
+  }),
+  '关闭': new R.Builtin('关闭', () => false),
+  '当': new R.Builtin('当', () => {
+    throw R.runErr('「通知.当」只在**页面里**有效 —— 脚本这会儿正阻塞在 窗口.等 上，接不了事件',
+      undefined, undefined, '把 通知.当 写进页面的基石代码里');
+  }),
 };
 
 /** M175：这个宿主没有原生窗口 —— 统一报错（不静默返回假）。 */
@@ -7872,6 +7898,12 @@ const TEST_FUNCS = {
 
 // M185：`托盘` —— 改托盘的菜单 / 提示。本宿主没有原生托盘，两个函数都报错。
 const TRAY_FUNCS = {
+  // M221：托盘点击回调（"单击" / "双击"）—— 只能写在页面里，本宿主两条都做不到。
+  '当': new R.Builtin('当', () => {
+    throw R.runErr('这个宿主没有原生托盘能力，「托盘.当」用不了'
+      + '（Node 宿主只能走浏览器应用模式）', undefined, undefined,
+      '托盘点击回调写在页面的基石代码里（Rust 发行版的原生窗口）');
+  }),
   '设菜单': new R.Builtin('设菜单', () => {
     throw R.runErr('这个宿主没有原生托盘能力，「托盘.设菜单」用不了'
       + '（Node 宿主只能走浏览器应用模式）', undefined, undefined, '用 Rust 发行版');
@@ -9481,6 +9513,7 @@ const STDLIB = {  '数学': new R.Module('数学', {
   // M185
   '托盘': new R.Module('托盘', TRAY_FUNCS),
   '剪贴板': new R.Module('剪贴板', CLIPBOARD_FUNCS),
+  '通知': new R.Module('通知', NOTIFY_FUNCS),
   'html': new R.Module('html', HTML_FUNCS),
   '对比': new R.Module('对比', DIFF_FUNCS),
   '标识': new R.Module('标识', ID_FUNCS),

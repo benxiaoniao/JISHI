@@ -79,7 +79,8 @@ def test_事件带窗口号():
     点 A 的 × 却关了 B。
     """
     s = _源码()
-    assert "关窗(u64)," in s or "关窗(u64)" in s, "关窗事件没有窗口号"
+    # M221：关窗事件多了「强制」位（页面 IPC = 强制，点 × / 脚本 = 不强制）
+    assert "关窗(u64, bool)," in s or "关窗(u64, bool)" in s, "关窗事件没有窗口号"
     assert "页面(u64, String, String)," in s, "页面事件没有窗口号"
 
 

@@ -220,7 +220,7 @@ pub fn 问(
                                 "__安装.成功(\"装好了。去开始菜单里找它就能打开。\");",
                             );
                             std::thread::sleep(std::time::Duration::from_millis(1200));
-                            native_window::请求关闭(号2);
+                            native_window::请求关闭(号2, false);
                         }
                         Some(e) => {
                             // 失败**不关窗**：用户得看见原因。按钮变成「关闭」。
@@ -235,7 +235,7 @@ pub fn 问(
             }
             // 「取消」与「关闭」是同一个动作：还没装 = 取消；装完失败 = 关窗。
             "取消" | "关闭" => {
-                let _ = native_window::请求关闭(号);
+                let _ = native_window::请求关闭(号, false);
                 true
             }
             _ => false,
@@ -244,7 +244,7 @@ pub fn 问(
 
     jishi_ffi::installer::日志(&format!("向导窗口已开：{号}（内嵌页面）"));
     // `等()` 阻塞到**所有**窗口关掉。安装器进程里只会开这一个。
-    native_window::等();
+    native_window::等简();
     jishi_ffi::installer::日志("向导窗口已关（等() 返回）");
     native_window::设外部处理器(None);
 

@@ -98,7 +98,11 @@ use wry::WebViewBuilder;
 pub enum 事件 {
     /// 关掉某个窗口。`0` = 「主窗口」（托盘 / 单实例那种**进程级**来源用它，
     /// 派发时再解析成当前的主窗口 —— 它们触发时未必知道该找哪个窗口）。
-    关窗(u64),
+    ///
+    /// M221：第二个字段 = **强制关**（跳过「询问关闭」）。页面在「关闭前」的
+    /// 处理函数里调 `窗口.关闭()` 时必须是强制的 —— 否则「派发 → 页面请求关
+    /// → 再派发」原地打转。「关到托盘」照旧生效（那也是「关」的一种结局）。
+    关窗(u64, bool),
     /// 宿主事件要转给页面：`(窗口号, 事件名, 参数)`。`0` = 主窗口。
     页面(u64, String, String),
     /// 后台线程要往页面里注入一段 JS（M200：安装进度）。
@@ -107,6 +111,12 @@ pub enum 事件 {
     /// 只能在主线程调（wry 内部会断言）。安装是后台线程跑的，进度要回页面，
     /// 所以走这里：发个事件，循环回到主线程再执行。
     脚本(u64, String),
+    /// 常驻循环的「一拍」（M221）：`窗口.常驻(每拍, 间隔)` 会另起一个线程
+    /// 定时发它，循环回到主线程调用户函数 —— 典型用途是 `服务.处理一轮()`。
+    ///
+    /// ⚠️ 为什么不用 `ControlFlow::WaitUntil`：tao 在 Windows 上**不唤醒**
+    /// （M218 实测），定时器形同虚设。只能用 `Wait` + 外部事件敲门。
+    拍,
 }
 
 /// 窗口里装什么：一个网址，还是一段**直接喂进去的 HTML**。
@@ -129,6 +139,9 @@ pub enum 页面来源 {
 /// 例子就是这么做的（`windows.remove(&id)`），那一步的 `Drop` 才真正销毁 HWND。
 struct 窗件 {
     窗口: Rc<Window>,
+    /// M221：点 × 时先派发「关闭前」给页面，页面自己决定关不关。
+    /// 存**每窗口一份** —— 「退出前确认」是某个窗口的功能，不是全局的。
+    询问关闭: bool,
 }
 
 /// 事件循环 + 「跑过没」。**一个进程一份**（tao 的硬约束）。
@@ -169,6 +182,13 @@ thread_local! {
     /// （`单实例` 在开窗之前就到了），派发时按主窗口解析。
     static 待发们: RefCell<HashMap<u64, Vec<(String, String)>>> = RefCell::new(HashMap::new());
     static 桌面: RefCell<桌面件> = RefCell::new(桌面件::default());
+    /// M221：`窗口.关闭到托盘(开)` —— **进程级**开关（「关掉 = 收到托盘」是
+    /// 整个程序的行为，不是某个窗口的）。点 × / 脚本关窗都先看它。
+    static 关到托盘: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// M221：「正在询问关闭」的窗口。页面在「关闭前」处理函数里调 `窗口.关闭()`
+    /// 时必须**直接关**，否则「派发 → 页面再请求关 → 再派发」原地打转。
+    static 询问中: RefCell<std::collections::HashSet<u64>> =
+        RefCell::new(std::collections::HashSet::new());
 }
 
 /// 菜单项 id → `(窗口号, 动作名)`。
@@ -306,7 +326,7 @@ fn 还循环(循环: EventLoop<事件>) {
 /// （浏览器进程一起来就响应）不同，但**用户代码的写法一样**：
 /// `打开` → 干活 → `等`，中间那段通常只有毫秒级。
 pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<u64, String> {
-    打开页(标题, 宽, 高, 页面来源::网址(网址.to_string()))
+    打开页(标题, 宽, 高, 页面来源::网址(网址.to_string()), true, false)
 }
 
 /// 同上，但页面内容**直接给**（`with_html`，不落盘、不用网址）。
@@ -314,13 +334,39 @@ pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<u64, Str
 /// 📌 页面的 `document.URL` 会是 `about:blank` —— 页面里要读「自己是谁」的地方
 /// 不能依赖 URL（安装向导不依赖）。
 pub fn 打开HTML(标题: &str, 宽: f64, 高: f64, 网页: &str) -> Result<u64, String> {
-    打开页(标题, 宽, 高, 页面来源::网页(网页.to_string()))
+    打开页(标题, 宽, 高, 页面来源::网页(网页.to_string()), true, false)
 }
 
-fn 打开页(标题: &str, 宽: f64, 高: f64, 页面: 页面来源) -> Result<u64, String> {
+/// M221：带「隐藏启动 / 询问关闭」的打开（托盘常驻型程序的起手式）。
+pub fn 打开带选项(
+    标题: &str,
+    宽: f64,
+    高: f64,
+    网址: &str,
+    显示: bool,
+    询问关闭: bool,
+) -> Result<u64, String> {
+    打开页(
+        标题,
+        宽,
+        高,
+        页面来源::网址(网址.to_string()),
+        显示,
+        询问关闭,
+    )
+}
+
+fn 打开页(
+    标题: &str,
+    宽: f64,
+    高: f64,
+    页面: 页面来源,
+    显示: bool,
+    询问关闭: bool,
+) -> Result<u64, String> {
     let 窗号 = 下一个号();
     let 循环 = 借循环()?;
-    let r = 建窗口(窗号, &循环, 标题, 宽, 高, &页面);
+    let r = 建窗口(窗号, &循环, 标题, 宽, 高, &页面, 显示, 询问关闭);
     // ⚠️ 建失败时循环还在，必须放回去 —— 否则后面再 打开 会拿到「正在忙」。
     还循环(循环);
     r.map(|_| 窗号)
@@ -333,6 +379,8 @@ fn 建窗口(
     宽: f64,
     高: f64,
     页面: &页面来源,
+    显示: bool,
+    询问关闭: bool,
 ) -> Result<(), String> {
     let 代理 = 取代理()?;
 
@@ -340,6 +388,8 @@ fn 建窗口(
         WindowBuilder::new()
             .with_title(标题)
             .with_inner_size(LogicalSize::new(宽, 高))
+            // M221：`隐藏启动` —— 托盘常驻程序先别闪一下窗口。
+            .with_visible(显示)
             .build(循环)
             .map_err(|e| format!("建窗口失败：{e}"))?,
     );
@@ -439,7 +489,7 @@ fn 建窗口(
 
     // 窗口**打开时就登记**：`打开` 与 `等` 之间也可能要改标题。
     窗们.with(|c| {
-        c.borrow_mut().insert(窗号, 窗件 { 窗口 });
+        c.borrow_mut().insert(窗号, 窗件 { 窗口, 询问关闭 });
     });
     网们.with(|c| {
         c.borrow_mut().insert(窗号, 网页);
@@ -487,7 +537,20 @@ fn 建网页失败(原因: String) -> String {
 /// 事件循环，它一停，其它窗口就假死（画面还在、点了没反应），那比报错更糟。
 /// 所以「窗A 关了但窗B 还开着」时这里**不返回**。文档三处都写明了这一点，
 /// 因为用户最容易在这里写出「关了 A 之后后面的代码为什么不跑」。
-pub fn 等() -> i32 {
+/// 无回调版本（安装向导 `packstub` 用）：跑循环直到所有窗口关掉。
+///
+/// 📌 单独一个入口是为了不把 `Val` / `BuiltinHost` 这两个 crate 内部类型
+/// 暴露给 bin —— 那个它们用不上，暴露了反而编译不过（private type）。
+pub fn 等简() -> i32 {
+    等(None, None)
+}
+
+/// ⚠️ `vm` 是 `Option`：安装向导（`packstub`）也要跑这个循环，但它没有 VM。
+/// 有回调就必须有 vm（上层保证同进同出）。
+pub fn 等(
+    按拍: Option<(crate::Val, u64)>,
+    mut vm: Option<&mut dyn crate::BuiltinHost>,
+) -> i32 {
     // 借出事件循环（要 `&mut` 才能 `run_return`）；借不到 = 没开过窗口 / 已经跑过。
     let Some(mut 循环) = 循环槽.with(|c| c.borrow_mut().as_mut().and_then(|件| 件.循环.take()))
     else {
@@ -500,12 +563,40 @@ pub fn 等() -> i32 {
         }
     });
 
+    // M221：常驻泵 —— 另起一个线程定时敲门。tao 的 `WaitUntil` 在 Windows 上
+    // 不唤醒（M218 实测），所以只能用 `Wait` + 事件。
+    let 停止 = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut 定时器 = None;
+    if let Some((_, 间隔)) = &按拍 {
+        let 隔 = (*间隔).max(10);
+        let 代理 = 取代理();
+        let 停 = 停止.clone();
+        if let Ok(代理) = 代理 {
+            定时器 = Some(std::thread::spawn(move || {
+                while !停.load(std::sync::atomic::Ordering::Relaxed) {
+                    std::thread::sleep(std::time::Duration::from_millis(隔));
+                    if 停.load(std::sync::atomic::Ordering::Relaxed) {
+                        break;
+                    }
+                    if 代理.send_event(事件::拍).is_err() {
+                        break;
+                    }
+                }
+            }));
+        }
+    }
+
     循环.run_return(|事件, _, 控制| {
         *控制 = ControlFlow::Wait;
         match 事件 {
-            Event::UserEvent(事件::关窗(窗号)) => {
-                if 关掉(解析号(窗号)) && !有窗口() {
-                    *控制 = ControlFlow::Exit;
+            Event::UserEvent(事件::关窗(窗号, 强制)) => {
+                let 号 = 解析号(窗号);
+                // M221：关窗请求也要过「关到托盘 / 询问关闭」这道闸 ——
+                // 页面的 `窗口.关闭()` 和点 × 是同一个意思。
+                if 尝试关(号, 强制) {
+                    if !有窗口() {
+                        *控制 = ControlFlow::Exit;
+                    }
                 }
             }
             // 宿主事件（菜单/托盘/拖放/再次启动）→ 交给**对应窗口**的页面。
@@ -517,6 +608,16 @@ pub fn 等() -> i32 {
                     调试(&format!("后台脚本没送进页面（窗口 {号} 已经不在了）"));
                 }
             }
+            // M221：一拍到了 —— 在主线程调用户函数（典型 `服务.处理一轮()`）。
+            // ⚠️ 报错**不能**把循环带走：一拍失败只是这一拍没做事，
+            //    下一拍还会来（否则服务里一个手滑就让窗口永久卡住）。
+            Event::UserEvent(事件::拍) => {
+                if let (Some((回调, _)), Some(执行器)) = (&按拍, vm.as_deref_mut()) {
+                    if let Err(e) = 执行器.call_value(回调.clone(), Vec::new()) {
+                        调试(&format!("常驻回调报错：{}", e.message));
+                    }
+                }
+            }
             // 用户点了标题栏的 ×（或 Alt+F4）：只关这一个，别的继续开着。
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -524,15 +625,21 @@ pub fn 等() -> i32 {
                 ..
             } => {
                 if let Some(窗号) = 号由tao(window_id) {
-                    关掉(窗号);
-                }
-                if !有窗口() {
-                    *控制 = ControlFlow::Exit;
+                    // 点 × 永远走完整闸门（关到托盘 / 询问关闭）。
+                    if 尝试关(窗号, false) && !有窗口() {
+                        *控制 = ControlFlow::Exit;
+                    }
                 }
             }
             _ => {}
         }
     });
+
+    // 停定时线程（幂等：它自己也会因 send 失败退出）。
+    停止.store(true, std::sync::atomic::Ordering::Relaxed);
+    if let Some(t) = 定时器 {
+        let _ = t.join();
+    }
 
     // 收尾：webview 必须先 drop（它握着 WebView2 的控制器），再 drop 窗口。
     // 这里的顺序**不能反**，也不能靠 HashMap 的遍历顺序 —— 所以分两步清。
@@ -604,19 +711,116 @@ fn 号由tao(要找: tao::window::WindowId) -> Option<u64> {
     })
 }
 
+// ---------------------------------------------------------------------------
+// M221：窗口生命周期（显示 / 隐藏 / 关到托盘 / 询问关闭）
+// ---------------------------------------------------------------------------
+
+/// 关窗的统一闸门 —— **点 × 与 `窗口.关闭()` 都走这里**。
+///
+/// 三档，顺序有意义：
+/// 1. `关到托盘` 开着 ⇒ **隐藏**，不关（「关掉 = 收到托盘」，产品的肌肉记忆）；
+/// 2. 这个窗口「询问关闭」且**不在询问中** ⇒ 派发「关闭前」，**不自动关**
+///    （页面处理函数里调 `窗口.关闭()` 才真关；不调就是不关 —— 这就是
+///    「取消关闭」的全部语义，不需要再加一个同名 API）；
+/// 3. 其余 ⇒ 真关。
+///
+/// 返回「真关了没」：调用方据此决定要不要退出事件循环。
+fn 尝试关(窗号: u64, 强制: bool) -> bool {
+    if 窗号 == 0 {
+        return false;
+    }
+    if 关到托盘.with(|c| c.get()) && 隐藏(窗号) {
+        调试(&format!("关到托盘：窗口 {窗号} 收起来了（进程还活着）"));
+        return false;
+    }
+    let 要问 = !强制
+        // 🔴 页面**没登记处理函数**时不能问：`派发` 只会把事件排队，而
+        // 「询问关闭」等的是页面回话 —— 没人回话就永远不关（M221 自检时
+        // 第 5 拍点关闭，页面 wasm 还没加载完，于是卡死到超时）。
+        // 页面就绪前按「直接关」处理，这也是用户的直觉。
+        && 就绪们.with(|c| c.borrow().contains(&窗号))
+        && 窗们.with(|c| {
+            c.borrow()
+                .get(&窗号)
+                .map(|件| 件.询问关闭)
+                .unwrap_or(false)
+        })
+        && !询问中.with(|c| c.borrow().contains(&窗号));
+    if 要问 {
+        询问中.with(|c| {
+            c.borrow_mut().insert(窗号);
+        });
+        调试(&format!("窗口 {窗号} 要关了 —— 先问页面"));
+        派发(窗号, "关闭前", "");
+        // ⚠️ 派发是**同步**的（页面 `__jishiWin` 里直接跑 wasm 函数），所以
+        //    处理函数里调 `窗口.关闭()` 时上面这个标记还在 ⇒ 直接关，不打转。
+        询问中.with(|c| {
+            c.borrow_mut().remove(&窗号);
+        });
+        return false;
+    }
+    关掉(窗号)
+}
+
+/// `窗口.显示(句柄?)` —— 显示并聚焦（托盘点一下 → 窗口跳到前面）。
+pub fn 显示(窗号: u64) -> bool {
+    let 号 = 解析号(窗号);
+    对窗口(号, |窗| {
+        窗.set_visible(true);
+        // 托盘常驻程序被叫回来时，用户期望焦点就在它身上。
+        窗.set_focus();
+    })
+    .is_some()
+}
+
+/// `窗口.隐藏(句柄?)` —— 藏起来但**不关**（页面还在，状态都留着）。
+pub fn 隐藏(窗号: u64) -> bool {
+    let 号 = 解析号(窗号);
+    对窗口(号, |窗| 窗.set_visible(false)).is_some()
+}
+
+/// `窗口.可见(句柄?)` —— 现在看得见吗。`None` = 窗口不在了。
+///
+/// 📌 为什么要有这个「读」：判据要断言「托盘双击 → 窗口由隐到显」，
+/// 而 `在运行` 只说明进程活着，说明不了可见性。
+pub fn 可见(窗号: u64) -> Option<bool> {
+    let 号 = 解析号(窗号);
+    对窗口(号, |窗| 窗.is_visible())
+}
+
+/// `窗口.读标题(句柄?)` —— 当前标题。`None` = 窗口不在了。
+///
+/// 📌 判据靠它证明「页面**真的**收到了关闭前」（页面里 `设标题` 改过的字
+/// 能从这里读回来）；产品里也常用（「文档已修改」这种标题前缀）。
+pub fn 读标题(窗号: u64) -> Option<String> {
+    let 号 = 解析号(窗号);
+    对窗口(号, |窗| 窗.title())
+}
+
+/// `窗口.关闭到托盘(开?)` —— 进程级开关：之后所有关闭请求都变成「藏起来」。
+pub fn 设关到托盘(开: bool) -> bool {
+    关到托盘.with(|c| c.set(开));
+    true
+}
+
+/// 当前是不是「关到托盘」模式。
+pub fn 取关到托盘() -> bool {
+    关到托盘.with(|c| c.get())
+}
+
 /// 从外面（脚本 / 页面）请求关窗。
 ///
 /// 事件循环**还没跑**时也能请求 —— tao 的 `EventLoopProxy` 会把事件排住，
 /// `等` 一进循环就收到并立刻关掉那个窗口。所以「打开 → 关闭 → 等」也是通的。
 /// `窗号` 传 0 表示「主窗口」（脚本里 `窗口.关闭()` 省略句柄就走这条）。
-pub fn 请求关闭(窗号: u64) -> bool {
+pub fn 请求关闭(窗号: u64, 强制: bool) -> bool {
     // 🔴 **不要在这里用 `在运行(窗号)` 判活**（M200 实测，代价是 115 秒）：
     //    它读的是 thread_local `窗们`，从**后台线程**调时看到的是「一个窗口都没有」
     //    ⇒ 恒为 false ⇒ 「装完自动关窗」永远不生效，窗口一直挂着，
     //    而安装早就成功了（日志里「完成」到「窗口关」差了近两分钟）。
     //    `关窗` 事件对「窗口已经不在了」是幂等的，多发一次无害。
     match 取代理() {
-        Ok(代理) => 代理.send_event(事件::关窗(窗号)).is_ok(),
+        Ok(代理) => 代理.send_event(事件::关窗(窗号, 强制)).is_ok(),
         Err(_) => false,
     }
 }
@@ -886,7 +1090,9 @@ fn 处理命令(窗号: u64, 正文: &str) -> Option<事件> {
         }
         // 🔴 M178：页面里的 `窗口.关闭()` 关的是**它自己那个窗口**，不是整个程序。
         //    靠的就是这里的 `窗号`（来自哪个 WebView 的 IPC）。
-        "关闭" => Some(事件::关窗(窗号)),
+        // M221：页面主动关 = **同意关闭**（跳过「询问关闭」），否则页面在
+        // 「关闭前」处理函数里调 `窗口.关闭()` 会「派发→请求→再派发」打转。
+        "关闭" => Some(事件::关窗(窗号, true)),
         // M175：页面右击（页面里装了监听，见 `设右键菜单`）→ 弹原生菜单。
         // 坐标是页面里的 client 坐标，对 Windows 来说就是窗口内的坐标。
         "右键菜单" => {
@@ -1363,19 +1569,50 @@ fn 读图标(路径: &str) -> Result<tray_icon::Icon, String> {
 }
 
 /// 装托盘图标的点击回调。和菜单一样，事件在它自己的线程回来。
+///
+/// M221：区分**单击 / 双击**，并且**单击要等一等**。
+///
+/// 🔴 为什么不直接派发单击：Windows 上双击会先送两次 `Click`（Up）再送
+/// `DoubleClick`。直接派发的话，用户绑「单击 = 显示/隐藏」时双击会**闪两下**
+/// 再显示 —— 看起来像 bug。所以单击先记一个令牌、260 ms 后再发；双击立刻
+/// 作废令牌并发「托盘双击」。260 ms 略小于 Windows 默认双击间隔（500 ms），
+/// 单击的延迟人感觉不出来。
 fn 装托盘事件(代理: EventLoopProxy<事件>) {
+    let 单击令牌 = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
     tray_icon::TrayIconEvent::set_event_handler(Some(move |e: tray_icon::TrayIconEvent| {
-        // 只报「左键抬起」：按下/移动/双击对用户没意义，而且会把通道刷爆。
-        if let tray_icon::TrayIconEvent::Click {
-            button: tray_icon::MouseButton::Left,
-            button_state: tray_icon::MouseButtonState::Up,
-            ..
-        } = e
-        {
-            调试("托盘被点了");
-            // 托盘是**进程级**的（系统里没有「每窗口一个托盘图标」），
-            // 所以事件送给主窗口 —— `0` 在 `派发` 里解析。
-            let _ = 代理.send_event(事件::页面(0, "托盘".into(), "点击".into()));
+        match e {
+            tray_icon::TrayIconEvent::Click {
+                button: tray_icon::MouseButton::Left,
+                button_state: tray_icon::MouseButtonState::Up,
+                ..
+            } => {
+                let 我 = 单击令牌
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                    + 1;
+                let 令 = 单击令牌.clone();
+                let 代 = 代理.clone();
+                // 托盘是**进程级**的（系统里没有「每窗口一个托盘图标」），
+                // 所以事件送给主窗口 —— `0` 在 `派发` 里解析。
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(260));
+                    if 令.load(std::sync::atomic::Ordering::SeqCst) != 我 {
+                        return; // 这期间来了双击 —— 单击作废
+                    }
+                    调试("托盘被点了一下");
+                    let _ = 代.send_event(事件::页面(0, "托盘".into(), "点击".into()));
+                    let _ = 代.send_event(事件::页面(0, "托盘单击".into(), "点击".into()));
+                });
+            }
+            tray_icon::TrayIconEvent::DoubleClick {
+                button: tray_icon::MouseButton::Left,
+                ..
+            } => {
+                // 作废还没发出去的那次单击
+                单击令牌.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                调试("托盘被双击了");
+                let _ = 代理.send_event(事件::页面(0, "托盘双击".into(), "双击".into()));
+            }
+            _ => {}
         }
     }));
 }
@@ -1676,6 +1913,270 @@ mod 气泡 {
 pub fn 提示(窗号: u64, 标题: &str, 内容: &str) -> bool {
     use tao::platform::windows::WindowExtWindows;
     对窗口(窗号, |窗| 气泡::提示(窗.hwnd(), 标题, 内容)).unwrap_or(false)
+}
+
+// ---------------------------------------------------------------------------
+// M221：通知（跨平台）+ Windows 点击回调
+// ---------------------------------------------------------------------------
+//
+// 与 M185 的 `窗口.提示` 的区别，一句话：**提示点了没回调，通知点了有回调**。
+// 为了拿到回调，Windows 这一支必须有自己的**消息窗口**（`Shell_NotifyIconW`
+// 的 `NIN_BALLOONUSERCLICK` 只会送到图标所属窗口的过程里，而 tao 的窗口过程
+// 我们插不进手）—— 所以建一个 message-only 窗口，纯 Win32，不引新依赖。
+//
+// 📌 为什么不用真 Toast（`ToastNotificationManager`）：要 AppUserModelID +
+//    开始菜单快捷方式，与安装器耦合 —— 路线图记在 0.4.x。气泡在 Win10/11 上
+//    由系统统一显示成通知中心条目，点击一样有回调，够用。
+//
+// 📌 mac / Linux 这一版**只发、不回调**（如实记）：mac 走 `osascript`、
+//    Linux 走 `notify-send`，两者都是「发完就不管」的外部命令。
+//    UNUserNotificationCenter 的点击回调要 ObjC 运行时 + 权限申请，本机
+//    （Windows）无法验证，记 0.4.x —— 判据只要求「有能力就发、没有返回假」。
+
+#[cfg(windows)]
+mod 通知窗 {
+    use std::cell::Cell;
+
+    const 类名: &str = "JishiNotifyWnd";
+    /// `WM_APP + 0x21`：与其它自定义消息（如果有）隔开，纯粹是个标记。
+    const 回调消息: u32 = 0x8000 + 0x21;
+    /// `NIN_BALLOONUSERCLICK`：用户点了气泡/通知。
+    const NIN_BALLOONUSERCLICK: u32 = 0x0405;
+    /// `HWND_MESSAGE`：message-only 窗口（不进任务栏、不显示）。
+    const HWND_MESSAGE: isize = -3;
+
+    const NIM_ADD: u32 = 0x0000_0000;
+    const NIM_MODIFY: u32 = 0x0000_0001;
+    const NIM_DELETE: u32 = 0x0000_0002;
+    const NIF_MESSAGE: u32 = 0x0000_0001;
+    const NIF_ICON: u32 = 0x0000_0002;
+    const NIF_TIP: u32 = 0x0000_0004;
+    const NIF_INFO: u32 = 0x0000_0010;
+    const NIIF_INFO: u32 = 0x0000_0001;
+    const IDI_APPLICATION: usize = 32512;
+    /// 我们这条通知的固定 uID（进程内唯一）。
+    const 图标号: u32 = 0x4A53_4802;
+
+    #[repr(C)]
+    struct 窗类 {
+        style: u32,
+        wnd_proc: Option<extern "system" fn(isize, u32, usize, isize) -> isize>,
+        cls_extra: i32,
+        wnd_extra: i32,
+        instance: isize,
+        icon: isize,
+        cursor: isize,
+        background: isize,
+        menu_name: *const u16,
+        class_name: *const u16,
+    }
+
+    #[repr(C)]
+    struct 图标数据 {
+        cb_size: u32,
+        h_wnd: isize,
+        u_id: u32,
+        u_flags: u32,
+        u_callback: u32,
+        h_icon: isize,
+        sz_tip: [u16; 128],
+        dw_state: u32,
+        dw_state_mask: u32,
+        sz_info: [u16; 256],
+        u_timeout: u32,
+        sz_info_title: [u16; 64],
+        dw_info_flags: u32,
+        guid: [u8; 16],
+        h_balloon: isize,
+    }
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn RegisterClassW(c: *const 窗类) -> u16;
+        fn CreateWindowExW(
+            ex: u32,
+            class: *const u16,
+            title: *const u16,
+            style: u32,
+            x: i32,
+            y: i32,
+            w: i32,
+            h: i32,
+            parent: isize,
+            menu: isize,
+            instance: isize,
+            param: *mut std::ffi::c_void,
+        ) -> isize;
+        fn DefWindowProcW(h: isize, m: u32, w: usize, l: isize) -> isize;
+        fn GetModuleHandleW(name: *const u16) -> isize;
+        fn LoadIconW(h: isize, name: *const u16) -> isize;
+    }
+
+    #[link(name = "shell32")]
+    extern "system" {
+        fn Shell_NotifyIconW(消息: u32, 数据: *mut 图标数据) -> i32;
+    }
+
+    thread_local! {
+        static 消息窗: Cell<isize> = const { Cell::new(0) };
+    }
+
+    /// 我们的消息窗口过程。**在主线程被调**（tao 的消息循环 dispatch 到这里）。
+    extern "system" fn 过程(h: isize, m: u32, w: usize, l: isize) -> isize {
+        if m == 回调消息 && (l & 0xFFFF) as u32 == NIN_BALLOONUSERCLICK {
+            super::调试("通知被点了");
+            // 页面派发统一走 proxy（这一步本来就是主线程，绕一下是为了
+            // 和菜单/托盘同一条道，少一条特殊路径）。
+            if let Ok(代) = super::取代理() {
+                let _ = 代.send_event(super::事件::页面(
+                    0,
+                    "通知点击".into(),
+                    "点击".into(),
+                ));
+            }
+        }
+        unsafe { DefWindowProcW(h, m, w, l) }
+    }
+
+    fn 建消息窗() -> Result<isize, String> {
+        let 已有 = 消息窗.with(|c| c.get());
+        if 已有 != 0 {
+            return Ok(已有);
+        }
+        unsafe {
+            let 实例 = GetModuleHandleW(std::ptr::null());
+            let 名: Vec<u16> = 类名.encode_utf16().chain(std::iter::once(0)).collect();
+            let 标题: Vec<u16> = "jishi-notify".encode_utf16().chain(std::iter::once(0)).collect();
+            let mut 类: 窗类 = std::mem::zeroed();
+            类.instance = 实例;
+            类.class_name = 名.as_ptr();
+            类.wnd_proc = Some(过程);
+            // 重复注册返回 0（ERROR_CLASS_ALREADY_EXISTS）—— 不是错误。
+            RegisterClassW(&类);
+            let 窗 = CreateWindowExW(
+                0,
+                名.as_ptr(),
+                标题.as_ptr(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                HWND_MESSAGE,
+                0,
+                实例,
+                std::ptr::null_mut(),
+            );
+            if 窗 == 0 {
+                return Err("建通知窗口失败（message-only 窗口）".to_string());
+            }
+            消息窗.with(|c| c.set(窗));
+            Ok(窗)
+        }
+    }
+
+    fn 填(目: &mut [u16], 文: &str) {
+        let 宽: Vec<u16> = 文.encode_utf16().take(目.len() - 1).collect();
+        目[..宽.len()].copy_from_slice(&宽);
+        目[宽.len()] = 0;
+    }
+
+    pub fn 发(标题: &str, 正文: &str) -> Result<(), String> {
+        let 窗 = 建消息窗()?;
+        unsafe {
+            let mut d: 图标数据 = std::mem::zeroed();
+            d.cb_size = std::mem::size_of::<图标数据>() as u32;
+            d.h_wnd = 窗;
+            d.u_id = 图标号;
+            d.u_flags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_INFO;
+            d.u_callback = 回调消息;
+            d.h_icon = LoadIconW(0, IDI_APPLICATION as *const u16);
+            d.u_timeout = 10_000;
+            d.dw_info_flags = NIIF_INFO;
+            填(&mut d.sz_info_title, 标题);
+            填(&mut d.sz_info, 正文);
+            填(&mut d.sz_tip, 标题);
+            if Shell_NotifyIconW(NIM_ADD, &mut d) == 0 {
+                // 已经挂过（上一条没关）→ 改它，而不是再加一个图标。
+                if Shell_NotifyIconW(NIM_MODIFY, &mut d) == 0 {
+                    return Err("通知弹不出来（Shell_NotifyIcon 拒绝了这条）".to_string());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn 关() -> bool {
+        let 窗 = 消息窗.with(|c| c.get());
+        if 窗 == 0 {
+            return false;
+        }
+        unsafe {
+            let mut d: 图标数据 = std::mem::zeroed();
+            d.cb_size = std::mem::size_of::<图标数据>() as u32;
+            d.h_wnd = 窗;
+            d.u_id = 图标号;
+            Shell_NotifyIconW(NIM_DELETE, &mut d) != 0
+        }
+    }
+}
+
+/// `通知.发(标题, 正文)` 的宿主实现。
+///
+/// 返回 `Ok` = 发出去了；`Err` = 这个平台做不了（或系统拒绝）。上层按
+/// 「有能力就发、没有返回假 + 说明」处理，**不**把它当语言错误。
+#[cfg(windows)]
+pub fn 通知发(标题: &str, 正文: &str) -> Result<(), String> {
+    通知窗::发(标题, 正文)
+}
+
+#[cfg(target_os = "macos")]
+pub fn 通知发(标题: &str, 正文: &str) -> Result<(), String> {
+    fn 转义(s: &str) -> String {
+        s.replace('\\', "\\\\").replace('"', "\\\"")
+    }
+    let 脚本 = format!(
+        "display notification \"{}\" with title \"{}\"",
+        转义(正文),
+        转义(标题)
+    );
+    let 态 = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(&脚本)
+        .status()
+        .map_err(|e| format!("调 osascript 失败：{e}"))?;
+    if 态.success() {
+        Ok(())
+    } else {
+        Err("osascript 拒绝了这条通知".to_string())
+    }
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
+pub fn 通知发(标题: &str, 正文: &str) -> Result<(), String> {
+    match std::process::Command::new("notify-send")
+        .arg(标题)
+        .arg(正文)
+        .status()
+    {
+        Ok(s) if s.success() => Ok(()),
+        Ok(_) => Err("notify-send 没发出去".to_string()),
+        Err(_) => Err(
+            "这台机器上没有 notify-send（装 libnotify-bin，或换个支持通知的桌面）"
+                .to_string(),
+        ),
+    }
+}
+
+/// `通知.关闭()` —— 撤掉当前那条（Windows 上是托盘里的临时图标）。
+#[cfg(windows)]
+pub fn 通知关() -> bool {
+    通知窗::关()
+}
+
+#[cfg(not(windows))]
+pub fn 通知关() -> bool {
+    false
 }
 
 

@@ -541,8 +541,20 @@ fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
                     t
                 }
             };
-            let 窗号 = crate::native_window::打开(&标题, 宽 as f64, 高 as f64, &网址)
-                .map_err(|e| err("运行期错误", e))?;
+            // M221：托盘常驻型程序的两个起手式。
+            //   隐藏启动 = 窗口建出来就藏着（托盘先立起来，点托盘再显示）；
+            //   询问关闭 = 点 × 时先问页面。
+            let 隐藏启动 = 取布(选项, "隐藏启动", false)?;
+            let 询问关闭 = 取布(选项, "询问关闭", false)?;
+            let 窗号 = crate::native_window::打开带选项(
+                &标题,
+                宽 as f64,
+                高 as f64,
+                &网址,
+                !隐藏启动,
+                询问关闭,
+            )
+            .map_err(|e| err("运行期错误", e))?;
             let mut 表 = 表().lock().unwrap();
             let 号 = 表.len() as i128 + 1;
             表.push(Some(记录 {
@@ -669,7 +681,36 @@ fn 关闭(句柄: i128) -> bool {
         drop(表);
         #[cfg(feature = "native-window")]
         {
-            return crate::native_window::请求关闭(窗号);
+            return crate::native_window::请求关闭(窗号, false);
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            return false;
+        }
+    }
+    if let Some(mut 子) = 记录.子.take() {
+        let _ = 子.kill();
+        let _ = 子.wait();
+    }
+    true
+}
+
+/// M221：强制关（**跳过「询问关闭」**）。`全部关闭` 用它。
+///
+/// 为什么「全部关闭」要强制：它表达的是「我要退出」—— 再问一遍页面
+/// 「你确定吗」是死循环的开始（页面拒绝 → 用户再点退出 → 又问）。
+/// 产品里的「确定退出」按钮就走这条。
+fn 强制关闭(句柄: i128) -> bool {
+    let mut 表 = 表().lock().unwrap();
+    let Some(记录) = 取记录(句柄, &mut 表) else {
+        return false;
+    };
+    if 记录.原生 {
+        let 窗号 = 记录.窗号;
+        drop(表);
+        #[cfg(feature = "native-window")]
+        {
+            return crate::native_window::请求关闭(窗号, true);
         }
         #[cfg(not(feature = "native-window"))]
         {
@@ -711,7 +752,7 @@ fn 收尾(句柄: i128) {
 /// 这是 M178 唯一一处已知的不完美，写进语言规格 / README / AI 卡三处。
 ///
 /// 浏览器应用模式（每个窗口一个子进程）仍然是「等那一个」，语义没变。
-fn 等(句柄: Option<i128>) -> i128 {
+fn 等(句柄: Option<i128>, 按拍: Option<(Val, u64)>, vm: &mut dyn BuiltinHost) -> i128 {
     enum 等谁 {
         原生,
         子(Child),
@@ -754,7 +795,7 @@ fn 等(句柄: Option<i128>) -> i128 {
         等谁::原生 => {
             #[cfg(feature = "native-window")]
             {
-                let 码 = crate::native_window::等() as i128;
+                let 码 = crate::native_window::等(按拍, Some(vm)) as i128;
                 // 事件循环退出 = **所有**原生窗口都关了 ⇒ 把这些记录全收掉
                 // （停小服务、腾句柄）。只收传进来的那一个是不够的。
                 收尾所有原生();
@@ -772,6 +813,167 @@ fn 等(句柄: Option<i128>) -> i128 {
         收尾(h);
     }
     码
+}
+
+// -- M221：窗口生命周期 -----------------------------------------------------
+//
+// 五个都只在脚本里有效（页面里报「只在脚本里」）；原生构建下转发给
+// `native_window`，没有原生窗口的构建报统一错误。
+
+fn 显示(句柄: Option<i128>) -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 句柄;
+        return Err(只在脚本里("显示", "要让窗口出来，在脚本里 窗口.显示()"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 号 = 原生窗号(句柄, "显示")?;
+            return Ok(crate::native_window::显示(号));
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = 句柄;
+            Err(没有原生窗口("显示"))
+        }
+    }
+}
+
+fn 隐藏(句柄: Option<i128>) -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 句柄;
+        return Err(只在脚本里("隐藏", "要藏窗口，在脚本里 窗口.隐藏()"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 号 = 原生窗号(句柄, "隐藏")?;
+            return Ok(crate::native_window::隐藏(号));
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = 句柄;
+            Err(没有原生窗口("隐藏"))
+        }
+    }
+}
+
+/// `窗口.可见(句柄?)` —— 现在看得见吗。窗口已经不在了 ⇒ 报「没有这个句柄」
+/// （和 `设标题` 同口径：拿着失效句柄操作是写法问题，不该静默给假）。
+fn 可见(句柄: Option<i128>) -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 句柄;
+        return Err(只在脚本里("可见", "页面里你就在窗口里，问「可见」没有意义"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 号 = 原生窗号(句柄, "可见")?;
+            return Ok(crate::native_window::可见(号).unwrap_or(false));
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = 句柄;
+            Err(没有原生窗口("可见"))
+        }
+    }
+}
+
+/// `窗口.读标题(句柄?)` —— 当前标题（判据靠它证明「页面真收到了事件」）。
+fn 读标题(句柄: Option<i128>) -> Result<String, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 句柄;
+        return Err(只在脚本里("读标题", "页面里读标题用 document.title"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 号 = 原生窗号(句柄, "读标题")?;
+            return Ok(crate::native_window::读标题(号).unwrap_or_default());
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = 句柄;
+            Err(没有原生窗口("读标题"))
+        }
+    }
+}
+
+/// `窗口.关闭到托盘(开?)` —— 进程级开关：之后的关闭请求都变成「藏起来」。
+fn 关闭到托盘(开: bool) -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 开;
+        return Err(只在脚本里(
+            "关闭到托盘",
+            "「关掉 = 收到托盘」是宿主的事，写在脚本里"
+        ));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            return Ok(crate::native_window::设关到托盘(开));
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = 开;
+            Err(没有原生窗口("关闭到托盘"))
+        }
+    }
+}
+
+/// `窗口.常驻(每拍, 间隔=50)` —— 进事件循环并按拍回调（窗口不白）。
+fn 常驻(
+    按拍: Option<(Val, u64)>,
+    vm: &mut dyn BuiltinHost,
+) -> Result<i128, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = (按拍, vm);
+        return Err(只在脚本里(
+            "常驻",
+            "页面里没有事件循环；常驻泵写在脚本里（窗口.常驻(处理一轮)）"
+        ));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            // 回调必须**可调用**：现在就地验，别等第一拍才报（那样窗口已经开了，
+            // 报错却在一个看不出跟谁有关的地方）。
+            if let Some((f, _)) = &按拍 {
+                let 可调用 = matches!(
+                    f,
+                    Val::Func(_)
+                        | Val::WalkFn(_)
+                        | Val::Builtin(_)
+                        | Val::BoundMethod(_)
+                        | Val::UserMethod { .. }
+                );
+                if !可调用 {
+                    return Err(err(
+                        "类型错误",
+                        "「常驻」的第一个参数要一个**函数**（比如 处理一轮）",
+                    ));
+                }
+            }
+            return Ok(等(None, 按拍, vm));
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = (按拍, vm);
+            Err(没有原生窗口("常驻"))
+        }
+    }
 }
 
 /// 把所有原生窗口的记录收掉（事件循环退出后调用）。
@@ -1144,11 +1346,15 @@ fn 事件名(v: &Val) -> Result<String, crate::JishiError> {
         }
     };
     match 名.as_str() {
-        "菜单" | "拖放" | "托盘" | "再次启动" | "调用" => Ok(名),
+        // M221：`托盘单击` / `托盘双击`（细分）、`关闭前`（询问关闭）、`通知点击`。
+        // `托盘` 是 M185 的老名字，继续有效（= 单击），别删 —— 存量程序在用它。
+        "菜单" | "拖放" | "托盘" | "托盘单击" | "托盘双击" | "再次启动" | "调用"
+        | "关闭前" | "通知点击" => Ok(名),
         other => Err(err_with_hint(
             "值错误",
             format!("没有「{other}」这个宿主事件"),
-            "能接的是：菜单 / 拖放 / 托盘 / 再次启动 / 调用（M218：宿主主动叫页面）"
+            "能接的是：菜单 / 拖放 / 托盘 / 托盘单击 / 托盘双击 / 再次启动 / 调用 / \
+             关闭前 / 通知点击（M221 起）"
                 .into(),
         )),
     }
@@ -1187,11 +1393,11 @@ fn 当(事件: &str, 函数: &str) -> Result<bool, crate::JishiError> {
     }
 }
 
-/// `窗口.当` 的第二个参数：要**具名函数**。
+/// `窗口.当` / `托盘.当` 的第二个参数：要**具名函数**。
 ///
 /// 与 `浏览器.绑定` 同一个理由（M167）：事件来的时候是**另一次执行回合**，
 /// 手里只有名字，没有上一次那个 VM 里的函数对象。
-fn 当函数名(v: &Val) -> Result<String, crate::JishiError> {
+pub(crate) fn 当函数名(v: &Val) -> Result<String, crate::JishiError> {
     match v {
         Val::Str(s) if !s.is_empty() => Ok(s.to_string()),
         Val::Func(f) => Ok(f.name.clone()),
@@ -1308,7 +1514,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
             Ok(Val::Bool(活着))
         },
         // M178：`等(句柄)` / `等()` —— 不写句柄 = 等**所有**窗口关掉。
-        "等" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+        // M221：`等` 的实现多了一个「按拍回调」参数（`常驻` 用），这里传 None。
+        "等" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
             need_range("等", args, 0, 1)?;
             let 句柄 = match args.first() {
                 None | Some(Val::None_) => None,
@@ -1318,7 +1525,80 @@ pub(crate) fn module() -> HashMap<String, Val> {
                         "「等」要窗口句柄（整数），给的是{}", crate::type_label(other))))
                 }
             };
-            Ok(Val::Int(crate::jint::JInt::new(等(句柄.map(|v| v.get())))))
+            Ok(Val::Int(crate::jint::JInt::new(等(
+                句柄.map(|v| v.get()),
+                None,
+                vm,
+            ))))
+        },
+        // -- M221：窗口生命周期（显示 / 隐藏 / 关到托盘 / 常驻） --
+        //
+        // 这五个都只在**脚本**里有意义：页面跑在某个窗口里，藏不了自己
+        // （那是宿主的事），所以 wasm 构建统一报「只在脚本里」。
+        "显示" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("显示", args, 0, 1)?;
+            Ok(Val::Bool(显示(取句柄参数(args, "显示")?)?))
+        },
+        "隐藏" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("隐藏", args, 0, 1)?;
+            Ok(Val::Bool(隐藏(取句柄参数(args, "隐藏")?)?))
+        },
+        "可见" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("可见", args, 0, 1)?;
+            Ok(Val::Bool(可见(取句柄参数(args, "可见")?)?))
+        },
+        "读标题" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("读标题", args, 0, 1)?;
+            Ok(Val::Str(读标题(取句柄参数(args, "读标题")?)?.into()))
+        },
+        // `关闭到托盘(开)` —— **进程级**开关，没有句柄。
+        "关闭到托盘" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("关闭到托盘", args, 0, 1)?;
+            let 开 = match args.first() {
+                None | Some(Val::None_) => true,
+                Some(Val::Bool(b)) => *b,
+                Some(other) => {
+                    return Err(err(
+                        "类型错误",
+                        format!(
+                            "「关闭到托盘」要真假，给的是{}",
+                            crate::type_label(other)
+                        ),
+                    ))
+                }
+            };
+            Ok(Val::Bool(关闭到托盘(开)?))
+        },
+        "最小化到托盘" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("最小化到托盘", args, 0, 1)?;
+            Ok(Val::Bool(隐藏(取句柄参数(args, "最小化到托盘")?)?))
+        },
+        // `常驻(每拍, 间隔=50)` —— 进事件循环，但**每 50ms 回调一次**用户函数。
+        //
+        // 这是 M218 许诺的「窗口不白」：脚本阻塞在 `等` 上时，只有按拍回调
+        // 里才轮得到 `服务.处理一轮()`。形状与 `HTTP服务端` 调处理函数一样，
+        // 都是「内建里回头调 VM」。
+        "常驻" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            need_range("常驻", args, 1, 2)?;
+            let 回调 = args[0].clone();
+            // 间隔 10–5000 ms：小于 10 会把 UI 线程占满，大于 5 秒就不叫常驻了。
+            let 间隔 = match args.get(1) {
+                None | Some(Val::None_) => 50u64,
+                Some(Val::Int(i)) => i.get().clamp(10, 5000) as u64,
+                Some(other) => {
+                    return Err(err(
+                        "类型错误",
+                        format!(
+                            "「常驻」的间隔要整数毫秒，给的是{}",
+                            crate::type_label(other)
+                        ),
+                    ))
+                }
+            };
+            Ok(Val::Int(crate::jint::JInt::new(常驻(
+                Some((回调, 间隔)),
+                vm,
+            )?)))
         },
         // -- M175：桌面集成（菜单 / 托盘 / 单实例 / 文件对话框 / 页面事件） --
         //
@@ -1384,7 +1664,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
             for 号 in 号们 {
                 // 原生窗口的记录**不能**在这里 take 掉：`等` 还要靠它决定
                 // 「该跑事件循环」，take 早了 = 循环永远不跑 = WebView2 泄漏。
-                关闭(号);
+                // M221：「全部关闭」= 我要退出，跳过「询问关闭」。
+                强制关闭(号);
                 if !是原生(号) {
                     收尾(号);
                 }
@@ -1677,7 +1958,7 @@ fn 无参关闭() -> Result<bool, crate::JishiError> {
         {
             // 脚本里省略句柄 = 关**主窗口**（第一个还开着的）。页面里那条路
             // 走的是 ABI，宿主按 IPC 来源认定「自己」，不经过这里。
-            return Ok(crate::native_window::请求关闭(0));
+            return Ok(crate::native_window::请求关闭(0, false));
         }
         #[cfg(not(feature = "native-window"))]
         {
