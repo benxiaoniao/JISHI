@@ -1,0 +1,802 @@
+//! 标准库 `HTTP服务端`（M115）—— 起一个**只监听本机**的小服务。
+//!
+//! 分两半，边界如实说：
+//!
+//! | 一半 | 函数 | 哪些平台能跑 |
+//! |---|---|---|
+//! | **纯协议核心**（只是文本处理） | `解析请求` / `构造响应` | 这里全在 —— 原生 / wasm 都能跑 |
+//! | **真服务端**（要 socket） | `启动` / `空闲端口` | 原生 ✅；**wasm ✗**（浏览器没有 socket） |
+//!
+//! ⚠️ Node 宿主也起不了（`node:http` 是异步 + 事件循环，基石 VM 是同步的），
+//! 那条边界在 `oracle/node/vm.js` 里报。取舍见 `docs/设计决策.md` **D81**。
+//!
+//! ## 三条约定（跨引擎一致的前提，与 Python 侧逐条对应）
+//!
+//! 1. **只监听 `127.0.0.1`**（安全默认，局域网连不上）；
+//! 2. **一问一答就关**（`Connection: close`）—— 一个请求 = 一次 `处理函数` 调用；
+//! 3. **正文按 UTF-8**，不合法字节替换成 `U+FFFD`。
+//!
+//! ## 两个「只认 ASCII」的地方（跨语言必须写死，别用宿主的 Unicode 表）
+//!
+//! - 请求行按**空格 / 制表符**切（`split_whitespace` 各语言的 Unicode 表不一样）；
+//! - 头的**名字与值**去两端空白只去**空格 / 制表符**。
+//!
+//! 这是 M107 `html` 那条教训的同族：`isspace` / `\s` 在 U+001C–1F、U+0085 上
+//! 对不齐，所以空白集合必须自己写死。
+
+use std::collections::HashMap;
+use std::io::{Read, Write};
+
+use super::{as_text, need, need_range, table, R};
+use crate::{dict_items, dict_new, err, list_new, BuiltinHost, JishiError, Val};
+
+/// 状态码 → 原因短语。**认不得的状态码留空**（不硬编一个假的英文短语）。
+fn 原因(码: i128) -> &'static str {
+    match 码 {
+        200 => "OK",
+        201 => "Created",
+        202 => "Accepted",
+        204 => "No Content",
+        301 => "Moved Permanently",
+        302 => "Found",
+        303 => "See Other",
+        304 => "Not Modified",
+        307 => "Temporary Redirect",
+        308 => "Permanent Redirect",
+        400 => "Bad Request",
+        401 => "Unauthorized",
+        403 => "Forbidden",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        408 => "Request Timeout",
+        409 => "Conflict",
+        413 => "Content Too Large",
+        415 => "Unsupported Media Type",
+        429 => "Too Many Requests",
+        500 => "Internal Server Error",
+        501 => "Not Implemented",
+        502 => "Bad Gateway",
+        503 => "Service Unavailable",
+        504 => "Gateway Timeout",
+        _ => "",
+    }
+}
+
+const 默认内容类型: &str = "text/plain; charset=utf-8";
+
+/// 响应头里**不许用户自己写**的名字（框架自己填）。
+fn 自填(名: &str) -> bool {
+    matches!(
+        名.to_ascii_lowercase().as_str(),
+        "content-length" | "content-type" | "connection"
+    )
+}
+
+/// 去两端空白 —— **只去空格与制表符**（不用各语言不一的 `trim`）。
+fn 去空白(s: &str) -> &str {
+    s.trim_matches(|c| c == ' ' || c == '\t')
+}
+
+/// 按**空格 / 制表符**切成若干段（丢掉空段）。请求行用它。
+fn 切段(s: &str) -> Vec<&str> {
+    去空白(s)
+        .split(|c| c == ' ' || c == '\t')
+        .filter(|p| !p.is_empty())
+        .collect()
+}
+
+/// `%XX` 解码（UTF-8，不合法字节替换）。⚠️ **`+` 不当作空格**。
+fn 百分号解码(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut 出: Vec<u8> = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            let 高 = (b[i + 1] as char).to_digit(16);
+            let 低 = (b[i + 2] as char).to_digit(16);
+            if let (Some(h), Some(l)) = (高, 低) {
+                出.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        出.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&出).to_string()
+}
+
+/// **只收整数**（浮点、文本都不收）—— 三宿主同一句文案。
+///
+/// ⚠️ 不能用 `crate::as_int`：它报的是「需要整数」（给别的内建用的），
+/// 而这里要说清**是谁**要整数。
+fn 要整数(v: &Val, 谁: &str) -> Result<i128, JishiError> {
+    match v {
+        Val::Int(i) => Ok(i.get()),
+        _ => Err(err("类型错误", format!("{谁}要是整数"))),
+    }
+}
+
+fn 要文本(v: &Val, 谁: &str) -> Result<String, JishiError> {
+    match v {
+        Val::Str(_) => Ok(as_text(v)),
+        other => Err(err(
+            "类型错误",
+            format!("{谁}要是文本，得到了「{}」", crate::type_label(other)),
+        )),
+    }
+}
+
+/// 请求文本 → 请求字典。**服务端也走这一条**（只有一份解析实现）。
+pub(crate) fn 解析请求字典(原始: &str) -> Result<Val, JishiError> {
+    let (头部, 正文) = match 原始.find("\r\n\r\n") {
+        Some(i) => (&原始[..i], &原始[i + 4..]),
+        None => (原始, ""),
+    };
+    let mut 行们 = 头部.split("\r\n");
+    let 首行 = 行们.next().unwrap_or("");
+    if 首行.trim_matches(|c| c == ' ' || c == '\t').is_empty() {
+        return Err(err("值错误", "这不是一个 HTTP 请求：第一行是空的"));
+    }
+    let 片段 = 切段(首行);
+    if 片段.len() < 2 {
+        return Err(err(
+            "值错误",
+            format!("这不是一个 HTTP 请求：第一行该是「方法 路径 版本」，现在是「{首行}」"),
+        ));
+    }
+    let 方法 = 片段[0].to_string();
+    let 目标 = 片段[1];
+    let 版本 = if 片段.len() > 2 { 片段[2].to_string() } else { "HTTP/1.1".to_string() };
+    let (路径, 查询串) = match 目标.find('?') {
+        Some(i) => (&目标[..i], &目标[i + 1..]),
+        None => (目标, ""),
+    };
+    let mut 查询对: Vec<(Val, Val)> = Vec::new();
+    for 片段 in 查询串.split('&') {
+        if 片段.is_empty() {
+            continue;
+        }
+        let (k, v) = match 片段.find('=') {
+            Some(i) => (&片段[..i], &片段[i + 1..]),
+            None => (片段, ""),
+        };
+        查询对.push((Val::Str(百分号解码(k).into()), Val::Str(百分号解码(v).into())));
+    }
+    let mut 头对: Vec<(Val, Val)> = Vec::new();
+    for 行 in 行们 {
+        let 行 = 去空白(行);
+        if 行.is_empty() {
+            continue;
+        }
+        let (名, 值) = match 行.find(':') {
+            Some(i) => (去空白(&行[..i]), 去空白(&行[i + 1..])),
+            None => {
+                return Err(err("值错误", format!("请求头这一行没有冒号：「{行}」")));
+            }
+        };
+        头对.push((
+            Val::Str(名.to_ascii_lowercase().into()),
+            Val::Str(值.to_string().into()),
+        ));
+    }
+    Ok(dict_new(vec![
+        (Val::Str("方法".into()), Val::Str(方法.into())),
+        (Val::Str("路径".into()), Val::Str(百分号解码(路径).into())),
+        (Val::Str("查询".into()), dict_new(查询对)),
+        (Val::Str("版本".into()), Val::Str(版本.into())),
+        (Val::Str("请求头".into()), dict_new(头对)),
+        (Val::Str("正文".into()), Val::Str(正文.to_string().into())),
+    ]))
+}
+
+/// 「状态 + 正文 + 头」→ 完整响应文本。`Content-Length` 按**字节**算。
+/// 错误的第一行，形状与宿主 `打印(e)` 一致：`错误 E2001：不能除以零`。
+fn 错误首行(e: &crate::JishiError) -> String {
+    let 标题 = crate::error_title(&e.type_name);
+    let 头 = match &e.code {
+        Some(c) => format!("错误 {c}：{标题}"),
+        None => format!("错误：{标题}"),
+    };
+    if e.message.is_empty() || e.message == 标题 {
+        头
+    } else {
+        format!("{头}（{}）", e.message)
+    }
+}
+
+/// 正文 → 字节。**文本按 UTF-8，字节原样**（M219：二进制资产这才发得出去）。
+///
+/// 为什么正文要支持字节：`营造框架` 那个下游要把 **2.9 MB 的 wasm 原样发出去**，
+/// 以前只能 base64（体积 +33%、还得让浏览器那边解一次）。PNG / 字体 / wasm
+/// 都是这一类。
+pub(crate) fn 正文字节(v: &Val, 谁: &str) -> Result<Vec<u8>, JishiError> {
+    match v {
+        Val::None_ => Ok(Vec::new()),
+        Val::Str(_) => Ok(as_text(v).into_bytes()),
+        Val::Bytes(b) => Ok(b.as_ref().clone()),
+        other => Err(err(
+            "类型错误",
+            format!(
+                "{谁}要是文本或字节，得到了「{}」",
+                crate::type_label(other)
+            ),
+        )),
+    }
+}
+
+/// 响应头 → 「名字, 值」对。**两种写法**（M219）：
+///
+/// ```jishi
+/// {"X-A": "1"}                          # 字典：同名字不能重复
+/// [["Set-Cookie", "a=1"], ["Set-Cookie", "b=2"]]   # 对列表：同名可重复、顺序即写入顺序
+/// ```
+///
+/// 🔴 为什么非要对列表：**两个 `Set-Cookie` 塞不进字典**（键相同就覆盖了一个），
+/// 而多 Cookie 是登录会话的常规做法 —— 没有它，这条路整个走不通。
+fn 头们(v: Option<&Val>) -> Result<Vec<(String, String)>, JishiError> {
+    let mut 出: Vec<(String, String)> = Vec::new();
+    match v {
+        None | Some(Val::None_) => {}
+        Some(Val::Dict(d)) => {
+            for (k, val) in dict_items(&d.borrow()) {
+                出.push((as_text(&k), as_text(&val)));
+            }
+        }
+        Some(Val::List(_)) => {
+            for 项 in super::to_vec(v.unwrap())? {
+                let 对 = match &项 {
+                    Val::List(_) => super::to_vec(&项)?,
+                    other => {
+                        return Err(err(
+                            "类型错误",
+                            format!(
+                                "「头」列表里每一项都要是 `[名字, 值]`，得到了「{}」",
+                                crate::type_label(other)
+                            ),
+                        ))
+                    }
+                };
+                if 对.len() != 2 {
+                    return Err(err(
+                        "值错误",
+                        "「头」列表里每一项都要是 `[名字, 值]`（两项）",
+                    ));
+                }
+                出.push((as_text(&对[0]), as_text(&对[1])));
+            }
+        }
+        Some(other) => {
+            return Err(err(
+                "类型错误",
+                format!(
+                    "「头」要是一个字典或 `[名字, 值]` 的列表，得到了「{}」",
+                    crate::type_label(other)
+                ),
+            ))
+        }
+    }
+    for (名, 值) in &出 {
+        if 自填(名) {
+            return Err(err(
+                "值错误",
+                format!("「{名}」由框架自己填，不要在「头」里再写一遍"),
+            ));
+        }
+        if !名.is_ascii() || !值.is_ascii() {
+            return Err(err(
+                "类型错误",
+                format!("请求头「{名}」的名字与值只能是 ASCII（英文数字）"),
+            ));
+        }
+    }
+    Ok(出)
+}
+
+/// 「状态 + 正文（字节）+ 头」→ 完整响应**字节**。`Content-Length` 按**字节**算。
+fn 构造响应字节(
+    码: i128,
+    正文: &[u8],
+    内容类型: &str,
+    头: Option<&Val>,
+) -> Result<Vec<u8>, JishiError> {
+    let mut 头文本 = String::new();
+    let 短语 = 原因(码);
+    头文本.push_str(&if 短语.is_empty() {
+        format!("HTTP/1.1 {码}\r\n")
+    } else {
+        format!("HTTP/1.1 {码} {短语}\r\n")
+    });
+    // ⚠️ 内容类型也可能是空串：`204` 之类不该硬塞一个 `Content-Type: `
+    头文本.push_str(&format!("Content-Type: {内容类型}\r\n"));
+    for (名, 值) in 头们(头)? {
+        头文本.push_str(&format!("{名}: {值}\r\n"));
+    }
+    头文本.push_str(&format!("Content-Length: {}\r\n", 正文.len()));
+    头文本.push_str("Connection: close\r\n\r\n");
+    let mut 出 = Vec::with_capacity(头文本.len() + 正文.len());
+    出.extend_from_slice(头文本.as_bytes());
+    出.extend_from_slice(正文);
+    Ok(出)
+}
+
+/// 处理函数的返回值 → 完整响应**字节**。
+///
+/// | 返回 | 意思 |
+/// |---|---|
+/// | 文本 | 你自己拼好的**整个响应**（`构造响应` 给的文本） |
+/// | 字节 | 同上，只是二进制（`构造响应(…, 字节正文)` 给的） |
+/// | 字典 | `{状态, 正文, 内容类型, 头}` ⇒ 交给 `构造响应字节` |
+/// | 空 | 200 空正文 |
+///
+/// 📌 文本与字节**同一个意思**（都是整个响应），不是「文本=整个响应、字节=正文」：
+/// 同一个位置按类型换意思正是 D89 禁的那种，人（和模型）一定会猜错一次。
+fn 把应答变字节(应答: &Val) -> Result<Vec<u8>, JishiError> {
+    match 应答 {
+        Val::Str(_) => Ok(as_text(应答).into_bytes()),
+        Val::Bytes(b) => Ok(b.as_ref().clone()),
+        Val::None_ => 构造响应字节(200, b"", 默认内容类型, None),
+        Val::Dict(d) => {
+            let d = d.borrow();
+            let 码 = match crate::dict_get(&d, &Val::Str("状态".into())) {
+                Some(v) => 要整数(&v, "状态码")?,
+                None => 200,
+            };
+            // ⚠️ 与 `构造响应` 同一条校验 —— 处理函数返回的字典**也**要过
+            //    （不然「字典写法」能绕过范围检查，两边行为就不一样了）
+            if !(100..=599).contains(&码) {
+                return Err(err("值错误", format!("状态码要在 100–599 之间，现在是 {码}")));
+            }
+            let 正文 = match crate::dict_get(&d, &Val::Str("正文".into())) {
+                Some(v) => 正文字节(&v, "「构造响应」的正文")?,
+                None => Vec::new(),
+            };
+            let 类型 = match crate::dict_get(&d, &Val::Str("内容类型".into())) {
+                Some(v) => 要文本(&v, "「构造响应」的内容类型")?,
+                None => 默认内容类型.to_string(),
+            };
+            let 头 = crate::dict_get(&d, &Val::Str("头".into()));
+            构造响应字节(码, &正文, &类型, 头.as_ref())
+        }
+        other => Err(err(
+            "类型错误",
+            format!(
+                "处理函数要返回文本、字节或字典，得到了「{}」",
+                crate::type_label(other)
+            ),
+        )),
+    }
+}
+
+/// 从流里读出**原始请求文本**（头 + 正文）。
+#[cfg(not(target_arch = "wasm32"))]
+fn 读原始请求(流: &mut std::net::TcpStream) -> Result<String, JishiError> {
+    let mut 缓冲: Vec<u8> = Vec::new();
+    let mut 块 = [0u8; 4096];
+    let 头末 = loop {
+        if let Some(i) = 缓冲.windows(4).position(|w| w == b"\r\n\r\n") {
+            break i + 4;
+        }
+        let n = 流
+            .read(&mut 块)
+            .map_err(|e| err("运行期错误", format!("读请求失败：{e}")))?;
+        if n == 0 {
+            break 缓冲.len();
+        }
+        缓冲.extend_from_slice(&块[..n]);
+        if 缓冲.len() > 1_048_576 {
+            return Err(err("运行期错误", "请求头超过 1 MB —— 这不是本地小服务的用法"));
+        }
+    };
+    let 头文本 = String::from_utf8_lossy(&缓冲[..头末]).to_lowercase();
+    let mut 要 = 0usize;
+    for 行 in 头文本.split("\r\n") {
+        if let Some(rest) = 行.strip_prefix("content-length:") {
+            要 = 去空白(rest).parse::<usize>().unwrap_or(0);
+        }
+    }
+    while 缓冲.len() < 头末 + 要 {
+        let n = 流
+            .read(&mut 块)
+            .map_err(|e| err("运行期错误", format!("读正文失败：{e}")))?;
+        if n == 0 {
+            break;
+        }
+        缓冲.extend_from_slice(&块[..n]);
+    }
+    Ok(String::from_utf8_lossy(&缓冲).to_string())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 起服务(
+    端口: i128,
+    处理函数: Val,
+    上限: i128,
+    vm: &mut dyn BuiltinHost,
+) -> Result<Val, JishiError> {
+    use std::net::TcpListener;
+    if !(0..=65535).contains(&端口) {
+        return Err(err("值错误", format!("端口要在 0–65535 之间，现在是 {端口}")));
+    }
+    // 只监听本机（约定 ①）
+    let 监听 = TcpListener::bind(("127.0.0.1", 端口 as u16))
+        .map_err(|e| err("运行期错误", format!("起不了服务：{e}")))?;
+    let 实际 = 监听
+        .local_addr()
+        .map_err(|e| err("运行期错误", format!("读不到端口：{e}")))?
+        .port() as i128;
+    let mut 收到: i128 = 0;
+    loop {
+        let (mut 流, _) = match 监听.accept() {
+            Ok(x) => x,
+            // 单个连接出问题不该把服务带走
+            Err(_) => continue,
+        };
+        // ⚠️ 返回 `None` = **空连接**（连上就断：端口探测 / 健康检查）——
+        //    **不算一个请求**。为什么在意：`最多请求数` 数的是「处理过的请求」，
+        //    不是「接受过的连接」；混起来的话探测连接会把配额吃掉，
+        //    真实请求反而被拒（M115 自己踩到）。
+        let 结果 = (|| -> Result<Option<Vec<u8>>, JishiError> {
+            let 原始 = 读原始请求(&mut 流)?;
+            if 原始.is_empty() {
+                return Ok(None);
+            }
+            let 请求 = 解析请求字典(&原始)?;
+            Ok(Some(match vm.call_value(处理函数.clone(), vec![请求]) {
+                Ok(应答) => 把应答变字节(&应答)?,
+                // 处理函数出错 ⇒ 回 500，**服务继续**：
+                // 一条坏请求不该让整个本地服务挂掉，而且浏览器里直接看得见错在哪。
+                // ⚠️ 正文只用**第一行**（`错误 E2001：不能除以零`）——整段渲染带
+                //    位置与 `^` 指示，那是终端看的，而且各宿主会各说各话。
+                // 🔴 M158 修：以前只取 `message`，而「除零错误」这类错误的消息是
+                //    **空的**（话都写在标题里）⇒ 浏览器里一片空白 500。
+                Err(e) => 构造响应字节(500, 错误首行(&e).as_bytes(), 默认内容类型, None)?,
+            }))
+        })();
+        let 文本 = match 结果 {
+            Ok(None) => continue,          // 空连接：不算请求、不判停
+            Ok(Some(t)) => t,
+            // 请求本身不合法 ⇒ 400（**算**一个请求：人家确实发了东西过来）
+            Err(e) => 构造响应字节(400, e.message.as_bytes(), 默认内容类型, None)
+                .unwrap_or_default(),
+        };
+        let _ = 流.write_all(&文本);
+        let _ = 流.flush();
+        收到 += 1;
+        if 上限 > 0 && 收到 >= 上限 {
+            break;
+        }
+    }
+    Ok(dict_new(vec![
+        (Val::Str("端口".into()), Val::Int(crate::jint::JInt::new(实际))),
+        (Val::Str("请求数".into()), Val::Int(crate::jint::JInt::new(收到))),
+    ]))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn 起服务(
+    _端口: i128,
+    _处理函数: Val,
+    _上限: i128,
+    _vm: &mut dyn BuiltinHost,
+) -> Result<Val, JishiError> {
+    Err(crate::err_with_hint(
+        "运行期错误",
+        "这个平台起不了 HTTP 服务端（浏览器里没有 socket）",
+        "换桌面版/命令行版就能用 `HTTP服务端.启动` —— 单二进制里带着它；".to_string()
+            + "纯的 `解析请求` / `构造响应` 在网页里照样能用",
+    ))
+}
+
+pub(crate) fn module() -> HashMap<String, Val> {
+    table! { "HTTP服务端";
+        "解析请求" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("解析请求", args, 1, 1)?;
+            let 原始 = 要文本(&args[0], "「解析请求」的参数")?;
+            Ok(解析请求字典(&原始)?)
+        },
+        "构造响应" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("构造响应", args, 0, 4)?;
+            let 码 = match args.first() {
+                None | Some(Val::None_) => 200,
+                Some(v) => 要整数(v, "状态码")?,
+            };
+            if !(100..=599).contains(&码) {
+                return Err(err("值错误", format!("状态码要在 100–599 之间，现在是 {码}")));
+            }
+            // M219：正文可以是**字节**（PNG / wasm / 字体），返回类型跟着走 ——
+            // 给了字节就回字节（二进制数据用文本装不下），给了文本就回文本。
+            let 原始正文 = args.get(1);
+            let 正文 = 正文字节(原始正文.unwrap_or(&Val::None_), "「构造响应」的正文")?;
+            let 类型 = match args.get(2) {
+                None | Some(Val::None_) => 默认内容类型.to_string(),
+                Some(v) => 要文本(v, "「构造响应」的内容类型")?,
+            };
+            let 头 = args.get(3).filter(|v| !matches!(v, Val::None_));
+            let 出 = 构造响应字节(码, &正文, &类型, 头)?;
+            if matches!(原始正文, Some(Val::Bytes(_))) {
+                Ok(Val::Bytes(std::rc::Rc::new(出)))
+            } else {
+                Ok(Val::Str(String::from_utf8_lossy(&出).to_string().into()))
+            }
+        },
+        "空闲端口" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("空闲端口", args, 0, 0)?;
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                use std::net::TcpListener;
+                let l = TcpListener::bind(("127.0.0.1", 0u16))
+                    .map_err(|e| err("运行期错误", format!("问不到空闲端口：{e}")))?;
+                let p = l.local_addr().map(|a| a.port()).unwrap_or(0);
+                drop(l);
+                return Ok(Val::Int(crate::jint::JInt::new(p as i128)));
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                let _ = list_new(vec![]);
+                Err(crate::err_with_hint(
+                    "运行期错误",
+                    "这个平台问不到端口（浏览器里没有 socket）",
+                    "换桌面版/命令行版就能用".to_string(),
+                ))
+            }
+        },
+        "启动" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            need_range("启动", args, 2, 4)?;
+            let 端口 = 要整数(&args[0], "端口")?;
+            let 处理函数 = args[1].clone();
+            if !matches!(
+                处理函数,
+                Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_) | Val::BoundMethod(_)
+            ) {
+                return Err(err(
+                    "类型错误",
+                    "「启动」的第二个参数要一个**处理函数**：它收一个「请求」字典，\
+                     返回响应（文本，或 {状态, 正文, 内容类型, 头} 字典）",
+                ));
+            }
+            let 上限 = match args.get(2) {
+                None | Some(Val::None_) => 0i128,
+                Some(v) => 要整数(v, "最多请求数")?,
+            };
+            if 上限 < 0 {
+                return Err(err("值错误", format!("最多请求数不能是负数，现在是 {上限}")));
+            }
+            // M218：`非阻塞=真` ⇒ 返回**服务句柄**，由用户自己的循环调 `处理一轮`
+            let 非阻塞 = match args.get(3) {
+                None | Some(Val::None_) => false,
+                Some(v) => crate::truthy(v.clone()),
+            };
+            if 非阻塞 {
+                return 起非阻塞服务(端口, 处理函数, 上限);
+            }
+            起服务(端口, 处理函数, 上限, vm)
+        },
+        // `启动非阻塞(端口=8000, 处理函数, 最多请求数=0)` —— M218 的主入口。
+        //
+        // 为什么不让人写 `启动(0, 处理, 非阻塞=真)`：命名参数**不许跳过**中间
+        // 的可选参数（三宿主一致），而 `最多请求数` 是第三位（教程里有
+        // `启动(端口, 处理, 10)` 这种位置写法，不能把它挪到第四位）。
+        // 与其让人写 `启动(0, 处理, 空, 非阻塞=真)`，不如给个读起来顺的名字。
+        "启动非阻塞" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("启动非阻塞", args, 2, 3)?;
+            let 端口 = 要整数(&args[0], "端口")?;
+            let 处理函数 = args[1].clone();
+            if !matches!(
+                处理函数,
+                Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_) | Val::BoundMethod(_)
+            ) {
+                return Err(err(
+                    "类型错误",
+                    "「启动非阻塞」的第二个参数要一个**处理函数**：它收一个「请求」字典",
+                ));
+            }
+            let 上限 = match args.get(2) {
+                None | Some(Val::None_) => 0i128,
+                Some(v) => 要整数(v, "最多请求数")?,
+            };
+            if 上限 < 0 {
+                return Err(err("值错误", format!("最多请求数不能是负数，现在是 {上限}")));
+            }
+            起非阻塞服务(端口, 处理函数, 上限)
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 非阻塞服务（M218）
+// ---------------------------------------------------------------------------
+//
+// 为什么要有：阻塞的服务循环会把**同一进程里的窗口消息泵**饿死 ——
+// 磐石 IDE 实测：窗口白着、页面永远加载不出来（L-3 / L-10）。
+// 现在把「收一个请求」拆成一拍：用户在自己的循环里（`每帧` / `当` 循环）
+// 调一次 `处理一轮`，收完就返回。
+//
+// 🔴 **不开线程**：单 VM 单线程，处理函数必须跑在用户脚本的线程上
+// （否则「处理函数里改全局」就不是同一个世界了）。所以这里是
+// 「把监听设成非阻塞 + 一次只收这么多」，不是后台线程。
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) struct 服务状态 {
+    监听: std::net::TcpListener,
+    处理函数: Val,
+    上限: i128,
+    收到: i128,
+    端口: u16,
+    关了: bool,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 借(对象: &crate::NativeObj) -> std::cell::Ref<'_, 服务状态> {
+    std::cell::Ref::map(对象.state.borrow(), |s| {
+        s.downcast_ref::<服务状态>().expect("NativeObj 应是服务")
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 借可变(对象: &crate::NativeObj) -> std::cell::RefMut<'_, 服务状态> {
+    std::cell::RefMut::map(对象.state.borrow_mut(), |s| {
+        s.downcast_mut::<服务状态>().expect("NativeObj 应是服务")
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 服务_处理一轮(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+                 vm: &mut dyn BuiltinHost) -> R {
+    need_range("处理一轮", args, 0, 1)?;
+    let mut 最多 = match args.first() {
+        None | Some(Val::None_) => 1i128,
+        Some(v) => 要整数(v, "最多")?,
+    };
+    if 最多 < 0 {
+        return Err(err("值错误", format!("「处理一轮」的最多不能是负数，现在是 {最多}")));
+    }
+    if 最多 == 0 {
+        最多 = 1;
+    }
+    let mut 做了 = 0i128;
+    while 做了 < 最多 {
+        // 先看配额，再看有没有连接 —— 两个都是「不阻塞」的
+        let (流, 处理函数) = {
+            let st = 借(对象);
+            if st.关了 || (st.上限 > 0 && st.收到 >= st.上限) {
+                break;
+            }
+            match st.监听.accept() {
+                Ok((流, _)) => (流, st.处理函数.clone()),
+                // 没有连接在等（非阻塞的常态）⇒ 这一轮就到此为止
+                Err(_) => break,
+            }
+        };
+        let 应答 = 处理一条(流, &处理函数, vm);
+        if let Some(文) = 应答 {
+            借可变(对象).收到 += 1;
+            做了 += 1;
+            let _ = 文; // 已经写回给客户端了（在 `处理一条` 里）
+        }
+    }
+    Ok(Val::Int(crate::jint::JInt::new(做了 as i128)))
+}
+
+/// 处理**一个**连接：读完请求 → 调处理函数 → 写回响应。
+///
+/// 返回 `Some(())` = **算一个请求**；`None` = 空连接（连上就断/超时），**不算**。
+/// 与阻塞版同一条口径（M115 的坑：端口探测把「最多请求数」吃掉了）。
+#[cfg(not(target_arch = "wasm32"))]
+fn 处理一条(
+    流: std::net::TcpStream,
+    处理函数: &Val,
+    vm: &mut dyn BuiltinHost,
+) -> Option<()> {
+    use std::io::Write;
+    // 🔴 **先把它设回阻塞**：Windows 上从非阻塞监听里 `accept` 出来的 socket
+    //    会**继承非阻塞**，于是 `read()` 立刻 `WouldBlock` ⇒ 读不到请求直接关连接
+    //    （客户端看到的是 `ConnectionReset`，服务端「什么都没处理」——M218 实测踩到）。
+    let _ = 流.set_nonblocking(false);
+    // 半个连接不许把整轮拖住：读请求设个上限
+    let _ = 流.set_read_timeout(Some(std::time::Duration::from_secs(2)));
+    let mut 流 = 流;
+    let 原始 = match 读原始请求(&mut 流) {
+        Ok(t) => t,
+        Err(_) => return None,
+    };
+    if 原始.is_empty() {
+        return None;
+    }
+    let 文本 = match 解析请求字典(&原始) {
+        Ok(请求) => match vm.call_value(处理函数.clone(), vec![请求]) {
+            Ok(应答) => 把应答变字节(&应答).unwrap_or_else(|e| {
+                构造响应字节(500, 错误首行(&e).as_bytes(), 默认内容类型, None)
+                    .unwrap_or_default()
+            }),
+            Err(e) => 构造响应字节(500, 错误首行(&e).as_bytes(), 默认内容类型, None)
+                .unwrap_or_default(),
+        },
+        Err(e) => 构造响应字节(400, e.message.as_bytes(), 默认内容类型, None)
+            .unwrap_or_default(),
+    };
+    let _ = 流.write_all(&文本);
+    let _ = 流.flush();
+    Some(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 服务_端口(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+             _vm: &mut dyn BuiltinHost) -> R {
+    need("端口", args, 0)?;
+    Ok(Val::Int(crate::jint::JInt::new(借(对象).端口 as i128)))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 服务_请求数(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+               _vm: &mut dyn BuiltinHost) -> R {
+    need("请求数", args, 0)?;
+    Ok(Val::Int(crate::jint::JInt::new(借(对象).收到 as i128)))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 服务_关闭(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val],
+             _vm: &mut dyn BuiltinHost) -> R {
+    need("关闭", args, 0)?;
+    let mut st = 借可变(对象);
+    if st.关了 {
+        return Ok(Val::Bool(false)); // 幂等
+    }
+    st.关了 = true;
+    // `TcpListener` 没有 `close()`：把监听**换成一个空壳**（绑 127.0.0.1:0 再丢掉）
+    // 是多余的 —— 直接靠 `关了` 标志停收，`Drop` 时 OS 自己关。
+    // 但「关了之后端口要立刻能复用」是用户的真实期待，所以这里显式 drop：
+    // 用一个临时 listener 占位，把原来的换出去 drop 掉。
+    let 占位 = std::net::TcpListener::bind(("127.0.0.1", 0));
+    if let Ok(新) = 占位 {
+        let 旧 = std::mem::replace(&mut st.监听, 新);
+        drop(旧);
+    }
+    Ok(Val::Bool(true))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+static 服务方法: &[(&str, crate::NativeFn)] = &[
+    ("处理一轮", 服务_处理一轮),
+    ("端口", 服务_端口),
+    ("请求数", 服务_请求数),
+    ("关闭", 服务_关闭),
+];
+
+#[cfg(not(target_arch = "wasm32"))]
+fn 起非阻塞服务(端口: i128, 处理函数: Val, 上限: i128) -> Result<Val, JishiError> {
+    if !(0..=65535).contains(&端口) {
+        return Err(err("值错误", format!("端口要在 0–65535 之间，现在是 {端口}")));
+    }
+    let 监听 = std::net::TcpListener::bind(("127.0.0.1", 端口 as u16))
+        .map_err(|e| err("运行期错误", format!("起不了服务：{e}")))?;
+    let 实际 = 监听
+        .local_addr()
+        .map_err(|e| err("运行期错误", format!("读不到端口：{e}")))?
+        .port();
+    // 🔴 非阻塞的关键：`accept` 立刻返回 `WouldBlock`，于是「处理一轮」是**一拍**
+    监听
+        .set_nonblocking(true)
+        .map_err(|e| err("运行期错误", format!("设不了非阻塞：{e}")))?;
+    Ok(crate::native_obj(
+        "服务",
+        服务方法,
+        std::rc::Rc::new(std::cell::RefCell::new(服务状态 {
+            监听,
+            处理函数,
+            上限,
+            收到: 0,
+            端口: 实际,
+            关了: false,
+        })),
+    ))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn 起非阻塞服务(_端口: i128, _处理函数: Val, _上限: i128) -> Result<Val, JishiError> {
+    Err(crate::err_with_hint(
+        "运行期错误",
+        "浏览器（wasm）里起不了本地服务：这里没有 socket",
+        "要在页面里取数据用 `网络.获取`；本地服务请用命令行宿主".into(),
+    ))
+}

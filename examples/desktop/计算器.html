@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>计算器</title>
+<!--
+  M173 的交付物：一个**用基石写的桌面程序**。
+
+  它由两半组成：
+    1. 这份页面（界面：一堆按钮 + 一个显示区）；
+    2. `<script>` 里那段**基石源码** —— 按哪个键、怎么算、显示什么，全是基石。
+
+  跑起来：
+    在仓库根执行  jishi examples/desktop/计算器.jsh
+  它会起一个只监听 127.0.0.1 的小服务，然后用浏览器的**应用模式**打开这个页面 ——
+  没有地址栏、任务栏里是独立图标、关掉窗口进程就退出。
+
+  ⚠️ 直接双击这个 .html 是**不行的**：页面要 fetch `jishi_wasm.wasm`，
+  而 `file://` 下浏览器按同源策略不让读 wasm。必须走 `窗口.打开`（它自带服务）。
+-->
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px; user-select: none;
+    font: 16px/1.4 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    background: #f2f3f5; color: #1f2328;
+  }
+  #显示 {
+    height: 88px; padding: 0 16px; margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: flex-end;
+    font-size: 40px; font-variant-numeric: tabular-nums;
+    background: #fff; border: 1px solid #e3e5e8; border-radius: 12px;
+    overflow: hidden; white-space: nowrap;
+  }
+  #键盘 {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  }
+  button {
+    height: 62px; border: 0; border-radius: 12px; cursor: pointer;
+    font: inherit; font-size: 22px; background: #fff; color: #1f2328;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06);
+  }
+  button:active { transform: translateY(1px); }
+  button.号 { background: #eef2ff; color: #2540a8; }
+  button.等 { background: #2563eb; color: #fff; }
+  button.清 { background: #fff1f0; color: #b42318; }
+  #提示 {
+    display: none; margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+    background: #fff3cd; color: #7a5c00; font-size: 13px; line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+  <div id="显示">0</div>
+  <div id="键盘">
+    <button class="清" data_序="C">C</button>
+    <button class="号" data_序="÷">÷</button>
+    <button class="号" data_序="×">×</button>
+    <button class="号" data_序="-">−</button>
+    <button data_序="7">7</button>
+    <button data_序="8">8</button>
+    <button data_序="9">9</button>
+    <button class="号" data_序="+">+</button>
+    <button data_序="4">4</button>
+    <button data_序="5">5</button>
+    <button data_序="6">6</button>
+    <button class="等" data_序="=" rowspan="2">=</button>
+    <button data_序="1">1</button>
+    <button data_序="2">2</button>
+    <button data_序="3">3</button>
+    <button data_序="0">0</button>
+    <button data_序=".">.</button>
+  </div>
+  <div id="提示"></div>
+
+<script>
+// ===== 桌面程序的行为：全部用基石写 =====
+const 源码 = `导入 窗口
+导入 浏览器
+导入 json
+# ⚠️ **必须用别名**：「导入 文本「 会把内建函数 「文本(...)「 遮住，而下面到处在用
+#    「文本(v)「 把数字转成文本。这是 M39 踩过的坑，模块要叫 「文字「。
+导入 文本 为 文字
+
+# 每次按键都会**重跑整个程序**（wasm 的事件模型是「一次事件 = 一次完整执行」），
+# 所以状态不能放变量里 —— 放在浏览器的本地存储里，重跑时读回来。
+函数 读状态()：
+    令 原 = 浏览器.读本地("计算器")
+    如果 原 == 空：
+        返回 {"当前": "0", "累计": 0, "待算": "", "新数": 真}
+    令 s = json.解析(原)
+    如果 类型(s) != "字典"：
+        返回 {"当前": "0", "累计": 0, "待算": "", "新数": 真}
+    返回 s
+
+函数 存状态(s)：
+    浏览器.存本地("计算器", json.转文本(s))
+    浏览器.设文本("#显示", s["当前"])
+
+函数 算(a, 号, b)：
+    如果 号 == "+"：
+        返回 a + b
+    如果 号 == "-"：
+        返回 a - b
+    如果 号 == "×"：
+        返回 a * b
+    如果 号 == "÷"：
+        如果 b == 0：
+            返回 空
+        返回 a / b
+    返回 b
+
+# 数字 → 给人看的文本：整数就不要小数点后的零
+函数 好看(v)：
+    如果 类型(v) == "整数"：
+        返回 文本(v)
+    如果 v == 整数(v)：
+        返回 文本(整数(v))
+    返回 文字.小数位(v, 6)
+
+函数 按键(键)：
+    令 s = 读状态()
+    如果 键 == "C"：
+        s["当前"] = "0"
+        s["累计"] = 0
+        s["待算"] = ""
+        s["新数"] = 真
+        存状态(s)
+        返回
+    如果 键 == "="：
+        如果 s["待算"] != ""：
+            令 r = 算(小数(s["累计"]), s["待算"], 小数(s["当前"]))
+            如果 r == 空：
+                s["当前"] = "除数不能是 0"
+            否则：
+                s["当前"] = 好看(r)
+                s["累计"] = r
+            s["待算"] = ""
+            s["新数"] = 真
+        存状态(s)
+        返回
+    如果 键 == "+" 或 键 == "-" 或 键 == "×" 或 键 == "÷"：
+        # 连着按两个运算符：只换运算符，不重算（计算器的老规矩）
+        如果 s["待算"] != "" 与 非 s["新数"]：
+            令 r = 算(小数(s["累计"]), s["待算"], 小数(s["当前"]))
+            如果 r != 空：
+                s["累计"] = r
+                s["当前"] = 好看(r)
+        否则：
+            # ⚠️ 第一次按运算符：得先把**当前这个数**存进累计，否则累计一直是 0
+            #    （踩过：7 + 3 = 算出来是 3）
+            s["累计"] = 小数(s["当前"])
+        s["待算"] = 键
+        s["新数"] = 真
+        存状态(s)
+        返回
+    # 数字键与小数点
+    如果 s["新数"] 或 s["当前"] == "0"：
+        如果 键 == "."：
+            s["当前"] = "0."
+        否则：
+            s["当前"] = 键
+        s["新数"] = 假
+    否则：
+        如果 键 == "." 与 文字.计数(s["当前"], ".") > 0：
+            返回
+        s["当前"] = s["当前"] + 键
+    存状态(s)
+
+# M175：菜单栏的点击也会**重跑整个程序**（与按键同一个事件模型），而且
+# 事件只能带**一个文本参数** —— 所以菜单项里写的「动作」名就是这里分流的键。
+函数 处理菜单(动作)：
+    如果 动作 == "清空"：
+        按键("C")
+    否则：
+        如果 动作 == "退出"：
+            窗口.关闭()
+
+窗口.当("菜单", 处理菜单)
+
+# 页面一进来：先把上次的数显示出来，再挂上键盘
+令 初 = 读状态()
+浏览器.设文本("#显示", 初["当前"])
+浏览器.绑定("#键盘", "点击", 按键)
+`;
+
+// ===== 启动 wasm 引擎 =====
+//
+// 📌 M174：跑在**原生窗口**（wry）里时，`window.ipc` 是宿主注入的 —— 引擎起来
+//    之后跟它说一声。宿主在 `JISHI_WINDOW_DEBUG=1` 下会把这句打进日志，
+//    判据就能断言「窗口里那一半（页面 + wasm 引擎）真的跑起来了」，
+//    而不是只验「窗口建出来了」。
+//    应用模式（浏览器 --app）下没有 `window.ipc`，这段自动跳过。
+function 报给宿主(什么) {
+  if (window.ipc && window.ipc.postMessage) {
+    window.ipc.postMessage(JSON.stringify({ op: 什么 }));
+  }
+}
+
+// 先报一句「页面到了」——它和「引擎就绪」分开，是为了**区分两种失败**：
+// 页面根本没跑（脚本语法错）vs 页面跑了但引擎没起来。查问题时这一步值很多。
+报给宿主("页面已加载");
+
+(async () => {
+  const 提示 = document.getElementById("提示");
+  try {
+    const JishiWasm = (await import("/__jishi/jishi-wasm.js")).default || window.JishiWasm;
+    const j = await JishiWasm.load("/__jishi/jishi_wasm.wasm");
+    const r = j.run(源码);
+    if (!r.ok) {
+      提示.style.display = "block";
+      提示.textContent = "基石报错：" + r.error.title + " —— " + r.error.message
+        + (r.error.line ? "（第 " + r.error.line + " 行）" : "");
+      报给宿主("引擎失败");
+    } else {
+      报给宿主("引擎就绪");
+    }
+  } catch (e) {
+    提示.style.display = "block";
+    提示.textContent = "加载失败：" + ((e && e.message) || e)
+      + "。这个页面要通过 `jishi 计算器.jsh` 打开（它自带一个只监听本机的小服务）。";
+    报给宿主("引擎失败");
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2010 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alias": null,
+        "col": 1,
+        "from_local": false,
+        "from_python": false,
+        "line": 9,
+        "name": "编码",
+        "类型": "Import"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 23,
+                      "line": 11,
+                      "value": "中文测试",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 22,
+                  "func": {
+                    "attr": "文本GBK",
+                    "col": 16,
+                    "line": 11,
+                    "obj": {
+                      "col": 14,
+                      "id": "编码",
+                      "line": 11,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 11,
+                  "类型": "Call"
+                },
+                {
+                  "col": 32,
+                  "line": 11,
+                  "value": true,
+                  "类型": "Num"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "十六进制编码",
+                "col": 6,
+                "line": 11,
+                "obj": {
+                  "col": 4,
+                  "id": "编码",
+                  "line": 11,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 11,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 11,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 11,
+          "类型": "Call"
+        },
+        "line": 11,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 23,
+                      "line": 12,
+                      "value": "€",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 22,
+                  "func": {
+                    "attr": "文本GBK",
+                    "col": 16,
+                    "line": 12,
+                    "obj": {
+                      "col": 14,
+                      "id": "编码",
+                      "line": 12,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 12,
+                  "类型": "Call"
+                },
+                {
+                  "col": 29,
+                  "line": 12,
+                  "value": true,
+                  "类型": "Num"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "十六进制编码",
+                "col": 6,
+                "line": 12,
+                "obj": {
+                  "col": 4,
+                  "id": "编码",
+                  "line": 12,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 12,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 12,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 12,
+          "类型": "Call"
+        },
+        "line": 12,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "col": 23,
+                      "line": 13,
+                      "value": "A€B",
+                      "类型": "Str"
+                    }
+                  ],
+                  "col": 22,
+                  "func": {
+                    "attr": "文本GBK",
+                    "col": 16,
+                    "line": 13,
+                    "obj": {
+                      "col": 14,
+                      "id": "编码",
+                      "line": 13,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 13,
+                  "类型": "Call"
+                },
+                {
+                  "col": 31,
+                  "line": 13,
+                  "value": true,
+                  "类型": "Num"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "十六进制编码",
+                "col": 6,
+                "line": 13,
+                "obj": {
+                  "col": 4,
+                  "id": "编码",
+                  "line": 13,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 13,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 13,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 13,
+          "类型": "Call"
+        },
+        "line": 13,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "args": [
+                        {
+                          "col": 26,
+                          "line": 14,
+                          "value": "A6D9",
+                          "类型": "Str"
+                        }
+                      ],
+                      "col": 25,
+                      "func": {
+                        "attr": "十六进制解码",
+                        "col": 18,
+                        "line": 14,
+                        "obj": {
+                          "col": 16,
+                          "id": "编码",
+                          "line": 14,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 14,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 15,
+                  "func": {
+                    "attr": "GBK文本",
+                    "col": 9,
+                    "line": 14,
+                    "obj": {
+                      "col": 7,
+                      "id": "编码",
+                      "line": 14,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 14,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "序数",
+                "line": 14,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 14,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 14,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 14,
+          "类型": "Call"
+        },
+        "line": 14,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "args": [
+                        {
+                          "col": 26,
+                          "line": 15,
+                          "value": 59277,
+                          "类型": "Num"
+                        }
+                      ],
+                      "col": 25,
+                      "func": {
+                        "col": 23,
+                        "id": "字符",
+                        "line": 15,
+                        "类型": "Name"
+                      },
+                      "keywords": [],
+                      "line": 15,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 22,
+                  "func": {
+                    "attr": "文本GBK",
+                    "col": 16,
+                    "line": 15,
+                    "obj": {
+                      "col": 14,
+                      "id": "编码",
+                      "line": 15,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 15,
+                  "类型": "Call"
+                },
+                {
+                  "col": 35,
+                  "line": 15,
+                  "value": true,
+                  "类型": "Num"
+                }
+              ],
+              "col": 13,
+              "func": {
+                "attr": "十六进制编码",
+                "col": 6,
+                "line": 15,
+                "obj": {
+                  "col": 4,
+                  "id": "编码",
+                  "line": 15,
+                  "类型": "Name"
+                },
+                "类型": "Attr"
+              },
+              "keywords": [],
+              "line": 15,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 15,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 15,
+          "类型": "Call"
+        },
+        "line": 15,
+        "类型": "ExprStmt"
+      },
+      {
+        "col": 1,
+        "expr": {
+          "args": [
+            {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "args": [
+                        {
+                          "col": 25,
+                          "line": 16,
+                          "value": "乙",
+                          "类型": "Str"
+                        }
+                      ],
+                      "col": 24,
+                      "func": {
+                        "attr": "文本GBK",
+                        "col": 18,
+                        "line": 16,
+                        "obj": {
+                          "col": 16,
+                          "id": "编码",
+                          "line": 16,
+                          "类型": "Name"
+                        },
+                        "类型": "Attr"
+                      },
+                      "keywords": [],
+                      "line": 16,
+                      "类型": "Call"
+                    }
+                  ],
+                  "col": 15,
+                  "func": {
+                    "attr": "GBK文本",
+                    "col": 9,
+                    "line": 16,
+                    "obj": {
+                      "col": 7,
+                      "id": "编码",
+                      "line": 16,
+                      "类型": "Name"
+                    },
+                    "类型": "Attr"
+                  },
+                  "keywords": [],
+                  "line": 16,
+                  "类型": "Call"
+                }
+              ],
+              "col": 6,
+              "func": {
+                "col": 4,
+                "id": "序数",
+                "line": 16,
+                "类型": "Name"
+              },
+              "keywords": [],
+              "line": 16,
+              "类型": "Call"
+            }
+          ],
+          "col": 3,
+          "func": {
+            "col": 1,
+            "id": "打印",
+            "line": 16,
+            "类型": "Name"
+          },
+          "keywords": [],
+          "line": 16,
+          "类型": "Call"
+        },
+        "line": 16,
+        "类型": "ExprStmt"
+      }
+    ],
+    "col": 1,
+    "line": 1,
+    "类型": "Program"
+  },
+  "bytecode": {
+    "checksum": "15534e4dbc884ee9d335e521211d29268b78cd03b124f13564036930848a146e",
+    "format": "jishi-bytecode",
+    "payload": {
+      "codes": [
+        {
+          "cellvars": [],
+          "firstlineno": 1,
+          "freevars": [],
+          "instrs": [
+            31,
+            0,
+            0,
+            -1,
+            9,
+            1,
+            3,
+            0,
+            0,
+            0,
+            9,
+            1,
+            2,
+            1,
+            0,
+            0,
+            11,
+            1,
+            2,
+            0,
+            0,
+            0,
+            11,
+            4,
+            25,
+            2,
+            0,
+            0,
+            11,
+            6,
+            2,
+            0,
+            0,
+            0,
+            11,
+            14,
+            25,
+            3,
+            0,
+            0,
+            11,
+            16,
+            1,
+            0,
+            0,
+            0,
+            11,
+            23,
+            20,
+            1,
+            -1,
+            0,
+            11,
+            22,
+            1,
+            1,
+            0,
+            0,
+            11,
+            32,
+            20,
+            2,
+            -1,
+            0,
+            11,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            11,
+            3,
+            38,
+            0,
+            0,
+            0,
+            11,
+            1,
+            2,
+            1,
+            0,
+            0,
+            12,
+            1,
+            2,
+            0,
+            0,
+            0,
+            12,
+            4,
+            25,
+            2,
+            0,
+            0,
+            12,
+            6,
+            2,
+            0,
+            0,
+            0,
+            12,
+            14,
+            25,
+            3,
+            0,
+            0,
+            12,
+            16,
+            1,
+            2,
+            0,
+            0,
+            12,
+            23,
+            20,
+            1,
+            -1,
+            0,
+            12,
+            22,
+            1,
+            1,
+            0,
+            0,
+            12,
+            29,
+            20,
+            2,
+            -1,
+            0,
+            12,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            12,
+            3,
+            38,
+            0,
+            0,
+            0,
+            12,
+            1,
+            2,
+            1,
+            0,
+            0,
+            13,
+            1,
+            2,
+            0,
+            0,
+            0,
+            13,
+            4,
+            25,
+            2,
+            0,
+            0,
+            13,
+            6,
+            2,
+            0,
+            0,
+            0,
+            13,
+            14,
+            25,
+            3,
+            0,
+            0,
+            13,
+            16,
+            1,
+            3,
+            0,
+            0,
+            13,
+            23,
+            20,
+            1,
+            -1,
+            0,
+            13,
+            22,
+            1,
+            1,
+            0,
+            0,
+            13,
+            31,
+            20,
+            2,
+            -1,
+            0,
+            13,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            13,
+            3,
+            38,
+            0,
+            0,
+            0,
+            13,
+            1,
+            2,
+            1,
+            0,
+            0,
+            14,
+            1,
+            2,
+            4,
+            0,
+            0,
+            14,
+            4,
+            2,
+            0,
+            0,
+            0,
+            14,
+            7,
+            25,
+            5,
+            0,
+            0,
+            14,
+            9,
+            2,
+            0,
+            0,
+            0,
+            14,
+            16,
+            25,
+            6,
+            0,
+            0,
+            14,
+            18,
+            1,
+            4,
+            0,
+            0,
+            14,
+            26,
+            20,
+            1,
+            -1,
+            0,
+            14,
+            25,
+            20,
+            1,
+            -1,
+            0,
+            14,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            14,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            14,
+            3,
+            38,
+            0,
+            0,
+            0,
+            14,
+            1,
+            2,
+            1,
+            0,
+            0,
+            15,
+            1,
+            2,
+            0,
+            0,
+            0,
+            15,
+            4,
+            25,
+            2,
+            0,
+            0,
+            15,
+            6,
+            2,
+            0,
+            0,
+            0,
+            15,
+            14,
+            25,
+            3,
+            0,
+            0,
+            15,
+            16,
+            2,
+            7,
+            0,
+            0,
+            15,
+            23,
+            1,
+            5,
+            0,
+            0,
+            15,
+            26,
+            20,
+            1,
+            -1,
+            0,
+            15,
+            25,
+            20,
+            1,
+            -1,
+            0,
+            15,
+            22,
+            1,
+            1,
+            0,
+            0,
+            15,
+            35,
+            20,
+            2,
+            -1,
+            0,
+            15,
+            13,
+            20,
+            1,
+            -1,
+            0,
+            15,
+            3,
+            38,
+            0,
+            0,
+            0,
+            15,
+            1,
+            2,
+            1,
+            0,
+            0,
+            16,
+            1,
+            2,
+            4,
+            0,
+            0,
+            16,
+            4,
+            2,
+            0,
+            0,
+            0,
+            16,
+            7,
+            25,
+            5,
+            0,
+            0,
+            16,
+            9,
+            2,
+            0,
+            0,
+            0,
+            16,
+            16,
+            25,
+            3,
+            0,
+            0,
+            16,
+            18,
+            1,
+            6,
+            0,
+            0,
+            16,
+            25,
+            20,
+            1,
+            -1,
+            0,
+            16,
+            24,
+            20,
+            1,
+            -1,
+            0,
+            16,
+            15,
+            20,
+            1,
+            -1,
+            0,
+            16,
+            6,
+            20,
+            1,
+            -1,
+            0,
+            16,
+            3,
+            38,
+            0,
+            0,
+            0,
+            16,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ],
+          "local_hints": {},
+          "local_names": [],
+          "name": "<模块>",
+          "nlocals": 0,
+          "param_cell": [],
+          "param_idx": [],
+          "param_kind": [],
+          "param_local": [],
+          "params": [],
+          "src_file": "",
+          "src_start": 0
+        }
+      ],
+      "consts": [
+        {
+          "t": "str",
+          "v": "中文测试"
+        },
+        {
+          "t": "true"
+        },
+        {
+          "t": "str",
+          "v": "€"
+        },
+        {
+          "t": "str",
+          "v": "A€B"
+        },
+        {
+          "t": "str",
+          "v": "A6D9"
+        },
+        {
+          "t": "int",
+          "v": 59277
+        },
+        {
+          "t": "str",
+          "v": "乙"
+        }
+      ],
+      "filename": "tests/cases/48_GBK边界.jsh",
+      "kw_names": [],
+      "main": 0,
+      "names": [
+        "编码",
+        "打印",
+        "十六进制编码",
+        "文本GBK",
+        "序数",
+        "GBK文本",
+        "十六进制解码",
+        "字符"
+      ]
+    },
+    "version": 3
+  },
+  "diagnostics": null,
+  "tokens": [
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 9,
+      "source_line": "导入 编码",
+      "type": "KEYWORD",
+      "value": "导入",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 9,
+      "source_line": "导入 编码",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 9,
+      "source_line": "导入 编码",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 12,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "NAME",
+      "value": "十六进制编码",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 21,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "NAME",
+      "value": "文本GBK",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 28,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "FSTRING",
+      "value": [
+        [
+          "text",
+          "中文测试"
+        ]
+      ],
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 32,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 11,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`中文测试`), 真))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 12,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "NAME",
+      "value": "十六进制编码",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 21,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "NAME",
+      "value": "文本GBK",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 25,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "FSTRING",
+      "value": [
+        [
+          "text",
+          "€"
+        ]
+      ],
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 27,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 27,
+      "end_col": 28,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 29,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 12,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`€`), 真))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 12,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "NAME",
+      "value": "十六进制编码",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 21,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "NAME",
+      "value": "文本GBK",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 27,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "FSTRING",
+      "value": [
+        [
+          "text",
+          "A€B"
+        ]
+      ],
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 31,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 13,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(`A€B`), 真))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "NAME",
+      "value": "序数",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 14,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "NAME",
+      "value": "GBK文本",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 24,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "NAME",
+      "value": "十六进制解码",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 31,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "FSTRING",
+      "value": [
+        [
+          "text",
+          "A6D9"
+        ]
+      ],
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 34,
+      "end_col": 35,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 36,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 14,
+      "source_line": "打印(序数(编码.GBK文本(编码.十六进制解码(`A6D9`))))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 12,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "NAME",
+      "value": "十六进制编码",
+      "类型": "Token"
+    },
+    {
+      "col": 13,
+      "end_col": 14,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 14,
+      "end_col": 15,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 17,
+      "end_col": 21,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "NAME",
+      "value": "文本GBK",
+      "类型": "Token"
+    },
+    {
+      "col": 22,
+      "end_col": 23,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 23,
+      "end_col": 24,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "NAME",
+      "value": "字符",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 26,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 26,
+      "end_col": 30,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "NUMBER",
+      "value": 59277,
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 32,
+      "end_col": 33,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 33,
+      "end_col": 34,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": ",",
+      "类型": "Token"
+    },
+    {
+      "col": 35,
+      "end_col": 35,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "KEYWORD",
+      "value": "真",
+      "类型": "Token"
+    },
+    {
+      "col": 36,
+      "end_col": 37,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 37,
+      "end_col": 38,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 15,
+      "source_line": "打印(编码.十六进制编码(编码.文本GBK(字符(59277)), 真))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 2,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "NAME",
+      "value": "打印",
+      "类型": "Token"
+    },
+    {
+      "col": 3,
+      "end_col": 4,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 4,
+      "end_col": 5,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "NAME",
+      "value": "序数",
+      "类型": "Token"
+    },
+    {
+      "col": 6,
+      "end_col": 7,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 7,
+      "end_col": 8,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 9,
+      "end_col": 10,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 10,
+      "end_col": 14,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "NAME",
+      "value": "GBK文本",
+      "类型": "Token"
+    },
+    {
+      "col": 15,
+      "end_col": 16,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 16,
+      "end_col": 17,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "NAME",
+      "value": "编码",
+      "类型": "Token"
+    },
+    {
+      "col": 18,
+      "end_col": 19,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": ".",
+      "类型": "Token"
+    },
+    {
+      "col": 19,
+      "end_col": 23,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "NAME",
+      "value": "文本GBK",
+      "类型": "Token"
+    },
+    {
+      "col": 24,
+      "end_col": 25,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": "(",
+      "类型": "Token"
+    },
+    {
+      "col": 25,
+      "end_col": 27,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "FSTRING",
+      "value": [
+        [
+          "text",
+          "乙"
+        ]
+      ],
+      "类型": "Token"
+    },
+    {
+      "col": 28,
+      "end_col": 29,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 29,
+      "end_col": 30,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 30,
+      "end_col": 31,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 31,
+      "end_col": 32,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "OP",
+      "value": ")",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "打印(序数(编码.GBK文本(编码.文本GBK(`乙`))))",
+      "type": "NEWLINE",
+      "value": "\n",
+      "类型": "Token"
+    },
+    {
+      "col": 1,
+      "end_col": 1,
+      "line": 16,
+      "source_line": "",
+      "type": "EOF",
+      "value": null,
+      "类型": "Token"
+    }
+  ],
+  "内容哈希": "sha256:faec892c14a313c6",
+  "语料": "tests/cases/48_GBK边界.jsh"
+}

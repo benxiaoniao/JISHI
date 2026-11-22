@@ -1,0 +1,43 @@
+{
+	"comments": {
+		"lineComment": "#",
+		"blockComment": ["#-", "-#"]
+	},
+	"brackets": [
+		["(", ")"],
+		["[", "]"],
+		["{", "}"],
+		["「", "」"],
+		["『", "』"]
+	],
+	"autoClosingPairs": [
+		{ "open": "(", "close": ")" },
+		{ "open": "[", "close": "]" },
+		{ "open": "{", "close": "}" },
+		{ "open": "\"", "close": "\"", "notIn": ["string"] },
+		{ "open": "'", "close": "'", "notIn": ["string"] },
+		{ "open": "“", "close": "”", "notIn": ["string"] },
+		{ "open": "「", "close": "」", "notIn": ["string"] },
+		{ "open": "『", "close": "』", "notIn": ["string"] }
+	],
+	"surroundingPairs": [
+		["(", ")"],
+		["[", "]"],
+		["{", "}"],
+		["\"", "\""],
+		["'", "'"],
+		["“", "”"],
+		["「", "」"],
+		["『", "』"]
+	],
+	"folding": {
+		"markers": {
+			"start": "^\\s*#\\s*region\\b",
+			"end": "^\\s*#\\s*endregion\\b"
+		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^.*[：:]\\s*(#.*)?$",
+		"decreaseIndentPattern": "^(\\s*中断\\s*$|\\s*继续\\s*$|\\s*返回\\s*|\\s*否则\\s*|\\s*否则如果\\s*|\\s*捕获\\s*|\\s*最终\\s*)"
+	}
+}
