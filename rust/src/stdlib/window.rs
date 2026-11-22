@@ -546,13 +546,19 @@ fn 打开(选项: &Val) -> Result<i128, crate::JishiError> {
             //   询问关闭 = 点 × 时先问页面。
             let 隐藏启动 = 取布(选项, "隐藏启动", false)?;
             let 询问关闭 = 取布(选项, "询问关闭", false)?;
-            let 窗号 = crate::native_window::打开带选项(
+            // M223：产品化外观
+            let 无边框 = 取布(选项, "无边框", false)?;
+            let 可调整 = 取布(选项, "可调整", true)?;
+            let 最小宽 = 取数(选项, "最小宽", 0)? as f64;
+            let 最小高 = 取数(选项, "最小高", 0)? as f64;
+            let 窗号 = crate::native_window::打开带外观(
                 &标题,
                 宽 as f64,
                 高 as f64,
                 &网址,
                 !隐藏启动,
                 询问关闭,
+                crate::native_window::外观 { 无边框, 可调整, 最小宽, 最小高 },
             )
             .map_err(|e| err("运行期错误", e))?;
             let mut 表 = 表().lock().unwrap();
@@ -903,6 +909,58 @@ fn 读标题(句柄: Option<i128>) -> Result<String, crate::JishiError> {
         {
             let _ = 句柄;
             Err(没有原生窗口("读标题"))
+        }
+    }
+}
+
+/// `窗口.拖动(句柄?)` —— M223：按住自定义标题栏拖动窗口。
+fn 拖动(句柄: Option<i128>) -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 句柄;
+        return Err(只在脚本里("拖动", "拖动要写在页面的 mousedown 里，由脚本侧 窗口.拖动 驱动"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 号 = 原生窗号(句柄, "拖动")?;
+            return Ok(crate::native_window::拖动(号));
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = 句柄;
+            Err(没有原生窗口("拖动"))
+        }
+    }
+}
+
+/// `窗口.设主题("浅"/"深"/"跟随", 句柄?)` —— M223。
+fn 设主题(主题: &str, 句柄: Option<i128>) -> Result<bool, crate::JishiError> {
+    // 值域先验：写错主题名不能静默（「跟随」以外的错字会被当成跟随）
+    if !matches!(主题, "浅" | "深" | "跟随") {
+        return Err(err_with_hint(
+            "值错误",
+            format!("「设主题」只认「浅」「深」「跟随」，给的是「{主题}」"),
+            "页面自己的配色还可以用 CSS 的 prefers-color-scheme 媒体查询".into(),
+        ));
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 句柄;
+        return Err(只在脚本里("设主题", "主题是宿主窗口的事，写在脚本里"));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            let 号 = 原生窗号(句柄, "设主题")?;
+            return Ok(crate::native_window::设主题(号, 主题));
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = (主题, 句柄);
+            Err(没有原生窗口("设主题"))
         }
     }
 }
@@ -1608,6 +1666,25 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 }
             };
             Ok(Val::Bool(最近文件(&路径)))
+        },
+        // M223：`窗口.拖动(句柄?)` —— 按住自定义标题栏拖动。
+        "拖动" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("拖动", args, 0, 1)?;
+            Ok(Val::Bool(拖动(取句柄参数(args, "拖动")?)?))
+        },
+        // M223：`窗口.设主题("浅"/"深"/"跟随", 句柄?)`。
+        "设主题" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设主题", args, 1, 2)?;
+            let 主题 = match &args[0] {
+                Val::Str(s) => s.to_string(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「设主题」要文本（\"浅\" / \"深\" / \"跟随\"），给的是{}", crate::type_label(other)),
+                    ))
+                }
+            };
+            Ok(Val::Bool(设主题(&主题, 取句柄参数(args, "设主题")?)?))
         },
         // M222：`窗口.徽标(文本)` —— mac Dock / Linux Launcher 的角标。
         "徽标" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {

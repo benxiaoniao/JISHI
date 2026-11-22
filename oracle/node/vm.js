@@ -5362,6 +5362,8 @@ const BROWSER_FUNCS = {
   '点击': _noBrowser('点击'), '显示': _noBrowser('显示'), '绑定': _noBrowser('绑定'),
   '存本地': _noBrowser('存本地'), '读本地': _noBrowser('读本地'), '删本地': _noBrowser('删本地'),
   '请求': _noBrowser('请求'),
+  // M223：媒体查询（页面里才有意义）
+  '匹配': _noBrowser('匹配'),
 };
 
 // ---------------------------------------------------------------------------
@@ -6429,6 +6431,16 @@ const WINDOW_FUNCS = {
     return false;
   }),
   '徽标': new R.Builtin('徽标', () => false),
+  // M223：原生窗口专属
+  '拖动': new R.Builtin('拖动', () => _要原生('拖动', '用 Rust 发行版（无边框 + 页面 mousedown 里调 窗口.拖动）')),
+  '设主题': new R.Builtin('设主题', (主题) => {
+    const 名 = pText(主题);
+    if (!['浅', '深', '跟随'].includes(名)) {
+      throw R.valueErr(`「设主题」只认「浅」「深」「跟随」，给的是「${名}」`,
+        undefined, undefined, '页面自己的配色还可以用 CSS 的 prefers-color-scheme 媒体查询');
+    }
+    return _要原生('设主题', '用 Rust 发行版；页面自己的配色用 CSS 媒体查询');
+  }),
   '关闭到托盘': new R.Builtin('关闭到托盘', () => _要原生('关闭到托盘', '用 Rust 发行版；记得先 窗口.设托盘')),
   '最小化到托盘': new R.Builtin('最小化到托盘', () => _要原生('最小化到托盘', '用 Rust 发行版')),
   '常驻': new R.Builtin('常驻', () => _要原生('常驻', '用 Rust 发行版；脚本里写 窗口.常驻(处理一轮)')),

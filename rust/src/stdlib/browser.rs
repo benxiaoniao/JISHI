@@ -248,6 +248,12 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("显示", args, 2, 2)?;
             host_call("显示", args)
         },
+        // M223：`浏览器.匹配("(prefers-color-scheme: dark)")` → 真/假。
+        // 判据靠它验「窗口.设主题 之后页面配色真的变了」；响应式布局也用得上。
+        "匹配" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("匹配", args, 1, 1)?;
+            host_call("匹配", args)
+        },
         // -- 页面 → 基石 --
         // `绑定(选择器, 事件, 函数)`：**函数要传名字**（字符串），不是函数值。
         // 理由见模块头「一次事件 = 一次完整执行」—— 事件来时是**另一个**

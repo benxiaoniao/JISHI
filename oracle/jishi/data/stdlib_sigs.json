@@ -34,11 +34,11 @@
   "stdlib/标识.py": "0192f3b6a650d74d",
   "stdlib/正则.py": "bc2edb2a05c20c94",
   "stdlib/测试.py": "416f460eaacdf9bd",
-  "stdlib/浏览器.py": "a6bfaafbc09dcf29",
+  "stdlib/浏览器.py": "83f93debda394335",
   "stdlib/物理.py": "fa19c5c777aa46c2",
   "stdlib/瓦片.py": "213c7be24f79a2b7",
   "stdlib/矩阵.py": "3e09051d37dfe062",
-  "stdlib/窗口.py": "1e97da3c2f9f38e2",
+  "stdlib/窗口.py": "be618f0829aa5b2f",
   "stdlib/站点.py": "97ae13405d232637",
   "stdlib/粒子.py": "3fe05ef2591a3f2b",
   "stdlib/精灵.py": "9f61a1624d4567a9",
@@ -2062,6 +2062,11 @@
      "name": "请求",
      "sig": "请求(地址, 处理函数)",
      "doc": "发一个 GET 请求；**回来的时候回调另一个基石函数**。"
+    },
+    {
+     "name": "匹配",
+     "sig": "匹配(媒体查询)",
+     "doc": "M223：媒体查询是否命中（`\"(prefers-color-scheme: dark)\"`）。**只能写在页面里。**"
     }
    ]
   },
@@ -2377,6 +2382,16 @@
      "name": "徽标",
      "sig": "徽标(文本)",
      "doc": "M222：任务栏 / Dock 角标。这一版只有 mac 计划做（记 0.4.x）。"
+    },
+    {
+     "name": "拖动",
+     "sig": "拖动(句柄=空)",
+     "doc": "M223：按住自定义标题栏拖动窗口。**只有 Rust 宿主 + 原生窗口能做。**"
+    },
+    {
+     "name": "设主题",
+     "sig": "设主题(主题, 句柄=空)",
+     "doc": "M223：窗口与页面配色（浅/深/跟随）。**只有 Rust 宿主 + 原生窗口能做。**"
     }
    ]
   },

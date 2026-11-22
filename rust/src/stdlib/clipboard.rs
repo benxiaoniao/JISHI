@@ -66,11 +66,10 @@ fn 读文本() -> Result<Val, crate::JishiError> {
     }
     #[cfg(all(not(target_arch = "wasm32"), not(windows)))]
     {
-        Err(crate::err_with_hint(
-            "运行期错误",
-            "「剪贴板.读文本」这一版只有 Windows 能做",
-            "mac 要 NSPasteboard、Linux 要 GTK/X11/Wayland 三套 —— 都要额外绑定，没做".into(),
-        ))
+        // M223：mac / Linux 走系统命令。**读不到不是错**：
+        // 「剪贴板里没有文本」和「读失败」在用户看来是同一件事 —— 给空文本。
+        let (文, _为什么) = 命令剪贴板::读();
+        Ok(Val::Str(文.into()))
     }
 }
 
@@ -92,12 +91,13 @@ fn 写文本(文: &str) -> Result<Val, crate::JishiError> {
     }
     #[cfg(all(not(target_arch = "wasm32"), not(windows)))]
     {
-        let _ = 文;
-        Err(crate::err_with_hint(
-            "运行期错误",
-            "「剪贴板.写文本」这一版只有 Windows 能做",
-            "mac 要 NSPasteboard、Linux 要 GTK/X11/Wayland 三套 —— 都要额外绑定，没做".into(),
-        ))
+        // M223：没有工具时**返回假**（判据钉住「不报错」）。
+        let (成, 为什么) = 命令剪贴板::写(文);
+        if let Some(因) = 为什么 {
+            // 不静默：写不进去要说一句为什么（stderr，不影响返回值）
+            eprintln!("剪贴板没写上：{因}");
+        }
+        Ok(Val::Bool(成))
     }
 }
 
@@ -194,5 +194,101 @@ mod 系统剪贴板 {
             CloseClipboard();
             果
         }
+    }
+}
+
+/// mac / Linux 的剪贴板：走系统命令（零新依赖）。
+///
+/// ## 为什么不用原生绑定
+///
+/// - mac 要 `NSPasteboard`（objc 消息）—— 但 `pbcopy`/`pbpaste` 是**系统自带**的，
+///   一直在、跨版本稳定；
+/// - Linux 要 GTK / X11 / Wayland **三套** —— 而 `wl-copy` / `xclip` / `xsel`
+///   是各桌面环境的标配工具，按「现代 → 老」挨个试比绑三套库便宜得多。
+///
+/// ## 口径
+///
+/// 写：有一个能用就算成功；一个都没有 ⇒ 返回 `(假, Some(原因))`，**不报错**
+/// （「这台机器没装剪贴板工具」是环境事实，不是程序写错了）。
+/// 读：读不到一律给空文本（与 Windows「剪贴板里没有文本给空」同口径）。
+#[cfg(all(not(target_arch = "wasm32"), not(windows)))]
+mod 命令剪贴板 {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    fn 候选写() -> Vec<(&'static str, &'static [&'static str])> {
+        #[cfg(target_os = "macos")]
+        {
+            vec![("pbcopy", &[][..])]
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            vec![
+                ("wl-copy", &[][..]),
+                ("xclip", &["-selection", "clipboard"][..]),
+                ("xsel", &["--clipboard", "--input"][..]),
+            ]
+        }
+    }
+
+    fn 候选读() -> Vec<(&'static str, &'static [&'static str])> {
+        #[cfg(target_os = "macos")]
+        {
+            vec![("pbpaste", &[][..])]
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            vec![
+                ("wl-paste", &["--no-newline"][..]),
+                ("xclip", &["-o", "-selection", "clipboard"][..]),
+                ("xsel", &["--clipboard", "--output"][..]),
+            ]
+        }
+    }
+
+    pub fn 写(文: &str) -> (bool, Option<String>) {
+        let mut 缺: Vec<&str> = Vec::new();
+        for (程序, 参) in 候选写() {
+            match Command::new(程序)
+                .args(参)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+            {
+                Ok(mut 子) => {
+                    let 写成 = 子
+                        .stdin
+                        .as_mut()
+                        .map(|s| s.write_all(文.as_bytes()).is_ok())
+                        .unwrap_or(false);
+                    // 关掉 stdin（drop）才会让 pbcopy/xclip 收尾退出
+                    let _ = 子.stdin.take();
+                    let 态 = 子.wait();
+                    if 写成 && 态.map(|s| s.success()).unwrap_or(false) {
+                        return (true, None);
+                    }
+                    return (false, Some(format!("{程序} 没写进去")));
+                }
+                Err(_) => 缺.push(程序),
+            }
+        }
+        (false, Some(format!("找不到剪贴板工具（试过 {}）", 缺.join(" / "))))
+    }
+
+    pub fn 读() -> (String, Option<String>) {
+        let mut 缺: Vec<&str> = Vec::new();
+        for (程序, 参) in 候选读() {
+            match Command::new(程序).args(参).output() {
+                Ok(出) => {
+                    if 出.status.success() {
+                        return (String::from_utf8_lossy(&出.stdout).to_string(), None);
+                    }
+                    return (String::new(), Some(format!("{程序} 没读出来")));
+                }
+                Err(_) => 缺.push(程序),
+            }
+        }
+        (String::new(), Some(format!("找不到剪贴板工具（试过 {}）", 缺.join(" / "))))
     }
 }

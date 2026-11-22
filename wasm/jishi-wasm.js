@@ -418,6 +418,8 @@
       case "点击": this._sel(a[0]).click(); return null;
       case "显示": el = this._sel(a[0]); el.style.display = (a[1] === false) ? "none" : ""; return null;
       case "绑定": this._bind(this._sel(a[0]), String(a[1]), String(a[2])); return null;
+      // M223：媒体查询（`浏览器.匹配("(prefers-color-scheme: dark)")`）
+      case "匹配": return !!(root.matchMedia && root.matchMedia(String(a[0])).matches);
       case "存本地": this._needStore().setItem(String(a[0]), String(a[1])); return null;
       case "读本地": {
         var got = this._needStore().getItem(String(a[0]));

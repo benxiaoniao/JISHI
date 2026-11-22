@@ -326,7 +326,7 @@ fn 还循环(循环: EventLoop<事件>) {
 /// （浏览器进程一起来就响应）不同，但**用户代码的写法一样**：
 /// `打开` → 干活 → `等`，中间那段通常只有毫秒级。
 pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<u64, String> {
-    打开页(标题, 宽, 高, 页面来源::网址(网址.to_string()), true, false)
+    打开页(标题, 宽, 高, 页面来源::网址(网址.to_string()), true, false, 外观::default())
 }
 
 /// 同上，但页面内容**直接给**（`with_html`，不落盘、不用网址）。
@@ -334,7 +334,24 @@ pub fn 打开(标题: &str, 宽: f64, 高: f64, 网址: &str) -> Result<u64, Str
 /// 📌 页面的 `document.URL` 会是 `about:blank` —— 页面里要读「自己是谁」的地方
 /// 不能依赖 URL（安装向导不依赖）。
 pub fn 打开HTML(标题: &str, 宽: f64, 高: f64, 网页: &str) -> Result<u64, String> {
-    打开页(标题, 宽, 高, 页面来源::网页(网页.to_string()), true, false)
+    打开页(标题, 宽, 高, 页面来源::网页(网页.to_string()), true, false, 外观::default())
+}
+
+/// 窗口外观（M223）。字段少，用普通结构体传 —— 10 个位置参数已经数不清了。
+#[derive(Clone, Copy)]
+pub struct 外观 {
+    /// `无边框 = 真`：去掉系统标题栏（产品要自己的外观就靠它）。
+    pub 无边框: bool,
+    pub 可调整: bool,
+    /// 最小尺寸（逻辑像素）。0 = 不限。
+    pub 最小宽: f64,
+    pub 最小高: f64,
+}
+
+impl Default for 外观 {
+    fn default() -> Self {
+        外观 { 无边框: false, 可调整: true, 最小宽: 0.0, 最小高: 0.0 }
+    }
 }
 
 /// M221：带「隐藏启动 / 询问关闭」的打开（托盘常驻型程序的起手式）。
@@ -346,6 +363,19 @@ pub fn 打开带选项(
     显示: bool,
     询问关闭: bool,
 ) -> Result<u64, String> {
+    打开带外观(标题, 宽, 高, 网址, 显示, 询问关闭, 外观::default())
+}
+
+/// M223：外观也可配的打开（`无边框` / `可调整` / 最小尺寸）。
+pub fn 打开带外观(
+    标题: &str,
+    宽: f64,
+    高: f64,
+    网址: &str,
+    显示: bool,
+    询问关闭: bool,
+    看: 外观,
+) -> Result<u64, String> {
     打开页(
         标题,
         宽,
@@ -353,6 +383,7 @@ pub fn 打开带选项(
         页面来源::网址(网址.to_string()),
         显示,
         询问关闭,
+        看,
     )
 }
 
@@ -363,10 +394,11 @@ fn 打开页(
     页面: 页面来源,
     显示: bool,
     询问关闭: bool,
+    看: 外观,
 ) -> Result<u64, String> {
     let 窗号 = 下一个号();
     let 循环 = 借循环()?;
-    let r = 建窗口(窗号, &循环, 标题, 宽, 高, &页面, 显示, 询问关闭);
+    let r = 建窗口(窗号, &循环, 标题, 宽, 高, &页面, 显示, 询问关闭, 看);
     // ⚠️ 建失败时循环还在，必须放回去 —— 否则后面再 打开 会拿到「正在忙」。
     还循环(循环);
     r.map(|_| 窗号)
@@ -381,18 +413,25 @@ fn 建窗口(
     页面: &页面来源,
     显示: bool,
     询问关闭: bool,
+    看: 外观,
 ) -> Result<(), String> {
     let 代理 = 取代理()?;
 
-    let 窗口 = Rc::new(
-        WindowBuilder::new()
-            .with_title(标题)
-            .with_inner_size(LogicalSize::new(宽, 高))
-            // M221：`隐藏启动` —— 托盘常驻程序先别闪一下窗口。
-            .with_visible(显示)
-            .build(循环)
-            .map_err(|e| format!("建窗口失败：{e}"))?,
-    );
+    let mut 建 = WindowBuilder::new()
+        .with_title(标题)
+        .with_inner_size(LogicalSize::new(宽, 高))
+        // M221：`隐藏启动` —— 托盘常驻程序先别闪一下窗口。
+        .with_visible(显示)
+        // M223：产品化外观
+        .with_decorations(!看.无边框)
+        .with_resizable(看.可调整);
+    if 看.最小宽 > 0.0 || 看.最小高 > 0.0 {
+        建 = 建.with_min_inner_size(LogicalSize::new(
+            看.最小宽.max(1.0),
+            看.最小高.max(1.0),
+        ));
+    }
+    let 窗口 = Rc::new(建.build(循环).map_err(|e| format!("建窗口失败：{e}"))?);
 
     // IPC 处理器：**在主线程被调用**（WebView2 的 WebMessageReceived 就在 UI 线程），
     // 所以里面可以放心走 thread_local。
@@ -1938,6 +1977,53 @@ pub fn 提示(窗号: u64, 标题: &str, 内容: &str) -> bool {
 // LauncherEntry —— **本机（Windows）都验不了**，而 CI 的 mac/linux job 跑的是
 // `JISHI_NO_GUI=1`。照 D126 三的先例：接口在、返回假 + 说明，真实现与
 // UNUserNotificationCenter 一起记 0.4.x。Windows 上本来就有 `窗口.进度`。
+
+/// `窗口.拖动(句柄?)` —— M223：按住自定义标题栏拖动窗口。
+///
+/// ⚠️ **只能在鼠标按下时调**（通常写在页面的 `mousedown` 里）：它不是
+/// 「把窗口挪到某处」，而是「接下来跟着鼠标走」。这也是为什么没有 `拖动到(x, y)`
+/// —— 那有 `窗口.设位置`。
+///
+/// Linux 上 tao 的实现可能不支持（返回 Err）⇒ 返回假，不报错。
+pub fn 拖动(窗号: u64) -> bool {
+    let 号 = 解析号(窗号);
+    对窗口(号, |窗| 窗.drag_window().is_ok()).unwrap_or(false)
+}
+
+/// `窗口.设主题("浅" / "深" / "跟随", 句柄?)` —— M223。
+///
+/// 两件事都做：**窗口标题栏**跟着变（tao `set_theme`），**页面**
+/// `prefers-color-scheme` 跟着变（wry `set_theme`，Windows 上 WebView2 支持）。
+///
+/// ⚠️ 页面那半只有 Windows 能做（wry 的 `WebViewExtWindows::set_theme`）；
+/// mac/Linux 的 webview 只跟随系统主题，所以那边返回「只设了标题栏」—— 仍返回真
+/// （标题栏确实变了），文档里写清。
+pub fn 设主题(窗号: u64, 主题: &str) -> bool {
+    use tao::window::Theme;
+    let 号 = 解析号(窗号);
+    let (窗题, 页题) = match 主题 {
+        "浅" => (Some(Theme::Light), Some(wry::Theme::Light)),
+        "深" => (Some(Theme::Dark), Some(wry::Theme::Dark)),
+        _ => (None, Some(wry::Theme::Auto)),
+    };
+    let 窗行 = 对窗口(号, |窗| 窗.set_theme(窗题)).is_some();
+    #[cfg(target_os = "windows")]
+    let 页行 = {
+        use wry::WebViewExtWindows;
+        网们.with(|m| {
+            m.borrow()
+                .get(&号)
+                .map(|w| w.set_theme(页题.unwrap_or(wry::Theme::Auto)).is_ok())
+                .unwrap_or(false)
+        })
+    };
+    #[cfg(not(target_os = "windows"))]
+    let 页行 = {
+        let _ = 页题;
+        false
+    };
+    窗行 || 页行
+}
 
 /// `窗口.最近文件(路径)` —— 把一份文件记进系统「最近使用」（跳转列表的原料）。
 ///
