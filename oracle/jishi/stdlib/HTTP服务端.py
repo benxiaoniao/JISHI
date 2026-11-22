@@ -40,7 +40,7 @@ import socket
 from urllib.parse import unquote_to_bytes
 
 from ..errors import RunTypeError, RunValueError
-from ..runtime import type_name
+from ..runtime import type_name, JishiBytes
 
 __all__ = ["解析请求", "构造响应", "启动", "启动非阻塞", "空闲端口", "服务句柄"]
 
@@ -165,37 +165,85 @@ def 解析请求(请求文本) -> dict:
 # ⚠️ 默认值写**字面量**而不是 `_默认内容类型` 那个常量：语言卡的签名是
 #    从 AST 反解的，常量名会原样漏进卡片（模型看到「内容类型=_默认内容类型」
 #    只会一脸问号）。
-def 构造响应(状态: int = 200, 正文: str = "",
-             内容类型: str = "text/plain; charset=utf-8", 头=None) -> str:
-    """把「状态 + 正文 + 头」拼成一段**完整的 HTTP 响应**文本。纯函数。
+def _头对们(头) -> list:
+    """`头` → 「名字, 值」对的列表。**两种写法**（M219）：
+
+    ```jishi
+    {"X-A": "1"}                                    # 字典：同名字不能重复
+    [["Set-Cookie", "a=1"], ["Set-Cookie", "b=2"]]  # 对列表：同名可重复、顺序即写入顺序
+    ```
+
+    🔴 为什么非要对列表：**两个 `Set-Cookie` 塞不进字典**（键相同就覆盖一个），
+    而多 Cookie 是登录会话的常规做法。
+    """
+    if 头 is None:
+        return []
+    对们 = []
+    if isinstance(头, dict):
+        for 名字, 值 in 头.items():
+            对们.append((str(名字), str(值)))
+    elif isinstance(头, (list, tuple)):
+        for 项 in 头:
+            if not isinstance(项, (list, tuple)):
+                raise RunTypeError(
+                    "「头」列表里每一项都要是 `[名字, 值]`，"
+                    f"得到了「{type_name(项)}」")
+            if len(项) != 2:
+                # ⚠️ 「项数不对」是**值**的问题（结构对了、数量错了），
+                # 与另外两个宿主同一口径（`类型错误` 留给「压根不是列表」）
+                raise RunValueError("「头」列表里每一项都要是 `[名字, 值]`（两项）")
+            对们.append((str(项[0]), str(项[1])))
+    else:
+        raise RunTypeError(
+            "「头」要是一个字典或 `[名字, 值]` 的列表，"
+            f"得到了「{type_name(头)}」")
+    for 键, 值 in 对们:
+        if 键.lower() in _自填:
+            raise RunValueError(
+                f"「{键}」由框架自己填，不要在「头」里再写一遍")
+        if not 键.isascii() or not 值.isascii():
+            raise RunTypeError(f"请求头「{键}」的名字与值只能是 ASCII（英文数字）")
+    return 对们
+
+
+def 构造响应(状态: int = 200, 正文="",
+             内容类型: str = "text/plain; charset=utf-8", 头=None):
+    """把「状态 + 正文 + 头」拼成一段**完整的 HTTP 响应**。纯函数。
 
     `Content-Length` 按**字节**算（不是字符数）—— 中文正文才不会截断。
+
+    `正文` 可以是**字节**（M219：PNG / wasm / 字体这类二进制资产），
+    这时返回值也是**字节** —— 二进制数据用文本装不下。给了文本就回文本。
+
     `头` 里**不许**再写 `Content-Type` / `Content-Length` / `Connection`
     （框架自己填），写了会明确报错。
     """
     码 = _要整数(状态, "状态码")
     if not 100 <= 码 <= 599:
         raise RunValueError(f"状态码要在 100–599 之间，现在是 {码}")
-    体 = _要文本(正文, "「构造响应」的正文")
+    字节正文 = isinstance(正文, (bytes, bytearray, JishiBytes))
+    if isinstance(正文, JishiBytes):
+        数据 = 正文.value
+    elif 字节正文:
+        数据 = bytes(正文)
+    elif 正文 is None:
+        数据 = b""
+    elif isinstance(正文, str):
+        数据 = 正文.encode("utf-8")
+    else:
+        raise RunTypeError(
+            f"「构造响应」的正文要是文本或字节，得到了「{type_name(正文)}」")
     类型 = _要文本(内容类型, "「构造响应」的内容类型")
-    额外 = _要字典(头, "「构造响应」的头")
-    自定义 = []
-    for 名字, 值 in 额外.items():
-        键 = str(名字)
-        if 键.lower() in _自填:
-            raise RunValueError(
-                f"「{键}」由框架自己填，不要在「头」里再写一遍")
-        if not 键.isascii() or not str(值).isascii():
-            raise RunTypeError(f"请求头「{键}」的名字与值只能是 ASCII（英文数字）")
-        自定义.append(f"{键}: {值}")
-    数据 = 体.encode("utf-8")
+    自定义 = _头对们(头)
     短语 = _原因.get(码, "")
     行们 = [f"HTTP/1.1 {码}" + (f" {短语}" if 短语 else "")]
     行们.append(f"Content-Type: {类型}")
-    行们.extend(自定义)
+    行们.extend(f"{键}: {值}" for 键, 值 in 自定义)
     行们.append(f"Content-Length: {len(数据)}")
     行们.append("Connection: close")
-    return "\r\n".join(行们) + "\r\n\r\n" + 体
+    头字节 = ("\r\n".join(行们) + "\r\n\r\n").encode("ascii")
+    出 = 头字节 + 数据
+    return JishiBytes(出) if 字节正文 else 出.decode("utf-8", "replace")
 
 
 def _要可调用(值):
@@ -217,14 +265,22 @@ def _错误首行(错) -> str:
     return f"{头}（{正文}）"
 
 
-def _把应答变成文本(应答) -> str:
-    """处理函数的返回值 → 完整响应文本。两种写法都收：
+def _把应答变成字节(应答):
+    """处理函数的返回值 → 完整响应**字节**。三种写法都收：
 
     - **文本** —— 你自己拼好的完整响应（用 `构造响应`）；
+    - **字节** —— 同上，只是二进制（`构造响应(…, 字节正文)` 给的）；
     - **字典** —— `{状态, 正文, 内容类型, 头}`，框架替你拼（日常用这种）。
+
+    📌 文本与字节**同一个意思**（都是整个响应）：同一个位置按类型换意思正是
+    D89 禁的那种，人（和模型）一定会猜错一次。
     """
+    if isinstance(应答, JishiBytes):
+        return 应答.value
+    if isinstance(应答, (bytes, bytearray)):
+        return bytes(应答)
     if isinstance(应答, str):
-        return 应答
+        return 应答.encode("utf-8")
     if isinstance(应答, dict):
         return 构造响应(
             状态=应答.get("状态", 200),
@@ -235,7 +291,7 @@ def _把应答变成文本(应答) -> str:
     if 应答 is None:
         return 构造响应()
     raise RunTypeError(
-        f"处理函数要返回文本或字典，得到了「{type_name(应答)}」")
+        f"处理函数要返回文本、字节或字典，得到了「{type_name(应答)}」")
 
 
 def 空闲端口() -> int:
@@ -305,8 +361,10 @@ def 启动(端口: int = 8000, 处理函数=None, 最多请求数: int = 0,
         def log_message(self, *args):      # 别往 stderr 打 —— stderr 是对拍的一部分
             pass
 
-        def _写(self, 应答: str):
-            self.wfile.write(应答.encode("utf-8"))
+        def _写(self, 应答):
+            if isinstance(应答, str):
+                应答 = 应答.encode("utf-8")
+            self.wfile.write(应答)
             记录["请求数"] += 1
 
         def _服务(self):
@@ -318,7 +376,7 @@ def 启动(端口: int = 8000, 处理函数=None, 最多请求数: int = 0,
                 self._写(构造响应(400, str(错.message)))
                 return
             try:
-                应答 = _把应答变成文本(处理函数(请求))
+                应答 = _把应答变成字节(处理函数(请求))
             except JishiError as 错:
                 # ⚠️ 处理函数出错 ⇒ 回 500，**服务继续** ——
                 # 一条坏请求不该让整个本地服务挂掉，浏览器里还直接看得见错在哪。
@@ -411,7 +469,7 @@ class 服务句柄:
         except JishiError as 错:
             return 构造响应(400, str(错.message))
         try:
-            return _把应答变成文本(self._处理函数(请求))
+            return _把应答变成字节(self._处理函数(请求))
         except JishiError as 错:
             return 构造响应(500, _错误首行(错))
         except Exception as 错:              # noqa: BLE001
@@ -446,7 +504,9 @@ class 服务句柄:
                 if 应答 is None:
                     continue
                 try:
-                    连接.sendall(应答.encode("utf-8"))
+                    if isinstance(应答, str):
+                        应答 = 应答.encode("utf-8")
+                    连接.sendall(应答)
                 except OSError:
                     pass
                 self._收到 += 1

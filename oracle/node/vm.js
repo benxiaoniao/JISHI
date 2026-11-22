@@ -962,6 +962,8 @@ function makeIterator(obj, line, col) {
 // （不合并标准错误——`execSync` 没有保序合并的能力）。
 const _os = require('os');
 const _cp = require('child_process');
+// M219：解外部命令的输出（`TextDecoder` 支持 gbk，靠 Node 自带的 ICU）
+const _util = require('util');
 // 🔴 M161：同步 HTTP 走 **Worker + Atomics**，不再 spawn 自己（见 `netRequest` 上方那段）。
 const _worker = require('worker_threads');
 
@@ -969,11 +971,61 @@ const _worker = require('worker_threads');
 ///
 /// 数组形式走 `spawnSync(程序, 参数)`（**不经过 shell**，参数边界原样保留），
 /// 文本形式走 shell —— 与 Python 侧 `subprocess.run(list)` / `shell=True` 的分工一致。
-function _跑详细(cmd, timeout) {
+/**
+ * 外部命令的输出字节 → 文本（M219）。
+ *
+ * 🔴 为什么需要它：**外部命令吐的是字节，不是文本**。Windows 控制台程序
+ * （`cmd` / `dir` / 老式 `.exe`）默认按**本机代码页**（简体中文 = GBK / 936）
+ * 写 stdout —— 按 UTF-8 硬解出来就是一片 `����`。
+ *
+ * - `自动`（默认）：先按 UTF-8 严格解；不合法再按本机代码页解；
+ * - `utf-8` / `gbk`：显式指定，坏字节换 `U+FFFD`。
+ *
+ * ⚠️ 本宿主**取不到本机代码页**（Node 没有 `GetACP` 的绑定），只能近似：
+ * Windows 上按 GBK 解 —— 简体中文 Windows 就是这个码页（判据也只在这条路上
+ * 验）。别的码页（日文 932 / 西欧 1252）要准的请显式写 `输出编码="gbk"`，
+ * 或者干脆拿 `编码` 模块自己转。
+ */
+function _解码输出(数据, 编码) {
+  const buf = Buffer.isBuffer(数据) ? 数据 : Buffer.from(数据 || []);
+  const 名 = String(编码 === undefined || 编码 === null ? '自动' : 编码).trim().toLowerCase();
+  const 造 = (标签, 严格) => {
+    try {
+      return 严格 ? new _util.TextDecoder(标签, { fatal: true }) : new _util.TextDecoder(标签);
+    } catch (e) {
+      // 这个 Node 没带 ICU 的那套码表 —— 明确报错，别静默给一堆问号
+      throw R.valueErr(
+        `这个 Node 解不了「${标签}」编码（跑的是精简 ICU 构建）`);
+    }
+  };
+  if (['gbk', '936', 'cp936', 'gb2312', 'gb18030'].includes(名)) {
+    return 造('gbk').decode(buf);
+  }
+  if (['utf-8', 'utf8'].includes(名)) {
+    return 造('utf-8').decode(buf);
+  }
+  if (!['', '自动', 'auto'].includes(名)) {
+    throw R.valueErr(`不认识的输出编码「${编码}」—— 能写的是：自动 / utf-8 / gbk`);
+  }
+  try {
+    // 🔴 `fatal: true` 才是「严格」：默认的 `TextDecoder` **不抛错**，
+    // 它把坏字节换成 U+FFFD —— 那样永远走不到下面那条回落，
+    // GBK 的输出就成了一串问号（M219 实测踩到）。
+    return 造('utf-8', true).decode(buf);
+  } catch (e) {
+    // 不是合法 UTF-8 ⇒ 大概率是本机代码页写出来的
+  }
+  return 造(_os.platform() === 'win32' ? 'gbk' : 'utf-8').decode(buf);
+}
+
+
+function _跑详细(cmd, timeout, 编码 = '自动') {
   const 毫秒 = Math.max(100, Number(timeout) * 1000);
+  // ⚠️ **不收 encoding**：让 spawnSync 给 Buffer，解码自己来（M219）。
+  //    给了 `encoding: 'utf8'` 就是硬解，GBK 的字节会变成一串 U+FFFD —— 而且
+  //    拿到的已经是文本，再想按别的编码解就没救了。
   const 选项 = {
     timeout: 毫秒,
-    encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   };
   const r = Array.isArray(cmd)
@@ -987,8 +1039,8 @@ function _跑详细(cmd, timeout) {
     throw R.runErr(`执行命令失败：${r.error.message}`);
   }
   return {
-    输出: r.stdout || '',
-    错误: r.stderr || '',
+    输出: _解码输出(r.stdout, 编码),
+    错误: _解码输出(r.stderr, 编码),
     退出码: r.status === null ? -1 : r.status,
   };
 }
@@ -1047,23 +1099,19 @@ const SYS_FUNCS = {
     return null;
   }),
   '执行': new R.Builtin('执行', (cmd, timeout = 10.0) => {
-    const line = Array.isArray(cmd) ? cmd.map((x) => String(x)).join(' ')
-                                    : String(cmd);
-    try {
-      return String(_cp.execSync(line, {
-        timeout: Number(timeout) * 1000,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }));
-    } catch (e) {
-      throw R.runErr(`执行命令失败：${e && e.message ? e.message : e}`);
-    }
+    // 🔴 M219：改成**和 `执行详细` 同一条路**（`spawnSync` + 自己解码）。
+    // 以前这里 `execSync(cmd.join(' '))` —— 两个毛病：
+    //   ① **数组被拼成一行**再交给 shell ⇒ 参数里的空格会被重新切分
+    //      （`["echo", "a b"]` 变成两个参数），与 Python/Rust 的 argv 形态不一致；
+    //   ② 解码固定 `utf8` ⇒ Windows 控制台的 GBK 输出变成一串 `?`。
+    const r = _跑详细(cmd, timeout, '自动');
+    return r.输出 + r.错误;
   }),
   // M133：**两条流分开**返回（`执行` 是老接口，只给 stdout）。
   // ⚠️ 本宿主用 `spawnSync` 拿两个流，**不需要「保序合并」** —— 所以这里能
   //    和 Python/Rust 完全一致（`执行` 那条做不到，见上面模块注释）。
-  '执行详细': new R.Builtin('执行详细', (cmd, timeout = 10.0) => {
-    const r = _跑详细(cmd, timeout);
+  '执行详细': new R.Builtin('执行详细', (cmd, timeout = 10.0, 编码 = '自动') => {
+    const r = _跑详细(cmd, timeout, 编码);
     const m = new Map();
     m.set('输出', r.输出); m.set('错误', r.错误); m.set('退出码', r.退出码);
     return m;
@@ -3545,7 +3593,264 @@ const NET_FUNCS = {
     fs.writeFileSync(pText(路径), r.bodyBuf);
     return r.bodyBuf.length;
   }),
+
+  // -- 流式（M219）--
+  '获取流': new R.Builtin('获取流', (url, timeout = 10.0, 请求头 = null) => {
+    return 开网络流(url, timeout, 请求头);
+  }),
+  'SSE': new R.Builtin('SSE', (url, 处理函数, timeout = 0, 请求头 = null) => {
+    R.ensureCallable(处理函数, '「SSE」的第二个参数要一个处理函数');
+    const t = 网络超时秒(timeout);
+    const 头 = netHeaders(请求头);
+    头['Accept'] = 头['Accept'] || 'text/event-stream';
+    头['Cache-Control'] = 头['Cache-Control'] || 'no-cache';
+    const h = 开网络流(url, t > 0 ? t : 10.0, 头);
+    try {
+      if (!(h.状态 >= 200 && h.状态 < 300)) {
+        throw R.runErr(`「${pText(url)}」回的是 HTTP ${h.状态}（事件流应当是 2xx）`);
+      }
+      let 事件数 = 0;
+      let 数据行 = [];
+      let 事件名 = '';
+      let id = '';
+      let 有字段 = false;
+      const 派 = () => {
+        if (!有字段 || 数据行.length === 0) return;
+        事件数 += 1;
+        const 单 = new Map([
+          ['事件', 事件名 === '' ? 'message' : 事件名],
+          ['数据', 数据行.join('\n')],
+          ['id', id],
+        ]);
+        R.callValue(处理函数, [单]);
+      };
+      for (;;) {
+        const 行 = 流读行(h, t);
+        if (行 === null) {
+          if (h.已完) break;
+          throw R.runErr(`「${pText(url)}」${t} 秒没有新数据（事件流断了？）`);
+        }
+        if (行 === '') { 派(); 数据行 = []; 事件名 = ''; 有字段 = false; continue; }
+        if (行.startsWith(':')) continue;
+        const 冒 = 行.indexOf(':');
+        const 字段 = 冒 < 0 ? 行 : 行.slice(0, 冒);
+        let 值 = 冒 < 0 ? '' : 行.slice(冒 + 1);
+        if (值.startsWith(' ')) 值 = 值.slice(1);
+        if (字段 === 'data') { 数据行.push(值); 有字段 = true; }
+        else if (字段 === 'event') { 事件名 = 值; 有字段 = true; }
+        else if (字段 === 'id') { id = 值; 有字段 = true; }
+      }
+      return 事件数;
+    } finally {
+      流关(h);
+    }
+  }),
 };
+
+// ---------------------------------------------------------------------------
+// 流式 GET（M219）：常驻 Worker + 锁步共享内存
+//
+// ⚠️ 与 `netRequest` 的差别：那边「一次请求一个 Worker、用完 terminate」；
+//    这里句柄要活得比一次读长（可能连着读几十行）。
+// ---------------------------------------------------------------------------
+
+/** 数据区大小（与 worker 里的偏移 128 对应） */
+const 网络流数据区 = 1024 * 1024;
+
+class 网络流句柄 extends R.JishiNative {
+  constructor(worker, sab) {
+    super('流', 网络流方法, {});
+    this.w = worker;
+    this.sab = sab;
+    this.i32 = new Int32Array(sab, 0, 16);
+    this.序号 = 0;
+    this.缓冲 = [];      // 没凑成整行的字节
+    this.已完 = false;
+    this.关 = false;
+    this.状态 = 0;
+    this.头 = {};
+  }
+}
+
+/** 句柄上的方法（`流.读行(1)`）。签名与其他原生对象方法一致：`(obj, args, line, col)`。 */
+const 网络流方法 = {
+  '读行': (obj, args, line, col) => {
+    if (args.length > 1) {
+      throw R.typeErr(`方法「读行」需要 0 到 1 个参数，但传了 ${args.length} 个`, line, col);
+    }
+    if (obj.关) throw R.runErr('这个流已经关了（`关闭()` 之后读不了）', line, col);
+    const 超时 = args.length > 0 ? 网络超时秒(args[0]) : 0;
+    const 行 = 流读行(obj, 超时);
+    return 行 === null ? null : 行;
+  },
+  '读块': (obj, args, line, col) => {
+    if (args.length > 2) {
+      throw R.typeErr(`方法「读块」需要 0 到 2 个参数，但传了 ${args.length} 个`, line, col);
+    }
+    if (obj.关) throw R.runErr('这个流已经关了（`关闭()` 之后读不了）', line, col);
+    let 最多 = 8192;
+    if (args.length > 0 && args[0] !== null && args[0] !== undefined) {
+      const n = R.unwrap ? R.unwrap(args[0]) : args[0];
+      if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) {
+        throw R.valueErr(`「读块」的最多字节数要大于 0，现在是 ${n}`, line, col);
+      }
+      最多 = Math.floor(n);
+    }
+    const 超时 = args.length > 1 ? 网络超时秒(args[1]) : 0;
+    const 块 = 流读块(obj, 最多, 超时);
+    return 块 === null ? null : new R.JishiBytes(块);
+  },
+  '关闭': (obj, args, line, col) => {
+    if (args.length !== 0) {
+      throw R.typeErr(`方法「关闭」需要 0 个参数，但传了 ${args.length} 个`, line, col);
+    }
+    return 流关(obj);
+  },
+  '结束': (obj, args) => {
+    if (args.length !== 0) throw R.typeErr(`方法「结束」需要 0 个参数，但传了 ${args.length} 个`);
+    return !!obj.已完;
+  },
+  '状态': (obj, args) => {
+    if (args.length !== 0) throw R.typeErr(`方法「状态」需要 0 个参数，但传了 ${args.length} 个`);
+    return obj.状态;
+  },
+  '响应头': (obj, args) => {
+    if (args.length !== 0) throw R.typeErr(`方法「响应头」需要 0 个参数，但传了 ${args.length} 个`);
+    return new Map(Object.entries(obj.头 || {}));
+  },
+};
+
+function 取网络流(v, 名) {
+  if (v instanceof 网络流句柄) return v;
+  throw R.typeErr(`「${名}」要传 \`网络.获取流\` 拿到的句柄（现在是「${R.typeName(v)}」）`);
+}
+
+function 网络超时秒(v) {
+  if (v === undefined || v === null) return 0;
+  const n = R.unwrap ? R.unwrap(v) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) {
+    throw R.valueErr(`超时要是 0 或正数秒（0 = 一直等），给的是「${v}」`);
+  }
+  return n;
+}
+
+/** 握手：起 Worker、等它把「状态 + 头」送回来。 */
+function 开网络流(url, timeout, 请求头) {
+  // `SSE` 那边要往头上加 `Accept: text/event-stream`，所以它传的是**已经拍平的对象**；
+  // 语言侧传进来的是字典（Map）。两种都收。
+  const 头 = (请求头 && !(请求头 instanceof Map) && typeof 请求头 === 'object')
+    ? Object.assign({}, 请求头)
+    : netHeaders(请求头);
+  const sab = new SharedArrayBuffer(128 + 网络流数据区);
+  const w = new _worker.Worker(_路径.join(__dirname, 'net_stream_worker.js'), {
+    workerData: {
+      sab,
+      url: 规范网址(pText(url)),
+      headers: 头,
+      connectTimeout: Number(timeout) > 0 ? Number(timeout) : 10.0,
+    },
+  });
+  w.unref();
+  const h = new 网络流句柄(w, sab);
+  const 醒 = Atomics.wait(h.i32, 0, 0, 30000);
+  if (醒 === 'timed-out' || h.i32[0] !== 1) {
+    w.terminate();
+    throw R.runErr(`「${pText(url)}」连不上（宿主 30 秒没有回应）`);
+  }
+  const 型 = h.i32[1];
+  const 长 = h.i32[2];
+  const 文 = 长 > 0 ? Buffer.from(new Uint8Array(sab, 128, 长)).toString('utf8') : '';
+  h.i32[0] = 0;
+  if (型 === 4) {
+    w.terminate();
+    throw R.runErr(`访问「${pText(url)}」失败：${文}`);
+  }
+  h.状态 = h.i32[3] | 0;
+  try {
+    h.头 = JSON.parse(文 || '{}');
+  } catch (e) {
+    h.头 = {};
+  }
+  return h;
+}
+
+/** 向 Worker 要一次读。返回 `{型, 数据}`：型 1=数据 2=超时 3=完 4=错误。 */
+function 网络流请求(h, 码, 想多少, 等毫秒) {
+  h.i32[4] = 码;
+  h.i32[5] = 想多少 | 0;
+  h.i32[6] = 等毫秒 | 0;
+  Atomics.store(h.i32, 0, 0);
+  h.序号 += 1;
+  Atomics.store(h.i32, 8, h.序号);
+  // 「一直等」也给个上限：Worker 万一死了别把 VM 永久冻住
+  const 护栏 = 等毫秒 > 0 ? 等毫秒 + 15000 : 3600 * 1000;
+  const 醒 = Atomics.wait(h.i32, 0, 0, 护栏);
+  if (醒 === 'timed-out' || h.i32[0] !== 1) {
+    throw R.runErr('网络流没有及时回应（宿主内部超时）');
+  }
+  const 型 = h.i32[1];
+  const 长 = h.i32[2];
+  const 数据 = 长 > 0 ? Buffer.from(new Uint8Array(h.sab, 128, 长)) : Buffer.alloc(0);
+  h.i32[0] = 0;
+  if (型 === 4) {
+    throw R.runErr(`读网络流出错：${数据.toString('utf8')}`);
+  }
+  if (型 === 3) h.已完 = true;
+  return { 型, 数据 };
+}
+
+/** 读一块（字节）。超时 / 已到末尾都给 `null`。 */
+function 流读块(h, 最多, 超时秒) {
+  if (h.关) throw R.runErr('这个流已经关了（`关闭()` 之后读不了）');
+  if (h.缓冲.length > 0) {
+    const 合 = Buffer.concat(h.缓冲);
+    const n = Math.min(最多, 合.length);
+    h.缓冲 = n < 合.length ? [合.subarray(n)] : [];
+    return 合.subarray(0, n);
+  }
+  const r = 网络流请求(h, 1, 最多, Math.max(0, Math.round(超时秒 * 1000)));
+  if (r.型 === 1) return r.数据;
+  return null;
+}
+
+/** 读一行（不含换行）。超时 / 已到末尾都给 `null`。 */
+function 流读行(h, 超时秒) {
+  for (;;) {
+    const i = Buffer.concat(h.缓冲).indexOf(0x0a);
+    if (i >= 0) {
+      const 合 = Buffer.concat(h.缓冲);
+      let 行 = 合.subarray(0, i);
+      const 余 = 合.subarray(i + 1);
+      h.缓冲 = 余.length > 0 ? [余] : [];
+      if (行.length > 0 && 行[行.length - 1] === 0x0d) 行 = 行.subarray(0, 行.length - 1);
+      return 行.toString('utf8');
+    }
+    if (h.已完) {
+      if (h.缓冲.length === 0) return null;
+      const 尾 = Buffer.concat(h.缓冲);
+      h.缓冲 = [];
+      return 尾.toString('utf8');
+    }
+    const 块 = 流读块(h, 65536, 超时秒);
+    if (块 === null) return null;
+    h.缓冲.push(块);
+  }
+}
+
+function 流关(h) {
+  if (h.关) return false;
+  h.关 = true;
+  h.已完 = true;
+  try {
+    网络流请求(h, 2, 0, 1000);
+  } catch (e) {
+    // Worker 可能已经没了 —— 关不上不算错
+  }
+  try {
+    h.w.terminate();
+  } catch (e) { /* 已经结束 */ }
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // M41 新增模块：容器 / 迭代 / 参数 / 日志
@@ -6669,6 +6974,55 @@ const _HTTP原因 = {
 };
 const _HTTP自填 = ['content-length', 'content-type', 'connection'];
 
+/**
+ * `头` → 「名字, 值」对的列表。**两种写法**（M219）：
+ *
+ *   {"X-A": "1"}                                    // 字典：同名字不能重复
+ *   [["Set-Cookie", "a=1"], ["Set-Cookie", "b=2"]]  // 对列表：同名可重复
+ *
+ * 🔴 为什么非要对列表：**两个 `Set-Cookie` 塞不进字典**（键相同就覆盖一个），
+ * 而多 Cookie 是登录会话的常规做法。
+ */
+function _HTTP头对们(extra) {
+  if (extra === null || extra === undefined) return [];
+  const 对们 = [];
+  if (extra instanceof Map) {
+    对们.push(...extra.entries());
+  } else if (Array.isArray(extra)) {
+    for (const 项 of extra) {
+      if (!Array.isArray(项)) {
+        throw R.typeErr(
+          '「头」列表里每一项都要是 `[名字, 值]`，'
+          + `得到了「${R.typeName(项)}」`);
+      }
+      // 「项数不对」是**值**的问题（结构对了、数量错了），与另外两个宿主同口径
+      if (项.length !== 2) {
+        throw R.valueErr('「头」列表里每一项都要是 `[名字, 值]`（两项）');
+      }
+      对们.push([项[0], 项[1]]);
+    }
+  } else if (typeof extra === 'object') {
+    对们.push(...Object.entries(extra));
+  } else {
+    throw R.typeErr(
+      `「头」要是一个字典或 \`[名字, 值]\` 的列表，得到了「${R.typeName(extra)}」`);
+  }
+  const 出 = [];
+  for (const [k0, v0] of 对们) {
+    const k = pText(k0);
+    if (_HTTP自填.includes(k.toLowerCase())) {
+      throw R.valueErr(`「${k}」由框架自己填，不要在「头」里再写一遍`);
+    }
+    const v = pText(v0);
+    // eslint-disable-next-line no-control-regex
+    if (/[^\x00-\x7f]/.test(k) || /[^\x00-\x7f]/.test(v)) {
+      throw R.typeErr(`请求头「${k}」的名字与值只能是 ASCII（英文数字）`);
+    }
+    出.push([k, v]);
+  }
+  return 出;
+}
+
 /** 去两端空白 —— **只去空格与制表符**（`String.trim` 按全 Unicode 空白去，跨语言对不齐）。 */
 function _http去空白(s) { return String(s).replace(/^[ \t]+/, '').replace(/[ \t]+$/, ''); }
 
@@ -6829,36 +7183,22 @@ const HTTP_FUNCS = {
   '构造响应': new R.Builtin('构造响应', (code = 200, body = '', ctype = _HTTP默认内容类型, extra = null) => {
     const 码 = _http要整数(code, '状态码');
     if (!(码 >= 100 && 码 <= 599)) throw R.valueErr(`状态码要在 100–599 之间，现在是 ${码}`);
-    const 正文 = pText(body);
+    // M219：正文可以是**字节**（PNG / wasm / 字体），返回类型跟着走 ——
+    // 给了字节就回字节（二进制数据用文本装不下），给了文本就回文本。
+    const 是字节 = R.isBytes(body);
+    let 数据;
+    if (是字节) 数据 = body.buf;
+    else if (body === null || body === undefined) 数据 = Buffer.alloc(0);
+    else 数据 = Buffer.from(pText(body), 'utf8');
     const 类型 = pText(ctype);
     const 行们 = [`HTTP/1.1 ${码}` + (_HTTP原因[码] ? ` ${_HTTP原因[码]}` : '')];
     行们.push(`Content-Type: ${类型}`);
-    if (extra !== null && extra !== undefined) {
-      const 对 = extra instanceof Map
-        ? [...extra.entries()]
-        : (typeof extra === 'object' && !Array.isArray(extra)
-            ? Object.entries(extra)
-            : null);
-      if (对 === null) {
-        throw R.typeErr(`「头」要是一个字典，得到了「${R.typeName(extra)}」`);
-      }
-      for (const [k0, v0] of 对) {
-        const k = pText(k0);
-        if (_HTTP自填.includes(k.toLowerCase())) {
-          throw R.valueErr(`「${k}」由框架自己填，不要在「头」里再写一遍`);
-        }
-        const v = pText(v0);
-        // eslint-disable-next-line no-control-regex
-        if (/[^\x00-\x7f]/.test(k) || /[^\x00-\x7f]/.test(v)) {
-          throw R.typeErr(`请求头「${k}」的名字与值只能是 ASCII（英文数字）`);
-        }
-        行们.push(`${k}: ${v}`);
-      }
-    }
-    const len = Buffer.byteLength(正文, 'utf8');
-    行们.push(`Content-Length: ${len}`);
+    for (const [k, v] of _HTTP头对们(extra)) 行们.push(`${k}: ${v}`);
+    行们.push(`Content-Length: ${数据.length}`);
     行们.push('Connection: close');
-    return 行们.join('\r\n') + '\r\n\r\n' + 正文;
+    const 头 = Buffer.from(行们.join('\r\n') + '\r\n\r\n', 'utf8');
+    const 出 = Buffer.concat([头, 数据]);
+    return 是字节 ? new R.JishiBytes(出) : 出.toString("utf8");
   }),
   '空闲端口': new R.Builtin('空闲端口', () => {
     throw R.valueErr(

@@ -3622,7 +3622,7 @@ module.exports = {
   JishiFile, isFile, JishiNative, isNative, nativeObj,
   enterContext, exitContext,
   // M113：字节（不可变字节串）
-  JishiBytes, isBytes,
+  JishiBytes, isBytes, unwrap,
   Builtin, ExcType, EXCEPTION_TYPES, newBuiltins,
   Module, JishiClass, JishiInstance, VmFunction, Cell,
   applyBinop, applyUnary, applyCompare,

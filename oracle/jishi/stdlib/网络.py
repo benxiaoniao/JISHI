@@ -51,8 +51,11 @@ import urllib.request as _py_urllib
 import zlib as _py_zlib
 
 from ..errors import RunError, RunTypeError, RunValueError
+from ..runtime import JishiBytes, type_name
 
-__all__ = ["获取", "提交", "提交JSON", "获取JSON", "获取详情", "下载"]
+__all__ = ["获取", "提交", "提交JSON", "获取JSON", "获取详情", "下载",
+           # M219：流式
+           "获取流", "SSE", "流句柄"]
 
 _DEFAULT_TIMEOUT = 10.0
 
@@ -438,3 +441,283 @@ def 下载(网址, 路径, 超时: float = _DEFAULT_TIMEOUT, 请求头=None, 选
                落盘=str(路径))
     结果 = _要成功(结果, 网址, "下载")
     return int(结果["字节数"])
+
+
+# ---------------------------------------------------------------------------
+# 流式（M219）：`获取流` / `SSE`
+# ---------------------------------------------------------------------------
+#
+# 与 `获取` 的唯一区别：**不把正文收完再返回**。`获取` 要「整段字节」，所以它必须
+# 等到连接关闭；而 SSE / 逐行日志 / 大响应体要的是「来一点处理一点」——
+# 收完再给就等于把流式服务变成了阻塞服务（模型吐一个字，用户等十秒，然后整段出来）。
+#
+# 用 `http.client` 而不是 `urllib.request`：urlopen 不给句柄，拿不到底层 socket
+# 也就**改不了每次读的超时**（而这个功能的核心就是「读一行，最多等 N 秒」）。
+# `http.client` 的 `HTTPResponse` 自带 chunked 解包（`read1` / `readline` 都能用）。
+
+class 流句柄:
+    """`网络.获取流` 的返回值。方法：`读行` / `读块` / `关闭` / `结束` / `状态` / `响应头`。
+
+    ⚠️ **超时不是错误**：`读行(超时)` 到点没数据就给 `空`。要分清「超时」和
+    「真读完了」看 `结束()` —— 后者为真说明对端关了。
+    """
+
+    _jishi_type_name = "流"
+
+    def __init__(self, 连接, 响应, 默认超时: float):
+        self._连接 = 连接
+        self._响应 = 响应
+        self._默认超时 = float(默认超时)
+        self._已完 = False
+        self._关 = False
+        self._状态 = int(getattr(响应, "status", 0) or 0)
+        头 = {}
+        try:
+            for 名, 值 in 响应.getheaders():
+                # 🔴 **头名统一小写**（与另外两个宿主一致）：HTTP 里头名大小写不敏感，
+                # 而 Node 宿主的 `fetch` 拿不到原始大小写 —— 统一小写才可能逐字对拍。
+                头[str(名).lower()] = 值
+        except Exception:                                # noqa: BLE001
+            头 = {}
+        self._头 = 头
+
+    def __repr__(self) -> str:                           # pragma: no cover - 显示用
+        return "<流 对象>"
+
+    def _设时(self, 秒: float) -> None:
+        """把**这次读**的超时设到底层 socket 上（0 = 一直等）。"""
+        s = getattr(self._连接, "sock", None)
+        if s is None:
+            return
+        try:
+            s.settimeout(None if 秒 <= 0 else float(秒))
+        except OSError:
+            pass
+
+    def 读行(self, 超时=None):
+        if self._关:
+            raise RunError("这个流已经关了（`关闭()` 之后读不了）")
+        秒 = self._默认超时 if 超时 is None else _要超时(超时)
+        self._设时(秒)
+        try:
+            行 = self._响应.readline()
+        except (_py_socket.timeout, TimeoutError):
+            return None
+        except OSError as e:
+            raise RunError(f"读网络流出错：{e}")
+        if not 行:
+            self._已完 = True
+            return None
+        if 行.endswith(b"\n"):
+            行 = 行[:-1]
+            if 行.endswith(b"\r"):
+                行 = 行[:-1]
+        return 行.decode("utf-8", "replace")
+
+    def 读块(self, 最多: int = 8192, 超时=None):
+        if self._关:
+            raise RunError("这个流已经关了（`关闭()` 之后读不了）")
+        if isinstance(最多, bool) or not isinstance(最多, int):
+            raise RunTypeError(
+                f"「读块」的最多字节数要是整数，现在是「{type_name(最多)}」")
+        n = int(最多)
+        if n <= 0:
+            raise RunValueError(f"「读块」的最多字节数要大于 0，现在是 {n}")
+        秒 = self._默认超时 if 超时 is None else _要超时(超时)
+        self._设时(秒)
+        取 = getattr(self._响应, "read1", None) or self._响应.read
+        try:
+            块 = 取(n)
+        except (_py_socket.timeout, TimeoutError):
+            return None
+        except OSError as e:
+            raise RunError(f"读网络流出错：{e}")
+        if not 块:
+            self._已完 = True
+            return None
+        # ⚠️ 要包成「字节」值：直接给 Python 的 `bytes`，`类型()` 会说 "bytes"、
+        #    显示成 `b'…'` —— 与另外两个宿主对不上（判据当场红）。
+        return JishiBytes(块)
+
+    def 关闭(self) -> bool:
+        if self._关:
+            return False
+        self._关 = True
+        self._已完 = True
+        try:
+            self._响应.close()
+        except Exception:                                # noqa: BLE001
+            pass
+        try:
+            self._连接.close()
+        except Exception:                                # noqa: BLE001
+            pass
+        return True
+
+    def 结束(self) -> bool:
+        return self._已完
+
+    def 状态(self) -> int:
+        return self._状态
+
+    def 响应头(self) -> dict:
+        return dict(self._头)
+
+
+def _要超时(v) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        raise RunTypeError(f"超时要给秒数（0 = 一直等），现在是「{type_name(v)}」")
+    f = float(v)
+    if f < 0 or f > 86400:
+        raise RunValueError(f"超时要在 0–86400 秒之间，现在是 {f}（0 = 一直等）")
+    return f
+
+
+def _开流(网址, 超时: float, 请求头) -> 流句柄:
+    """连上、发 GET、读完响应头就返回句柄（正文一个字节都还没读）。"""
+    import http.client
+    import ssl as _ssl
+    from urllib.parse import urljoin, urlsplit
+
+    # ⚠️ 中文路径要先百分号编码：`http.client` 拼请求行时是 `latin-1`，
+    #    直接塞中文会报 `'ascii' codec can't encode characters`（与 `获取` 同一条口径）
+    地址 = _规范网址(网址)
+    头 = _头(请求头)
+    if not any(k.lower() == "accept-encoding" for k in 头):
+        # 流式**不许要压缩**：gzip 得收完整段才解得开
+        头["Accept-Encoding"] = "identity"
+    if not any(k.lower() == "user-agent" for k in 头):
+        头["User-Agent"] = "jishi/0.1"
+    连超时 = max(0.1, float(超时) if 超时 and 超时 > 0 else _DEFAULT_TIMEOUT)
+
+    for _跳 in range(_DEFAULT_REDIRECTS + 1):
+        分 = urlsplit(地址)
+        if 分.scheme not in ("http", "https"):
+            raise RunValueError(f"网址要以 http:// 或 https:// 开头，现在是「{地址}」")
+        主机 = 分.hostname or ""
+        端口 = 分.port or (443 if 分.scheme == "https" else 80)
+        路径 = (分.path or "/") + (("?" + 分.query) if 分.query else "")
+        if 分.scheme == "https":
+            连接 = http.client.HTTPSConnection(
+                主机, 端口, timeout=连超时, context=_ssl.create_default_context())
+        else:
+            连接 = http.client.HTTPConnection(主机, 端口, timeout=连超时)
+        try:
+            连接.request("GET", 路径, headers=头)
+            响应 = 连接.getresponse()
+        except (OSError, http.client.HTTPException) as e:
+            try:
+                连接.close()
+            except Exception:                            # noqa: BLE001
+                pass
+            raise RunError(f"访问「{地址}」失败：{e}")
+        状态 = int(getattr(响应, "status", 0) or 0)
+        if 状态 in (301, 302, 303, 307, 308):
+            位置 = 响应.getheader("Location") or 响应.getheader("location")
+            try:
+                响应.close()
+                连接.close()
+            except Exception:                            # noqa: BLE001
+                pass
+            if not 位置:
+                raise RunError(f"「{地址}」回了 {状态} 但没给 Location")
+            下一站 = urljoin(地址, 位置)
+            if 地址.startswith("https:") and 下一站.startswith("http:"):
+                raise RunError(
+                    f"「{地址}」想从 https 跳到 http（{下一站}）—— 明文降级不安全，已拦下")
+            地址 = 下一站
+            continue
+        return 流句柄(连接, 响应, 超时 if 超时 and 超时 > 0 else 0.0)
+    raise RunError(f"{网址} 跳转超过 {_DEFAULT_REDIRECTS} 次（可能是重定向环）")
+
+
+def 获取流(网址, 超时: float = _DEFAULT_TIMEOUT, 请求头=None) -> 流句柄:
+    """**流式** GET 一个网址，返回句柄 —— 正文边到边读，不整段攒在内存里。
+
+    ```jishi
+    导入 网络
+    令 流 = 网络.获取流("http://127.0.0.1:8080/日志")
+    当 非 流.结束()：
+        令 行 = 流.读行(2)          # 最多等 2 秒；超时给 空
+        如果 行 != 空：
+            打印(行)
+    流.关闭()
+    ```
+
+    句柄方法：
+
+    | 方法 | 给什么 |
+    |---|---|
+    | `读行(超时)` | 一行文本（**不含换行**）；超时或已到末尾都给 `空` |
+    | `读块(最多=8192, 超时)` | 一块**字节**；同理给 `空` |
+    | `结束()` | 对端已经关了？ |
+    | `状态()` / `响应头()` | 状态码 / 响应头字典 |
+    | `关闭()` | 主动断开（幂等：关过再关给假） |
+
+    ⚠️ **超时不是错误**（给 `空`）—— 要区分「超时」和「读完了」看 `结束()`。
+    非 2xx **不抛错**（与 `获取详情` 同口径）：4xx/5xx 的正文也可能是你要读的。
+    """
+    秒 = _要超时(超时)
+    return _开流(网址, 秒, 请求头)
+
+
+def SSE(网址, 处理函数, 超时=0, 请求头=None) -> int:
+    """订阅一个 **SSE（Server-Sent Events）** 流，每条事件调一次处理函数，返回事件数。
+
+    处理函数收一个字典 `{"事件", "数据", "id"}`：
+
+    - `事件`：`event:` 那一行，没写就是 `"message"`（SSE 规范的默认）；
+    - `数据`：多条 `data:` 用换行连起来（规范如此：一次事件可以是多行）；
+    - `id`：`id:` 那一行（没有就是空文本）。
+
+    以 `:` 开头的注释行（心跳保活常这么写）直接丢掉。`超时 = 0`（默认）表示
+    「一直等」；给了正数就是「两次数据之间最多等这么久」，超了报错。
+    """
+    if not callable(处理函数):
+        raise RunTypeError("「SSE」的第二个参数要一个**处理函数**：它收 `{事件, 数据, id}` 字典")
+    秒 = _要超时(超时)
+    头 = _头(请求头)
+    头.setdefault("Accept", "text/event-stream")
+    头.setdefault("Cache-Control", "no-cache")
+    流 = _开流(网址, 秒 if 秒 > 0 else _DEFAULT_TIMEOUT, 头)
+    try:
+        if not 200 <= 流.状态() < 300:
+            raise RunError(f"「{网址}」回的是 HTTP {流.状态()}（事件流应当是 2xx）")
+        事件数 = 0
+        数据行: list = []
+        事件名 = ""
+        id_ = ""
+        有字段 = False
+        while True:
+            行 = 流.读行(秒 if 秒 > 0 else None)
+            if 行 is None:
+                if 流.结束():
+                    break
+                raise RunError(f"「{网址}」{秒} 秒没有新数据（事件流断了？）")
+            if 行 == "":
+                if 有字段 and 数据行:
+                    事件数 += 1
+                    处理函数({"事件": 事件名 or "message",
+                              "数据": "\n".join(数据行),
+                              "id": id_})
+                数据行 = []
+                事件名 = ""
+                有字段 = False
+                continue
+            if 行.startswith(":"):
+                continue
+            字段, _, 值 = 行.partition(":")
+            if 值.startswith(" "):
+                值 = 值[1:]
+            if 字段 == "data":
+                数据行.append(值)
+                有字段 = True
+            elif 字段 == "event":
+                事件名 = 值
+                有字段 = True
+            elif 字段 == "id":
+                id_ = 值
+                有字段 = True
+        return 事件数
+    finally:
+        流.关闭()

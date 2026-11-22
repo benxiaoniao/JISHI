@@ -70,26 +70,13 @@ def 执行(命令, 超时: float = 10.0) -> str:
 
     超时（秒）内未结束会抛中文错误。命令建议用列表传入（如 ["dir"]），
     也可用文本（按 shell 解析，注意跨平台差异）。
+
+    📌 M219 起**和 `执行详细` 走同一条解码**（`自动`：先 UTF-8、不合法再按本机
+    代码页）。以前这里自己写了一份 `utf-8/replace`，于是同一个 `echo 你好`
+    在 Python 宿主上是三个问号、在 Rust 宿主上是「你好」—— 同一份程序两个结果。
     """
-    try:
-        # 按**字节**收再显式解码（M33）：`text=True` 会做通用换行转换，
-        # 把命令输出里的 `\r\n` 悄悄改成 `\n`——而 Node / Rust 宿主不转，
-        # 于是同一份程序在三个宿主上输出不同。这里只做解码，不碰换行。
-        if isinstance(命令, (list, tuple)):
-            r = _py_subprocess.run(
-                [str(x) for x in 命令], capture_output=True,
-                timeout=max(0.1, float(超时)))
-        else:
-            r = _py_subprocess.run(
-                str(命令), capture_output=True, shell=True,
-                timeout=max(0.1, float(超时)))
-    except _py_subprocess.TimeoutExpired:
-        raise RunError(f"命令执行超过 {超时:g} 秒，已终止")
-    except OSError as e:
-        raise RunError(f"执行命令失败：{e}")
-    out = ((r.stdout or b"").decode("utf-8", "replace")
-           + (r.stderr or b"").decode("utf-8", "replace"))
-    return out
+    出, 错, _码 = _跑一次(命令, 超时)
+    return 出 + 错
 
 
 def 退出码(命令, 超时: float = 10.0) -> int:
@@ -110,7 +97,7 @@ def 退出码(命令, 超时: float = 10.0) -> int:
     return r.returncode
 
 
-def 执行详细(命令, 超时: float = 10.0) -> dict:
+def 执行详细(命令, 超时: float = 10.0, 输出编码: str = "自动") -> dict:
     """执行一条外部命令，返回 `{"输出", "错误", "退出码"}` —— **两条流分开**。
 
     ## 为什么不直接用 `执行`
@@ -126,10 +113,16 @@ def 执行详细(命令, 超时: float = 10.0) -> dict:
     - `错误`：stderr（同上）；
     - `退出码`：进程退出码（`0` 表示成功）。
 
+    ## `输出编码`（M219）
+
+    `自动`（默认）/ `utf-8` / `gbk`。外部命令吐的是**字节**，Windows 控制台程序
+    （`cmd` / `dir` / 老式 `.exe`）默认按本机代码页（简体中文 = GBK）写 stdout；
+    按 UTF-8 硬解是一片 `����`。`自动` 先试 UTF-8，不合法再按本机代码页解。
+
     ⚠️ **「命令跑不起来」（超时 / 找不到可执行文件）仍然抛错**，不塞进返回值：
     那是**程序写错**，不是「命令失败」。命令**跑了但失败**才算正常返回（退出码非 0）。
     """
-    出, 错, 码 = _跑一次(命令, 超时)
+    出, 错, 码 = _跑一次(命令, 超时, 输出编码)
     return {"输出": 出, "错误": 错, "退出码": 码}
 
 
@@ -166,7 +159,48 @@ def 并行执行(命令们, 路数=4, 超时: float = 10.0) -> list:
         return list(池.map(lambda c: 执行详细(c, 超时), 项们))
 
 
-def _跑一次(命令, 超时: float):
+def _解码输出(数据: bytes, 编码: str) -> str:
+    """外部命令的输出字节 → 文本（M219）。
+
+    🔴 为什么需要它：**外部命令吐的是字节，不是文本**。Windows 控制台程序
+    （`cmd` / `dir` / 老式 `.exe`）默认按**本机代码页**（简体中文 = GBK / 936）
+    写 stdout —— 按 UTF-8 硬解出来就是一片 `����`，而用户看到的控制台里明明是中文。
+
+    - `自动`（默认）：先按 UTF-8 严格解；不合法再按**本机代码页**解；
+    - `utf-8`：UTF-8，坏字节换 `U+FFFD`；
+    - `gbk`：GBK（含 gb18030 的常用部分），坏字节换 `U+FFFD`。
+    """
+    名 = str(编码 or "自动").strip().lower()
+    if 名 in ("gbk", "936", "cp936", "gb2312", "gb18030"):
+        return 数据.decode("gbk", "replace")
+    if 名 in ("utf-8", "utf8"):
+        return 数据.decode("utf-8", "replace")
+    if 名 not in ("", "自动", "auto"):
+        raise RunValueError(
+            f"不认识的输出编码「{编码}」—— 能写的是：自动 / utf-8 / gbk")
+    try:
+        return 数据.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    本机 = "utf-8"
+    try:
+        import locale
+
+        # 🔴 用 `getencoding()`（3.11+）而不是 `getpreferredencoding()`：
+        # 后者会被 **UTF-8 模式**（`PYTHONUTF8=1` / 某些 venv）带成 'utf-8'，
+        # 于是这条回落等于没做（M219 实测：本机 ACP=936，但这里读到 utf-8）。
+        # `getencoding()` 返回的是**真正的本机 ANSI 码页**（中文 Windows = cp936）。
+        取 = getattr(locale, "getencoding", None) or locale.getpreferredencoding
+        本机 = 取() or "utf-8"
+    except Exception:                                    # noqa: BLE001
+        本机 = "utf-8"
+    try:
+        return 数据.decode(本机, "replace")
+    except (LookupError, UnicodeDecodeError):
+        return 数据.decode("utf-8", "replace")
+
+
+def _跑一次(命令, 超时: float, 编码: str = "自动"):
     """跑一条命令，返回 `(输出, 错误, 退出码)` —— `执行` 和 `执行详细` 共用。
 
     ⚠️ **按字节收再显式解码**（M33）：`text=True` 会做通用换行转换，
@@ -186,8 +220,8 @@ def _跑一次(命令, 超时: float):
         raise RunError(f"命令执行超过 {超时:g} 秒，已终止")
     except OSError as e:
         raise RunError(f"执行命令失败：{e}")
-    出 = (r.stdout or b"").decode("utf-8", "replace")
-    错 = (r.stderr or b"").decode("utf-8", "replace")
+    出 = _解码输出(r.stdout or b"", 编码)
+    错 = _解码输出(r.stderr or b"", 编码)
     return 出, 错, r.returncode
 
 

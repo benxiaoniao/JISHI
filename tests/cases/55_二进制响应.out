@@ -1,0 +1,22 @@
+老写法 文本 112
+HTTP/1.1 201 Created
+Content-Type: text/plain; charset=utf-8
+X-A: 1
+Content-Length: 3
+Connection: close
+
+嗨
+字节 字节 130
+真
+默认 文本 98
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 0
+Connection: close
+
+
+空正文 106 106
+自填头 值错误
+非 ASCII 类型错误
+对不齐 值错误
+状态码 值错误

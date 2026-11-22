@@ -243,19 +243,86 @@ fn build_command(cmd: &Val) -> Result<Command, crate::JishiError> {
     Ok(造命令(&拆命令(cmd)?))
 }
 
-/// 跑命令并收集输出。超时（秒）到就杀进程并报错。
-fn run_capture(cmd: &Val, timeout: f64) -> Result<(i32, String, String), crate::JishiError> {
+/// 输出该怎么解码（M219）。`执行` / `执行详细` / `并行执行` 共用。
+///
+/// 🔴 为什么需要它：**外部命令吐的是字节，不是文本**。Windows 控制台程序
+/// （`cmd` / `dir` / 老式 `.exe`）默认按**本机代码页**（简体中文 = GBK / 936）
+/// 写 stdout —— 按 UTF-8 硬解出来就是一片 `����`，而用户看到的控制台里明明是中文。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum 输出编码 {
+    /// 先按 UTF-8 严格解；不合法再按**本机代码页**（Windows 的 ACP）解。
+    /// 这是默认值 —— 现代工具（python / git / node）都吐 UTF-8，
+    /// 老式 Windows 工具吐 GBK，两种都能读对。
+    自动,
+    Utf8,
+    Gbk,
+}
+
+impl 输出编码 {
+    fn 解析(名: &str) -> Result<输出编码, crate::JishiError> {
+        match 名.trim().to_ascii_lowercase().as_str() {
+            "" | "自动" | "auto" => Ok(输出编码::自动),
+            "utf-8" | "utf8" => Ok(输出编码::Utf8),
+            "gbk" | "936" | "gb2312" | "gb18030" | "cp936" => Ok(输出编码::Gbk),
+            other => Err(err(
+                "值错误",
+                format!("不认识的输出编码「{other}」—— 能写的是：自动 / utf-8 / gbk"),
+            )),
+        }
+    }
+
+    fn 解码(self, bs: &[u8]) -> String {
+        match self {
+            输出编码::Utf8 => String::from_utf8_lossy(bs).to_string(),
+            输出编码::Gbk => super::encode::gbk_解码宽松(bs),
+            输出编码::自动 => {
+                if let Ok(s) = std::str::from_utf8(bs) {
+                    return s.to_string();
+                }
+                // 不是合法 UTF-8 ⇒ 大概率是本机代码页写出来的
+                match 本机代码页() {
+                    936 => super::encode::gbk_解码宽松(bs),
+                    _ => String::from_utf8_lossy(bs).to_string(),
+                }
+            }
+        }
+    }
+}
+
+/// 本机 ANSI 代码页（Windows 才是真的；别的平台一律 65001 = UTF-8）。
+///
+/// 简体中文 Windows 是 **936**，所以「控制台输出按 GBK 解」这条在那边才生效。
+/// 别的代码页（日文 932、西欧 1252…）这里不做码表 —— 那些语言用的是本项目的
+/// 第三方码表之外的东西，按 UTF-8 替换处理，用户要准的写 `输出编码="gbk"`
+/// 或自己拿 `编码` 模块转。
+fn 本机代码页() -> u32 {
+    #[cfg(windows)]
+    {
+        extern "system" {
+            fn GetACP() -> u32;
+        }
+        // 安全：`GetACP` 无参数、返回本机代码页（不可能失败）。
+        unsafe { GetACP() }
+    }
+    #[cfg(not(windows))]
+    {
+        65001
+    }
+}
+
+/// 跑命令并收集输出（**原始字节**，由调用方决定怎么解码）。超时（秒）到就杀进程并报错。
+fn run_capture(cmd: &Val, timeout: f64) -> Result<(i32, Vec<u8>, Vec<u8>), crate::JishiError> {
     let mut command = build_command(cmd)?;
     run_command(&mut command, timeout)
 }
 
 /// 同上，但接受已经拆好的 `命令形`（**并行时线程里走这条**，不碰 `Val`）。
-fn run_capture_parts(形: &命令形, timeout: f64) -> Result<(i32, String, String), crate::JishiError> {
+fn run_capture_parts(形: &命令形, timeout: f64) -> Result<(i32, Vec<u8>, Vec<u8>), crate::JishiError> {
     let mut command = 造命令(形);
     run_command(&mut command, timeout)
 }
 
-fn run_command(command: &mut Command, timeout: f64) -> Result<(i32, String, String), crate::JishiError> {
+fn run_command(command: &mut Command, timeout: f64) -> Result<(i32, Vec<u8>, Vec<u8>), crate::JishiError> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
     let mut child = command
         .spawn()
@@ -280,17 +347,13 @@ fn run_command(command: &mut Command, timeout: f64) -> Result<(i32, String, Stri
         }
     };
 
-    let mut out = String::new();
-    let mut errout = String::new();
+    let mut out = Vec::new();
+    let mut errout = Vec::new();
     if let Some(mut h) = child.stdout.take() {
-        let mut buf = Vec::new();
-        let _ = h.read_to_end(&mut buf);
-        out = String::from_utf8_lossy(&buf).to_string();
+        let _ = h.read_to_end(&mut out);
     }
     if let Some(mut h) = child.stderr.take() {
-        let mut buf = Vec::new();
-        let _ = h.read_to_end(&mut buf);
-        errout = String::from_utf8_lossy(&buf).to_string();
+        let _ = h.read_to_end(&mut errout);
     }
     Ok((status.code().unwrap_or(-1), out, errout))
 }
@@ -383,18 +446,27 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("执行", args, 1, 2)?;
             let t = timeout_of(args.get(1))?;
             let (_code, out, errout) = run_capture(&args[0], t)?;
+            let 码 = 输出编码::自动;
             // Python 侧是 `(r.stdout or "") + (r.stderr or "")`
-            Ok(Val::Str(format!("{out}{errout}").into()))
+            Ok(Val::Str(format!("{}{}", 码.解码(&out), 码.解码(&errout)).into()))
         },
         // M133：**两条流分开**返回。`执行` 是老接口（stdout+stderr 拼一起），
         // 对拍要分开比 —— 「用户看到什么」是两条流加起来，合并了就只比了一半。
+        //
+        // M219：加了 `输出编码`（第三个位置参数）。为什么第 3 位而不是第 2 位：
+        // `执行详细(命令, 超时)` 有存量调用（`tools/自测.jsh` 就是），
+        // 把新参数插到第二位会**静默改掉那些调用的意思**（30 秒超时变编码名）。
         "执行详细" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("执行详细", args, 1, 2)?;
+            need_range("执行详细", args, 1, 3)?;
             let t = timeout_of(args.get(1))?;
+            let 编码 = match args.get(2) {
+                None | Some(Val::None_) => 输出编码::自动,
+                Some(v) => 输出编码::解析(&as_text(v))?,
+            };
             let (code, out, errout) = run_capture(&args[0], t)?;
             Ok(crate::dict_new(vec![
-                (Val::Str("输出".into()), Val::Str(out.into())),
-                (Val::Str("错误".into()), Val::Str(errout.into())),
+                (Val::Str("输出".into()), Val::Str(编码.解码(&out).into())),
+                (Val::Str("错误".into()), Val::Str(编码.解码(&errout).into())),
                 (Val::Str("退出码".into()), Val::Int(crate::jint::JInt::new(code as i128))),
             ]))
         },
@@ -418,8 +490,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
             // 回来再包成 Val（主线程）
             let 列表: Vec<Val> = 结果们.into_iter().map(|(code, out, errout)| {
                 crate::dict_new(vec![
-                    (Val::Str("输出".into()), Val::Str(out.into())),
-                    (Val::Str("错误".into()), Val::Str(errout.into())),
+                    (Val::Str("输出".into()), Val::Str(输出编码::自动.解码(&out).into())),
+                    (Val::Str("错误".into()), Val::Str(输出编码::自动.解码(&errout).into())),
                     (Val::Str("退出码".into()), Val::Int(crate::jint::JInt::new(code as i128))),
                 ])
             }).collect();

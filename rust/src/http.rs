@@ -484,6 +484,273 @@ pub(crate) fn 执行(raw: &str, opt: &选项) -> Result<Resp, JishiError> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 流式 GET（M219）：`网络.获取流` / `网络.SSE`
+// ---------------------------------------------------------------------------
+//
+// 与 `获取` 的区别只有一件事：**不把正文收完再返回**。`获取` 要「整段字节」，
+// 所以它必须等到连接关闭（或收够 Content-Length）；而 SSE / 大文件下载 / 逐行日志
+// 要的是「来一点处理一点」—— 收完再给就等于把流式服务变成了阻塞服务
+// （模型吐一个字，用户等十秒，然后整段一起出来）。
+//
+// 🔴 两个平台的控制方式**完全不同**，所以下面有一个 `流读` 小接口：
+//   * Windows：WinHTTP 的 `WinHttpReadData` 本来就是「拉」的，超时靠
+//     `WinHttpSetTimeouts` 的 receive 那一项；
+//   * 其它平台：裸 `TcpStream` / OpenSSL，超时靠 `set_read_timeout`。
+//   共同点：**都是阻塞读 + 超时**，正好对上语言侧「读行(超时)」。
+
+/// 一条**还没读完**的响应：状态、头，外加一个「边到边读」的字节流。
+pub(crate) struct 流响应 {
+    pub 状态: u32,
+    pub 头: Vec<(String, String)>,
+    pub 读: Box<dyn 流读>,
+}
+
+/// 流式读的抽象。`Ok(0)` = 对端关了（EOF）；超时请返回
+/// `io::ErrorKind::WouldBlock` / `TimedOut` —— 上层据此给「空」而不是报错。
+pub(crate) trait 流读 {
+    fn 读(&mut self, buf: &mut [u8]) -> std::io::Result<usize>;
+    /// 改**下一次读**的超时；`0` = 一直等（不设超时）。
+    fn 设超时(&mut self, 毫秒: u64);
+}
+
+/// 开一条流式 GET。**非 2xx 不报错**（与 `获取详情` 同口径：状态自己看）——
+/// 4xx/5xx 的正文也可能是你要读的东西（错误页、限流说明）。
+pub(crate) fn 开流(raw: &str, opt: &选项) -> Result<流响应, JishiError> {
+    let mut url = parse_url(raw)?;
+    let mut 已跳 = 0u32;
+    loop {
+        let mut 本轮 = opt.clone();
+        // 🔴 流式**不许要压缩**：gzip 是块压缩，必须收完整段才解得开 ——
+        // 那正是流式要避免的事。用户显式给了 Accept-Encoding 就照他的。
+        本轮.method = "GET".to_string();
+        本轮.body = None;
+        if !本轮.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("accept-encoding")) {
+            本轮.headers.push(("Accept-Encoding".to_string(), "identity".to_string()));
+        }
+        let mut r = client::开流(&url, &本轮)?;
+        if matches!(r.状态, 301 | 302 | 303 | 307 | 308) {
+            if let Some(位置) = 头值(&r.头, "location").map(|s| s.to_string()) {
+                if 已跳 >= opt.重定向上限 {
+                    return Err(err(
+                        "运行期错误",
+                        format!("{raw} 跳转超过 {} 次（可能是重定向环）", opt.重定向上限),
+                    ));
+                }
+                let 下一站 = 解析相对(&url, &位置).map_err(|e| {
+                    err("运行期错误", format!("{raw} 的跳转地址「{位置}」看不懂：{}", e.message))
+                })?;
+                if url.secure && !下一站.secure && !opt.允许降级 {
+                    return Err(err(
+                        "运行期错误",
+                        format!(
+                            "「{raw}」想从 https 跳到 http（{}）—— 明文降级不安全，已拦下",
+                            下一站.文本()
+                        ),
+                    ));
+                }
+                已跳 += 1;
+                url = 下一站;
+                continue;
+            }
+        }
+        return Ok(r);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 流句柄（`网络.获取流` 的返回值）
+// ---------------------------------------------------------------------------
+
+/// 一次读的结果。**超时不是错误** —— 外面那个 `读行(超时)` 要给 `空`。
+enum 读果 {
+    数据,
+    超时,
+    完,
+}
+
+struct 流状态 {
+    读: Box<dyn 流读>,
+    /// 已经读进来、还没交出去的字节（也放「半行」）。
+    缓: Vec<u8>,
+    状态码: u32,
+    头: Vec<(String, String)>,
+    /// 默认超时（秒）。`0` = 一直等。
+    默认超时: f64,
+    已完: bool,
+    开着: bool,
+}
+
+/// 超时参数：省略 ⇒ 用句柄默认值；`0` ⇒ 一直等。
+fn 超时参数(args: &[Val], 位: usize, 默认: f64) -> Result<f64, JishiError> {
+    match args.get(位) {
+        None | Some(Val::None_) => Ok(默认),
+        Some(v) => {
+            let s = as_num(v)?;
+            if !(0.0..=86_400.0).contains(&s) {
+                return Err(err(
+                    "值错误",
+                    format!("超时要在 0–86400 秒之间，现在是 {s}（0 = 一直等）"),
+                ));
+            }
+            Ok(s)
+        }
+    }
+}
+
+impl 流状态 {
+    /// 读一次进 `缓`。`超时` 单位秒（0 = 一直等）。
+    fn 读一次(&mut self, 超时: f64) -> Result<读果, JishiError> {
+        if self.已完 {
+            return Ok(读果::完);
+        }
+        self.读.设超时((超时 * 1000.0) as u64);
+        let mut buf = [0u8; 16 * 1024];
+        match self.读.读(&mut buf) {
+            Ok(0) => {
+                self.已完 = true;
+                Ok(读果::完)
+            }
+            Ok(n) => {
+                self.缓.extend_from_slice(&buf[..n]);
+                Ok(读果::数据)
+            }
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                Ok(读果::超时)
+            }
+            Err(e) => Err(err("运行期错误", format!("读网络流出错：{e}"))),
+        }
+    }
+
+    /// 读一行（**不含换行**）。超时或已到末尾都给 `None`，用 `已完` 区分。
+    fn 读行(&mut self, 超时: f64) -> Result<Option<String>, JishiError> {
+        loop {
+            if let Some(i) = self.缓.iter().position(|&b| b == b'\n') {
+                let mut 行: Vec<u8> = self.缓.drain(..=i).collect();
+                行.pop();
+                if 行.last() == Some(&b'\r') {
+                    行.pop();
+                }
+                return Ok(Some(String::from_utf8_lossy(&行).to_string()));
+            }
+            if self.已完 {
+                if self.缓.is_empty() {
+                    return Ok(None);
+                }
+                let 尾 = std::mem::take(&mut self.缓);
+                return Ok(Some(String::from_utf8_lossy(&尾).to_string()));
+            }
+            match self.读一次(超时)? {
+                读果::数据 => continue,
+                读果::超时 => return Ok(None),
+                读果::完 => continue,
+            }
+        }
+    }
+
+    /// 读一块（最多 `最多` 字节）。超时或已到末尾都给 `None`。
+    fn 读块(&mut self, 最多: usize, 超时: f64) -> Result<Option<Vec<u8>>, JishiError> {
+        if self.缓.is_empty() {
+            match self.读一次(超时)? {
+                读果::数据 => {}
+                读果::超时 | 读果::完 => return Ok(None),
+            }
+        }
+        if self.缓.is_empty() {
+            return Ok(None);
+        }
+        let n = 最多.min(self.缓.len());
+        Ok(Some(self.缓.drain(..n).collect()))
+    }
+}
+
+fn 取流状态<'a>(
+    对象: &'a std::rc::Rc<crate::NativeObj>,
+) -> Result<std::cell::RefMut<'a, 流状态>, JishiError> {
+    let 借 = 对象.state.borrow_mut();
+    if !借.is::<流状态>() {
+        return Err(err("运行期错误", "这个对象不是网络流（内部错误）"));
+    }
+    Ok(std::cell::RefMut::map(借, |x| {
+        x.downcast_mut::<流状态>().expect("刚查过")
+    }))
+}
+
+fn 流_读行(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val], _vm: &mut dyn BuiltinHost) -> R {
+    need_range("读行", args, 0, 1)?;
+    let mut 记 = 取流状态(对象)?;
+    if !记.开着 {
+        return Err(err("运行期错误", "这个流已经关了（`关闭()` 之后读不了）"));
+    }
+    let 超时 = 超时参数(args, 0, 记.默认超时)?;
+    match 记.读行(超时)? {
+        Some(s) => Ok(Val::Str(s.into())),
+        None => Ok(Val::None_),
+    }
+}
+
+fn 流_读块(对象: &std::rc::Rc<crate::NativeObj>, args: &[Val], _vm: &mut dyn BuiltinHost) -> R {
+    need_range("读块", args, 0, 2)?;
+    let mut 记 = 取流状态(对象)?;
+    if !记.开着 {
+        return Err(err("运行期错误", "这个流已经关了（`关闭()` 之后读不了）"));
+    }
+    let 最多 = match args.first() {
+        None | Some(Val::None_) => 8192usize,
+        Some(v) => {
+            let n = as_num(v)? as i128;
+            if n <= 0 {
+                return Err(err("值错误", format!("「读块」的最多字节数要大于 0，现在是 {n}")));
+            }
+            n as usize
+        }
+    };
+    let 超时 = 超时参数(args, 1, 记.默认超时)?;
+    match 记.读块(最多, 超时)? {
+        Some(b) => Ok(Val::Bytes(std::rc::Rc::new(b))),
+        None => Ok(Val::None_),
+    }
+}
+
+fn 流_关闭(对象: &std::rc::Rc<crate::NativeObj>, _args: &[Val], _vm: &mut dyn BuiltinHost) -> R {
+    let mut 记 = 取流状态(对象)?;
+    if !记.开着 {
+        return Ok(Val::Bool(false));
+    }
+    记.开着 = false;
+    记.已完 = true;
+    Ok(Val::Bool(true))
+}
+
+fn 流_结束(对象: &std::rc::Rc<crate::NativeObj>, _args: &[Val], _vm: &mut dyn BuiltinHost) -> R {
+    let 记 = 取流状态(对象)?;
+    Ok(Val::Bool(记.已完))
+}
+
+fn 流_状态(对象: &std::rc::Rc<crate::NativeObj>, _args: &[Val], _vm: &mut dyn BuiltinHost) -> R {
+    let 记 = 取流状态(对象)?;
+    Ok(Val::Int(crate::jint::JInt::new(记.状态码 as i128)))
+}
+
+fn 流_响应头(对象: &std::rc::Rc<crate::NativeObj>, _args: &[Val], _vm: &mut dyn BuiltinHost) -> R {
+    let 记 = 取流状态(对象)?;
+    Ok(头表(&记.头))
+}
+
+static 流方法: &[(&str, crate::NativeFn)] = &[
+    ("读行", 流_读行),
+    ("读块", 流_读块),
+    ("关闭", 流_关闭),
+    ("结束", 流_结束),
+    ("状态", 流_状态),
+    ("响应头", 流_响应头),
+];
+
 /// 把 `选项` 字典读出来（没给 = 全默认）。
 fn 读选项(v: Option<&Val>) -> Result<选项, JishiError> {
     let mut o = 选项::新("GET");
@@ -620,8 +887,7 @@ mod client {
     }
 
     /// 发**一次**请求（不跟重定向，`执行` 自己跟）。
-    pub fn 一次(url: &Url, opt: &选项) -> Result<Resp, JishiError> {
-        let ms = (opt.timeout * 1000.0) as i32;
+    pub fn 一次(url: &Url, opt: &选项) -> Result<Resp, JishiError> {        let ms = (opt.timeout * 1000.0) as i32;
         let agent = wide(AGENT);
         let 用代理 = opt.代理.as_ref().filter(|_| super::走代理(&url.host));
         let (模式, 代理宽) = match 用代理 {
@@ -745,6 +1011,140 @@ mod client {
         }
         let (body, 字节数) = 收.完成().map_err(|m| err("运行期错误", m))?;
         Ok(Resp { status, headers, body, 字节数 })
+    }
+
+    /// 开一条**流式** GET：发完请求、收完响应头就返回，正文留着一个「边到边读」的把手。
+    ///
+    /// 三个句柄（会话 / 连接 / 请求）都得活着 —— WinHTTP 的读是**在请求句柄上**读的，
+    /// 中途把会话关了就等于把流掐了。所以它们一起被 `Win读` 持有，`Drop` 时按
+    /// 请求 → 连接 → 会话的顺序关（`Guard` 的字段顺序就是 drop 顺序）。
+    pub fn 开流(url: &Url, opt: &选项) -> Result<super::流响应, JishiError> {
+        let ms = (opt.timeout * 1000.0) as i32;
+        let agent = wide(AGENT);
+        let 用代理 = opt.代理.as_ref().filter(|_| super::走代理(&url.host));
+        let (模式, 代理宽) = match 用代理 {
+            Some(p) => (ACCESS_TYPE_NAMED_PROXY, Some(wide(&代理串(p)))),
+            None => (ACCESS_TYPE_DEFAULT_PROXY, None),
+        };
+        let session = unsafe {
+            WinHttpOpen(
+                agent.as_ptr(),
+                模式,
+                代理宽.as_ref().map(|v| v.as_ptr()).unwrap_or(std::ptr::null()),
+                std::ptr::null(),
+                0,
+            )
+        };
+        if session.is_null() {
+            return Err(err("运行期错误", format!("初始化 HTTP 会话失败：{}", last_error())));
+        }
+        let session = Guard(session);
+        unsafe { WinHttpSetTimeouts(session.0, ms, ms, ms, ms) };
+
+        let host = wide(&url.host);
+        let connect = unsafe { WinHttpConnect(session.0, host.as_ptr(), url.port, 0) };
+        if connect.is_null() {
+            return Err(err("运行期错误", format!("连接「{}」失败：{}", url.host, last_error())));
+        }
+        let connect = Guard(connect);
+
+        let verb = wide(&opt.method);
+        let object = wide(&url.path);
+        let flags = FLAG_REFRESH | if url.secure { FLAG_SECURE } else { 0 };
+        let request = unsafe {
+            WinHttpOpenRequest(connect.0, verb.as_ptr(), object.as_ptr(),
+                               std::ptr::null(), std::ptr::null(),
+                               std::ptr::null(), flags)
+        };
+        if request.is_null() {
+            return Err(err("运行期错误", format!("构造请求失败：{}", last_error())));
+        }
+        let request = Guard(request);
+        let mut 关跳 = DISABLE_REDIRECTS;
+        unsafe {
+            WinHttpSetOption(request.0, OPTION_DISABLE_FEATURE,
+                             &mut 关跳 as *mut u32 as *mut core::ffi::c_void, 4);
+        }
+
+        let 头串 = build_headers(&opt.headers);
+        let 头宽 = 头串.as_ref().map(|s| wide(s));
+        let (hptr, hlen) = match &头宽 {
+            Some(h) => (h.as_ptr(), u32::MAX),
+            None => (std::ptr::null(), 0),
+        };
+        let ok = unsafe { WinHttpSendRequest(request.0, hptr, hlen,
+                                             std::ptr::null(), 0, 0, 0) };
+        if ok == 0 {
+            return Err(err("运行期错误", format!("发请求失败：{}", last_error())));
+        }
+        let ok = unsafe { WinHttpReceiveResponse(request.0, std::ptr::null_mut()) };
+        if ok == 0 {
+            return Err(err("运行期错误", format!("收响应失败：{}", last_error())));
+        }
+
+        let mut status: u32 = 0;
+        let mut size = std::mem::size_of::<u32>() as u32;
+        let ok = unsafe {
+            WinHttpQueryHeaders(request.0, QUERY_STATUS_CODE | QUERY_FLAG_NUMBER,
+                                std::ptr::null(), &mut status as *mut u32 as *mut core::ffi::c_void,
+                                &mut size, std::ptr::null_mut())
+        };
+        if ok == 0 {
+            return Err(err("运行期错误", format!("读状态码失败：{}", last_error())));
+        }
+        let headers = query_headers(request.0)?;
+        Ok(super::流响应 {
+            状态: status,
+            头: headers,
+            读: Box::new(Win读 { _会话: session, _连接: connect, 请求: request }),
+        })
+    }
+
+    /// WinHTTP 的流式读：`QueryDataAvailable` + `ReadData`，超时靠 receive 那项。
+    struct Win读 {
+        _会话: Guard,
+        _连接: Guard,
+        请求: Guard,
+    }
+
+    impl super::流读 for Win读 {
+        fn 读(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let mut avail: u32 = 0;
+            let ok = unsafe { WinHttpQueryDataAvailable(self.请求.0, &mut avail) };
+            if ok == 0 {
+                let code = unsafe { GetLastError() };
+                return Err(match code {
+                    // 12002 = 超时：上层据此给「空」（不是错误）
+                    12002 => std::io::Error::new(std::io::ErrorKind::WouldBlock,
+                                                 describe_code(code)),
+                    _ => std::io::Error::new(std::io::ErrorKind::Other, describe_code(code)),
+                });
+            }
+            if avail == 0 {
+                return Ok(0); // 对端关了
+            }
+            let 要 = (avail as usize).min(buf.len());
+            let mut got: u32 = 0;
+            let ok = unsafe {
+                WinHttpReadData(self.请求.0, buf.as_mut_ptr() as *mut core::ffi::c_void,
+                                要 as u32, &mut got)
+            };
+            if ok == 0 {
+                let code = unsafe { GetLastError() };
+                return Err(match code {
+                    12002 => std::io::Error::new(std::io::ErrorKind::WouldBlock,
+                                                 describe_code(code)),
+                    _ => std::io::Error::new(std::io::ErrorKind::Other, describe_code(code)),
+                });
+            }
+            Ok(got as usize)
+        }
+
+        fn 设超时(&mut self, 毫秒: u64) {
+            // 0 = 不超时：WinHTTP 认 0 为「无限等」
+            let ms = 毫秒.min(i32::MAX as u64) as i32;
+            unsafe { WinHttpSetTimeouts(self.请求.0, ms, ms, ms, ms) };
+        }
     }
 
     fn build_headers(headers: &[(String, String)]) -> Option<String> {
@@ -874,6 +1274,13 @@ mod client {
         Err(err(
             "运行期错误",
             "这个平台（wasm）没有网络能力 —— `网络` 只能在命令行宿主里用",
+        ))
+    }
+
+    pub fn 开流(_url: &Url, _opt: &选项) -> Result<super::流响应, JishiError> {
+        Err(err(
+            "运行期错误",
+            "这个平台（wasm）没有网络能力 —— `网络.获取流` 只能在命令行宿主里用",
         ))
     }
 }
@@ -1087,6 +1494,278 @@ mod client {
             .iter()
             .find(|(k, _)| k.eq_ignore_ascii_case(名))
             .map(|(_, v)| v.as_str())
+    }
+
+    /// 开一条**流式** GET（M219）：连上、发请求、读完响应头就返回，
+    /// 正文留着一个「边到边读」的把手（惰性 —— 一个字节都还没读）。
+    ///
+    /// ⚠️ 两个「必须一起活着」的东西：
+    /// * TLS 的底层 `TcpStream`：`SSL_set_fd` **不复制** fd，原始 socket 一关，
+    ///   `SSL_read` 就是在用一个死 fd。所以它被塞进返回结构里（`_原`）;
+    /// * 另一个 `try_clone` 出来的句柄用于**改超时** —— 超时是 socket 级属性，
+    ///   设到克隆上原 socket 一样生效。
+    pub fn 开流(url: &Url, opt: &选项) -> Result<super::流响应, JishiError> {
+        let dur = Duration::from_secs_f64(opt.timeout.max(0.1));
+        let 代理 = opt.代理.as_ref().filter(|_| super::走代理(&url.host));
+        let (s, 走隧道) = match 代理 {
+            Some(p) => {
+                let (ph, pp) = 代理地址(p).map_err(|m| err("运行期错误", m))?;
+                (连(&ph, pp, dur).map_err(|m| err("运行期错误", m))?, url.secure)
+            }
+            None => (连(&url.host, url.port, dur).map_err(|m| err("运行期错误", m))?, false),
+        };
+
+        if 走隧道 {
+            let 目标 = format!("{}:{}", url.host, url.port);
+            let mut s = s;
+            写全部(&mut s, format!("CONNECT {目标} HTTP/1.1\r\nHost: {目标}\r\n\r\n").as_bytes())?;
+            let (状态, _头, 剩余) = 读头(&mut s)?;
+            if !(200..300).contains(&状态) {
+                return Err(err(
+                    "运行期错误",
+                    format!(
+                        "代理「{}」不肯放行 {目标}（CONNECT 返回 {状态}）",
+                        代理.cloned().unwrap_or_default()
+                    ),
+                ));
+            }
+            if !剩余.is_empty() {
+                return Err(err("运行期错误", "代理在 CONNECT 之后多发了数据（不支持）"));
+            }
+            return 开流在已连的流上(url, opt, s);
+        }
+        开流在已连的流上(url, opt, s)
+    }
+
+    fn 开流在已连的流上(
+        url: &Url,
+        opt: &选项,
+        s: TcpStream,
+    ) -> Result<super::流响应, JishiError> {
+        let dur = Duration::from_secs_f64(opt.timeout.max(0.1));
+        let 控 = s
+            .try_clone()
+            .map_err(|e| err("运行期错误", format!("拿不到连接句柄：{e}")))?;
+        let mut 流 = if url.secure {
+            流::Tls(super::tls::连接::建(&s, &url.host, dur).map_err(|m| err("运行期错误", m))?)
+        } else {
+            流::明文(s)
+        };
+
+        let mut req = format!(
+            "GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {AGENT}\r\nAccept: */*\r\nConnection: close\r\n",
+            url.path,
+            url.主机头()
+        );
+        for (k, v) in &opt.headers {
+            req.push_str(k);
+            req.push_str(": ");
+            req.push_str(v);
+            req.push_str("\r\n");
+        }
+        req.push_str("\r\n");
+        写全部(&mut 流, req.as_bytes())?;
+
+        let (status, headers, 余) = 读头(&mut 流)?;
+        let 分块 = 头值(&headers, "transfer-encoding")
+            .map(|v| v.to_ascii_lowercase().contains("chunked"))
+            .unwrap_or(false);
+        let 内: Box<dyn Read> = if 分块 {
+            Box::new(分块读::新建(流, 余))
+        } else if let Some(n) = 头值(&headers, "content-length")
+            .and_then(|s| s.trim().parse::<usize>().ok())
+        {
+            Box::new(限长读::新建(流, n, 余))
+        } else {
+            Box::new(预读读::新建(流, 余))
+        };
+        // `s` 在 TLS 那条路上必须活着（SSL 用的是它的 fd）；明文那条已经在 `流` 里了
+        let 原 = if url.secure { Some(控.try_clone().ok()).flatten() } else { None };
+        Ok(super::流响应 {
+            状态: status,
+            头: headers,
+            读: Box::new(Unix读 { 内, _原: 原, 控 }),
+        })
+    }
+
+    /// 非 Windows 的流式读：读走 `内`（明文 / TLS / 分块 / 定长的组合），
+    /// 超时设到 `控`（socket 级）上。
+    struct Unix读 {
+        内: Box<dyn Read>,
+        /// TLS 那条路上要保住的原始 socket（`SSL_set_fd` 不复制 fd）
+        _原: Option<TcpStream>,
+        控: TcpStream,
+    }
+
+    impl super::流读 for Unix读 {
+        fn 读(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            self.内.read(buf)
+        }
+        fn 设超时(&mut self, 毫秒: u64) {
+            let d = if 毫秒 == 0 {
+                None
+            } else {
+                Some(Duration::from_millis(毫秒))
+            };
+            let _ = self.控.set_read_timeout(d);
+        }
+    }
+
+    /// 分块传输（`Transfer-Encoding: chunked`）→ 普通字节流。
+    ///
+    /// 为什么非要有它：SSE 的响应**几乎全是 chunked**（长度未知，服务器边算边发）。
+    /// 不拆块的话，用户读到的每一行前面都挂着 `1a\r\n`。
+    struct 分块读<R: Read> {
+        源: R,
+        缓: Vec<u8>,
+        剩: usize,
+        要读尾: bool,
+        完: bool,
+    }
+
+    impl<R: Read> 分块读<R> {
+        fn 新建(源: R, 预读: Vec<u8>) -> Self {
+            分块读 { 源, 缓: 预读, 剩: 0, 要读尾: false, 完: false }
+        }
+        fn 填(&mut self) -> std::io::Result<bool> {
+            let mut buf = [0u8; 16 * 1024];
+            let n = self.源.read(&mut buf)?;
+            if n > 0 {
+                self.缓.extend_from_slice(&buf[..n]);
+            }
+            Ok(n > 0)
+        }
+    }
+
+    impl<R: Read> Read for 分块读<R> {
+        fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+            if out.is_empty() {
+                return Ok(0);
+            }
+            loop {
+                if self.完 {
+                    return Ok(0);
+                }
+                if self.剩 > 0 {
+                    if !self.缓.is_empty() {
+                        let n = self.剩.min(self.缓.len()).min(out.len());
+                        out[..n].copy_from_slice(&self.缓[..n]);
+                        self.缓.drain(..n);
+                        self.剩 -= n;
+                        if self.剩 == 0 {
+                            self.要读尾 = true;
+                        }
+                        return Ok(n);
+                    }
+                    let 要 = self.剩.min(out.len());
+                    let n = self.源.read(&mut out[..要])?;
+                    if n == 0 {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "分块数据没读完连接就断了",
+                        ));
+                    }
+                    self.剩 -= n;
+                    if self.剩 == 0 {
+                        self.要读尾 = true;
+                    }
+                    return Ok(n);
+                }
+                if self.要读尾 {
+                    while self.缓.len() < 2 {
+                        if !self.填()? {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::UnexpectedEof,
+                                "分块结尾的换行没收到",
+                            ));
+                        }
+                    }
+                    self.缓.drain(..2);
+                    self.要读尾 = false;
+                    continue;
+                }
+                // 读块长度行
+                while !self.缓.windows(2).any(|w| w == b"\r\n") {
+                    if !self.填()? {
+                        // 连接干净关闭（没有终止块）—— 当结束处理，比报错有用
+                        self.完 = true;
+                        return Ok(0);
+                    }
+                }
+                let k = self.缓.windows(2).position(|w| w == b"\r\n").unwrap();
+                let 行 = String::from_utf8_lossy(&self.缓[..k]).to_string();
+                let 长度文 = 行.split(';').next().unwrap_or("").trim().to_string();
+                let 长 = usize::from_str_radix(&长度文, 16).map_err(|_| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("分块长度「{长度文}」不像十六进制"),
+                    )
+                })?;
+                self.缓.drain(..k + 2);
+                if 长 == 0 {
+                    self.完 = true;
+                    return Ok(0);
+                }
+                self.剩 = 长;
+            }
+        }
+    }
+
+    /// 定长正文（`Content-Length: n`）→ 读够 n 字节就 EOF。
+    struct 限长读<R: Read> {
+        源: R,
+        缓: Vec<u8>,
+        剩: usize,
+    }
+
+    impl<R: Read> 限长读<R> {
+        fn 新建(源: R, n: usize, 预读: Vec<u8>) -> Self {
+            let 剩 = n.saturating_sub(预读.len());
+            限长读 { 源, 缓: 预读, 剩 }
+        }
+    }
+
+    impl<R: Read> Read for 限长读<R> {
+        fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+            if self.剩 == 0 {
+                return Ok(0);
+            }
+            if !self.缓.is_empty() {
+                let n = self.剩.min(self.缓.len()).min(out.len());
+                out[..n].copy_from_slice(&self.缓[..n]);
+                self.缓.drain(..n);
+                self.剩 -= n;
+                return Ok(n);
+            }
+            let 要 = self.剩.min(out.len());
+            let n = self.源.read(&mut out[..要])?;
+            self.剩 = self.剩.saturating_sub(n);
+            Ok(n)
+        }
+    }
+
+    /// 「读头时多读进来的字节」+ 剩下的源（`Content-Length` 与分块都没有时用）。
+    struct 预读读<R: Read> {
+        源: R,
+        缓: Vec<u8>,
+    }
+
+    impl<R: Read> 预读读<R> {
+        fn 新建(源: R, 预读: Vec<u8>) -> Self {
+            预读读 { 源, 缓: 预读 }
+        }
+    }
+
+    impl<R: Read> Read for 预读读<R> {
+        fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+            if !self.缓.is_empty() {
+                let n = self.缓.len().min(out.len());
+                out[..n].copy_from_slice(&self.缓[..n]);
+                self.缓.drain(..n);
+                return Ok(n);
+            }
+            self.源.read(out)
+        }
     }
 
     fn 连(host: &str, port: u16, dur: Duration) -> Result<TcpStream, String> {
@@ -1738,8 +2417,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                  Val::Str(String::from_utf8_lossy(&r.body).to_string().into())),
             ]))
         },
-        "下载" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("下载", args, 2, 5)?;
+        "下载" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {            need_range("下载", args, 2, 5)?;
             let raw = as_text(&args[0]);
             let 路径 = as_text(&args[1]);
             let t = timeout_of(args, 2)?;
@@ -1761,6 +2439,161 @@ pub(crate) fn module() -> HashMap<String, Val> {
             let r = 执行(&raw, &o)?;
             let r = 要成功(r, "下载", &raw)?;
             Ok(Val::Int(crate::jint::JInt::new(r.字节数 as i128)))
+        },
+        // ---- M219：流式 ----
+        //
+        // 为什么要这三个参数（跟 `获取` 同形）：`获取` 是 `(网址, 超时, 请求头, 选项)`，
+        // 流式没理由换一套顺序 —— 换一套只会让人写错。
+        "获取流" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("获取流", args, 1, 3)?;
+            let raw = as_text(&args[0]);
+            let t = timeout_of(args, 1)?;
+            let h = 请求头(args.get(2))?;
+            let mut o = 读选项(None)?;
+            o.method = "GET".to_string();
+            o.timeout = t;
+            o.headers = h;
+            let r = 开流(&raw, &o)?;
+            let 状态 = r.状态;
+            // 🔴 **头名统一小写**（M219）：HTTP 里头名大小写不敏感，而 Node 宿主
+            // 的 `fetch` **拿不到原始大小写**（`Headers` 一律小写）。三宿主要么
+            // 一致、要么就在同一个程序上各说各话 —— 统一小写是唯一能做到的。
+            let 头: Vec<(String, String)> =
+                r.头.into_iter().map(|(k, v)| (k.to_ascii_lowercase(), v)).collect();
+            Ok(crate::native_obj(
+                "流",
+                流方法,
+                std::rc::Rc::new(std::cell::RefCell::new(流状态 {
+                    读: r.读,
+                    缓: Vec::new(),
+                    状态码: 状态,
+                    头,
+                    默认超时: t,
+                    已完: false,
+                    开着: true,
+                })),
+            ))
+        },
+        // `网络.SSE(网址, 处理函数, 超时=省略, 请求头=空)` —— 服务端事件流。
+        //
+        // 返回**收到几个事件**（便于判据与「就这样收了 20 条然后退出」的写法）。
+        // 处理函数收一个字典 `{事件, 数据, id}`：
+        //   * `事件` = `event:` 那一行的值，没写就是 `"message"`（SSE 规范的默认）；
+        //   * `数据` = 多条 `data:` 用 `\n` 连起来（规范如此，一次事件可以是多行）；
+        //   * `id` = `id:` 那一行（没有就是空文本）。
+        // 以 `:` 开头的注释行（心跳保活常这么写）直接丢掉。
+        "SSE" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            need_range("SSE", args, 2, 4)?;
+            let raw = as_text(&args[0]);
+            let 处理函数 = args[1].clone();
+            if !matches!(
+                处理函数,
+                Val::Func(_) | Val::WalkFn(_) | Val::Builtin(_) | Val::BoundMethod(_) | Val::UserMethod { .. }
+            ) {
+                return Err(err(
+                    "类型错误",
+                    "「SSE」的第二个参数要一个**处理函数**：它收 `{事件, 数据, id}` 字典",
+                ));
+            }
+            // `超时 = 0`（默认）⇒ 一直等：SSE 本来就是长连接，给个默认 10 秒
+            // 就变成「十秒后必断」，那不是流式的意思。
+            let t = 超时参数(&args[..], 2, 0.0)?.max(0.0);
+            let mut o = 读选项(None)?;
+            o.method = "GET".to_string();
+            // 连接/握手还是要有个上限：连不上不该等到天荒地老
+            o.timeout = if t > 0.0 { t } else { DEFAULT_TIMEOUT };
+            o.headers = 请求头(args.get(3))?;
+            for (名, 值) in [
+                ("Accept", "text/event-stream"),
+                ("Cache-Control", "no-cache"),
+            ] {
+                if !o.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(名)) {
+                    o.headers.push((名.to_string(), 值.to_string()));
+                }
+            }
+            let r = 开流(&raw, &o)?;
+            if !(200..300).contains(&r.状态) {
+                return Err(err(
+                    "运行期错误",
+                    format!("「{raw}」回的是 HTTP {}（事件流应当是 2xx）", r.状态),
+                ));
+            }
+            let mut 记 = 流状态 {
+                读: r.读,
+                缓: Vec::new(),
+                状态码: r.状态,
+                头: r.头,
+                默认超时: t,
+                已完: false,
+                开着: true,
+            };
+            let mut 事件数 = 0i128;
+            let mut 数据行: Vec<String> = Vec::new();
+            let mut 事件名 = String::new();
+            let mut id = String::new();
+            let mut 有字段 = false;
+            loop {
+                let 行 = match 记.读行(t)? {
+                    Some(s) => s,
+                    None => {
+                        if 记.已完 {
+                            break;
+                        }
+                        // 超时：SSE 的「没数据」是常态（心跳也可能被代理吃掉），
+                        // 给一次错让人能看见比死等好。
+                        return Err(err(
+                            "运行期错误",
+                            format!("「{raw}」{t} 秒没有新数据（事件流断了？）"),
+                        ));
+                    }
+                };
+                if 行.is_empty() {
+                    // 空行 = 一个事件结束
+                    if 有字段 && !数据行.is_empty() {
+                        事件数 += 1;
+                        let 单 = crate::dict_new(vec![
+                            (
+                                Val::Str("事件".into()),
+                                Val::Str(if 事件名.is_empty() {
+                                    "message".to_string().into()
+                                } else {
+                                    事件名.clone().into()
+                                }),
+                            ),
+                            (Val::Str("数据".into()), Val::Str(数据行.join("\n").into())),
+                            (Val::Str("id".into()), Val::Str(id.clone().into())),
+                        ]);
+                        vm.call_value(处理函数.clone(), vec![单])?;
+                    }
+                    数据行.clear();
+                    事件名.clear();
+                    有字段 = false;
+                    continue;
+                }
+                if 行.starts_with(':') {
+                    continue; // 注释 / 心跳
+                }
+                let (字段, 值) = match 行.split_once(':') {
+                    Some((f, v)) => (f, v.strip_prefix(' ').unwrap_or(v)),
+                    None => (行.as_str(), ""),
+                };
+                match 字段 {
+                    "data" => {
+                        数据行.push(值.to_string());
+                        有字段 = true;
+                    }
+                    "event" => {
+                        事件名 = 值.to_string();
+                        有字段 = true;
+                    }
+                    "id" => {
+                        id = 值.to_string();
+                        有字段 = true;
+                    }
+                    _ => {} // `retry:` 之类，先不处理（不影响读）
+                }
+            }
+            Ok(Val::Int(crate::jint::JInt::new(事件数)))
         },
     }
 }

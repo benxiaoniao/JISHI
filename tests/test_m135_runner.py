@@ -336,7 +336,7 @@ def test_真语料全量_默认参数跑通():
                        encoding="utf-8", errors="replace", timeout=900)
     assert r.returncode == 0, r.stdout + r.stderr
     汇 = _汇总(r.stdout)
-    assert "135 条" in 汇, 汇
+    assert "136 条" in 汇, 汇
     assert "失败 0" in 汇, 汇
     if RUST.is_file():
         # Rust 侧的「从 python 导入」是**宣称过的边界**，已登记在豁免表里。

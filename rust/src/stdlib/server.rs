@@ -205,60 +205,137 @@ fn 错误首行(e: &crate::JishiError) -> String {
     }
 }
 
-fn 构造响应文本(
-    码: i128,
-    正文: &str,
-    内容类型: &str,
-    头: Option<&Val>,
-) -> Result<String, JishiError> {
-    let mut 行们: Vec<String> = Vec::new();
-    let 短语 = 原因(码);
-    行们.push(if 短语.is_empty() {
-        format!("HTTP/1.1 {码}")
-    } else {
-        format!("HTTP/1.1 {码} {短语}")
-    });
-    行们.push(format!("Content-Type: {内容类型}"));
-    if let Some(v) = 头 {
-        match v {
-            Val::None_ => {}
-            Val::Dict(d) => {
-                for (k, val) in dict_items(&d.borrow()) {
-                    let 键 = as_text(&k);
-                    if 自填(&键) {
-                        return Err(err(
-                            "值错误",
-                            format!("「{键}」由框架自己填，不要在「头」里再写一遍"),
-                        ));
-                    }
-                    let 值 = as_text(&val);
-                    if !键.is_ascii() || !值.is_ascii() {
-                        return Err(err(
-                            "类型错误",
-                            format!("请求头「{键}」的名字与值只能是 ASCII（英文数字）"),
-                        ));
-                    }
-                    行们.push(format!("{键}: {值}"));
-                }
-            }
-            other => {
-                return Err(err(
-                    "类型错误",
-                    format!("「头」要是一个字典，得到了「{}」", crate::type_label(other)),
-                ))
-            }
-        }
+/// 正文 → 字节。**文本按 UTF-8，字节原样**（M219：二进制资产这才发得出去）。
+///
+/// 为什么正文要支持字节：`营造框架` 那个下游要把 **2.9 MB 的 wasm 原样发出去**，
+/// 以前只能 base64（体积 +33%、还得让浏览器那边解一次）。PNG / 字体 / wasm
+/// 都是这一类。
+pub(crate) fn 正文字节(v: &Val, 谁: &str) -> Result<Vec<u8>, JishiError> {
+    match v {
+        Val::None_ => Ok(Vec::new()),
+        Val::Str(_) => Ok(as_text(v).into_bytes()),
+        Val::Bytes(b) => Ok(b.as_ref().clone()),
+        other => Err(err(
+            "类型错误",
+            format!(
+                "{谁}要是文本或字节，得到了「{}」",
+                crate::type_label(other)
+            ),
+        )),
     }
-    行们.push(format!("Content-Length: {}", 正文.len()));
-    行们.push("Connection: close".to_string());
-    Ok(format!("{}\r\n\r\n{正文}", 行们.join("\r\n")))
 }
 
-/// 处理函数的返回值 → 完整响应文本。**文本**直接用；**字典**交给 `构造响应文本`。
-fn 把应答变文本(应答: &Val) -> Result<String, JishiError> {
+/// 响应头 → 「名字, 值」对。**两种写法**（M219）：
+///
+/// ```jishi
+/// {"X-A": "1"}                          # 字典：同名字不能重复
+/// [["Set-Cookie", "a=1"], ["Set-Cookie", "b=2"]]   # 对列表：同名可重复、顺序即写入顺序
+/// ```
+///
+/// 🔴 为什么非要对列表：**两个 `Set-Cookie` 塞不进字典**（键相同就覆盖了一个），
+/// 而多 Cookie 是登录会话的常规做法 —— 没有它，这条路整个走不通。
+fn 头们(v: Option<&Val>) -> Result<Vec<(String, String)>, JishiError> {
+    let mut 出: Vec<(String, String)> = Vec::new();
+    match v {
+        None | Some(Val::None_) => {}
+        Some(Val::Dict(d)) => {
+            for (k, val) in dict_items(&d.borrow()) {
+                出.push((as_text(&k), as_text(&val)));
+            }
+        }
+        Some(Val::List(_)) => {
+            for 项 in super::to_vec(v.unwrap())? {
+                let 对 = match &项 {
+                    Val::List(_) => super::to_vec(&项)?,
+                    other => {
+                        return Err(err(
+                            "类型错误",
+                            format!(
+                                "「头」列表里每一项都要是 `[名字, 值]`，得到了「{}」",
+                                crate::type_label(other)
+                            ),
+                        ))
+                    }
+                };
+                if 对.len() != 2 {
+                    return Err(err(
+                        "值错误",
+                        "「头」列表里每一项都要是 `[名字, 值]`（两项）",
+                    ));
+                }
+                出.push((as_text(&对[0]), as_text(&对[1])));
+            }
+        }
+        Some(other) => {
+            return Err(err(
+                "类型错误",
+                format!(
+                    "「头」要是一个字典或 `[名字, 值]` 的列表，得到了「{}」",
+                    crate::type_label(other)
+                ),
+            ))
+        }
+    }
+    for (名, 值) in &出 {
+        if 自填(名) {
+            return Err(err(
+                "值错误",
+                format!("「{名}」由框架自己填，不要在「头」里再写一遍"),
+            ));
+        }
+        if !名.is_ascii() || !值.is_ascii() {
+            return Err(err(
+                "类型错误",
+                format!("请求头「{名}」的名字与值只能是 ASCII（英文数字）"),
+            ));
+        }
+    }
+    Ok(出)
+}
+
+/// 「状态 + 正文（字节）+ 头」→ 完整响应**字节**。`Content-Length` 按**字节**算。
+fn 构造响应字节(
+    码: i128,
+    正文: &[u8],
+    内容类型: &str,
+    头: Option<&Val>,
+) -> Result<Vec<u8>, JishiError> {
+    let mut 头文本 = String::new();
+    let 短语 = 原因(码);
+    头文本.push_str(&if 短语.is_empty() {
+        format!("HTTP/1.1 {码}\r\n")
+    } else {
+        format!("HTTP/1.1 {码} {短语}\r\n")
+    });
+    // ⚠️ 内容类型也可能是空串：`204` 之类不该硬塞一个 `Content-Type: `
+    头文本.push_str(&format!("Content-Type: {内容类型}\r\n"));
+    for (名, 值) in 头们(头)? {
+        头文本.push_str(&format!("{名}: {值}\r\n"));
+    }
+    头文本.push_str(&format!("Content-Length: {}\r\n", 正文.len()));
+    头文本.push_str("Connection: close\r\n\r\n");
+    let mut 出 = Vec::with_capacity(头文本.len() + 正文.len());
+    出.extend_from_slice(头文本.as_bytes());
+    出.extend_from_slice(正文);
+    Ok(出)
+}
+
+/// 处理函数的返回值 → 完整响应**字节**。
+///
+/// | 返回 | 意思 |
+/// |---|---|
+/// | 文本 | 你自己拼好的**整个响应**（`构造响应` 给的文本） |
+/// | 字节 | 同上，只是二进制（`构造响应(…, 字节正文)` 给的） |
+/// | 字典 | `{状态, 正文, 内容类型, 头}` ⇒ 交给 `构造响应字节` |
+/// | 空 | 200 空正文 |
+///
+/// 📌 文本与字节**同一个意思**（都是整个响应），不是「文本=整个响应、字节=正文」：
+/// 同一个位置按类型换意思正是 D89 禁的那种，人（和模型）一定会猜错一次。
+fn 把应答变字节(应答: &Val) -> Result<Vec<u8>, JishiError> {
     match 应答 {
-        Val::Str(_) => Ok(as_text(应答)),
-        Val::None_ => 构造响应文本(200, "", 默认内容类型, None),
+        Val::Str(_) => Ok(as_text(应答).into_bytes()),
+        Val::Bytes(b) => Ok(b.as_ref().clone()),
+        Val::None_ => 构造响应字节(200, b"", 默认内容类型, None),
         Val::Dict(d) => {
             let d = d.borrow();
             let 码 = match crate::dict_get(&d, &Val::Str("状态".into())) {
@@ -271,20 +348,20 @@ fn 把应答变文本(应答: &Val) -> Result<String, JishiError> {
                 return Err(err("值错误", format!("状态码要在 100–599 之间，现在是 {码}")));
             }
             let 正文 = match crate::dict_get(&d, &Val::Str("正文".into())) {
-                Some(v) => 要文本(&v, "「构造响应」的正文")?,
-                None => String::new(),
+                Some(v) => 正文字节(&v, "「构造响应」的正文")?,
+                None => Vec::new(),
             };
             let 类型 = match crate::dict_get(&d, &Val::Str("内容类型".into())) {
                 Some(v) => 要文本(&v, "「构造响应」的内容类型")?,
                 None => 默认内容类型.to_string(),
             };
             let 头 = crate::dict_get(&d, &Val::Str("头".into()));
-            构造响应文本(码, &正文, &类型, 头.as_ref())
+            构造响应字节(码, &正文, &类型, 头.as_ref())
         }
         other => Err(err(
             "类型错误",
             format!(
-                "处理函数要返回文本或字典，得到了「{}」",
+                "处理函数要返回文本、字节或字典，得到了「{}」",
                 crate::type_label(other)
             ),
         )),
@@ -359,30 +436,31 @@ fn 起服务(
         //    **不算一个请求**。为什么在意：`最多请求数` 数的是「处理过的请求」，
         //    不是「接受过的连接」；混起来的话探测连接会把配额吃掉，
         //    真实请求反而被拒（M115 自己踩到）。
-        let 结果 = (|| -> Result<Option<String>, JishiError> {
+        let 结果 = (|| -> Result<Option<Vec<u8>>, JishiError> {
             let 原始 = 读原始请求(&mut 流)?;
             if 原始.is_empty() {
                 return Ok(None);
             }
             let 请求 = 解析请求字典(&原始)?;
             Ok(Some(match vm.call_value(处理函数.clone(), vec![请求]) {
-                Ok(应答) => 把应答变文本(&应答)?,
+                Ok(应答) => 把应答变字节(&应答)?,
                 // 处理函数出错 ⇒ 回 500，**服务继续**：
                 // 一条坏请求不该让整个本地服务挂掉，而且浏览器里直接看得见错在哪。
                 // ⚠️ 正文只用**第一行**（`错误 E2001：不能除以零`）——整段渲染带
                 //    位置与 `^` 指示，那是终端看的，而且各宿主会各说各话。
                 // 🔴 M158 修：以前只取 `message`，而「除零错误」这类错误的消息是
                 //    **空的**（话都写在标题里）⇒ 浏览器里一片空白 500。
-                Err(e) => 构造响应文本(500, &错误首行(&e), 默认内容类型, None)?,
+                Err(e) => 构造响应字节(500, 错误首行(&e).as_bytes(), 默认内容类型, None)?,
             }))
         })();
         let 文本 = match 结果 {
             Ok(None) => continue,          // 空连接：不算请求、不判停
             Ok(Some(t)) => t,
             // 请求本身不合法 ⇒ 400（**算**一个请求：人家确实发了东西过来）
-            Err(e) => 构造响应文本(400, &e.message, 默认内容类型, None).unwrap_or_default(),
+            Err(e) => 构造响应字节(400, e.message.as_bytes(), 默认内容类型, None)
+                .unwrap_or_default(),
         };
-        let _ = 流.write_all(文本.as_bytes());
+        let _ = 流.write_all(&文本);
         let _ = 流.flush();
         收到 += 1;
         if 上限 > 0 && 收到 >= 上限 {
@@ -426,16 +504,21 @@ pub(crate) fn module() -> HashMap<String, Val> {
             if !(100..=599).contains(&码) {
                 return Err(err("值错误", format!("状态码要在 100–599 之间，现在是 {码}")));
             }
-            let 正文 = match args.get(1) {
-                None | Some(Val::None_) => String::new(),
-                Some(v) => 要文本(v, "「构造响应」的正文")?,
-            };
+            // M219：正文可以是**字节**（PNG / wasm / 字体），返回类型跟着走 ——
+            // 给了字节就回字节（二进制数据用文本装不下），给了文本就回文本。
+            let 原始正文 = args.get(1);
+            let 正文 = 正文字节(原始正文.unwrap_or(&Val::None_), "「构造响应」的正文")?;
             let 类型 = match args.get(2) {
                 None | Some(Val::None_) => 默认内容类型.to_string(),
                 Some(v) => 要文本(v, "「构造响应」的内容类型")?,
             };
             let 头 = args.get(3).filter(|v| !matches!(v, Val::None_));
-            Ok(Val::Str(构造响应文本(码, &正文, &类型, 头)?.into()))
+            let 出 = 构造响应字节(码, &正文, &类型, 头)?;
+            if matches!(原始正文, Some(Val::Bytes(_))) {
+                Ok(Val::Bytes(std::rc::Rc::new(出)))
+            } else {
+                Ok(Val::Str(String::from_utf8_lossy(&出).to_string().into()))
+            }
         },
         "空闲端口" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("空闲端口", args, 0, 0)?;
@@ -622,15 +705,17 @@ fn 处理一条(
     }
     let 文本 = match 解析请求字典(&原始) {
         Ok(请求) => match vm.call_value(处理函数.clone(), vec![请求]) {
-            Ok(应答) => 把应答变文本(&应答).unwrap_or_else(|e| {
-                构造响应文本(500, &错误首行(&e), 默认内容类型, None).unwrap_or_default()
+            Ok(应答) => 把应答变字节(&应答).unwrap_or_else(|e| {
+                构造响应字节(500, 错误首行(&e).as_bytes(), 默认内容类型, None)
+                    .unwrap_or_default()
             }),
-            Err(e) => 构造响应文本(500, &错误首行(&e), 默认内容类型, None)
+            Err(e) => 构造响应字节(500, 错误首行(&e).as_bytes(), 默认内容类型, None)
                 .unwrap_or_default(),
         },
-        Err(e) => 构造响应文本(400, &e.message, 默认内容类型, None).unwrap_or_default(),
+        Err(e) => 构造响应字节(400, e.message.as_bytes(), 默认内容类型, None)
+            .unwrap_or_default(),
     };
-    let _ = 流.write_all(文本.as_bytes());
+    let _ = 流.write_all(&文本);
     let _ = 流.flush();
     Some(())
 }

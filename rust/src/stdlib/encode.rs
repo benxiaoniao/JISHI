@@ -301,6 +301,52 @@ pub(crate) fn module() -> HashMap<String, Val> {
 /// * `0x81..=0xFE` + `0x40..=0xFE`（不含 `0x7F`）→ 查表，表里没有就是非法；
 /// * **四字节序列（`0x30..=0x39` 打头）在 gbk 里是非法**（那是 gb18030 的能力）；
 /// * 结尾只剩一个首字节 → 非法。
+/// GBK 解码的**宽松版**：非法序列换成 `U+FFFD`，**永不失败**。
+///
+/// 用途只有一处（M219）：把**外部命令的输出**按 GBK 解 —— 那是「用户控制台
+/// 吐出来的字节」，里面有半个被截断的汉字是常事（比如进程被杀在中途），
+/// 整段失败等于一个字都拿不到。逐字节走同一套规则，坏一处只坏一个字。
+pub(crate) fn gbk_解码宽松(bs: &[u8]) -> String {
+    let mut 出 = String::with_capacity(bs.len());
+    let mut i = 0;
+    while i < bs.len() {
+        let 首 = bs[i];
+        if 首 < 0x80 {
+            出.push(首 as char);
+            i += 1;
+            continue;
+        }
+        if 首 == 0x80 {
+            出.push('\u{20AC}');
+            i += 1;
+            continue;
+        }
+        if !(0x81..=0xFE).contains(&首) || i + 1 >= bs.len() {
+            出.push('\u{FFFD}');
+            i += 1;
+            continue;
+        }
+        let 次 = bs[i + 1];
+        if !(0x40..=0xFE).contains(&次) || 次 == 0x7F {
+            出.push('\u{FFFD}');
+            i += 1;
+            continue;
+        }
+        let 槽 = (首 as usize - 0x81) * 191 + (次 as usize - 0x40);
+        match char::from_u32(crate::gbk_table::槽位(槽) as u32) {
+            Some(c) if crate::gbk_table::槽位(槽) != 0 => {
+                出.push(c);
+                i += 2;
+            }
+            _ => {
+                出.push('\u{FFFD}');
+                i += 1;
+            }
+        }
+    }
+    出
+}
+
 fn gbk_解码(bs: &[u8]) -> Option<String> {
     let mut 出 = String::with_capacity(bs.len());
     let mut i = 0;
