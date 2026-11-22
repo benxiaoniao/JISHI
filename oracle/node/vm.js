@@ -972,6 +972,32 @@ const _worker = require('worker_threads');
 /// 数组形式走 `spawnSync(程序, 参数)`（**不经过 shell**，参数边界原样保留），
 /// 文本形式走 shell —— 与 Python 侧 `subprocess.run(list)` / `shell=True` 的分工一致。
 /**
+ * 本机代码页 —— 只回答一个问题：**是不是 GBK（936）**。
+ *
+ * 🔴 Node 没有 `GetACP` 的绑定，Windows 上只能问 `chcp`。**结果缓存**：一个进程
+ * 最多问一次（它只在「UTF-8 解不开」那条罕见的回落里被调到）。
+ *
+ * ⚠️ 为什么非要问：不能「Windows 就按 GBK 解」—— 英文 Windows 的代码页是 1252，
+ * 那样会把 `é` 解成别的字，而 Rust / Python 两个宿主在非 936 上一律按 UTF-8
+ * 替换（它们也没有 1252 的码表）。三宿主要逐字一致，就只能都「只认 936」。
+ */
+let _代码页缓存 = null;
+function _代码页是GBK() {
+  if (_代码页缓存 !== null) return _代码页缓存;
+  _代码页缓存 = false;
+  if (_os.platform() === 'win32') {
+    try {
+      const 出 = String(_cp.execSync('chcp', { encoding: 'latin1', stdio: ['ignore', 'pipe', 'ignore'] }));
+      const 数 = /(\d{3,5})/.exec(出);
+      _代码页缓存 = !!数 && Number(数[1]) === 936;
+    } catch (e) {
+      _代码页缓存 = false;                    // 拿不到就当不是
+    }
+  }
+  return _代码页缓存;
+}
+
+/**
  * 外部命令的输出字节 → 文本（M219）。
  *
  * 🔴 为什么需要它：**外部命令吐的是字节，不是文本**。Windows 控制台程序
@@ -1015,7 +1041,8 @@ function _解码输出(数据, 编码) {
   } catch (e) {
     // 不是合法 UTF-8 ⇒ 大概率是本机代码页写出来的
   }
-  return 造(_os.platform() === 'win32' ? 'gbk' : 'utf-8').decode(buf);
+  // 只有**真是 936** 才按 GBK 解（别的代码页一律 UTF-8 替换，与另外两个宿主一致）
+  return 造(_代码页是GBK() ? 'gbk' : 'utf-8').decode(buf);
 }
 
 

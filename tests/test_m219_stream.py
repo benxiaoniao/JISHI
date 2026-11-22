@@ -315,19 +315,35 @@ _编码源 = '''导入 系统
 '''
 
 
+def _本机代码页() -> int:
+    """本机 ANSI 代码页（非 Windows 一律 65001）。
+
+    用它决定 `自动` 该期望什么：`自动` **只认 GBK（936）**，别的代码页
+    （英文 Windows 1252 / 日文 932…）一律按 UTF-8 替换 —— 三个宿主都没有那些
+    码表，统一才能逐字一致（D124）。
+    """
+    if os.name != "nt":
+        return 65001
+    import ctypes
+
+    return int(ctypes.windll.kernel32.GetACP())
+
+
 def test_输出编码能解GBK控制台输出(tmp_path):
     """③ 外部命令吐的是**字节**：GBK 的输出按 UTF-8 硬解就是一片 `����`。
 
-    `自动`（默认）先试 UTF-8、不合法再按本机代码页解 —— 中文 Windows 上是 936。
-    `"gbk"` 是显式指定，跟平台无关。
-
-    ⚠️ **判据只断言「解出来是中文」**，不断言「自动一定走 GBK」：`自动` 在
-    非中文 Windows / Linux 上会按各自的代码页走，那是对的。
+    `"gbk"` 是显式指定，跟平台无关，**必须解出中文**；`自动` 先试 UTF-8、
+    不合法再按本机代码页 —— 但**只认 936**：英文 Windows 的 1252 没有码表，
+    那里给替换字符才是对的（与另外两个宿主一致）。
     """
     出 = _三宿主(_编码源, tmp_path)
     行 = 出["rust"].strip().splitlines()
     assert 行[0] == "gbk 中文目录", 行
-    assert 行[1] == "自动 中文目录", 行
+    if _本机代码页() == 936:
+        assert 行[1] == "自动 中文目录", 行
+    else:
+        # 非 GBK 系统：`自动` 只保证「不崩、有一行」，内容按 UTF-8 替换
+        assert 行[1].startswith("自动 "), 行
     assert 行[2] == "utf8 你好", 行
     assert 行[3].startswith("坏编码 值错误"), 行
     assert 出["python"] == 出["rust"], (出["python"], 出["rust"])

@@ -191,13 +191,14 @@ def _解码输出(数据: bytes, 编码: str) -> str:
         # 于是这条回落等于没做（M219 实测：本机 ACP=936，但这里读到 utf-8）。
         # `getencoding()` 返回的是**真正的本机 ANSI 码页**（中文 Windows = cp936）。
         取 = getattr(locale, "getencoding", None) or locale.getpreferredencoding
-        本机 = 取() or "utf-8"
+        本机 = (取() or "utf-8").lower()
     except Exception:                                    # noqa: BLE001
         本机 = "utf-8"
-    try:
-        return 数据.decode(本机, "replace")
-    except (LookupError, UnicodeDecodeError):
-        return 数据.decode("utf-8", "replace")
+    # 🔴 **只认 GBK（936）**：别的代码页（英文 Windows 1252 / 日文 932…）没有码表，
+    #    三个宿主一律按 UTF-8 替换 —— Rust 那边也只有 GBK 表，统一才可能逐字一致。
+    if 本机 in ("cp936", "gbk", "gb2312", "gb18030", "936"):
+        return 数据.decode("gbk", "replace")
+    return 数据.decode("utf-8", "replace")
 
 
 def _跑一次(命令, 超时: float, 编码: str = "自动"):

@@ -1546,10 +1546,16 @@ mod client {
         let 控 = s
             .try_clone()
             .map_err(|e| err("运行期错误", format!("拿不到连接句柄：{e}")))?;
-        let mut 流 = if url.secure {
-            流::Tls(super::tls::连接::建(&s, &url.host, dur).map_err(|m| err("运行期错误", m))?)
+        // 🔴 **TLS 那条路必须把原始 `TcpStream` 一起留住**：`SSL_set_fd` 只是记下
+        //    fd 号、**不复制**它。函数返回后 `s` 一 drop，那个 fd 就关了，后续
+        //    `SSL_read` 全在用一个死 fd（现象：读第一块就 EOF / 报错）。
+        //    ⚠️ 用 `try_clone` 再存一份**不行** —— 那是另一个 fd 号，救不了 SSL。
+        let (mut 流, 原) = if url.secure {
+            let t = super::tls::连接::建(&s, &url.host, dur)
+                .map_err(|m| err("运行期错误", m))?;
+            (流::Tls(t), Some(s))
         } else {
-            流::明文(s)
+            (流::明文(s), None)
         };
 
         let mut req = format!(
@@ -1579,8 +1585,7 @@ mod client {
         } else {
             Box::new(预读读::新建(流, 余))
         };
-        // `s` 在 TLS 那条路上必须活着（SSL 用的是它的 fd）；明文那条已经在 `流` 里了
-        let 原 = if url.secure { Some(控.try_clone().ok()).flatten() } else { None };
+        // `原`（TLS 的原始 socket）已经在上面一起留住了，这里不再另存一份
         Ok(super::流响应 {
             状态: status,
             头: headers,
@@ -1712,6 +1717,12 @@ mod client {
     }
 
     /// 定长正文（`Content-Length: n`）→ 读够 n 字节就 EOF。
+    ///
+    /// 🔴 **`剩` 是「还欠多少字节」，不是「源里还剩多少」**：读响应头时
+    /// `读头` 常常**把整个正文字节也一起读进来**（小响应一个 `recv` 就够），
+    /// 那些字节在 `缓` 里。若按「源里还剩多少」算，`剩` 会成 0 ⇒ 第一次读就报
+    /// EOF ⇒ 正文一个字节都拿不到（**CI 的 Linux/macOS 就是这样**：本地 Windows
+    /// 走 WinHTTP，它自己按长度读，完全绕过这段）。
     struct 限长读<R: Read> {
         源: R,
         缓: Vec<u8>,
@@ -1720,8 +1731,7 @@ mod client {
 
     impl<R: Read> 限长读<R> {
         fn 新建(源: R, n: usize, 预读: Vec<u8>) -> Self {
-            let 剩 = n.saturating_sub(预读.len());
-            限长读 { 源, 缓: 预读, 剩 }
+            限长读 { 源, 缓: 预读, 剩: n }
         }
     }
 
