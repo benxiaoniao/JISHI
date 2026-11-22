@@ -22,7 +22,7 @@
   "stdlib/容器.py": "51e9b168b006cf56",
   "stdlib/对比.py": "819f8da189f016f1",
   "stdlib/并发.py": "7305fbee3120abd8",
-  "stdlib/打包.py": "408833f4b010fd03",
+  "stdlib/打包.py": "9e04d029df06f0a1",
   "stdlib/托盘.py": "f0dbdc251eddd132",
   "stdlib/操控.py": "0d8e87b99a348489",
   "stdlib/数学.py": "1c8b1297f5eaa509",
@@ -38,7 +38,7 @@
   "stdlib/物理.py": "fa19c5c777aa46c2",
   "stdlib/瓦片.py": "213c7be24f79a2b7",
   "stdlib/矩阵.py": "3e09051d37dfe062",
-  "stdlib/窗口.py": "99c22ac48f376b97",
+  "stdlib/窗口.py": "1e97da3c2f9f38e2",
   "stdlib/站点.py": "97ae13405d232637",
   "stdlib/粒子.py": "3fe05ef2591a3f2b",
   "stdlib/精灵.py": "9f61a1624d4567a9",
@@ -2367,6 +2367,16 @@
      "name": "常驻",
      "sig": "常驻(每拍, 间隔=50)",
      "doc": "M221：进事件循环并按拍回调（窗口不白）。**只有 Rust 宿主 + 原生窗口能做。**"
+    },
+    {
+     "name": "最近文件",
+     "sig": "最近文件(路径)",
+     "doc": "M222：把文件记进系统「最近使用」。本宿主没有 → 假 + 说明。"
+    },
+    {
+     "name": "徽标",
+     "sig": "徽标(文本)",
+     "doc": "M222：任务栏 / Dock 角标。这一版只有 mac 计划做（记 0.4.x）。"
     }
    ]
   },

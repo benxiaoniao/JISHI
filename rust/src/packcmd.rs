@@ -307,7 +307,7 @@ fn 拷树(从: &Path, 到: &Path) -> Result<(), String> {
 #[allow(clippy::too_many_arguments)]
 fn 打一个包(文件们: &[String], 源: &str, 临时: &Path, 名字: &str, 版本: &str,
             入口: &str, 平台值: &str, 带运行时: bool,
-            引擎: &str) -> Result<String, JishiError> {
+            引擎: &str, 关联: &[(String, String)]) -> Result<String, JishiError> {
     let 列表 = crate::list_new(
         文件们.iter().map(|p| Val::Str(p.clone().into())).collect(),
     );
@@ -318,6 +318,20 @@ fn 打一个包(文件们: &[String], 源: &str, 临时: &Path, 名字: &str, �
         (Val::Str("入口".into()), Val::Str(入口.to_string().into())),
         (Val::Str("基础".into()), Val::Str(源.to_string().into())),
     ];
+    // M222：文件关联（`--关联 .jishi` / `打包.json` 的「关联」）——
+    // 声明写进清单，安装器照着写注册表 / Info.plist / .desktop。
+    if !关联.is_empty() {
+        let 项们: Vec<Val> = 关联
+            .iter()
+            .map(|(e, d)| {
+                crate::dict_new(vec![
+                    (Val::Str("扩展名".into()), Val::Str(e.as_str().into())),
+                    (Val::Str("说明".into()), Val::Str(d.as_str().into())),
+                ])
+            })
+            .collect();
+        对.push((Val::Str("关联".into()), crate::list_new(项们)));
+    }
     // M177：自带运行时（包内布局 app/ + bin/ 由 `打包.生成` 负责）
     if 带运行时 {
         对.push((Val::Str("运行时".into()), Val::Bool(true)));
@@ -688,6 +702,9 @@ fn 编译iss(
         平台("安装包"),
         false,
         "",
+        // Inno 版的载荷子包不背关联（关联要写在 .iss 的 [Registry] 段里；
+        // 这一版没做，见 `run_pack` 里「inno + 关联」的报错）
+        &[],
     )
     .map_err(|e| e.message)
 }
@@ -735,6 +752,8 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
     // Inno 从「默认」退成「可选」：它要多装一个第三方编译器，
     // 而我们自己的向导 M200 起能选目录、能加 PATH、能升级。
     let mut 安装器 = "自研".to_string();
+    // M222：`--关联 .jishi` / `--关联 .jishi,.jsh`（可多次；逗号也认）
+    let mut 关联: Vec<(String, String)> = Vec::new();
     let mut 保留iss = false;
     let mut i = 0;
     while i < argv.len() {
@@ -754,6 +773,19 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             // 老开关留着（M198 的脚本里可能有），等价于新的显式选择
             "--不用inno" | "--no-inno" => 安装器 = "自研".to_string(),
             "--安装器" | "--installer" => 安装器 = 取值(&mut i),
+            "--关联" | "--assoc" => {
+                let 值 = 取值(&mut i);
+                for 段 in 值.split(',') {
+                    let 名 = 段.trim().to_lowercase();
+                    if 名.is_empty() {
+                        continue;
+                    }
+                    let 名 = if 名.starts_with('.') { 名 } else { format!(".{名}") };
+                    if !关联.iter().any(|(e, _)| *e == 名) {
+                        关联.push((名, "基石程序".to_string()));
+                    }
+                }
+            }
             "--保留iss" | "--keep-iss" => 保留iss = true,
             // M177：把引擎打进包里，装到没装过基石的机器上双击就能用
             "--自带运行时" | "--with-runtime" => 带运行时 = true,
@@ -810,6 +842,31 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             }
             if 引擎.is_empty() {
                 引擎 = 取("引擎");
+            }
+            // M222：`打包.json` 的「关联」支持对象 `{".jishi": "基石脚本"}`，
+            // 也支持数组 `[".jishi", ".jsh"]`。**命令行优先**（同名字段）。
+            if 关联.is_empty() {
+                if let Some(jv) = j.get("关联") {
+                    match jv {
+                        crate::json::Json::Obj(m) => {
+                            for (k, v) in m {
+                                let 说 = v.as_str().unwrap_or("基石程序").to_string();
+                                关联.push((k.to_lowercase(), 说));
+                            }
+                        }
+                        crate::json::Json::Arr(a) => {
+                            for it in a {
+                                if let Some(s) = it.as_str() {
+                                    let 名 = s.trim().to_lowercase();
+                                    if !名.is_empty() {
+                                        关联.push((名, "基石程序".to_string()));
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
     }
@@ -868,6 +925,13 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
         }
     };
     let mut 警告: Vec<String> = Vec::new();
+    // M222：Inno 版这一版不写文件关联（要改 .iss 模板的 [Registry] 段）——
+    // 显式要了关联就**报错**，别让作者以为装出来能双击打开（D127）。
+    if !关联.is_empty() && 安装器 == "inno" {
+        eprintln!("错误：`--关联` 这一版只支持自研安装器（Inno 版要改 .iss 的 [Registry] 段）。");
+        eprintln!("　　 去掉 `--安装器 inno`，或者去掉 `--关联`。");
+        return ExitCode::from(2);
+    }
     if 要哪些.iter().any(|t| t == "应用") && 入口.is_empty() {
         要哪些.retain(|t| t != "应用");
         警告.push("没有「入口」，出不了 .app（macOS 靠 Info.plist 里的入口启动）".to_string());
@@ -912,14 +976,14 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
     let mut 成品: Vec<(String, String)> = Vec::new();
     let 结果 = (|| -> Result<(), String> {
         if 要哪些.iter().any(|t| t == "便携") {
-            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("便携"), 带运行时, &引擎)
+            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("便携"), 带运行时, &引擎, &关联)
                 .map_err(|e| e.message)?;
             let 目标 = format!("{出}/{}", 文件名(&包));
             fs::copy(&包, &目标).map_err(|e| format!("复制便携包失败：{e}"))?;
             成品.push(("便携".to_string(), 目标));
         }
         if 要哪些.iter().any(|t| t == "安装包") {
-            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("安装包"), 带运行时, &引擎)
+            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("安装包"), 带运行时, &引擎, &关联)
                 .map_err(|e| e.message)?;
             let 目标 = format!("{出}/{名字}-{版本}-windows-x64-setup.exe");
             let 原包字节 = fs::read(&包).map_err(|e| format!("读包失败：{e}"))?;
@@ -952,7 +1016,7 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             }
         }
         if 要哪些.iter().any(|t| t == "应用") {
-            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("应用"), 带运行时, &引擎)
+            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("应用"), 带运行时, &引擎, &关联)
                 .map_err(|e| e.message)?;
             let 字节 = fs::read(&包).map_err(|e| format!("读包失败：{e}"))?;
             let 束 = 临时.join(format!("{名字}.app"));
@@ -974,7 +1038,7 @@ pub fn run_pack(argv: &[String]) -> ExitCode {
             成品.push(("应用".to_string(), tar));
         }
         if 要哪些.iter().any(|t| t == "压缩包") {
-            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("压缩包"), 带运行时, &引擎)
+            let 包 = 打一个包(&文件们, &源, &临时, &名字, &版本, &入口, 平台("压缩包"), 带运行时, &引擎, &关联)
                 .map_err(|e| e.message)?;
             let 字节 = fs::read(&包).map_err(|e| format!("读包失败：{e}"))?;
             let 顶层 = format!("{名字}-{版本}-linux-x64");

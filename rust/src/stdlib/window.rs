@@ -907,6 +907,50 @@ fn 读标题(句柄: Option<i128>) -> Result<String, crate::JishiError> {
     }
 }
 
+/// `窗口.最近文件(路径)` —— M222：记进系统「最近使用」（跳转列表的原料）。
+///
+/// 口径与 `通知.发` 同一条：**有能力就记、没有返回假**，不报错。
+fn 最近文件(路径: &str) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 路径;
+        false
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            crate::native_window::最近文件(路径)
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = 路径;
+            false
+        }
+    }
+}
+
+/// `窗口.徽标(文本)` —— M222：mac Dock / Linux Launcher 的角标（Windows 返回假）。
+fn 设徽标(文本: &str) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = 文本;
+        false
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            crate::native_window::设徽标(文本)
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = 文本;
+            false
+        }
+    }
+}
+
 /// `窗口.关闭到托盘(开?)` —— 进程级开关：之后的关闭请求都变成「藏起来」。
 fn 关闭到托盘(开: bool) -> Result<bool, crate::JishiError> {
     #[cfg(target_arch = "wasm32")]
@@ -1550,6 +1594,36 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "读标题" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("读标题", args, 0, 1)?;
             Ok(Val::Str(读标题(取句柄参数(args, "读标题")?)?.into()))
+        },
+        // M222：`窗口.最近文件(路径)` —— 记进系统「最近使用」（跳转列表的原料）。
+        "最近文件" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("最近文件", args, 1, 1)?;
+            let 路径 = match &args[0] {
+                Val::Str(s) => s.to_string(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「最近文件」要文本路径，给的是{}", crate::type_label(other)),
+                    ))
+                }
+            };
+            Ok(Val::Bool(最近文件(&路径)))
+        },
+        // M222：`窗口.徽标(文本)` —— mac Dock / Linux Launcher 的角标。
+        "徽标" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("徽标", args, 1, 2)?;
+            let 文本 = match &args[0] {
+                Val::Str(s) => s.to_string(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「徽标」要文本（空串 = 清掉），给的是{}", crate::type_label(other)),
+                    ))
+                }
+            };
+            // 句柄参数只为签名一致（徽标是进程级），给了也用不上
+            let _ = 取句柄参数(args, "徽标")?;
+            Ok(Val::Bool(设徽标(&文本)))
         },
         // `关闭到托盘(开)` —— **进程级**开关，没有句柄。
         "关闭到托盘" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {

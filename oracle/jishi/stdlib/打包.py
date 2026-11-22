@@ -159,10 +159,50 @@ def _取布尔(选项, 键: str, 默认: bool = False) -> bool:
         hint=f'例如 {{"名字": "记账", "{键}": 真}}')
 
 
+def _取关联(选项) -> list:
+    """M222：`关联` → `[(扩展名, 说明)]`，扩展名统一小写、带点、去重保序。
+
+    收两种写法：
+    * 字典：`{".jishi": "基石脚本", ".jsh": "基石脚本"}`
+    * 列表：`[".jishi", ".jsh"]`（说明默认「基石程序」）
+
+    ⚠️ 扩展名必须**带点**（`.jishi`）：不带点的注册表键不叫 `.jishi`
+    而是 `jishi`，那会抢掉所有叫 `xxxjishi` 的后缀 —— 用户想不到是这个原因。
+    """
+    原 = 选项.get("关联") if isinstance(选项, dict) else None
+    if 原 is None:
+        return []
+    对们 = []
+    if isinstance(原, dict):
+        对们 = [(str(k), str(v)) for k, v in 原.items()]
+    elif isinstance(原, (list, tuple)):
+        for 一 in 原:
+            if isinstance(一, dict):
+                对们.append((str(一.get("扩展名", "")), str(一.get("说明", ""))))
+            else:
+                对们.append((str(一), ""))
+    else:
+        raise RunValueError(
+            "「关联」要传字典或列表，例如 {\".jishi\": \"基石脚本\"}")
+    出 = []
+    见 = set()
+    for 扩展名, 说明 in 对们:
+        名 = 扩展名.strip().lower()
+        if not 名:
+            continue
+        if not 名.startswith("."):
+            名 = "." + 名
+        if 名 in 见:
+            continue
+        见.add(名)
+        出.append((名, 说明 or "基石程序"))
+    return 出
+
+
 def _选项(选项):
     if 选项 is None:
         return {"名字": "", "版本": "", "平台": "", "入口": "", "基础": "",
-                "运行时": False, "引擎": ""}
+                "运行时": False, "引擎": "", "关联": []}
     if not isinstance(选项, dict):
         raise RunValueError(
             "「选项」要传字典，例如 {\"名字\": \"记账\", \"版本\": \"1.0.0\"}")
@@ -175,6 +215,9 @@ def _选项(选项):
         # M177：自带运行时。「引擎」是 jishi 可执行文件所在的目录。
         "运行时": _取布尔(选项, "运行时"),
         "引擎": _取文本(选项, "引擎"),
+        # M222：文件关联。**字典**形态最稳（`{".jishi": "基石脚本"}`），
+        # 也收列表（`[".jishi", ".jsh"]`，说明用默认）。
+        "关联": _取关联(选项),
     }
 
 
@@ -199,10 +242,15 @@ def _建清单(项们, 选) -> dict:
         总 += 大小
         文件们.append({"路径": arc, "大小": 大小, "sha256": _文件摘要(full)})
     文件们.sort(key=lambda x: _排序键(x["路径"]))
-    return {
+    m = {
         "名字": 选["名字"], "版本": 选["版本"], "平台": 选["平台"], "入口": 选["入口"],
         "文件数": len(文件们), "字节数": 总, "文件们": 文件们,
     }
+    # M222：有关联才写这个键 —— 老包（没有关联）的清单**字节完全不变**，
+    # 否则所有存量包的哈希与「可复现打包」判据一起红。
+    if 选["关联"]:
+        m["关联"] = [{"扩展名": e, "说明": d} for e, d in 选["关联"]]
+    return m
 
 
 def 清单(来源, 选项=None) -> dict:
@@ -244,6 +292,11 @@ def _清单文本(m: dict) -> str:
     L.append('  "版本": "%s",' % _转义(m["版本"]))
     L.append('  "平台": "%s",' % _转义(m["平台"]))
     L.append('  "入口": "%s",' % _转义(m["入口"]))
+    if m.get("关联"):
+        项 = ", ".join('{"扩展名": "%s", "说明": "%s"}'
+                      % (_转义(e), _转义(d)) for e, d in
+                      ((x["扩展名"], x["说明"]) for x in m["关联"]))
+        L.append('  "关联": [%s],' % 项)
     L.append('  "文件数": %d,' % m["文件数"])
     L.append('  "字节数": %d,' % m["字节数"])
     if not m["文件们"]:

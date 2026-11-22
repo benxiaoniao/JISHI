@@ -5620,6 +5620,38 @@ function _packOptBool(选项, 键, 默认) {
   throw R.valueErr(`选项「${键}」要传 真 或 假，给的是 ${R.pyStr(v)}`);
 }
 
+/** M222：`关联` → `[{扩展名, 说明}]`。口径与 Python `_取关联` 逐字一致。 */
+function _packOpt关联(选项) {
+  if (选项 === undefined || 选项 === null) return [];
+  const 原 = 选项 instanceof Map ? (选项.has('关联') ? 选项.get('关联') : undefined) : undefined;
+  if (原 === undefined || 原 === null) return [];
+  const 对们 = [];
+  if (原 instanceof Map) {
+    for (const [k, v] of 原) 对们.push([String(k), String(v)]);
+  } else if (Array.isArray(原)) {
+    for (const 一 of 原) {
+      if (一 instanceof Map) {
+        对们.push([String(一.get('扩展名') || ''), String(一.get('说明') || '')]);
+      } else {
+        对们.push([String(一), '']);
+      }
+    }
+  } else {
+    throw R.valueErr('「关联」要传字典或列表，例如 {".jishi": "基石脚本"}');
+  }
+  const 出 = [];
+  const 见 = new Set();
+  for (const [扩展名, 说明] of 对们) {
+    let 名 = 扩展名.trim().toLowerCase();
+    if (!名) continue;
+    if (!名.startsWith('.')) 名 = '.' + 名;
+    if (见.has(名)) continue;
+    见.add(名);
+    出.push([名, 说明 || '基石程序']);
+  }
+  return 出;
+}
+
 /** M177：包里那份「怎么启动」的说明。**只有带运行时的包才有它。** */
 const PACK_运行名 = '运行时.json';
 /** 带运行时时的包内布局：用户文件进 `app/`，引擎进 `bin/`。 */
@@ -5768,17 +5800,22 @@ function _packScan(项们) {
 }
 
 function _packManifestValue(选, 文件们, 总) {
-  return new Map([
+  const 表 = new Map([
     ['名字', 选['名字']],
     ['版本', 选['版本']],
     ['平台', 选['平台']],
     ['入口', 选['入口']],
-    ['文件数', 文件们.length],
-    ['字节数', 总],
-    ['文件们', 文件们.map((f) => new Map([
-      ['路径', f.路径], ['大小', f.大小], ['sha256', f.sha256],
-    ]))],
   ]);
+  // M222：有关联才写这个键（老包字节不变）
+  if (选.关联 && 选.关联.length) {
+    表.set('关联', 选.关联.map(([e, d]) => new Map([['扩展名', e], ['说明', d]])));
+  }
+  表.set('文件数', 文件们.length);
+  表.set('字节数', 总);
+  表.set('文件们', 文件们.map((f) => new Map([
+    ['路径', f.路径], ['大小', f.大小], ['sha256', f.sha256],
+  ])));
+  return 表;
 }
 
 /** JSON 字符串转义 —— 与 Python `_转义` / Rust `转义` 逐字一致。 */
@@ -5801,6 +5838,12 @@ function _packJsonText(选, 文件们, 总) {
   L.push(`  "版本": "${_packEsc(选['版本'])}",`);
   L.push(`  "平台": "${_packEsc(选['平台'])}",`);
   L.push(`  "入口": "${_packEsc(选['入口'])}",`);
+  if (选.关联 && 选.关联.length) {
+    const 项 = 选.关联
+      .map(([e, d]) => `{"扩展名": "${_packEsc(e)}", "说明": "${_packEsc(d)}"}`)
+      .join(', ');
+    L.push(`  "关联": [${项}],`);
+  }
   L.push(`  "文件数": ${文件们.length},`);
   L.push(`  "字节数": ${总},`);
   if (!文件们.length) {
@@ -5873,6 +5916,7 @@ const PACK_FUNCS = {
       基础: _packOpt(选项, '基础'),
       运行时: _packOptBool(选项, '运行时', false),
       引擎: _packOpt(选项, '引擎'),
+      关联: _packOpt关联(选项),
     };
     // 与 `生成` 走同一处 `_packPrepare`：带不带运行时，预览和真打必须一致
     const p = _packPrepare(来源, 选);
@@ -5889,6 +5933,7 @@ const PACK_FUNCS = {
       基础: _packOpt(选项, '基础'),
       运行时: _packOptBool(选项, '运行时', false),
       引擎: _packOpt(选项, '引擎'),
+      关联: _packOpt关联(选项),
     };
     const p = _packPrepare(来源, 选);
     const { 文件们, 总, 内容 } = _packScan(p.项们);
@@ -6378,6 +6423,12 @@ const WINDOW_FUNCS = {
   '隐藏': new R.Builtin('隐藏', () => _要原生('隐藏', '用 Rust 发行版；托盘常驻程序用 窗口.隐藏 + 托盘.当')),
   '可见': new R.Builtin('可见', () => _要原生('可见', '用 Rust 发行版')),
   '读标题': new R.Builtin('读标题', () => _要原生('读标题', '用 Rust 发行版；应用模式的标题就是页面的 <title>')),
+  // M222：返回假 + 一句说明（不报错 —— 与 通知.发 同口径）
+  '最近文件': new R.Builtin('最近文件', () => {
+    process.stderr.write('最近文件没记上：这个宿主没有系统「最近使用」能力（用 Rust 发行版）\n');
+    return false;
+  }),
+  '徽标': new R.Builtin('徽标', () => false),
   '关闭到托盘': new R.Builtin('关闭到托盘', () => _要原生('关闭到托盘', '用 Rust 发行版；记得先 窗口.设托盘')),
   '最小化到托盘': new R.Builtin('最小化到托盘', () => _要原生('最小化到托盘', '用 Rust 发行版')),
   '常驻': new R.Builtin('常驻', () => _要原生('常驻', '用 Rust 发行版；脚本里写 窗口.常驻(处理一轮)')),

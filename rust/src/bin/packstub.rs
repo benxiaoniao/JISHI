@@ -135,6 +135,8 @@ struct 包 {
     /// M177：引擎在包内的路径（例如 `bin/jishi.exe`）。空 = 这个包不自带运行时
     /// （老包，或者用户只打了自己的文件）。
     引擎: String,
+    /// M222：文件关联 `[(扩展名, 说明)]`（来自清单，空 = 不声明）。
+    关联: Vec<(String, String)>,
 }
 
 fn 取文(j: &Json, k: &str) -> String {
@@ -175,6 +177,21 @@ fn 读包(载荷: &[u8]) -> Result<包, String> {
         .and_then(|t| jishi_ffi::json::parse(&t).ok())
         .map(|r| 取文(&r, "引擎"))
         .unwrap_or_default();
+    // M222：清单里的「关联」（数组形态）。老包没有这个键 → 空表。
+    let 关联 = j
+        .get("关联")
+        .and_then(|v| v.as_array())
+        .map(|列| {
+            列.iter()
+                .filter_map(|x| {
+                    Some((
+                        x.get("扩展名")?.as_str()?.to_string(),
+                        x.get("说明").and_then(|d| d.as_str()).unwrap_or("基石程序").to_string(),
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     Ok(包 {
         名字: 取文(&j, "名字"),
         版本: 取文(&j, "版本"),
@@ -183,6 +200,7 @@ fn 读包(载荷: &[u8]) -> Result<包, String> {
         文件们,
         条目们,
         引擎,
+        关联,
     })
 }
 
@@ -417,6 +435,76 @@ mod reg {
         Ok(())
     }
 }
+
+// ---------------------------------------------------------------------------
+// M222：文件关联（Windows：HKCU\Software\Classes）
+// ---------------------------------------------------------------------------
+//
+// 为什么是 HKCU 而不是 HKLM：**装一个程序不该要管理员权限**（自研安装器一直
+// 装在用户目录、写 HKCU）。用户级关联对「双击这个文件」同样有效。
+//
+// 🔴 每个程序**自己的 ProgID**（按名字散列）：两个基石程序都声明 `.jishi` 时，
+// 后装者接管「默认打开方式」，但各自的 ProgID 键都在 —— 卸载自己不会把
+// 别人的删掉。系统里同一时刻只能有一个默认程序，这是 Windows 的规则，
+// 不是我们能绕开的（文档里写明）。
+
+/// 这个程序的 ProgID（`Jishi.<fnv1a32(名字)>`）。
+fn progid(名字: &str) -> String {
+    // FNV-1a 64 内联（packstub 是独立 bin，`packcmd` 里那份用不上）。
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in 名字.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100_0000_01b3);
+    }
+    format!("Jishi.{h:x}")
+}
+
+/// 关联要注册的完整子键（判据独立核对用：不靠安装器自己报）。
+pub fn 关联键(扩展名: &str) -> String {
+    format!("Software\\Classes\\{扩展名}")
+}
+
+#[cfg(windows)]
+fn 写关联(
+    名字: &str,
+    关联: &[(String, String)],
+    命令: &str,
+    图标: &str,
+) -> Result<(), String> {
+    let pid = progid(名字);
+    let 主键 = format!("Software\\Classes\\{pid}");
+    for (扩展名, 说明) in 关联 {
+        // ① `.ext` 的默认值指向本程序的 ProgID
+        reg::写值(&关联键(扩展名), "", &pid, reg::REG_SZ)?;
+        // ② ProgID 本体：说明 / 图标 / 打开命令
+        reg::写值(&主键, "", 说明, reg::REG_SZ)?;
+        reg::写值(&format!("{主键}\\DefaultIcon"), "", 图标, reg::REG_SZ)?;
+        reg::写值(&format!("{主键}\\shell\\open\\command"), "", 命令, reg::REG_SZ)?;
+    }
+    Ok(())
+}
+
+/// 卸载：只回收**自己写的**（默认值还是自己的 ProgID 才动 `.ext` 键）。
+#[cfg(windows)]
+fn 删关联(名字: &str, 关联: &[(String, String)]) {
+    let pid = progid(名字);
+    for (扩展名, _) in 关联 {
+        let 键 = 关联键(扩展名);
+        if reg::读值(&键, "").as_deref() == Some(pid.as_str()) {
+            let _ = reg::删键(&键);
+        }
+    }
+    let _ = reg::删键(&format!("Software\\Classes\\{pid}"));
+}
+
+#[cfg(not(windows))]
+fn 写关联(_: &str, _: &[(String, String)], _: &str, _: &str) -> Result<(), String> {
+    Err("文件关联这一版只做了 Windows（mac 的 Info.plist / Linux 的 .desktop 见 0.4.x）"
+        .to_string())
+}
+
+#[cfg(not(windows))]
+fn 删关联(_: &str, _: &[(String, String)]) {}
 
 /// 把 `目录` 追加到用户 PATH（已存在就不重复加）。返回「是不是新加的」。
 ///
@@ -1058,6 +1146,39 @@ fn 安装(
         }
     }
 
+    // ---- M222：文件关联 ----
+    //
+    // 命令行的形状：`"引擎" "入口" "%1"`（不带运行时就是 `"程序.exe" "%1"`）。
+    // 双击文件时系统把路径塞进 `%1`，程序用 `系统.脚本参数()` 读第一个参数。
+    let mut 关联问题: Option<String> = None;
+    if 跳过.is_none() && !包.关联.is_empty() && 包.引擎.is_empty() {
+        // 🔴 没有引擎就没有「能执行 .jsh 的东西」—— 关联写出来是
+        //    `"程序.jsh" "%1"`，双击它只会再去找一个能开 .jsh 的程序（死循环 / 报错）。
+        //    显式说清楚，别让作者以为「声明了就能双击打开」。
+        关联问题 = Some(
+            "这个包没自带运行时（打的时候没加 `--自带运行时`），关联写不出来 —— \
+             双击 .jishi 找不到能跑它的程序"
+                .to_string(),
+        );
+    } else if 跳过.is_none() && !包.关联.is_empty() {
+        let 命令 = if 快捷参数.is_empty() {
+            format!("\"{快捷目标}\" \"%1\"")
+        } else {
+            format!("\"{快捷目标}\" {快捷参数} \"%1\"")
+        };
+        // 图标同样只能给 .exe（`.jsh` 没有图标资源）
+        let 图标 = if 快捷目标.to_ascii_lowercase().ends_with(".exe") {
+            format!("{快捷目标},0")
+        } else {
+            format!("{},0", 卸载路径.display())
+        };
+        if let Err(e) = 写关联(&包.名字, &包.关联, &命令, &图标) {
+            // **文件已经装好了**，关联失败只是「双击打不开」——
+            // 报出来但不当失败（权限/组策略受限的机器上很常见）。
+            关联问题 = Some(e);
+        }
+    }
+
     let mut path问题: Option<String> = None;
     let mut 加了path = false;
     if 要path && 跳过.is_none() {
@@ -1109,6 +1230,11 @@ fn 安装(
 
     if let Some(f) = 进度 {
         f(0.99, "收尾");
+    }
+    // 关联问题**不受静默影响**：它是「双击打不开」这种硬信息，
+    // 静默安装（CI / 脚本）同样要能看见。
+    if let Some(e) = &关联问题 {
+        eprintln!("⚠️  文件关联没写进去（双击 .jishi 打不开）：{e}");
     }
     if !静默 {
         if let Some(因) = &跳过 {
@@ -1299,6 +1425,25 @@ fn 卸载(目标: &Path, 静默: bool) -> Result<(), String> {
                 .collect()
         })
         .unwrap_or_default();
+
+    // M222：先回收文件关联（默认值还是自己的 ProgID 才动 `.ext` 键）。
+    let 关联: Vec<(String, String)> = j
+        .get("关联")
+        .and_then(|v| v.as_array())
+        .map(|列| {
+            列.iter()
+                .filter_map(|x| {
+                    Some((
+                        x.get("扩展名")?.as_str()?.to_string(),
+                        x.get("说明").and_then(|d| d.as_str()).unwrap_or("").to_string(),
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if !关联.is_empty() {
+        删关联(&名字, &关联);
+    }
 
     let mut 删了 = 0usize;
     for 路径 in &路径们 {

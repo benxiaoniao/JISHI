@@ -1916,6 +1916,94 @@ pub fn 提示(窗号: u64, 标题: &str, 内容: &str) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// M222：跳转列表的「最近文件」+ 徽标
+// ---------------------------------------------------------------------------
+//
+// ## 为什么只做「最近文件」，不做「固定任务」
+//
+// Windows 的跳转列表（右键任务栏图标）要两样东西**同时**成立：程序有
+// AppUserModelID，且**快捷方式上也写着同一个 AUMID**。后者要用
+// `IPropertyStore` 往 `.lnk` 的 ExtraData 块里写 `PKEY_AppUserModel_ID`——
+// 与「真 Toast」同一条依赖链（D126 三）。这一版只做**能验的那半**：
+//
+// * `窗口.最近文件(路径)` → `SHAddToRecentDocs`：把文件记进系统的「最近使用」，
+//   附带让跳转列表的「最近」分类有东西（AUMID 对上时系统会显示）。一行 syscall，
+//   可测、不依赖安装器。
+// * 「固定任务」（跳转列表里自己钉的项）要 `ICustomDestinationList` +
+//   AUMID 注册链 ⇒ 记 0.4.x，如实写，不假装做了。
+//
+// ## 徽标（Dock / Launcher）
+//
+// mac 是 `dockTile.badgeLabel`（ObjC 一行消息）、Linux 是 D-Bus 的
+// LauncherEntry —— **本机（Windows）都验不了**，而 CI 的 mac/linux job 跑的是
+// `JISHI_NO_GUI=1`。照 D126 三的先例：接口在、返回假 + 说明，真实现与
+// UNUserNotificationCenter 一起记 0.4.x。Windows 上本来就有 `窗口.进度`。
+
+/// `窗口.最近文件(路径)` —— 把一份文件记进系统「最近使用」（跳转列表的原料）。
+///
+/// 返回真 = 记进去了；假 = 这个平台没有这个概念 / 系统拒绝。
+#[cfg(windows)]
+pub fn 最近文件(路径: &str) -> bool {
+    use std::ffi::c_void;
+
+    #[link(name = "shell32")]
+    extern "system" {
+        fn SHAddToRecentDocs(flags: u32, item: *const c_void) -> ();
+    }
+    #[link(name = "shell32")]
+    extern "system" {
+        fn SetCurrentProcessExplicitAppUserModelID(id: *const u16) -> i32;
+    }
+
+    // AUMID 只设一次（进程级）。用固定串：**没有快捷方式配合时系统会忽略它**，
+    // 但设了它至少让「同一个程序窗口」在任务栏归组正确。
+    static 设过: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if !设过.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        let id: Vec<u16> = "cn.jishi.app\0".encode_utf16().collect();
+        unsafe {
+            let _ = SetCurrentProcessExplicitAppUserModelID(id.as_ptr());
+        }
+    }
+
+    let 宽: Vec<u16> = 路径.encode_utf16().chain(std::iter::once(0)).collect();
+    // 🔴 3 = **SHARD_PATHW**（`SHARD_PIDL=1` 是 ITEMIDLIST —— 传字符串指针过去
+    //    会被当 PIDL 解引用 ⇒ 0xC0000005 段错误，M222 全量时撞出来的）。
+    unsafe { SHAddToRecentDocs(3, 宽.as_ptr() as *const c_void) };
+    true
+}
+
+#[cfg(not(windows))]
+pub fn 最近文件(_路径: &str) -> bool {
+    false
+}
+
+/// 这个平台有没有「把文件记进最近使用」的能力（给上面那句说明用）。
+pub fn 能记最近文件() -> bool {
+    cfg!(windows)
+}
+
+/// `窗口.徽标(文本)` —— 任务栏图标上的角标（mac Dock / Linux Launcher）。
+///
+/// 本机验不了（见上面那段的说明），非 mac/Linux 一律返回假。
+#[cfg(target_os = "macos")]
+pub fn 设徽标(文本: &str) -> bool {
+    // ⚠️ 0.4.x 才做：要 objc_msgSend 调 `NSApplication.sharedApplication` →
+    //    `dockTile` → `setBadgeLabel:`，本机（Windows）一行都验不了。
+    let _ = 文本;
+    false
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn 设徽标(_文本: &str) -> bool {
+    false
+}
+
+/// 这个平台支持「徽标」吗（文档与语言卡按它说话）。
+pub fn 能设徽标() -> bool {
+    cfg!(target_os = "macos")
+}
+
+// ---------------------------------------------------------------------------
 // M221：通知（跨平台）+ Windows 点击回调
 // ---------------------------------------------------------------------------
 //

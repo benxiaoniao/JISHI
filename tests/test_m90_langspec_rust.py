@@ -256,8 +256,9 @@ def test_独立判据_lang_spec结构与关键事实():
     # ⇒ **51 模块 / 580 函数**。
     # M220：诊断修口不加函数 ⇒ 584 不变。
     # M221：新模块 `通知`（发/关闭/当）+ `窗口` 7 个（显示/隐藏/可见/读标题/
-    # 关闭到托盘/最小化到托盘/常驻）+ `托盘.当` ⇒ **52 模块 / 595 函数**。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 595
+    # 关闭到托盘/最小化到托盘/常驻）+ `托盘.当` ⇒ 52 模块 / 595 函数。
+    # M222：`窗口.最近文件` / `窗口.徽标` ⇒ **52 模块 / 597 函数**。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 597
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

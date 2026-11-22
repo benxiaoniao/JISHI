@@ -36,6 +36,69 @@ struct 选项 {
     /// 引擎在**磁盘上**的位置（可执行文件本身或它所在的目录）。
     /// 空 = 用「当前这个进程自己的可执行文件」所在目录（Rust 宿主默认可行）。
     引擎: String,
+    /// M222：文件关联 `[(扩展名, 说明)]`。空 = 不声明（老包字节不变）。
+    关联: Vec<(String, String)>,
+}
+
+/// M222：`关联` → `[(扩展名, 说明)]`。口径与 Python `_取关联` 逐字一致：
+/// 字典 `{".jishi": "基石脚本"}` 或列表 `[".jishi", ...]`；扩展名小写、带点、
+/// 去重保序。**带点**是硬要求 —— 注册表键是按后缀名精确匹配的。
+fn 取关联(源: &Option<Val>) -> Result<Vec<(String, String)>, crate::JishiError> {
+    let Some(d) = 源 else { return Ok(Vec::new()) };
+    let Some(v) = 取(d, "关联")? else { return Ok(Vec::new()) };
+    let mut 对们: Vec<(String, String)> = Vec::new();
+    match &v {
+        Val::Dict(m) => {
+            for (k, val) in m.borrow().iter() {
+                if let Val::Str(k) = k {
+                    let 说 = match val {
+                        Val::Str(s) => s.to_string(),
+                        _ => String::new(),
+                    };
+                    对们.push((k.to_string(), 说));
+                }
+            }
+        }
+        Val::List(l) => {
+            for one in l.borrow().iter() {
+                match one {
+                    Val::Str(s) => 对们.push((s.to_string(), String::new())),
+                    Val::Dict(dd) => {
+                        let e = 取文(&Some(Val::Dict(dd.clone())), "扩展名")?;
+                        let m = 取文(&Some(Val::Dict(dd.clone())), "说明")?;
+                        对们.push((e, m));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        other => {
+            return Err(err(
+                "值错误",
+                format!(
+                    "「关联」要传字典或列表，给的是{}（例如 {{\".jishi\": \"基石脚本\"}}）",
+                    crate::type_label(other)
+                ),
+            ))
+        }
+    }
+    let mut 出: Vec<(String, String)> = Vec::new();
+    let mut 见 = std::collections::HashSet::new();
+    for (扩展名, 说明) in 对们 {
+        let mut 名 = 扩展名.trim().to_lowercase();
+        if 名.is_empty() {
+            continue;
+        }
+        if !名.starts_with('.') {
+            名 = format!(".{名}");
+        }
+        if !见.insert(名.clone()) {
+            continue;
+        }
+        let 说 = if 说明.is_empty() { "基石程序".to_string() } else { 说明 };
+        出.push((名, 说));
+    }
+    Ok(出)
 }
 
 fn 取(d: &Val, key: &str) -> Result<Option<Val>, crate::JishiError> {
@@ -102,6 +165,7 @@ fn 读选项(v: Option<&Val>) -> Result<选项, crate::JishiError> {
             None => false,
         },
         引擎: 取文(&源, "引擎")?,
+        关联: 取关联(&源)?,
     })
 }
 
@@ -227,15 +291,32 @@ fn 清单成值(项们: &[一项], 选: &选项, 总: i128) -> Val {
             ])
         })
         .collect();
-    crate::dict_new(vec![
+    let mut 键 = vec![
         (Val::Str("名字".into()), Val::Str(选.名字.clone().into())),
         (Val::Str("版本".into()), Val::Str(选.版本.clone().into())),
         (Val::Str("平台".into()), Val::Str(选.平台.clone().into())),
         (Val::Str("入口".into()), Val::Str(选.入口.clone().into())),
+    ];
+    // M222：有关联才写 —— 老包（没有关联）的清单键序/字节完全不变。
+    if !选.关联.is_empty() {
+        let 列: Vec<Val> = 选
+            .关联
+            .iter()
+            .map(|(e, d)| {
+                crate::dict_new(vec![
+                    (Val::Str("扩展名".into()), Val::Str(e.as_str().into())),
+                    (Val::Str("说明".into()), Val::Str(d.as_str().into())),
+                ])
+            })
+            .collect();
+        键.push((Val::Str("关联".into()), crate::list_new(列)));
+    }
+    键.extend([
         (Val::Str("文件数".into()), Val::Int(crate::jint::JInt::new(项们.len() as i128))),
         (Val::Str("字节数".into()), Val::Int(crate::jint::JInt::new(总))),
         (Val::Str("文件们".into()), crate::list_new(文件们)),
-    ])
+    ]);
+    crate::dict_new(键)
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +344,21 @@ fn 清单文本(项们: &[一项], 选: &选项, 总: i128) -> String {
     L.push(format!("  \"版本\": \"{}\",", 转义(&选.版本)));
     L.push(format!("  \"平台\": \"{}\",", 转义(&选.平台)));
     L.push(format!("  \"入口\": \"{}\",", 转义(&选.入口)));
+    if !选.关联.is_empty() {
+        let 项 = 选
+            .关联
+            .iter()
+            .map(|(e, d)| {
+                format!(
+                    "{{\"扩展名\": \"{}\", \"说明\": \"{}\"}}",
+                    转义(e),
+                    转义(d)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        L.push(format!("  \"关联\": [{项}],"));
+    }
     L.push(format!("  \"文件数\": {},", 项们.len()));
     L.push(format!("  \"字节数\": {总},"));
     if 项们.is_empty() {
