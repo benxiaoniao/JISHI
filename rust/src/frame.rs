@@ -45,6 +45,15 @@ thread_local! {
     static 事件中: Cell<bool> = const { Cell::new(false) };
     /// 画布的逻辑尺寸（`(宽, 高)`），`图形.准备` 成功后填。
     static 画布: Cell<Option<(f64, f64)>> = const { Cell::new(None) };
+    /// M224：**帧循环最后一次错误的 JSON**（`图形.帧错误()` 读它）。
+    ///
+    /// 为什么要有：页面模式下帧循环出错只进 `console.error`，桌面窗口里
+    /// **什么都看不见**（用户实测：黑屏、无从下手）。把它留在引擎里，
+    /// 页面里 `图形.帧错误()` 就能打印出来。
+    ///
+    /// ⚠️ 生命周期刻意**长于** `清()`：`图形.停` 之后用户仍要查「刚才为什么停了」。
+    /// 只在 `图形.运行` 重新登记时清。
+    static 最后错误: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 /// 登记一个帧循环。**覆盖式**（调用方负责先查 `有()`）。
@@ -65,6 +74,21 @@ pub fn 有() -> bool {
 /// 清掉登记（`图形.停` / 出错 / 页面重跑）。
 pub fn 清() {
     登记表.with(|t| *t.borrow_mut() = None);
+}
+
+/// M224：记下帧循环最后一次错误（JSON 文本）。
+pub fn 记最后错误(文: &str) {
+    最后错误.with(|c| *c.borrow_mut() = Some(文.to_string()));
+}
+
+/// M224：帧循环最后一次错误（JSON 文本）；没出过错就是 `None`。
+pub fn 取最后错误() -> Option<String> {
+    最后错误.with(|c| c.borrow().clone())
+}
+
+/// M224：清掉错误（`图形.运行` 重新登记时调 —— 新一轮，旧错误不该再报）。
+pub fn 清最后错误() {
+    最后错误.with(|c| *c.borrow_mut() = None);
 }
 
 /// 现在是不是在事件回调里。

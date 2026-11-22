@@ -5338,6 +5338,23 @@ fn shift_count(v: &Val, func: &str) -> Result<i128, JishiError> {
     Ok(n)
 }
 
+/// M224：`环境()` 的取值。
+///
+/// | 编译目标 | 返回值 | 说明 |
+/// |---|---|---|
+/// | wasm（页面 / 窗口里的页面） | `"页面"` | 没有文件系统、没有进程 |
+/// | 原生（CLI / Node / C VM） | `"命令行"` | 有文件/进程/网络 |
+///
+/// ⚠️ 四个执行器**必须逐字一致**（`test_m51` / 语料对拍）。Python 与 Node 都
+/// 返回 `"命令行"` —— 它们是 CLI 宿主，不是页面。
+pub(crate) fn 运行环境() -> &'static str {
+    if cfg!(target_arch = "wasm32") {
+        "页面"
+    } else {
+        "命令行"
+    }
+}
+
 pub(crate) fn new_builtins() -> HashMap<String, Val> {
     let mut m = HashMap::new();
     m.insert("打印".to_string(), crate::builtin("打印", |args, vm| {
@@ -5604,6 +5621,14 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     m.insert("类型".to_string(), crate::builtin("类型", |args, _vm| {
         need_builtin_args("类型", args, 1, 1)?;
         Ok(Val::Str(type_label(&args[0]).into()))
+    }));
+    // M224：`环境()` —— 这段代码跑在哪儿。用户实测要的（写游戏的想在命令行跑
+    // `--测试` 分流，而 `导入 系统` 在沙箱里是被拒的 —— 那个拒绝是对的：
+    // `系统.执行` 能跑命令。`环境()` 零副作用，所以做成**全局内建**，
+    // 不进任何模块，沙箱也就没有理由拦它）。
+    m.insert("环境".to_string(), crate::builtin("环境", |args, _vm| {
+        need_builtin_args("环境", args, 0, 0)?;
+        Ok(Val::Str(运行环境().into()))
     }));
     // 位运算内建（M36）：Python 侧**不做 `& | ^ << >>` 语法**（日常罕见，
     // 加运算符要动三执行器 + 两宿主 + 词法器），改成一小组内建。

@@ -1754,6 +1754,18 @@
         || k === "ArrowDown" || k === " " || k === "Tab";
   };
 
+  /**
+   * M224：这个 wasm 自己的标准库清单（JSON 文本）。
+   *
+   * 与 `jishi --dump-stdlib` 对拍用（发版闸门，见 `tools/probe_wasm_stdlib.py`）。
+   * 不依赖任何页面能力 —— 无头 Node 跑得动。
+   */
+  Jishi.prototype.标准库清单 = function () {
+    if (typeof this._ex.jishi_dump_stdlib !== "function") return "";
+    this._ex.jishi_dump_stdlib();
+    return this._取输出();
+  };
+
   /** 把结果缓冲读出来（**不释放别的东西**，与 `_take` 分开写）。 */
   Jishi.prototype._取输出 = function () {
     var n = this._ex.jishi_out_len();

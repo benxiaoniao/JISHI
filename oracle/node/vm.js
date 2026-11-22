@@ -9555,6 +9555,8 @@ const STDLIB = {  '数学': new R.Module('数学', {
       throw R.runErr('还没有帧数据 —— 「帧统计」要在 `图形.运行` 的帧循环里读', 0, 0);
     }),
     '清帧统计': new R.Builtin('清帧统计', () => null),
+    // M224：帧循环最后一次错误（命令行没有帧循环 → 空串）
+    '帧错误': new R.Builtin('帧错误', () => ''),
   })),
   // M187
   '声音': new R.Module('声音', Object.assign(SOUND_FUNCS, {

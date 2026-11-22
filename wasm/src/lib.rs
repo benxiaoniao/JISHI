@@ -160,6 +160,19 @@ pub extern "C" fn jishi_run(ptr: *const u8, len: usize) -> i32 {
     0
 }
 
+/// M224：把**这个 wasm 自己的**标准库清单（JSON）放进结果缓冲。返回 `0`。
+///
+/// 为什么要有它（用户实测撞出来的）：0.3.5 的发行包里 `bin/jishi_wasm.wasm`
+/// 停在了 0.3.4 的标准库 —— CLI 有 569 个函数、页面里只有 0.3.4 那批，
+/// 而「窗口白屏」的判据只验文件在不在，验不出「编进去了什么」。
+/// 所以发版前拿它和 `jishi --dump-stdlib` 对拍（`tools/probe_wasm_stdlib.py`），
+/// 少一个函数就中止发版。
+#[no_mangle]
+pub extern "C" fn jishi_dump_stdlib() -> i32 {
+    set_out(jishi_ffi::dump_stdlib());
+    0
+}
+
 /// 求一个表达式的值；结果（协议 JSON）放进结果缓冲。返回 `0`。
 #[no_mangle]
 pub extern "C" fn jishi_eval(ptr: *const u8, len: usize) -> i32 {
@@ -342,7 +355,10 @@ pub extern "C" fn jishi_frame(ts: f64) -> i32 {
             // 出错即停：不清掉登记的话，下一帧还会再跑一次、再报一次
             // （D110 §七「只报一次」）。
             jishi_ffi::frame::清();
-            set_out(sandbox::错误json(&e));
+            let 错 = sandbox::错误json(&e);
+            // M224：留在引擎里（页面里 `图形.帧错误()` 读得到）
+            jishi_ffi::frame::记最后错误(&错);
+            set_out(错);
             2
         }
     }

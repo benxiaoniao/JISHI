@@ -278,6 +278,20 @@ def _build_wasm_into(bin_dir: Path) -> None:
             raise SystemExit(f"wasm 构建完了却没有 {源} —— build_wasm.py 的行为变了？")
         shutil.copy2(源, bin_dir / 名)
         n += 源.stat().st_size
+
+    # 🔴 M224：**发版闸门** —— 刚才那份 wasm 的标准库必须与 Rust 宿主逐条一致。
+    #
+    # 为什么非加不可（用户实测撞出来的）：0.3.5 的发行包里 `bin/jishi_wasm.wasm`
+    # 停在了 0.3.4（少 `操控`/`粒子`、`地图.寻路` 不存在），而「窗口白屏」的
+    # 判据只验文件在不在 —— 文件在、内容旧，一切看起来都对。写游戏的用户
+    # 全被这一条挡住，只能退回 0.3.4 的 API。
+    print("  对拍 wasm 与 Rust 的标准库...")
+    r = subprocess.run([sys.executable, str(ROOT / "tools" / "probe_wasm_stdlib.py")],
+                       cwd=str(ROOT), capture_output=True, text=True)
+    sys.stdout.write(r.stdout)
+    if r.returncode != 0:
+        sys.stderr.write(r.stderr)
+        raise SystemExit("wasm 的标准库与 Rust 宿主不一致 —— **不能发版**（上面有差异清单）")
     print(f"  已放入 bin/jishi-wasm.js + bin/jishi_wasm.wasm（{n:,} 字节）")
 
 

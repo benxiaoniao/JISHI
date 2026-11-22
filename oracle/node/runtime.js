@@ -2013,6 +2013,11 @@ function newBuiltins() {
       // 含小数则返回 FloatBox
       return seq.some(isFloatBox) ? new FloatBox(s) : s;
     }),
+    // M224：`环境()` —— 命令行还是页面（零副作用，故全局内建）
+    '环境': new Builtin('环境', (...args) => {
+      needBuiltinArgs('环境', args, 0, 0);
+      return '命令行';
+    }),
     '类型': new Builtin('类型', (...args) => {
       needBuiltinArgs('类型', args, 1, 1);
       return typeName(args[0]);

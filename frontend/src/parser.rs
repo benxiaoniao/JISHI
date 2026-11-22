@@ -284,6 +284,11 @@ fn tok_text(t: &Tok) -> String {
     if t.kind == "EOF" {
         return EOF_LABEL.to_string();
     }
+    // M224：`NEWLINE` 的 value 是 `"\n"` —— 直接印出来就是
+    // 「这里需要一个值，但看到了「\n」」（用户看到的是一个换行符）。
+    if t.kind == "NEWLINE" {
+        return "行尾".to_string();
+    }
     match &t.value {
         Value::None => "None".to_string(),
         Value::Int(i) => i.to_string(),
@@ -837,7 +842,7 @@ impl Parser {
 
         Err(self.err_tok(E_UNEXPECTED,
                          format!("不知道怎么写这句话：{}", describe(&t)),
-                         None, &t, None))
+                         续行提示(&t), &t, None))
     }
 
     /// 前瞻：判断从当前位置开始是否是「名字 + 下标/属性 + 赋值符」的赋值语句
@@ -2592,12 +2597,42 @@ fn int_like(v: &J) -> Option<J> {
 }
 
 /// 对应 `Parser._describe`
+/// M224：行首 `+` 续行 / 缩进对不上时，给一句能照着改的提示。
+///
+/// 用户实测：「习惯 Python/JS 续行的话第一天就会撞」，而原来的报错是
+/// 「不知道怎么写这句话：「4」」（缩进宽度被当内容印出来）。
+fn 续行提示(t: &Tok) -> Option<String> {
+    if t.kind == "INDENT" {
+        return Some(
+            "这一行的缩进对不上：上一行的表达式可能没写完。长表达式换行要\
+             **整段进括号**（`(` `[` `{` 里随便换行），行首 `+` 续行不支持"
+                .to_string(),
+        );
+    }
+    if t.kind == "OP" {
+        let 文 = tok_text(t);
+        if matches!(文.as_str(), "+" | "-" | "*" | "/" | "%" | "//") {
+            return Some(
+                "这一行以运算符开头：上一行的表达式可能没写完。长表达式换行要\
+                 **整段进括号**，行首 `+` 续行不支持"
+                    .to_string(),
+            );
+        }
+    }
+    None
+}
+
 fn describe(t: &Tok) -> String {
     // ⚠️ FSTRING **不走特判**：`tok_text` 已经把它说成「插值字符串」，
     // 走 `_` 那条兜底分支就与 Python 的 `_describe` 逐字相同
     // （Python 那边也是 `f"「{_tok_text(t)}」"` 兜底）。一开始给它单开了一条
     // 分支、忘了补那对「」，两边就差两个字符 —— 正是 R3 要抓的东西。
+    // M224：缩进类 token 的 value 是**缩进宽度**（数字），直接印出来就是
+    // 「不知道怎么写这句话：「4」」—— 用户实测撞到，完全看不懂。
     match t.kind {
+        "INDENT" => "缩进".to_string(),
+        "DEDENT" => "反缩进".to_string(),
+        "NEWLINE" => "行尾".to_string(),
         "KEYWORD" => format!("关键字「{}」", tok_text(t)),
         "NAME" => format!("名字「{}」", tok_text(t)),
         "OP" => format!("符号「{}」", tok_text(t)),

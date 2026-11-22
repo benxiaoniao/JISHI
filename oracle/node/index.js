@@ -126,6 +126,14 @@ function dumpStdlib() {
       .filter((k) => m.attrs[k] instanceof Runtime.Builtin)
       .sort();
   }
+  // M224：补**内嵌库模块**（`数据库`）—— 它在 `oracle/jishi/stdlib-jishi/`
+  // 里由 .jsh 实现，不在 `STDLIB` 这张原生模块表里。少了它 `--dump-stdlib`
+  // 就比真实能力少报一个模块（Rust 侧同样补过，见 `stdlib/mod.rs::dump`）。
+  const SIGS = require('./stdlib_sigs');
+  for (const mod of Object.keys(SIGS)) {
+    if (out[mod]) continue;
+    out[mod] = Object.keys(SIGS[mod]).sort();
+  }
   process.stdout.write(JSON.stringify(out));
   return 0;
 }

@@ -92,7 +92,9 @@ _RESERVED_KINDS = ("内建函数", "异常类型")
 #: - 导入名：`导入 随机` / `导入 文本 为 文本库` 都是设计好的模块导入方式；
 #: - 形参 / 循环变量 / 推导式变量 / 捕获名：作用域极小，且中文里撞名太正常
 #:   （`函数 读文件(路径)`）。
-_SHADOW_SKIP_KINDS = ("导入名", "形参", "循环变量", "推导式变量", "捕获名")
+# M224：「导入名」不再跳过 —— `导入 文本` 会把内建 文本() 遮掉（用户实测撞到）。
+# 不撞内建的导入（`导入 随机`）不会触发（`_RESERVED_KINDS` 里没有它）。
+_SHADOW_SKIP_KINDS = ("形参", "循环变量", "推导式变量", "捕获名")
 
 
 def _是内部名(name: str) -> bool:
@@ -263,8 +265,8 @@ def _所有绑定(program: A.Program) -> list[tuple[str, Any, str]]:
 def _遮蔽内建(program: A.Program, lang: LangData) -> list[Issue]:
     """绑定的名字撞上**内建函数或异常类型**。
 
-    刻意不开的三扇门（开了就是误报，见 `_RESERVED_KINDS` / `_SHADOW_SKIP_KINDS`
-    的注释）：标准库模块名、导入名、形参、循环变量、推导式变量、捕获名；
+    刻意不开的四扇门（开了就是误报，见 `_RESERVED_KINDS` / `_SHADOW_SKIP_KINDS`
+    的注释）：标准库模块名、形参、循环变量、推导式变量、捕获名；
     变量还只在**模块级**报（模块级的变量会整份文件挡住内建，函数里的不会）。
 
     同一名字只报第一次（重复赋值同一个被遮蔽的名字，报一次就够了）。
@@ -291,8 +293,11 @@ def _遮蔽内建(program: A.Program, lang: LangData) -> list[Issue]:
             code="name.shadow", level=LEVEL_WARNING,
             line=line, col=col,
             message=f"{kind}「{name}」遮蔽了{reserved[name]}「{name}」",
-            hint=f"这个作用域里原来的「{name}」就被挡住了——换个名字（如"
-                 f"「我的{name}」）能避免后面的人看错。",
+            hint=(f"两个都要用就**别名导入**：`导入 {name} 为 {name}库`，"
+                  f"之后用 `{name}库.…` —— 直接 `{name}()` 会被模块挡住"
+                  if kind == "导入名" else
+                  f"这个作用域里原来的「{name}」就被挡住了——换个名字（如"
+                  f"「我的{name}」）能避免后面的人看错。"),
             name=name,
         ))
     return out

@@ -146,10 +146,27 @@ SUPER_NAME = "超"
 #: 用户看不懂；而这个 repr 的转义规则（`\t` / `\u3000` / 引号选择…）要在
 #: Rust 侧**逐字复刻**，是个填不满的坑。所以凡是要把 token 值写进文案的地方，
 #: 一律先过 `_tok_text`（R3 立的规矩）。
-_TOK_LABELS = {"FSTRING": "插值字符串", "EOF": "文件末尾"}
+# M224：`NEWLINE` 也要有标签 —— 原来靠 `str(t.value)` 会把**真实换行符**
+# 印进报错（「这里需要一个值，但看到了「+换行+」」），用户看到的是一个空行。
+_TOK_LABELS = {"FSTRING": "插值字符串", "EOF": "文件末尾", "NEWLINE": "行尾"}
 
 #: 右括号（E0205 认这三样）。左边那个由 `_OPENERS` 反查。
 _OPENERS = {")": "(", "]": "[", "}": "{"}
+
+
+def _续行提示(t: "Token") -> Optional[str]:
+    """M224：行首 `+` 续行 / 缩进对不上时，给一句能照着改的提示。
+
+    用户实测：「习惯 Python/JS 续行的话第一天就会撞」，而原来的报错是
+    「不知道怎么写这句话：「4」」（缩进宽度被当内容印出来）。
+    """
+    if t.type == "INDENT":
+        return ("这一行的缩进对不上：上一行的表达式可能没写完。长表达式换行要"
+                "**整段进括号**（`(` `[` `{` 里随便换行），行首 `+` 续行不支持")
+    if t.type == "OP" and t.value in ("+", "-", "*", "/", "%", "//"):
+        return ("这一行以运算符开头：上一行的表达式可能没写完。长表达式换行要"
+                "**整段进括号**，行首 `+` 续行不支持")
+    return None
 
 
 def _tok_text(t: "Token") -> str:
@@ -632,9 +649,18 @@ class Parser:
             return A.Pass(line=t.line, col=t.col)
 
         self._err(ParseUnexpectedError,
-                  f"不知道怎么写这句话：{self._describe(t)}", tok=t)
+                  f"不知道怎么写这句话：{self._describe(t)}",
+                  hint=_续行提示(t), tok=t)
 
     def _describe(self, t: Token) -> str:
+        # M224：缩进类 token 的 value 是**缩进宽度**（数字），直接印出来就是
+        # 「不知道怎么写这句话：「4」」—— 用户实测撞到，完全看不懂。
+        if t.type == "INDENT":
+            return "缩进"
+        if t.type == "DEDENT":
+            return "反缩进"
+        if t.type == "NEWLINE":
+            return "行尾"
         if t.type == "KEYWORD":
             return f"关键字「{_tok_text(t)}」"
         if t.type == "NAME":

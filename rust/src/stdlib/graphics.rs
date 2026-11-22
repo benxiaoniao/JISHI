@@ -775,6 +775,10 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     "要换一套就用 `图形.停()`，或者刷新页面".into(),
                 ));
             }
+            // ⚠️ M224：**这里不能清「最后错误」** —— `窗口.当` / `浏览器.绑定` 的
+            // 回调是「重跑整份源码再调函数」，重跑时 `图形.运行` 会再执行一遍，
+            // 清掉的话页面里永远读不到刚犯的错（实测撞出来的）。
+            // 错误保留到下一次真出错被覆盖；引擎重启（新页面）自然清空。
             let 初始化 = match &args[0] {
                 Val::Func(_) => Some(args[0].clone()),
                 Val::None_ => None,
@@ -1164,6 +1168,25 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "清帧统计" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             crate::frame::清帧耗时();
             Ok(Val::None_)
+        },
+        // M224：`图形.帧错误()` —— 帧循环最后一次错误（JSON 文本）；没出过错给空串。
+        //
+        // 用户实测要的：页面模式下帧循环出错只进 `console.error`，桌面窗口里
+        // **看不见**（黑屏、无从下手）。现在调一次就能拿到完整错误（含行列）。
+        "帧错误" => |a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need("帧错误", a, 0)?;
+            #[cfg(target_arch = "wasm32")]
+            {
+                return Ok(Val::Str(
+                    crate::frame::取最后错误().unwrap_or_default().into(),
+                ));
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                // 命令行没有帧循环 —— 有的帧错误在桌面窗口里出（那边是 wasm），
+                // 所以这里给空串而不是报错（「没有错误」比「函数不存在」准确）。
+                Ok(Val::Str("".into()))
+            }
         },
         "停" => |_a: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             要画布()?;

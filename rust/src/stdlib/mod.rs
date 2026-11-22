@@ -223,6 +223,23 @@ pub fn dump() -> String {
         let items: Vec<String> = keys.iter().map(|k| quote(k)).collect();
         parts.push(format!("{}:[{}]", quote(name), items.join(",")));
     }
+    // M224：**内嵌库模块**（`数据库`）不在 `all_modules()` 里 —— 它是
+    // `oracle/jishi/stdlib-jishi/数据库.jsh` 编进二进制的。少了这一段，
+    // `--dump-stdlib` 就比真实能力少报一个模块（用户按它判断「宿主有什么」，
+    // 0.3.5 的 wasm 落后问题正是被这个口径遮掩过）。
+    let 已有: std::collections::HashSet<&str> =
+        all_modules().iter().map(|(n, _)| *n).collect();
+    for (名, _源) in crate::内嵌库模块() {
+        if 已有.contains(名) {
+            continue;
+        }
+        if let Some(函数们) = crate::stdlib_sigs::模块函数们(名) {
+            let mut keys: Vec<&str> = 函数们.to_vec();
+            keys.sort_unstable();
+            let items: Vec<String> = keys.iter().map(|k| quote(k)).collect();
+            parts.push(format!("{}:[{}]", quote(名), items.join(",")));
+        }
+    }
     format!("{{{}}}", parts.join(","))
 }
 

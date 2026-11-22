@@ -255,6 +255,19 @@ def render_rust(table: dict[str, dict[str, list]]) -> str:
             lines.append(f'        "{mod}.{name}" => ({req}, &[{plist}], {va}),\n')
     lines.append("        _ => return None,\n")
     lines.append("    })\n}\n")
+    # M224：`模块 → 函数名列表`（给 `--dump-stdlib` 补**内嵌库模块**用）。
+    #
+    # 为什么需要：`数据库`（M202b）是 `oracle/jishi/stdlib-jishi/数据库.jsh`
+    # 编译进二进制的，不在 `all_modules()` 里 —— 于是 `--dump-stdlib` 少报
+    # 一个模块（用户看到「50 模块 569 函数」，以为那就是全量）。
+    lines.append("\n/// 某模块的全部函数名（给 `dump()` 补内嵌库模块）。\n")
+    lines.append("pub(crate) fn 模块函数们(模块: &str) -> Option<&'static [&'static str]> {\n")
+    lines.append("    Some(match 模块 {\n")
+    for mod in sorted(table):
+        names = ", ".join('"' + n + '"' for n in sorted(table[mod]))
+        lines.append(f'        "{mod}" => &[{names}],\n')
+    lines.append("        _ => return None,\n")
+    lines.append("    })\n}\n")
     return "".join(lines)
 
 
