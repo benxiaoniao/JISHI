@@ -1115,7 +1115,7 @@ Rust 侧的第三方**只剩 GUI 那一套**（`wry` / `tao` / `muda` / `tray-ic
 | **Python** | **≥ 3.13**（`pyproject.toml` 的 `requires-python`） | 判据基准（`oracle/`）、全部工具脚本（`tools/`）、pytest | 跑不了测试与构建脚本 |
 | **Rust**（cargo） | stable，edition 2021（实测 1.98） | 主体实现：`rust/`（宿主）· `frontend/`（前端）· `core/`（pyo3 扩展）· `wasm/`（引擎） | 没有 Rust 宿主 ⇒ 窗口 / 打包 / CLI 都编不出来 |
 | **C 编译器** | gcc / clang（Windows 走 MSYS2 mingw） | 编 C 虚拟机 `cvm/` | 四执行器少一个，对拍覆盖面变小 |
-| **Node.js** | 18+（CI 用 runner 自带的，本机实测 v22） | **只作 wasm 判据的无头运行器**（浏览器替身，跑帧循环 / 游戏 / 窗口 / 图形那 17 个探针），**不参与引擎对拍** | 17 个 wasm 探针判据跳过（不影响实现） |
+| **Node.js** | 18+（CI 用 runner 自带的，本机实测 v22） | **不再跑基石代码**（宿主 0.3.7 已退役）。只剩三件杂活：wasm 判据的无头运行器（浏览器替身）· `vsce`/`npm` 打扩展 · 编辑器 `verify-lsp.js` | 那 17 条 wasm 探针 + 扩展打包判据跳过（不影响实现） |
 | **wasm 目标** | `rustup target add wasm32-unknown-unknown` | 编 `site/jishi_wasm.wasm`（原生窗口喂给页面的引擎） | 窗口是**白屏**（而且零报错） |
 | **Inno Setup** | 6.x（要有 `ISCC.exe`，**仅 Windows**，**可选**） | `jishi 打包 --安装器 inno` 出 Inno 向导版安装包 | 默认走**自研安装器**（同样有向导，还能升级），不受影响 |
 
