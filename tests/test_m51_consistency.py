@@ -17,10 +17,10 @@ M50 把标准库从 19 个模块扩到 25 个、分了两批做。做完之后�
 
 - **漂移检测**：由宿主自己 `--dump-stdlib` 报家底，断言它覆盖 Python 侧
   的全部模块与函数。比让测试去正则解析宿主源码靠谱（解析一改就崩）。
-- **命名参数一致**：同一段代码在五个引擎上要么给同一结果，要么**以同一类
+- **命名参数一致**：同一段代码在四个引擎上要么给同一结果，要么**以同一类
   异常报错**（绝不静默）。
 
-## 三个执行器 + 两个宿主 = 五引擎
+## 三个执行器 + 两个宿主 = 四引擎
 
 树遍历 / Python VM / C VM（三执行器）+ Node / Rust（两跨语言宿主）。
 """
@@ -49,7 +49,6 @@ from oracle.jishi.errors import JishiError                  # noqa: E402
 from oracle.jishi.interpreter import run_source as tree_run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-NODE = shutil.which("node")
 RUST = rust_exe_path()
 
 
@@ -73,7 +72,6 @@ HOST_EXEMPT: frozenset[str] = frozenset()
 
 #: 每个宿主**各自**缺哪些（判据用它算期望；补掉一个就来删一行）。
 HOST_EXEMPT_BY_HOST: dict[str, frozenset[str]] = {
-    "Node": frozenset(),
     "Rust": frozenset(),
 }
 
@@ -81,7 +79,6 @@ HOST_EXEMPT_BY_HOST: dict[str, frozenset[str]] = {
 #: 只有「两宿主互查」那条判据用得上 —— 那里比的是「谁也不该单边多出东西」。
 HOST_ONLY: dict[str, frozenset[str]] = {
     "Rust": frozenset(),
-    "Node": frozenset(),
 }
 
 #: **已知缺口**：检测出来但本阶段不补的。断言要求「实际缺口**恰好等于**这些」——
@@ -101,7 +98,6 @@ HOST_ONLY: dict[str, frozenset[str]] = {
 #: ⚠️ 别再把这条加回来 —— 加回来之前先看 `tests/test_m165d_native_obj.py`
 #: 里那几条判据为什么是红的。
 KNOWN_GAPS: dict[str, set[str]] = {
-    "Node": set(),
     "Rust": set(),
 }
 
@@ -122,15 +118,6 @@ def _py_stdlib() -> dict[str, list[str]]:
         m["module"]: sorted(f["name"] for f in m["functions"])
         for m in spec["stdlib"]
     }
-
-
-def _node_stdlib() -> dict[str, list[str]]:
-    if not NODE:
-        pytest.skip("没有 node")
-    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), "--dump-stdlib"],
-                       capture_output=True, text=True, encoding="utf-8")
-    assert r.returncode == 0, f"Node --dump-stdlib 失败：{r.stderr[:300]}"
-    return json.loads(r.stdout)
 
 
 def _rust_stdlib() -> dict[str, list[str]]:
@@ -210,7 +197,7 @@ def _expected_for(host: str) -> dict[str, list[str]]:
     """某个宿主的期望家底 = Python 侧全量 − 该宿主登记过的豁免 − **基石库层模块**。
 
     🔴 M202b：`导入 X` 有三条路 —— ①**基石库层**（`stdlib-jishi/X.jsh`，编译期展开，
-    五个执行器共用同一份）②宿主层（`stdlib/X.py` 与各宿主自己的实现）。这条判据
+    四个执行器共用同一份）②宿主层（`stdlib/X.py` 与各宿主自己的实现）。这条判据
     盯的是**②**：宿主必须覆盖 Python 侧写过的那些模块。搬进 ① 的模块（M202b 的
     `数据库`，更早的 `参数 / 容器 / 统计 / 迭代`）**不该**要求宿主再实现一遍
     —— 它们压根不经过宿主。不剔掉的话，搬一个模块就红一次，人会去把
@@ -237,15 +224,6 @@ def _去基石库层(家底: dict[str, list[str]]) -> dict[str, list[str]]:
     return {m: fns for m, fns in 家底.items() if not jishilib.has(m)}
 
 
-def test_Node_覆盖_python_侧标准库():
-    expected, actual = _expected_for("Node"), _去基石库层(_node_stdlib())
-    assert actual, "Node 报了个空家底？"
-    assert _missing(expected, actual) == KNOWN_GAPS["Node"], (
-        "Node 宿主与 Python 侧标准库有漂移：\n" + _report("Node", expected, actual))
-    assert _extra(expected, actual) == set(), (
-        "Python 侧没有、Node 却有的符号：\n" + _report("Node", expected, actual))
-
-
 def test_Rust_覆盖_python_侧标准库():
     expected, actual = _expected_for("Rust"), _去基石库层(_rust_stdlib())
     assert actual, "Rust 报了个空家底？"
@@ -255,17 +233,15 @@ def test_Rust_覆盖_python_侧标准库():
         "Python 侧没有、Rust 却有的符号：\n" + _report("Rust", expected, actual))
 
 
-def test_两个宿主彼此也不漂移():
-    """Python 侧是共同基准，但两宿主之间也要互相对得上（免得只有一边修）。
+def test_Rust_不单边多出模块():
+    """Python 侧是共同基准；**Rust 不许有 Python 没有的模块**（单边脱落）。
 
-    这条**不含 `KNOWN_GAPS`**：已知缺口是「两宿主对 Python 的」，
-    而这里问的是「Node 和 Rust 是否一样」—— 一样才说明没有单边脱落。
+    📌 M225：原来这条是「Node 与 Rust 互查」。Node 宿主退役后，剩下的跨语言
+    宿主只有 Rust —— 判据的意义变成「Rust 有没有偷偷多出一个 Python 侧没有的
+    模块」，那正是当年 Node 掉队那条的形状。
     """
-    nd, rs = _node_stdlib(), _rust_stdlib()
-    # 「多出来的」必须**恰好**是登记过的那几个（这里是 `测试`：Rust 已补、Node 没有）。
-    # 冒出新的单边差异立刻报红 —— 这正是这条判据要防的。
-    assert _extra(nd, rs) == set(HOST_ONLY["Rust"]), _report("Rust 比 Node 多", nd, rs)
-    assert _extra(rs, nd) == set(HOST_ONLY["Node"]), _report("Node 比 Rust 多", rs, nd)
+    py, rs = _py_stdlib(), _rust_stdlib()
+    assert _extra(rs, py) == set(HOST_ONLY["Rust"]), _report("Rust 比 Python 多", py, rs)
 
 
 def test_签名表与标准库源码同步():
@@ -320,15 +296,6 @@ def _py_builtins() -> set[str]:
     return {b["name"] for b in ai.build_lang_spec()["builtins"]} - BUILTIN_EXEMPT
 
 
-def _node_builtins() -> set[str]:
-    if not NODE:
-        pytest.skip("没有 node")
-    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), "--dump-builtins"],
-                       capture_output=True, text=True, encoding="utf-8")
-    assert r.returncode == 0, f"Node --dump-builtins 失败：{r.stderr[:300]}"
-    return set(json.loads(r.stdout))
-
-
 def _rust_builtins() -> set[str]:
     if not RUST.exists():
         pytest.skip(f"没有 Rust 宿主：{RUST}（先 cargo build --release）")
@@ -336,15 +303,6 @@ def _rust_builtins() -> set[str]:
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, f"Rust --dump-builtins 失败：{r.stderr[:300]}"
     return set(json.loads(r.stdout))
-
-
-def test_Node_覆盖_python_侧内建():
-    expected, actual = _py_builtins(), _node_builtins()
-    assert len(actual) > 20, "Node 报了个可疑的内建清单？"
-    assert (expected - actual) == BUILTIN_KNOWN_GAPS["Node"], (
-        "Node 缺这些内建：" + "、".join(sorted(expected - actual)))
-    assert (actual - expected) == set(), (
-        "Python 侧没有、Node 却有的内建：" + "、".join(sorted(actual - expected)))
 
 
 def test_Rust_覆盖_python_侧内建():
@@ -356,15 +314,16 @@ def test_Rust_覆盖_python_侧内建():
         "Python 侧没有、Rust 却有的内建：" + "、".join(sorted(actual - expected)))
 
 
-def test_内建两个宿主彼此也不漂移():
-    nd, rs = _node_builtins(), _rust_builtins()
-    assert nd == rs, ("两宿主的内建清单不同 —— Node 有而 Rust 没有："
-                      + "、".join(sorted(nd - rs))
-                      + "；Rust 有而 Node 没有：" + "、".join(sorted(rs - nd)))
+def test_Rust_不单边多出内建():
+    """**Rust 不许有 Python 没有的内建**（M225：原来这条是 Node 与 Rust 互查）。"""
+    py, rs = _py_builtins(), _rust_builtins()
+    assert py == rs, ("内建清单不同 —— Python 有而 Rust 没有："
+                      + "、".join(sorted(py - rs))
+                      + "；Rust 有而 Python 没有：" + "、".join(sorted(rs - py)))
 
 
-def test_M55_补的内建五引擎都能用():
-    """`断言` / `是实例` 在**五个引擎**上都真能用（不是只在清单里）。
+def test_M55_补的内建四引擎都能用():
+    """`断言` / `是实例` 在**四个引擎**上都真能用（不是只在清单里）。
 
     这三笔（两个内建 + `断言错误` 捕获类型）就是内建漂移检测当场抓到的：
     M55 之前，Node 与 Rust 上 `断言(...)` 直接报「找不到名字「断言」」。
@@ -390,10 +349,10 @@ def test_M55_补的内建五引擎都能用():
     assert base == "真 真 假\n过\n"
 
 
-def test_捕获断言错误在五引擎都能接住():
+def test_捕获断言错误在四引擎都能接住():
     """`捕获 断言错误` 也得能用 —— M55 之前**宿主的异常类型表里没这一项**。
 
-    M56 之后**五引擎统一**：都接得住、`e` 都带消息与错误码。
+    M56 之后**四引擎统一**：都接得住、`e` 都带消息与错误码。
 
     这条曾如实记着两处缺口，两批都补掉了：
       · **Node**：原来打的是 `Error: 故意失败`（M55 修成「错误（断言错误）：…」），
@@ -422,7 +381,7 @@ def test_捕获断言错误在五引擎都能接住():
 # 为什么单开一节：M51 的漂移检测只比**标准库的模块与函数名**，而
 # `列表` / `字典` / `文本` / `集合` / `文件` / `小数` 的**方法表同样是五份实现**，
 # 却一条都没测。代价是两笔漏网：
-#   - **Rust 缺 `文本.查找`** —— M53 靠五引擎对拍偶然撞见；
+#   - **Rust 缺 `文本.查找`** —— M53 靠四引擎对拍偶然撞见；
 #   - **Node 缺 `文件.位置/定位/刷新`** —— M54 建检测时才发现（Python 侧 9 个，
 #     Node 只有 6 个，静默缺了三个）。
 # 两笔都是「宿主少个方法」这种最该被自动抓住的事。现在两边都补齐了。
@@ -430,15 +389,6 @@ def test_捕获断言错误在五引擎都能接住():
 def _py_methods() -> dict[str, list[str]]:
     """Python 侧的事实源：`--lang-spec` 的 `methods` 节（M54 起是 6 类）。"""
     return {t: sorted(ms) for t, ms in ai.build_lang_spec()["methods"].items()}
-
-
-def _node_methods() -> dict[str, list[str]]:
-    if not NODE:
-        pytest.skip("没有 node")
-    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), "--dump-methods"],
-                       capture_output=True, text=True, encoding="utf-8")
-    assert r.returncode == 0, f"Node --dump-methods 失败：{r.stderr[:300]}"
-    return json.loads(r.stdout)
 
 
 def _rust_methods() -> dict[str, list[str]]:
@@ -463,15 +413,6 @@ def _rust_methods() -> dict[str, list[str]]:
 METHOD_KNOWN_GAPS: dict[str, set[str]] = {"Node": set(), "Rust": set()}
 
 
-def test_Node_覆盖_python_侧对象方法():
-    expected, actual = _py_methods(), _node_methods()
-    assert actual, "Node 报了个空方法表？"
-    assert _missing(expected, actual) == METHOD_KNOWN_GAPS["Node"], (
-        "Node 与 Python 侧的**对象方法**有漂移：\n" + _report("Node", expected, actual))
-    assert _extra(expected, actual) == set(), (
-        "Python 侧没有、Node 却有的方法：\n" + _report("Node", expected, actual))
-
-
 def test_Rust_覆盖_python_侧对象方法():
     expected, actual = _py_methods(), _rust_methods()
     assert actual, "Rust 报了个空方法表？"
@@ -481,11 +422,10 @@ def test_Rust_覆盖_python_侧对象方法():
         "Python 侧没有、Rust 却有的方法：\n" + _report("Rust", expected, actual))
 
 
-def test_对象方法两个宿主彼此也不漂移():
-    """与 `test_两个宿主彼此也不漂移` 同一个道理：别只有一边被补上。"""
-    nd, rs = _node_methods(), _rust_methods()
-    assert _extra(nd, rs) == set(), _report("Rust 比 Node 多", nd, rs)
-    assert _extra(rs, nd) == set(), _report("Node 比 Rust 多", rs, nd)
+def test_Rust_不单边多出对象方法():
+    """**Rust 不许有 Python 没有的对象方法**（M225：原来这条是 Node 与 Rust 互查）。"""
+    py, rs = _py_methods(), _rust_methods()
+    assert _extra(rs, py) == set(), _report("Rust 比 Python 多", py, rs)
 
 
 def test_方法表本身不是空的():
@@ -505,7 +445,7 @@ def test_方法表本身不是空的():
 def test_M54_补的方法真的能跑(tmp_path):
     """**表里有名字 ≠ 真的能用**。
 
-    上一条只比名字；这条把 M54 补/修的那几个方法真跑一遍，五个引擎逐字节一致 ——
+    上一条只比名字；这条把 M54 补/修的那几个方法真跑一遍，四个引擎逐字节一致 ——
     免得出现「名字报上去了、调用还是崩」这种自欺。
     只碰 M54 动过的那几个：`文本.查找`（Rust 补）、`文件.刷新/位置/定位`（Node 补）、
     `小数.舍入/绝对值/转文本`（三侧都在）。
@@ -536,7 +476,7 @@ def test_M54_补的方法真的能跑(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 二、命名参数（kwargs）五个引擎一致
+# 二、命名参数（kwargs）四个引擎一致
 # ---------------------------------------------------------------------------
 
 def _capture(fn, *a) -> str:
@@ -573,7 +513,7 @@ def _host_run(exe: list[str], src: str, tag: str) -> tuple[bool, str]:
 
 
 def _engines():
-    """五引擎的统一视图：`(名字, 跑一段源码 → (是否正常退出, 输出或错误文本))`。"""
+    """四引擎的统一视图：`(名字, 跑一段源码 → (是否正常退出, 输出或错误文本))`。"""
     def tree(src):
         try:
             return True, _capture(tree_run, src)
@@ -593,16 +533,13 @@ def _engines():
             return False, f"{getattr(e, 'title', '')} {e}"
 
     out = [("树遍历", tree), ("Python VM", pyvm), ("C VM", cvm)]
-    if NODE:
-        out.append(("Node", lambda s: _host_run(
-            [NODE, str(ROOT / "oracle" / "node" / "index.js")], s, "node")))
     if RUST.exists():
         out.append(("Rust", lambda s: _host_run([str(RUST)], s, "rust")))
     return out
 
 
 def _five_agree(src: str) -> str:
-    """五个引擎的 stdout **逐字节一致**，且都正常退出。返回那份输出。"""
+    """四个引擎的 stdout **逐字节一致**，且都正常退出。返回那份输出。"""
     base_label, base = None, None
     for label, run in _engines():
         ok, out = run(src)
@@ -624,7 +561,7 @@ MD5_ABC = "900150983cd24fb0d6963f7d28e17f72"
 SHA256_ABC = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 
 
-def test_命名参数在五引擎给同一结果():
+def test_命名参数在四引擎给同一结果():
     """**这条就是 M51 要治的病**。
 
     以前宿主把 kwargs 静默丢掉，`算法="md5"` 会悄悄用默认的 sha256 ——
@@ -635,7 +572,7 @@ def test_命名参数在五引擎给同一结果():
 
 
 def test_命名参数与位置参数等价():
-    """`算法="md5"` 与把 md5 摆在位置上，五个引擎都得给同一结果。"""
+    """`算法="md5"` 与把 md5 摆在位置上，四个引擎都得给同一结果。"""
     kw = _five_agree('导入 加密\n打印(加密.摘要("abc", 算法="md5"))\n')
     pos = _five_agree('导入 加密\n打印(加密.md5("abc"))\n')
     assert kw == pos
@@ -663,11 +600,11 @@ def test_命名参数可用于多个模块():
     ('导入 加密\n加密.摘要(算法="md5")\n', "缺必填参数"),
     ('导入 文本\n文本.居中("a", 填充="-")\n', "命名参数跳过了前面的可选参数"),
 ])
-def test_命名参数出错时五引擎都得响亮(src, why):
+def test_命名参数出错时四引擎都得响亮(src, why):
     """不能静默。
 
     以前宿主对 kwargs 的态度是「收下、忘掉」：调用看着成功了，参数根本没生效。
-    现在要么五个引擎都给同一结果，要么**都以「类型错误」报出来**
+    现在要么四个引擎都给同一结果，要么**都以「类型错误」报出来**
     （异常类型与 Python 侧一致 —— 对拍才比得上）。
     """
     for label, run in _engines():
@@ -711,7 +648,7 @@ def _超用例_不报错() -> str:
     )
 
 
-def test_M56_超在五引擎都能用():
+def test_M56_超在四引擎都能用():
     """⚠️ **`超()` 在 M56 之前，两个跨语言宿主上根本不存在。**
 
     这是 M55 留下的一个**判断错误**：当时建「内建漂移检测」，
@@ -721,7 +658,7 @@ def test_M56_超在五引擎都能用():
     `超(自身, "定义类名")`，**是个货真价实的运行期内建**。
 
     于是 Node / Rust 一直报「找不到名字「超」」，三个 Python 执行器却全对；
-    而**五引擎对拍覆盖不到它**（因为被显式排除了）。
+    而**四引擎对拍覆盖不到它**（因为被显式排除了）。
 
     由 `tools/probe_builtins.py`（内建体检）抓出来。修法：两宿主补 `超`
     （Rust 还为它给 `Class` 补了 `base` 字段 —— 那边建类时把基类展开合并后
@@ -743,7 +680,7 @@ def test_M56_超在五引擎都能用():
     assert base == "甲乙丙 小明\n", f"多级继承的结果不对：{base!r}"
 
 
-def test_M56_超出错时五引擎都报类型错误():
+def test_M56_超出错时四引擎都报类型错误():
     """`超()` 用在**没有基类**的类里 → 三执行器给 `E2002 类型错误`，
     两宿主首行彼此一致（宿主没有错误码/标题目录，是 M54 记过的边界）。"""
     src = (
@@ -794,7 +731,7 @@ def _超用例_不报错() -> str:
     )
 
 
-def test_M56_超在五引擎都能用():
+def test_M56_超在四引擎都能用():
     """⚠️ **`超()` 在 M56 之前，两个跨语言宿主上根本不存在。**
 
     这是 M55 留下的一个**判断错误**：当时建「内建漂移检测」，
@@ -804,7 +741,7 @@ def test_M56_超在五引擎都能用():
     `超(自身, "定义类名")`，**是个货真价实的运行期内建**。
 
     于是 Node / Rust 一直报「找不到名字「超」」，三个 Python 执行器却全对；
-    而**五引擎对拍覆盖不到它**（因为被显式排除了）。
+    而**四引擎对拍覆盖不到它**（因为被显式排除了）。
 
     由 `tools/probe_builtins.py`（内建体检）抓出来。修法：两宿主补 `超`
     （Rust 还为它给 `Class` 补了 `base` 字段 —— 那边建类时把基类展开合并后
@@ -826,7 +763,7 @@ def test_M56_超在五引擎都能用():
     assert base == "甲乙丙 小明\n", f"多级继承的结果不对：{base!r}"
 
 
-def test_M56_超出错时五引擎都报类型错误():
+def test_M56_超出错时四引擎都报类型错误():
     """`超()` 用在**没有基类**的类里 → 三执行器给 `E2002 类型错误`，
     两宿主首行彼此一致（宿主没有错误码/标题目录，是 M54 记过的边界）。"""
     src = (
@@ -905,7 +842,7 @@ def test_M56_读_n_按字符不按字节(tmp_path):
 
 
 def test_M56_写文件一律用_LF(tmp_path):
-    """**同一台机器上，五个引擎写出的文件字节必须一样。**
+    """**同一台机器上，四个引擎写出的文件字节必须一样。**
 
     以前 Windows 上 Python 的 `open()` 默认（`newline=None`）会把 `\\n` 翻成
     `os.linesep`（`\\r\\n`），而两个宿主原样写 `\\n` —— 同一段程序、同一台机器，
@@ -956,7 +893,7 @@ def test_M56_读CRLF文件不翻译(tmp_path):
 
 
 def test_M56_宿主报错带错误码与位置():
-    """除零：**五个执行器都给** `错误 E2001：不能除以零` + `:3:6`。
+    """除零：**四个执行器都给** `错误 E2001：不能除以零` + `:3:6`。
 
     ⚠️ **R6.4 起两个宿主都走 `┌─ 文件:行:列` 那一套**（与 Python 的 `render()`
     逐字同形，连源码行 / `^` / 调用链都有）。以前这条要按宿主分开写 ——

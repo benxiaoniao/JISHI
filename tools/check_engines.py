@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""执行器体检：**全部语料**在五个执行器上跑出来逐字节相同。
+"""执行器体检：**全部语料**在四个执行器上跑出来逐字节相同。
 
-五个执行器 = 树遍历（语义基准）/ Python VM / C VM / **Rust VM**（R6 起）
+四个执行器 = 树遍历（语义基准）/ Python VM / C VM / **Rust VM**（R6 起）
 / **Node 宿主**（R6.4 起）。
 
 为什么需要它（这是本项目第 1 条硬约束的日常闸门）：
@@ -22,13 +22,18 @@
 
 ## 两个跨语言宿主（Rust VM / Node 宿主）的注意事项
 
-### Node 宿主（R6.4 加入）
+### 🔴 Node 宿主已退役（0.3.7 M225–M226）
 
-它和 Rust VM 是同一类：**独立进程、吃字节码 JSON**。以前它不在这个工具的视野里
-—— 于是它那些问题（越界赋值**静默成功**、报错渲染只有一行、类型名笼统成「异常」）
-**一个都没被抓到**，只有 `tests/test_m13_node.py` 那批手写用例覆盖到的地方才有人管。
-📌 **把一份实现拉进判据，本身就是一次升级**：拉进来的当天就冒出 11 个不一致
-（见 `tools/probe_runtime_errors.py` 的 R6.4 小节）。
+`oracle/node/` 那份**第四引擎**已删（16.5k 行镜像）。理由与证据见
+`docs/路线图-0.3.x.md` §十五：它是每个新特性都要重写一遍的镜像实现，
+而语言语义从不由 JS 定义，却消耗了不成比例的维护带宽。
+
+**删掉之后「能力一格不少」靠三道闸门**（§16.2）：`test_m51` 全宽对账 /
+`conformance` 语料逐字不变 / M227 逐模块功能回填。
+
+⚠️ **node 这个程序仍然要留着**：17 个判据文件拿它跑 **wasm 引擎**
+（浏览器替身，`node 探针.js wasm/jishi-wasm.js x.wasm`），
+与语言语义无关。**别看到 node 就删。**
 
 ### Rust VM
 
@@ -41,11 +46,10 @@
    和另外三个执行器一视同仁。
 
 用法：
-    python tools/check_engines.py            # 全量（含 Rust VM / Node，有就自动带上）
+    python tools/check_engines.py            # 全量（含 Rust VM，有就自动带上）
     python tools/check_engines.py -v         # 每个语料都报一行
     python tools/check_engines.py --frontend rust   # 换前端编（默认 python）
     python tools/check_engines.py --no-rust-vm      # 明确不要 Rust VM
-    python tools/check_engines.py --no-node         # 明确不要 Node 宿主
 """
 
 from __future__ import annotations
@@ -95,7 +99,7 @@ EXEMPT: dict[str, str] = {
     "examples/tutorial/13_HTTP服务.jsh":
         "**服务端示例**（M158 教程）：`HTTP服务端.启动` 在 Node 宿主上明确不支持"
         "（同步 VM 没有事件循环可泵，见 D81），是有意的平台边界 —— 不是「算得不一样」。"
-        "纯协议那一半由 `examples/tutorial/13_HTTP接口.jsh` 覆盖（五引擎逐字比），"
+        "纯协议那一半由 `examples/tutorial/13_HTTP接口.jsh` 覆盖（四引擎逐字比），"
         "端到端由 `tests/test_m158_http_tutorial.py` 真起服务打 HTTP 验",
     "examples/projects/小网站/网站.jsh":
         "**服务端示例**：最后一行是 `HTTP服务端.启动(…)`，跑起来会一直监听、不退出 —— "
@@ -133,7 +137,7 @@ HOST_KNOWN_GAPS: dict[str, str] = {
     #    理由是「Node 宿主的内建拿不到 VM 句柄，`测试.用例` 调不了用户函数」。
     #    M136 给 Node 补了整个 `测试` 模块（走 `R.callValue`），两条登记如约
     #    **报「登记过期」** 逼着来删 —— 这就是「登记必须能过期」的意义。
-    #    📌 现在这五个引擎在 `examples/测试示例/` 上也逐字一致了。
+    #    📌 现在这四个引擎在 `examples/测试示例/` 上也逐字一致了。
     "tests/error_cases/13_从python导入.jsh":
         "**有意的边界**（同 03 / 11）：这个语料考的正是 `从 python 导入`，"
         "而跨语言宿主明确不支持 —— 单二进制里没有 Python。"
@@ -211,29 +215,12 @@ def _run_rust_vm(src: str, rel: str, cwd: "Path | None" = None) -> tuple[str, st
 
 
 def _node_exe() -> "str | None":
-    """Node 可执行文件（PATH 上没有就返回 None）。"""
-    return shutil.which("node")
+    """⚠️ M225：Node 宿主已退役，这个函数**只给 wasm 探针判据**用（要 node 当无头运行器）。
 
-
-def _node_index() -> Path:
-    return ROOT / "oracle" / "node" / "index.js"
-
-
-def _run_node_vm(src: str, rel: str, cwd: "Path | None" = None) -> tuple[str, str]:
-    """Node 宿主跑一遍 → `(stdout, 报错文本)`。
-
-    与 Rust VM 同一形状：独立进程、吃**字节码 JSON**（当前前端编的）。
-    ⚠️ Node 的报错渲染包含**源码行**（它按 `filename` 现读源文件），
-    所以给的 `rel` 必须是**相对该语料私有 cwd 的真路径** —— 私有目录里存着源文件。
+    `oracle/node/` 那份第四引擎已删（0.3.7 M226）；node 这个**程序**仍要留着 ——
+    17 个判据文件用它跑 wasm 引擎（浏览器替身），与语言语义无关。
     """
-    body = compile_to_json(src, rel)
-    tmp = Path(tempfile.gettempdir()) / f"_check_engines_node_{os.getpid()}.json"
-    tmp.write_text(body, encoding="utf-8")
-    r = subprocess.run([_node_exe(), str(_node_index()), str(tmp)],
-                       capture_output=True, input=b"",
-                       cwd=str(cwd) if cwd else None)
-    return (r.stdout.decode("utf-8", errors="replace"),
-            _剥掉提示(r.stderr.decode("utf-8", errors="replace")))
+    return shutil.which("node")
 
 
 #: 那条**按进程只打一次**的提示（「模块名遮蔽内建」）。
@@ -338,21 +325,18 @@ def _corpora() -> list[str]:
 
 
 def main(argv: "list[str] | None" = None) -> int:
-    ap = argparse.ArgumentParser(description="三执行器全语料体检")
+    ap = argparse.ArgumentParser(description="四执行器全语料体检")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="每个语料都打印一行")
     ap.add_argument("--frontend", choices=["python", "rust"], default="python",
                     help="用哪个前端编译（默认 python）")
     ap.add_argument("--no-rust-vm", action="store_true",
                     help="不把 Rust VM（独立二进制）算作第四个执行器")
-    ap.add_argument("--no-node", action="store_true",
-                    help="不把 Node 宿主算作第五个执行器")
     args = ap.parse_args(argv)
 
-    use_node = not args.no_node and _node_exe() is not None
-    if not args.no_node and not use_node:
-        print("（注：PATH 上没有 node，本次不带 Node 宿主）")
-
+    # 🔴 M225：**Node 宿主已退役**（0.3.7）。这里不再有 `--no-node` ——
+    # 也没有「Node 分支」了。node 这个**程序**仍在用：17 个判据拿它跑 wasm
+    # 引擎（浏览器替身），那与语言语义无关，`_node_exe()` 留着给它们。
     use_rust_vm = not args.no_rust_vm
     if use_rust_vm and not _rust_exe().exists():
         print(f"（注：{_rust_exe().name} 不存在，本次只比三个执行器；"
@@ -376,10 +360,8 @@ def main(argv: "list[str] | None" = None) -> int:
     exempted: list[str] = []
     rust_stdout_bad: list[tuple] = []
     rust_render_gap = 0                     # 报错渲染不一致的次数（已登记的缺口）
-    node_bad: list[tuple] = []              # Node 宿主不一致（未登记的）
     #: 命中登记：语料 → 还差哪个宿主没对齐（登记「过期」要两边都好了才算）
     registered: dict[str, set[str]] = {}
-    node_render_gap = 0                     # Node 报错渲染不一致的次数
     for path in files:
         rel = os.path.relpath(path, ROOT).replace("\\", "/")
         if _is_exempt(rel):
@@ -390,7 +372,7 @@ def main(argv: "list[str] | None" = None) -> int:
         # ⚠️ **每个语料一个私有 cwd**（与 `check_walk.py` 同法，2026-10-09 补）：
         #    教程类语料会在 cwd 里读写真实文件（`账本.csv` / `成绩.csv` / `x.txt`），
         #    跑在仓库根就会留产物、**打断一次就污染下一轮**（第一台引擎读到翻倍数据 → 假红）。
-        #    源文件**按同名相对路径**复制进私有目录，五个执行器都在那里跑 ——
+        #    源文件**按同名相对路径**复制进私有目录，四个执行器都在那里跑 ——
         #    报错渲染里的文件名（`rel`）不变，文件 I/O 互相隔离。
         run_dir = run_root / rel.replace("/", "__")
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -425,23 +407,6 @@ def main(argv: "list[str] | None" = None) -> int:
                         ok = False
                 if tree_err and r_err.strip() and r_err.rstrip("\n") != tree_err:
                     rust_render_gap += 1
-        if use_node:
-            # ⚠️ 与 Rust VM 同样：编译不过的语料（`error_cases` 里一堆）没有字节码，
-            # 宿主无从跑起，直接跳过（**不是**不一致）。
-            try:
-                n_out, n_err = _run_node_vm(src, rel, run_dir)
-            except Exception:                                      # noqa: BLE001
-                n_out = n_err = None
-            if n_out is not None:
-                # 两段都比：stdout 与**报错渲染**（Node 自己渲染那份，与 Python 同形）
-                if n_out != tree_out or (tree_err and n_err.rstrip("\n") != tree_err):
-                    if _registered(rel):
-                        registered.setdefault(rel, set()).add("Node")
-                    else:
-                        node_bad.append((rel, tree_out, n_out, tree_err, n_err))
-                        ok = False
-                if tree_err and n_err.strip() and n_err.rstrip("\n") != tree_err:
-                    node_render_gap += 1
         if args.verbose:
             print(("✅ " if ok else "❌ ") + rel)
         if not ok and not any(b[0] == rel for b in bad):
@@ -451,23 +416,15 @@ def main(argv: "list[str] | None" = None) -> int:
     also = []
     if use_rust_vm:
         also.append("Rust VM")
-    if use_node:
-        also.append("Node")
     print(f"\n语料 {total} 个 · 对拍 {total - len(exempted)} 个 · "
           f"豁免 {len(exempted)} 个 · **不一致 {len(bad)} 个**"
           f"（前端：{args.frontend}"
           f"{('，含 ' + ' / '.join(also)) if also else ''}）")
-    if use_node:
-        print(f"  · **Node 宿主**不一致（stdout 或报错渲染）：**{len(node_bad)}** 个"
-              f"（R6.4 起进判据）")
-        print(f"  · Node 报错渲染不一致：{node_render_gap} 个")
     if use_rust_vm:
         print(f"  · Rust VM 不一致（stdout 或报错渲染）：**{len(rust_stdout_bad)}** 个")
         print(f"  · Rust VM **报错渲染**不一致：{rust_render_gap} 个"
               f"（R6.3 前这一项是「已登记的缺口」，现在是**真判据**）")
-    if use_rust_vm or use_node:
-        hosts = ([h for h in ("Rust VM", "Node") if (h == "Rust VM") == use_rust_vm
-                  or (h == "Node") == use_node])
+    if use_rust_vm:
         print(f"  · 命中「宿主已知缺口」登记：**{len(registered)}** 个"
               f"（共登记 {len(HOST_KNOWN_GAPS)} 条）")
         for rel, missing in list(registered.items())[:6]:
@@ -484,10 +441,6 @@ def main(argv: "list[str] | None" = None) -> int:
         for nm, o in zip(("树遍历.stdout", "树遍历.报错", "PythonVM.stdout",
                           "PythonVM.报错", "CVM.stdout", "CVM.报错"), outs):
             print(f"   {nm}: {o[:220]!r}")
-    for rel, t_out, n_out, t_err, n_err in node_bad:
-        print(f"\n❌ Node 宿主：{rel}\n   stdout 树遍历: {t_out[:160]!r}"
-              f"\n   stdout Node  : {n_out[:160]!r}")
-        print(f"   报错 树遍历: {t_err[:240]!r}\n   报错 Node  : {n_err[:240]!r}")
     for item in rust_stdout_bad[:4]:
         rel, a, b = item[0], item[1], item[2]
         print(f"\n❌ Rust VM：{rel}\n   stdout 树遍历: {a[:160]!r}"
@@ -502,10 +455,10 @@ def main(argv: "list[str] | None" = None) -> int:
     # 清理本轮所有语料的私有运行目录（失败也不留垃圾）—— 「仓库根不留产物」的落点
     shutil.rmtree(run_root, ignore_errors=True)
     # 登记过期也当失败：留着它就等于给将来的问题留了张通行证
-    stale = [r for r in HOST_KNOWN_GAPS if r not in registered] if (use_rust_vm or use_node) else []
+    stale = [r for r in HOST_KNOWN_GAPS if r not in registered] if use_rust_vm else []
     if stale:
         return 1
-    return 1 if (bad or node_bad or rust_stdout_bad) else 0
+    return 1 if (bad or rust_stdout_bad) else 0
 
 
 if __name__ == "__main__":

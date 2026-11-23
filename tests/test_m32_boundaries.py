@@ -62,7 +62,6 @@ from oracle.jishi.parser import parse                    # noqa: E402
 from oracle.jishi.tokenizer import tokenize              # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-NODE = shutil.which("node")
 EXE = rust_exe_path()   # 平台感知：Windows 是 .exe，别处没有扩展名
 CARGO = shutil.which("cargo")
 
@@ -100,36 +99,18 @@ def _write_bc(src: str, name: str) -> Path:
     return bc
 
 
-def _node_run(src: str) -> tuple[int, str, str]:
-    bc = _write_bc(src, "_tmp_m32_bc.json")
-    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
-                       capture_output=True, text=True, encoding="utf-8")
-    return r.returncode, r.stdout, r.stderr
-
-
 def _agree(src: str) -> str:
-    """Python VM 与 Node 逐字节一致（Node 不得非零退出）。"""
-    py = _py_run(src)
-    rc, out, err = _node_run(src)
-    assert rc == 0, f"Node 非零退出：rc={rc}\n{err[:400]}"
-    assert out == py, f"输出不一致\nPython: {py!r}\nNode:   {out!r}"
-    return out
+    """Python VM 自己的输出（📌 M225：Node 宿主退役，这条只剩参考值）。"""
+    return _py_run(src)
 
 
 def _agree_all(src: str) -> str:
-    """树遍历 / Python VM / C VM / Node 四路一致。"""
+    """树遍历 / Python VM / C VM 三路一致（M225：Node 那一路已退役）。"""
     t = _tree_run(src)
     p = _py_run(src)
     c = _c_run(src)
     assert t == p == c, f"三执行器不一致：树={t!r} VM={p!r} C={c!r}"
     return _agree(src)
-
-
-def _node_err(src: str) -> str:
-    rc, _out, err = _node_run(src)
-    assert rc != 0, f"这段代码本该报错，但 Node 正常退出了：{_out!r}"
-    assert "JishiError" not in err.splitlines()[0], f"错误没被接住：{err[:300]}"
-    return err
 
 
 def _build_env() -> dict:
@@ -207,8 +188,6 @@ def test_annotation_rejects_int_for_float():
     with pytest.raises(JishiError) as ei:
         _py_run(src)
     assert "要求是「小数」" in str(ei.value)
-    err = _node_err(src)
-    assert "要求是「小数」" in err
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +268,6 @@ def test_big_int_index_is_out_of_range():
     src = "令 a = [1, 2, 3]\n打印(a[2 ** 62])\n"
     with pytest.raises(JishiError):
         _py_run(src)
-    assert _node_err(src)
 
 
 def test_cvm_big_int_reports_clearly():

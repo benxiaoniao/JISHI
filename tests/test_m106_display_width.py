@@ -127,7 +127,6 @@ def test_填充字符不合法要报错():
 # 四、🔴 三处实现必须一致（Python 判据基准 / Rust 宿主 / Node 宿主）
 # ---------------------------------------------------------------------------
 
-NODE = "node"
 RUST_EXE = ROOT / "rust" / "target" / "release" / (
     "jishi-rs.exe" if os.name == "nt" else "jishi-rs")
 
@@ -165,14 +164,4 @@ def test_与_Rust_宿主一致():
         f"Rust 宿主的对齐与 Python 不一致：\nRust:   {got!r}\nPython: {_跑(_对齐脚本)!r}")
 
 
-def test_与_Node_宿主一致():
-    from shutil import which
 
-    if which(NODE) is None:
-        pytest.skip("环境里没有 node")
-    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"),
-                        str(_字节码(_对齐脚本))],
-                       capture_output=True, text=True, encoding="utf-8")
-    assert r.returncode == 0, r.stderr[:400]
-    assert r.stdout == _跑(_对齐脚本), (
-        f"Node 宿主的对齐与 Python 不一致：\nNode:   {r.stdout!r}\nPython: {_跑(_对齐脚本)!r}")

@@ -43,8 +43,6 @@ from oracle.jishi.compiler import compile_source, compile_to_json        # noqa:
 from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
 from oracle.jishi.vm import VM                                           # noqa: E402
 
-NODE = shutil.which("node")
-HAS_NODE = NODE is not None
 
 
 def _rust_exe() -> Path:
@@ -76,15 +74,10 @@ def _five(src: str) -> dict[str, str]:
         r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
         out["Rust"] = r.stdout.decode("utf-8", "replace").rstrip("\n") or \
             ("【错】" + r.stderr.decode("utf-8", "replace").rstrip("\n"))
-    if HAS_NODE:
-        r = subprocess.run([NODE, "oracle/node/index.js", str(tmp)],
-                           capture_output=True, input=b"")
-        out["Node"] = r.stdout.decode("utf-8", "replace").rstrip("\n") or \
-            ("【错】" + r.stderr.decode("utf-8", "replace").rstrip("\n"))
     return out
 
 
-#: 帧池的易错形状。全部要五执行器逐字一致。
+#: 帧池的易错形状。全部要四执行器逐字一致。
 _CASES = {
     "交错调用不同参数个数": (
         "函数 零()：\n    返回 0\n"
@@ -126,7 +119,7 @@ _CASES = {
 
 
 @pytest.mark.parametrize("tag", sorted(_CASES))
-def test_帧复用不串味的五执行器一致(tag):
+def test_帧复用不串味的四执行器一致(tag):
     outs = _five(_CASES[tag])
     base_name, base = next(iter(outs.items()))
     assert base and base != "0", f"{tag} 的基准输出是空的？{base!r}"

@@ -100,7 +100,7 @@ mod server;
 mod router;
 mod excel;
 // 📌 M202b 起 `数据库` **不在这里**：它搬进了 `oracle/jishi/stdlib-jishi/数据库.jsh`
-//    （纯基石实现，五个执行器共用同一份）——于是本项目**没有任何第三方依赖**了，
+//    （纯基石实现，四个执行器共用同一份）——于是本项目**没有任何第三方依赖**了，
 //    wasm 上也能用（内存库）。
 
 /// 标准库函数的统一返回类型（省得每处都写一长串）。
@@ -178,9 +178,9 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         // M115：本地 HTTP 小服务。表里**每个平台都在**（wasm 上只是
         // `启动`/`空闲端口` 明确报「这个平台起不了」）。
         ("HTTP服务端", server::module),
-        // M122：路由（纯逻辑，五引擎都能跑）
+        // M122：路由（纯逻辑，四引擎都能跑）
         ("HTTP路由", router::module),
-        // M123：Excel 读（zip + 最小 XML 扫描，五引擎都能跑）
+        // M123：Excel 读（zip + 最小 XML 扫描，四引擎都能跑）
         ("Excel", excel::module),
     ]
 }

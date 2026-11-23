@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """M112：`数据库` 模块（持久化 / 查询 / 汇总）。
 
-语料（`tests/cases/31_标准库_M112.jsh` + 两条 `error_cases`）管「五引擎逐字节一致」；
+语料（`tests/cases/31_标准库_M112.jsh` + 两条 `error_cases`）管「四引擎逐字节一致」；
 这一份管**语料管不到**的那些点：
 
 1. 🔴 **文件格式**（M202b 起变了）：**不再是 SQLite**，是「快照 + 追加日志」。
@@ -375,7 +375,7 @@ def test_不再捆_rusqlite_数据库是纯基石实现():
 
     1. `rust/Cargo.toml` 里没有 `rusqlite`、也没有 `sqlite` 特性；
     2. `rust/src/stdlib/mod.rs` 里没有 `db` 模块、也没有 `cfg(feature = "sqlite")`；
-    3. 实现落在 `oracle/jishi/stdlib-jishi/数据库.jsh`（五个执行器共用这一份）。
+    3. 实现落在 `oracle/jishi/stdlib-jishi/数据库.jsh`（四个执行器共用这一份）。
     """
     cargo = (ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8")
     # 只看**真的依赖行**（注释里提一句「M202b 删掉了 rusqlite」是应该的）

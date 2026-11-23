@@ -11,9 +11,9 @@ CLI / 一次性取卡却每次都付。
 预生成之后：取卡 = 算一遍内容哈希（~5 ms）+ 读 JSON。目标 ≤0.6 s（原来 0.69~1.22）。
 
 📌 与 `tools/gen_stdlib_sigs.py` 的区别（名字很像，别混）：
-那份生成的是**两宿主要的参数名表**（`rust/src/stdlib_sigs.rs` /
-`oracle/node/stdlib_sigs.js`，给命名参数调用用）；本脚本生成的是
-**Python 侧取卡用的签名缓存**（`.json`）。两者事实源相同、消费方不同。
+那份生成的是**宿主要的参数名表**（`rust/src/stdlib_sigs.rs`，给命名参数调用用；
+📌 0.3.7 M225 起 Node 那份 `oracle/node/stdlib_sigs.js` 随宿主退役一并删了）；
+本脚本生成的是**Python 侧取卡用的签名缓存**（`.json`）。两者事实源相同、消费方不同。
 
 ## 什么时候要重跑
 

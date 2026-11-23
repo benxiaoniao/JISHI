@@ -378,7 +378,7 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     // M54：同理，报**对象方法表**（列表/字典/文本/集合/文件/小数）。
-    // 以前方法表在五个引擎里各写一份却没人比对，Rust 缺 `文本.查找`、
+    // 以前方法表在四个引擎里各写一份却没人比对，Rust 缺 `文本.查找`、
     // Node 缺 `文件.位置/定位/刷新` 都是偶然撞见的。
     if args[1] == "--dump-methods" || args[1] == "--dump_methods" {
         println!("{}", jishi_ffi::dump_methods());

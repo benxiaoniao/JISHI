@@ -217,14 +217,14 @@ def test_形参绑定走共用_错误文案同一份():
 
 
 @need_rust
-def test_类型函数值五个执行器都给函数():
+def test_类型函数值四个执行器都给函数():
     """🔴 这一条钉住一个**刚修掉的既有 bug**。
 
     `runtime.type_name` 的兜底是一份手写清单（按类名对齐三个执行器的函数包装类），
     原来只列了 `UserFunction` / `VmFunction`，**漏了 `CvmFunction`** ——
     于是 C VM 上 `类型(某函数)` 打出**内部类名** `CvmFunction`（不报错、只是不一致）。
     这个 bug 一直躺着，是因为**此前没有任何语料拿 `类型()` 问过函数** ——
-    是第 ③ 步的语料第一次问它，五执行器体检当场报红。
+    是第 ③ 步的语料第一次问它，四执行器体检当场报红。
     """
     src = "函数 加倍(数)：\n    返回 数 * 2\n打印(类型(加倍))\n"
     outs = {}
@@ -242,9 +242,6 @@ def test_类型函数值五个执行器都给函数():
     outs["CVM"] = buf.getvalue()
     bc_p = _write(json.loads(compile_to_json(src, "x.jsh")), "_m78_ty_bc.json")
     outs["Rust"], _ = _run(["--load-bytecode", str(bc_p)])
-    r = subprocess.run(["node", "oracle/node/index.js", str(bc_p)],
-                       capture_output=True, input=b"")
-    outs["Node"] = r.stdout.decode("utf-8", "replace")
     assert set(outs.values()) == {"函数\n"}, outs
 
 

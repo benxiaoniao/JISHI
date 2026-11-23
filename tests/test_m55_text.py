@@ -4,12 +4,12 @@
 ## 这个文件钉什么
 
 M55 回语言本体，主线是**把「一个字符」这件事定义清楚** —— 因为 `序数`/`字符`
-就是「码点 ↔ 字符」，它们要成立，先得五个引擎对「一个字符」有同一个答案。
+就是「码点 ↔ 字符」，它们要成立，先得四个引擎对「一个字符」有同一个答案。
 
 三块：
 
 1. **`序数` / `字符`**：`序数("中")` 给 20013、`字符(20013)` 给 `"中"`，
-   互为反函数，五个引擎逐字节一致（含错误路径）。
+   互为反函数，四个引擎逐字节一致（含错误路径）。
 2. **文本按码点**：M55 实测发现 **Node 侧把文本当 UTF-16 码元** ——
    `长度("😀")` 给 2（Python / Rust 给 1）、`"😀"[0]` 只拿到半个代理项
    （打出来是 `�`）、`"a😀b".查找("b")` 给 3（另两个给 2）。已修。
@@ -42,7 +42,6 @@ from oracle.jishi.errors import JishiError                  # noqa: E402
 from oracle.jishi.interpreter import run_source as tree_run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-NODE = shutil.which("node")
 RUST = rust_exe_path()
 
 
@@ -70,7 +69,7 @@ def _host_run(exe: list, src: str, tag: str) -> tuple:
 
 
 def _engines(tag: str = "a"):
-    """五引擎：`(名字, 跑一段源码 → (是否正常退出, 输出或错误文本))`。"""
+    """四引擎：`(名字, 跑一段源码 → (是否正常退出, 输出或错误文本))`。"""
     def wrap(fn):
         def go(src):
             try:
@@ -88,16 +87,13 @@ def _engines(tag: str = "a"):
 
     out = [("树遍历", wrap(lambda s: _capture(tree_run, s))),
            ("Python VM", wrap(pyvm)), ("C VM", wrap(cvm))]
-    if NODE:
-        out.append(("Node", lambda s: _host_run(
-            [NODE, str(ROOT / "oracle" / "node" / "index.js")], s, tag)))
     if RUST.exists():
         out.append(("Rust", lambda s: _host_run([str(RUST)], s, tag)))
     return out
 
 
 def _five_agree(src: str) -> str:
-    """五个引擎 stdout 逐字节一致且都正常退出；返回那份输出。"""
+    """四个引擎 stdout 逐字节一致且都正常退出；返回那份输出。"""
     base_label, base = None, None
     for label, run in _engines():
         ok, out = run(src)

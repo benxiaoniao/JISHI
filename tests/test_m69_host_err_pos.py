@@ -65,9 +65,6 @@ def _rust_frontend_ok() -> bool:
     return tokenizer.rust_available()
 
 
-NODE = shutil.which("node")
-HAS_NODE = NODE is not None
-need_node = pytest.mark.skipif(not HAS_NODE, reason="本机无 Node.js，跳过宿主对拍")
 
 
 def _rust_exe() -> Path:
@@ -114,8 +111,6 @@ def _three(src: str, tag: str):
     out = {"Python": _run([sys.executable, "-m", "oracle.jishi.cli", rel])}
     if RUST.exists():
         out["Rust"] = _run([str(RUST), "--load-bytecode", str(bc.relative_to(ROOT))])
-    if HAS_NODE:
-        out["Node"] = _run([NODE, "oracle/node/index.js", str(bc.relative_to(ROOT))])
     return out
 
 

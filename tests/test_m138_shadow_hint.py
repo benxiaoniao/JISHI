@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""「`导入 文本` 会遮蔽内建 `文本(...)`」这条提示：**五个引擎都要打，且逐字一致**。
+"""「`导入 文本` 会遮蔽内建 `文本(...)`」这条提示：**四个引擎都要打，且逐字一致**。
 
 ## 这条判据是怎么来的（2026-10-26）
 
@@ -22,7 +22,7 @@
 ## 为什么全用子进程跑
 
 去重是**进程级**的（一个进程里每个名字只打一次）。在 pytest 进程里连跑
-五个引擎，第一个跑完就把名字记进「已提示」集合，后面全都不打 ——
+四个引擎，第一个跑完就把名字记进「已提示」集合，后面全都不打 ——
 那不是引擎的差别，是**夹具自己串了**。⇒ 一个宿主一个子进程，各算各的。
 """
 
@@ -44,8 +44,7 @@ from oracle.jishi.compiler import compile_source          # noqa: E402
 
 PY = sys.executable
 RUST = ROOT / "rust" / "target" / "release" / ("jishi-rs.exe" if os.name == "nt" else "jishi-rs")
-NODE = os.environ.get("JISHI_NODE", "node")
-宿主们 = ["树遍历", "Python VM", "C VM", "Node", "Rust"]
+宿主们 = ["树遍历", "Python VM", "C VM", "Rust"]   # M225：Node 宿主已退役
 
 
 def _临时(名: str, 后缀: str) -> Path:
@@ -60,11 +59,6 @@ def _跑(宿: str, 源: str, 名: str) -> tuple[int, str, str]:
         命令 = [PY, "-m", "oracle.jishi.cli", str(文件)]
     elif 宿 == "Rust":
         命令 = [str(RUST), str(文件)]
-    elif 宿 == "Node":
-        字节 = _临时(名, ".json")
-        字节.write_text(serialize.dumps(compile_source(源, str(文件))),
-                        encoding="utf-8", newline="\n")
-        命令 = [NODE, str(ROOT / "oracle" / "node" / "index.js"), str(字节)]
     elif 宿 == "Python VM":
         命令 = [PY, "-c",
                 "import sys;from oracle.jishi.compiler import compile_source as c;"
@@ -106,7 +100,7 @@ def test_每个引擎都会提醒(宿):
     assert "既是标准库模块名，又是内建函数名" in 错, f"{宿} 没提醒：{错!r}"
 
 
-def test_五个引擎的提示逐字一致():
+def test_四个引擎的提示逐字一致():
     """这条盯的就是「只有 Python 会提醒」那个窟窿。
 
     ⚠️ 只比**提示那一行**，不比整段 stderr：各宿主的退出/渲染细节本来就有

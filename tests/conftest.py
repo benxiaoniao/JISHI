@@ -111,7 +111,7 @@ def _cleanup_tmp_bytecode():
     #    单进程跑没问题，但 CI 用 `-n 4`（xdist **多进程**）：某个 worker 先跑完
     #    就执行本夹具，把**别的还在跑的 worker** 正在用的临时字节码删了，
     #    那一路的 Node / Rust 宿主立刻 `ENOENT`（CI 上表现为
-    #    `test_m140_vector_speed.py::test_错误路径五引擎也一致` 偶发红，
+    #    `test_m140_vector_speed.py::test_错误路径四引擎也一致` 偶发红，
     #    本地单进程永远复现不了）。
     #    ⇒ 判据：**清理不许有跨进程副作用**。自己那几个（带本进程 pid 的）才删。
     自己 = f"_{os.getpid()}"

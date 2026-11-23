@@ -231,13 +231,6 @@ def test_三宿主瓦片逐字一致(tmp_path):
     rs, 出r = _跑(源, tmp_path, "三.jsh", "Rust")
     assert rs == py, f"Rust 与 Python 不一致：\n{py}\n---\n{出r}"
 
-    spec = importlib.util.spec_from_file_location("ce", ROOT / "tools" / "check_engines.py")
-    ce = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ce)
-    if ce._node_exe() is None:
-        pytest.skip("没有 node")
-    nd, 错 = ce._run_node_vm(源, str(tmp_path / "三.jsh"), tmp_path)
-    assert nd == _跑(源, tmp_path, "三.jsh", "Python")[1], f"Node 不一致：{错[:400]}"
 
 
 # ---------------------------------------------------------------------------

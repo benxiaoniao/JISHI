@@ -14,7 +14,7 @@
 
 ## 判据口径
 
-每条都要求**五个执行器逐字相同**——这类「各宿主自己翻译」的地方最容易分叉，
+每条都要求**四个执行器逐字相同**——这类「各宿主自己翻译」的地方最容易分叉，
 而分叉的坏处是：用户按 A 机器的报错去查，在 B 机器上看到的却是另一句话。
 """
 
@@ -51,7 +51,7 @@ except E.JishiError as e:
 
 
 def _五份(源码: str, tmp_path: Path) -> dict:
-    """同一份源码在五个执行器上跑，返回 {引擎名: 输出+报错}。"""
+    """同一份源码在四个执行器上跑，返回 {引擎名: 输出+报错}。"""
     from oracle.jishi import serialize
     from oracle.jishi.compiler import compile_source
 
@@ -89,7 +89,7 @@ def _五份(源码: str, tmp_path: Path) -> dict:
 
 def _一致(出: dict) -> str:
     值 = set(出.values())
-    assert len(值) == 1, "五个执行器说法不一致：\n" + "\n".join(
+    assert len(值) == 1, "四个执行器说法不一致：\n" + "\n".join(
         f"—— {k} ——\n{v}" for k, v in 出.items())
     return 值.pop()
 

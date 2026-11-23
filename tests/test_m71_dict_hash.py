@@ -42,9 +42,6 @@ from oracle.jishi.compiler import compile_source, compile_to_json        # noqa:
 from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
 from oracle.jishi.vm import VM                                           # noqa: E402
 
-NODE = shutil.which("node")
-HAS_NODE = NODE is not None
-need_node = pytest.mark.skipif(not HAS_NODE, reason="本机无 Node.js")
 
 
 def _rust_exe() -> Path:
@@ -59,7 +56,7 @@ need_rust = pytest.mark.skipif(
 
 
 def _five(src: str) -> dict[str, str]:
-    """五个执行器各跑一遍，返回 `{执行器: stdout}`。"""
+    """四个执行器各跑一遍，返回 `{执行器: stdout}`。"""
     out = {}
     for kind, fn in (("tree", lambda: run_tree(src, "x.jsh")),
                      ("PyVM", lambda: VM(compile_source(src, "x.jsh"), "x.jsh").run()),
@@ -77,15 +74,10 @@ def _five(src: str) -> dict[str, str]:
         r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
         out["Rust"] = r.stdout.decode("utf-8", "replace") or \
             ("【错】" + r.stderr.decode("utf-8", "replace").splitlines()[0])
-    if HAS_NODE:
-        r = subprocess.run([NODE, "oracle/node/index.js", str(tmp)],
-                           capture_output=True, input=b"")
-        out["Node"] = r.stdout.decode("utf-8", "replace") or \
-            ("【错】" + r.stderr.decode("utf-8", "replace").splitlines()[0])
     return out
 
 
-#: 每一组都是「字典重构的易错点」，五执行器必须逐字一致。
+#: 每一组都是「字典重构的易错点」，四执行器必须逐字一致。
 _CASES = {
     "跨类型数值键是同一键": '令 字 = {}\n字[1] = 10\n字[1.0] = 99\n字[2] = 20\n打印(字)\n打印(长度(字))\n',
     "顺序无关相等": '打印({1: 2, 3: 4} == {3: 4, 1: 2})\n打印({1: 2} == {1: 3})\n打印({1: 2} == {1: 2, 3: 4})\n',
@@ -99,7 +91,7 @@ _CASES = {
 
 
 @pytest.mark.parametrize("tag", sorted(_CASES))
-def test_字典语义五执行器逐字一致(tag):
+def test_字典语义四执行器逐字一致(tag):
     outs = _five(_CASES[tag])
     base_name, base = next(iter(outs.items()))
     for name, got in outs.items():

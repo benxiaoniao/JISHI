@@ -104,7 +104,7 @@ def main() -> int:
     # 7) 内建体检（M56 建）：给**每个内建**一条最小程序，在真引擎上跑一遍 ——
     #    只比名字的漂移检测抓不到「名字在表里、调用却不行」（M53 的 Rust
     #    `文本.查找`、M56 的 `超` 都是这么漏的）。`--fast` 只跑三执行器；
-    #    两宿主那两位由 pytest 里的五引擎对拍覆盖。
+    #    两宿主那两位由 pytest 里的四引擎对拍覆盖。
     if not _run([PYTHON, str(ROOT / "tools" / "probe_builtins.py"), "--fast"],
                 "内建体检（--fast）"):
         return 1

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""运行期错误体检：**常见运行期错误的 (类型, 消息) 在五个执行器上必须一致**。
+"""运行期错误体检：**常见运行期错误的 (类型, 消息) 在四个执行器上必须一致**。
 
 ## 为什么要有它
 
@@ -145,7 +145,7 @@ def _cap(fn) -> str:
 
 def engine_outputs(src: str, rel: str = "形状.jsh",
                    with_node: bool = True) -> dict[str, str]:
-    """五个执行器各跑一遍 → `{执行器名: 输出}`。
+    """四个执行器各跑一遍 → `{执行器名: 输出}`。
 
     ⚠️ Node 宿主**只比 stdout**（「自己接住再打印」的那份，与判据一致）——
     它吃的是字节码 JSON，所以这里是「当前前端编出的字节码交给它跑」。
@@ -174,7 +174,7 @@ def engine_outputs(src: str, rel: str = "形状.jsh",
 
 
 def main(argv: "list[str] | None" = None) -> int:
-    ap = argparse.ArgumentParser(description="运行期错误 (类型, 消息) 五执行器体检")
+    ap = argparse.ArgumentParser(description="运行期错误 (类型, 消息) 四执行器体检")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="每个形状都打印一行（默认只报不一致的）")
     ap.add_argument("--no-node", action="store_true",

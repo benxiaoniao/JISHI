@@ -1920,7 +1920,7 @@ pub(crate) fn err(t: &str, msg: impl Into<String>) -> JishiError {
 /// 带**显式错误码**的 `err_with_hint`。
 ///
 /// 为什么要它：`error_code` 表是「按类型名反查码」，而「运行期错误」在 Rust 侧
-/// 没有配码（Python 侧是 `RunError.code = "E2000"`）。五执行器对拍要求**渲染逐字
+/// 没有配码（Python 侧是 `RunError.code = "E2000"`）。四执行器对拍要求**渲染逐字
 /// 一致**，所以这条错误必须自带 E2000（D77 §二）。
 pub(crate) fn err_coded_hint(t: &str, code: &str, msg: impl Into<String>,
                              hint: String) -> JishiError {
@@ -2060,7 +2060,7 @@ fn ast_value_to_json(v: &jishi_frontend::parser::J) -> Json {
 }
 
 /// 「遍历时改了容器的大小」—— 文案与提示**只有一份**（Python 侧 `errors.py` 同名
-/// 常量），五个执行器逐字一致（D77 §二）。
+/// 常量），四个执行器逐字一致（D77 §二）。
 pub(crate) const ITER_SIZE_CHANGED: &str = "遍历的过程中改了容器的大小（这次遍历没法继续了）";
 pub(crate) const ITER_SIZE_CHANGED_HINT: &str =
     "要边遍历边改，就先把元素取出来（或复制一份）再遍历";
@@ -2087,7 +2087,7 @@ pub(crate) fn err_with_hint(t: &str, msg: impl Into<String>, hint: String) -> Ji
 // 为什么要**逐字复刻** Python 的 difflib：三侧的候选名必须一样 ——
 // **不一致比不给候选更糟**（用户会以为另一侧是错的）。这里照 CPython 3.13 的
 // `SequenceMatcher.ratio()` 与 `get_close_matches` 写了一份，由
-// `tests/test_m51_consistency.py` 的五引擎对拍钉住（Node 侧是同一份算法的 JS 版）。
+// `tests/test_m51_consistency.py` 的四引擎对拍钉住（Node 侧是同一份算法的 JS 版）。
 //
 // ⚠️ 两个最容易抄错的点（都实测踩过）：
 //   ① 最长公共块要用 difflib 的 **DP 版**（`j2len`），且按 `k > bestsize`
@@ -4602,7 +4602,7 @@ pub(crate) fn display(v: &Val) -> String {
 ///
 /// 🔴 以前这里是 `format!("'{s}'")`：**一个字符都不转义**，于是 Windows 上
 /// `打印(路径.递归列出(…))` 在 Rust 给 `['子\a.md']`、在 Python 给
-/// `['子\\a.md']` —— 五个执行器不一致（2026-10-11 M108 补 `路径.按模式找`
+/// `['子\\a.md']` —— 四个执行器不一致（2026-10-11 M108 补 `路径.按模式找`
 /// 时撞出来：新函数返回的正是这种带 `\` 的相对路径）。
 pub(crate) fn 引用文本(s: &str) -> String {
     let 用双引号 = s.contains('\'') && !s.contains('"');
@@ -7304,7 +7304,7 @@ pub(crate) fn iter_next(it: &mut Val) -> Result<Option<Val>, JishiError> {
                 None => Ok(None),
             }
         }
-        // **带护栏**：每步核对原容器大小 —— 改了大小就报错（同一条文案，五执行器一致）
+        // **带护栏**：每步核对原容器大小 —— 改了大小就报错（同一条文案，四执行器一致）
         Val::GuardedIter(st) => {
             let mut st = st.borrow_mut();
             if container_len(&st.src) != Some(st.expect) {
@@ -7509,7 +7509,7 @@ pub(crate) fn call_builtin_method(host: &mut dyn BuiltinHost, name: String,
             }
             (Val::Str(s), "查找") => {
                 // M54 补：以前 Rust 宿主**根本没有这个方法**（`文本` 少这一个，
-                // 是 M53 靠五引擎对拍偶然撞见的 —— 方法漂移检测就是为此建的）。
+                // 是 M53 靠四引擎对拍偶然撞见的 —— 方法漂移检测就是为此建的）。
                 need_args(&name, args, 1, 1)?;
                 let needle = match &args[0] {
                     Val::Str(n) => n.clone(),

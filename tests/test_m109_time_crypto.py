@@ -242,7 +242,7 @@ def test_解压文件_坏文件要报错(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 四、五执行器一致
+# 四、四执行器一致
 # ---------------------------------------------------------------------------
 
 _脚本 = (
@@ -285,7 +285,7 @@ def _期望() -> str:
     )
 
 
-def test_五执行器一致_M109():
+def test_四执行器一致_M109():
     """树遍历 / 字节码 VM / C VM / Rust VM / Node 逐字节一致。"""
     import check_engines as ce
     from oracle.jishi.vm import VM
@@ -308,7 +308,6 @@ def test_五执行器一致_M109():
                 lambda: cvm_bind.run_source_c(_脚本, rel), lines)[0]
         if RUST_EXE.is_file():
             out["Rust VM"] = ce._run_rust_vm(_脚本, rel, run_dir)[0]
-        out["Node"] = ce._run_node_vm(_脚本, rel, run_dir)[0]
     finally:
         shutil.rmtree(run_dir, ignore_errors=True)
 

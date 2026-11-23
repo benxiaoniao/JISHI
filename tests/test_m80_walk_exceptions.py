@@ -281,7 +281,7 @@ def test_不许出现不存在的异常类型名():
     """`数值错误` **不是**语言里的异常类型 —— 用它当类型名会让 `捕获 值错误`
     接不住那个错误（宿主曾经有三处这么写）。真正的类型名清单见
     `oracle/jishi/errors.py` 与 lang-spec 的 `exceptions` 节。"""
-    for rel in ("rust/src/lib.rs", "rust/src/walk.rs", "oracle/node/runtime.js"):
+    for rel in ("rust/src/lib.rs", "rust/src/walk.rs"):
         p = ROOT / rel
         if not p.exists():
             continue
@@ -298,9 +298,5 @@ def test_异常类型表与语言规格同宽():
     import oracle.jishi.ai as AI                                          # noqa: PLC0415
     names = json.loads(AI.lang_spec_json())["exceptions"]
     lib = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
-    node = (ROOT / "oracle" / "node" / "runtime.js").read_text(encoding="utf-8")
     for t in names:
         assert f'"{t}"' in lib, f"宿主的异常类型表里少了「{t}」"
-        # Node 那边用**单引号**（`'异常': new ExcType('异常')`），两种都认
-        assert (f"'{t}'" in node or f'"{t}"' in node), \
-            f"Node 的异常类型表里少了「{t}」"

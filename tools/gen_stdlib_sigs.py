@@ -31,7 +31,7 @@
 - `rust/src/stdlib_sigs.rs`  → `pub fn sigof("模块.函数") -> Option<(usize, &'static [&'static str])>`
 
 两宿主在收到命名参数时按同一张表把名字映射回位置参数，
-**五引擎因此给出同一结果**（而不是像以前那样静默丢掉 kwargs）。
+**四引擎因此给出同一结果**（而不是像以前那样静默丢掉 kwargs）。
 
 ## 用法
 
@@ -60,7 +60,6 @@ if str(ROOT) not in sys.path:
 #: 报红才是对的（M50 第一批就是这么翻车的）。
 HOST_EXEMPT: frozenset[str] = frozenset({"测试"})
 
-NODE_OUT = ROOT / "oracle" / "node" / "stdlib_sigs.js"
 RUST_OUT = ROOT / "rust" / "src" / "stdlib_sigs.rs"
 
 
@@ -172,61 +171,18 @@ def _collect_sigs(nodes: list) -> list[_Sig]:
 
 
 # ---------------------------------------------------------------------------
-# 产出：Node
-# ---------------------------------------------------------------------------
-
-NODE_HEAD = """\
-// -*- coding: utf-8 -*-
-// 自动生成，请勿手改 —— 由 `python tools/gen_stdlib_sigs.py` 从
-// oracle/jishi/stdlib/*.py 的公开函数签名生成。
-//
-// 用途：宿主收到**命名参数**时（`加密.摘要("abc", 算法="md5")`），按
-// 「模块.函数」查这张表，把名字映射回位置参数 —— 五引擎因此给出同一结果。
-// 以前宿主是**静默丢掉** kwargs 的（`算法="md5"` 会悄悄用默认的 sha256）。
-//
-// 键带模块前缀是必须的：全库有 19 组跨模块同名函数（`解析` 在 json / 参数 /
-// 日期 都有），只按函数名查会歧义。
-//
-// 值 = [必填参数个数, [参数名…], 变参名或 null]；参数名顺序即位置参数顺序。
-// 第三项不是 null 时说明这个函数**位置参数个数没有上限**
-// （`压缩.打包(zip路径, *文件或目录)`）—— 检查参数个数时**别拦它**。
-// 它的存在是有教训的：`*参数` 以前不记，而「上限 = 参数名个数」这条规则
-// 会**把合法的变参调用拦下来**（比不检查更糟）。
-
-'use strict';
-
-module.exports = {
-"""
-
-
-def render_node(table: dict[str, dict[str, list]]) -> str:
-    lines = [NODE_HEAD]
-    for mod in sorted(table):
-        lines.append(f"  {_js_str(mod)}: {{\n")
-        for name in sorted(table[mod]):
-            req, params, vararg = table[mod][name]
-            plist = ", ".join(_js_str(p) for p in params)
-            va = _js_str(vararg) if vararg else "null"
-            lines.append(f"    {_js_str(name)}: [{req}, [{plist}], {va}],\n")
-        lines.append("  },\n")
-    lines.append("};\n")
-    return "".join(lines)
-
-
-def _js_str(s: str) -> str:
-    """JS 字符串字面量。模块/参数名都是中文标识符，直接单引号即可。"""
-    return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
-
-
-# ---------------------------------------------------------------------------
 # 产出：Rust
 # ---------------------------------------------------------------------------
+#
+# 📌 **M225（0.3.7）**：`oracle/node/stdlib_sigs.js` 那份产物**已删** ——
+# Node 宿主退役，它的 kwargs 映射表不需要了。现在只剩 Rust 这一份
+# （Python 侧读的是同一份事实源生成的 `data/stdlib_sigs.json`）。
 
 RUST_HEAD = """\
 //! 标准库函数签名表（**自动生成，请勿手改** —— `python tools/gen_stdlib_sigs.py`）。
 //!
 //! 用途：宿主收到**命名参数**时（`加密.摘要("abc", 算法="md5")`），按
-//! 「模块.函数」查这张表把名字映射回位置参数 —— 五引擎因此给出同一结果。
+//! 「模块.函数」查这张表把名字映射回位置参数 —— 各引擎因此给出同一结果。
 //! 以前 `Val::Builtin` 只是把 kwargs 丢掉（`算法="md5"` 会悄悄用默认的 sha256）。
 //!
 //! 键带模块前缀是必须的：全库有 19 组跨模块同名函数（`解析` 在 json / 参数 /
@@ -280,7 +236,7 @@ def main(argv: list[str]) -> int:
     check = "--check" in argv
     table = collect()
 
-    generated = {NODE_OUT: render_node(table), RUST_OUT: render_rust(table)}
+    generated = {RUST_OUT: render_rust(table)}
 
     n_mod = len(table)
     n_fn = sum(len(v) for v in table.values())

@@ -5,7 +5,7 @@
 
 `examples/tutorial/12_成绩单Excel.jsh`：导出成绩单 → 读回来 → 三科平均 →
 总分排行（对齐报表）→ 缺考（报错 + 补零）→ 日期序号换算 → 清理。
-要求**五个执行器输出逐字相同**，跑完**不留 `成绩单.xlsx`**。
+要求**四个执行器输出逐字相同**，跑完**不留 `成绩单.xlsx`**。
 
 ## 二、写教程撞出来的两个东西
 
@@ -91,7 +91,7 @@ def _五份(源码: str, tmp_path: Path) -> dict:
 def _一致(源码: str, tmp_path: Path) -> str:
     出 = _五份(源码, tmp_path)
     值 = set(出.values())
-    assert len(值) == 1, "五个执行器说法不一致：\n" + "\n".join(
+    assert len(值) == 1, "四个执行器说法不一致：\n" + "\n".join(
         f"—— {k} ——\n{v}" for k, v in 出.items())
     return 值.pop()
 

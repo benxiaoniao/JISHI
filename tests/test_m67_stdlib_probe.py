@@ -4,10 +4,10 @@
 ## 缘起
 
 到 R6.4 为止，标准库只有**名字面**的检测（`--dump-stdlib` 报「函数在不在」），
-行为面靠 `test_m31_node_stdlib.py` / `test_m33_rust_stdlib.py` 那批**手写用例**
+行为面靠 `test_m33_rust_stdlib.py` 那批**手写用例**
 —— 而那正是 R6.4 学到的教训：**手写用例覆盖到的地方才有人管**。
 
-新探针把 141 条用例合成一个程序、五个执行器各跑一次、逐行比。第一次跑就抓到：
+新探针把 141 条用例合成一个程序、四个执行器各跑一次、逐行比。第一次跑就抓到：
 
 * `数学.四舍五入(2.5)` —— Node 给 `3`，其余四个给 `2`（**半值向上 vs 银行家舍入**）；
 * `html.属性文本("a","b")` / `日期.今年(1)` —— **Node 静默接受多余参数**。
@@ -33,8 +33,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-NODE = shutil.which("node")
-HAS_NODE = NODE is not None
 
 
 def _py(src: str) -> tuple[bool, str]:
@@ -47,19 +45,6 @@ def _py(src: str) -> tuple[bool, str]:
         return True, buf.getvalue()
     except BaseException as e:                                     # noqa: BLE001
         return False, str(e)
-
-
-def _node(src: str) -> tuple[bool, str]:
-    """Node 宿主跑一遍 → `(是否跑通, stdout + stderr)`。"""
-    import tempfile
-
-    from oracle.jishi.compiler import compile_to_json
-    tmp = Path(tempfile.gettempdir()) / f"{os.getpid()}_m67.json"
-    tmp.write_text(compile_to_json(src, "标准库.jsh"), encoding="utf-8")
-    r = subprocess.run([NODE, str(ROOT / "oracle/node/index.js"), str(tmp)],
-                       capture_output=True, input=b"", cwd=str(ROOT))
-    return (r.returncode == 0,
-            r.stdout.decode("utf-8", "replace") + r.stderr.decode("utf-8", "replace"))
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +85,6 @@ def test_探针覆盖了足够多的用例():
 # 因为当时的口径是「与 Python 的 `round` 一致」。M153 改成真「五入」——
 # 用户说四舍五入时想的就是「五就进一位」，金额场景（D90）也是这个口径。
 
-@pytest.mark.skipif(not HAS_NODE, reason="本机无 Node.js")
 @pytest.mark.parametrize("src,want", [
     # 半值**远离零**：2.5→3、3.5→4、-2.5→-3、-3.5→-4
     ("导入 数学\n打印(数学.四舍五入(2.5))", "3\n"),
@@ -123,8 +107,6 @@ def test_四舍五入是半入远离零(src, want):
     """
     ok, out = _py(src)
     assert ok and out == want, f"Python 侧：{out!r}（期望 {want!r}）"
-    ok, out = _node(src)
-    assert ok and out == want, f"Node 侧：{out!r}（期望 {want!r}）"
 
 
 # ---------------------------------------------------------------------------
@@ -166,48 +148,6 @@ def test_内建的参数个数错也还是中文():
     assert "「长度」需要 1 个参数，但传了 0 个" in out, out[:200]
 
 
-@pytest.mark.skipif(not HAS_NODE, reason="本机无 Node.js")
-def test_Node的标准库也会检查参数个数了():
-    """⚠️ 这条测试**上一版是反着写的** —— 它当时断言「缺口还在」。
-
-    R6.4 建这个探针时，Node 的标准库不检查参数个数（`html.属性文本("a","b")`
-    静默返回 `a`、`日期.今年(1)` 静默返回年份），于是登记在 `KNOWN_GAPS` 里。
-    修好之后**探针自己报了「登记过期」**，就把这条测试翻了过来 ——
-    这正是「登记必须能过期」的用法：修好了不会静悄悄留着。
-
-    修法：签名表补记 `*参数`（`tools/gen_stdlib_sigs.py`）→
-    `needStdlibArgs` 在**调用点**统一查（230 个函数逐个加检查既写不完也会漂）。
-    """
-    # 多给：以前静默忽略
-    ok, out = _node('导入 html\n打印(html.属性文本("a", "b"))\n')
-    assert not ok, f"本该报错却跑通了：{out!r}"
-    assert "函数「属性文本」需要 1 个参数，但传了 2 个" in out, out[:200]
-
-    # 少给：Node 的固定形参会拿到 `undefined` 一路算下去（`数学.开方()` 给 NaN）
-    ok, out = _node('导入 数学\n打印(数学.开方())\n')
-    assert not ok, f"本该报错却跑通了：{out!r}"
-    assert "函数「开方」需要 1 个参数，但传了 0 个" in out, out[:200]
-
-
-@pytest.mark.skipif(not HAS_NODE, reason="本机无 Node.js")
-def test_变参函数不会被参数个数检查拦住():
-    """⚠️ **这条是那次修复最容易踩的坑**：签名表里 `路径.连接` 一个参数名都
-    没有（`连接(*部分)`），拿「参数名个数」当上限就会把**合法调用**拦下来
-    —— 比不检查更糟。所以表里要记 `*参数`（`sig[2]`）。
-    """
-    import os
-    for src, want in (
-        # ⚠️ 分隔符是**平台相关**的（Windows `\`、其它 `/`）—— 别写死
-        ('导入 路径\n打印(路径.连接("甲", "乙", "丙", "丁"))\n',
-         os.sep.join(["甲", "乙", "丙", "丁"]) + "\n"),
-        ('导入 压缩\n打印(压缩.打包)\n', None),      # 只要求「能取到属性、不报参数错」
-    ):
-        ok, out = _node(src)
-        assert ok, f"变参调用被拦了：{out!r}"
-        if want is not None:
-            assert out.strip() == want.strip(), out
-
-
 def test_命名参数调用不该被参数个数检查误拦():
     """⚠️ 这条来自一次**真实的假报** —— 新加的参数个数检查**只数了位置参数**：
 
@@ -223,11 +163,6 @@ def test_命名参数调用不该被参数个数检查误拦():
            '打印(T.填充("abc", 宽度=7, 填充字符="-"))\n')
     ok, out = _py(src)
     assert ok, f"Python 侧误报：{out[:200]}"
-    want = out
-    if HAS_NODE:
-        ok, out = _node(src)
-        assert ok, f"Node 侧误报：{out[:200]}"
-        assert out == want, f"两侧不一致\npy={want!r}\nnd={out!r}"
 
 
 def test_命名参数里keyword_only的不算进位置个数():

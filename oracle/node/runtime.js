@@ -63,7 +63,7 @@ const ERROR_CODES = {
 };
 
 //: 「遍历时改了容器的大小」——文案与提示**只有一份**（Python `errors.py` 同名常量，
-//: Rust 侧 `ITER_SIZE_CHANGED` 同名），五个执行器逐字一致（D77 §二）。
+//: Rust 侧 `ITER_SIZE_CHANGED` 同名），四个执行器逐字一致（D77 §二）。
 //: 「起因」链最多摊几层（M148）。与 Python `errors.MAX_CAUSE_DEPTH`、
 //: Rust `MAX_CAUSE_DEPTH` **同一个数** —— 不一样的话同一个错误的渲染长度就不同。
 const MAX_CAUSE_DEPTH = 5;
@@ -3084,7 +3084,7 @@ function buildDict(pairs, line, col) {
 // 为什么要**逐字复刻** Python 的 difflib：三侧的候选名必须一样 ——
 // **不一致比不给候选更糟**（用户会以为另一侧是错的）。所以这里照 CPython 3.13
 // 的 `SequenceMatcher.ratio()` 与 `get_close_matches` 写了一份，
-// 并由 `tests/test_m51_consistency.py` 的五引擎对拍钉住。
+// 并由 `tests/test_m51_consistency.py` 的四引擎对拍钉住。
 //
 // ⚠️ 两个最容易抄错的点（都实测踩过）：
 //   ① 最长公共块要用 difflib 的 **DP 版**（`j2len`），且按 `k > bestsize`

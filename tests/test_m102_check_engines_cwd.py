@@ -19,7 +19,7 @@
 * **行为**：真跑一遍工具（只用三个 **进程内** Python 执行器，够快）→
   **退码 0** 且 **仓库根没有那三个文件**。
   （进程内执行器正是需要 `os.chdir` 隔离的那一批；两个宿主本来就是独立进程、
-  传 `cwd=` 即可，`--no-rust-vm --no-node` 不影响对 chdir 这一半的检验。）
+  传 `cwd=` 即可，`--no-rust-vm` 不影响对 chdir 这一半的检验。）
 """
 
 import subprocess
@@ -51,13 +51,13 @@ def test_工具在私有_cwd_里跑_仓库根不留产物():
         (ROOT / name).unlink(missing_ok=True)
 
     r = subprocess.run(
-        [sys.executable, "tools/check_engines.py", "--no-rust-vm", "--no-node"],
+        [sys.executable, "tools/check_engines.py", "--no-rust-vm"],
         cwd=str(ROOT), capture_output=True, timeout=300,
     )
     out = r.stdout.decode("utf-8", "replace")
     err = r.stderr.decode("utf-8", "replace")
     assert r.returncode == 0, (
-        "check_engines（三执行器）不一致或报错：\n" + out[-1500:] + err[-800:]
+        "check_engines（不含 Rust VM）不一致或报错：\n" + out[-1500:] + err[-800:]
     )
 
     left = [n for n in ARTIFACTS if (ROOT / n).exists()]

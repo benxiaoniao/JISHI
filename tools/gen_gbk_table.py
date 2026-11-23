@@ -10,7 +10,8 @@
 |---|---|
 | `rust/src/gbk_table.rs` | Rust 宿主（替换 `encoding_rs`） |
 | `oracle/jishi/stdlib/_gbk_table.py` | Python 参考实现 |
-| `oracle/node/gbk_table.js` | Node 宿主（只缺编码方向，解码走 `TextDecoder('gbk')`） |
+
+📌 **M225（0.3.7）**：Node 宿主退役，`oracle/node/gbk_table.js` 那份产物**已删**。
 
 用法（改了数据才要重跑；产物签入仓库）：
     python tools/gen_gbk_table.py
@@ -25,7 +26,6 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "oracle" / "jishi" / "data" / "gbk_whatwg.txt"
 OUT_RS = ROOT / "rust" / "src" / "gbk_table.rs"
 OUT_PY = ROOT / "oracle" / "jishi" / "stdlib" / "_gbk_table.py"
-OUT_JS = ROOT / "oracle" / "node" / "gbk_table.js"
 
 每行 = 191  # 低字节 0x40..0xFE 共 191 个
 
@@ -200,54 +200,13 @@ def 码号到码位(码: int) -> int:
     io.open(OUT_PY, "w", encoding="utf-8", newline="\n").write(文)
 
 
-def 写_js(串: str, 单字节: dict[int, int], 反查: list[tuple[int, int]]) -> None:
-    字面 = json.dumps(串, ensure_ascii=False)
-    映射数 = sum(1 for c in 串 if c != "\u0000")
-    专用 = json.dumps({f"{cp:04x}": f"{码:04x}" for cp, 码 in 反查 if cp in
-                        {0xE78D, 0xE78E, 0xE78F, 0xE790, 0xE791, 0xE792, 0xE793,
-                         0xE794, 0xE795, 0xE796, 0xE81E, 0xE826, 0xE82B, 0xE82C,
-                         0xE832, 0xE843, 0xE854, 0xE864}}, ensure_ascii=False)
-    文 = f'''// 由 `tools/gen_gbk_table.py` 生成，**不要手改**。
-//
-// GBK 的「码位 -> 字符」表：槽位 i 对应码号
-//   ((0x81 + floor(i/191)) << 8) | (0x40 + i % 191)
-// 没映射的槽位是 U+0000。
-//
-// 为什么 Node 需要它：`TextDecoder('gbk')` 只能**解**，编不了；
-// `new TextEncoder('gbk')` 不报错但永远按 UTF-8 编（静默错）。
-//
-// 共 {映射数} 个有效槽位 / {len(串)} 个槽位。
-// 另附：单字节 `0x80 → U+20AC`（欧元）、18 个 PUA 编码专用项（解码收不到，编码要认）。
-
-const 串 = {字面};
-
-/** 每档低字节 0x40..0xFE 共 191 个。 */
-const 每行 = {每行};
-
-/** 槽位下标 -> GBK 双字节码号。 */
-function 槽位码号(i) {{
-  return ((0x81 + Math.floor(i / 每行)) << 8) | (0x40 + (i % 每行));
-}}
-
-/** 单字节：码点 -> 字节（ASCII 恒等不列）。 */
-const 单字节 = {{ 0x20ac: 0x80 }};
-
-/** 编码专用（PUA）：码点十六进制串 -> 字节十六进制串。 */
-const 编码专用 = {专用};
-
-module.exports = {{ 串, 每行, 槽位码号, 单字节, 编码专用 }};
-'''
-    io.open(OUT_JS, "w", encoding="utf-8", newline="\n").write(文)
-
-
 def main() -> int:
     串, 单字节, 专用 = 读数据()
     反查 = 建反查(串, 专用)
     写_rs(串, 单字节, 反查)
     写_py(串, 单字节, 反查)
-    写_js(串, 单字节, 反查)
     print(f"槽位 {len(串)}（有效 {sum(1 for c in 串 if c != chr(0))}）· 反查 {len(反查)} 条")
-    for p in (OUT_RS, OUT_PY, OUT_JS):
+    for p in (OUT_RS, OUT_PY):
         print(f"  写出 {p.relative_to(ROOT)}（{p.stat().st_size // 1024} KB）")
     return 0
 

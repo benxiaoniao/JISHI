@@ -49,9 +49,6 @@ from oracle.jishi.compiler import compile_source, compile_to_json        # noqa:
 from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
 from oracle.jishi.vm import VM                                           # noqa: E402
 
-NODE = shutil.which("node")
-HAS_NODE = NODE is not None
-need_node = pytest.mark.skipif(not HAS_NODE, reason="本机无 Node.js")
 
 
 def _rust_exe() -> Path:
@@ -66,7 +63,7 @@ need_rust = pytest.mark.skipif(
 
 
 def _five(src: str) -> dict[str, str]:
-    """五个执行器各跑一遍，返回 `{执行器: stdout 或首行报错}`。"""
+    """四个执行器各跑一遍，返回 `{执行器: stdout 或首行报错}`。"""
     out = {}
     for kind, fn in (("tree", lambda: run_tree(src, "x.jsh")),
                      ("PyVM", lambda: VM(compile_source(src, "x.jsh"), "x.jsh").run()),
@@ -84,15 +81,10 @@ def _five(src: str) -> dict[str, str]:
         r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
         out["Rust"] = r.stdout.decode("utf-8", "replace") or \
             ("【错】" + r.stderr.decode("utf-8", "replace").splitlines()[0])
-    if HAS_NODE:
-        r = subprocess.run([NODE, "oracle/node/index.js", str(tmp)],
-                           capture_output=True, input=b"")
-        out["Node"] = r.stdout.decode("utf-8", "replace") or \
-            ("【错】" + r.stderr.decode("utf-8", "replace").splitlines()[0])
     return out
 
 
-#: 每一组都是「集合重构的易错点」，五执行器必须逐字一致。
+#: 每一组都是「集合重构的易错点」，四执行器必须逐字一致。
 _CASES = {
     "字面量去重保序": '令 甲 = {1, 2, 2, 3}\n打印(甲)\n打印(甲.转列表())\n',
     "跨类型是同一元素": '令 甲 = {1}\n甲.添加(1.0)\n打印(甲)\n打印(长度(甲))\n打印(1.0 在 甲)\n',
@@ -120,7 +112,7 @@ _CASES = {
 
 
 @pytest.mark.parametrize("tag", sorted(_CASES))
-def test_集合语义五执行器逐字一致(tag):
+def test_集合语义四执行器逐字一致(tag):
     outs = _five(_CASES[tag])
     base_name, base = next(iter(outs.items()))
     for name, got in outs.items():
@@ -226,15 +218,6 @@ def test_不能放进集合的报错三个执行器一个说法():
         assert "不能放进集合" in rust_err and "提示：" in rust_err, rust_err
         assert "，集合的元素要是不可变的" not in rust_err, \
             "Rust 又把 hint 揉进 message 了"
-    if HAS_NODE:
-        r = subprocess.run([NODE, "oracle/node/index.js", str(tmp)],
-                           capture_output=True, input=b"")
-        node_err = r.stderr.decode("utf-8", "replace")
-        assert "不能放进集合" in node_err and "提示：" in node_err, node_err
-        assert "，集合的元素要是不可变的" not in node_err, \
-            "Node 又把 hint 揉进 message 了"
-
-
 def test_语料里有集合():
     """`tests/cases/` 必须**有**集合语料。
 

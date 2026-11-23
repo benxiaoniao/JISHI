@@ -8,8 +8,8 @@
 
 顺带修掉一个被新函数暴露出来的**既有分歧**：容器内字符串的引用（`repr`）。
 以前 Rust 一个字符都不转义（`['子\\a.md']` vs Python `['子\\\\a.md']`）、
-Node 只转义 `\\` `'` `\\n` —— 五个执行器各写各的。现在三边同一套小规则，
-判据见 `test_转义_五执行器逐字一致` 与 `test_转义_不许退回旧写法`。
+Node 只转义 `\\` `'` `\\n` —— 四个执行器各写各的。现在三边同一套小规则，
+判据见 `test_转义_四执行器逐字一致` 与 `test_转义_不许退回旧写法`。
 """
 
 import io
@@ -229,8 +229,8 @@ _转义期望 = (
 )
 
 
-def test_转义_五执行器逐字一致():
-    """容器内字符串的 `repr` 五个执行器要**逐字**一样（M108 修的分歧）。"""
+def test_转义_四执行器逐字一致():
+    """容器内字符串的 `repr` 四个执行器要**逐字**一样（M108 修的分歧）。"""
     assert _跑(_转义脚本) == _转义期望
     if not RUST_EXE.is_file():
         pytest.skip("没有 rust 宿主产物")
@@ -266,7 +266,7 @@ def test_转义_不许退回旧写法():
 
 
 # ---------------------------------------------------------------------------
-# 六、五执行器一致（M108 的函数全跑一遍）
+# 六、四执行器一致（M108 的函数全跑一遍）
 # ---------------------------------------------------------------------------
 
 _脚本 = (
@@ -307,7 +307,7 @@ def _期望_脚本() -> str:
     )
 
 
-def test_五执行器一致_M108():
+def test_四执行器一致_M108():
     """树遍历 / 字节码 VM / Rust VM / Node 逐字节一致（C VM 走宿主标准库）。"""
     import check_engines as ce
     from oracle.jishi.vm import VM
@@ -330,7 +330,6 @@ def test_五执行器一致_M108():
                 lambda: cvm_bind.run_source_c(_脚本, rel), lines)[0]
         if RUST_EXE.is_file():
             out["Rust VM"] = ce._run_rust_vm(_脚本, rel, run_dir)[0]
-        out["Node"] = ce._run_node_vm(_脚本, rel, run_dir)[0]
     finally:
         shutil.rmtree(run_dir, ignore_errors=True)
 

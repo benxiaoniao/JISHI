@@ -295,7 +295,7 @@ class Interpreter:
         #: 「正在处理的异常」栈（M148）：进入 `捕获` 体时压、离开时弹。
         #: 这比字节码那套「按 ip 区间判断」更直接（这里是 Python 原生
         #: try/except，天然知道自己在不在捕获体里），两边结果**必须一致**
-        #: —— 见 `tests/test_m148_cause.py` 的五引擎对拍。
+        #: —— 见 `tests/test_m148_cause.py` 的四引擎对拍。
         self._handling: list = []
         #: 调试器（M37）：非 None 时每次执行语句前会调它的 before_stmt。
         #: 平时是 None，多出来的开销只有一次属性判断。
@@ -406,7 +406,7 @@ class Interpreter:
 
         ⚠️ 与字节码那条路必须同语义：那边是「声明过 ⇒ 不进 bound ⇒
         STORE_GLOBAL」，这边就是「写 self.globals」。两边由 `test_m210_global`
-        拿同一段程序在五个引擎上对拍。
+        拿同一段程序在四个引擎上对拍。
         """
         if env.decl_globals and name in env.decl_globals:
             self.globals.set(name, value)
@@ -495,7 +495,7 @@ class Interpreter:
                     item = next(it)
                 except RuntimeError:
                     # 集合 / 字典在遍历中被改了大小：Python 原生异常是英文、无码
-                    # 无行列 —— 换成基石错误（D77 §二，文案与五执行器共用一份）。
+                    # 无行列 —— 换成基石错误（D77 §二，文案与四执行器共用一份）。
                     raise iter_size_changed(
                         line=stmt.line, col=stmt.col,
                         filename=self.filename) from None

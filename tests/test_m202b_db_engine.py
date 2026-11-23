@@ -41,7 +41,7 @@ def _跑(源码: str, tmp: Path) -> str:
     试着改成「抓 fd 1」也不行：pytest 自己的 `sys.stdout` 是包在**另一个 fd**
     上的对象，`dup2(1)` 抓不到它（本机当场复现：文件里空空，pytest 却抓到了）。
     这类判据要问的是「用户敲 `jishi 测.jsh` 看到什么」，那就**真的起一个进程**：
-    捕获语义与 pytest 无关，五个引擎里 Python 参考实现也照样能跑。
+    捕获语义与 pytest 无关，四个引擎里 Python 参考实现也照样能跑。
     """
     文件 = tmp / "测.jsh"
     文件.write_text(源码, encoding="utf-8", newline="\n")

@@ -105,7 +105,7 @@ def test_tutorial_excel(tmp_path, monkeypatch):
 
 
 def test_tutorial_expense_db(tmp_path, monkeypatch):
-    """第 11 章：账目存 SQLite（M156）。五引擎逐字一致在 `test_m156` 里盯，
+    """第 11 章：账目存 SQLite（M156）。四引擎逐字一致在 `test_m156` 里盯，
     这里只做「教程示例真能跑、并且自己清理」这一条最低保证。"""
     monkeypatch.chdir(tmp_path)
     out = run_file_stdout("11_记账数据库.jsh")

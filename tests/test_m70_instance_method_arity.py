@@ -66,9 +66,6 @@ from oracle.jishi.compiler import compile_source, compile_to_json        # noqa:
 from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
 from oracle.jishi.vm import VM                                           # noqa: E402
 
-NODE = shutil.which("node")
-HAS_NODE = NODE is not None
-need_node = pytest.mark.skipif(not HAS_NODE, reason="本机无 Node.js")
 
 
 def _rust_exe() -> Path:
@@ -83,7 +80,7 @@ need_rust = pytest.mark.skipif(
 
 
 # ---------------------------------------------------------------------------
-# 五执行器各跑一遍，取「(行:列, 首行消息)」
+# 四执行器各跑一遍，取「(行:列, 首行消息)」
 # ---------------------------------------------------------------------------
 
 _CLS = '类 甲：\n    函数 方法(自身, x)：\n        返回 x\n'
@@ -134,8 +131,7 @@ def _host(src: str, which: str) -> str:
         r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)],
                            capture_output=True, input=b"")
     else:
-        r = subprocess.run([NODE, "oracle/node/index.js", str(tmp)],
-                           capture_output=True, input=b"")
+        raise AssertionError(f"没有这个宿主：{which}")
     err = r.stderr.decode("utf-8", "replace")
     if not err.strip():
         return "no-err:" + r.stdout.decode("utf-8", "replace").strip()
@@ -146,17 +142,15 @@ def _five(src: str) -> dict[str, str]:
     out = {"tree": _py(src, "tree"), "PyVM": _py(src, "vm"), "CVM": _py(src, "cvm")}
     if RUST.exists():
         out["Rust"] = _host(src, "rust")
-    if HAS_NODE:
-        out["Node"] = _host(src, "node")
     return out
 
 
 # ---------------------------------------------------------------------------
-# 一、五执行器必须说同一句话（位置 + 消息）
+# 一、四执行器必须说同一句话（位置 + 消息）
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("tag", sorted(_CASES))
-def test_参数绑定错在五执行器上逐字一致(tag):
+def test_参数绑定错在四执行器上逐字一致(tag):
     """`(行:列, 首行)` 五处完全相同 —— 位置与文案都不许分岔。"""
     outs = _five(_CASES[tag])
     base_name, base = next(iter(outs.items()))

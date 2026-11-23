@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""标准库体检：**每个标准库函数都在五个执行器上真跑一遍**（R6.4 建）。
+"""标准库体检：**每个标准库函数都在四个执行器上真跑一遍**（R6.4 建）。
 
 ## 为什么要有它
 
@@ -8,7 +8,7 @@
 行为面则靠 `tests/test_m31_node_stdlib.py` / `test_m33_rust_stdlib.py` 那批
 **手写用例** —— 而那正是 R6.4 学到的教训：**手写用例覆盖到的地方才有人管**。
 
-第一次跑这个探针（141 条用例 × 五个执行器）就抓到三笔：
+第一次跑这个探针（141 条用例 × 四个执行器）就抓到三笔：
 
 | 形状 | 症状 |
 |---|---|
@@ -21,7 +21,7 @@
 ## 判据
 
 把全部用例合成**一个程序**（每条独立 `尝试/捕获`，打印 `名字|值` 一行），
-五个执行器各跑一次，**逐行比** —— 一次进程启动就能比完全部用例。
+四个执行器各跑一次，**逐行比** —— 一次进程启动就能比完全部用例。
 
 ⚠️ 两个实现细节：
 * **所有模块都用别名导入**（`导入 文本 为 文本模块`）—— `文本` 既是模块名又是
@@ -159,7 +159,7 @@ CASES: dict[str, str] = {
     "编码.字节文本": '编码.字节文本([97, 98, 99])',
     # ⚠️ 参数顺序照 Python 的签名：`写表格(路径, 行列表)`（**路径在前**）。
     # 我第一版写反了 —— 于是每个引擎都把「行列表」当路径，写出一个名字叫
-    # `[['甲', '乙'], [1, 2]]` 的文件；而**写文件不打印** → 五个引擎 stdout
+    # `[['甲', '乙'], [1, 2]]` 的文件；而**写文件不打印** → 四个引擎 stdout
     # 都空 → 探针反而「一致」。📌 **有副作用的用例一定要有可观察的输出**：
     # 所以这里写成「写 → 读 → 打印」的往返（`表格.读表格` 那条接着读）。
     "表格.写表格": f'表格.写表格("{CSV}", [["甲", "乙"], [1, 2]])',
@@ -276,7 +276,7 @@ def split(text: str) -> dict[str, str]:
 
 def main(argv: "list[str] | None" = None) -> int:
     import argparse
-    ap = argparse.ArgumentParser(description="标准库体检（五执行器真跑）")
+    ap = argparse.ArgumentParser(description="标准库体检（四执行器真跑）")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="每条用例都打印一行")
     args = ap.parse_args(argv)
@@ -294,7 +294,7 @@ def main(argv: "list[str] | None" = None) -> int:
     tmp.write_text(compile_to_json(src, REL), encoding="utf-8")
     # ⚠️ 名字要**分平台**：Windows 是 `jishi-rs.exe`，Linux/macOS 是 `jishi-rs`。
     #    以前这里写死 `.exe` ⇒ **CI（Linux）上查不到 Rust 宿主**，静默少一个执行器
-    #    （五执行器对拍变成四执行器，还只在打印里提一句）。
+    #    （四执行器对拍变成四执行器，还只在打印里提一句）。
     rust = ROOT / "rust/target/release" / (
         "jishi-rs.exe" if os.name == "nt" else "jishi-rs")
     if rust.exists():
@@ -302,13 +302,8 @@ def main(argv: "list[str] | None" = None) -> int:
                                       input=b"", cwd=str(ROOT)).stdout.decode("utf-8", "replace")
     else:
         print("（注：Rust 宿主没构建，本次少一个执行器；`cd rust && cargo build --release`）")
-    node = shutil.which("node")
-    if node:
-        outs["Node"] = subprocess.run([node, str(ROOT / "oracle/node/index.js"), str(tmp)],
-                                      capture_output=True, input=b"",
-                                      cwd=str(ROOT)).stdout.decode("utf-8", "replace")
-    else:
-        print("（注：PATH 上没有 node，本次少一个执行器）")
+    # 🔴 M225：Node 宿主已退役（0.3.7）—— 这里不再跑 `oracle/node/`。
+    # node 这个**程序**仍被 wasm 探针判据用（浏览器替身），与本工具无关。
 
     parsed = {k: split(v) for k, v in outs.items()}
     bad: list[tuple] = []
@@ -327,7 +322,7 @@ def main(argv: "list[str] | None" = None) -> int:
             line = mark + name
             if args.verbose:
                 # ⚠️ `-v` 要**把值打出来**：只看「绿的」看不出它到底测出了什么 ——
-                # `表格.写表格` 那条第一版参数顺序写反、五个引擎**一致地错**，
+                # `表格.写表格` 那条第一版参数顺序写反、四个引擎**一致地错**，
                 # 就是靠看值才发现的（写文件不打印，探针本身看不见副作用）。
                 line += " = " + next(iter(vals.values()))[:70]
             print(line)

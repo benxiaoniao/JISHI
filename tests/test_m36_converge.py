@@ -35,7 +35,6 @@ from oracle.jishi.parser import parse                    # noqa: E402
 from oracle.jishi.tokenizer import tokenize              # noqa: E402
 from conftest import rust_exe_path                # noqa: E402
 
-NODE = shutil.which("node")
 CARGO = shutil.which("cargo")
 
 
@@ -61,8 +60,7 @@ def _run_host(src: str, host: str, rust_exe: "Path | None", tmp: Path) -> str:
     """把源码编成字节码丢给宿主跑，返回 stdout（宿主非零退出直接报错）。"""
     bc = tmp / f"_m36_{host}.json"
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    cmd = ([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)] if host == "node"
-           else [str(rust_exe), "--load-bytecode", str(bc)])
+    cmd = [str(rust_exe), "--load-bytecode", str(bc)]
     r = subprocess.run(cmd, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     assert r.returncode == 0, f"{host} 非零退出（rc={r.returncode}）：{r.stderr[-300:]}"
@@ -70,11 +68,8 @@ def _run_host(src: str, host: str, rust_exe: "Path | None", tmp: Path) -> str:
 
 
 def _all_five(src: str, rust_exe: Path, tmp: Path) -> str:
-    """三执行器 + Node + Rust **五路逐字节一致**。"""
+    """三执行器 + Rust **四路逐字节一致**。"""
     want = _all(src)
-    if NODE:
-        got = _run_host(src, "node", None, tmp)
-        assert got == want, f"Node 与 Python 不一致\nPython: {want!r}\nNode:   {got!r}"
     got = _run_host(src, "rust", rust_exe, tmp)
     assert got == want, f"Rust 与 Python 不一致\nPython: {want!r}\nRust:   {got!r}"
     return want

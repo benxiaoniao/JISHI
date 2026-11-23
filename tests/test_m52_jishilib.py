@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""M52 · 基石库层：**用基石自己写的标准库**，一份代码五个引擎共用。
+"""M52 · 基石库层：**用基石自己写的标准库**，一份代码四个引擎共用。
 
 ## 这个文件钉什么
 
@@ -49,7 +49,6 @@ from oracle.jishi.errors import JishiError                  # noqa: E402
 from oracle.jishi.interpreter import run_source as tree_run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-NODE = shutil.which("node")
 RUST = rust_exe_path()
 
 
@@ -107,7 +106,7 @@ def _host_run(exe: list, src: str, tag: str) -> tuple:
 
 
 def _engines(tag: str = "a"):
-    """五引擎：`(名字, 跑一段源码 → (是否正常退出, 输出或错误文本))`。"""
+    """四引擎：`(名字, 跑一段源码 → (是否正常退出, 输出或错误文本))`。"""
     def tree(src):
         try:
             return True, _capture(tree_run, src)
@@ -127,16 +126,13 @@ def _engines(tag: str = "a"):
             return False, f"{getattr(e, 'title', '')} {e}"
 
     out = [("树遍历", tree), ("Python VM", pyvm), ("C VM", cvm)]
-    if NODE:
-        out.append(("Node", lambda s: _host_run(
-            [NODE, str(ROOT / "oracle" / "node" / "index.js")], s, tag)))
     if RUST.exists():
         out.append(("Rust", lambda s: _host_run([str(RUST)], s, tag)))
     return out
 
 
 def _five_agree(src: str) -> str:
-    """五个引擎 stdout 逐字节一致且都正常退出；返回那份输出。"""
+    """四个引擎 stdout 逐字节一致且都正常退出；返回那份输出。"""
     base_label, base = None, None
     for label, run in _engines():
         ok, out = run(src)
@@ -210,7 +206,7 @@ _模块用例 = {
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("mod", sorted(_模块用例))
-def test_模块在五引擎逐字节一致(mod):
+def test_模块在四引擎逐字节一致(mod):
     """四个模块的用例在树遍历 / Python VM / C VM / Node / Rust 上完全一致。
 
     ✅ **M54 起 Rust 没有豁免了**（2026-09-27）：M53 记下的三条 Rust 缺口
@@ -283,8 +279,8 @@ def _err_kind(src: str) -> str:
     '统计.去极值平均([1,2], 1)', '统计.加权平均([1,2],[1])',
     '统计.加权平均([1],[0])', '统计.求和(5)',
 ])
-def test_错误路径五引擎都给同一类错(expr):
-    """错误**类型**五引擎必须一致（对拍比类型，文案允许略有出入）。"""
+def test_错误路径四引擎都给同一类错(expr):
+    """错误**类型**四引擎必须一致（对拍比类型，文案允许略有出入）。"""
     src = f'导入 统计\n{expr}\n'
     kinds = set()
     for label, run in _engines("e"):
@@ -296,7 +292,7 @@ def test_错误路径五引擎都给同一类错(expr):
             kinds.add("值错误")
         else:
             pytest.fail(f"{label} 报的不是类型/值错误：{text[:200]!r}")
-    assert kinds in ({"类型错误"}, {"值错误"}), f"五引擎报的类型不一致：{kinds}"
+    assert kinds in ({"类型错误"}, {"值错误"}), f"四引擎报的类型不一致：{kinds}"
 
 
 def test_错误路径与宿主层同类型():
@@ -380,7 +376,7 @@ def test_基石库模块清单():
 def test_关掉这层就回落宿主层():
     """`JISHI_NO_JISHILIB=1`：宿主层必须**完整可用**（它是兜底，也是对照）。"""
     src = '导入 统计\n打印(统计.求和([1,2,3]), 统计.中位数([3,1,2]))\n'
-    lib = _five_agree(src)                          # 五引擎走基石库层
+    lib = _five_agree(src)                          # 四引擎走基石库层
     with lib_off():
         off_out = _capture(tree_run, src)           # 关掉 → 宿主层
     assert lib == off_out == "6 2\n"
@@ -403,7 +399,7 @@ def test_循环体里捕获之后继续循环():
     `stack[-1]` 就是那个异常对象 → 崩。
 
     四个引擎共用这份字节码，所以一起崩；**只有树遍历（走 Python 的 try/except）
-    是对的 —— 五引擎对拍才抓得住**。修法见 `oracle/jishi/compiler.py::_c_try`。
+    是对的 —— 四引擎对拍才抓得住**。修法见 `oracle/jishi/compiler.py::_c_try`。
     """
     src = ('遍历 段 在 [[1,2], 4, [3]]:\n'
            '    尝试：\n'
@@ -427,7 +423,7 @@ def test_捕获后继续循环还能再捕获():
 
 
 # ---------------------------------------------------------------------------
-# 四、M54 抓到的三个真问题（都在「五个引擎共用同一份字节码」那条线上）
+# 四、M54 抓到的三个真问题（都在「四个引擎共用同一份字节码」那条线上）
 # ---------------------------------------------------------------------------
 
 def test_嵌套递归函数():
@@ -482,7 +478,7 @@ def test_闭包改的容器外面看得见():
     """共享的另一半：闭包**改的是同一个容器对象**（不是各改各的副本）。
 
     这是基石库层最常用的写法（`参数.jsh` 的 `_解析器表`、`迭代.jsh` 的 `出`），
-    所以它必须在五个引擎上稳稳成立。
+    所以它必须在四个引擎上稳稳成立。
     """
     src = ('函数 外()：\n'
            '    令 收集 = []\n'

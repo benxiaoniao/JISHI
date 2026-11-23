@@ -130,7 +130,7 @@ fn os_name() -> String {
     }
 }
 
-/// `platform.machine()` 的名字 —— **五执行器必须逐字一致**（`probe_stdlib.py` 会比）。
+/// `platform.machine()` 的名字 —— **四执行器必须逐字一致**（`probe_stdlib.py` 会比）。
 ///
 /// 坑都在「Rust 的名字与宿主 `uname -m` 不一样」上：
 /// * Windows：Python 给 `AMD64`，Rust 的 `ARCH` 是 `x86_64` ⇒ 要翻；
@@ -382,7 +382,7 @@ pub(crate) fn module() -> HashMap<String, Val> {
                     ))
                 }
             };
-            // 🔴 **五执行器一致的规矩**（Python 侧 `系统.打开` 的文档写着）：
+            // 🔴 **四执行器一致的规矩**（Python 侧 `系统.打开` 的文档写着）：
             // 目标不存在（且不是网址）⇒ **返回假、什么都不启动**；交给系统失败
             // 也返回假，**不抛异常**。调用方自己决定怎么办。
             交给系统打开(&目标).map(Val::Bool)

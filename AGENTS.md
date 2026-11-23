@@ -103,7 +103,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **5020 项**；其中 137 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
+3. **测试命令**：`python -m pytest tests/`（当前 **4869 项**；其中 137 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
    .venv/Scripts/python.exe tools/test_all.py          # **两节一条命令**（见下）
@@ -400,7 +400,7 @@
   ⚠️ **只改「按位置」的那些**（`长度`/下标/`查找`/`反转`）——
   `拆分`/`替换`/`包含`/`大写` 是按**子串**工作的，跟位置无关，**别动**。
   ⚠️ Node 自己**本来就不一致**：切片与遍历早就用了按码点的 `[...s]`，只有那四处漏着。
-- ⚠️ **同一个内建在五个执行器上的「口径」也要一致，不只是名字**（2026-10-10）：
+- ⚠️ **同一个内建在四个执行器上的「口径」也要一致，不只是名字**（2026-10-10）：
   `系统.机器架构` 的 Python 侧是 `platform.machine()`（Windows→`AMD64`、Linux→`x86_64`），
   而 Node 侧原来用 `os.arch()` 归一成 `AMD64` —— **Windows 中心写法**，Linux 上就对不上
   （`tools/probe_stdlib.py` 在 CI 上抓到，本机 Windows 永远绿）。
@@ -462,7 +462,7 @@
   的「一之二」节。**加方法时三处都要动**：Python 的 `runtime.*_METHODS`、
   Node 的 `methodTable` 用的表 + `dumpMethods`、Rust 的 `*_METHOD_NAMES`
   （Rust 的分派与 dump **读同一张 const**，所以不会各报各的）。
-- ⚠️ **`文件.位置` 在非 ASCII 上五个引擎给三个不同的值**（M54 如实记，**未修**）：
+- ⚠️ **`文件.位置` 在非 ASCII 上四个引擎给三个不同的值**（M54 如实记，**未修**）：
   Python 是 `tell()` 的字节式 cookie（Windows 上还叠加 `\n`→`\r\n` 翻译）、
   Node 给**字符数**、Rust 给**字节偏移**。ASCII 下一致。
   统一它要同时改 Python 与 Rust 两侧、还要决定换行符要不要翻译 —— **单独一笔账**。
@@ -472,7 +472,7 @@
   「循环体里 `尝试/捕获`、捕获完**继续循环**」，下一次 `FOR_ITER` 的 `stack[-1]`
   就是那个异常对象 → `TypeError: 'RunTypeError' object is not an iterator`。
   **三执行器 + 两宿主共用这份字节码，所以四边一起崩；只有树遍历
-  （走 Python 的 try/except）是对的 —— 五引擎对拍才抓得住。**
+  （走 Python 的 try/except）是对的 —— 四引擎对拍才抓得住。**
   改 `_c_try` 前先读 `jishi/compiler.py` 里那段栈推演注释。
 - ✅ **那 3 个 Node 网络用例的失败已经修掉了**（2026-11-01，M161）：
   `test_m31_node_stdlib.py` 的 `test_node_network_get_and_post` /
@@ -945,7 +945,7 @@
   ① **标准库补全**（真实项目驱动，**M105–M109 ✅ 已交付**）：**M105 绕道台账**立起来了
      （`examples/绕道探针/` + `docs/绕道台账.md` + `tools/detour_ledger.py`，判据 `test_m105`）；
      M106 文本/数据整理 · M107 网络/结构化 · M108 文件批处理/系统 · M109 时间/余项 ——
-     五批共补 **28 个函数**（`stdlib/*.py` 的 `__all__` 231 → 259），全五引擎同宽，
+     五批共补 **28 个函数**（`stdlib/*.py` 的 `__all__` 231 → 259），全四引擎同宽，
      真实项目行数比 **1.27 → 1.18**。`0.2.4` 再上**新增大类**（SQLite / 并发 / HTTP 服务端）。
   ② **分发线**（**M110 ✅ 已交付**，2026-10-12）：**语言本体 `jishi 升级` + `jishi 卸载 --自身`**
      （`rust/src/selfupdate.rs` + 版本清单 `jishi-release.json` + `tools/build_version_manifest.py`，
@@ -1008,11 +1008,11 @@
   `python tools/bench_jishilib.py` 量「基石库层 vs 宿主层」的倍数（M52 起，
   搬库模块前后都该跑一次）；
   `python tools/probe_builtins.py` 做**内建体检**（M56 建）：不只比名字，
-  而是给**每个内建**一条最小程序，在五个引擎上真跑 —— 它一建起来就抓到
+  而是给**每个内建**一条最小程序，在四个引擎上真跑 —— 它一建起来就抓到
   「`超()` 两个宿主根本没有」这条 M55 漏掉的账。
   **加/改内建后跑它**（比 `--dump-builtins` 那种只比名字的检测强一级）；
   `python tools/probe_runtime_errors.py` 做**运行期错误体检**（R6.2 建：19 个形状的
-  (类型, 消息) 在**五个执行器**上比 —— 语料里几乎没有「运行期报错」的形状，
+  (类型, 消息) 在**四个执行器**上比 —— 语料里几乎没有「运行期报错」的形状，
   `check_engines` 扫不到，这个探针专门管那一块）；
   `python tools/probe_stdlib.py` 做**标准库体检**（R6.4 建：**141 条用例 × 五个
   执行器真跑**，逐行比）—— 标准库以前只有**名字面**检测（`--dump-stdlib` 报
@@ -1083,7 +1083,7 @@ python cvm/build.py
 # 性能基准
 python tools/benchmark.py
 
-# 内建体检（M56 建）：每个内建在五个引擎上**真跑**一遍
+# 内建体检（M56 建）：每个内建在四个引擎上**真跑**一遍
 python tools/probe_builtins.py          # 完整（含两宿主逐个扫描）
 python tools/probe_builtins.py --fast   # 只跑三执行器（快）
 

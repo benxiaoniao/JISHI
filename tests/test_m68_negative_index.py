@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""R6.5 · **负索引**：五个执行器都要认 `列[-1]`。
+"""R6.5 · **负索引**：四个执行器都要认 `列[-1]`。
 
 ## 缘起
 
@@ -44,7 +44,6 @@ from oracle.jishi.compiler import compile_source, compile_to_json        # noqa:
 from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
 from oracle.jishi.vm import VM                                           # noqa: E402
 
-NODE = shutil.which("node")
 MK = "~_~"
 #: 合成程序的落点。🔴 **必须带 pid**（AGENTS §1 ①）：以前是写死的
 #: `build/_m68_src.jsh`，2026-10-25 全量跑时连续两次在**同一个位置**报
@@ -123,7 +122,7 @@ def _parse(text: str) -> dict[str, str]:
 
 @pytest.fixture(scope="module")
 def engine_outputs() -> dict[str, dict[str, str]]:
-    """五个执行器各跑一次合成程序 → `{引擎: {形状: 结果}}`。"""
+    """四个执行器各跑一次合成程序 → `{引擎: {形状: 结果}}`。"""
     src = _build()
     (ROOT / REL).write_text(src, encoding="utf-8")
     outs: dict[str, str] = {
@@ -139,10 +138,6 @@ def engine_outputs() -> dict[str, dict[str, str]]:
     if rust.exists():
         outs["Rust"] = subprocess.run([str(rust), "--load-bytecode", str(tmp)], capture_output=True,
                                       input=b"", cwd=str(ROOT)).stdout.decode("utf-8", "replace")
-    if NODE:
-        outs["Node"] = subprocess.run([NODE, str(ROOT / "oracle/node/index.js"), str(tmp)],
-                                      capture_output=True, input=b"",
-                                      cwd=str(ROOT)).stdout.decode("utf-8", "replace")
     try:
         return {k: _parse(v) for k, v in outs.items()}
     finally:
@@ -150,7 +145,7 @@ def engine_outputs() -> dict[str, dict[str, str]]:
         (ROOT / REL).unlink(missing_ok=True)
 
 
-def test_负索引全部形状五执行器一致(engine_outputs):
+def test_负索引全部形状四执行器一致(engine_outputs):
     """21 条形状逐条比 —— 有差异就把「哪几个引擎给了什么」打出来。"""
     bad = []
     for name in SHAPES:

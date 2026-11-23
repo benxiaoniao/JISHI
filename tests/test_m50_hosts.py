@@ -10,7 +10,7 @@ M50 第一批只做了 Python 侧，README 里如实标注「Node / Rust 宿主�
 - **文件读写**（`配置.读JSON/写JSON/读键值/写键值`）：用临时目录、各自跑，
   比「行为」而不是比字节（路径不同）。
 
-其余一律**逐字节**比 Python VM 与 Node / Rust 的输出。
+其余一律**逐字节**比 Python VM 与 Rust 的输出（📌 M225：Node 宿主已退役）。
 """
 from __future__ import annotations
 
@@ -33,7 +33,6 @@ from oracle.jishi import vm as vm_mod                       # noqa: E402
 from oracle.jishi.compiler import compile_source            # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-NODE = shutil.which("node")
 RUST = rust_exe_path()
 
 
@@ -48,15 +47,6 @@ def _py_run(src: str) -> str:
     return buf.getvalue()
 
 
-def _node_run(src: str) -> tuple[int, str, str]:
-    # ⚠️ 同上：写系统临时目录，别写仓库根（AGENTS §1 ②）。
-    bc = tmp_bc_path(Path(tempfile.gettempdir()) / "jishi_m50_node.json")
-    bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
-                       capture_output=True, text=True, encoding="utf-8")
-    return r.returncode, r.stdout, r.stderr
-
-
 def _rust_run(src: str) -> tuple[int, str, str]:
     bc = tmp_bc_path(ROOT / "_tmp_m50_rust.json")
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
@@ -66,7 +56,7 @@ def _rust_run(src: str) -> tuple[int, str, str]:
 
 
 def _agree(src: str) -> str:
-    """三个执行器 + Node + Rust：stdout **逐字节**一致，且都正常退出。"""
+    """三个执行器 + Rust：stdout **逐字节**一致，且都正常退出。"""
     py = _py_run(src)
     buf = io.StringIO()
     with redirect_stdout(buf):
@@ -74,10 +64,6 @@ def _agree(src: str) -> str:
         cvm_bind.run_source_c(src, "<t>")
     assert buf.getvalue() == py, "C VM 与 Python VM 不一致"
 
-    if NODE:
-        rc, out, err = _node_run(src)
-        assert rc == 0, f"Node 非零退出：rc={rc}\n{err[:300]}"
-        assert out == py, f"Node 输出不一致\nPython: {py!r}\nNode:   {out!r}"
     rc, out, err = _rust_run(src)
     assert rc == 0, f"Rust 非零退出：rc={rc}\n{err[:300]}"
     assert out == py, f"Rust 输出不一致\nPython: {py!r}\nRust:   {out!r}"
@@ -85,13 +71,10 @@ def _agree(src: str) -> str:
 
 
 def _all_fail(src: str) -> None:
-    """五个引擎都必须**报错**（文案各自实现，不要求逐字相同，但都得非零退出）。"""
+    """各引擎都必须**报错**（文案各自实现，不要求逐字相同，但都得非零退出）。"""
     from oracle.jishi.errors import JishiError
     with pytest.raises(JishiError):
         _py_run(src)
-    if NODE:
-        rc, out, _err = _node_run(src)
-        assert rc != 0, f"Node 本该报错却正常退出：{out!r}"
     rc, out, _err = _rust_run(src)
     assert rc != 0, f"Rust 本该报错却正常退出：{out!r}"
 
@@ -136,7 +119,7 @@ def test_stats_求和返回整数而不是浮点():
     "导入 统计\n打印(统计.加权平均([1,2],[1]))\n",
     "导入 统计\n打印(统计.分位数([1,2], 1.5))\n",
 ])
-def test_stats_报错五引擎一致(src):
+def test_stats_报错四引擎一致(src):
     _all_fail(src)
 
 
@@ -168,7 +151,7 @@ def test_encode_空输入():
     "导入 编码\n打印(编码.base64编码([256]))\n",
     '导入 编码\n打印(编码.十六进制解码("zz"))\n',
 ])
-def test_encode_报错五引擎一致(src):
+def test_encode_报错四引擎一致(src):
     _all_fail(src)
 
 
@@ -180,7 +163,7 @@ def test_html_转义与标签():
     """⚠️ 属性用**字典**传（不是关键字参数）——理由见 Python 侧 `_属性串`。
 
     关键字参数在 Node / Rust 的「内建函数」类型里**没有位置可放**，
-    用关键字会在那两个宿主上静默丢失。这条用例是「字典 API 五个引擎都认」的证据。
+    用关键字会在那两个宿主上静默丢失。这条用例是「字典 API 四个引擎都认」的证据。
     """
     _agree(
         "导入 html\n"
@@ -197,7 +180,7 @@ def test_html_转义与标签():
         '打印(html.标签("div", "", {"数据_值": "1"}))\n')
 
 
-def test_html_原样身份五引擎都保得住():
+def test_html_原样身份四引擎都保得住():
     """⚠️ **本模块最关键的一条**：`原样` 的标记类型不能用「字符串子类」。
 
     M47 把文本改成 C 侧原生字符串之后，`c2py` 是直接读字节再 `decode` 成
@@ -223,7 +206,7 @@ def test_html_列表为空():
     '导入 html\n打印(html.标签("p", "x", 5))\n',
     '导入 html\n打印(html.空元素(""))\n',
 ])
-def test_html_报错五引擎一致(src):
+def test_html_报错四引擎一致(src):
     _all_fail(src)
 
 
@@ -271,7 +254,7 @@ def test_diff_两个空文本():
     '导入 对比\n打印(对比.统一("a", "b", -1))\n',
     '导入 对比\n打印(对比.并排("a", "b", 2))\n',
 ])
-def test_diff_报错五引擎一致(src):
+def test_diff_报错四引擎一致(src):
     _all_fail(src)
 
 
@@ -302,7 +285,7 @@ def test_ident_短标识是URL安全的():
 
 
 def test_ident_两次不同():
-    """UUID 生成是随机的，但「两次不同」这条性质五个引擎都该满足。"""
+    """UUID 生成是随机的，但「两次不同」这条性质四个引擎都该满足。"""
     _agree("导入 标识\n打印(标识.唯一标识() != 标识.唯一标识())\n")
 
 
@@ -345,7 +328,7 @@ def test_config_读不到时给默认():
     '导入 配置\n打印(配置.读JSON("没这个.json"))\n',
     '导入 配置\n打印(配置.取({"a": 1}, "a.b"))\n',
 ])
-def test_config_报错五引擎一致(src):
+def test_config_报错四引擎一致(src):
     _all_fail(src)
 
 

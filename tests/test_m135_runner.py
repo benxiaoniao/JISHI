@@ -53,9 +53,7 @@ def _跑(用例目录, 额外=(), 被测命令=None, 宿主="python", cwd=None, 
     `python` 记，于是**本地全绿、CI 全红**。显式给标签，判据才与平台无关。
     """
     命令 = _宿主命令(宿主)
-    if 宿主 != "node":
-        # node 宿主的「程序」是编译好的字节码文件，已经在上面的命令里了
-        命令 += [str(RUNNER)]
+    命令 += [str(RUNNER)]
     命令 += ["--用例", str(用例目录)]
     if 被测命令 is None:
         被测命令 = 被测
@@ -73,15 +71,6 @@ def _宿主命令(宿主):
         return [PY, "-m", "oracle.jishi.cli"]
     if 宿主 == "rust":
         return [str(RUST)]
-    if 宿主 == "node":
-        # ⚠️ 字节码落到**系统临时目录 + pid 后缀**：并行时固定名会被别的 worker 覆写
-        #    （AGENTS §1 第 3 条那类坑，症状是「单跑必过、并行偶红」）。
-        字节 = Path(tempfile.gettempdir()) / f"m135_{os.getpid()}_自测.bc.json"
-        r = subprocess.run([PY, "-m", "oracle.jishi.cli", "--dump-bytecode", str(RUNNER)],
-                           cwd=str(ROOT), capture_output=True)
-        assert r.returncode == 0, r.stderr
-        字节.write_bytes(r.stdout)
-        return ["node", "oracle/node/index.js", str(字节)]
     raise AssertionError(宿主)
 
 
@@ -281,7 +270,7 @@ def test_豁免表格式不对要报错(tmp_path):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.skipif(not RUST.is_file(), reason="没构建 jishi-rs（cd rust && cargo build --release）")
-@pytest.mark.skipif(shutil.which("node") is None, reason="PATH 上没有 node")
+
 def test_三宿主报告逐字一致(tmp_path):
     """同一批用例，运行器在 Python / Rust / Node 三个宿主下跑出来的报告要一样。
 
@@ -296,13 +285,13 @@ def test_三宿主报告逐字一致(tmp_path):
     _写(tmp_path, "乙", "打印(1 + 1)\n", "2\r\n")
 
     报告们 = {}
-    for 宿主 in ("python", "rust", "node"):
+    for 宿主 in ("python", "rust"):
         码, 出, 错 = _跑(tmp_path, 宿主=宿主, 被测命令=[str(RUST)])
         assert 码 == 0, f"{宿主}：{出}{错}"
         报告们[宿主] = _去掉用时(出)
 
     基 = 报告们["python"]
-    for 宿主 in ("rust", "node"):
+    for 宿主 in ("rust",):
         assert 报告们[宿主] == 基, (
             f"{宿主} 宿主的报告和 python 不一样（底下一行起是差异）：\n"
             + "\n".join(f"  {a!r} vs {b!r}"

@@ -194,7 +194,7 @@ def test_html_标签与属性():
     最初是关键字参数（`标签("p", "内容", 类名="提示")`），但**两个宿主的
     「内建函数」类型都没有放关键字的位置**（Node `fn(...args)`、
     Rust `fn(&[Val], &mut VM)`）——用关键字在那边会**静默丢失全部属性**。
-    改成字典后五引擎一致（跨宿主对拍在 `tests/test_m50_hosts.py`）。
+    改成字典后四引擎一致（跨宿主对拍在 `tests/test_m50_hosts.py`）。
     """
     out = run_capture(
         "导入 html\n"

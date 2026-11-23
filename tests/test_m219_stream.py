@@ -128,19 +128,14 @@ def _跑(zhu: str, 源: str, cwd: Path) -> str:
         r = subprocess.run([PY_EXE, "-m", "oracle.jishi.cli", str(脚本)], cwd=str(ROOT),
                            capture_output=True, text=True, encoding="utf-8", timeout=240)
     else:
-        from oracle.jishi.compiler import compile_to_json
-
-        码 = cwd / f"m219_{zhu}_{os.getpid()}.json"
-        码.write_text(compile_to_json(源, 脚本.name), encoding="utf-8")
-        r = subprocess.run(["node", "oracle/node/index.js", str(码)], cwd=str(ROOT),
-                           capture_output=True, text=True, encoding="utf-8", timeout=240)
+        raise AssertionError(f"没有这个宿主：{zhu}")
     assert r.returncode == 0, f"{zhu} 跑挂了：{r.stdout[-800:]}\n{r.stderr[-2000:]}"
     return r.stdout
 
 
 def _三宿主(源: str, tmp_path: Path) -> dict:
     出 = {}
-    for zhu in ("rust", "python", "node"):
+    for zhu in ("rust", "python"):
         出[zhu] = _跑(zhu, 源, tmp_path)
     return 出
 
@@ -212,7 +207,6 @@ def test_SSE三宿主逐字一致(服务, tmp_path):
         return 出
 
     assert 去时(出["python"]) == 去时(出["rust"]), (出["python"], 出["rust"])
-    assert 去时(出["node"]) == 去时(出["rust"]), (出["node"], 出["rust"])
     assert 去时(出["rust"])[0] == "条数 3"
 
 
@@ -265,7 +259,6 @@ def test_获取流读行读块与关闭(服务, tmp_path):
     assert 行[8] == "关闭 真 再关 假", 行
     assert 行[9] == "关闭后 运行期错误", 行
     assert 出["python"] == 出["rust"], (出["python"], 出["rust"])
-    assert 出["node"] == 出["rust"], (出["node"], 出["rust"])
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +288,6 @@ def test_argv带空格引号中文都不坏(tmp_path):
     assert 行[0] == '["带 空格的参数", "有\\"引号\\"的", "中文参数"]', 行
     assert 行[1] == "a b c", 行
     assert 出["python"] == 出["rust"], (出["python"], 出["rust"])
-    assert 出["node"] == 出["rust"], (出["node"], 出["rust"])
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +339,6 @@ def test_输出编码能解GBK控制台输出(tmp_path):
     assert 行[2] == "utf8 你好", 行
     assert 行[3].startswith("坏编码 值错误"), 行
     assert 出["python"] == 出["rust"], (出["python"], 出["rust"])
-    assert 出["node"] == 出["rust"], (出["node"], 出["rust"])
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +371,6 @@ def test_构造响应收字节正文且二进制不被破坏(tmp_path):
     # 头 + 体：头是 ASCII，长度 = 头长 + 15
     assert 行[2].startswith("长度 "), 行
     assert 出["python"] == 出["rust"], (出["python"], 出["rust"])
-    assert 出["node"] == 出["rust"], (出["node"], 出["rust"])
 
 
 def test_二进制真经网络发出去再收回来(服务, tmp_path):
@@ -411,7 +401,6 @@ def test_二进制真经网络发出去再收回来(服务, tmp_path):
     期望 = "89504e470d0a1a0afffe00ff80817f"
     assert 出["rust"].strip() == 期望, 出["rust"]
     assert 出["python"].strip() == 期望, 出["python"]
-    assert 出["node"].strip() == 期望, 出["node"]
 
 
 # ---------------------------------------------------------------------------
@@ -444,7 +433,6 @@ def test_两个SetCookie都在且顺序不乱(tmp_path):
     assert 行[1] == "Set-Cookie: b=2; Path=/", 行
     assert 行[2] == "X-Server: jishi", 行
     assert 出["python"] == 出["rust"], (出["python"], 出["rust"])
-    assert 出["node"] == 出["rust"], (出["node"], 出["rust"])
 
 
 # ---------------------------------------------------------------------------
@@ -461,7 +449,6 @@ def test_构造响应老写法照旧(tmp_path):
 '''
     出 = _三宿主(源, tmp_path)
     assert 出["python"] == 出["rust"], (出["python"], 出["rust"])
-    assert 出["node"] == 出["rust"], (出["node"], 出["rust"])
     行 = 出["rust"].strip().splitlines()
     assert 行[0] == "文本"
     assert 行[1] == "HTTP/1.1 404 Not Found"
@@ -480,4 +467,3 @@ def test_不认识的编码报能照做的错(tmp_path):
     出 = _三宿主(源, tmp_path)
     assert "utf-8 / gbk" in 出["rust"], 出["rust"]
     assert 出["python"] == 出["rust"]
-    assert 出["node"] == 出["rust"]

@@ -62,7 +62,7 @@ except E.JishiError as e:
 
 
 def _五份(源码: str, tmp_path: Path) -> dict:
-    """把同一段程序交给五个执行器，返回 {引擎: 输出文本}。"""
+    """把同一段程序交给四个执行器，返回 {引擎: 输出文本}。"""
     from oracle.jishi import serialize
     from oracle.jishi.compiler import compile_source
 
@@ -132,7 +132,7 @@ def _归一(文: str) -> str:
 5"""
 
 
-def test_整除取模_五引擎逐字一致(tmp_path):
+def test_整除取模_四引擎逐字一致(tmp_path):
     出 = _五份(整除取模源, tmp_path)
     assert len(出) >= 3, f"能跑的执行器太少：{list(出)}"
     不一样 = {名: _归一(文) for 名, 文 in 出.items() if _归一(文) != 整除取模期望}
@@ -215,7 +215,7 @@ def test_除零仍然报错(tmp_path):
 {'甲': 99, 真: 20, '乙': 3}"""
 
 
-def test_字典写入语义_五引擎逐字一致(tmp_path):
+def test_字典写入语义_四引擎逐字一致(tmp_path):
     """覆盖四件事：
 
     ① 重复赋值**只改值、不改位置**（插入顺序是字典的契约）；

@@ -302,8 +302,7 @@ def _三宿主(源: str, tmp_path: Path) -> tuple:
                        capture_output=True, timeout=180, cwd=str(tmp_path))
     py = (p.stdout + p.stderr).decode("utf-8", "replace")
 
-    nd, nd错 = ce._run_node_vm(源, str(脚本), tmp_path)
-    return py, rs, nd, nd错
+    return py, rs
 
 
 def test_三宿主写出的文件逐字节一致(tmp_path):
@@ -335,17 +334,7 @@ def test_三宿主写出的文件逐字节一致(tmp_path):
         份们[名] = (tmp_path / "字节.pdf").read_bytes()
         (tmp_path / "字节.pdf").unlink()
 
-    spec = importlib.util.spec_from_file_location("ce", str(ROOT / "tools" / "check_engines.py"))
-    ce = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ce)
-    if ce._node_exe() is None:
-        pytest.skip("没有 node")
-    nd, 错 = ce._run_node_vm(源, str(脚本), tmp_path)
-    assert (tmp_path / "字节.pdf").is_file(), f"Node 没写出文件：{错[:300]}"
-    份们["js"] = (tmp_path / "字节.pdf").read_bytes()
-
     assert 份们["py"] == 份们["rs"], "Rust 与 Python 写出的字节不同"
-    assert 份们["py"] == 份们["js"], "Node 与 Python 写出的字节不同"
     assert len(份们["py"]) > 800, "文件太小，可能没写内容"
 
 
@@ -363,6 +352,5 @@ def test_三宿主读同一份PDF(tmp_path):
         'PDF.保存(文, "回.pdf")\n'
         '打印(PDF.读文本("回.pdf")["页们"][0][0])\n'
     )
-    py, rs, nd, 错 = _三宿主(源, tmp_path)
+    py, rs = _三宿主(源, tmp_path)
     assert rs == py, f"Rust 与 Python 不一致：\n--- py ---\n{py}\n--- rust ---\n{rs}"
-    assert nd == py, f"Node 与 Python 不一致：\n--- py ---\n{py}\n--- node ---\n{nd}\n{错[:400]}"

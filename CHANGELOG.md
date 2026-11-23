@@ -10760,3 +10760,53 @@ cargo build --manifest-path rust/Cargo.toml --release
 ---
 
 版本格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
+
+## [未发布]
+
+### M225 · 判据与闸门三宿主化（Node 退役第一步，纯减法）
+
+> 0.3.7 主线第一站。**只动判据与工具，不动任何实现** —— 这一站可单独 revert。
+
+**删掉的判据（151 条，全部是「Node 宿主专属」）**：
+
+| 文件 | 条数 | 为什么能删（退役流程三问） |
+|---|---|---|
+| `test_m13_node.py` | 8 | js_vm 基本语义（算术/列表/控制流/闭包/类/异常）—— 语料 188 条在四执行器上覆盖同一批行为 |
+| `test_m30_node_host.py` | 62 | M30 补的 JS 宿主语义（成员测试/同一性/容器相等/集合/高阶方法/类型标注/可迭代）—— 同上，且这些形状都在 `conformance` 冻结里 |
+| `test_m31_node_stdlib.py` | 43 | Node 标准库行为面 —— `tools/probe_stdlib.py` 144 条用例逐条比四执行器 |
+| `test_m66_node_render.py` | 10 | Node 报错渲染与 Python 逐字相同 —— 报错渲染对齐由 `test_m60`/`test_m69`/`check_engines` 在其余执行器上钉着 |
+
+**改掉的判据（45 个文件）**：
+- 宿主元组 `("rust", "python", "cvm", "node")` → 去 node（4 个文件）；
+- `if NODE:` / `if HAS_NODE:` 那段真跑 Node 宿主的块 → 删（m192/m194/m195/m197/m219/m220/
+  m32/m36/m41/m50/m51/m52/m55/m67/m68/m70~m74/m78/m80/m106/m108/m109/m138/default_args）；
+- `test_m51` 的三张宿主表（`HOST_EXEMPT_BY_HOST` / `HOST_ONLY` / `KNOWN_GAPS`）删 Node 键，
+  三条「Node 覆盖 Python」与三条「Node↔Rust 互查」改成 **「Rust 不许单边多出」**
+  （判据的意义保留：正是当年 Node 掉队那个形状）；
+- **`test_m42_vscode_client.py` 的 `NODE` 保留** —— 那是拿 node 跑 `vsce`/`npm`（扩展打包测试），
+  与语言语义无关。
+
+**工具层**：
+- `tools/check_engines.py`：删 `_run_node_vm` 与 `--no-node`，口径「五执行器」→「四执行器」
+  （`_node_exe()` 留着 —— wasm 探针判据要它）；
+- `tools/probe_stdlib.py`：删 Node 执行器那一路（现在 **144 条 · 4 个执行器 · 0 不一致**）；
+- `tools/gen_stdlib_sigs.py`：不再产出 `oracle/node/stdlib_sigs.js`；
+- `tools/gen_gbk_table.py`：不再产出 `oracle/node/gbk_table.js`（只剩 Rust + Python 两份）。
+
+**文档口径**：`五执行器` / `五引擎` / `五个执行器` / `五个引擎` → 四（108 个文件 467 处）。
+⚠️ **不改**：`CHANGELOG` 历史条目、`docs/版本历史/`、`docs/设计决策.md`（当时怎么想的）、
+以及「五路」（那是 M41 时代的历史陈述）。⚠️ 批量替换**误改过一次 `tests/conformance/baseline/*.json`**
+（`.json` 也在替换范围内）—— 已还原，基线不许动。
+
+**三道闸门（「退役不影响功能」的验收）**：
+1. `test_m51` 全宽对账：**52 模块 / 601 函数**，一个不少（`--dump-stdlib` 与 `lang-spec` 仍一致）；
+2. `conformance check`：**186/186 语料四阶段一致**（基线**没有重冻** —— 退役不该改行为）；
+3. `probe_stdlib`：144 条用例四执行器 0 不一致。
+
+**测试数**：5020 → **4869**（少掉的 151 条全是 Node 专属；跳过仍是 5 项）。
+
+**已知两条非回归的红（如实记）**：
+- `test_m198_installer` 2 条：Windows Defender 拦了新编的 `setup.exe`（`os error 225`），
+  与本次改动无关（CI runner 上没有这条干扰）；
+- `test_m64_rust_vm_iter::test_遍历不是平方的`：并行/串行节都有负载时比值判断失真，
+  **单独跑必绿**（AGENTS §1 记过的计时判据通病）。

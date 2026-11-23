@@ -174,7 +174,7 @@ def test_关键字调用时默认值仍生效():
 # 三、五条执行器逐字节一致（含两个 Rust 侧与 Node）
 # ---------------------------------------------------------------------------
 
-def test_五执行器一致():
+def test_四执行器一致():
     """Python 三种 + Rust 两种 + Node 全部给出**同一份输出**。
 
     Rust 那两处（`lib.rs` 的字节码 VM 与 `walk.rs` 的树遍历）与 Node 的
@@ -198,15 +198,6 @@ def test_五执行器一致():
     walk = _walk_output()
     assert walk == 期望, f"Rust 树遍历不一致：\n{walk!r}"
 
-    from shutil import which
-
-    if which("node") is None:
-        pytest.skip("环境里没有 node（Rust 两处已经对过了）")
-    r3 = subprocess.run(
-        ["node", str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
-        capture_output=True, text=True, encoding="utf-8")
-    assert r3.returncode == 0, (r3.stderr or "")[:400]
-    assert r3.stdout == 期望, f"Node 不一致：\n{r3.stdout!r}"
 
 
 def _walk_output() -> str:
@@ -258,7 +249,6 @@ def test_运行期是按下标折算而不是靠值判断():
         "oracle/jishi/vm.py": ["first_def"],
         "oracle/jishi/interpreter.py": ["first_def"],
         "rust/src/lib.rs": ["first_def"],
-        "oracle/node/vm.js": ["firstDef"],
     }
     for rel, keys in 痕迹.items():
         src = (ROOT / rel).read_text(encoding="utf-8")
@@ -272,7 +262,6 @@ def test_运行期不再拿空当哨兵():
     反例 = {
         "oracle/jishi/vm.py": "not in bound and d is not None",
         "oracle/jishi/interpreter.py": "and d is not None:\n                call_env",
-        "oracle/node/vm.js": "!bound.has(p) && defaults[i] !=",
     }
     for rel, bad in 反例.items():
         src = (ROOT / rel).read_text(encoding="utf-8")

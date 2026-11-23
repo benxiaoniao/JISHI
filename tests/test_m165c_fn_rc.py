@@ -187,7 +187,7 @@ def test_Func是Rc而不是值():
 函数"""
 
 
-def test_函数六件事_五引擎逐字一致(tmp_path):
+def test_函数六件事_四引擎逐字一致(tmp_path):
     """覆盖 `Rc<Func>` 会碰到的每条路：
 
     ① **闭包捕获**（`加()` 改的是捕获的列表）—— `Func.cells` 现在被共享，

@@ -129,14 +129,12 @@ def _host_agree(src: str, tmp_path: Path, rust_exe: Path) -> dict:
     bc = tmp_path / "m34_bc.json"
     bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
     out = {}
-    if NODE:
-        out["Node"] = _run_host([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)])
     out["Rust"] = _run_host([str(rust_exe), "--load-bytecode", str(bc)])
     return out
 
 
 def _everywhere(src: str, tmp_path: Path, rust_exe: Path) -> str:
-    """三执行器 + Node + Rust，五路逐字节一致；返回输出。"""
+    """三执行器 + Rust，四路逐字节一致；返回输出。"""
     expect = _three(src)
     for name, (rc, out, err) in _host_agree(src, tmp_path, rust_exe).items():
         assert rc == 0, f"{name} 跑失败：{err[:300]}"

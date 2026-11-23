@@ -46,7 +46,6 @@ from oracle.jishi.parser import parse                        # noqa: E402
 from oracle.jishi.tokenizer import tokenize                  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-NODE = shutil.which("node")
 RUST_EXE = rust_exe_path()
 CARGO = shutil.which("cargo")
 
@@ -75,18 +74,6 @@ def _cvm(src: str) -> str:
     with redirect_stdout(buf):
         cvm_bind.run_source_c(src, "<t>")
     return buf.getvalue()
-
-
-def _node(src: str) -> str:
-    # ⚠️ 写**系统临时目录**，不写仓库根（AGENTS §1 ②）：仓库根会被并行另一路抢、
-    #    也会被沙箱的写保护拦（2026-10-18 实测红的）。文件名仍由 `tmp_bc_path` 带 pid。
-    bc = tmp_bc_path(Path(tempfile.gettempdir()) / "jishi_m41_bc.json")
-    bc.write_text(serialize.dumps(compile_source(src, "<t>")),
-                  encoding="utf-8", newline="\n")
-    r = subprocess.run([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
-                       capture_output=True)
-    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:400]
-    return r.stdout.decode("utf-8", "replace")
 
 
 @pytest.fixture(scope="module")
@@ -118,7 +105,6 @@ def _three(src: str) -> str:
 def _five(src: str, rust_exe: Path) -> str:
     """五路（三执行器 + Node + Rust）逐字一致。"""
     基准 = _three(src)
-    assert _node(src) == 基准, "Node 与树遍历不一致"
     assert _rust(src, rust_exe) == 基准, "Rust 与树遍历不一致"
     return 基准
 
@@ -371,7 +357,7 @@ def test_args_flag_with_value_errors():
 
 
 def test_args_five_way(rust_exe):
-    """`参数` 的五引擎对拍。
+    """`参数` 的四引擎对拍。
 
     ✅ **M54 起补上了 Rust**（2026-09-27）：M53 把 `参数` 搬进「用基石写的
     标准库」层时，Rust 上跑不了（报「「空」不能调用」）—— 根因是 **Rust 的

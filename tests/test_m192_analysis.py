@@ -285,10 +285,7 @@ def test_三宿主逐字一致(tmp_path):
                        capture_output=True, timeout=180, cwd=str(ROOT))
     py = (p.stdout + p.stderr).decode("utf-8", "replace")
 
-    nd, nd错 = ce._run_node_vm(源, str(脚本), tmp_path)
-
     assert rs == py, f"Rust 与 Python 不一致：\n--- py ---\n{py}\n--- rust ---\n{rs}"
-    assert nd == py, f"Node 与 Python 不一致：\n--- py ---\n{py}\n--- node ---\n{nd}\n{nd错[:400]}"
 
 
 # ---------------------------------------------------------------------------

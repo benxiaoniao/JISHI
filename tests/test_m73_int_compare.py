@@ -59,8 +59,6 @@ from oracle.jishi.compiler import compile_source, compile_to_json        # noqa:
 from oracle.jishi.interpreter import run_source as run_tree              # noqa: E402
 from oracle.jishi.vm import VM                                           # noqa: E402
 
-NODE = shutil.which("node")
-HAS_NODE = NODE is not None
 
 
 def _rust_exe() -> Path:
@@ -75,7 +73,7 @@ need_rust = pytest.mark.skipif(
 
 
 def _five(src: str) -> dict[str, str]:
-    """五个执行器各跑一遍，返回 `{执行器: stdout 或完整报错渲染}`。
+    """四个执行器各跑一遍，返回 `{执行器: stdout 或完整报错渲染}`。
 
     ⚠️ 报错取**完整渲染**（不只首行）—— 「找不到名字」的**候选提示**在后面的
     行上，只比首行就把要测的东西截掉了。
@@ -97,15 +95,10 @@ def _five(src: str) -> dict[str, str]:
         r = subprocess.run([str(RUST), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
         out["Rust"] = r.stdout.decode("utf-8", "replace").rstrip("\n") or \
             ("【错】" + r.stderr.decode("utf-8", "replace").rstrip("\n"))
-    if HAS_NODE:
-        r = subprocess.run([NODE, "oracle/node/index.js", str(tmp)],
-                           capture_output=True, input=b"")
-        out["Node"] = r.stdout.decode("utf-8", "replace").rstrip("\n") or \
-            ("【错】" + r.stderr.decode("utf-8", "replace").rstrip("\n"))
     return out
 
 
-#: 每一组都要五执行器逐字一致。
+#: 每一组都要四执行器逐字一致。
 _CASES = {
     "2^53 边界": '打印(2 ** 53 + 1 > 2 ** 53)\n打印(2 ** 53 + 1 == 2 ** 53)\n',
     "2^62 边界": '打印(2 ** 62 > 2 ** 62 - 1)\n打印(2 ** 62 + 1 > 2 ** 62)\n打印(2 ** 62 >= 2 ** 62)\n',
@@ -120,7 +113,7 @@ _CASES = {
 
 
 @pytest.mark.parametrize("tag", sorted(_CASES))
-def test_整数与全局语义五执行器逐字一致(tag):
+def test_整数与全局语义四执行器逐字一致(tag):
     outs = _five(_CASES[tag])
     base_name, base = next(iter(outs.items()))
     for name, got in outs.items():

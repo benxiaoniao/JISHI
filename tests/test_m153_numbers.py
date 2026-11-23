@@ -84,7 +84,7 @@ def _五份(源码: str, tmp_path: Path) -> dict:
 def _一致(源码: str, tmp_path: Path, 期望: str) -> None:
     出 = _五份(源码, tmp_path)
     值 = set(出.values())
-    assert len(值) == 1, "五个执行器说法不一致：\n" + "\n".join(
+    assert len(值) == 1, "四个执行器说法不一致：\n" + "\n".join(
         f"—— {k} ——\n{v}" for k, v in 出.items())
     assert 值.pop().strip() == 期望, f"结果不对：{源码!r}"
 

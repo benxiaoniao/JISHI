@@ -52,12 +52,7 @@ def _跑(zhu: str, 源: str, cwd: Path) -> str:
                            capture_output=True, text=True, encoding="utf-8", timeout=240,
                            env={**os.environ, "JISHI_ENGINE": "cvm"})
     else:
-        from oracle.jishi.compiler import compile_to_json
-
-        码 = cwd / f"m220_{zhu}_{os.getpid()}.json"
-        码.write_text(compile_to_json(源, 脚本.name), encoding="utf-8")
-        r = subprocess.run(["node", "oracle/node/index.js", str(码)], cwd=str(ROOT),
-                           capture_output=True, text=True, encoding="utf-8", timeout=240)
+        raise AssertionError(f"没有这个宿主：{zhu}")
     assert r.returncode == 0, f"{zhu} 跑挂了：{r.stdout[-800:]}\n{r.stderr[-2000:]}"
     return r.stdout
 
@@ -121,7 +116,7 @@ def test_裸抛出重抛当前异常(tmp_path):
         "外层 索引错误 列表下标越界",
         "裸抛 运行期错误",
     ]
-    for zhu in ("rust", "python", "cvm", "node"):
+    for zhu in ("rust", "python", "cvm"):
         出 = _跑(zhu, _重抛源, tmp_path).strip().splitlines()
         assert 出 == 期望, (zhu, 出)
 
@@ -138,7 +133,7 @@ def test_裸抛出没有可重抛的异常时说清楚(tmp_path):
     打印(e.类型, e.消息)
 '''
     出 = []
-    for zhu in ("rust", "python", "cvm", "node"):
+    for zhu in ("rust", "python", "cvm"):
         行 = _跑(zhu, 源, tmp_path).strip()
         出.append(行)
     assert len(set(出)) == 1, 出
@@ -164,10 +159,9 @@ def test_窗口打开收浮点宽高(tmp_path):
     打印(e.类型, e.消息)
 '''
     出 = {}
-    for zhu in ("rust", "python", "node"):
+    for zhu in ("rust", "python"):
         出[zhu] = _跑(zhu, 源, tmp_path).strip()
     assert 出["rust"] == 出["python"], (出["rust"], 出["python"])
-    assert 出["rust"] == 出["node"], (出["rust"], 出["node"])
     assert "要指定「页面」或「服务」" in 出["rust"], 出["rust"]
 
 
@@ -209,7 +203,7 @@ def test_是实例收类型名文本(tmp_path):
         "错字 值错误",
         "非类 类型错误",
     ]
-    for zhu in ("rust", "python", "cvm", "node"):
+    for zhu in ("rust", "python", "cvm"):
         出 = _跑(zhu, _是实例源, tmp_path).strip().splitlines()
         assert 出 == 期望, (zhu, 出)
 
@@ -243,7 +237,7 @@ def test_写字节收零到255的整数列表(tmp_path):
 打印("空", 长度(文件.读字节(p)))
 '''
     出 = {}
-    for zhu in ("rust", "python", "cvm", "node"):
+    for zhu in ("rust", "python", "cvm"):
         出[zhu] = _跑(zhu, 源, tmp_path).strip().splitlines()
     assert 出["rust"] == [
         "字节 0102ff0080",
@@ -251,7 +245,7 @@ def test_写字节收零到255的整数列表(tmp_path):
         "文本 文件错误 「写字节」要传字节或 0–255 的整数列表，得到的是「文本」；文本请用 `写文本`",
         "空 0",
     ], 出["rust"]
-    for zhu in ("python", "cvm", "node"):
+    for zhu in ("python", "cvm"):
         assert 出[zhu] == 出["rust"], (zhu, 出[zhu])
 
 
@@ -367,7 +361,7 @@ def test_获取详情的响应头小写且排序(服务, tmp_path):
 打印(d["状态"])
 打印(d["响应头"])
 '''
-    for zhu in ("rust", "python", "node"):
+    for zhu in ("rust", "python"):
         出 = _跑(zhu, 源, tmp_path).strip().splitlines()
         assert 出[0] == "200", (zhu, 出)
         assert 出[1].startswith("{'connection'"), (zhu, 出[1])

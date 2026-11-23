@@ -89,7 +89,7 @@ def base64解码(值) -> JishiBytes:
     try:
         return JishiBytes(_py_b64.b64decode(raw, validate=True))
     except (_py_binascii.Error, ValueError):
-        # ⚠️ 报错文案**要与 Rust / Node 逐字相同**（五引擎对拍比 stderr）——
+        # ⚠️ 报错文案**要与 Rust / Node 逐字相同**（四引擎对拍比 stderr）——
         # 所以只报原文，不把底层的异常细节（英文）带出来。
         raise RunValueError(f"这不是合法的 base64 内容：{原文}")
 
@@ -164,7 +164,7 @@ def 字节文本(值) -> str:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
         # ⚠️ **不要把 Python 的 codec 细节（英文）带出来** —— 报错文案要与
-        # Rust / Node 逐字相同（五引擎对拍比 stderr）。2026-10-15（M113）修：
+        # Rust / Node 逐字相同（四引擎对拍比 stderr）。2026-10-15（M113）修：
         # 以前这条会漏出 `'utf-8' codec can't decode byte 0xff …`。
         raise RunValueError(
             "这些字节不是合法的 UTF-8 文本（可能被截断或本来就是二进制）")

@@ -534,29 +534,7 @@ def test_formatter_idempotent_with_new_syntax():
 import shutil                                    # noqa: E402
 import subprocess                                # noqa: E402
 
-_NODE = shutil.which("node")
 
-
-@pytest.mark.skipif(_NODE is None, reason="本机无 Node.js")
-def test_node_host_supports_varargs_and_star_unpack():
-    """Node 宿主执行同一份字节码，输出必须与 Python 参考 VM 一致。"""
-    src = ('函数 求和(甲, *数, **选项)：\n'
-           '    返回 [甲, 数, 选项]\n'
-           '打印(求和(1, 2, 3, x = 4))\n'
-           '令 头, *余 = [1, 2, 3]\n'
-           '打印(头, 余)\n'
-           '函数 带默认(甲, 乙 = 10, *余)：\n'
-           '    返回 [甲, 乙, 余]\n'
-           '打印(带默认(1))\n'
-           '令 首, *中, 尾 = [1, 2, 3, 4, 5]\n'
-           '打印(首, 中, 尾)\n')
-    bc = tmp_bc_path(ROOT / "_tmp_m25_node.json")
-    bc.write_text(serialize.dumps(compile_source(src, "<t>")), encoding="utf-8")
-    r = subprocess.run([_NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
-                       capture_output=True, text=True, encoding="utf-8",
-                       timeout=60)
-    assert r.returncode == 0, f"Node 崩溃：{r.stderr[:300]}"
-    assert r.stdout == _pvm(src)
 
 
 def test_node_host_version_check_matches_engine():
