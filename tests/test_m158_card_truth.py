@@ -130,12 +130,6 @@ def _五份(tmp_path: Path) -> dict:
     rs = rust_exe_path()
     if rs.is_file():
         表["Rust 宿主"] = [str(rs), "程序.jsh"]
-    node = shutil.which("node")
-    if node:
-        (tmp_path / "程序.json").write_text(
-            serialize.dumps(compile_source(探针, "程序.jsh")), encoding="utf-8")
-        表["Node 宿主"] = [node, str(ROOT / "oracle" / "node" / "index.js"),
-                           "程序.json"]
     出 = {}
     for 名字, 命令 in 表.items():
         r = subprocess.run(命令, cwd=str(tmp_path), capture_output=True,

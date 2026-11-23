@@ -67,16 +67,6 @@ def _五份(源码: str, tmp_path: Path) -> dict:
     rs = rust_exe_path()
     if rs.is_file():
         表["Rust 宿主"] = [str(rs), "程序.jsh"]
-    node = shutil.which("node")
-    if node:
-        # 有语法错的题编译不出来 —— 那种题 Node 本来就跑不到解析之后的阶段
-        try:
-            (tmp_path / "程序.json").write_text(
-                serialize.dumps(compile_source(源码, "程序.jsh")), encoding="utf-8")
-            表["Node 宿主"] = [node, str(ROOT / "oracle" / "node" / "index.js"),
-                               "程序.json"]
-        except Exception:                       # noqa: BLE001
-            pass
 
     出 = {}
     for 名字, 命令 in 表.items():

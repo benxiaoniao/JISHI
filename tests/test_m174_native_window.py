@@ -490,16 +490,13 @@ def test_原生假走应用模式(tmp_path):
 
 
 def test_没有原生能力的宿主明确报错(tmp_path):
-    """Python / Node 只有应用模式：`原生: 真` 必须报错，**不许静默降级**。"""
+    """Python 宿主只有应用模式：`原生: 真` 必须报错，**不许静默降级**。
+
+    📌 M226：Node 宿主退役，那半句检查已删。
+    """
     出 = _跑基石('导入 窗口\n窗口.打开({"页面": "x.html", "原生": 真})\n',
                  tmp_path, 期望=1)
     assert "没有原生窗口能力" in 出, 出[:500]
-
-    # 同一个判断在 Node 宿主上也要有
-    js = (ROOT / "oracle" / "node" / "vm.js").read_text(encoding="utf-8")
-    段 = js[js.index("'打开': new R.Builtin('打开', (选项) => {", js.index("WINDOW_FUNCS")):
-             ][:2000]
-    assert "没有原生窗口能力" in 段, "Node 的 `窗口.打开` 没挡 `原生: 真`"
 
 
 def test_脚本里关闭省略句柄要报错(tmp_path):

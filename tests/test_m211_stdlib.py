@@ -67,17 +67,6 @@ def _跑三宿主(源: str, tmp: Path, 名: str) -> dict:
                        timeout=180, cwd=str(ROOT))
     出["py"] = _收(r)
 
-    if shutil.which("node") is None:
-        出["js"] = None
-    else:
-        from oracle.jishi import serialize
-        from oracle.jishi.compiler import compile_source
-        bc = tmp_bc_path(tmp / f"{名}-{os.getpid()}.json")
-        bc.write_text(serialize.dumps(compile_source(源, str(文件))), encoding="utf-8")
-        r = subprocess.run(["node", str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
-                           capture_output=True, text=True, encoding="utf-8",
-                           timeout=180, cwd=str(ROOT))
-        出["js"] = _收(r)
     return 出
 
 

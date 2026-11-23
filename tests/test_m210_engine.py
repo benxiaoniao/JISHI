@@ -77,31 +77,14 @@ def _跑rs(文件: Path) -> tuple[int, str]:
     return r.returncode, (r.stdout or "").replace("\r\n", "\n")
 
 
-def _跑node(文件: Path) -> tuple[int, str] | None:
-    if shutil.which("node") is None:
-        return None
-    from oracle.jishi import serialize
-    from oracle.jishi.compiler import compile_source
-    bc = tmp_bc_path(文件.with_suffix(".json"))
-    bc.write_text(serialize.dumps(compile_source(文件.read_text(encoding="utf-8"),
-                                                str(文件))), encoding="utf-8")
-    r = subprocess.run(["node", str(ROOT / "oracle" / "node" / "index.js"), str(bc)],
-                       capture_output=True, text=True, encoding="utf-8", timeout=180,
-                       cwd=str(ROOT))
-    return r.returncode, (r.stdout or "").replace("\r\n", "\n")
-
-
 def _四引擎一致(tmp: Path, 名: str, 源: str) -> str:
-    """Rust / Python树遍历 / Python字节码 / Node —— 输出必须逐字相同。"""
+    """Rust / Python 树遍历 / Python 字节码 —— 输出必须逐字相同。"""
     f = _写(tmp, 名, 源)
     出: dict[str, tuple[int, str]] = {}
     if RS.is_file():
         出["rust"] = _跑rs(f)
     出["py-树"] = _跑(f, 树遍历=True)
     出["py-字节码"] = _跑(f, 树遍历=False)
-    n = _跑node(f)
-    if n is not None:
-        出["node"] = n
     for k, (码, 文) in 出.items():
         assert 码 == 0, f"[{k}] 退出码 {码}：{文[:400]}"
     基准 = 出["py-树"][1]

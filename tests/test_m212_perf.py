@@ -75,14 +75,6 @@ def _跑三边(源: str, tmp: Path, 名: str) -> dict:
     出["py"] = _收(subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(文件)],
                                   capture_output=True, text=True, encoding="utf-8",
                                   timeout=600, cwd=str(ROOT)))
-    if shutil.which("node"):
-        from oracle.jishi import serialize
-        from oracle.jishi.compiler import compile_source
-        bc = tmp_bc_path(tmp / f"{名}-{os.getpid()}.json")
-        bc.write_text(serialize.dumps(compile_source(源, str(文件))), encoding="utf-8")
-        出["js"] = _收(subprocess.run(["node", str(ROOT / "oracle" / "node" / "index.js"),
-                                       str(bc)], capture_output=True, text=True,
-                                      encoding="utf-8", timeout=600, cwd=str(ROOT)))
     return 出
 
 

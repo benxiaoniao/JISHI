@@ -97,10 +97,6 @@ def _执行器们(tmp_path: Path, 源码: str) -> dict:
     rs = rust_exe_path()
     if rs.is_file():
         表["Rust 宿主"] = [str(rs), "程序.jsh"]
-    node = shutil.which("node")
-    if node:
-        表["Node 宿主"] = [node, str(ROOT / "oracle" / "node" / "index.js"),
-                           _字节码(tmp_path, 源码)]
     return 表
 
 

@@ -63,11 +63,9 @@ SHIM = ROOT / "wasm" / "jishi-wasm.js"
 def test_八个新函数三宿主都在():
     py = (ROOT / "oracle" / "jishi" / "stdlib" / "图形.py").read_text(encoding="utf-8")
     rs = (ROOT / "rust" / "src" / "stdlib" / "graphics.rs").read_text(encoding="utf-8")
-    js = (ROOT / "oracle" / "node" / "vm.js").read_text(encoding="utf-8")
     for 名 in 新函数:
         assert f"def {名}(" in py, f"Python 侧缺 `{名}`"
         assert f'"{名}" =>' in rs, f"Rust 侧缺 `{名}`"
-        assert f"'{名}': _noGraphics('{名}')" in js, f"Node 侧缺 `{名}`"
 
 
 def test_命令行上报平台错(tmp_path):

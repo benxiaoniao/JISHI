@@ -76,10 +76,6 @@ def _跑(源码: str, tmp_path: Path, 引擎: str) -> str:
     (tmp_path / "程序.jsh").write_text(源码, encoding="utf-8", newline="\n")
     if 引擎 == "Rust":
         命令 = [str(rust_exe_path()), "程序.jsh"]
-    elif 引擎 == "Node":
-        (tmp_path / "程序.json").write_text(
-            serialize.dumps(compile_source(源码, "程序.jsh")), encoding="utf-8")
-        命令 = ["node", str(ROOT / "oracle" / "node" / "index.js"), "程序.json"]
     else:
         命令 = [sys.executable, "-m", "oracle.jishi.cli", "程序.jsh"]
     r = subprocess.run(命令, cwd=str(tmp_path), capture_output=True, timeout=120, input=b"")
@@ -98,11 +94,9 @@ def test_四十五个函数三宿主都在():
     """
     py = (ROOT / "oracle" / "jishi" / "stdlib" / "图形.py").read_text(encoding="utf-8")
     rs = (ROOT / "rust" / "src" / "stdlib" / "graphics.rs").read_text(encoding="utf-8")
-    js = (ROOT / "oracle" / "node" / "vm.js").read_text(encoding="utf-8")
     for 名 in 函数们:
         assert f"def {名}(" in py, f"Python 侧缺 `{名}`"
         assert f'"{名}" =>' in rs, f"Rust 侧缺 `{名}`"
-        assert f"'{名}': _noGraphics('{名}')" in js, f"Node 侧缺 `{名}`"
 
 
 def test_命令行上报平台错_新增的十九个也报同一句(tmp_path):

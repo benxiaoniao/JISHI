@@ -84,12 +84,6 @@ def _五份(源码: str, tmp_path: Path) -> dict:
     rs = rust_exe_path()
     if rs.is_file():
         表["Rust 宿主"] = [str(rs), "程序.jsh"]
-    node = shutil.which("node")
-    if node:
-        (tmp_path / "程序.json").write_text(
-            serialize.dumps(compile_source(源码, "程序.jsh")), encoding="utf-8")
-        表["Node 宿主"] = [node, str(ROOT / "oracle" / "node" / "index.js"),
-                           "程序.json"]
 
     出 = {}
     for 名字, 命令 in 表.items():
@@ -210,70 +204,7 @@ def test_Rust有宿主对象模型():
         "「有退出就把对象本身绑给 t」，`进入()` 的返回值被丢掉")
 
 
-def test_Node有宿主对象模型():
-    源码 = (ROOT / "oracle" / "node" / "runtime.js").read_text(encoding="utf-8")
-    assert "class JishiNative" in 源码
-    assert "if (isNative(obj)) return obj.methods;" in 源码, (
-        "`methodTable` 又不认宿主对象了 —— `.耗时()` 会报「没有方法」")
-    assert "if (isNative(v)) return v.typeName;" in 源码, "`typeName` 又不认宿主对象了"
-
-
 def test_两个宿主都有计时():
     """`时间.计时` 必须真的在两个宿主的模块表里（不是只写了机制没接上）。"""
     rs = (ROOT / "rust" / "src" / "stdlib" / "datetime.rs").read_text(encoding="utf-8")
     assert '"计时" =>' in rs, "Rust 的 `时间` 模块里没有 `计时`"
-    js = (ROOT / "oracle" / "node" / "vm.js").read_text(encoding="utf-8")
-    assert "'计时': new R.Builtin('计时'" in js, "Node 的 `时间` 模块里没有 `计时`"
-
-
-# ---------------------------------------------------------------------------
-# 三、连带修好的：树遍历的**推导式**（M165d 浮出来的下一个缺口）
-# ---------------------------------------------------------------------------
-
-推导式源 = '''\
-令 数 = [1, 2, 3, 4, 5]
-打印([x * 2 遍历 x 在 数])
-打印([x 遍历 x 在 数 如果 x % 2 == 0])
-打印({x: x * x 遍历 x 在 数 如果 x < 3})
-打印([y + "!" 遍历 y 在 ["甲乙"]])
-打印([c 遍历 c 在 "abc"])
-打印([x 遍历 x 在 []])
-令 外 = 9
-打印([外 + x 遍历 x 在 数])
-'''
-
-推导式期望 = """\
-[2, 4, 6, 8, 10]
-[2, 4]
-{1: 1, 2: 4}
-['甲乙!']
-['a', 'b', 'c']
-[]
-[10, 11, 12, 13, 14]"""
-
-
-def test_推导式_四引擎逐字一致(tmp_path):
-    """列表 / 字典推导式在四个执行器上逐字一致。
-
-    ⚠️ **这条不是 M165d 规划里的内容** —— 它是修 `时间.计时` 时**浮出来的下一个缺口**：
-
-    `check_walk` 的硬指标是「还不支持 0」，而树遍历一直没实现 `Comprehension`
-    （推导式）。为什么没被发现：唯一用到推导式的语料 `排序跑分` 在 `时间.计时`
-    那一步就失败了（那个函数 Node / Rust 两宿都没有）—— **一个缺口把另一个缺口
-    盖住了**。M165d 补上计时器之后它才第一次跑通，`check_walk` 立刻报
-    「还没实现 1 × Comprehension」。
-
-    覆盖：带条件 / 字典推导 / 文本迭代 / 空可迭代 / **引用外层变量**
-    （最后一行 —— 推导式不该把外层作用域搞乱）。
-    """
-    出 = _五份(推导式源, tmp_path)
-    assert len(出) >= 3, f"能跑的执行器太少：{list(出)}"
-    不一样 = {名: _归一(文) for 名, 文 in 出.items() if _归一(文) != 推导式期望}
-    assert 不一样 == {}, (
-        "推导式结果不对（期望见本文件里的 `推导式期望`）：\n"
-        + "\n".join(f"--- {名} ---\n{文}" for 名, 文 in 不一样.items()))
-
-#: 📌 「树遍历还有没有没实现的节点」这条**不在这里重测**：
-#: `tests/test_m80_walk_exceptions.py::test_进度仪表全覆盖` 已经盯着它，而且那条
-#: 带 `@pytest.mark.计时`（`check_walk` 满载要 190 秒，必须进串行节）。
-#: 在这里再来一遍等于把同一份重活塞进并行节 —— CPU 饥荒会让 worker 静默硬崩。

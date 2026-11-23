@@ -231,11 +231,10 @@ def test_打两次字节完全相同(tmp_path):
     assert 一 == 二, "两次打包字节不同（时间/顺序/权限有一处没定死）"
 
 
-@pytest.mark.skipif(shutil.which("node") is None, reason="本机没有 node")
-def test_三个宿主算出来的包内容一致(tmp_path):
-    """**三宿主逐字一致**是这一层的硬规矩：同一个目录，谁打出来的包都得通用。
+def test_两个宿主算出来的包内容一致(tmp_path):
+    """**跨宿主逐字一致**是这一层的硬规矩：同一个目录，谁打出来的包都得通用。
 
-    ⚠️ 只比**解出来的内容**，不比 zip 字节 —— Python/Node 用 deflate、Rust 用
+    ⚠️ 只比**解出来的内容**，不比 zip 字节 —— Python 用 deflate、Rust 用
     stored（合法 zip，但不压缩），这条口径 `压缩.打包确定` 立的时候就定下了。
     """
     引擎 = _引擎目录(tmp_path)

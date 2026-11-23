@@ -27,11 +27,13 @@
 
 ## 产物
 
-- `node/stdlib_sigs.js`      → `module.exports = { '模块': { '函数': [必填数, [参数名…]] } }`
 - `rust/src/stdlib_sigs.rs`  → `pub fn sigof("模块.函数") -> Option<(usize, &'static [&'static str])>`
 
-两宿主在收到命名参数时按同一张表把名字映射回位置参数，
-**四引擎因此给出同一结果**（而不是像以前那样静默丢掉 kwargs）。
+📌 **M225（0.3.7）**：`oracle/node/stdlib_sigs.js` 那份产物**已删**（Node 宿主退役）。
+宿主要接命名参数就照 `stdlib_sigs.rs` 这张表来 —— 表是事实源，实现可以少，口径不能分。
+
+宿主在收到命名参数时按同一张表把名字映射回位置参数，
+**各引擎因此给出同一结果**（而不是像以前那样静默丢掉 kwargs）。
 
 ## 用法
 

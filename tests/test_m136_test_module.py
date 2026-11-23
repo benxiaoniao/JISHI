@@ -369,7 +369,6 @@ def test_三宿主_失败明细与错误码一致():
     for 名, 命令 in (
         ("python", [PY, "-m", "oracle.jishi.cli", str(文件)]),
         ("rust", [str(RUST), str(文件)]),
-        ("node", ["node", str(ROOT / "oracle" / "node" / "index.js"), str(字节)]),
     ):
         if 名 == "rust" and not RUST.is_file():
             pytest.skip(f"没构建 {RUST.name}")

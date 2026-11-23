@@ -83,24 +83,6 @@ def _跑_rust(src: str, tmp_path: Path) -> str:
     return (r.stdout or "") + (r.stderr or "")
 
 
-def _跑_node(src: str, tmp_path: Path) -> str:
-    """Node 宿主：吃**字节码 JSON**（与 Python 同一份编译产物）。"""
-    from shutil import which
-
-    node = which("node")
-    if node is None:
-        pytest.skip("环境里没有 node")
-    from oracle.jishi import serialize
-    from oracle.jishi.compiler import compile_source
-
-    bc = tmp_path / "程序.json"
-    bc.write_text(serialize.dumps(compile_source(src, "程序.jsh")), encoding="utf-8")
-    r = subprocess.run([node, str(ROOT / "oracle" / "node" / "index.js"), bc.name],
-                       cwd=str(tmp_path), capture_output=True, text=True,
-                       encoding="utf-8")
-    return (r.stdout or "") + (r.stderr or "")
-
-
 def _跑_cvm(src: str, tmp_path: Path) -> str:
     """C 虚拟机（`cvm_bind.run_source_c`）：进程内跑，出口按 CLI 的做法补源码行。
 
@@ -136,7 +118,6 @@ def _四执行器(src: str, tmp_path: Path) -> dict:
         "字节码 VM": _跑_python(src, tree=False, tmp_path=tmp_path),
         "C VM": _跑_cvm(src, tmp_path),
         "Rust 宿主": _跑_rust(src, tmp_path),
-        "Node 宿主": _跑_node(src, tmp_path),
     }
 
 
@@ -448,12 +429,9 @@ def test_三宿主的上限是同一个数():
 
     py = (ROOT / "oracle" / "jishi" / "errors.py").read_text(encoding="utf-8")
     rs = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
-    js = (ROOT / "oracle" / "node" / "runtime.js").read_text(encoding="utf-8")
 
     py_n = int(re.search(r"^MAX_CAUSE_DEPTH\s*=\s*(\d+)", py, re.M).group(1))
     rs_n = int(re.search(r"const MAX_CAUSE_DEPTH: usize = (\d+)", rs).group(1))
-    js_n = int(re.search(r"const MAX_CAUSE_DEPTH = (\d+)", js).group(1))
-    assert py_n == rs_n == js_n, f"Python {py_n} / Rust {rs_n} / Node {js_n}"
 
 
 def test_深度上限真会截断():

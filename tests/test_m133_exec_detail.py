@@ -31,7 +31,6 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "rust" / "target" / "release" / ("jishi-rs.exe" if os.name == "nt" else "jishi-rs")
-NODE入口 = ROOT / "oracle" / "node" / "index.js"
 
 #: 用一个**必然存在**的可执行来跑命令：测试进程自己就是 Python。
 PY = sys.executable.replace("\\", "/")
@@ -45,8 +44,8 @@ def _env() -> dict:
     return env
 
 
-def _跑三宿主(源码: str, 名: str = "eval") -> list[tuple[bytes, bytes, int]]:
-    """同一段源码在 Python / Rust / Node 三个宿主上跑一遍（Node 走字节码）。
+def _跑两宿主(源码: str, 名: str = "eval") -> list[tuple[bytes, bytes, int]]:
+    """同一段源码在 Python / Rust 两个宿主上跑一遍（📌 M226：Node 宿主已退役）。
 
     ⚠️ 临时文件名带 pid（本项目并行跑 pytest 的硬规矩：固定名会被别的 worker 覆写）。
     """
@@ -68,7 +67,6 @@ def _跑三宿主(源码: str, 名: str = "eval") -> list[tuple[bytes, bytes, in
         命令们 = [
             [sys.executable, "-m", "oracle.jishi.cli", str(源)],
             [str(EXE), str(源)],
-            ["node", str(NODE入口), str(字节)],
         ]
         出 = []
         for c in 命令们:
@@ -84,15 +82,11 @@ def _跑三宿主(源码: str, 名: str = "eval") -> list[tuple[bytes, bytes, in
 
 
 def _一致(源码: str, 名: str = "eval") -> tuple[bytes, bytes]:
-    """三宿主必须**逐字一致**（stdout 与 stderr 都比）。返回 (stdout, stderr)。"""
-    三 = _跑三宿主(源码, 名)
-    py, rs, nd = 三
+    """两宿主必须**逐字一致**（stdout 与 stderr 都比）。返回 (stdout, stderr)。"""
+    py, rs = _跑两宿主(源码, 名)
     assert py == rs, (
         f"Python 与 Rust 不一致\n  py stdout={py[0]!r}\n  rs stdout={rs[0]!r}\n"
         f"  py stderr={py[1]!r}\n  rs stderr={rs[1]!r}\n  退码 py={py[2]} rs={rs[2]}")
-    assert py == nd, (
-        f"Python 与 Node 不一致\n  py stdout={py[0]!r}\n  nd stdout={nd[0]!r}\n"
-        f"  py stderr={py[1]!r}\n  nd stderr={nd[1]!r}\n  退码 py={py[2]} nd={nd[2]}")
     return py[0], py[1]
 
 
@@ -242,7 +236,7 @@ def test_并行执行_确实比串行快():
 令 并行耗 = 时间.高精度时间() - 起
 打印(文本(并行耗))
 '''
-    三 = _跑三宿主(码, "墙钟")
+    三 = _跑两宿主(码, "墙钟")
     py = 三[0]
     assert py[2] == 0, py[1].decode("utf-8", "replace")[:400]
     耗 = float(py[0].decode("utf-8").strip())

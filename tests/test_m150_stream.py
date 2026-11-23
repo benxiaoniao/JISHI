@@ -118,14 +118,10 @@ def _执行器们(tmp_path: Path) -> dict:
     rs = rust_exe_path()
     if rs.is_file():
         表["Rust 宿主"] = lambda: [str(rs), "交互.jsh"]
-    node = shutil.which("node")
-    if node:
-        表["Node 宿主"] = lambda: [node, str(ROOT / "oracle" / "node" / "index.js"),
-                                   _字节码(tmp_path)]
     return 表
 
 
-@pytest.mark.parametrize("名字", ["树遍历", "Python VM", "C VM", "Rust 宿主", "Node 宿主"])
+@pytest.mark.parametrize("名字", ["树遍历", "Python VM", "C VM", "Rust 宿主"])
 def test_进程没退出时输出就已经出现(名字, tmp_path):
     """核心判据：`输入()` 还卡着（stdin 没关）的时候，屏幕上已经有字了。"""
     _写(tmp_path)

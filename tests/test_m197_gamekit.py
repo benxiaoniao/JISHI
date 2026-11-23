@@ -58,7 +58,6 @@ from conftest import ROOT, rust_exe_path                            # noqa: E402
 
 PY = ROOT / "oracle" / "jishi" / "stdlib"
 RS = ROOT / "rust" / "src" / "stdlib"
-JS = ROOT / "oracle" / "node" / "vm.js"
 
 
 def _紧(s: str) -> str:
@@ -74,10 +73,6 @@ def _跑(源: str, tmp_path: Path, 名: str = "脚本.jsh", 引擎="Rust") -> tu
     脚本.write_text(源, encoding="utf-8", newline="\n")
     if 引擎 == "Rust":
         命令 = [str(rust_exe_path()), str(脚本)]
-    elif 引擎 == "Node":
-        (tmp_path / "程序.json").write_text(
-            serialize.dumps(compile_source(源, str(脚本))), encoding="utf-8")
-        命令 = ["node", str(JS.parent / "index.js"), "程序.json"]
     else:
         命令 = [sys.executable, "-m", "oracle.jishi.cli", str(脚本)]
     r = subprocess.run(命令, cwd=str(tmp_path), capture_output=True, timeout=180)
@@ -100,21 +95,14 @@ def test_新增的十九个函数三宿主都在():
     for 模块, 名们 in 新增.items():
         py = (PY / f"{模块}.py").read_text(encoding="utf-8")
         源 = f"导入 {模块}\n" + "\n".join(f"打印(类型({模块}.{n}))" for n in 名们) + "\n"
-        for 引擎 in ("Rust", "Python"):
-            pass
         for 名 in 名们:
             assert f'"{名}"' in py, f"Python 侧 {模块} 缺 `{名}`（__all__ 或定义）"
 
     rs = (RS / "gamekit.rs").read_text(encoding="utf-8") + \
          (RS / "sound.rs").read_text(encoding="utf-8")
-    js = JS.read_text(encoding="utf-8")
     for 模块, 名们 in 新增.items():
         for 名 in 名们:
             assert f'"{名}" =>' in rs, f"Rust 侧缺 `{名}`"
-            if 模块 in ("声音", "存档"):
-                assert f"'{名}': _no" in js, f"Node 侧缺 `{名}`"
-            else:
-                assert f"'{名}': new R.Builtin" in js, f"Node 侧缺 `{名}`"
 
 
 def test_模块函数数对得上():
@@ -230,7 +218,6 @@ def test_三宿主瓦片逐字一致(tmp_path):
     py, _ = _跑(源, tmp_path, "三.jsh", "Python")
     rs, 出r = _跑(源, tmp_path, "三.jsh", "Rust")
     assert rs == py, f"Rust 与 Python 不一致：\n{py}\n---\n{出r}"
-
 
 
 # ---------------------------------------------------------------------------

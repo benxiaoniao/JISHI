@@ -81,8 +81,6 @@ def _跑Node(tmp_path):
 
     p = tmp_path / "程序.json"
     p.write_text(serialize.dumps(compile_source(源, "程序.jsh")), encoding="utf-8")
-    r = subprocess.run(["node", str(rust_exe_path().parents[3] / "oracle" / "node" / "index.js"),
-                        str(p)], cwd=str(tmp_path), capture_output=True, timeout=180)
     return (r.stdout + r.stderr).decode("utf-8", "replace")
 
 

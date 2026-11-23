@@ -43,17 +43,6 @@ def _跑(源: str, tmp_path: Path, 引擎="Rust", 名="脚本.jsh", 工作目录
         if not rust_exe_path().is_file():
             pytest.skip("没编 jishi-rs（先 cargo build --release）")
         命令 = [str(rust_exe_path()), str(脚本)]
-    elif 引擎 == "Node":
-        from oracle.jishi import serialize
-        from oracle.jishi.compiler import compile_source
-
-        (tmp_path / "程序.json").write_text(
-            serialize.dumps(compile_source(源, str(脚本))), encoding="utf-8")
-        import shutil
-
-        if shutil.which("node") is None:
-            pytest.skip("没有 node")
-        命令 = ["node", str(ROOT / "oracle" / "node" / "index.js"), "程序.json"]
     else:                                   # Python（判据基准）
         命令 = [sys.executable, "-m", "oracle.jishi.cli", str(脚本)]
     r = subprocess.run(命令, cwd=str(工作目录 or tmp_path), capture_output=True,

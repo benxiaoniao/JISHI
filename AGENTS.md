@@ -103,7 +103,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **4869 项**；其中 137 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
+3. **测试命令**：`python -m pytest tests/`（当前 **4860 项**；其中 137 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
    .venv/Scripts/python.exe tools/test_all.py          # **两节一条命令**（见下）
@@ -164,17 +164,11 @@
    「一键全检」调的 `tools/ci.py` **内部还会再跑一遍** `pytest tests/` ——
    实测 Windows runner 上一遍就是 **3924 秒（65 分钟）**，两遍把 job 拖到
    **2 小时 10 分**。CI 上由 workflow 传 `JISHI_SKIP_PYTEST=1` 跳过 ci.py 里那遍。
-   ✅ **3 个 Node 网络用例的 `EBUSY` 已根治**（2026-11-01，M161）：
-   根因是 Node 宿主的 `网络` 模块用 `spawnSync(process.execPath, …)` **自己 spawn 自己**，
-   Windows 上父进程的 EXE 正被占用 ⇒ `EBUSY`。现改成 **Worker + SharedArrayBuffer +
-   `Atomics.wait`**（同进程线程，不碰 EXE）。实测 `test_m31_node_stdlib` 全绿、不再偶发。
-   ⚠️ 新实现有一条**固有限制**：主线程阻塞期间，**同一进程里的 HTTP 服务没人 accept** ——
-   所以「自己起服务、自己同步请求」在同一进程里必然死锁。`HTTP服务端` 在 Node 上
-   本来只做协议核心，不冲突；要这么玩请分成两个进程。
-   📌 历史（留作教训）：2026-10-08 曾把这条判成「环境问题、别改代码」，因为最小复现
-   `node -e "require('child_process').spawnSync(process.execPath,['-e',''])"` 在沙箱里**必现**
-   —— 环境确实能触发它，**但代码本来就不该这么写**。两件事都对：环境让它必现，
-   写法让它本来就不稳。
+   📌 **同步 VM 里别用 `spawnSync(process.execPath, …)` 自己 spawn 自己**（M161 的 `EBUSY` 教训）：
+   Windows 上父进程的 EXE 正被占用 ⇒ `EBUSY`，而在沙箱里**必现**。当年曾把这条判成
+   「环境问题、别改代码」——「环境能触发」与「代码本来就不该这么写」是两件事，
+   **「既有失败」四个字最容易被当成免修金牌**。📌 0.3.7 M226 起 Node 宿主已退役，
+   这条作为**跨语言教训**保留（任何宿主里同步阻塞都不要自 spawn）。
    🔴 **`--dist loadfile` 不是可选项**（2026-10-20 踩）：xdist 默认的 `load`
    （按**测试**分发）在本题量下会**死锁** —— 表现是「跑到 98% 就不动了」，
    `py-spy` 一看：所有 worker 都在 `wait`、主进程在 `join`，**没有人失败**。
@@ -331,8 +325,8 @@
   越重试越慢。实测（RPM 50 / 单次 ~8 秒）：74 题串行 >20 分钟，并发 6 只要 **7.6 分钟**。
   常用：`--并发 6 --每分钟 45`（留一成余量）；服务商限额更低就往下调，别硬来。
 - ⚠️ **新模块要重跑两个生成器**（不然命名参数在宿主上报「暂不支持命名参数」）：
-  `python tools/gen_stdlib_sigs.py`（→ `rust/src/stdlib_sigs.rs` +
-  `oracle/node/stdlib_sigs.js`）与 `python tools/gen_langdata_rs.py`（→ `rust/src/langdata.rs`）。
+  `python tools/gen_stdlib_sigs.py`（→ `rust/src/stdlib_sigs.rs`）与
+  `python tools/gen_langdata_rs.py`（→ `rust/src/langdata.rs`）。
   M120 之后是 **28 模块 / 299 函数**（M117：`数学.限制`/`符号`、`容器.索引表`/`深拷贝`、
   `随机.随机文本`/`按权重`；M118：`文件.追加字节`/`复制目录`、`压缩.解压成员`；
   M119：`编码.GBK文本`/`文本GBK`；M120：`路径.分隔符`、`系统.CPU核数`、`日期.月天数`、
@@ -344,9 +338,8 @@
   ⚠️ **GBK 码表现在三端共用一份数据、三个生成物**（M204，`python tools/gen_gbk_table.py`）：
   `oracle/jishi/data/gbk_whatwg.txt`（WHATWG 原文，25 KB 文本）→
   `rust/src/gbk_table.rs` + `gbk_slots.bin` / `gbk_rev.bin`（Rust 侧，替代 `encoding_rs`）、
-  `oracle/jishi/stdlib/_gbk_table.py`（Python 侧，替代内置 `gbk` codec）、
-  `oracle/node/gbk_table.js`（Node 侧，`TextDecoder('gbk')` 只能解、编不了）。
-  ✅ 三端逐条对过：解码 23940 / 编码 24085，**0 差异**；语料 `tests/cases/48_GBK边界.jsh`
+  `oracle/jishi/stdlib/_gbk_table.py`（Python 侧，替代内置 `gbk` codec）。
+  ✅ 两端逐条对过：解码 23940 / 编码 24085，**0 差异**；语料 `tests/cases/48_GBK边界.jsh`
   钉住欧元（U+20AC→0x80）、`A6D9`→U+FE10、18 个 PUA 只编不解。
   ⚠️ 别信 `TextEncoder('gbk')` —— **不报错但永远按 UTF-8 编**，静默错。
   ⚠️ **`容器`/`迭代`/`统计`/`参数` 在基石库层**（`stdlib-jishi/*.jsh`）：改的是 `.jsh`，
@@ -356,8 +349,8 @@
   「多线程 / 异步 —— 严重破坏简单性」那条**仍然有效**。它只是**标准库的实现细节** ——
   线程里**一个 `Val` 都不跨**（只跑 `String` / `Vec<u8>`），所以 `Rc` 不是 `Send`
   这条约束根本用不上、值表示一个字节没改。三条硬规矩：**结果顺序 = 输入顺序**、
-  **首个错胜出**、**不支持线程的平台顺序执行**（wasm 用 `#[cfg]` 编另一份实现、
-  Node 宿主直接就顺序）。要动它之前先读 `docs/设计决策.md` **D80**。
+  **首个错胜出**、**不支持线程的平台顺序执行**（wasm 用 `#[cfg]` 编另一份实现）。
+  要动它之前先读 `docs/设计决策.md` **D80**。
 - ⚠️ **前端「端到端倍数」有天花板**（R2/R3 量出来的）：把 `Token` / AST 节点
   交给 Python 这件事本身就有地板（11.7 万 Token ≈ 39 ms、7 万 AST 节点 ≈ 28 ms）。
   R2 实测分词 **核心 7.05x / 端到端 3.72x / 天花板 4.23x**；R3 实测语法
@@ -474,14 +467,6 @@
   **三执行器 + 两宿主共用这份字节码，所以四边一起崩；只有树遍历
   （走 Python 的 try/except）是对的 —— 四引擎对拍才抓得住。**
   改 `_c_try` 前先读 `jishi/compiler.py` 里那段栈推演注释。
-- ✅ **那 3 个 Node 网络用例的失败已经修掉了**（2026-11-01，M161）：
-  `test_m31_node_stdlib.py` 的 `test_node_network_get_and_post` /
-  `test_node_network_get_json` / `test_node_real_project_web_crawl` 早年报
-  `spawnSync …\node.EXE EBUSY` —— Node 宿主的 `网络` 模块用**子进程同步封装**、
-  自己 spawn 自己时被占用（Linux/CI 上不复现）。现改成 **Worker + Atomics.wait**，
-  子进程整个去掉，实测全绿。
-  📌 **教训**：当年用 `git stash` 回退到 M51 复跑、证明「老版本也失败」，
-  那只是**证明它一直存在**，不是证明它不该修 —— 「既有失败」四个字最容易被当成免修金牌。
 - **新增宿主回调时**：C 侧 `JsHost` struct 与 Python 侧 `JsHost._fields_`
   字段顺序必须**逐字段对齐**（曾因插错位置导致 ctypes 回调错位崩溃）。
 - **异常穿透重入边界**：vm.py 用 `stop_at`、C VM 用 `stop_depth`，两边要一致。
@@ -1020,10 +1005,11 @@
   📌 **加/改标准库函数后跑它**（R6.4 第一跑就抓到「Node 的 `四舍五入` 是半值
   向上而不是银行家舍入」「标准库的参数个数错一直漏英文」）；
   `python tools/check_engines.py` 做**执行器体检**（R5.1 建，全语料含 error_cases，
-  逐字节比「树遍历 vs Python VM vs C VM vs **Rust VM** vs **Node 宿主**」）
+  逐字节比「树遍历 vs Python VM vs C VM vs **Rust VM**」）
   —— **改任何引擎行为都跑它**：一致性夹具比的是**产物**，「产物一样 ≠ 跑起来一样」；
-  ⚠️ **两份实现要放进判据才有意义**（R6.4 的教训：Node 宿主以前不在两个工具里，
-  它那三条**静默出错**一个都没被抓到 —— 拉进来的当天就冒出 11 个不一致）；
+  ⚠️ **一份实现要放进判据才有意义**（R6.4 的教训：当年 Node 宿主不在两个工具里，
+  它那三条**静默出错**一个都没被抓到 —— 拉进来的当天就冒出 11 个不一致；
+  这条对**任何新宿主**都成立）；
   `python tools/bench_frontend.py` 第三段量 **R5 的编译端到端**（源码 → 字节码 JSON）；
   `python tools/probe_errcodes.py` 做**错误码体检**（R4 建）：**「表里有这个码」
   ≠「这个码真的会出现」** —— 它一建起来就抓到「`E0205` 是死码」「`E0204` 没有语料」

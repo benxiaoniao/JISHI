@@ -528,46 +528,28 @@ def test_formatter_idempotent_with_new_syntax():
 
 
 # ---------------------------------------------------------------------------
-# 跨语言宿主（M13 的 Node / Rust）也要跟上，否则「字节码可移植」就名不副实
+# 跨语言宿主（Rust）也要跟上，否则「字节码可移植」就名不副实
+# （📌 M226：Node 宿主退役，那份检查已删）
 # ---------------------------------------------------------------------------
 
 import shutil                                    # noqa: E402
 import subprocess                                # noqa: E402
 
 
+def test_字节码格式版本两处同步():
+    """同一个版本号写在**两处**：Python 前端（`serialize.FORMAT_VERSION`）与
+    Rust 前端（`frontend/src/serialize.rs`），外加 Rust 宿主的 `BYTECODE_VERSION`。
 
-
-def test_node_host_version_check_matches_engine():
-    """字节码格式版本两端必须一致，否则 Node 会拒绝加载。
-
-    ⚠️ R6.6 起 Node 侧**不再写死数字**，而是用一个 `FORMAT_VERSION` 常量
-    —— 版本号本来散在四处，改一处忘三处正是这类检查最容易失效的地方。
-    所以这条判据改成两句：**它确实读那个常量** + **常量值与本侧一致**。
-    """
-    node_js = (ROOT / "oracle" / "node" / "index.js").read_text(encoding="utf-8")
-    assert "body.version !== FORMAT_VERSION" in node_js
-    m = re.search(r"const FORMAT_VERSION = (\d+)", node_js)
-    assert m, "Node 侧应该有 `const FORMAT_VERSION = <数字>`"
-    assert int(m.group(1)) == serialize.FORMAT_VERSION, (
-        f"Node 侧的 {m.group(1)} 与 serialize.FORMAT_VERSION "
-        f"（{serialize.FORMAT_VERSION}）不一致")
-
-
-def test_字节码格式版本四处同步():
-    """同一个版本号写在**四处**：Python 前端 / Rust 前端 / 两个宿主。
-
-    改一处忘三处的症状是「宿主静默拒绝加载」或「按旧格式错误解析」——
+    改一处忘对方的症状是「宿主静默拒绝加载」或「按旧格式错误解析」——
     两种都难查。所以直接把它们钉在同一根线上（R6.6 立的规矩）。
+    📌 M226：Node 宿主退役，那份 `const FORMAT_VERSION` 已随之删除。
     """
     src = serialize.FORMAT_VERSION
-    node_js = (ROOT / "oracle" / "node" / "index.js").read_text(encoding="utf-8")
     rust_lib = (ROOT / "rust" / "src" / "lib.rs").read_text(encoding="utf-8")
     core_ser = (ROOT / "frontend" / "src" / "serialize.rs").read_text(encoding="utf-8")
-    m_node = re.search(r"const FORMAT_VERSION = (\d+)", node_js)
     m_rust = re.search(r"pub const BYTECODE_VERSION: i64 = (\d+)", rust_lib)
     m_core = re.search(r"pub const FORMAT_VERSION: i64 = (\d+)", core_ser)
-    assert m_node and m_rust and m_core, "四处各自应该声明一个版本常量"
-    got = {"node": int(m_node.group(1)), "rust": int(m_rust.group(1)),
-           "core": int(m_core.group(1))}
+    assert m_rust and m_core, "各侧应该声明一个版本常量"
+    got = {"rust": int(m_rust.group(1)), "core": int(m_core.group(1))}
     assert all(v == src for v in got.values()), (
         f"版本号不同步：Python={src} {got}")

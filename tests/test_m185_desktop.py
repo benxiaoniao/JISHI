@@ -92,20 +92,6 @@ def test_Python宿主十一个函数都明确报错(tmp_path):
     assert 出.count(做不到特征) == len(新函数), f"报错文案不一致：{出[:900]}"
 
 
-def test_Node宿主十一个函数都明确报错(tmp_path):
-    (tmp_path / "程序.jsh").write_text(_生成报错脚本(), encoding="utf-8", newline="\n")
-    字节 = tmp_path / "程序.bc.json"
-    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "--dump-bytecode", "程序.jsh"],
-                       cwd=str(tmp_path), capture_output=True)
-    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")
-    字节.write_bytes(r.stdout)
-    码, 出 = _跑(["node", str(ROOT / "oracle" / "node" / "index.js"), str(字节)], tmp_path)
-    assert 码 == 0, 出[:900]
-    for 名 in 新函数:
-        assert f"{名}: " in 出, f"「窗口.{名}」在 Node 宿主上没报错：{出[:900]}"
-    assert 出.count(做不到特征) == len(新函数), f"报错文案不一致：{出[:900]}"
-
-
 # ---------------------------------------------------------------------------
 # 二、真窗口：设完**读回来**（不是「调了没抛异常」）
 # ---------------------------------------------------------------------------

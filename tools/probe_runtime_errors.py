@@ -57,7 +57,6 @@ Node 宿主（`node/runtime.js` 的 `ERROR_CODES` / `node/vm.js`）**各有一�
 用法：
     python tools/probe_runtime_errors.py        # 全部形状
     python tools/probe_runtime_errors.py -v     # 每个形状都打一行
-    python tools/probe_runtime_errors.py --no-node   # 不带 Node 宿主
 """
 
 from __future__ import annotations
@@ -123,13 +122,6 @@ def _rust_exe() -> Path:
     return ROOT / "rust" / "target" / "release" / name
 
 
-def _node_exe() -> "str | None":
-    """Node 可执行文件（PATH 上没有就返回 None）。"""
-    return shutil.which("node")
-
-
-def _node_index() -> Path:
-    return ROOT / "oracle" / "node" / "index.js"
 
 
 def _cap(fn) -> str:
@@ -143,12 +135,10 @@ def _cap(fn) -> str:
         return "【没人接住】" + type(e).__name__ + ":" + str(e).splitlines()[0]
 
 
-def engine_outputs(src: str, rel: str = "形状.jsh",
-                   with_node: bool = True) -> dict[str, str]:
+def engine_outputs(src: str, rel: str = "形状.jsh") -> dict[str, str]:
     """四个执行器各跑一遍 → `{执行器名: 输出}`。
 
-    ⚠️ Node 宿主**只比 stdout**（「自己接住再打印」的那份，与判据一致）——
-    它吃的是字节码 JSON，所以这里是「当前前端编出的字节码交给它跑」。
+    📌 M226：Node 宿主退役，那一路已删（`oracle/node/` 不再存在）。
     """
     out = {
         "树遍历": _cap(lambda: run_tree(src, rel)),
@@ -162,14 +152,6 @@ def engine_outputs(src: str, rel: str = "形状.jsh",
         r = subprocess.run([str(exe), "--load-bytecode", str(tmp)], capture_output=True, input=b"")
         out["Rust VM"] = (r.stdout.decode("utf-8", "replace")
                           .strip().replace("\n", " | "))
-    node = _node_exe()
-    if with_node and node:
-        tmp = Path(tempfile.gettempdir()) / f"_probe_err_node_{os.getpid()}.json"
-        tmp.write_text(compile_to_json(src, rel), encoding="utf-8")
-        r = subprocess.run([node, str(_node_index()), str(tmp)],
-                           capture_output=True, input=b"")
-        out["Node"] = (r.stdout.decode("utf-8", "replace")
-                       .strip().replace("\n", " | "))
     return out
 
 
@@ -177,19 +159,15 @@ def main(argv: "list[str] | None" = None) -> int:
     ap = argparse.ArgumentParser(description="运行期错误 (类型, 消息) 四执行器体检")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="每个形状都打印一行（默认只报不一致的）")
-    ap.add_argument("--no-node", action="store_true",
-                    help="不把 Node 宿主算作执行器")
     args = ap.parse_args(argv)
 
     if not _rust_exe().exists():
         print(f"（注：{_rust_exe().name} 不存在，本次只比三个执行器；"
               f"要带上它先 `cd rust && cargo build --release`）")
-    if not args.no_node and not _node_exe():
-        print("（注：PATH 上没有 node，本次不带 Node 宿主）")
 
     diff = 0
     for tag, body in SHAPES.items():
-        outs = engine_outputs(build_source(body), with_node=not args.no_node)
+        outs = engine_outputs(build_source(body))
         vals = list(outs.values())
         same = all(v == vals[0] for v in vals)
         if not same:

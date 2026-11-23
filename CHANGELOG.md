@@ -10810,3 +10810,66 @@ cargo build --manifest-path rust/Cargo.toml --release
   与本次改动无关（CI runner 上没有这条干扰）；
 - `test_m64_rust_vm_iter::test_遍历不是平方的`：并行/串行节都有负载时比值判断失真，
   **单独跑必绿**（AGENTS §1 记过的计时判据通病）。
+
+## [未发布]
+
+### M226 · 删除 Node 实现（Node 退役第二步）
+
+> 0.3.7 主线第二站。`oracle/node/` 整目录删除 —— 判据在 M225 已经三宿主化，
+> 这一站只是把那份**第四份实现**从仓库里拿掉。
+
+**删了什么**：`oracle/node/` 12 个文件 / **16,636 行**
+（`vm.js` / `runtime.js` / `index.js` / `excel_mod.js` / `word_mod.js` / `pdf_mod.js` /
+`net_stream_worker.js` / `process_worker.js` / `stdlib_sigs.js` / `gbk_table.js` /
+`README.md` / `package.json`）。想捞回来只能靠 git 历史。
+
+**🔴 删实现才暴露的真相：M225 只清了一半**
+
+目录一删，全量立刻 **254 条红** —— 54 个判据里还留着「真跑 `node oracle/node/index.js`」
+的段落。M225 时它们**没炸**，因为目录还在、文件还能跑；我用 grep 找的是「提到 node 的文件」，
+而它们写作 `ROOT / "oracle" / "node" / "index.js"`（字符串切片），grep `oracle/node` 看不见。
+
+⇒ **这一步的价值不在「省了 16.5k 行」，而在它把「还说得出 Node 宿主」的地方全照出来了。**
+清理完的形态：
+
+| 原来 | 现在 |
+|---|---|
+| `node = shutil.which("node")` + `if node:` 块（16 个文件） | 整块删 |
+| `subprocess.run(["node", ROOT/"oracle"/"node"/"index.js", ...])` | 删 |
+| `out["Node"] = ...` / `出["js"] = ...` 断言 | 删那一路断言 |
+| `elif 引擎 == "Node":` 分支（m197 / m199） | 删分支 |
+| `_跑node()` 辅助函数（m210） | 删函数 + 调用 |
+| `if shutil.which("node"): 建字节码` （m212 / m217） | 删（产物没人用） |
+| `test_三个宿主算出来的包内容一致`（m177） | 改名「两个宿主」，去掉 node 的 skipif |
+
+**⚠️ 保住的（一律不动，删了就出事）**：
+
+| 留下的 | 为什么 |
+|---|---|
+| 11 个文件的 `["node", 探针.js, jishi-wasm.js, jishi_wasm.wasm]` | **wasm 无头运行器** —— 拿 node 当浏览器替身跑 wasm 引擎（帧循环 / 游戏 / 窗口 / 图形）。**与语言宿主无关** |
+| `test_m42_vscode_client.py` 的 `NODE` | 跑 `vsce` / `npm` 打包扩展 |
+| `test_m91_lsp_rust.py` 的 `_node()` | 跑 `editors/vscode-jishi/verify-lsp.js`（编辑器的 JS 自检） |
+
+🔴 **清理脚本误删过一处 wasm 探针**：规则「行首是 `["node",` 就删」把
+`["node", str(脚本), str(ROOT / "wasm" / "jishi-wasm.js"), …]` 也吃了 —— `test_m197`
+的迷你地牢探针当场变成 `subprocess.run(capture_output=True)` 缺参数。已恢复。
+**教训**：删 Node 宿主时，「带 `jishi-wasm.js` / `SHIM` / `WASM` 的 node 调用」必须白名单跳过。
+
+**代码注释**（提到 Node 当参照的）：`oracle/jishi/errors.py`（库层行号带）、
+`rust/src/stdlib/htmlmod.rs`（页面构件输出契约）、`rust/src/stdlib/server.rs`（起不了服务端的平台边界）。
+
+**文档**（当前态口径全改，历史记录不动）：
+`AGENTS.md`（生成器产物 / GBK 两端 / 执行器体检 / 那条 EBUSY 教训压成「同步 VM 里别自 spawn」）·
+`README.md`（实现列表 / 目录树 / 依赖表：**Node 只作 wasm 判据的无头运行器，不参与引擎对拍**）·
+`docs/语言规格.md`（5 处平台边界）· `docs/embed.md`（第 3 节改「已退役」+ 替代路径表）·
+`docs/tutorial/13_HTTP服务端.md`（平台表只留 wasm）· `core/README.md` · `docs/版本收口流程.md`。
+
+**三道闸门（「退役不影响功能」）**：
+
+| 闸门 | 结果 |
+|---|---|
+| `tools/probe_stdlib.py` | **144 条用例 · 4 执行器 · 0 不一致** |
+| `conformance check` | **186/186 四阶段一致**（基线**未重冻**） |
+| `check_engines` | **0 不一致**（Rust VM 报错渲染 1 处 = 已登记的「从 python 导入」有意边界） |
+
+**测试数**：4869 不变（判据还在，只是不再跑 Node 那一路）。

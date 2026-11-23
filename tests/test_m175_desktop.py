@@ -72,10 +72,6 @@ def test_八个新函数三宿主都在():
         assert 名 in 有, f"Python 侧缺「窗口.{名}」"
         assert callable(getattr(py, 名)), f"Python 侧「窗口.{名}」不是函数"
 
-    js = (ROOT / "oracle" / "node" / "vm.js").read_text(encoding="utf-8")
-    for 名 in 新函数:
-        assert f"'{名}': new R.Builtin('{名}'" in js, f"Node 侧缺「窗口.{名}」"
-
     from oracle.jishi.ai import build_lang_spec
 
     卡 = build_lang_spec()
@@ -177,33 +173,6 @@ def test_Python宿主八个调用全都明确报错(tmp_path):
         assert f"{名}: " in 出, f"「窗口.{名}」在 Python 宿主上没报错（静默了）：{出[:900]}"
     assert 出.count(_做不到) == len(新函数), f"报错文案不一致：{出[:900]}"
 
-
-def test_Node宿主八个调用全都明确报错(tmp_path):
-    """Node 宿主同理。三宿主的报错口径要一样（都是「没有原生窗口能力」）。"""
-    源 = "导入 窗口\n"
-    for 名 in 新函数:
-        参数 = "{}" if 名 in ("设菜单", "设右键菜单", "设托盘") else (
-            '"甲", "乙"' if 名 == "当" else ('"x"' if 名 == "单实例" else ""))
-        源 += (f"尝试：\n    窗口.{名}({参数})\n捕获 异常 为 e：\n"
-               f'    打印("{名}: " + 文本(e))\n')
-    (tmp_path / "程序.jsh").write_text(源, encoding="utf-8", newline="\n")
-    # ⚠️ Node 宿主的入口收的是**字节码**（`jishi --dump-bytecode` 的产物），
-    #    直接给它 .jsh 会去 `JSON.parse` 源码然后报「不是合法 JSON」。
-    字节 = tmp_path / "程序.bc.json"
-    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "--dump-bytecode", "程序.jsh"],
-                       cwd=str(tmp_path), capture_output=True)
-    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")
-    字节.write_bytes(r.stdout)
-    码, 出 = _跑(["node", str(ROOT / "oracle" / "node" / "index.js"), 字节], cwd=tmp_path)
-    assert 码 == 0, 出[:800]
-    for 名 in 新函数:
-        assert f"{名}: " in 出, f"「窗口.{名}」在 Node 宿主上没报错：{出[:900]}"
-    assert 出.count(_做不到) == len(新函数), f"报错文案不一致：{出[:900]}"
-
-
-# ---------------------------------------------------------------------------
-# 三、页面侧：`窗口.当` 登记与派发（Node + 真 wasm + 假 DOM）
-# ---------------------------------------------------------------------------
 
 def test_窗口当能在页面里收到宿主事件(tmp_path):
     """`窗口.当` 登记后，宿主叫 `window.__jishiWin(事件, 参数)` 就调到那个函数。

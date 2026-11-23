@@ -416,14 +416,3 @@ def test_Rust引擎与黄金一致():
     assert out == 期望
 
 
-def test_Node引擎与黄金一致():
-    node = which("node")
-    if node is None:
-        pytest.skip("环境里没有 node")
-    bc = tmp_bc_path(ROOT / "_tmp_m113_bc.json")
-    bc.write_text(serialize.dumps(compile_source(语料.read_text(encoding="utf-8"),
-                                                 str(语料))),
-                  encoding="utf-8")
-    node_index = ROOT / "oracle" / "node" / "index.js"
-    out, _ = _跑宿主([node, str(node_index), str(bc)])
-    assert out == 期望

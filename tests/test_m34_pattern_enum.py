@@ -53,7 +53,6 @@ from oracle.jishi.parser import parse                    # noqa: E402
 from oracle.jishi.tokenizer import tokenize              # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-NODE = shutil.which("node")
 RUST_EXE = rust_exe_path()   # 平台感知：Windows 是 .exe，别处没有扩展名
 CARGO = shutil.which("cargo")
 

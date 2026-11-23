@@ -243,38 +243,6 @@ def test_发行版也能起服务(tmp_path):
 # 二、边界：Node 宿主与 wasm 起不了（要的是**明确**，不是静默）
 # ---------------------------------------------------------------------------
 
-def test_node宿主明确报边界():
-    """⚠️ 这条是**反向判据**：Node 上 `启动` 必须报错，而不是静默当作能跑。
-
-    它报的那句话还得**说清为什么**（Node 宿主是同步的、`node:http` 要事件循环），
-    不然用户只会觉得「基石坏了」。
-    """
-    import subprocess as sp
-    脚本 = Path(ROOT) / "build" / f"m115_node_{os.getpid()}.jsh"
-    脚本.write_text('导入 HTTP服务端\n函数 处理(请求):\n    返回 {"正文": "x"}\n'
-                    'HTTP服务端.启动(1, 处理)\n', encoding="utf-8")
-    try:
-        字节码 = sp.run([PY, "-m", "oracle.jishi.cli", "--dump-bytecode", str(脚本)],
-                       capture_output=True, text=True, encoding="utf-8", cwd=ROOT, timeout=120)
-        bc = Path(ROOT) / "build" / f"m115_node_{os.getpid()}.json"
-        bc.write_text(字节码.stdout, encoding="utf-8")
-        node = "node"
-        r = sp.run([node, str(Path(ROOT) / "oracle" / "node" / "index.js"), str(bc)],
-                   capture_output=True, text=True, encoding="utf-8", cwd=ROOT, timeout=120)
-        if r.returncode == 0 and "起不了" not in (r.stdout + r.stderr):
-            pytest.skip("本机没有可用的 node（判据基准的那条路不在）")
-        说 = r.stdout + r.stderr
-        assert "起不了 HTTP 服务端" in 说, 说[:400]
-        assert "同步" in 说, 说[:400]
-    finally:
-        脚本.unlink(missing_ok=True)
-        (Path(ROOT) / "build" / f"m115_node_{os.getpid()}.json").unlink(missing_ok=True)
-
-
-# ---------------------------------------------------------------------------
-# 三、纯函数（语料管大部分，这里管「语料不好写的」）
-# ---------------------------------------------------------------------------
-
 def _纯(源码: str) -> str:
     buf = io.StringIO()
     with __import__("contextlib").redirect_stdout(buf):

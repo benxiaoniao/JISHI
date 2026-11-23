@@ -19,7 +19,7 @@ ssh 会话）、要边喂边读的（不然管道一满两边互锁）、stderr 
 | ⑦ | `合并错误=真` 时 stderr 进 stdout | 选项真的生效 |
 | ⑧ | 三宿主的 `类型` / 显示 / 退出码口径一致 | 宿主对象不能各说各话 |
 
-🔴 每条都在 **Rust / Python / Node** 三个宿主上跑（`_跑三边`）。`进程` 是新模块，
+🔴 每条都在 **Rust / Python** 两个宿主上跑（`_跑三边`）。`进程` 是新模块，
 「某个宿主少实现一半」正是这类模块最典型的翻车方式。
 """
 
@@ -79,7 +79,7 @@ def _跑(源: str, tmp: Path, 名: str) -> str:
 
 
 def _跑宿主(源: str, tmp: Path, 名: str) -> dict:
-    """Rust / Python / Node 三个宿主各跑一遍 → `{宿主: stdout}`。
+    """Rust / Python 两个宿主各跑一遍 → `{宿主: stdout}`。
 
     只返回 stdout；某个宿主跑挂了直接失败（`进程` 模块不许「某个宿主没有」）。
     """
@@ -98,18 +98,6 @@ def _跑宿主(源: str, tmp: Path, 名: str) -> dict:
     assert r.returncode == 0, ("python", r.stdout, r.stderr)
     出["python"] = (r.stdout or "").replace("\r\n", "\n")
 
-    if shutil.which("node"):
-        from oracle.jishi.compiler import compile_to_json
-
-        body = compile_to_json(源, 名 + ".jsh")
-        码文 = tmp / f"{名}-{os.getpid()}.json"
-        码文.write_text(body, encoding="utf-8")
-        r = subprocess.run(["node", str(ROOT / "oracle" / "node" / "index.js"), str(码文)],
-                           capture_output=True, text=True, encoding="utf-8", timeout=180)
-        assert r.returncode == 0, ("node", r.stdout, r.stderr)
-        出["node"] = (r.stdout or "").replace("\r\n", "\n")
-    else:  # pragma: no cover - CI 上都有 node
-        pytest.skip("没有 node，跳过第三宿主")
     return 出
 
 
@@ -186,11 +174,9 @@ def test_回声_分流_超时_终止三宿主一致(tmp_path):
     assert 行[10] == "终止后 假", 行         # ③
     assert 行[11].startswith("退出码非空 真"), 行
     assert 行[12] == "再终止 假", 行         # 幂等
-    # 三宿主逐字节一致（Node 那台机器上不存在「类型不同」的余地）
+    # 两宿主逐字节一致
     assert _去时序(出["python"]) == _去时序(出["rust"]), ("python 与 rust 不一致",
                                                           _去时序(出["python"])[:3], _去时序(出["rust"])[:3])
-    assert _去时序(出["node"]) == _去时序(出["rust"]), ("node 与 rust 不一致",
-                                                        _去时序(出["node"])[:3], _去时序(出["rust"])[:3])
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +212,6 @@ def test_孙进程不拖住我们(tmp_path):
     用时 = float(行[2].split()[1])
     assert 用时 < 3, f"等了 {用时} 秒 —— 孙进程拖住我们了（坑3 复发）"
     assert _去时序(出["python"]) == _去时序(出["rust"]), "python 与 rust 不一致"
-    assert _去时序(出["node"]) == _去时序(出["rust"]), "node 与 rust 不一致"
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +261,6 @@ def test_起不来与合并错误与退出码(tmp_path):
     assert 行[5] == "已退出 假 7", 行
     assert 行[6] == "写已关 运行期错误", 行
     assert _去时序(出["python"]) == _去时序(出["rust"]), ("python", _去时序(出["python"])[:3], 行[:3])
-    assert _去时序(出["node"]) == _去时序(出["rust"]), ("node", _去时序(出["node"])[:3], 行[:3])
 
 
 # ---------------------------------------------------------------------------
@@ -304,7 +288,6 @@ def test_传错参数报得清楚(tmp_path):
     assert "句柄" in 行[0], 行
     assert 行[1] == "类型错误", 行
     assert _去时序(出["python"]) == _去时序(出["rust"]), ("python", _去时序(出["python"])[:2], 行[:2])
-    assert _去时序(出["node"]) == _去时序(出["rust"]), ("node", _去时序(出["node"])[:2], 行[:2])
 
 
 # ---------------------------------------------------------------------------
@@ -382,4 +365,3 @@ def test_陈旧锁自动回收_活锁仍然拒绝(tmp_path):
     assert 行[3] == "老锁拒绝 运行期错误", 行
     assert 行[4] == "坏锁拒绝 运行期错误", 行
     assert _去时序(出["python"]) == _去时序(出["rust"])
-    assert _去时序(出["node"]) == _去时序(出["rust"])

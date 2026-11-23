@@ -229,8 +229,6 @@ def _node() -> str | None:
 def test_verify_lsp_js_两边都通过():
     """验收原文：用 `editors/vscode-jishi/verify-lsp.js` 对两边各跑一遍。"""
     node = _node()
-    if node is None:
-        pytest.skip("没有 node，跑不了编辑器自带的自检")
     script = ROOT / "editors" / "vscode-jishi" / "verify-lsp.js"
     assert script.exists(), "编辑器自检脚本不在了？"
 

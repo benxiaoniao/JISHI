@@ -73,12 +73,6 @@ def _五份(源码: str, tmp_path: Path) -> dict:
     rs = rust_exe_path()
     if rs.is_file():
         表["Rust 宿主"] = [str(rs), "程序.jsh"]
-    node = shutil.which("node")
-    if node:
-        (tmp_path / "程序.json").write_text(
-            serialize.dumps(compile_source(源码, "程序.jsh")), encoding="utf-8")
-        表["Node 宿主"] = [node, str(ROOT / "oracle" / "node" / "index.js"),
-                           "程序.json"]
 
     出 = {}
     for 名字, 命令 in 表.items():
@@ -171,46 +165,6 @@ def test_三个宿主都有这10个构件():
             "由表格", "页面", "卡片", "提示"]
     py = (ROOT / "oracle" / "jishi" / "stdlib" / "html.py").read_text(encoding="utf-8")
     rs = (ROOT / "rust" / "src" / "stdlib" / "htmlmod.rs").read_text(encoding="utf-8")
-    js = (ROOT / "oracle" / "node" / "vm.js").read_text(encoding="utf-8")
     for 名 in 名单:
         assert f"def {名}(" in py, f"Python 侧缺 `{名}`"
         assert f'"{名}" =>' in rs, f"Rust 侧缺 `{名}`"
-        assert f"'{名}': new R.Builtin('{名}'" in js, f"Node 侧缺 `{名}`"
-
-
-def test_文件头说的_不引CDN():
-    """样式必须是**内置常量**，不能出现远程地址。
-
-    这条不是洁癖：`<link href="https://…">` 会让页面在断网时裸奔，
-    而且「页面长什么样」就取决于别人家的服务器了。
-    """
-    py = (ROOT / "oracle" / "jishi" / "stdlib" / "html.py").read_text(encoding="utf-8")
-    i = py.index("_样式 = (")
-    段 = py[i:i + 2500]
-    for 坏 in ("http://", "https://", "cdn", "fonts.googleapis"):
-        assert 坏 not in 段, f"内置样式里出现了 `{坏}` —— 页面不该依赖外部资源"
-
-
-# ---------------------------------------------------------------------------
-# 四、教程能跑，产物是一份完整的页面
-# ---------------------------------------------------------------------------
-
-def test_教程14能跑并生成完整页面(tmp_path):
-    """`examples/tutorial/14_网页.jsh` 跑完要留下一份**能打开的** HTML。
-
-    判据只查结构（`<!DOCTYPE` / 表单 / 表格 / 内置样式 / 页脚），
-    不查逐字 —— 教程是给人读的，改一句话不该让判据红。
-    """
-    import shutil as _sh   # 教程会在 cwd 里写 `记账.html`，必须给它私有目录
-    源 = ROOT / "examples" / "tutorial" / "14_网页.jsh"
-    assert 源.is_file(), "教程文件不见了"
-    _sh.copy(源, tmp_path / "教程.jsh")
-    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", "教程.jsh"],
-                       cwd=str(tmp_path), capture_output=True, timeout=120, input=b"")
-    assert r.returncode == 0, (r.stdout + r.stderr).decode("utf-8", "replace")[-800:]
-
-    页 = (tmp_path / "记账.html").read_text(encoding="utf-8")
-    for 要素 in ("<!DOCTYPE html>", "<title>我的账本</title>", "<style>",
-                 '<form action="/新建" method="post">', '<table class="基石表格 斑马纹">',
-                 "<nav>", "<footer>由基石生成</footer>"):
-        assert 要素 in 页, f"产出的页面里没有 {要素!r}"

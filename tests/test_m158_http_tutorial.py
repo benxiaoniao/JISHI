@@ -74,12 +74,6 @@ def _五份(源码: str, tmp_path: Path) -> dict:
     rs = rust_exe_path()
     if rs.is_file():
         表["Rust 宿主"] = [str(rs), "程序.jsh"]
-    node = shutil.which("node")
-    if node:
-        (tmp_path / "程序.json").write_text(
-            serialize.dumps(compile_source(源码, "程序.jsh")), encoding="utf-8")
-        表["Node 宿主"] = [node, str(ROOT / "oracle" / "node" / "index.js"),
-                           "程序.json"]
     出 = {}
     for 名字, 命令 in 表.items():
         r = subprocess.run(命令, cwd=str(tmp_path), capture_output=True,
@@ -178,22 +172,6 @@ def test_请求头名字统一小写且查询已解码(tmp_path):
 # ---------------------------------------------------------------------------
 # 二、平台边界：Node 明确报错（不是「算得不一样」）
 # ---------------------------------------------------------------------------
-
-@pytest.mark.skipif(not shutil.which("node"), reason="本机无 Node.js")
-def test_Node_宿主起不了服务时说明白(tmp_path):
-    from oracle.jishi import serialize
-    from oracle.jishi.compiler import compile_source
-
-    源码 = '导入 HTTP服务端\nHTTP服务端.启动(8000, 空, 1)\n'
-    (tmp_path / "程序.json").write_text(
-        serialize.dumps(compile_source(源码, "程序.jsh")), encoding="utf-8")
-    r = subprocess.run([shutil.which("node"),
-                        str(ROOT / "oracle" / "node" / "index.js"), "程序.json"],
-                       cwd=str(tmp_path), capture_output=True, timeout=60, input=b"")
-    文本 = (r.stdout + r.stderr).decode("utf-8", "replace")
-    assert "这个平台起不了 HTTP 服务端" in 文本, 文本
-    assert "同步" in 文本 and "事件循环" in 文本, f"没说清为什么：{文本!r}"
-
 
 # ---------------------------------------------------------------------------
 # 三、真起服务（进串行节：真占端口 + 等墙上时间）

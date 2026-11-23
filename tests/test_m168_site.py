@@ -136,9 +136,6 @@ def _引擎表(tmp: Path):
     rs = rust_exe_path()
     if rs.is_file():
         表["Rust 宿主"] = [str(rs), "程序.jsh"]
-    node = shutil.which("node")
-    if node:
-        表["Node 宿主"] = [node, str(ROOT / "oracle" / "node" / "index.js"), "程序.json"]
     return 表, serialize, compile_source
 
 
@@ -154,9 +151,6 @@ def _各引擎建站(tmp_path: Path):
         (家 / "驱动.py").write_text(
             CVM驱动.format(root=str(ROOT).replace("\\", "\\\\")),
             encoding="utf-8", newline="\n")
-        if 名 == "Node 宿主":
-            (家 / "程序.json").write_text(
-                serialize.dumps(compile_source(源码, "程序.jsh")), encoding="utf-8")
         r = subprocess.run(命令, cwd=str(家), capture_output=True, timeout=180,
                            input=b"")
         文 = (r.stdout + r.stderr).decode("utf-8", "replace")
@@ -321,29 +315,21 @@ def test_三宿主都有站点模块():
     「标准库宽度不一致」，不告诉你缺哪个函数）。
     """
     rust = (ROOT / "rust" / "src" / "stdlib" / "site.rs").read_text(encoding="utf-8")
-    node = (ROOT / "oracle" / "node" / "vm.js").read_text(encoding="utf-8")
     for 名 in 函数名:
         assert f'"{名}" =>' in rust, f"Rust 的 `站点` 少函数：{名}"
-        assert f"'{名}': new R.Builtin" in node, f"Node 的 `站点` 少函数：{名}"
     assert '("站点", site::module)' in (ROOT / "rust" / "src" / "stdlib" / "mod.rs"
                                        ).read_text(encoding="utf-8")
-    assert "'站点': new R.Module('站点', SITE_FUNCS)" in node
 
 
-def test_默认样式三宿主同源():
-    """CSS 常量不是**手抄**的：Node 那份必须与 Python 的 `默认样式` 逐字相同。
+def test_默认样式两宿主同源():
+    """CSS 常量不是**手抄**的：Rust 那份必须与 Python 的 `默认样式` 逐字相同。
 
     M166 的教训 —— 手抄 CSS 漏一个引号，页面照样能看，只有逐字比才抓得住。
-    这里直接从 JS 源码里把那个字符串抠出来与 Python 比，**不跑节点**也能查。
+    📌 M226：Node 宿主退役，那份 `const SITE_默认样式` 已随之删除。
     """
     import json
     import re
     from oracle.jishi.stdlib.站点 import 默认样式
-
-    node = (ROOT / "oracle" / "node" / "vm.js").read_text(encoding="utf-8")
-    m = re.search(r"const SITE_默认样式 = (\".*?\");\n", node, re.S)
-    assert m, "Node 的 vm.js 里找不到 `const SITE_默认样式 = \"…\";`"
-    assert json.loads(m.group(1)) == 默认样式, "Node 那份 CSS 与 Python 不一致"
 
     rust = (ROOT / "rust" / "src" / "stdlib" / "site.rs").read_text(encoding="utf-8")
     m2 = re.search(r'pub\(crate\) const 默认样式: &str = r#"(.*?)"#;', rust, re.S)

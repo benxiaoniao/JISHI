@@ -241,12 +241,6 @@ def test_转义_四执行器逐字一致():
     assert r.stdout.decode("utf-8", "replace") == _转义期望, "Rust VM 不一致"
 
     from shutil import which
-    if which("node") is None:
-        pytest.skip("环境里没有 node")
-    r2 = subprocess.run(["node", str(ROOT / "oracle" / "node" / "index.js"),
-                         str(bc)], capture_output=True, text=True, encoding="utf-8")
-    assert r2.returncode == 0, (r2.stderr or "")[:400]
-    assert r2.stdout == _转义期望, f"Node 不一致：\n{r2.stdout!r}"
 
 
 def test_转义_不许退回旧写法():
@@ -260,9 +254,6 @@ def test_转义_不许退回旧写法():
     assert 旧写法 not in rust, "Rust 的 py_repr 又回到「不转义」了"
     assert "fn 引用文本" in rust, "Rust 少了 引用文本（转义）"
 
-    js = (ROOT / "oracle" / "node" / "runtime.js").read_text(encoding="utf-8")
-    assert "function quoteText" in js, "Node 少了 quoteText（转义）"
-    assert "return quoteText(v)" in js, "Node 的 pyRepr 没走 quoteText"
 
 
 # ---------------------------------------------------------------------------

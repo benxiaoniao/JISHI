@@ -144,13 +144,6 @@ def test_四执行器一致():
     assert r.stdout.decode("utf-8", "replace") == _期望, "Rust VM 不一致"
 
     from shutil import which
-    if which("node") is None:
-        pytest.skip("环境里没有 node")
-    r2 = subprocess.run(["node", str(ROOT / "oracle" / "node" / "index.js"),
-                         str(bc)], capture_output=True, text=True,
-                        encoding="utf-8")
-    assert r2.returncode == 0, (r2.stderr or "")[:400]
-    assert r2.stdout == _期望, f"Node 不一致：\n{r2.stdout!r}"
 
 
 # ---------------------------------------------------------------------------

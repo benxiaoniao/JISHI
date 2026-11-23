@@ -140,15 +140,6 @@ def test_三宿主的窗口签名一致():
         得 = re.findall(r'"([^"]+)"', m.group(2))
         assert 得 == 参名, f"Rust 侧 `{名}` 的参数名对不上：{得}"
 
-    # ③ Node
-    js = (ROOT / "oracle" / "node" / "stdlib_sigs.js").read_text(encoding="utf-8")
-    窗口段 = js.split("'窗口': {", 1)[1].split("},", 1)[0]
-    for 名, (必填, 参名) in 期.items():
-        m = re.search(rf"'{名}': \[(\d+), \[([^\]]*)\]", 窗口段)
-        assert m, f"Node 签名表里没有 `窗口.{名}`"
-        assert int(m.group(1)) == 必填, f"Node 侧 `{名}` 必填个数不对：{m.group(1)}"
-        得 = re.findall(r"'([^']+)'", m.group(2))
-        assert 得 == 参名, f"Node 侧 `{名}` 的参数名对不上：{得}"
 
 
 # ---------------------------------------------------------------------------

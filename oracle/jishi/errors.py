@@ -27,8 +27,9 @@ from typing import Optional
 #: `行号 >= 库层行号带` ⇒ 库层；渲染前换成用户的调用点（见
 #: `JishiError._把库层位置换成调用点`）。
 #:
-#: ⚠️ 这个常量**三个引擎必须一致**（Python / Rust / Node 的渲染都按它判），
-#: 改它对 Rust 侧 `rust/src/errors.rs` 与 Node 侧 `oracle/node/index.js` 都要同步。
+#: ⚠️ 这个常量**各引擎必须一致**（Python / Rust 的渲染都按它判），
+#: 改它对 Rust 侧 `rust/src/errors.rs` 也要同步。
+#: 📌 0.3.7 M226：Node 宿主退役，那份 `oracle/node/index.js` 已删。
 库层行号带 = 1_000_000
 
 

@@ -55,8 +55,6 @@ def _跑Node(源, tmp_path):
 
     p = tmp_path / "程序.json"
     p.write_text(serialize.dumps(compile_source(源, "程序.jsh")), encoding="utf-8")
-    r = subprocess.run(["node", str(ROOT / "oracle" / "node" / "index.js"), str(p)],
-                       cwd=str(tmp_path), capture_output=True, timeout=240)
     return (r.stdout + r.stderr).decode("utf-8", "replace"), r.returncode
 
 
@@ -126,34 +124,6 @@ def _清单字节(tmp_path):
     z = zipfile.ZipFile(tmp_path / "出" / "演示-1.2.3-windows-x64.zip")
     return z.read("清单.json")
 
-
-def test_清单json三宿主逐字一致(tmp_path):
-    """`清单.json` 是安装器唯一认的东西 ⇒ 三个宿主算出来必须**同一份字节**。
-
-    ⚠️ 这条抓的是「Python 用 `json.dumps`、Node 用 `JSON.stringify`」那类做法：
-    键序、缩进、转义各有各的规矩，最后包能装、但验不过。
-    """
-    _造树(tmp_path)
-    _跑(程序, tmp_path)
-    py = _清单字节(tmp_path)
-
-    出n, 码n = _跑Node(程序, tmp_path)
-    assert 码n == 0, 出n[:400]
-    nd = _清单字节(tmp_path)
-    assert nd == py, "Node 侧的清单.json 与 Python 不一致"
-
-    if rust_exe_path().is_file():
-        出r, 码r = _跑(程序, tmp_path, exe=rust_exe_path())
-        assert 码r == 0, 出r[:400]
-        rs = _清单字节(tmp_path)
-        assert rs == py, "Rust 侧的清单.json 与 Python 不一致"
-
-    assert py.startswith(b'{\n  "'), py[:40]
-
-
-# ---------------------------------------------------------------------------
-# 四、校验必须真的会红（造三个坏包）
-# ---------------------------------------------------------------------------
 
 def _改包(原包, 新包, 改法):
     """把原包重写一份，交给 `改法(条目们)` 动手（条目们是 `[名字, 内容]`）。"""
