@@ -193,8 +193,9 @@ def test_无法识别的字符两边一致(ch):
     ("插值表达式没闭合", '令 s = `值 {甲`\n', "E0104"),
     ("插值字符串没结束", '令 s = `没有结尾\n', "E0104"),
     ("无法识别的字符", "令 a = § 1\n", "E0105"),
-    ("关键字粘连", "如果分数 > 60：\n    打印(1)\n", "E0106"),
-    ("关键字粘连（四字）", "否则如果分数 > 60：\n    打印(1)\n", "E0106"),
+    # 📌 M228（A3/D9）：`关键字粘连` 两条**移出词法** —— 判定挪到了解析器
+    # （词法器看不见位置，`令 函数值 = 1` 里的「函数值」是合法名字）。
+    # 它们现在由下面 `test_粘连不再由词法器报` + `test_粘连由解析器报` 钉住。
 ])
 def test_词法错误逐字一致(name, src, code):
     py, rs = _both(src, name)
@@ -378,3 +379,61 @@ def test_要_rust_却没有扩展时明确报错(monkeypatch):
 
 def _core():
     return T._core()
+
+
+# ---------------------------------------------------------------------------
+# 三·补（M228 / A3-D9）：粘连判定从**词法器**挪到**解析器**
+# ---------------------------------------------------------------------------
+#
+# 为什么要挪：粘连只可能在**语句开头**造成真歧义（那里本来该有关键字）。
+# `如果分数 > 60：` 是写错了，但 `令 函数值 = 1` / `返回 返回操作们` 里的名字
+# 是**合法的** —— 词法器看不见位置，只能把好名字一起拦下。
+#
+# 所以判据分两条：① 词法层两边都**不报**（token 仍然逐字一致）；
+# ② 解析层两边都报 `E0106`，文案说的还是「你是不是想写『如果 分数』」。
+
+@pytest.mark.parametrize("src", [
+    "如果分数 > 60：\n    打印(1)\n",
+    "否则如果分数 > 60：\n    打印(1)\n",
+    "令 函数值 = 1\n",
+    "返回 返回操作们\n",
+])
+def test_粘连不再由词法器报(src):
+    """词法层：两边都正常出 token（不再抛 E0106）。"""
+    py, rs = _both(src)
+    assert py[0] == "ok", f"Python 词法器还在报：{py}"
+    assert rs[0] == "ok", f"Rust 词法器还在报：{rs}"
+    assert py[1] == rs[1], f"token 序列不一致\npy={py[1]}\nrs={rs[1]}"
+
+
+@pytest.mark.parametrize("src,该报", [
+    ("如果分数 > 60：\n    打印(1)\n", True),
+    ("否则如果分数 > 60：\n    打印(1)\n", True),
+    ("令 函数值 = 1\n打印(函数值)\n", False),
+    ("函数 返回操作们()：\n    返回 1\n打印(返回操作们())\n", False),
+])
+def test_粘连由解析器判_两宿主一致(src, 该报, tmp_path):
+    """解析层：语句开头粘连报 `E0106`；别的位置的名字**照常能用**。"""
+    import subprocess
+    import sys
+
+    文件 = tmp_path / "探针.jsh"
+    文件.write_text(src, encoding="utf-8", newline="\n")
+    出 = {}
+    出["py"] = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(文件)],
+                              capture_output=True, cwd=str(ROOT), timeout=120)
+    exe = ROOT / "rust" / "target" / "release" / (
+        "jishi-rs.exe" if os.name == "nt" else "jishi-rs")
+    if not exe.is_file():
+        pytest.skip("没编 jishi-rs")
+    出["rs"] = subprocess.run([str(exe), str(文件)], capture_output=True, timeout=120)
+
+    文 = {k: (v.stdout + v.stderr).decode("utf-8", "replace") for k, v in 出.items()}
+    if 该报:
+        for 谁 in ("py", "rs"):
+            assert "E0106" in 文[谁], f"{谁} 没报 E0106：{文[谁][:400]}"
+            assert "你是不是想写" in 文[谁], f"{谁} 没给改法：{文[谁][:400]}"
+    else:
+        for 谁 in ("py", "rs"):
+            assert 出[谁].returncode == 0, f"{谁} 没跑通（合法名字被拦了）：{文[谁][:400]}"
+            assert "E0106" not in 文[谁], f"{谁} 还在报粘连：{文[谁][:400]}"

@@ -259,7 +259,11 @@ fn first_two(word: &str) -> Option<&str> {
 ///
 /// 调用前提：`word` 是纯 CJK **且不是关键字** —— 于是「以 kw 为前缀」
 /// 与「比 kw 长」等价，不必再数字数。
-fn glue_hit(word: &str) -> Option<&'static str> {
+///
+/// 📌 M228（A3/D9）：**报错的判定不在这里** —— 词法器只提供「这个词以哪个关键字
+/// 开头」，由解析器在**语句开头**决定报不报（`如果分数 > 60：` 报，
+/// `令 函数值 = 1` 不报）。
+pub(crate) fn glue_hit(word: &str) -> Option<&'static str> {
     if word.starts_with("否则如果") {
         return Some("否则如果");
     }
@@ -987,20 +991,13 @@ fn scan_word(raw: &[char], i0: usize, src: usize, line_no: usize)
             return Ok((Tok::new("KEYWORD", Value::Str(word_s), line_no, i0 + 1, i,
                                 Some(src)), i));
         }
-        // 以「多字关键字」为前缀 → 粘连错误
-        if let Some(kw) = glue_hit(&word_s) {
-            let klen = kw.chars().count();
-            let mut e = LexErr::new(
-                "E0106",
-                format!("「{}」被当成了一个名字，但它的开头是关键字「{}」",
-                        word_s, kw),
-                line_no, i0 + 1, Some(src));
-            e.hint = Some(format!(
-                "你是不是想写「{} {}」？关键字和后面的内容之间要留空格",
-                kw, &word_s[kw.len()..]));
-            e.underline = Some((i0 + 1, i0 + klen));
-            return Err(e);
-        }
+        // 🔴 M228（A3/D9）：这里**不再**报「粘连」—— 判定挪到解析器。
+        //
+        // 理由：粘连只可能在**语句开头**造成真歧义（那里本来该有关键字）。
+        // `如果分数 > 60：` 是写错了（解析器照旧报 E0106），但
+        // `令 函数值 = 1` / `返回 返回操作们` 里的名字是**合法的** ——
+        // 词法器看不见位置，只能把好名字一起拦下。
+        // 现在词法器只管切词，`parser::parse_statement` 在语句开头判（`glue_hit`）。
         return Ok((Tok::new("NAME", Value::Str(word_s), line_no, i0 + 1, i,
                             Some(src)), i));
     }

@@ -145,9 +145,20 @@ def test_tab_and_space_mixed_raises():
 # ---------------------------------------------------------------------------
 
 def test_keyword_glue_error():
+    """M228（A3/D9）：粘连**不再由词法器报** —— 判定挪到了**解析器**。
+
+    词法器看不见位置：`令 函数值 = 1` 里的「函数值」是**合法名字**，
+    词法器只能把好名字一起拦下。所以这里分两段验：
+    ① 词法照常切出 `如果分数` 这个 NAME（不抛错）；
+    ② 解析到语句开头时才报 E0106。
+    """
     src = "如果分数 > 60："
+    toks = tokenize(src)
+    assert (toks[0].type, toks[0].value) == ("NAME", "如果分数")
+
+    from oracle.jishi.parser import parse_source
     with pytest.raises(LexKeywordGlueError) as ei:
-        tokenize(src)
+        parse_source(src, "探针.jsh")
     assert "你是不是想写「如果 分数」" in ei.value.hint
 
 

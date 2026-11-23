@@ -815,6 +815,26 @@ impl Parser {
         }
 
         if t.kind == "NAME" {
+            // M228（A3/D9）：**语句开头**的名字若以多字关键字为前缀 ⇒ 粘连。
+            //
+            // 只在语句开头判：`令 函数值 = 1` 里的「函数值」在 `令` 之后，
+            // 走不到这里，所以是合法名字（这是本次放宽的关键）。
+            if let Value::Str(w) = &t.value {
+                if let Some(kw) = crate::tokenizer::glue_hit(w) {
+                    let klen = kw.chars().count();
+                    let mut e = self.err_tok(
+                        "E0106",
+                        format!("「{}」被当成了一个名字，但它的开头是关键字「{}」",
+                                w.as_str(), kw),
+                        Some(format!(
+                            "你是不是想写「{} {}」？关键字和后面的内容之间要留空格",
+                            kw, &w.as_str()[kw.len()..])),
+                        &t, None);
+                    // 下划线只标关键字那一段（不是整个词）
+                    e.underline = Some((t.col, t.col + klen - 1));
+                    return Err(e);
+                }
+            }
             // 容错解析（M7.5）：英文关键字/内建 → 中文建议
             self.check_en_word(&t, "stmt")?;
             if self.looks_like_assign() {

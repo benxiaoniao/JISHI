@@ -10,7 +10,7 @@ M51 建了标准库的漂移检测、M54 建了对象方法的，M55 才补上�
 本工具补的是**行为面**：
 
 1. **正常用法**：每个内建一条最小可跑程序，四个引擎（树遍历 / Python VM /
-   C VM / Node / Rust）输出**逐字节一致**；
+   C VM / Rust）输出**逐字节一致**；
 2. **参数个数错**：三个执行器同类同码，两个宿主首行一致；
 3. **Rust 崩溃扫描**：参数个数不对时 Rust **绝不能 panic** ——
    M55 之前它有 12 个内建会直接 `thread 'main' panicked`，那是宿主崩溃，
@@ -46,11 +46,9 @@ from oracle.jishi.interpreter import run_source as tree_run  # noqa: E402
 
 PY = sys.executable
 # ⚠️ 两个宿主的**可执行名都别写死**：
-#   · `node` 要经 PATH 查找（找不到时如实报「跳过」，别让它抛 FileNotFoundError
-#     把整个体检弄崩 —— 2026-09-30 在没装 node 的服务器上真崩过）；
+#   · **M226 起 Node 宿主退役**，只剩 Rust 一个跨语言宿主；
 #   · Rust 宿主的可执行**带不带 `.exe` 是分平台的**，写死 `.exe` 会让
 #     Linux / CI 上永远找不到它（哪怕真编译过）。
-NODE = shutil.which("node") or "node"
 _RUST_NAME = "jishi-rs.exe" if os.name == "nt" else "jishi-rs"
 RUST = str(ROOT / "rust" / "target" / "release" / _RUST_NAME)
 TMP = ROOT / ".tmp-probe" / "builtins"
@@ -210,8 +208,7 @@ def run_host(which: str, bc: Path, stdin: str = "") -> tuple[str, str]:
     ⚠️ stdin **一定给**（哪怕是空串）：`subprocess` 不给 stdin 时子进程会
     **继承父进程的终端**，遇上 `输入()` 就一起挂住。给空串 → 是管道且立刻 EOF。
     """
-    cmd = ([NODE, str(ROOT / "oracle" / "node" / "index.js"), str(bc)] if which == "Node"
-           else [RUST, "--load-bytecode", str(bc)])
+    cmd = [RUST, "--load-bytecode", str(bc)]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                            input=stdin, cwd=str(ROOT), timeout=120)
@@ -230,7 +227,7 @@ def run_host(which: str, bc: Path, stdin: str = "") -> tuple[str, str]:
 
 
 ENGINES_PY = ("树遍历", "Python VM", "C VM")
-ENGINES_HOST = ("Node", "Rust")
+ENGINES_HOST = ("Rust",)
 
 
 def check_one(name: str, src: str, stdin: str, fast: bool) -> dict:
@@ -310,7 +307,7 @@ def check_too_many(name: str, fast: bool) -> dict:
     而 **JS 的默认参数会把多给的实参静默忽略** ——
     `(prompt = '')` 收到 5 个实参也不报错，函数体照跑。这与「少给」是**同一类**
     「不报错的错答案」：M56 就是靠这一节又抓到 `输入` 的
-    （Python 报「需要 0 到 1 个参数，但传了 5 个」，Node 照跑）。
+    （Python 报「需要 0 到 1 个参数，但传了 5 个」，跨语言宿主照跑）。
     """
     src = f"打印({name}(1, 2, 3, 4, 5))\n"
     res: dict = {"name": name}
@@ -372,12 +369,10 @@ def main(argv: list[str]) -> int:
     #   · 没装 / 没编译 → **跳过**并如实报告 —— CI 上**故意不编译 Rust**，
     #     那是说好的事，不该因此判体检失败（它曾让 ubuntu 两个任务一直红）；
     #   · 存在但缺/多 → **失败** —— 那才是真问题（M55/M56 都抓到过）。
-    node_exe = NODE if os.path.isabs(NODE) else shutil.which(NODE)
     base = list(declared)
     name_bad: list[str] = []
     name_skip: list[str] = []
     for label, exe, cmd in (
-        ("Node", node_exe, [NODE, str(ROOT / "oracle" / "node" / "index.js"), "--dump-builtins"]),
         ("Rust", RUST, [RUST, "--dump-builtins"]),
     ):
         if not exe or not Path(exe).is_file():
@@ -404,7 +399,7 @@ def main(argv: list[str]) -> int:
 
     # ---- 2. 正常用法 ----
     print("【二】正常用法：每个内建一条最小程序，四引擎输出是否逐字节一致")
-    print(f"      {'内建':<10} {'三执行器':<10} {'Node/Rust':<12} {'跨语言':<8} 实际输出")
+    print(f"      {'内建':<10} {'三执行器':<10} {'Rust':<12} {'跨语言':<8} 实际输出")
     print("      " + "-" * 70)
     rows = []
     for name in public:

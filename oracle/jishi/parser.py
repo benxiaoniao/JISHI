@@ -15,6 +15,7 @@ from typing import Optional
 from . import ast_nodes as A
 from . import errors
 from .errors import (
+    LexKeywordGlueError,
     ParseBlockError,
     ParseMissingColonError,
     ParseMissingNameError,
@@ -24,7 +25,7 @@ from .errors import (
 #: 形参种类常量（M25）。从 opcodes 取，保证与 C 侧 JS_PARAM_* 同源；
 #: opcodes 是纯数据定义、不反向依赖 parser，没有循环导入风险。
 from .opcodes import ParamKind
-from .tokenizer import Token, frontend, tokenize
+from .tokenizer import Token, frontend, glue_prefix, tokenize
 
 #: 文本插值脱糖用的**内部保留名**（M40）。见 `_parse_fstring`：
 #: 用 `$` 前缀是因为词法器把 `$` 判成「无法识别的字符」，用户**写不出**这个名字，
@@ -345,12 +346,15 @@ class Parser:
                 tok=t, fix={"old": w, "new": _EN_BUILTIN_HINTS[w]})
 
     def _err(self, exc: type, msg: str = "", hint: Optional[str] = None,
-             tok: Optional[Token] = None, fix: Optional[dict] = None):
+             tok: Optional[Token] = None, fix: Optional[dict] = None,
+             underline: Optional[tuple] = None):
+        """报错。`underline` 不给就标整个 token —— 想只标一段（比如「粘连」时
+        只标关键字那几个字）就传 `(起, 止)`。"""
         t = tok or self._peek()
         raise exc(msg, line=t.line, col=t.col, source_line=t.source_line,
                   filename=self.filename,
-                  hint=hint, underline=(t.col, t.end_col), fix=fix).with_source(
-                      self.source_lines)
+                  hint=hint, underline=underline or (t.col, t.end_col), fix=fix
+                  ).with_source(self.source_lines)
 
     def _expect_op(self, op: str):
         if self._at_op(op):
@@ -630,6 +634,18 @@ class Parser:
                       f"不能以关键字「{kw}」开头写这句话", tok=t)
 
         if t.type == "NAME":
+            # M228（A3/D9）：**语句开头**的名字若以多字关键字为前缀 ⇒ 粘连。
+            #
+            # 只在语句开头判：`令 函数值 = 1` 里的「函数值」在 `令` 之后，
+            # 走不到这里，所以是合法名字（这是本次放宽的关键）。
+            _kw = glue_prefix(str(t.value))
+            if _kw:
+                self._err(
+                    LexKeywordGlueError,
+                    f"「{t.value}」被当成了一个名字，但它的开头是关键字「{_kw}」",
+                    hint=(f"你是不是想写「{_kw} {str(t.value)[len(_kw):]}」？"
+                          f"关键字和后面的内容之间要留空格"),
+                    tok=t, underline=(t.col, t.col + len(_kw) - 1))
             # 容错解析（M7.5）：英文关键字/内建 → 中文建议
             self._check_en_word(t, mode="stmt")
             # 赋值（含 a[0] = v、a.b = v） or 表达式语句

@@ -5588,8 +5588,26 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     // M211：`二分查找` / `二分插入点`（列表必须**已升序**，见文档）。
     // ⚠️ 不做「排序检查」：查一遍就是 O(n)，二分的意思（O(log n)）当场没了。
     //    写进说明里，比悄悄多花一个数量级更诚实。
-    m.insert("二分查找".to_string(), crate::builtin("二分查找", |args, _vm| {
-        let (l, 目标, 起, 终) = 二分参数("二分查找", args)?;
+    m.insert("二分查找".to_string(), crate::builtin("二分查找", |args, vm| {
+        let (l, 目标, 起, 终, 键) = 二分参数("二分查找", args)?;
+        // M228（N5）：给了键函数就按「键(元素)」比，列表要按这个键升序
+        if let Some(键) = 键 {
+            // ⚠️ **目标不取键**：目标本身就是「键值」（`bisect(key=…)` 的口径）——
+            // 按「分」查就传 20，不是传一条记录。键函数只作用于**列表元素**。
+            let 目标键 = 目标;
+            let i = 二分左界带键(&l, &目标键, 起, 终, &键, vm)?;
+            if i >= 终 {
+                return Ok(Val::Int(crate::jint::JInt::new(-1)));
+            }
+            let 元素 = { l.borrow()[i].clone() };
+            let 键值 = vm.call_value(键, vec![元素])?;
+            let 命中 = cmp_vals(&键值, &目标键) == std::cmp::Ordering::Equal;
+            return Ok(Val::Int(crate::jint::JInt::new(if 命中 {
+                i as i128
+            } else {
+                -1
+            })));
+        }
         let 项 = l.borrow();
         let i = 二分左界(&项[..], &目标, 起, 终)?;
         // 命中判定用 `cmp_vals`（不是 `==`）：`1` 与 `1.0` 在基石里是相等的
@@ -5599,8 +5617,13 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
             -1
         })))
     }));
-    m.insert("二分插入点".to_string(), crate::builtin("二分插入点", |args, _vm| {
-        let (l, 目标, 起, 终) = 二分参数("二分插入点", args)?;
+    m.insert("二分插入点".to_string(), crate::builtin("二分插入点", |args, vm| {
+        let (l, 目标, 起, 终, 键) = 二分参数("二分插入点", args)?;
+        if let Some(键) = 键 {
+            let 目标键 = 目标;      // 同上：目标是键值，不取键
+            let i = 二分左界带键(&l, &目标键, 起, 终, &键, vm)?;
+            return Ok(Val::Int(crate::jint::JInt::new(i as i128)));
+        }
         let 项 = l.borrow();
         Ok(Val::Int(crate::jint::JInt::new(二分左界(&项[..], &目标, 起, 终)? as i128)))
     }));
@@ -7737,14 +7760,17 @@ fn 二分左界(项: &[Val], 目标: &Val, 起点: usize, 终点: usize)
     Ok(lo)
 }
 
-/// 把 `二分查找` / `二分插入点` 的实参摊成 `(列表, 目标, 起点, 终点)`。
+/// 把 `二分查找` / `二分插入点` 的实参摊成 `(列表, 目标, 起点, 终点, 键)`。
 ///
 /// 全在第 4 个参数都给了才算「给了终点」—— `空` 也算没给（`终点=空` 是默认值）。
-fn 二分参数(name: &str, args: &[Val]) -> Result<(JList, Val, usize, usize), JishiError> {
-    if args.len() < 2 || args.len() > 4 {
+/// 📌 M228（N5）：第 5 个参数 `键` 是**取键函数**（`键(元素)` → 可比较的值），
+/// 列表必须按**这个键**升序。不写就是拿元素本身比（老行为）。
+fn 二分参数(name: &str, args: &[Val])
+    -> Result<(JList, Val, usize, usize, Option<Val>), JishiError> {
+    if args.len() < 2 || args.len() > 5 {
         return Err(err("类型错误", format!(
-            "「{name}」需要 2 到 4 个参数（有序列表, 目标, 起点=0, 终点=空），\
-             实际给了 {} 个", args.len())));
+            "「{name}」需要 2 到 5 个参数\
+             （有序列表, 目标, 起点=0, 终点=空, 键=空），实际给了 {} 个", args.len())));
     }
     let l = match &args[0] {
         Val::List(l) => l.clone(),
@@ -7768,7 +7794,43 @@ fn 二分参数(name: &str, args: &[Val]) -> Result<(JList, Val, usize, usize), 
         Some(Val::None_) | None => n as usize,
         Some(v) => 夹(v)?,
     };
-    Ok((l, args[1].clone(), 起, 终))
+    // M228（N5）：第 5 个参数是取键函数；`空` = 没给（与「终点=空」同一个口径）
+    let 键 = match args.get(4) {
+        Some(Val::None_) | None => None,
+        Some(v) => Some(v.clone()),
+    };
+    Ok((l, args[1].clone(), 起, 终, 键))
+}
+
+/// 带「键函数」的二分左界（M228 / N5）。
+///
+/// 🔴 **每次比较都短借用列表**（`l.borrow()[mid].clone()`），不是整段借：
+/// 键函数是**用户代码**，它完全可能在过程中改这个列表 —— 长借用会让它撞
+/// `RefCell` 重入（panic）。短借用只付一次 `Val` 克隆（24 字节 + 引用计数）。
+fn 二分左界带键(
+    l: &JList,
+    目标键: &Val,
+    起点: usize,
+    终点: usize,
+    键: &Val,
+    vm: &mut dyn BuiltinHost,
+) -> Result<usize, JishiError> {
+    // 目标的键由**调用方**算一次传进来（二分里目标不变，算两遍纯浪费）
+    let (mut lo, mut hi) = (起点, 终点);
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let 元素 = { l.borrow()[mid].clone() };
+        let 键值 = vm.call_value(键.clone(), vec![元素])?;
+        let ord = 键值
+            .partial_cmp(目标键)
+            .ok_or_else(|| err("类型错误", cmp_type_msg(&键值, 目标键)))?;
+        if ord == std::cmp::Ordering::Less {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    Ok(lo)
 }
 
 /// 形参绑定里**与执行器无关**的那一半：把实参 + 关键字实参排到形参位置上，

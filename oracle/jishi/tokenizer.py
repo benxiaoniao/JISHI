@@ -101,6 +101,28 @@ KEYWORDS: dict[str, str] = {
 _GLUE_CHECK_SKIP = frozenset({"不是", "不在", "是", "用", "匹配", "枚举", "全局"})
 
 
+def glue_prefix(word: str) -> "str | None":
+    """`word` 以哪个**多字关键字**为前缀（`_GLUE_CHECK_SKIP` 里的不算）。
+
+    单字关键字（类/当/真/空/非/令…）与海量常用词冲突（类型/当时/真实/空间/命令…），
+    不做前缀检查；只有多字关键字的粘连才是用户真正常犯的错。
+
+    📌 **M228（A3/D9）：报不报不在这里决定** —— 这个词法器函数只回答「以哪个
+    关键字开头」，由 `Parser._parse_statement` 在**语句开头**决定报不报：
+    `如果分数 > 60：` 报 E0106，而 `令 函数值 = 1` 是合法名字。
+    """
+    for kw in _KEYWORDS_LONGEST_FIRST:
+        if kw in _GLUE_CHECK_SKIP:
+            continue
+        if len(kw) >= 2 and word.startswith(kw) and len(word) > len(kw):
+            return kw
+    return None
+
+
+#: 按长度降序的关键字表（粘连检查用；`glue_prefix` 每次调用都排序太浪费）。
+_KEYWORDS_LONGEST_FIRST = sorted(KEYWORDS, key=len, reverse=True)
+
+
 # 多字符运算符（按长度降序匹配）
 OPERATORS = [
     "**", "//", "==", "!=", "<=", ">=", "+=", "-=", "*=", "/=", "//=", "%=", "**=",
@@ -690,21 +712,13 @@ class Tokenizer:
         if pure_cjk:
             if word in KEYWORDS:
                 return Token("KEYWORD", word, line_no, start + 1, i, raw), i
-            # 以「多字关键字」为前缀 → 粘连错误。
-            # 单字关键字（类/当/真/空/非/令…）与海量常用词冲突（类型/当时/真实/
-            # 空间/命令…），不能做前缀检查；只有多字关键字（如果/循环/导入…）
-            # 的粘连才是用户真正常犯的错，误报率低、提示价值高。
-            for kw in sorted(KEYWORDS, key=len, reverse=True):
-                if kw in _GLUE_CHECK_SKIP:
-                    continue
-                if len(kw) >= 2 and word.startswith(kw) and len(word) > len(kw):
-                    raise LexKeywordGlueError(
-                        f"「{word}」被当成了一个名字，但它的开头是关键字「{kw}」",
-                        line=line_no, col=start + 1, source_line=raw,
-                        filename=self.filename,
-                        hint=f"你是不是想写「{kw} {word[len(kw):]}」？关键字和后面的内容之间要留空格",
-                        underline=(start + 1, start + len(kw)),
-                    ).with_source(self.lines)
+            # 🔴 M228（A3/D9）：这里**不再**报「粘连」—— 判定挪到解析器。
+            #
+            # 理由：粘连只可能在**语句开头**造成真歧义（那里本来该有关键字）。
+            # `如果分数 > 60：` 是写错了（解析器照旧报 E0106），但
+            # `令 函数值 = 1` / `返回 返回操作们` 里的名字是**合法的** ——
+            # 词法器看不见位置，只能把好名字一起拦下。
+            # 现在词法器只管切词，`Parser._parse_statement` 在语句开头调 `glue_prefix`。
             return Token("NAME", word, line_no, start + 1, i, raw), i
 
         # 混合词 / ASCII 词：一律标识符

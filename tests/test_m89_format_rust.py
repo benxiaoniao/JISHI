@@ -242,19 +242,31 @@ def test_独立判据_保留注释与字符串原样(tmp_path: Path):
 
 
 @_need_rust
-def test_独立判据_多字符下划线():
+def test_独立判据_多字符下划线(tmp_path: Path):
     """词法错的**多字符下划线**（`~^`）—— 与 Python 同形。
 
     ⚠️ 这条钉的是 `render_error_with` 对 `underline` 的处理：2026-10-05 之前
     宿主**没有**这个字段，渲染出来只有一个 `^`（少几个 `~`）。
+
+    📌 M228（A3/D9）：**粘连不再由词法器报**，而 `格式化` 只走词法层
+    （token 重排，不建 AST）⇒ 粘连的源码现在**原样格式化通过**（rc=0）——
+    格式化器不替语法器报错。报 E0106 的责任在「跑源码」那条管线，
+    下半段继续用它钉多字符下划线（`~^` 一个不少）。
     """
     src = "如果分数 > 60：\n    打印(1)\n"
     out, err, rc = _rust_run("格式化", "--stdin", stdin=src.encode("utf-8"))
+    assert rc == 0 and "E0106" not in err, (out, err, rc)
+    assert out.strip().startswith("如果分数 > 60："), out  # 原样重排，不替语法器报错
+
+    # 跑源码那条管线：E0106 照报，`~^` 下划线只标关键字那两个字
+    f = tmp_path / "粘连.jsh"
+    f.write_text(src, encoding="utf-8")
+    out, err, rc = _rust_run(str(f))
     assert rc == 1 and out == ""
     assert err == (
         "错误 E0106：关键字与后面的内容粘连了（「如果分数」被当成了一个名字，"
         "但它的开头是关键字「如果」）\n"
-        "  ┌─ <stdin>:1:1\n"
+        "  ┌─ " + str(f) + ":1:1\n"
         "  │\n"
         "  1 │ 如果分数 > 60：\n"
         "    │ ~^\n"
