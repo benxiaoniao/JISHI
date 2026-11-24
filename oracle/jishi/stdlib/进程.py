@@ -23,6 +23,20 @@
 
 一律 UTF-8（`errors="replace"`）：子进程的字节不是合法 UTF-8 时给替换符，
 **不抛错**（否则一句乱码输出就能把整个会话打断）。
+
+## 按行 vs 按字节（M230）
+
+| 要读什么 | 用哪个 | 什么时候用 |
+|---|---|---|
+| **一行一行**的文本输出 | `读行` / `读错误行` | 普通命令行程序（`git`、`npm`、自写的脚本）：它们按行 flush |
+| **一帧一帧**的分帧协议 | `读块` / `读可用` | LSP / DAP（`Content-Length: N\r\n\r\n{…}`）、自己定长分帧的协议 |
+
+🔴 **为什么要分两种**：`读行` 把 `\n` 当分隔符 —— 而分帧协议的**正文里完全可能
+有 `\n`**。按行读会把一帧切碎，症状是「报文解析到一半就报格式错」，而日志里
+看着是完整的（因为日志按行打）。
+
+⚠️ **一个句柄只用一种读法**：两个视图**独立消费**（同一段字节会被两边各看到一次），
+混用不会崩，但你会重复读到同一段输出。
 """
 
 from __future__ import annotations
@@ -31,8 +45,10 @@ import os as _py_os
 import queue as _py_queue
 import subprocess as _py_subprocess
 import threading as _py_threading
+import time as _py_time
 
 from ..errors import RunError, RunTypeError, RunValueError
+from ..runtime import JishiBytes
 from ..runtime import type_name as _类型名
 
 __all__ = [
@@ -40,6 +56,8 @@ __all__ = [
     "在运行", "终止", "等待", "退出码",
     # M217 顺带补的一对（数据库的 `.lock` 要用：记属主、强杀之后回收陈旧锁）
     "进程号", "存在",
+    # M230（L-13）：字节级读（LSP / DAP 的 Content-Length 分帧要用）
+    "读块", "读可用",
 ]
 
 
@@ -55,9 +73,13 @@ class 进程句柄:
         self._错队: _py_queue.Queue = _py_queue.Queue()
         self._出完 = _py_threading.Event()
         self._错完 = _py_threading.Event()
+        #: **M230**：stdout 的**原始字节**（`读块` / `读可用` 用）。
+        #: 与 `_出队` 是两个**独立**视图：混用不会崩，但同一段输出会两边各看到一次。
+        self._字节箱 = _字节箱()
         # 🔴 守护线程：主程序退出时**不等**它们。子进程（或它的孙进程）攥着
         #    管道不放时，非守护线程会让解释器在退出时干等 —— 就是那个 8.4 秒。
-        _py_threading.Thread(target=_泵, args=(popen.stdout, self._出队, self._出完),
+        _py_threading.Thread(target=_泵,
+                             args=(popen.stdout, self._出队, self._出完, self._字节箱),
                              daemon=True).start()
         if popen.stderr is not None:
             _py_threading.Thread(target=_泵,
@@ -72,24 +94,149 @@ class 进程句柄:
         return "<进程 对象>"
 
 
-def _泵(流, 队, 完):
-    """把管道里的行推进队列（后台线程）。EOF 后置 `完`。
+class _字节箱:
+    """**M230**：stdout 的原始字节（`读块` / `读可用` 的视图）。
+
+    🔴 **一启动就攒**（不是「第一次读块才开」）。为什么：泵线程从 `启动` 那一刻
+    就在读，而 `读块` 是用户后面才调的 —— 懒开的话，那之前到达的字节已经被
+    **读走并丢掉**了（M230 实测：直连 `jishi lsp` 收到的永远是空字节）。
+    代价是所有子进程输出多存一份字节副本；对「交互式子进程」这个量级可以接受。
+    """
+
+    def __init__(self):
+        self._锁 = _py_threading.Lock()
+        self._信号 = _py_threading.Condition(self._锁)
+        self._buf = bytearray()
+        self.要 = True
+        self.完 = False
+
+    def 加(self, 块: bytes):
+        with self._锁:
+            if not self.要:
+                return
+            self._buf.extend(块)
+            self._信号.notify_all()
+
+    def 收工(self):
+        with self._锁:
+            self.完 = True
+            self._信号.notify_all()
+
+    def 开(self):
+        with self._锁:
+            self.要 = True
+
+    def 可用(self) -> int:
+        with self._锁:
+            return len(self._buf)
+
+    def 取(self, 最多, 超时):
+        """取最多 `最多` 字节；超时 / 已结束 ⇒ `b""`（**不抛错**）。"""
+        with self._锁:
+            def 有货():
+                if not self._buf:
+                    return None
+                块 = bytes(self._buf[:最多])
+                del self._buf[:最多]
+                return 块
+
+            if 超时 is None:
+                while True:
+                    got = 有货()
+                    if got is not None:
+                        return got
+                    if self.完:
+                        return b""
+                    self._信号.wait()
+            截止 = _py_time.monotonic() + 超时
+            while True:
+                got = 有货()
+                if got is not None:
+                    return got
+                if self.完:
+                    return b""
+                剩 = 截止 - _py_time.monotonic()
+                if 剩 <= 0:
+                    return b""
+                self._信号.wait(剩)
+
+
+def 读块(句柄, 最多=65536, 超时=None):
+    """**M230**：读最多这么多**字节**（LSP / DAP 的 `Content-Length` 分帧要用）。
+
+    🔴 要这个的理由：LSP / DAP 的报文是 `Content-Length: 42\r\n\r\n{…}` ——
+    正文里一旦有 `\n`，按行读就会被切碎。磐石 IDE 之前为此在中间挂了个 Node 的
+    `lsp行桥.js`，这一条做完那个桥可以删。
+
+    ⚠️ **超时给空字节，不抛错** —— 与 `网络.获取流` 同一个口径：读超时是
+    「这一拍没东西」，不是「出错了」。
+    """
+    h = _句柄(句柄, "读块")
+    if isinstance(最多, bool) or not isinstance(最多, int) or 最多 <= 0:
+        raise RunTypeError(
+            f"「读块」的第二个参数（最多几个字节）要正整数，给的是「{_类名(最多)}」")
+    h._字节箱.开()
+    # ⚠️ 包成 `JishiBytes`（与 `文件.读字节` 一致）：直接回原生 `bytes` 的话
+    # `类型()` 会说「bytes」，与 Rust 侧的「字节」对不上（M230 实测踩到）。
+    return JishiBytes(h._字节箱.取(min(int(最多), 64 * 1024 * 1024), _超时(超时, "读块")))
+
+
+def 读可用(句柄) -> int:
+    """**M230**：现在有多少字节可读（**不阻塞**）。
+
+    用途：写「读一批、处理一批、没了就干别的」那种循环，不必靠超时去探。
+    """
+    h = _句柄(句柄, "读可用")
+    h._字节箱.开()
+    return h._字节箱.可用()
+
+
+def _泵(流, 队, 完, 字节箱=None):
+    """把管道里的**字节**读进来（后台线程）：切行给 `队`，原样存进 `字节箱`。
+
+    📌 **M230**：以前只会按行（`readline`），于是 LSP / DAP 那种
+    「`Content-Length: 42\r\n\r\n{…}`」的帧没法精确收 —— 正文里一旦有 `\n`
+    就会被切碎。现在同一遍读里做两件事：
+
+    - **切行**（`队`）→ `读行` 照旧；
+    - **原样字节**（`字节箱`）→ `读块` / `读可用`（只在第一次 `读块` 之后才攒，
+      所以普通用途一个字节都不多存）。
 
     ⚠️ 读的是**字节**再自己解码：文本模式下的 `readline` 遇到畸形 UTF-8
     会抛 `UnicodeDecodeError`，那个异常在后台线程里没人接 —— 线程直接死掉，
     队列就永远等不到 `完`，`读行(超时=省略)` 会挂到天荒地老。
     """
+    尾 = b""
     try:
-        for 原始 in iter(流.readline, b""):
-            队.put(原始.decode("utf-8", "replace").rstrip("\r\n"))
+        while True:
+            块 = 流.read(65536)
+            if not 块:
+                break
+            if 字节箱 is not None:
+                字节箱.加(块)
+            尾 += 块
+            while True:
+                位 = 尾.find(b"\n")
+                if 位 < 0:
+                    break
+                行, 尾 = 尾[:位], 尾[位 + 1:]
+                队.put(行.rstrip(b"\r").decode("utf-8", "replace"))
     except (ValueError, OSError):
         pass
     finally:
+        # 最后一段没有换行的内容也是内容（子进程退出前打的那句往往就漏在这里）
+        if 尾:
+            try:
+                队.put(尾.rstrip(b"\r").decode("utf-8", "replace"))
+            except Exception:                                      # noqa: BLE001
+                pass
         try:
             流.close()
         except OSError:
             pass
         完.set()
+        if 字节箱 is not None:
+            字节箱.收工()
 
 
 def _句柄(值, 名) -> 进程句柄:

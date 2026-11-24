@@ -263,7 +263,7 @@ def test_独立判据_lang_spec结构与关键事实():
     # M222：`窗口.最近文件` / `窗口.徽标` ⇒ 52 模块 / 597 函数。
     # M223：`窗口.拖动` / `窗口.设主题` / `浏览器.匹配` ⇒ 52 模块 / 600 函数。
     # M229：`浏览器` 加 5 个元素查询、`窗口` 加 `送宿主` ⇒ **52 模块 / 607 函数**。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 607
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 609
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。

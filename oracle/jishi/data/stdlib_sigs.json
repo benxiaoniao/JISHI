@@ -48,7 +48,7 @@
   "stdlib/网络.py": "78603b74fb256c23",
   "stdlib/表格.py": "57ac9ff4c40816c1",
   "stdlib/路径.py": "9f61aeadcd0b7c2e",
-  "stdlib/进程.py": "afc54a70e6f2d837",
+  "stdlib/进程.py": "23b89f161c828f31",
   "stdlib/迭代.py": "c58a89de2c78c065",
   "stdlib/通知.py": "ee0e8701af077a5b",
   "stdlib/配置.py": "737f6e55b0fa6904",
@@ -3123,6 +3123,16 @@
   {
    "module": "进程",
    "functions": [
+    {
+     "name": "读块",
+     "sig": "读块(句柄, 最多=65536, 超时=空)",
+     "doc": "**M230**：读最多这么多**字节**（LSP / DAP 的 `Content-Length` 分帧要用）。"
+    },
+    {
+     "name": "读可用",
+     "sig": "读可用(句柄)",
+     "doc": "**M230**：现在有多少字节可读（**不阻塞**）。"
+    },
     {
      "name": "启动",
      "sig": "启动(命令, 参数们=空, 选项=空)",
