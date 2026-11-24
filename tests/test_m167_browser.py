@@ -175,13 +175,13 @@ const SRC = `导入 浏览器
 
   // ② 事件链路：点两下（走的是 DOM 事件 → 回调 → call，与浏览器同一条路）
   const btn = els.get("#按钮");
-  出.监听 = (btn.__hs["点击"] || []).length;
-  btn.fire("点击");
+  出.监听 = (btn.__hs["click"] || []).length;   // M229：中文名在这里已映射成 click
+  btn.fire("click");   // M229：中文名映射成 DOM 英文名后再挂监听
   出.点.push(els.get("#显示").textContent);
-  btn.fire("点击");
+  btn.fire("click");   // M229：中文名映射成 DOM 英文名后再挂监听
   出.点.push(els.get("#显示").textContent);
   // ③ 幂等：点两下之后监听数不该变（每次回调都会重跑顶层那句 `绑定`）
-  出.监听2 = (btn.__hs["点击"] || []).length;
+  出.监听2 = (btn.__hs["click"] || []).length;
 
   // ④ 类操作
   j.run('导入 浏览器\n浏览器.加类("#盒子", "亮")\n浏览器.切类("#盒子", "亮")\n');
@@ -289,9 +289,9 @@ const store = { getItem: (k) => (kv.has(k) ? kv.get(k) : null),
   出.两条 = kv.get("待办");
   出.清单 = els.get("#清单").innerHTML;
   // 点第一行的【删】：模拟点到的那个 button（带 data-序）
-  els.get("#清单").fire("点击", { dataset: { "序": "0" } });
+  els.get("#清单").fire("click", { dataset: { "序": "0" }, target: { dataset: { "序": "0" } } });
   出.删后 = kv.get("待办");
-  出.监听 = (els.get("#清单").__hs["点击"] || []).length;
+  出.监听 = (els.get("#清单").__hs["click"] || []).length;
   console.log(JSON.stringify(出));
 })().catch((e) => { console.error(String(e && e.stack || e)); process.exit(1); });
 '''

@@ -1451,7 +1451,7 @@ fn 事件名(v: &Val) -> Result<String, crate::JishiError> {
         // M221：`托盘单击` / `托盘双击`（细分）、`关闭前`（询问关闭）、`通知点击`。
         // `托盘` 是 M185 的老名字，继续有效（= 单击），别删 —— 存量程序在用它。
         "菜单" | "拖放" | "托盘" | "托盘单击" | "托盘双击" | "再次启动" | "调用"
-        | "关闭前" | "通知点击" => Ok(名),
+        | "关闭前" | "通知点击" | "页面消息" => Ok(名),
         other => Err(err_with_hint(
             "值错误",
             format!("没有「{other}」这个宿主事件"),
@@ -1485,12 +1485,80 @@ fn 当(事件: &str, 函数: &str) -> Result<bool, crate::JishiError> {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        // 原生构建里这两个参数都用不上（这条分支只会报错），但报错文案要指名道姓
         let _ = (事件, 函数);
+        // **M229**：宿主侧唯一能接的事件是「页面消息」——
+        // 别的事件都要**页面**去接（脚本这会儿正阻塞在 `窗口.等` 上）。
         Err(err_with_hint(
             "运行期错误",
             "「窗口.当」只在**页面里**有效 —— 脚本这会儿正阻塞在 窗口.等 上，接不了事件",
             "把 窗口.当 写进页面的基石代码里".into(),
+        ))
+    }
+}
+
+/// **M229**：页面 → 宿主（`窗口.送宿主(文本)`）。**只有页面里能调**。
+///
+/// ⚠️ 没有宿主时（比如直接用浏览器打开页面）`abi3::发` 返回 0 ⇒ 这里给 `假`，
+/// **不报错**：这是「这条路径上没有宿主」，不是用户写错了。
+fn 送宿主(文: &str) -> Result<bool, crate::JishiError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        return Ok(crate::abi3::发("页面消息", 文) > 0);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = 文;
+        Err(err_with_hint(
+            "运行期错误",
+            "「窗口.送宿主」只在**页面里**有效 —— 宿主脚本直接调函数就行，不用给自己发消息",
+            "把 `窗口.送宿主(… )` 写进页面的基石代码；宿主里要收就写 \
+             `窗口.当(\"页面消息\", 函数(文本)：… )`"
+                .into(),
+        ))
+    }
+}
+
+/// **M229**：宿主侧的 `窗口.当("页面消息", 函数)` —— 参数必须是**函数本身**。
+///
+/// 🔴 为什么宿主侧不能像页面那样传名字字符串：宿主的函数名→函数值要靠作用域查，
+/// 而这里拿到的是一个 `Val`（已经求值过）。给字符串时报错并说清怎么改，
+/// 不要静默失败（那会变成「页面上点了没反应」）。
+fn 当页面消息(f: crate::Val) -> Result<bool, crate::JishiError> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        #[cfg(feature = "native-window")]
+        {
+            if !matches!(f, crate::Val::Func(_)) {
+                return Err(err_with_hint(
+                    "类型错误",
+                    format!("「窗口.当(\"页面消息\", …)」的第二个参数要给**函数**，给的是{}",
+                            crate::type_label(&f)),
+                    "宿主里写 `窗口.当(\"页面消息\", 函数(文本)：… )`（函数值），\
+                     不要给名字字符串 —— 页面里才用名字"
+                        .into(),
+                ));
+            }
+            crate::native_window::设页面消息回调(f);
+            Ok(true)
+        }
+        #[cfg(not(feature = "native-window"))]
+        {
+            let _ = f;
+            Err(err_with_hint(
+                "运行期错误",
+                "这个构建没有原生窗口（`native-window` 特性没开）",
+                "用发行版（自带原生窗口），或 `cargo build --features native-window`".into(),
+            ))
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = f;
+        Err(err_with_hint(
+            "运行期错误",
+            "「页面消息」是**宿主**接的事件 —— 页面里不能给自己发消息",
+            "页面里改用 `窗口.送宿主(文本)` 往外发；`窗口.当(\"页面消息\", …)` 写在宿主脚本里"
+                .into(),
         ))
     }
 }
@@ -1798,8 +1866,29 @@ pub(crate) fn module() -> HashMap<String, Val> {
         "当" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("当", args, 2, 2)?;
             let 事件 = 事件名(&args[0])?;
+            // **M229**：`页面消息` 是**宿主侧**的事件（页面自己给自己发消息没有意义）——
+            // 所以它的第二个参数收**函数值**，其余事件名照旧收名字字符串。
+            if 事件 == "页面消息" {
+                return Ok(Val::Bool(当页面消息(args[1].clone())?));
+            }
             let 函数 = 当函数名(&args[1])?;
             Ok(Val::Bool(当(&事件, &函数)?))
+        },
+        // **M229**：页面 → 宿主（`窗口.送宿主(文本)`）。
+        // 载荷**原样**送出去 —— 不要求是 JSON，也不做任何改写。
+        "送宿主" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("送宿主", args, 1, 1)?;
+            let 文 = match &args[0] {
+                Val::Str(s) => s.to_string(),
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「窗口.送宿主」的参数要文本，给的是{}",
+                                crate::type_label(other)),
+                    ))
+                }
+            };
+            Ok(Val::Bool(送宿主(&文)?))
         },
         "全部关闭" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need_range("全部关闭", args, 0, 0)?;

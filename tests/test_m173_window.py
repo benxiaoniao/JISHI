@@ -289,7 +289,7 @@ const store = { getItem: (k) => (kv.has(k) ? kv.get(k) : null),
   const 键盘 = els.get("#键盘");
   出.监听 = (键盘.__hs || 键盘.dataset ? 0 : 0) || 0;
   j.run(SRC);                    // 每次事件都会重跑整个程序，这里手动跑一次
-  键盘.fire("点击", { dataset: { "序": "5" } });
+  键盘.fire("click", { dataset: { "序": "5" }, target: { dataset: { "序": "5" } } });  // M229：中文名已映射成 DOM 英文名
   出.点 = els.get("#显示").textContent;
   console.log(JSON.stringify(出));
 })().catch((e) => { console.error(String(e && e.stack || e)); process.exit(1); });

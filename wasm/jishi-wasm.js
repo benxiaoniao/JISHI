@@ -297,6 +297,14 @@
         if (有ipc) { ipc.postMessage(JSON.stringify({ op: "关闭" })); return 1; }
         if (typeof root.close === "function") { root.close(); return 1; }
         return 0;
+      // M229：页面 → 宿主（`窗口.送宿主(文本)`）。**原样往上传**：
+      // 不猜是不是 JSON，也不改写 —— 页面想传什么就传什么（宿主那边收到的
+      // 就是这段文本）。
+      // 没有 IPC（比如直接用浏览器打开页面）= 这条路径上没宿主 ⇒ 返回 0，
+      // 由 Rust 侧如实给「假」，不报错。
+      case "页面消息":
+        if (有ipc) { ipc.postMessage(JSON.stringify({ op: "页面消息", arg: 参数 })); return 1; }
+        return 0;
       // M175：页面里登记「宿主事件 → 基石函数」（`窗口.当`）。
       //
       // 🔴 这一条**不发给宿主**：宿主只需要知道「点了什么动作」，由页面自己
@@ -360,6 +368,15 @@
     return el;
   };
 
+  /// **M229（D3）**：所有匹配元素（**不抛错** —— 没有就是空表）。
+  ///
+  /// `有元素` / `取们` 用它：这两个的语义就是「一个都没有也算正常」。
+  Jishi.prototype._selAll = function (s) {
+    if (!this._doc || !this._doc.querySelectorAll) return [];
+    var 们 = this._doc.querySelectorAll(String(s));
+    return 们 ? Array.prototype.slice.call(们) : [];
+  };
+
   Jishi.prototype._needStore = function () {
     if (!this._store) throw new Error("这个环境没有 localStorage");
     return this._store;
@@ -417,7 +434,39 @@
       case "切类": this._sel(a[0]).classList.toggle(String(a[1])); return null;
       case "点击": this._sel(a[0]).click(); return null;
       case "显示": el = this._sel(a[0]); el.style.display = (a[1] === false) ? "none" : ""; return null;
-      case "绑定": this._bind(this._sel(a[0]), String(a[1]), String(a[2])); return null;
+      case "绑定": this._bind(this._sel(a[0]), String(a[1]), String(a[2]), a[3] === true); return null;
+      // ---- M229（D3）：元素查询 ----------------------------------------
+      // `取们` 给的是每个匹配元素的 **`数据_序`**（与 `绑定` 回调的实参同一个口径），
+      // 不是 DOM 下标 —— 宿主拿序号去对**自己的**数据表，不用猜页面结构。
+      case "有元素":
+        return !!(this._doc && this._doc.querySelector && this._doc.querySelector(String(a[0])));
+      case "取们":
+        return this._selAll(a[0]).map(function (el) {
+          var 序 = el && el.dataset ? el.dataset["序"] : null;
+          return 序 === null || 序 === undefined ? "" : String(序);
+        });
+      // ⚠️ 元素不存在 / 属性没设，都给 `空`（两者在宿主那边通常一样处理）
+      case "取属性": {
+        var 有 = this._doc && this._doc.querySelector && this._doc.querySelector(String(a[0]));
+        if (!有) return null;
+        var v = 有.getAttribute ? 有.getAttribute(String(a[1])) : null;
+        if ((v === null || v === undefined) && 有.dataset) v = 有.dataset[String(a[1])];
+        return v === null || v === undefined ? null : String(v);
+      }
+      case "设属性": {
+        var 靶 = this._sel(a[0]);
+        if (靶.setAttribute) 靶.setAttribute(String(a[1]), String(a[2]));
+        else if (靶.dataset) 靶.dataset[String(a[1])] = String(a[2]);
+        return null;
+      }
+      // 元素不存在 / 没有 `focus()`（假 DOM）都如实给 `假`，不假装成功 ——
+      // 与 `有元素` 同一个口径：**查不到不是错误，是「没有」**。
+      case "焦点": {
+        var 靶2 = this._doc && this._doc.querySelector && this._doc.querySelector(String(a[0]));
+        if (!靶2) return false;
+        if (typeof 靶2.focus === "function") { 靶2.focus(); return true; }
+        return false;
+      }
       // M223：媒体查询（`浏览器.匹配("(prefers-color-scheme: dark)")`）
       case "匹配": return !!(root.matchMedia && root.matchMedia(String(a[0])).matches);
       case "存本地": this._needStore().setItem(String(a[0]), String(a[1])); return null;
@@ -429,7 +478,7 @@
       case "删本地": this._needStore().removeItem(String(a[0])); return null;
       // M197：自动存（只更新「要存什么」，落盘由定时器做）
       case "自动存": return this._自动存(a);
-      case "请求": this._request(String(a[0]), String(a[1])); return null;
+      case "请求": this._request(String(a[0]), String(a[1]), a[2], a[3], a[4]); return null;
 
       // ---- M186：图形（同一条通道，多几个 case —— 通道形状没变）----
       case "准备": return this._g准备(a);
@@ -525,7 +574,7 @@
   ///
   /// 为什么必须幂等：事件回调会**重跑整个程序**，顶层那句 `绑定` 也会再执行一遍。
   /// 不幂等的话点一次挂两个监听、下次点就跑两遍，越点越慢。
-  Jishi.prototype._bind = function (el, ev, fnName) {
+  Jishi.prototype._bind = function (el, ev, fnName, 带信息) {
     var self = this;
     var perEl = this._bound.get(el);
     if (!perEl) { perEl = {}; this._bound.set(el, perEl); }
@@ -537,10 +586,25 @@
     // 而「点叉删第 N 条」需要知道 N。第一个版本把 `e.type` 当实参传
     // （`加一("点击")`），于是每次都失败、错误还被事件通道吞掉 —— 表现是
     // 「点了没反应」，查了半天。现在的规矩：**有 `数据_序` 才带参**。
+    //
+    // **M229（D12）**：第 4 个参数为真时，回调收的是**一段 JSON**
+    // （`序`/`类型`/`键`/`shift`/`ctrl`/`alt`）而不是序号文本 —— 详见
+    // `rust/src/stdlib/browser.rs` 里那段「与路线图原文有一处差异」。
     var h = function (e) {
       var t = e && e.target;
       var 序 = (t && t.dataset && t.dataset["序"]) || "";
-      self.call(fnName, 序);
+      if (带信息) {
+        self.call(fnName, JSON.stringify({
+          序: 序,
+          类型: (e && e.type) || "",
+          键: (e && e.key) || "",
+          shift: !!(e && e.shiftKey),
+          ctrl: !!(e && e.ctrlKey),
+          alt: !!(e && e.altKey)
+        }));
+      } else {
+        self.call(fnName, 序);
+      }
     };
     perEl[key] = h;
     if (el.addEventListener) el.addEventListener(ev, h);
@@ -550,10 +614,24 @@
   /// 发请求，**回来的时候再进一次 VM** 跑处理函数。
   ///
   /// 异步不硬塞进同步：`请求` 立刻返回，响应到了由这边调 `call`。
-  Jishi.prototype._request = function (url, fnName) {
+  /// **M229（D11）**：`方法` / `正文` / `头` 都可以不给（不给就是老行为：GET）。
+  ///
+  /// `头` 由 Rust 侧序列化成 JSON 文本传过来（wasm 这边只认字符串参数），
+  /// 所以这里要 `JSON.parse` 一次 —— 解不开就当没给（不抛错，宿主已经报过类型了）。
+  Jishi.prototype._request = function (url, fnName, 方法, 正文, 头) {
     var self = this;
     if (!this._fetch) throw new Error("这个环境没有网络（没有 fetch）");
-    this._fetch(url)
+    var 选 = {};
+    var m = 方法 ? String(方法).toUpperCase() : "GET";
+    if (m && m !== "GET") 选.method = m;
+    if (正文 !== null && 正文 !== undefined && 正文 !== "") 选.body = String(正文);
+    if (头) {
+      try {
+        var h = JSON.parse(String(头));
+        if (h && typeof h === "object") 选.headers = h;
+      } catch (_) { /* 宿主已经校验过类型，这里解不开就当没给 */ }
+    }
+    this._fetch(url, 选)
       .then(function (r) { return r.text(); })
       .then(function (t) { self.call(fnName, t); })
       .catch(function (e) { self.call(fnName, "错误：" + String((e && e.message) || e)); });

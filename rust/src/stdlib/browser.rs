@@ -41,7 +41,7 @@
 
 use std::collections::HashMap;
 
-use crate::{err, BuiltinHost, JishiError, Val};
+use crate::{err, err_with_hint, BuiltinHost, JishiError, Val};
 
 use super::{need_range, table, R};
 
@@ -259,11 +259,70 @@ pub(crate) fn module() -> HashMap<String, Val> {
         // 理由见模块头「一次事件 = 一次完整执行」—— 事件来时是**另一个**
         // 执行回合，手里只有名字，没有上次那个 VM 里的函数对象。
         "绑定" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("绑定", args, 3, 3)?;
+            // M229（D12）：第 4 个参数 `带事件信息`（默认假）—— 为真时回调收的是
+            // **一段 JSON**（`序`/`类型`/`键`/`shift`/`ctrl`/`alt`），而不是光秃秃的序号。
+            //
+            // ⚠️ 与路线图原文有一处差异，如实记：原文写「回调收**第二个参数**」，
+            //    但 wasm 的 `jishi_call` 只带得动一个字符串参数（ABI 3 定死的）。
+            //    为一个可选特性去改 ABI 不值当 —— 改成一个 JSON 里带 `序`，
+            //    信息一点没少，存量回调（不带信息）一个字节都没变。
+            need_range("绑定", args, 3, 4)?;
             let 名 = 函数名(&args[2])?;
-            let mut 转 = args.to_vec();
-            转[2] = Val::Str(名.into());
+            // **M229（D4）**：事件名收中文，映射成 DOM 的英文名。
+            // 认不出来的**当场报错**（列出可用的）—— 以前直接把中文丢给
+            // `addEventListener`，浏览器不认、**静默不触发**，症状是「点了没反应」。
+            let 事件 = match &args[1] {
+                Val::Str(s) => 事件英文名(s)?,
+                other => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「绑定」的第二个参数要事件名（文本），给的是{}",
+                                crate::type_label(other)),
+                    ))
+                }
+            };
+            let 带信息 = match args.get(3) {
+                None => false,
+                Some(Val::Bool(b)) => *b,
+                Some(other) => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「绑定」的第四个参数要 真/假（要不要带事件信息），给的是{}",
+                                crate::type_label(other)),
+                    ))
+                }
+            };
+            let mut 转 = vec![
+                args[0].clone(),
+                Val::Str(事件.into()),
+                Val::Str(名.into()),
+                Val::Bool(带信息),
+            ];
+            转.truncate(if args.len() >= 4 { 4 } else { 3 });
             host_call("绑定", &转)
+        },
+        // ---- **M229（D3）**：元素查询（桌面营造要的「Qt 式控页」）----
+        // `取们` 给的是每个匹配元素的 **`数据_序`**（与 `绑定` 的回调实参同一个口径），
+        // 不是 DOM 下标 —— 宿主拿到序号去对**自己的**数据表，不用再猜页面结构。
+        "有元素" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("有元素", args, 1, 1)?;
+            host_call("有元素", args)
+        },
+        "取们" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("取们", args, 1, 1)?;
+            host_call("取们", args)
+        },
+        "取属性" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("取属性", args, 2, 2)?;
+            host_call("取属性", args)
+        },
+        "设属性" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("设属性", args, 3, 3)?;
+            host_call("设属性", args)
+        },
+        "焦点" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
+            need_range("焦点", args, 1, 1)?;
+            host_call("焦点", args)
         },
         // -- 存储 --
         "存本地" => 两步!("存本地"),
@@ -276,11 +335,45 @@ pub(crate) fn module() -> HashMap<String, Val> {
             host_call("删本地", args)
         },
         // -- 请求（异步回调） --
-        "请求" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
-            need_range("请求", args, 2, 2)?;
+        "请求" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            // **M229（D11）**：`请求(网址, 函数名, 方法="GET", 正文=空, 头=空)`。
+            // 以前只有 GET —— 桌面营造要 POST 一个表单就得绕去起一个本地服务。
+            need_range("请求", args, 2, 5)?;
             let 名 = 函数名(&args[1])?;
-            let mut 转 = args.to_vec();
-            转[1] = Val::Str(名.into());
+            let 方法 = match args.get(2) {
+                None | Some(Val::None_) => "GET".to_string(),
+                Some(Val::Str(s)) => s.to_uppercase(),
+                Some(other) => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「请求」的第三个参数要方法名（文本），给的是{}",
+                                crate::type_label(other)),
+                    ))
+                }
+            };
+            // 头给字典（`{"内容类型": "application/json"}`）；序列化成 JSON 交给页面
+            let 头 = match args.get(4) {
+                None | Some(Val::None_) => String::new(),
+                Some(Val::Dict(_)) => {
+                    let 文 = crate::stdlib::jsonmod::to_text(&args[4], None)?;
+                    文
+                }
+                Some(other) => {
+                    return Err(err(
+                        "类型错误",
+                        format!("「请求」的第五个参数要字典（头），给的是{}",
+                                crate::type_label(other)),
+                    ))
+                }
+            };
+            let 转 = vec![
+                args[0].clone(),
+                Val::Str(名.into()),
+                Val::Str(方法.into()),
+                args.get(3).cloned().unwrap_or(Val::None_),
+                Val::Str(头.into()),
+            ];
+            let _ = vm;
             host_call("请求", &转)
         },
     }
@@ -292,6 +385,47 @@ pub(crate) fn module() -> HashMap<String, Val> {
 /// - 给函数值 ⇒ 取它的 `name`（`函数 点击_提交()` 就写 `点击_提交`）；
 /// - 给文本 ⇒ 原样用（`绑定("#a", "点击", "点击_提交")` 也行）。
 ///
+/// **M229（D4）**：中文事件名 → DOM 的英文名。英文名原样放行（存量程序在用）。
+///
+/// 🔴 **为什么要在宿主侧做这个映射**：D4 那个 bug 的形状是「`绑定("#x", "点击", f)`
+/// 被原样丢给 `addEventListener`，浏览器不认中文事件名 ⇒ **静默不触发**」——
+/// 点了没反应、没有报错、没有日志。所以认不出来的名字必须**当场报错**，
+/// 并把手边可用的名字列出来（别让人去翻文档）。
+fn 事件英文名(名: &str) -> Result<String, JishiError> {
+    let 英文 = match 名 {
+        "点击" => "click",
+        "双击" => "dblclick",
+        "输入" => "input",
+        "改变" => "change",
+        "提交" => "submit",
+        "按下" => "keydown",
+        "松开" => "keyup",
+        "按键" => "keypress",
+        "移动" => "mousemove",
+        "悬停" => "mouseenter",
+        "离开" => "mouseleave",
+        "聚焦" => "focus",
+        "失焦" => "blur",
+        "滚动" => "scroll",
+        "加载" => "load",
+        // 英文原样放行：M167 起就有人直接写 `"click"`，那条路不能断
+        "click" | "dblclick" | "input" | "change" | "submit" | "keydown" | "keyup"
+        | "keypress" | "mousemove" | "mouseenter" | "mouseleave" | "focus" | "blur"
+        | "scroll" | "load" => 名,
+        other => {
+            return Err(err_with_hint(
+                "值错误",
+                format!("「绑定」不认识事件名「{other}」"),
+                "能用中文名：点击 / 双击 / 输入 / 改变 / 提交 / 按下 / 松开 / 按键 / \
+                 移动 / 悬停 / 离开 / 聚焦 / 失焦 / 滚动 / 加载\
+                 （也可以直接写 DOM 英文名，比如 \"click\"）"
+                    .into(),
+            ))
+        }
+    };
+    Ok(英文.to_string())
+}
+
 /// ⚠️ 匿名函数（`|x| …`）**没有名字**，这里直接报错 —— 事件回调必须是
 /// 具名函数，否则 JS 侧没法「按名字重新找到它」。
 fn 函数名(v: &Val) -> Result<String, JishiError> {
