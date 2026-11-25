@@ -102,11 +102,29 @@ def _collect_stmt(st: A.Node, scope: _Scope,
     elif isinstance(st, A.ExprStmt):
         _collect_expr(st.expr, scope, func_scopes)
     elif isinstance(st, A.If):
-        for test, body in st.branches:
+        # 🔴 **M231 完整版**：`如果` 的**每一段**都是一个块 ——
+        # 条件里的名字在外层求值；分支体与 `否则` 体各自成块，
+        # 块里 `令` 出来的新名字出块就没了（与 `遍历` 体同一个口径）。
+        #
+        # ⚠️ 「外层已有」必须是**进这个 `如果` 之前**的快照，不能每段现取：
+        #    段 1 收集完会把它的名字写进 `scope.bound`，现取的话段 2 同名的
+        #    `令` 会被算成「改外层」—— 而段 1 那个块早就不在了。
+        进如果前 = set(scope.bound)
+        体块们 = []
+        段们 = [(body, None) for _test, body in st.branches]
+        for test, _body in st.branches:
             _collect_expr(test, scope, func_scopes)
-            _collect_stmts(body, scope, func_scopes, 块内)
         if st.orelse is not None:
-            _collect_stmts(st.orelse, scope, func_scopes, 块内)
+            段们.append((st.orelse, None))
+        for body, _ in 段们:
+            体内 = set()
+            _collect_stmts(body, scope, func_scopes, 体内)
+            体内 -= 进如果前          # 段里 `令` 外层已有的：那是「改外层」
+            体块们.append((体内, set(体内)))
+            scope.块绑定 |= 体内
+            if 块内 is not None:
+                块内 |= 体内          # 嵌在循环体里：这些名字也算循环体的
+        st._体块们 = 体块们           # 发射期按**段序**取（每段一个）
     elif isinstance(st, A.For):
         _collect_expr(st.iter, scope, func_scopes)
         # 🔴 M231：循环体是一个**块** —— 记下它**新引入**了哪些名字。
@@ -155,6 +173,9 @@ def _collect_stmt(st: A.Node, scope: _Scope,
             块内 |= st._块内绑定
     elif isinstance(st, A.FuncDef):
         scope.bound.add(st.name)
+        # 🔴 M231 完整版：块里 `函数 f()` 定义出来的 `f` 也是**块级**的
+        if 块内 is not None:
+            块内.add(st.name)
         for d in getattr(st, "defaults", []) or []:
             if d is not None:      # 默认值在定义处作用域求值（M7）
                 _collect_expr(d, scope, func_scopes)
@@ -165,6 +186,8 @@ def _collect_stmt(st: A.Node, scope: _Scope,
         _collect_stmts(st.body, sub, func_scopes)
     elif isinstance(st, A.ClassDef):
         scope.bound.add(st.name)
+        if 块内 is not None:          # 同上：块里定义的类也是块级
+            块内.add(st.name)
         if st.base is not None:
             scope.used.add(st.base)
         # 方法体是独立函数作用域
@@ -188,6 +211,8 @@ def _collect_stmt(st: A.Node, scope: _Scope,
         scope.globals.update(st.names)
     elif isinstance(st, A.Import):
         scope.bound.add(st.alias or st.name)
+        if 块内 is not None:          # 块里 `导入 x` 出来的名字也是块级
+            块内.add(st.alias or st.name)
     elif isinstance(st, A.Try):
         # ⚠️ **这一支原先漏了**（R5 逐行移植时发现，R5.1 补上）。
         # 后果比「少收集几个名字」严重得多：
@@ -197,16 +222,45 @@ def _collect_stmt(st: A.Node, scope: _Scope,
         #      —— **编译期直接崩**，用户写一个很自然的程序就撞上。
         # 为什么以前没暴露：只有「外层有同名变量」时才看得出来（否则全局与局部
         # 恰好等价），而语料里没有这种形状。详见 `docs/设计决策.md` D59。
-        _collect_stmts(st.body, scope, func_scopes, 块内)
+        #
+        # 🔴 **M231 完整版**：`尝试` / 每个 `捕获` 体 / `最终` 体**各是一个块**。
+        #    收集这部分（R5.1 补的）一行没动 —— 名字照样进 `bound`（要分配槽位
+        #    与单元）；变的只是**可见性**：块里 `令` 出来的新名字出块就没了。
+        进尝试前 = set(scope.bound)
+
+        def 收一块(体) -> tuple[set, set]:
+            # ⚠️ `块内` 是外层参数，这里要写它 ⇒ 必须 `nonlocal`
+            #    （不写就变成「局部变量未绑定」，UnboundLocalError）
+            nonlocal 块内
+            体内 = set()
+            _collect_stmts(体, scope, func_scopes, 体内)
+            体内 -= 进尝试前
+            scope.块绑定 |= 体内
+            if 块内 is not None:
+                块内 |= 体内
+            return (体内, set(体内))
+
+        st._尝试块 = 收一块(st.body)
+        捕获块们 = []
         for h in st.handlers:
             if h.type is not None:            # `捕获 值错误 为 e：` 的类型也是表达式
                 _collect_expr(h.type, scope, func_scopes)
+            体内 = set()
             if h.name:
-                # 捕获名与「赋值」同级：它是所在作用域的局部（树遍历就是这么做的）
+                # 捕获名属于**这个捕获块**（M231 完整版）：块外读它要报错。
+                # ⚠️ 仍然要进 `scope.bound` —— 槽位/单元照旧要分配。
                 scope.bound.add(h.name)
-            _collect_stmts(h.body, scope, func_scopes, 块内)
-        if st.finalbody is not None:
-            _collect_stmts(st.finalbody, scope, func_scopes, 块内)
+                体内.add(h.name)
+            _collect_stmts(h.body, scope, func_scopes, 体内)
+            体内 -= 进尝试前
+            体内.add(h.name) if h.name else None
+            块 = (体内, set(体内))
+            捕获块们.append(块)
+            scope.块绑定 |= 体内
+            if 块内 is not None:
+                块内 |= 体内
+        st._捕获块们 = 捕获块们
+        st._最终块 = 收一块(st.finalbody) if st.finalbody is not None else None
     elif isinstance(st, A.Raise):
         # `抛出 <表达式>`：值表达式里的名字同样要收集（闭包变量只在这里出现
         # 时会漏掉 freevars —— 与上面 ② 同一个毛病）。
@@ -425,9 +479,9 @@ class _Emitter:
                     f"找不到名字「{name}」",
                     line=getattr(node, "line", 1), col=getattr(node, "col", 1),
                     filename=self.cmod.filename,
-                    hint=(f"「{name}」是在循环体里 `令` 的 —— 它只在循环体内有效"
-                          f"（M231 块级作用域）。要在循环外用它，就在循环**之前**先 "
-                          f"`令 {name} = …` 声明一下")
+                    hint=(f"「{name}」是在**块里**（循环体 / 如果分支 / 尝试体…）"
+                          f"`令` 的 —— 它只在那个块里有效（M231 块级作用域）。"
+                          f"要在块外用它，就在块**之前**先 `令 {name} = …` 声明一下")
                 ).with_source(self.source_lines)
         if name in scope.cellvars or name in scope.freevars:
             return self.emit(O.Op.LOAD_DEREF, node, scope.cell_index(name))
@@ -597,34 +651,53 @@ class _Emitter:
         raise JishiError("不支持的赋值目标", line=st.line, col=st.col)
 
     def _c_if(self, st: A.If):
+        # 🔴 **M231 完整版**：`如果` 的每一段都是一个块（条件在外层求值）。
+        段们 = getattr(st, "_体块们", [])
         end_jumps: list[int] = []
-        for test, body in st.branches:
+        for 序, (test, body) in enumerate(st.branches):
             self.compile_expr(test)
             jf = self.emit(O.Op.POP_JUMP_IF_FALSE, test)
+            块 = 段们[序] if 序 < len(段们) else None
+            self.进块体(块)
             self.compile_body(body)
+            self.出块体(块)
             end_jumps.append(self.emit(O.Op.JUMP, st))
             self.patch(jf, self.here())
         if st.orelse is not None:
+            序 = len(st.branches)
+            块 = 段们[序] if 序 < len(段们) else None
+            self.进块体(块)
             self.compile_body(st.orelse)
+            self.出块体(块)
         end = self.here()
         for j in end_jumps:
             self.patch(j, end)
 
     # -- M231：块级作用域的四个小动作 ---------------------------------------
 
-    def 进块(self, st: A.Node) -> None:
-        """进循环体（压一层活跃块）。"""
-        self.块栈.append(getattr(st, "_块内绑定", set()))
+    def 进块体(self, 块信息) -> None:
+        """压一层活跃块。`块信息` 是 `(体内绑定, 本块引入)`，`None` 表示空块。"""
+        self.块栈.append(块信息[0] if 块信息 else set())
 
-    def 出块(self, st: A.Node) -> None:
-        """出循环体（弹一层，并记进「已退出」—— 之后引用要报错）。
+    def 出块体(self, 块信息) -> None:
+        """弹一层，并把它**引入**的名字记进「已退出」（之后引用要报错）。
 
-        ⚠️ 记的是 `_块引入`（**只**含外层本来没有的名字），不是 `_块内绑定`
-        （那里面还有「外层已有的循环变量」—— 它们循环外照样该能读）。
+        ⚠️ 记的是「引入」（**只**含外层本来没有的名字），不是「体内绑定」
+        （那里面还有「外层已有的」名字 —— 它们块外照样该能读，A2 口径）。
         """
         if self.块栈:
             self.块栈.pop()
-        self.已退出块 |= getattr(st, "_块引入", set())
+        if 块信息:
+            self.已退出块 |= 块信息[1]
+
+    def 进块(self, st: A.Node) -> None:
+        """进循环体（`遍历` / `循环` / `当`）—— 信息挂在节点上。"""
+        self.进块体((getattr(st, "_块内绑定", set()),
+                    getattr(st, "_块引入", set())))
+
+    def 出块(self, st: A.Node) -> None:
+        self.出块体((getattr(st, "_块内绑定", set()),
+                    getattr(st, "_块引入", set())))
 
     def 发新建单元(self, st: A.Node) -> None:
         """**M231**：循环体开头「重建单元」—— 让这一轮造出来的闭包抓到自己那份。
@@ -971,7 +1044,11 @@ class _Emitter:
     # （不跑最终 —— 这是既有的「捕获体出错最终不跑」口径，照 interpreter._do_try）。
     def _c_try(self, st: A.Try):
         setup = self.emit(O.Op.SETUP_TRY, st)
+        # 🔴 **M231 完整版**：`尝试` 体是一个块（`捕获` 体、`最终` 体各自一个）
+        尝试块 = getattr(st, "_尝试块", None)
+        self.进块体(尝试块)
         self.compile_body(st.body)
+        self.出块体(尝试块)
         self.emit(O.Op.POP_TRY, st)
         to_fin = self.emit(O.Op.JUMP, st)          # 正常路径 → fin_start
 
@@ -1012,7 +1089,12 @@ class _Emitter:
             # 才需要（没最终块就没有「跳过 finally」的 bug）。a/b 稍后回填。
             if has_fin:
                 inner_setups.append(self.emit(O.Op.SETUP_TRY, h))
+            捕获块们 = getattr(st, "_捕获块们", [])
+            序 = st.handlers.index(h)
+            块 = 捕获块们[序] if 序 < len(捕获块们) else None
+            self.进块体(块)
             self.compile_body(h.body)
+            self.出块体(块)
             if has_fin:
                 self.emit(O.Op.POP_TRY, h)
             handler_done.append(self.emit(O.Op.JUMP, h))
@@ -1023,7 +1105,10 @@ class _Emitter:
         # 也是「信号（尝试体/捕获体）」的重抛入口 —— 三者都走「finally + THROW」。
         reraise_at = self.here()
         if has_fin:
+            最终块 = getattr(st, "_最终块", None)
+            self.进块体(最终块)
             self.compile_body(st.finalbody)
+            self.出块体(最终块)
         self.emit(O.Op.THROW, st)
 
         # 捕获体自己抛出的新异常：直接重抛（**不跑 finally**，见函数头注释）。
@@ -1041,7 +1126,10 @@ class _Emitter:
         # 正常路径的 finally
         fin_start = self.here()
         if has_fin:
+            最终块 = getattr(st, "_最终块", None)
+            self.进块体(最终块)
             self.compile_body(st.finalbody)
+            self.出块体(最终块)
             self.emit(O.Op.END_FINALLY, st)
 
         # `after` = 整条 `尝试` 语句结束的位置。它同时是**捕获区的右边界**

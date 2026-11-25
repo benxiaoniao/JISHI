@@ -150,8 +150,8 @@
     },
     {
       "id": "examples__projects__排序跑分__排序",
-      "产物哈希": "sha256:252754bd46ece94f",
-      "内容哈希": "sha256:06495bf7c3ea34bf",
+      "产物哈希": "sha256:a48c3d8de2939226",
+      "内容哈希": "sha256:f1d4adce212d614b",
       "类别": "examples",
       "路径": "examples/projects/排序跑分/排序.jsh"
     },
@@ -164,8 +164,8 @@
     },
     {
       "id": "examples__projects__网页采集__采集",
-      "产物哈希": "sha256:d3317455353582a7",
-      "内容哈希": "sha256:70c4ac6c160071a9",
+      "产物哈希": "sha256:2554f49744961d91",
+      "内容哈希": "sha256:d1fb602bab68165c",
       "类别": "examples",
       "路径": "examples/projects/网页采集/采集.jsh"
     },
@@ -241,7 +241,7 @@
     },
     {
       "id": "examples__tutorial__11_记账数据库",
-      "产物哈希": "sha256:2c56e8317ad50fb4",
+      "产物哈希": "sha256:a210e78cfa8761c1",
       "内容哈希": "sha256:62c7825de2816819",
       "类别": "examples",
       "路径": "examples/tutorial/11_记账数据库.jsh"
@@ -353,14 +353,14 @@
     },
     {
       "id": "examples__绕道探针__记账本__记账",
-      "产物哈希": "sha256:f64d68702daf3377",
+      "产物哈希": "sha256:2ffe72704a955597",
       "内容哈希": "sha256:8f46752833fe1e0b",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/记账.jsh"
     },
     {
       "id": "examples__绕道探针__记账本__迁移",
-      "产物哈希": "sha256:f01248a94b74014c",
+      "产物哈希": "sha256:5a0cd7c7e094e923",
       "内容哈希": "sha256:12a659ad50e2a080",
       "类别": "examples",
       "路径": "examples/绕道探针/记账本/迁移.jsh"
@@ -381,8 +381,8 @@
     },
     {
       "id": "oracle__jishi__stdlib-jishi__数据库",
-      "产物哈希": "sha256:ad0bc9d0983c0fd8",
-      "内容哈希": "sha256:5bfc70005751dc41",
+      "产物哈希": "sha256:fc2e9e1ff6a0aad0",
+      "内容哈希": "sha256:fb7e6b8ae15293e3",
       "类别": "stdlib",
       "路径": "oracle/jishi/stdlib-jishi/数据库.jsh"
     },
@@ -479,8 +479,8 @@
     },
     {
       "id": "tests__cases__12_多行注释",
-      "产物哈希": "sha256:985fa93973be0483",
-      "内容哈希": "sha256:91be08de7d301dc2",
+      "产物哈希": "sha256:f0af9b29445fb52d",
+      "内容哈希": "sha256:31d983d0a7e2585a",
       "类别": "lang",
       "路径": "tests/cases/12_多行注释.jsh"
     },
@@ -514,8 +514,8 @@
     },
     {
       "id": "tests__cases__17_尝试块作用域",
-      "产物哈希": "sha256:23aaa060578c8ea2",
-      "内容哈希": "sha256:de3afc766ee4df19",
+      "产物哈希": "sha256:a336f5218b4c37b9",
+      "内容哈希": "sha256:5b235c84c1e86e4e",
       "类别": "lang",
       "路径": "tests/cases/17_尝试块作用域.jsh"
     },
@@ -535,8 +535,8 @@
     },
     {
       "id": "tests__cases__20_函数帧复用",
-      "产物哈希": "sha256:94faaad40a2719c9",
-      "内容哈希": "sha256:3eb7c7830f141ed0",
+      "产物哈希": "sha256:38f16358e58398ea",
+      "内容哈希": "sha256:872b38dda3c5dc2f",
       "类别": "lang",
       "路径": "tests/cases/20_函数帧复用.jsh"
     },
@@ -570,8 +570,8 @@
     },
     {
       "id": "tests__cases__25_异常与导入",
-      "产物哈希": "sha256:e23fc183056c6a84",
-      "内容哈希": "sha256:79c13bd44e77f99b",
+      "产物哈希": "sha256:a06a85f0c88b8dbe",
+      "内容哈希": "sha256:9a2494a2f4547d1d",
       "类别": "lang",
       "路径": "tests/cases/25_异常与导入.jsh"
     },
@@ -619,14 +619,14 @@
     },
     {
       "id": "tests__cases__31_标准库_M112",
-      "产物哈希": "sha256:865ccd5fbff83c72",
+      "产物哈希": "sha256:d2c17505c11dd6a5",
       "内容哈希": "sha256:36b6ab3d3acbff99",
       "类别": "lang",
       "路径": "tests/cases/31_标准库_M112.jsh"
     },
     {
       "id": "tests__cases__32_标准库_M113",
-      "产物哈希": "sha256:57b9ed4973392e84",
+      "产物哈希": "sha256:17582e28999afa82",
       "内容哈希": "sha256:89dedf32cee56818",
       "类别": "lang",
       "路径": "tests/cases/32_标准库_M113.jsh"
@@ -731,7 +731,7 @@
     },
     {
       "id": "tests__cases__47_数据库_报错文案",
-      "产物哈希": "sha256:d2c67891cdb096bc",
+      "产物哈希": "sha256:837a32af78f3fb72",
       "内容哈希": "sha256:6d0e6b452d9c394f",
       "类别": "lang",
       "路径": "tests/cases/47_数据库_报错文案.jsh"
@@ -1368,7 +1368,7 @@
     },
     {
       "id": "tests__error_cases__82_循环体作用域",
-      "产物哈希": "sha256:4b31d4ec0dc3c433",
+      "产物哈希": "sha256:707fe6810ef50760",
       "内容哈希": "sha256:d679728734a11d2f",
       "类别": "lang",
       "路径": "tests/error_cases/82_循环体作用域.jsh"

@@ -306,7 +306,7 @@ pub fn compile_source(text: &str, filename: &str) -> Result<String, JishiError> 
             code: Some("E0301".to_string()),
             message: format!("找不到名字「{名}」"),
             hint: Some(format!(
-                "「{名}」是在循环体里 `令` 的 —— 它只在循环体内有效（M231 块级作用域）。要在循环外用它，就在循环**之前**先 `令 {名} = …` 声明一下")),
+                "「{名}」是在**块里**（循环体 / 如果分支 / 尝试体…）`令` 的 —— 它只在那个块里有效（M231 块级作用域）。要在块外用它，就在块**之前**先 `令 {名} = …` 声明一下")),
             line: Some(*行),
             col: Some(*列),
             underline: None,

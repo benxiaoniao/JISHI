@@ -400,8 +400,7 @@ fn to_py_module(py: Python<'_>, m: &compiler::Module) -> PyResult<Py<PyAny>> {
 fn 检查编译错误(py: Python<'_>, m: &compiler::Module) -> PyResult<()> {
     let Some((名, 行, 列)) = m.errors.first() else { return Ok(()) };
     let 提 = format!(
-        "「{名}」是在循环体里 `令` 的 —— 它只在循环体内有效（M231 块级作用域）。\
-         要在循环外用它，就在循环**之前**先 `令 {名} = …` 声明一下");
+        "「{名}」是在**块里**（循环体 / 如果分支 / 尝试体…）`令` 的 —— 它只在那个块里有效（M231 块级作用域）。要在块外用它，就在块**之前**先 `令 {名} = …` 声明一下");
     let err = ParseError::new_err(format!("找不到名字「{名}」"));
     let v = err.value(py);
     let _ = v.setattr("码", "E0301");

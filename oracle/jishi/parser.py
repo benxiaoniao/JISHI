@@ -2214,8 +2214,18 @@ def parse_source(source: str, filename: str = "<输入>") -> A.Program:
     """
     lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     if frontend() == "rust":
-        return _rust_parse_source(source, lines, filename)
-    return parse(tokenize(source, filename), lines, filename)
+        程序 = _rust_parse_source(source, lines, filename)
+        # **M231**：把源码行挂到 AST 上 —— 解释器的「块越界预检」要画
+        # 「第几行 + 下划线」（与字节码宿主的报错同形）。挂在这里，调用点零改动。
+        # ⚠️ **两个前端都要挂**：只在 `parse()` 里挂的话，Rust 前端下
+        #    `parse_source` 这条主路就没有行，报错渲染会缺源码行与下划线
+        #    —— 而判据比的是「两前端 × 三执行器逐字节相同」，一缺就红。
+        程序._source_lines = list(lines)
+        return 程序
+    程序 = parse(tokenize(source, filename), lines, filename)
+    if not hasattr(程序, "_source_lines"):
+        程序._source_lines = list(lines)
+    return 程序
 
 
 def _rebuild_lines(text: str) -> list[str]:

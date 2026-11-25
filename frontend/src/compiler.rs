@@ -334,7 +334,7 @@ struct Collector {
     ///   （装多了会把「形参拿来当循环变量」判成错，`数据库.jsh` 撞过）。
     块: Vec<(BTreeSet<String>, BTreeSet<String>)>,
     /// `(行, 列)` → 块号。Rust 侧 AST 是 `J`，没有稳定节点身份 —— 用位置当键。
-    节点块: HashMap<(i64, i64), usize>,
+    节点块: HashMap<(i64, i64, i64), usize>,
 }
 
 impl Collector {
@@ -403,16 +403,43 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) 
         }
         "ExprStmt" => collect_expr(nf(n, "expr"), scope, c),
         "If" => {
+            // 🔴 **M231 完整版**：`如果` 的**每一段**都是一个块（条件在外层求值）。
+            // ⚠️ 「外层已有」必须是**进这个 `如果` 之前**的快照：段 1 收集完会把
+            //    它的名字写进 bound，现取的话段 2 同名的 `令` 会被算成「改外层」。
+            let 进如果前 = c.scopes[scope].bound.clone();
+            let (行, 列) = jpos(n);
+            let mut 段号: i64 = 0;
+            // ⚠️ **不能 clone**：`func_scopes` 的键是节点**地址**（`nid`），
+            //    clone 出来的副本地址不同 ⇒ 块里定义函数时发射期 `expect` 直接 panic
+            //    （2026-11-25 实测：`如果 真：函数 f()：…` 就这么崩的）。
+            let mut 段体们: Vec<&J> = Vec::new();
             for br in as_list(nf(n, "branches")) {
                 let items = as_list(br);
-                if items.len() >= 2 {
-                    collect_expr(&items[0], scope, c);
-                    collect_stmts(as_list(&items[1]), scope, c, 块内);
+                if items.len() < 2 {
+                    continue;
                 }
+                collect_expr(&items[0], scope, c);
+                段体们.push(&items[1]);
             }
             let orelse = nf(n, "orelse");
             if !is_null(orelse) {
-                collect_stmts(as_list(orelse), scope, c, 块内);
+                段体们.push(orelse);
+            }
+            for 体 in 段体们 {
+                let 块号 = c.块.len();
+                c.块.push((BTreeSet::new(), BTreeSet::new()));
+                collect_stmts(as_list(体), scope, c, Some(块号));
+                let 体内: BTreeSet<String> =
+                    c.块[块号].0.difference(&进如果前).cloned().collect();
+                for nm in &体内 {
+                    c.scopes[scope].块绑定.insert(nm.clone());
+                    if let Some(外) = 块内 {
+                        c.块[外].0.insert(nm.clone());
+                    }
+                }
+                c.块[块号] = (体内.clone(), 体内);
+                c.节点块.insert((行, 列, 段号), 块号);
+                段号 += 1;
             }
         }
         "For" => {
@@ -438,7 +465,8 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) 
                 c.scopes[scope].块绑定.insert(nm.clone());
             }
             c.块[块号] = (体内, 引入);
-            c.节点块.insert(jpos(n), 块号);
+            let (行, 列) = jpos(n);
+        c.节点块.insert((行, 列, -1), 块号);
             if let Some(外) = 块内 {
                 for nm in c.块[块号].0.clone() {
                     c.块[外].0.insert(nm);
@@ -457,7 +485,8 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) 
                 c.scopes[scope].块绑定.insert(nm.clone());
             }
             c.块[块号] = (引入.clone(), 引入);
-            c.节点块.insert(jpos(n), 块号);
+            let (行, 列) = jpos(n);
+        c.节点块.insert((行, 列, -1), 块号);
             if let Some(外) = 块内 {
                 for nm in c.块[块号].0.clone() {
                     c.块[外].0.insert(nm);
@@ -476,7 +505,8 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) 
                 c.scopes[scope].块绑定.insert(nm.clone());
             }
             c.块[块号] = (引入.clone(), 引入);
-            c.节点块.insert(jpos(n), 块号);
+            let (行, 列) = jpos(n);
+        c.节点块.insert((行, 列, -1), 块号);
             if let Some(外) = 块内 {
                 for nm in c.块[块号].0.clone() {
                     c.块[外].0.insert(nm);
@@ -486,6 +516,10 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) 
         "FuncDef" => {
             let name = as_jstr(nf(n, "name")).to_string();
             c.scopes[scope].bound.insert(name.clone());
+            // 🔴 M231 完整版：块里 `函数 f()` 定义出来的 `f` 也是**块级**的
+            if let Some(块号) = 块内 {
+                c.块[块号].0.insert(name.clone());
+            }
             for d in as_list(nf(n, "defaults")) {
                 if !is_null(d) {
                     collect_expr(d, scope, c);
@@ -501,7 +535,10 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) 
         }
         "ClassDef" => {
             let name = as_jstr(nf(n, "name")).to_string();
-            c.scopes[scope].bound.insert(name);
+            c.scopes[scope].bound.insert(name.clone());
+            if let Some(块号) = 块内 {      // 同上：块里定义的类也是块级
+                c.块[块号].0.insert(name);
+            }
             let base = nf(n, "base");
             if !is_null(base) {
                 c.scopes[scope].used.insert(as_jstr(base).to_string());
@@ -541,6 +578,9 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) 
             } else {
                 as_jstr(alias).to_string()
             };
+            if let Some(块号) = 块内 {      // 块里 `导入 x` 出来的名字也是块级
+                c.块[块号].0.insert(name.clone());
+            }
             c.scopes[scope].bound.insert(name);
         }
         "Try" => {
@@ -552,9 +592,38 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) 
             //      **编译期直接崩**。
             // 只有「外层有同名变量」时才看得出来（否则全局与局部恰好等价）。
             // 与 Python 侧的 `_collect_stmt` **逐字对应**，改一处必须改另一处。
-            collect_stmts(as_list(nf(n, "body")), scope, c, 块内);
-            for h in as_list(nf(n, "handlers")) {
-                let hm = match node_of(h) {
+            // 🔴 **M231 完整版**：`尝试` 体 / 每个 `捕获` 体 / `最终` 体各是一个块。
+            //   收集这部分（R5.1 补的）一行没动 —— 名字照样进 `bound`（要分配
+            //   槽位与单元）；变的只是**可见性**。
+            let 进尝试前 = c.scopes[scope].bound.clone();
+            let (行, 列) = jpos(n);
+
+            let mut 收一块 = |体: &J, c: &mut Collector, 段号: i64,
+                               另有: &[String]| {
+                let 块号 = c.块.len();
+                c.块.push((BTreeSet::new(), BTreeSet::new()));
+                for nm in 另有 {
+                    c.块[块号].0.insert(nm.clone());
+                }
+                collect_stmts(as_list(体), scope, c, Some(块号));
+                let mut 体内: BTreeSet<String> =
+                    c.块[块号].0.difference(&进尝试前).cloned().collect();
+                for nm in 另有 {
+                    体内.insert(nm.clone());
+                }
+                for nm in &体内 {
+                    c.scopes[scope].块绑定.insert(nm.clone());
+                    if let Some(外) = 块内 {
+                        c.块[外].0.insert(nm.clone());
+                    }
+                }
+                c.块[块号] = (体内.clone(), 体内);
+                c.节点块.insert((行, 列, 段号), 块号);
+            };
+
+            收一块(nf(n, "body"), c, 0, &[]);
+            for (序, h) in as_list(nf(n, "handlers")).into_iter().enumerate() {
+                let hm = match node_of(&h) {
                     Some(m) => m,
                     None => continue,
                 };
@@ -562,17 +631,20 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) 
                 if !is_null(ty) {
                     collect_expr(ty, scope, c);
                 }
+                let mut 名们: Vec<String> = Vec::new();
                 let hname = nf(hm, "name");
                 if !is_null(hname) && !as_jstr(hname).is_empty() {
-                    // 捕获名与「赋值」同级：它是所在作用域的局部
+                    // 捕获名属于**这个捕获块**（M231 完整版）。
+                    // ⚠️ 仍然要进 `bound` —— 槽位/单元照旧要分配。
                     let s = as_jstr(hname).to_string();
-                    c.scopes[scope].bound.insert(s);
+                    c.scopes[scope].bound.insert(s.clone());
+                    名们.push(s);
                 }
-                collect_stmts(as_list(nf(hm, "body")), scope, c, 块内);
+                收一块(nf(hm, "body"), c, 1 + 序 as i64, &名们);
             }
             let fin = nf(n, "finalbody");
             if !is_null(fin) {
-                collect_stmts(as_list(fin), scope, c, 块内);
+                收一块(fin, c, -2, &[]);
             }
         }
         "Raise" => {
@@ -739,8 +811,10 @@ struct Emitter<'a> {
     tmp_seq: i64,
     /// **M231**：每个循环体的 `(体内绑定, 本块引入)`（见 `Collector` 的同名字段）
     块: &'a Vec<(BTreeSet<String>, BTreeSet<String>)>,
-    /// `(行, 列)` → 块号
-    节点块: &'a HashMap<(i64, i64), usize>,
+    /// `(行, 列, 段号)` → 块号。段号 `-1` = 整条语句（循环）；`>=0` = 第几段
+    /// （`如果` 的每个分支 / `尝试` 的 0=体 1..=捕获 -2=最终），因为一条 `如果`
+    /// 的多个分支共用同一个 `(行, 列)`，光靠位置分不开。
+    节点块: &'a HashMap<(i64, i64, i64), usize>,
     /// 当前**活跃**的循环体块（进循环压、出循环弹）
     块栈: Vec<BTreeSet<String>>,
     /// 已经走完的循环体**引入**过的名字（循环外引用要报错）
@@ -753,7 +827,7 @@ impl<'a> Emitter<'a> {
            func_scopes: &'a HashMap<usize, usize>, root: usize,
            fuse_method_call: bool,
            块: &'a Vec<(BTreeSet<String>, BTreeSet<String>)>,
-           节点块: &'a HashMap<(i64, i64), usize>) -> Emitter<'a> {
+           节点块: &'a HashMap<(i64, i64, i64), usize>) -> Emitter<'a> {
         Emitter {
             m,
             scopes,
@@ -1095,7 +1169,10 @@ impl<'a> Emitter<'a> {
     }
 
     fn c_if(&mut self, n: &Node) {
+        // 🔴 **M231 完整版**：`如果` 的每一段都是一个块（条件在外层求值）。
+        let (行, 列) = jpos(n);
         let mut end_jumps: Vec<i64> = Vec::new();
+        let mut 段号: i64 = 0;
         for br in as_list(nf(n, "branches")) {
             let items = as_list(br);
             if items.len() < 2 {
@@ -1103,14 +1180,24 @@ impl<'a> Emitter<'a> {
             }
             self.compile_expr(&items[0]);
             let jf = self.emit(op::POP_JUMP_IF_FALSE, node_of(&items[0]), 0, 0, 0);
+            let 块号 = self.节点块.get(&(行, 列, 段号)).copied();
+            self.进块号(块号);
             self.compile_body(as_list(&items[1]));
+            self.出块号(块号);
+            段号 += 1;
             end_jumps.push(self.emit(op::JUMP, Some(n), 0, 0, 0));
             let here = self.here();
             self.patch(jf, here, 'a');
         }
         let orelse = nf(n, "orelse");
         if !is_null(orelse) {
+            // ⚠️ `否则` 也是**一段块**（段号 = 分支个数），与 `collect_stmt` 的
+            //    `"If"` 分支逐条对应。漏了这里就会出现「`否则` 里 `令` 的名字
+            //    块外还读得到」—— 而 Python 前端那边是对的（判据一比就分叉）。
+            let 块号 = self.节点块.get(&(行, 列, 段号)).copied();
+            self.进块号(块号);
             self.compile_body(as_list(orelse));
+            self.出块号(块号);
         }
         let end = self.here();
         for j in end_jumps {
@@ -1121,28 +1208,40 @@ impl<'a> Emitter<'a> {
     // -- M231：块级作用域的三个小动作 ------------------------------------
 
     fn 进块(&mut self, n: &Node) {
-        let 体内 = self
-            .节点块
-            .get(&jpos(n))
-            .map(|i| self.块[*i].0.clone())
-            .unwrap_or_default();
+        let (行, 列) = jpos(n);
+        let 块号 = self.节点块.get(&(行, 列, -1)).copied();
+        self.进块号(块号);
+    }
+
+    /// **M231 完整版**：按**块号**压栈（`如果` 的分支 / `尝试` 的各段用它 ——
+    /// 那几段没有自己的 AST 节点，挂不了位置）。
+    fn 进块号(&mut self, 块号: Option<usize>) {
+        let 体内 = 块号.map(|i| self.块[i].0.clone()).unwrap_or_default();
         self.块栈.push(体内);
     }
 
-    fn 出块(&mut self, n: &Node) {
+    /// 按块号弹栈（与 `进块号` 配对）。
+    fn 出块号(&mut self, 块号: Option<usize>) {
         self.块栈.pop();
-        // 记的是「本块**引入**」的名字（只含外层本来没有的）——
-        // `_块内绑定` 里还有「外层已有的循环变量」，它们循环外照样该能读。
-        if let Some(i) = self.节点块.get(&jpos(n)) {
-            for nm in self.块[*i].1.clone() {
+        if let Some(i) = 块号 {
+            for nm in self.块[i].1.clone() {
                 self.已退出块.insert(nm);
             }
         }
     }
 
+    fn 出块(&mut self, n: &Node) {
+        // 记的是「本块**引入**」的名字（只含外层本来没有的）——
+        // `_块内绑定` 里还有「外层已有的循环变量」，它们循环外照样该能读。
+        let (行, 列) = jpos(n);
+        let 块号 = self.节点块.get(&(行, 列, -1)).copied();
+        self.出块号(块号);
+    }
+
     /// 循环体开头「重建单元」：只对**被闭包捕获的**（`cellvars` 里的）发。
     fn 发新建单元(&mut self, n: &Node) {
-        let Some(i) = self.节点块.get(&jpos(n)).copied() else { return };
+        let (行, 列) = jpos(n);
+        let Some(i) = self.节点块.get(&(行, 列, -1)).copied() else { return };
         let 体内 = self.块[i].0.clone();
         let mut 要发: Vec<i64> = Vec::new();
         for nm in 体内 {
@@ -1554,8 +1653,15 @@ impl<'a> Emitter<'a> {
     }
 
     fn c_try(&mut self, n: &Node) {
+        // 🔴 **M231 完整版**：`尝试` 体 / 每个 `捕获` 体 / `最终` 体**各是一个块**。
+        //    段号约定：0 = 尝试体，1..=n = 第 n 个捕获体，-2 = 最终体
+        //    （与 `collect_stmt` 的 `"Try"` 分支逐条对应）。
+        let (行, 列) = jpos(n);
         let setup = self.emit(op::SETUP_TRY, Some(n), 0, 0, 0);
+        let 尝试块 = self.节点块.get(&(行, 列, 0)).copied();
+        self.进块号(尝试块);
         self.compile_body(as_list(nf(n, "body")));
+        self.出块号(尝试块);
         self.emit(op::POP_TRY, Some(n), 0, 0, 0);
         let to_fin = self.emit(op::JUMP, Some(n), 0, 0, 0);   // 正常路径 → fin_start
 
@@ -1569,8 +1675,8 @@ impl<'a> Emitter<'a> {
         // 异常分发到 catch 时外层 SETUP_TRY 已被弹掉，捕获体里 `返回`/`中断`/`继续` 会
         // 跳过 finally；给捕获体再包一层只有 finally 的 handler（catch_ip=catch_body_err）。
         let mut inner_setups: Vec<i64> = Vec::new();
-        for h in as_list(nf(n, "handlers")) {
-            let hn = match node_of(h) {
+        for (捕序, h) in as_list(nf(n, "handlers")).into_iter().enumerate() {
+            let hn = match node_of(&h) {
                 Some(x) => x,
                 None => continue,
             };
@@ -1599,7 +1705,10 @@ impl<'a> Emitter<'a> {
             if has_fin {
                 inner_setups.push(self.emit(op::SETUP_TRY, Some(hn), 0, 0, 0));
             }
+            let 捕块 = self.节点块.get(&(行, 列, 1 + 捕序 as i64)).copied();
+            self.进块号(捕块);
             self.compile_body(as_list(nf(hn, "body")));
+            self.出块号(捕块);
             if has_fin {
                 self.emit(op::POP_TRY, Some(hn), 0, 0, 0);
             }
@@ -1614,7 +1723,10 @@ impl<'a> Emitter<'a> {
         // 也是「信号（尝试体/捕获体）」的重抛入口 —— 三者都走「finally + THROW」。
         let reraise_at = self.here();
         if has_fin {
+            let 终块 = self.节点块.get(&(行, 列, -2)).copied();
+            self.进块号(终块);
             self.compile_body(as_list(fin));
+            self.出块号(终块);
         }
         self.emit(op::THROW, Some(n), 0, 0, 0);
 
@@ -1630,7 +1742,10 @@ impl<'a> Emitter<'a> {
         // 正常路径的 finally
         let fin_start = self.here();
         if has_fin {
+            let 终块 = self.节点块.get(&(行, 列, -2)).copied();
+            self.进块号(终块);
             self.compile_body(as_list(fin));
+            self.出块号(终块);
             self.emit(op::END_FINALLY, Some(n), 0, 0, 0);
         }
 

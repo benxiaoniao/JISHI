@@ -71,16 +71,27 @@ class _Unbound:
 
 
 class Environment:
-    __slots__ = ("vars", "parent", "decl_globals")
+    __slots__ = ("vars", "parent", "decl_globals", "块引入")
 
-    def __init__(self, parent: Optional["Environment"] = None, func: bool = False):
+    def __init__(self, parent: Optional["Environment"] = None, func: bool = False,
+                 块引入=None):
         self.vars: dict[str, Any] = {}
         self.parent = parent
         #: 这一层**函数帧**里 `全局 甲` 声明过的名字（M210 / A2）；
-        #: 模块层与块层都是 `None`（块不另建环境，见 `exec_block`）。
+        #: 模块层是 `None`（块层见 `块引入`）。
         #: 挂在这里而不是解释器的栈上：两条调用路径（`__call__` 与
         #: `_eval_call`）都要用，栈就得两处各压一次、各弹一次 —— 迟早漏一边。
         self.decl_globals: Optional[set[str]] = set() if func else None
+        #: 🔴 **M231 完整版**：这一层是**块层**时，装「本块**引入**了哪些名字」。
+        #:
+        #: `None` = 不是块层（函数层 / 模块层）。非 None（可以是空集）= 块层。
+        #: 为什么需要它：块里的 `令` 要分两种 ——
+        #:   · **本块引入的**（`令 j = i`）⇒ 落在**本块**（每轮/每次一个新格子，
+        #:     闭包才能抓到各自那份）；
+        #:   · **外层已有的**（`令 总 = 总 + 1` 的累加）⇒ 落到**外层**去改
+        #:     （A2 口径；全仓 122 处这种写法）。
+        #: 没有这个集合就只能二选一，两个必坏一个 —— 这是踩出来的。
+        self.块引入 = 块引入
 
     def get(self, name: str) -> Any:
         env = self
@@ -101,29 +112,31 @@ class Environment:
     def set(self, name: str, value: Any) -> None:
         """写一个名字。
 
-        📌 **M231（块级作用域）**：分两种层，语义**故意不一样**：
+        📌 **M231（块级作用域）**：按层分别处理，语义**故意不一样**：
 
-        - **函数层 / 模块层**：只写本层（「函数内赋值即局部」，`全局` 声明才有意义）；
-        - **块层**（`decl_globals is None`，M231 新增的循环体层）：**有就改最近那层**，
-          否则本层新建。
+        - **函数层 / 模块层**：只写本层（`函数内赋值即局部`，`全局` 声明才有意义）；
+        - **块层**：只在「**本块链**」里找名字 —— 而且只认**本块引入的**那些。
+          找到了就改那个块层；不是任何块引入的，**退化成外层的普通 set**。
 
-        为什么块层要「有就改最近」：`令 总 = 总 + 1` 是**累加**的常见写法（自测脚本、
-        业务代码到处都是，全仓扫出 122 处）。块层若一律「只写本层」，这种写法会
-        静默变成「块内新变量」，循环外还是 0 —— 那是最坏的一种错（不报错、看着对）。
-        所以块层口径是：**外层有这个名字就是在改它；没有才是「块内新变量」**。
+        为什么块层不能「一律本层新建」：`令 总 = 总 + 1` 这种累加写法全仓 122 处
+        （自测脚本、业务代码到处都是）。一律本层新建会静默变成「块内新变量」，
+        块外还是 0 —— 那是最坏的一种错（不报错、看着对）。
+
+        为什么块层也不能「沿链随便找」：那会**穿透函数边界**——
+        `函数 f()：如果 真：令 x = 2` 会把模块层的 `x` 改掉（函数内赋值本该是局部）。
         """
-        if self.decl_globals is None:        # 块层
-            env: Optional["Environment"] = self
-            while env is not None:
-                # 🔴 **跳过「未赋值」哨兵**：函数入口会把本函数赋过值的名字预先
-                # 占成 `_Unbound`（M40「赋值即局部」，用于「赋值之前读它」报错）。
-                # 那个占位**不算真值** —— 块层的 `令 i` 不能因为撞上它就改成
-                # 函数层那个哨兵（否则循环变量跑出块层、循环外读得到，
-                # 与「块级作用域」直接冲突；`test_m40_scope` 就是这么炸的）。
-                if name in env.vars and not isinstance(env.vars[name], _Unbound):
-                    env.vars[name] = value
+        if self.块引入 is not None:              # 块层
+            环境: Optional["Environment"] = self
+            while 环境 is not None and 环境.块引入 is not None:
+                if name in 环境.块引入 and not isinstance(
+                        环境.vars.get(name), _Unbound):
+                    环境.vars[name] = value
                     return
-                env = env.parent
+                环境 = 环境.parent
+            # 不是任何块引入的 ⇒ 当成外层的一次普通赋值（函数层只写本层）
+            if 环境 is not None:
+                环境.vars[name] = value
+                return
         self.vars[name] = value
 
 
@@ -255,6 +268,19 @@ class UserFunction:
             from .compiler import FUNC_SCOPE, _Scope, _collect_stmts
 
             scope = _Scope(FUNC_SCOPE, self.name)
+            # 🔴 **M231 完整版（2026-11-25 踩到的）**：**形参也要进 `bound`**。
+            #
+            # 这里复用编译器收集器是有代价的 —— `_collect_stmts` 会给 AST 节点
+            # **挂块信息**（`_体块们` / `_块引入` 等）。而「外层已有」的判据是
+            # `scope.bound` 的快照：不预先放形参进去，`函数 f(字段们)：如果 …：
+            # 字段们 = [字段们]` 里的 `字段们` 就会被算成「本块引入」，
+            # 于是块层 `set` 落进块、出块就没了（形参改不动）——
+            # 而字节码那边编译期分配的是形参槽位，两边行为直接分叉。
+            #
+            # 症状是 `数据库.建索引(库, 表, "类别")` 报「索引字段要给一个非空的
+            # 字段名列表」：库里那句 `字段们 = [字段们]`（单个字符串 ≡ 单元素
+            # 列表）在树遍历里没生效。查了半天。
+            scope.bound.update(self.params)
             _collect_stmts(self.body, scope, {})
             # M210 / A2：`全局` 声明过的**不是**局部（否则会被种上「未赋值」
             # 哨兵，读它就报「赋值之前被用到了」）。
@@ -342,9 +368,9 @@ def _检查块作用域(program, filename: str, lines) -> None:
                 f"找不到名字「{n.id}」",
                 line=getattr(n, "line", 1), col=getattr(n, "col", 1),
                 filename=filename,
-                hint=(f"「{n.id}」是在循环体里 `令` 的 —— 它只在循环体内有效"
-                      f"（M231 块级作用域）。要在循环外用它，就在循环**之前**先 "
-                      f"`令 {n.id} = …` 声明一下"),
+                hint=(f"「{n.id}」是在**块里**（循环体 / 如果分支 / 尝试体…）"
+                      f"`令` 的 —— 它只在那个块里有效（M231 块级作用域）。"
+                      f"要在块外用它，就在块**之前**先 `令 {n.id} = …` 声明一下"),
             ).with_source(lines or [])
 
     def 查表达式(e) -> None:
@@ -405,6 +431,17 @@ def _检查块作用域(program, filename: str, lines) -> None:
             已退出.clear()
             已退出.update(存退出)
 
+    def 走一块(体, 块) -> None:
+        """走一段**块语句**（`如果` 分支 / `尝试` / `捕获` / `最终`）。
+
+        `块` 是编译器收集好的 `(体内绑定, 本块引入)`；`None` 表示空块。
+        """
+        活跃.append(块[0] if 块 else set())
+        走语句们(体)
+        活跃.pop()
+        if 块:
+            已退出.update(块[1])
+
     def 走语句(st) -> None:
         if isinstance(st, (A.FuncDef, A.ClassDef)):
             for d in (getattr(st, "defaults", None) or []):   # 默认值在外层求值
@@ -435,21 +472,24 @@ def _检查块作用域(program, filename: str, lines) -> None:
                 查表达式(st.target)
             return
         if isinstance(st, A.If):
-            for 测, 体 in st.branches:
+            # M231 完整版：每一段都是块（条件在外层求值）
+            体块们 = getattr(st, "_体块们", [])
+            for 序, (测, 体) in enumerate(st.branches):
                 查表达式(测)
-                走语句们(体)
+                走一块(体, 体块们[序] if 序 < len(体块们) else None)
             if st.orelse:
-                走语句们(st.orelse)
+                序 = len(st.branches)
+                走一块(st.orelse, 体块们[序] if 序 < len(体块们) else None)
             return
         if isinstance(st, A.Try):
-            走语句们(st.body)
-            for h in st.handlers:
+            # M231 完整版：尝试体 / 每个捕获体 / 最终体各一个块
+            走一块(st.body, getattr(st, "_尝试块", None))
+            捕获块们 = getattr(st, "_捕获块们", [])
+            for 序, h in enumerate(st.handlers):
                 查表达式(getattr(h, "type", None))
-                if getattr(h, "name", None):
-                    已退出.discard(h.name)     # 捕获名是这次重新绑定的
-                走语句们(h.body)
+                走一块(h.body, 捕获块们[序] if 序 < len(捕获块们) else None)
             if getattr(st, "finalbody", None):
-                走语句们(st.finalbody)
+                走一块(st.finalbody, getattr(st, "_最终块", None))
             return
         for f in dataclasses.fields(st):       # 其余语句：表达式部分通用走
             值 = getattr(st, f.name, None)
@@ -657,13 +697,26 @@ class Interpreter:
             return
         raise RunError("不支持的赋值目标", line=stmt.line, col=stmt.col, filename=self.filename)
 
+    def _块env(self, env: Environment, 块信息) -> Environment:
+        """**M231**：给一段语句开一个**块层**环境。
+
+        `块信息` 是 `(体内绑定, 本块引入)`（编译器收集时算好的）。块层只认
+        「本块引入」的名字（见 `Environment.set`）—— 外层已有的照旧改外层。
+        """
+        return Environment(parent=env, 块引入=(块信息[1] if 块信息 else set()))
+
     def _do_if(self, stmt: A.If, env: Environment) -> None:
-        for test, body in stmt.branches:
+        # 🔴 **M231 完整版**：`如果` 的每一段都是一个块（条件在外层求值）。
+        体块们 = getattr(stmt, "_体块们", [])
+        for 序, (test, body) in enumerate(stmt.branches):
             if truthy(self.eval_expr(test, env)):
-                self.exec_block(body, env)
+                块 = 体块们[序] if 序 < len(体块们) else None
+                self.exec_block(body, self._块env(env, 块))
                 return
         if stmt.orelse is not None:
-            self.exec_block(stmt.orelse, env)
+            序 = len(stmt.branches)
+            块 = 体块们[序] if 序 < len(体块们) else None
+            self.exec_block(stmt.orelse, self._块env(env, 块))
 
     def _do_for(self, stmt: A.For, env: Environment) -> None:
         iterable = self.eval_expr(stmt.iter, env)
@@ -690,7 +743,8 @@ class Interpreter:
                 #   · 循环变量走 `set`（**块层语义：外层有就改它，没有才新建**）
                 #     —— 这样与字节码 VM 的「共享槽位」逐条对齐：外层本来就有
                 #     `i` 时，循环后读到的是最后一轮（两边一样）。
-                轮 = Environment(parent=env)
+                轮 = self._块env(env, (getattr(stmt, "_块内绑定", set()),
+                                      getattr(stmt, "_块引入", set())))
                 轮.set(stmt.target.id, item)
                 try:
                     self.exec_block(stmt.body, 轮)
@@ -743,7 +797,9 @@ class Interpreter:
         for _ in range(n):
             try:
                 # M231：每轮一个新块层（循环体内 `令 新名字` 每轮独立）
-                self.exec_block(stmt.body, Environment(parent=env))
+                self.exec_block(stmt.body,
+                                self._块env(env, (getattr(stmt, "_块内绑定", set()),
+                                                 getattr(stmt, "_块引入", set()))))
             except RunContinue:
                 continue
             except RunBreak:
@@ -756,7 +812,9 @@ class Interpreter:
                 # ⚠️ 条件 `stmt.test` 仍在**外层** env 求值，所以
                 #    `令 i = 0` + `当 i < 10：i = i + 1` 照旧能停：
                 #    块层的 `i = …` 会「改最近那层」（见 `Environment.set`）。
-                self.exec_block(stmt.body, Environment(parent=env))
+                self.exec_block(stmt.body,
+                                self._块env(env, (getattr(stmt, "_块内绑定", set()),
+                                                 getattr(stmt, "_块引入", set()))))
             except RunContinue:
                 continue
             except RunBreak:
@@ -825,12 +883,16 @@ class Interpreter:
     # BaseException` 是为「把 Python 异常翻译成中文」而写的，若不显式放行，
     # 用户程序里一句 `捕获：` 就能把「退出」吞掉（见 errors.DebugQuit）。
     def _do_try(self, stmt: A.Try, env: Environment) -> None:
+        # 🔴 **M231 完整版**：`尝试` 体 / 每个 `捕获` 体 / `最终` 体**各是一个块**。
+        终块 = getattr(stmt, "_最终块", None)
+        终块env = self._块env(env, 终块) if stmt.finalbody is not None else env
+        捕获块们 = getattr(stmt, "_捕获块们", [])
         try:
-            self.exec_block(stmt.body, env)
+            self.exec_block(stmt.body, self._块env(env, getattr(stmt, "_尝试块", None)))
         except (RunBreak, RunContinue, _ReturnSignal, DebugQuit):
             # 离开控制信号不被捕获，但「最终」必须执行
             if stmt.finalbody is not None:
-                self.exec_block(stmt.finalbody, env)
+                self.exec_block(stmt.finalbody, 终块env)
             raise
         except BaseException as exc:
             err = self._as_jishi_error(exc)
@@ -863,8 +925,12 @@ class Interpreter:
                     # 所以捕获名就是**当前作用域里的一次赋值**，捕获体也在当前作用域跑
                     # —— 与编译器（把 `h.name` 与捕获体里的赋值都算作本作用域的局部）
                     # 以及两个 VM 一致。R5.1 修。
+                    # 捕获名属于**这个捕获块**（M231 完整版）：块外读它要报错。
+                    序 = stmt.handlers.index(h)
+                    块 = 捕获块们[序] if 序 < len(捕获块们) else None
+                    捕块env = self._块env(env, 块)
                     if h.name:
-                        env.set(h.name, err)
+                        捕块env.set(h.name, err)
                     # ⚠️ `_handling` 要盖住**捕获体 + 最终块**（M148）：字节码那边
                     # 的捕获区右边界取的是 `after`（整条语句结束），所以最终块里
                     # 抛出的错误在两边都得挂同一个「起因」。`抛出 e` 自己时由
@@ -872,13 +938,13 @@ class Interpreter:
                     self._handling.append(err)
                     try:
                         try:
-                            self.exec_block(h.body, env)
+                            self.exec_block(h.body, 捕块env)
                         except (RunBreak, RunContinue, _ReturnSignal, DebugQuit):
                             if stmt.finalbody is not None:
-                                self.exec_block(stmt.finalbody, env)
+                                self.exec_block(stmt.finalbody, 终块env)
                             raise
                         if stmt.finalbody is not None:
-                            self.exec_block(stmt.finalbody, env)
+                            self.exec_block(stmt.finalbody, 终块env)
                     finally:
                         self._handling.pop()
                     return
@@ -888,13 +954,13 @@ class Interpreter:
             self._handling.append(err)
             try:
                 if stmt.finalbody is not None:
-                    self.exec_block(stmt.finalbody, env)
+                    self.exec_block(stmt.finalbody, 终块env)
             finally:
                 self._handling.pop()
             raise err
         else:
             if stmt.finalbody is not None:
-                self.exec_block(stmt.finalbody, env)
+                self.exec_block(stmt.finalbody, 终块env)
 
     def _handler_catches(self, h: A.ExceptHandler, err: JishiError,
                          env: Environment) -> bool:

@@ -199,16 +199,30 @@ impl Scope {
     /// 循环外还是 0 —— 不报错、看着对的错最难查。
     fn set(this: &Rc<RefCell<Scope>>, name: &str, value: Val) {
         if this.borrow().block {
-            // 先找「最近一个已经有这个名字的层」（找到再写，避免在循环里 move `value`）
+            // 🔴 **M231**：只在**块层链**里找「最近一个已经有这个名字的块」。
+            //
+            // ⚠️ 走到**非块层**（函数层 / 模块层）就停，**不再往上找** ——
+            //    这是踩出来的：`函数 f()：如果 真：令 x = 5`（模块层有 x、
+            //    函数层没有）时，一路找到模块层就会把**模块层的 x 改掉**，
+            //    而「函数内赋值即局部」。字节码侧编译期把 `x` 当函数局部槽，
+            //    模块层的 x 不变 —— 两边就对不上了。
+            //
+            // 停下来的地方**有**它 → 改它（`令 总 = 总 + 1` 在模块层的块里
+            //   就是这条）；**没有** → 落到本块新建（`令 j = i`，每轮新格子）。
             let mut 靶层: Option<Rc<RefCell<Scope>>> = None;
             let mut cur = Some(this.clone());
             while let Some(s) = cur {
-                let 命中 = s.borrow().vars.contains_key(name);
+                let (命中, 是块, 上一层) = {
+                    let b = s.borrow();
+                    (b.vars.contains_key(name), b.block, b.parent.clone())
+                };
                 if 命中 {
                     靶层 = Some(s.clone());
                     break;
                 }
-                let 上一层 = s.borrow().parent.clone();
+                if !是块 {
+                    break;          // 函数层 / 模块层：不再往上找
+                }
                 cur = 上一层;
             }
             if let Some(层) = 靶层 {
@@ -576,6 +590,18 @@ impl Walker {
     }
 
     /// 顺序执行一串语句；`跳出` / `继续` **原样往上传**（由最近的循环接住）。
+    /// **M231 完整版**：在**新块层**里跑一段语句（`如果` 分支 / `尝试` 各段）。
+    ///
+    /// 与循环里那三处同一个套路：换 `self.env` → 跑 → 换回来。
+    /// 块的「外层已有就改外层 / 没有就本块新建」由 `Scope::set` 负责。
+    fn exec_in_block(&mut self, stmts: &[Json]) -> Result<Flow, JishiError> {
+        let 轮 = Scope::block_child(self.env.clone());
+        let 旧 = std::mem::replace(&mut self.env, 轮);
+        let 结果 = self.exec_body(stmts);
+        self.env = 旧;
+        结果
+    }
+
     fn exec_body(&mut self, stmts: &[Json]) -> Result<Flow, JishiError> {
         for st in stmts {
             match self.exec_stmt(st)? {
@@ -606,11 +632,12 @@ impl Walker {
             if truthy(self.eval(&pair[0])?) {
                 let body = pair[1].as_array()
                     .ok_or_else(|| self.bad("If 的块不是语句列表", n))?;
-                return self.exec_body(body);
+                // 🔴 **M231 完整版**：`如果` 的每一段都是块（条件在外层求值）
+                return self.exec_in_block(body);
             }
         }
         if let Some(orelse) = n.get("orelse").and_then(|v| v.as_array()) {
-            return self.exec_body(orelse);
+            return self.exec_in_block(orelse);
         }
         Ok(Flow::Normal)
     }
@@ -1446,7 +1473,8 @@ impl Walker {
         let finalbody = n.get("finalbody").and_then(|v| v.as_array())
             .map(|v| v.as_slice());
 
-        match self.exec_body(body) {
+        // 🔴 **M231 完整版**：`尝试` 体 / `捕获` 体 / `最终` 体各是一个块
+        match self.exec_in_block(body) {
             Ok(flow) => {
                 // 「最终」里跳出去 → **覆盖**原本的信号
                 match self.run_finally(finalbody)? {
@@ -1497,19 +1525,23 @@ impl Walker {
                     // 被「尝试」接住、不会穿出函数边界，所以 `call_walk_fn` 拍不到
                     // —— 这里补上（此刻调用栈还完整）。
                     self.snapshot_trace(&mut e);
-                    // 捕获名 = **当前作用域**的一次赋值（口径 2）
+                    // 🔴 **M231 完整版**：捕获名是**这个捕获块**里的一次赋值
+                    //     （块外读它要报错）。所以先进块层，再插名字。
+                    let 捕块 = Scope::block_child(self.env.clone());
                     if let Some(name) = h.get("name").and_then(|v| v.as_str()) {
                         if !name.is_empty() {
-                            self.env.borrow_mut()
+                            捕块.borrow_mut()
                                 .vars.insert(name.to_string(), exc.clone());
                         }
                     }
+                    let 旧env = std::mem::replace(&mut self.env, 捕块);
                     // M148：捕获体 + 最终块都在「正在处理它」的范围里 ——
                     // 与 Python `_do_try` 的 `self._handling.append(err)` 同一位置，
                     // 也与字节码那边「捕获区右边界取 after」同一口径。
                     self.handling.push(exc.clone());
                     let r = self.run_handler_body(h, finalbody);
                     self.handling.pop();
+                    self.env = 旧env;
                     return r;
                 }
                 // 没有处理器接住：跑「最终」后继续往上抛（原错误原样带走）。
@@ -1536,7 +1568,7 @@ impl Walker {
         -> Result<Flow, JishiError>
     {
         let hbody = stmts_of(h, "body")?;
-        match self.exec_body(hbody) {
+        match self.exec_in_block(hbody) {
             Err(he) => Err(he),
             Ok(flow) => match self.run_finally(fin)? {
                 Some(f) => Ok(f),
@@ -1551,7 +1583,7 @@ impl Walker {
     /// 那会**覆盖**外层正在传播的信号（Python 的 finally 就是这么定的）。
     fn run_finally(&mut self, fin: Option<&[Json]>) -> Result<Option<Flow>, JishiError> {
         let Some(stmts) = fin else { return Ok(None) };
-        match self.exec_body(stmts)? {
+        match self.exec_in_block(stmts)? {
             Flow::Normal => Ok(None),
             f => Ok(Some(f)),
         }
