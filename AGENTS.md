@@ -103,7 +103,7 @@
    便于被大模型调用。取舍有疑问时回到这一条。
 2. **三执行器语义必须一致**：树遍历 / Python VM / C VM。
    任何改动语义（语法/内建/方法/异常），**必须先跑 `tests/test_cvm.py` 对拍**。
-3. **测试命令**：`python -m pytest tests/`（当前 **4915 项**；其中 137 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
+3. **测试命令**：`python -m pytest tests/`（当前 **4930 项**；其中 137 条语料用例已搬到 `tools/自测.jsh`，CI 上跑 —— 见 M138）。
    ✅ **并行**（2026-10-04 实测）：配方两条都要跑：
    ```bash
    .venv/Scripts/python.exe tools/test_all.py          # **两节一条命令**（见下）

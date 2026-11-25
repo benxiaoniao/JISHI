@@ -60,8 +60,8 @@ def test_dump_stdlib报的是真实能力():
     码, 出 = _跑([RUST, "--dump-stdlib"])
     assert 码 == 0
     d = json.loads(出)
-    assert len(d) == 52, f"应当是 52 个模块，实际 {len(d)}：缺 {sorted(set(['数据库']) - set(d))}"
-    assert sum(len(v) for v in d.values()) == 609   # M229：浏览器 +5、窗口 +1
+    assert len(d) == 53, f"应当是 53 个模块，实际 {len(d)}"
+    assert sum(len(v) for v in d.values()) == 611   # M232：串口 +2（53 模块）
     assert "数据库" in d, "内嵌库模块 `数据库` 没报上来"
 
 

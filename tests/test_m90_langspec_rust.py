@@ -171,7 +171,8 @@ _STDLIB_MODULES = [
     # M195 加了 `PDF`（ASCII 在 HTTP 之后、Word 之前）
     # M208 加了 `操控` / `物理` / `粒子`（顺序由 `--lang-spec` 的排序决定：
     # 操控在「托盘」后、物理在「浏览器」后、粒子在「站点」后）
-    "Excel", "HTTP服务端", "HTTP路由", "PDF", "Word", "html", "json", "剪贴板", "加密",
+    # M232 加了 `串口`（`--lang-spec` 按 JSON 里的排序：在 `json` 之后、`剪贴板` 之前）
+    "Excel", "HTTP服务端", "HTTP路由", "PDF", "Word", "html", "json", "串口", "剪贴板", "加密",
     "压缩", "参数", "向量", "图形", "地图", "场景", "声音", "存档",
     "容器", "对比", "并发", "打包", "托盘", "操控",
     "数学", "数据库", "文件", "文本", "日志", "日期",
@@ -263,7 +264,8 @@ def test_独立判据_lang_spec结构与关键事实():
     # M222：`窗口.最近文件` / `窗口.徽标` ⇒ 52 模块 / 597 函数。
     # M223：`窗口.拖动` / `窗口.设主题` / `浏览器.匹配` ⇒ 52 模块 / 600 函数。
     # M229：`浏览器` 加 5 个元素查询、`窗口` 加 `送宿主` ⇒ **52 模块 / 607 函数**。
-    assert sum(len(m["functions"]) for m in d["stdlib"]) == 609
+    # M232：`串口` 加 2 个函数 ⇒ **53 模块 / 611 函数**。
+    assert sum(len(m["functions"]) for m in d["stdlib"]) == 611
     assert d["exceptions"] == _EXCEPTIONS
     assert [c["code"] for c in d["check_codes"]] == _CHECK_CODES
     # M131：包管理加了 E4000–E4009 共 10 个码 ⇒ 35 → 45。
