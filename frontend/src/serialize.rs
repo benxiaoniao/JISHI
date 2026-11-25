@@ -16,7 +16,7 @@ use crate::sha256;
 
 /// 序列化格式版本。**与 `jishi/serialize.py` 的 `FORMAT_VERSION` 同步**，
 /// 格式一变两边一起动，宿主据此拒绝不兼容产物。
-pub const FORMAT_VERSION: i64 = 3;
+pub const FORMAT_VERSION: i64 = 4;   // 4: M231 `NEW_CELL`
 
 /// JavaScript 的安全整数上界（2^53 - 1）：超出就写成十进制字符串，
 /// 免得宿主侧 JSON 解析**静默丢精度**。

@@ -156,6 +156,13 @@ pub struct Module {
     pub codes: Vec<Code>,
     pub main: i64,
     pub filename: String,
+    /// **M231**：编译期发现的错误 `(消息, 行, 列)`。
+    ///
+    /// 为什么现在才需要：以前编译期**从不报错**（假定前端已校验），所以
+    /// `compile_program` 不返回 Result。但「循环外读循环体里才引入的名字」
+    /// 只有编译期才知道 —— 运行期那会儿变量已经是全局的一个格子了，
+    /// `LOAD_GLOBAL` 照样读得到。调用方拿到 `Module` 后先看这里空不空。
+    pub errors: Vec<(String, i64, i64)>,
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +286,8 @@ struct Scope {
     freevars: BTreeSet<String>,
     children: Vec<usize>,
     parent: Option<usize>,
+    /// **M231**：本作用域里「由某个循环体引入」的名字（循环外引用要报错）。
+    块绑定: BTreeSet<String>,
 }
 
 impl Scope {
@@ -293,6 +302,7 @@ impl Scope {
             freevars: BTreeSet::new(),
             children: Vec::new(),
             parent,
+            块绑定: BTreeSet::new(),
         }
     }
 
@@ -308,11 +318,23 @@ impl Scope {
     fn is_func(&self) -> bool {
         self.kind == ScopeKind::Function
     }
+
+    /// **M231**：本作用域自己的单元名（按名字排序，与 `cell_index` 的布局一致）。
+    fn cells_own(&self) -> Vec<String> {
+        self.cellvars.iter().cloned().collect()
+    }
 }
 
 struct Collector {
     scopes: Vec<Scope>,
     func_scopes: HashMap<usize, usize>,
+    /// **M231**：每个循环体的 `(体内绑定, 本块引入)`。
+    /// · 前者给「块栈」和 NEW_CELL 用（**含**循环变量 —— `遍历 c` 连着写两次很常见）；
+    /// · 后者**只**装外层本来没有的名字 —— 「循环外引用要报错」的持久判断用它
+    ///   （装多了会把「形参拿来当循环变量」判成错，`数据库.jsh` 撞过）。
+    块: Vec<(BTreeSet<String>, BTreeSet<String>)>,
+    /// `(行, 列)` → 块号。Rust 侧 AST 是 `J`，没有稳定节点身份 —— 用位置当键。
+    节点块: HashMap<(i64, i64), usize>,
 }
 
 impl Collector {
@@ -326,13 +348,13 @@ impl Collector {
 // 第 1 步：收集
 // ---------------------------------------------------------------------------
 
-fn collect_stmts(stmts: &[J], scope: usize, c: &mut Collector) {
+fn collect_stmts(stmts: &[J], scope: usize, c: &mut Collector, 块内: Option<usize>) {
     for st in stmts {
-        collect_stmt(st, scope, c);
+        collect_stmt(st, scope, c, 块内);
     }
 }
 
-fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
+fn collect_stmt(st: &J, scope: usize, c: &mut Collector, 块内: Option<usize>) {
     let n = match node_of(st) {
         Some(n) => n,
         None => return,
@@ -343,6 +365,10 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
             if kd(target) == "Name" {
                 let id = as_jstr(nf(node_of(target).unwrap(), "id")).to_string();
                 c.scopes[scope].bound.insert(id.clone());
+                // 🔴 M231：记进「本块的绑定」—— 循环外引用它就要报错
+                if let Some(块号) = 块内 {
+                    c.块[块号].0.insert(id.clone());
+                }
                 // 复合赋值要先读旧值
                 if as_jstr(nf(n, "op")) != "=" {
                     c.scopes[scope].used.insert(id);
@@ -381,30 +407,81 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
                 let items = as_list(br);
                 if items.len() >= 2 {
                     collect_expr(&items[0], scope, c);
-                    collect_stmts(as_list(&items[1]), scope, c);
+                    collect_stmts(as_list(&items[1]), scope, c, 块内);
                 }
             }
             let orelse = nf(n, "orelse");
             if !is_null(orelse) {
-                collect_stmts(as_list(orelse), scope, c);
+                collect_stmts(as_list(orelse), scope, c, 块内);
             }
         }
         "For" => {
             collect_expr(nf(n, "iter"), scope, c);
+            // 🔴 M231：循环体是一个**块** —— 记下它绑定了哪些名字。
+            let 外层已有 = c.scopes[scope].bound.clone();
+            let 块号 = c.块.len();
+            c.块.push((BTreeSet::new(), BTreeSet::new()));
+            collect_stmts(as_list(nf(n, "body")), scope, c, Some(块号));
             let target = nf(n, "target");
+            let mut 体内: BTreeSet<String> = c.块[块号].0.difference(&外层已有).cloned().collect();
+            let mut 引入 = 体内.clone();
             if kd(target) == "Name" {
                 let id = as_jstr(nf(node_of(target).unwrap(), "id")).to_string();
-                c.scopes[scope].bound.insert(id);
+                c.scopes[scope].bound.insert(id.clone());
+                if !外层已有.contains(&id) {
+                    引入.insert(id.clone());
+                }
+                // 循环变量**总是**记进体内（块栈 + NEW_CELL 用），哪怕外层有同名
+                体内.insert(id);
             }
-            collect_stmts(as_list(nf(n, "body")), scope, c);
+            for nm in &引入 {
+                c.scopes[scope].块绑定.insert(nm.clone());
+            }
+            c.块[块号] = (体内, 引入);
+            c.节点块.insert(jpos(n), 块号);
+            if let Some(外) = 块内 {
+                for nm in c.块[块号].0.clone() {
+                    c.块[外].0.insert(nm);
+                }
+            }
         }
         "Loop" => {
             collect_expr(nf(n, "times"), scope, c);
-            collect_stmts(as_list(nf(n, "body")), scope, c);
+            let 外层已有 = c.scopes[scope].bound.clone();
+            let 块号 = c.块.len();
+            c.块.push((BTreeSet::new(), BTreeSet::new()));
+            collect_stmts(as_list(nf(n, "body")), scope, c, Some(块号));
+            let 引入: BTreeSet<String> =
+                c.块[块号].0.difference(&外层已有).cloned().collect();
+            for nm in &引入 {
+                c.scopes[scope].块绑定.insert(nm.clone());
+            }
+            c.块[块号] = (引入.clone(), 引入);
+            c.节点块.insert(jpos(n), 块号);
+            if let Some(外) = 块内 {
+                for nm in c.块[块号].0.clone() {
+                    c.块[外].0.insert(nm);
+                }
+            }
         }
         "While" => {
             collect_expr(nf(n, "test"), scope, c);
-            collect_stmts(as_list(nf(n, "body")), scope, c);
+            let 外层已有 = c.scopes[scope].bound.clone();
+            let 块号 = c.块.len();
+            c.块.push((BTreeSet::new(), BTreeSet::new()));
+            collect_stmts(as_list(nf(n, "body")), scope, c, Some(块号));
+            let 引入: BTreeSet<String> =
+                c.块[块号].0.difference(&外层已有).cloned().collect();
+            for nm in &引入 {
+                c.scopes[scope].块绑定.insert(nm.clone());
+            }
+            c.块[块号] = (引入.clone(), 引入);
+            c.节点块.insert(jpos(n), 块号);
+            if let Some(外) = 块内 {
+                for nm in c.块[块号].0.clone() {
+                    c.块[外].0.insert(nm);
+                }
+            }
         }
         "FuncDef" => {
             let name = as_jstr(nf(n, "name")).to_string();
@@ -420,7 +497,7 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
             }
             c.scopes[scope].children.push(sub);
             c.func_scopes.insert(nid(n), sub);
-            collect_stmts(as_list(nf(n, "body")), sub, c);
+            collect_stmts(as_list(nf(n, "body")), sub, c, None);
         }
         "ClassDef" => {
             let name = as_jstr(nf(n, "name")).to_string();
@@ -443,7 +520,7 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
                         }
                         c.scopes[scope].children.push(sub);
                         c.func_scopes.insert(nid(m), sub);
-                        collect_stmts(as_list(nf(m, "body")), sub, c);
+                        collect_stmts(as_list(nf(m, "body")), sub, c, None);
                     }
                     // 类变量（M23.3）：值在「定义类的外层作用域」里求值
                     "Assign" => collect_expr(nf(m, "value"), scope, c),
@@ -475,7 +552,7 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
             //      **编译期直接崩**。
             // 只有「外层有同名变量」时才看得出来（否则全局与局部恰好等价）。
             // 与 Python 侧的 `_collect_stmt` **逐字对应**，改一处必须改另一处。
-            collect_stmts(as_list(nf(n, "body")), scope, c);
+            collect_stmts(as_list(nf(n, "body")), scope, c, 块内);
             for h in as_list(nf(n, "handlers")) {
                 let hm = match node_of(h) {
                     Some(m) => m,
@@ -491,11 +568,11 @@ fn collect_stmt(st: &J, scope: usize, c: &mut Collector) {
                     let s = as_jstr(hname).to_string();
                     c.scopes[scope].bound.insert(s);
                 }
-                collect_stmts(as_list(nf(hm, "body")), scope, c);
+                collect_stmts(as_list(nf(hm, "body")), scope, c, 块内);
             }
             let fin = nf(n, "finalbody");
             if !is_null(fin) {
-                collect_stmts(as_list(fin), scope, c);
+                collect_stmts(as_list(fin), scope, c, 块内);
             }
         }
         "Raise" => {
@@ -544,7 +621,7 @@ fn collect_expr(e: &J, scope: usize, c: &mut Collector) {
                     collect_expr(d, scope, c);
                 }
             }
-            collect_stmts(as_list(nf(n, "body")), sub, c);
+            collect_stmts(as_list(nf(n, "body")), sub, c, None);
         }
         "Compare" => {
             collect_expr(nf(n, "left"), scope, c);
@@ -609,7 +686,7 @@ fn resolve(scopes: &mut Vec<Scope>, id: usize) {
     for child in children {
         resolve(scopes, child);
     }
-    if !scopes[id].is_func() {
+    if !scopes[id].is_func() && scopes[id].kind != ScopeKind::Module {
         return;
     }
     let used: Vec<String> = scopes[id].used.iter().cloned().collect();
@@ -630,7 +707,13 @@ fn resolve(scopes: &mut Vec<Scope>, id: usize) {
         }
         let found = match found {
             None => continue,                       // 全局（内建、导入的名字）
-            Some(f) if !scopes[f].is_func() => continue,
+            Some(f)
+                if !scopes[f].is_func()
+                    && !(scopes[f].kind == ScopeKind::Module
+                        && scopes[f].块绑定.contains(&name)) =>
+            {
+                continue
+            }
             Some(f) => f,
         };
         scopes[found].cellvars.insert(name.clone());
@@ -654,12 +737,23 @@ struct Emitter<'a> {
     const_cache: HashMap<ConstKey, usize>,
     name_cache: HashMap<String, usize>,
     tmp_seq: i64,
+    /// **M231**：每个循环体的 `(体内绑定, 本块引入)`（见 `Collector` 的同名字段）
+    块: &'a Vec<(BTreeSet<String>, BTreeSet<String>)>,
+    /// `(行, 列)` → 块号
+    节点块: &'a HashMap<(i64, i64), usize>,
+    /// 当前**活跃**的循环体块（进循环压、出循环弹）
+    块栈: Vec<BTreeSet<String>>,
+    /// 已经走完的循环体**引入**过的名字（循环外引用要报错）
+    已退出块: BTreeSet<String>,
 }
 
 impl<'a> Emitter<'a> {
+    #[allow(clippy::too_many_arguments)]
     fn new(m: Module, scopes: &'a Vec<Scope>,
            func_scopes: &'a HashMap<usize, usize>, root: usize,
-           fuse_method_call: bool) -> Emitter<'a> {
+           fuse_method_call: bool,
+           块: &'a Vec<(BTreeSet<String>, BTreeSet<String>)>,
+           节点块: &'a HashMap<(i64, i64), usize>) -> Emitter<'a> {
         Emitter {
             m,
             scopes,
@@ -670,6 +764,10 @@ impl<'a> Emitter<'a> {
             const_cache: HashMap::new(),
             name_cache: HashMap::new(),
             tmp_seq: 0,
+            块,
+            节点块,
+            块栈: Vec::new(),
+            已退出块: BTreeSet::new(),
         }
     }
 
@@ -743,6 +841,33 @@ impl<'a> Emitter<'a> {
     // -- 名字访问 -----------------------------------------------------------
 
     fn load_name(&mut self, name: &str, node: Option<&Node>) -> i64 {
+        // 🔴 **M231（块级作用域）**：这个名字是不是「某个已经走完的循环体里
+        // 才引入的」？是的话，循环外读它要报错 —— 与树遍历那边对齐
+        // （块层随循环结束就没了 ⇒ 报「找不到这个名字」）。
+        // ⚠️ 两条都要满足：① 它在某个**已退出**的块里引入过；② 它**不在**当前
+        //    任何活跃块里，也**不是**外层本来就有的（`bound - 块绑定`）。
+        if self.已退出块.contains(name) {
+            let (非块绑定, 活跃) = {
+                let sc = &self.scopes[self.scope];
+                (
+                    sc.bound
+                        .iter()
+                        .any(|n| n == name && !sc.块绑定.contains(n)),
+                    self.块栈.iter().any(|s| s.contains(name)),
+                )
+            };
+            if !非块绑定 && !活跃 {
+                // 记一条编译期错误（`Module.errors`），字节码照样发 `LOAD_GLOBAL`
+                // —— 编出来的东西是完整的，只是调用方在看到 errors 时会先报错。
+                let (line, col) = match node {
+                    Some(n) => jpos(n),
+                    None => (1, 1),
+                };
+                self.m.errors.push((name.to_string(), line, col));
+                let idx = self.name_idx(name);
+                return self.emit(op::LOAD_GLOBAL, node, idx, 0, 0);
+            }
+        }
         let (is_cell, is_local) = {
             let sc = &self.scopes[self.scope];
             (
@@ -763,6 +888,8 @@ impl<'a> Emitter<'a> {
     }
 
     fn store_name(&mut self, name: &str, node: Option<&Node>) -> i64 {
+        // 🔴 M231：外层重新 `令` 了这个名字 ⇒ 它不再「只在循环体里有效」。
+        self.已退出块.remove(name);
         let (is_cell, is_local) = {
             let sc = &self.scopes[self.scope];
             (
@@ -991,6 +1118,44 @@ impl<'a> Emitter<'a> {
         }
     }
 
+    // -- M231：块级作用域的三个小动作 ------------------------------------
+
+    fn 进块(&mut self, n: &Node) {
+        let 体内 = self
+            .节点块
+            .get(&jpos(n))
+            .map(|i| self.块[*i].0.clone())
+            .unwrap_or_default();
+        self.块栈.push(体内);
+    }
+
+    fn 出块(&mut self, n: &Node) {
+        self.块栈.pop();
+        // 记的是「本块**引入**」的名字（只含外层本来没有的）——
+        // `_块内绑定` 里还有「外层已有的循环变量」，它们循环外照样该能读。
+        if let Some(i) = self.节点块.get(&jpos(n)) {
+            for nm in self.块[*i].1.clone() {
+                self.已退出块.insert(nm);
+            }
+        }
+    }
+
+    /// 循环体开头「重建单元」：只对**被闭包捕获的**（`cellvars` 里的）发。
+    fn 发新建单元(&mut self, n: &Node) {
+        let Some(i) = self.节点块.get(&jpos(n)).copied() else { return };
+        let 体内 = self.块[i].0.clone();
+        let mut 要发: Vec<i64> = Vec::new();
+        for nm in 体内 {
+            let sc = &self.scopes[self.scope];
+            if sc.cellvars.contains(&nm) {
+                要发.push(sc.cell_index(&nm));
+            }
+        }
+        for a in 要发 {
+            self.emit(op::NEW_CELL, Some(n), a, 0, 0);
+        }
+    }
+
     fn c_for(&mut self, n: &Node) {
         let target = nf(n, "target");
         let id = as_jstr(nf(node_of(target).unwrap(), "id")).to_string();
@@ -999,8 +1164,13 @@ impl<'a> Emitter<'a> {
         let setup = self.emit(op::SETUP_LOOP, Some(n), 0, 0, 0);
         let top = self.here();
         let patch_top = self.emit(op::FOR_ITER, Some(n), 0, 0, 0);
+        // 🔴 M231：**先重建单元，再存循环变量** —— 顺序反了就把这一轮的值写进
+        //    上一轮的单元，闭包抓到的还是最后一轮（改了等于没改）。
+        self.发新建单元(n);
         self.store_name(&id, Some(n));
+        self.进块(n);
         self.compile_body(as_list(nf(n, "body")));
+        self.出块(n);
         self.emit(op::JUMP, Some(n), top, 0, 0);
         // 迭代结束：FOR_ITER 已弹出迭代器
         let exit_iter = self.here();
@@ -1028,7 +1198,11 @@ impl<'a> Emitter<'a> {
         self.emit(op::LOAD_CONST, Some(n), c0, 0, 0);
         self.emit(op::COMPARE, Some(n), op::CMPOP_GT, 0, 0);
         let to_exit = self.emit(op::POP_JUMP_IF_FALSE, Some(n), 0, 0, 0);
+        // M231：每轮开头重建被捕获变量的单元
+        self.发新建单元(n);
+        self.进块(n);
         self.compile_body(as_list(nf(n, "body")));
+        self.出块(n);
         let cont = self.here();
         self.emit(op::LOAD_FAST, Some(n), slot, 0, 0);
         let c1 = self.const_idx(Const::Int(1));
@@ -1048,7 +1222,11 @@ impl<'a> Emitter<'a> {
         let top = self.here();
         self.compile_expr(nf(n, "test"));
         let to_exit = self.emit(op::POP_JUMP_IF_FALSE, Some(n), 0, 0, 0);
+        // M231：同 c_loop
+        self.发新建单元(n);
+        self.进块(n);
         self.compile_body(as_list(nf(n, "body")));
+        self.出块(n);
         self.emit(op::JUMP, Some(n), top, 0, 0);
         let exit_at = self.here();
         self.emit(op::POP_BLOCK, Some(n), 0, 0, 0);
@@ -1086,6 +1264,9 @@ impl<'a> Emitter<'a> {
         let sub_code = std::mem::take(&mut self.m.codes[code_idx]);
         let saved_code = std::mem::replace(&mut self.code, sub_code);
         let saved_scope = self.scope;
+        // M231：函数是**新的块边界** —— 里面/外面的「已退出块」互不相干
+        let saved_块栈 = std::mem::take(&mut self.块栈);
+        let saved_已退出 = std::mem::take(&mut self.已退出块);
         self.scope = sub;
         self.c_check_annotations(n);
         self.compile_body(as_list(nf(n, "body")));
@@ -1096,6 +1277,8 @@ impl<'a> Emitter<'a> {
         let done = std::mem::replace(&mut self.code, saved_code);
         self.m.codes[code_idx] = done;
         self.scope = saved_scope;
+        self.块栈 = saved_块栈;
+        self.已退出块 = saved_已退出;
     }
 
     fn c_funcdef(&mut self, n: &Node) {
@@ -1164,6 +1347,8 @@ impl<'a> Emitter<'a> {
                     let sub_code = std::mem::take(&mut self.m.codes[code_idx]);
                     let saved_code = std::mem::replace(&mut self.code, sub_code);
                     let saved_scope = self.scope;
+                    let saved_块栈 = std::mem::take(&mut self.块栈);
+                    let saved_已退出 = std::mem::take(&mut self.已退出块);
                     self.scope = sub;
                     self.c_check_annotations(m);
                     self.compile_body(as_list(nf(m, "body")));
@@ -1173,6 +1358,8 @@ impl<'a> Emitter<'a> {
                     let done = std::mem::replace(&mut self.code, saved_code);
                     self.m.codes[code_idx] = done;
                     self.scope = saved_scope;
+                    self.块栈 = saved_块栈;
+                    self.已退出块 = saved_已退出;
                     self.mark_start(start, jline(m));
                 }
                 _ => {}
@@ -1794,9 +1981,14 @@ fn compile_expanded(expanded: &Node, filename: &str, fuse_method_call: bool) -> 
         ..Default::default()
     };
 
-    let mut c = Collector { scopes: Vec::new(), func_scopes: HashMap::new() };
+    let mut c = Collector {
+        scopes: Vec::new(),
+        func_scopes: HashMap::new(),
+        块: Vec::new(),
+        节点块: HashMap::new(),
+    };
     let root = c.add(ScopeKind::Module, "<模块>", None);
-    collect_stmts(as_list(nf(&expanded, "body")), root, &mut c);
+    collect_stmts(as_list(nf(&expanded, "body")), root, &mut c, None);
     // M210 / A2：`全局` 声明的名字**不进局部**（模块作用域摘不摘都一样，
     // 那里的 bound 本来就是「全局」；但摘掉也不会错，统一处理更省心）。
     for sc in c.scopes.iter_mut() {
@@ -1813,7 +2005,12 @@ fn compile_expanded(expanded: &Node, filename: &str, fuse_method_call: bool) -> 
     // ⚠️ **绝不能把 body 克隆出来再编**：`func_scopes` 的键是节点地址，
     // 克隆一份就是另一批地址，`emit_function_object` 会当场找不到作用域
     // （第一版就是这么炸的）。`expanded` 必须活到编译结束。
-    let mut em = Emitter::new(m, &c.scopes, &c.func_scopes, root, fuse_method_call);
+    let mut em = Emitter::new(m, &c.scopes, &c.func_scopes, root, fuse_method_call,
+                              &c.块, &c.节点块);
+    // 🔴 **M231**：模块级 code 也要记单元表 —— 顶层循环体里被闭包捕获的名字
+    // （D1 的原例就是顶层循环）在这边是**单元**，不是全局。
+    em.m.codes[0].cellvars = c.scopes[root].cells_own();
+    em.m.codes[0].freevars = c.scopes[root].freevars.iter().cloned().collect();
     let main_code = std::mem::take(&mut em.m.codes[0]);
     em.code = main_code;
     em.compile_body(as_list(nf(&expanded, "body")));

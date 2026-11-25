@@ -496,6 +496,12 @@ class VM:
                         frame_cells[ins.a].value = stack.pop()
                     elif op == Op.LOAD_CELL:
                         stack.append(frame_cells[ins.a])
+                    elif op == Op.NEW_CELL:
+                        # M231：把这一格换成一个**新单元** —— 这一轮造出来的闭包
+                        # 抓新单元，之前那些仍握着旧单元（值留在里面）。
+                        # ⚠️ 只能换  那一段（自有的）；自由变量那一段
+                        # 是外层的单元，换掉等于把外层的变量割断。
+                        frame_cells[ins.a] = Cell()
 
                     # === 栈操作 ===
                     elif op == Op.DUP_TOP:

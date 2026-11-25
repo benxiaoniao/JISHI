@@ -254,6 +254,25 @@ fn run_file(o: &Opts) -> ExitCode {
 
     let module = jishi_frontend::compiler::compile_program_embedded(
         &prog, &filename, crate::内嵌库模块(), false);
+    // 🔴 **M231**：编译期错误（目前只有一种：「循环外读循环体里才引入的名字」）。
+    // 运行期报不了这个 —— 模块级变量在全局里有个格子，`LOAD_GLOBAL` 照样读得到。
+    if let Some((名, 行, 列)) = module.errors.first() {
+        let e = crate::JishiError {
+            type_name: "找不到这个名字".to_string(),
+            code: Some("E0301".to_string()),
+            message: format!("找不到名字「{名}」"),
+            hint: Some(format!(
+                "「{名}」是在循环体里 `令` 的 —— 它只在循环体内有效（M231 块级作用域）。要在循环外用它，就在循环**之前**先 `令 {名} = …` 声明一下")),
+            line: Some(*行),
+            col: Some(*列),
+            underline: None,
+            fix: None,
+            trace: Vec::new(),
+            file: None,
+            cause: None,
+        };
+        return report(&e, &filename, &lines, o.json_errors);
+    }
     let bytecode = jishi_frontend::serialize::dump_json(&module);
     crate::set_args(o.rest.clone());
     let mut vm = match crate::load_module(&bytecode) {

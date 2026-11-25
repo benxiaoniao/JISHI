@@ -89,7 +89,7 @@ use json::Json;
 /// `FORMAT_VERSION`、`core/src/serialize.rs` 的 `FORMAT_VERSION`、
 /// `node/index.js` 的 `FORMAT_VERSION`，以及这里。改一处就要改四处。
 /// 3: R6.6 起 Code 增加 `local_hints`（按槽位的「赋值前读局部」提示）
-pub const BYTECODE_VERSION: i64 = 3;
+pub const BYTECODE_VERSION: i64 = 4;   // 4: M231 `NEW_CELL`
 
 /// 调用栈深度上限（M161）。
 ///
@@ -1682,6 +1682,8 @@ pub(crate) mod op {
     // 切片（M33）：与 Python 侧的 opcodes.py 对齐；`a` 是位标志
     // （1=有起点 2=有终点 4=有步长），分量按顺序压在栈上
     pub const BUILD_SLICE: i64 = 48;
+    /// **M231（块级作用域）**：把单元表第 a 格换成新单元（循环体每轮开头）。
+    pub const NEW_CELL: i64 = 50;
     pub const HALT: i64 = 0;
     pub const ROT_THREE: i64 = 12;
     pub const UNARY_OP: i64 = 14;
@@ -3286,6 +3288,14 @@ impl VM {
                     let mut c = cell.borrow_mut();
                     c.value = v;
                     c.set = true;
+                }
+                op::NEW_CELL => {
+                    // **M231（块级作用域）**：把这一格换成一个**新单元** ——
+                    // 这一轮造出来的闭包抓新单元，之前那些仍握着旧单元（值留在里面）。
+                    // ⚠️ 只换自有单元（cellvars）那一段；自由变量那一段是外层的，
+                    //    换掉等于把外层的变量割断（编译器不会给自由变量发这条）。
+                    let i = ins.a as usize;
+                    self.frames[fi].cells[i] = new_cell();
                 }
                 op::LOAD_CELL => {
                     // 压的是**单元本身**（共享的 `Rc`），好让 `MAKE_FUNCTION` 抓走

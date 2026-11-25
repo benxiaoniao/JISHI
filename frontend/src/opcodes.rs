@@ -63,10 +63,12 @@ pub const BUILD_CLASS: i64 = 45;
 pub const UNPACK: i64 = 46;
 pub const LIST_APPEND: i64 = 47;
 pub const BUILD_SLICE: i64 = 48;
+/// **M231（块级作用域）**：把单元表第 a 格换成新单元（循环体每轮开头）。
+pub const NEW_CELL: i64 = 50;
 pub const METHOD_CALL: i64 = 49;
 
 /// 指令号 → 名字（按号排序，与 `opcodes.OP_NAMES` 同序同内容）。
-pub const OP_NAMES: [&str; 50] = [
+pub const OP_NAMES: [&str; 51] = [
     "HALT",
     "LOAD_CONST",
     "LOAD_GLOBAL",
@@ -116,7 +118,11 @@ pub const OP_NAMES: [&str; 50] = [
     "UNPACK",
     "LIST_APPEND",
     "BUILD_SLICE",
+    // 49 / 50：**Rust VM 没有融合指令**（`METHOD_CALL` 只有 C VM 用），但名字表
+    // 必须与 Python 侧的 `OP_NAMES` **逐位对齐** —— 它要原样写进字节码的
+    // `opcode_names`，两个前端产出的 JSON 才算逐字节相同（`test_m62` 盯着）。
     "METHOD_CALL",
+    "NEW_CELL",
 ];
 
 // ---------------------------------------------------------------------------

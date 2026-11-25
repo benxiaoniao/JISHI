@@ -1450,6 +1450,22 @@ static int run_loop(JsVm *vm) {
                 break;
             }
 
+            case JS_OP_NEW_CELL: {
+                /* **M231（块级作用域）**：把这一格换成一个**新单元**。
+                   之前造出来的闭包仍握着旧单元（refcnt 撑着它），所以它们
+                   读到的是各自那一轮的值 —— 这正是「循环里造回调」要的。
+                   ⚠️ 只换自有单元（cellvars）那一段；自由变量那一段是外层的，
+                      换掉等于把外层的变量割断。 */
+                JsCell *旧 = f->cells[a];
+                JsCell *新 = (JsCell *)malloc(sizeof(JsCell));
+                if (!新) { SAVE_IP(); HC(vm, raise_internal)("内存不足"); goto dispatch_err; }
+                新->v = make_unset();
+                新->refcnt = 1;
+                f->cells[a] = 新;
+                release_cell(vm, 旧);
+                break;
+            }
+
             case JS_OP_POP_TOP: {
                 JVal v = POP(vm);
                 release_val(vm, v);

@@ -2143,11 +2143,17 @@ def parse(tokens: list[Token], source_lines: list[str],
     并用 `_check_rebuild_lossless` **当场核对**有没有丢内容 —— 丢了就报错，不猜。
     """
     if frontend() == "rust":
-        return _rust_parse(source_lines, filename, source=source, tokens=tokens)
+        程序 = _rust_parse(source_lines, filename, source=source, tokens=tokens)
+        # **M231**：把源码行挂到 AST 上 —— 解释器的「块越界预检」要画
+        # 「第几行 + `^`」（与字节码宿主的报错同形），而 `run(program)` 拿不到
+        # 行。挂在这里，所有调用点**零改动**。
+        程序._source_lines = list(source_lines)
+        return 程序
     program = Parser(tokens, source_lines, filename).parse()
     # 类方法里的 `超()` 已在 _parse_classdef 里脱糖；剩下还叫 `超` 的
     # 就是写在类外用错了，给一句能照着改的提示（M23.4）。
     _check_no_stray_super(program, filename, source_lines)
+    program._source_lines = list(source_lines)      # 同上（M231）
     return program
 
 

@@ -493,7 +493,11 @@ def test_独立_打印与变量(tmp_path):
         got = {r["name"]: r["value"] for r in rows}
         assert got.get("上限") == "3", got
         assert got.get("小计") == "0", got
-        assert got.get("i") == "0", got
+        # ⚠️ **M231 起 `i` 不保证在变量面板里**：它是循环体引入的**块变量**，
+        #    而面板读的是「函数局部」（编译期 `bound - 块绑定`）。
+        #    块内变量该不该进面板是另一个取舍（要改 DAP 的作用域视图），
+        #    这里如实标「不保证」，不假装它一定在。
+        assert got.get("i") in (None, "0"), got
         # 内建（`打印` 之类）不该出现在面板里
         assert "打印" not in got, got
 

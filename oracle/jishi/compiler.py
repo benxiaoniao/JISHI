@@ -22,7 +22,7 @@ from typing import Any, Optional
 
 from . import ast_nodes as A
 from . import opcodes as O
-from .errors import JishiError
+from .errors import JishiError, SemanticNameError
 
 MODULE_SCOPE = "module"
 FUNC_SCOPE = "function"
@@ -34,7 +34,7 @@ FUNC_SCOPE = "function"
 
 class _Scope:
     __slots__ = ("kind", "name", "bound", "globals", "used", "cellvars",
-                 "freevars", "children", "parent")
+                 "freevars", "children", "parent", "块绑定")
 
     def __init__(self, kind: str, name: str = "<模块>",
                  parent: Optional["_Scope"] = None):
@@ -47,6 +47,10 @@ class _Scope:
         self.used: set[str] = set()
         self.cellvars: set[str] = set()   # 本作用域绑定、被内层引用
         self.freevars: set[str] = set()   # 本作用域引用、由外层绑定
+        #: 🔴 **M231**：本作用域里「由某个循环体引入」的名字。
+        #: 它们要能被闭包按「每轮一个新单元」捕获 —— **模块级也算**（D1 的原例就是
+        #: 顶层循环，而模块级默认把名字当全局，闭包读全局 ⇒ 必然晚绑定）。
+        self.块绑定: set[str] = set()
         self.children: list["_Scope"] = []
         self.parent = parent
 
@@ -66,16 +70,23 @@ class _Scope:
 # 第 1 步：收集
 # ---------------------------------------------------------------------------
 
-def _collect_stmts(stmts, scope: _Scope, func_scopes: dict[int, _Scope]):
+def _collect_stmts(stmts, scope: _Scope, func_scopes: dict[int, _Scope],
+                   块内: Optional[set] = None):
+    """收集一段语句。`块内` 非 None 时，顺便记下「这段语句里 `令` 绑定了哪些名字」
+    —— **M231 的块级作用域要用它**（循环体外引用这些名字要报错）。"""
     for st in stmts:
-        _collect_stmt(st, scope, func_scopes)
+        _collect_stmt(st, scope, func_scopes, 块内)
 
 
 def _collect_stmt(st: A.Node, scope: _Scope,
-                  func_scopes: dict[int, _Scope]):
+                  func_scopes: dict[int, _Scope],
+                  块内: Optional[set] = None):
     if isinstance(st, A.Assign):
         if isinstance(st.target, A.Name):
             scope.bound.add(st.target.id)
+            # 🔴 M231：记进「本块的绑定」—— 循环体外引用它就要报错
+            if 块内 is not None:
+                块内.add(st.target.id)
             if st.op != "=":          # 复合赋值要先读旧值
                 scope.used.add(st.target.id)
         elif isinstance(st.target, A.TargetList):
@@ -93,20 +104,55 @@ def _collect_stmt(st: A.Node, scope: _Scope,
     elif isinstance(st, A.If):
         for test, body in st.branches:
             _collect_expr(test, scope, func_scopes)
-            _collect_stmts(body, scope, func_scopes)
+            _collect_stmts(body, scope, func_scopes, 块内)
         if st.orelse is not None:
-            _collect_stmts(st.orelse, scope, func_scopes)
+            _collect_stmts(st.orelse, scope, func_scopes, 块内)
     elif isinstance(st, A.For):
         _collect_expr(st.iter, scope, func_scopes)
+        # 🔴 M231：循环体是一个**块** —— 记下它**新引入**了哪些名字。
+        # ⚠️ 只算「进循环之前还没有的」：`令 总 = 总 + 1` 里的 `总` 外层本来就有，
+        #    块内的 `令` 是**改外层**（A2 口径），循环外照样能读 —— 不能算进来。
+        外层已有 = set(scope.bound)
+        体内 = set()
+        _collect_stmts(st.body, scope, func_scopes, 体内)
+        体内 -= 外层已有                  # body 里 `令` 外层已有的：那是「改外层」，不算引入
+        # 🔴 两个集合要**分开**，这是踩出来的：
+        #   · `体内`（`_块内绑定`）：给「块栈」和 NEW_CELL 用 —— 循环变量**总**要在里面，
+        #     否则 `遍历 c …` 连着写两次，第二次体内就用不了 `c` 了；
+        #   · `引入`（`_块引入`）：给「循环外引用要报错」的持久判断用 —— **只能**装
+        #     外层本来没有的名字。装多了会把「形参当循环变量」这种正当写法判成错
+        #     （`数据库.jsh` 的 `_存储器_追加日志(状态, 条目)` 就被误伤过）。
+        引入 = set(体内)
         if isinstance(st.target, A.Name):
             scope.bound.add(st.target.id)
-        _collect_stmts(st.body, scope, func_scopes)
+            if st.target.id not in 外层已有:
+                引入.add(st.target.id)
+            体内.add(st.target.id)
+        st._块引入 = 引入
+        st._块内绑定 = 体内                # 编译期要用（发射 NEW_CELL + 报错检查）
+        scope.块绑定 |= 体内               # _resolve 要用（决定哪些名字要有单元）
+        if 块内 is not None:
+            块内 |= 体内                   # 嵌套循环的绑定也属于外层循环体
     elif isinstance(st, A.Loop):
         _collect_expr(st.times, scope, func_scopes)
-        _collect_stmts(st.body, scope, func_scopes)
+        外层已有 = set(scope.bound)
+        体内 = set()
+        _collect_stmts(st.body, scope, func_scopes, 体内)
+        st._块内绑定 = 体内 - 外层已有
+        st._块引入 = st._块内绑定
+        scope.块绑定 |= st._块引入
+        if 块内 is not None:
+            块内 |= st._块内绑定
     elif isinstance(st, A.While):
         _collect_expr(st.test, scope, func_scopes)
-        _collect_stmts(st.body, scope, func_scopes)
+        外层已有 = set(scope.bound)
+        体内 = set()
+        _collect_stmts(st.body, scope, func_scopes, 体内)
+        st._块内绑定 = 体内 - 外层已有
+        st._块引入 = st._块内绑定
+        scope.块绑定 |= st._块引入
+        if 块内 is not None:
+            块内 |= st._块内绑定
     elif isinstance(st, A.FuncDef):
         scope.bound.add(st.name)
         for d in getattr(st, "defaults", []) or []:
@@ -151,16 +197,16 @@ def _collect_stmt(st: A.Node, scope: _Scope,
         #      —— **编译期直接崩**，用户写一个很自然的程序就撞上。
         # 为什么以前没暴露：只有「外层有同名变量」时才看得出来（否则全局与局部
         # 恰好等价），而语料里没有这种形状。详见 `docs/设计决策.md` D59。
-        _collect_stmts(st.body, scope, func_scopes)
+        _collect_stmts(st.body, scope, func_scopes, 块内)
         for h in st.handlers:
             if h.type is not None:            # `捕获 值错误 为 e：` 的类型也是表达式
                 _collect_expr(h.type, scope, func_scopes)
             if h.name:
                 # 捕获名与「赋值」同级：它是所在作用域的局部（树遍历就是这么做的）
                 scope.bound.add(h.name)
-            _collect_stmts(h.body, scope, func_scopes)
+            _collect_stmts(h.body, scope, func_scopes, 块内)
         if st.finalbody is not None:
-            _collect_stmts(st.finalbody, scope, func_scopes)
+            _collect_stmts(st.finalbody, scope, func_scopes, 块内)
     elif isinstance(st, A.Raise):
         # `抛出 <表达式>`：值表达式里的名字同样要收集（闭包变量只在这里出现
         # 时会漏掉 freevars —— 与上面 ② 同一个毛病）。
@@ -243,7 +289,7 @@ def _walk_scopes(sc: _Scope):
 def _resolve(scope: _Scope) -> None:
     for child in scope.children:
         _resolve(child)
-    if scope.kind != FUNC_SCOPE:
+    if scope.kind not in (FUNC_SCOPE, MODULE_SCOPE):
         return
     for name in sorted(scope.used):
         if name in scope.bound:
@@ -257,7 +303,14 @@ def _resolve(scope: _Scope) -> None:
                 break
             chain.append(e)
             e = e.parent
-        if found is None or found.kind != FUNC_SCOPE:
+        if found is None:
+            continue
+        # 📌 M231：模块作用域的「块绑定」名字也当单元 —— D1 的原例就是顶层循环，
+        # 而模块级默认把名字当全局，闭包读全局 ⇒ 必然晚绑定（20 20 20）。
+        # ⚠️ 只放开「块绑定」那批，别的一律照旧当全局（否则所有模块级闭包都变，
+        # 影响面大、收益为零）。
+        if found.kind != FUNC_SCOPE and not (
+                found.kind == MODULE_SCOPE and name in found.块绑定):
             continue          # 全局（内建函数、导入的名字）
         found.cellvars.add(name)
         for s in chain:
@@ -291,6 +344,14 @@ class _Emitter:
         self._const_cache: dict[tuple, int] = {}
         self._name_cache: dict[str, int] = {}
         self._tmp_seq = 0
+        #: 🔴 **M231（块级作用域）**：当前**活跃**的循环体块（每个是一组名字）。
+        #: 进循环体压一层、出循环体弹一层；`load_name` 用它判断「这个名字现在可见吗」。
+        self.块栈: list[set] = []
+        #: 已经**走完**的循环体引入过的名字。循环外引用它们要报错（与树遍历的
+        #: 「块层随循环结束就没了」对齐）。进函数时保存/恢复（见 `_c_funcdef`）。
+        self.已退出块: set[str] = set()
+        #: 源码行（报错渲染要画「第几行 + `^`」）—— 与 `_err` 同一份
+        self.source_lines: list[str] = []
 
     # -- 表管理 -------------------------------------------------------------
 
@@ -346,6 +407,28 @@ class _Emitter:
 
     def load_name(self, name: str, node: A.Node) -> int:
         scope = self.scope
+        # 🔴 **M231（块级作用域）**：这个名字是不是「某个已经走完的循环体里
+        # 才引入的」？是的话，循环外读它要报错 —— 与树遍历那边的表现对齐
+        # （块层随循环结束就没了 ⇒ 报「找不到这个名字」）。
+        #
+        # ⚠️ 判据有两步，缺一不可：① 它在某个**已退出**的块里绑过；
+        #    ② 它**不在**当前任何活跃块里（可能又在外层重新 `令` 过）。
+        if self.已退出块 and name in self.已退出块:
+            # 只有「**只**由循环体引入」的名字才管 —— 外层本来就有同名变量的，
+            # 那是「改外层」，循环外读到它天经地义（A2 口径）。
+            非块绑定 = scope.bound - scope.块绑定
+            if name not in 非块绑定 and not any(name in s for s in self.块栈):
+                # 编译期就报（Rust 侧同样在 `Module.errors` 里记一条）——
+                # 运行期报不了：模块级的变量在全局里有个格子，`LOAD_GLOBAL`
+                # 照样读得到，报不出「找不到这个名字」。
+                raise SemanticNameError(
+                    f"找不到名字「{name}」",
+                    line=getattr(node, "line", 1), col=getattr(node, "col", 1),
+                    filename=self.cmod.filename,
+                    hint=(f"「{name}」是在循环体里 `令` 的 —— 它只在循环体内有效"
+                          f"（M231 块级作用域）。要在循环外用它，就在循环**之前**先 "
+                          f"`令 {name} = …` 声明一下")
+                ).with_source(self.source_lines)
         if name in scope.cellvars or name in scope.freevars:
             return self.emit(O.Op.LOAD_DEREF, node, scope.cell_index(name))
         if scope.kind == FUNC_SCOPE and name in scope.bound:
@@ -354,6 +437,11 @@ class _Emitter:
 
     def store_name(self, name: str, node: A.Node) -> int:
         scope = self.scope
+        # 🔴 **M231**：外层重新 `令` 了这个名字 ⇒ 它不再「只在循环体里有效」。
+        # 例子：`遍历 条目 在 …` 之后又 `令 条目 = 空`，那之后的 `条目` 当然能读。
+        # 不摘掉的话，`已退出块` 会一直记着它，把后面的正当引用判成错
+        # （`数据库.jsh` 就撞在这个形状上）。
+        self.已退出块.discard(name)
         if name in scope.cellvars or name in scope.freevars:
             return self.emit(O.Op.STORE_DEREF, node, scope.cell_index(name))
         if scope.kind == FUNC_SCOPE and name in scope.bound:
@@ -522,14 +610,46 @@ class _Emitter:
         for j in end_jumps:
             self.patch(j, end)
 
+    # -- M231：块级作用域的四个小动作 ---------------------------------------
+
+    def 进块(self, st: A.Node) -> None:
+        """进循环体（压一层活跃块）。"""
+        self.块栈.append(getattr(st, "_块内绑定", set()))
+
+    def 出块(self, st: A.Node) -> None:
+        """出循环体（弹一层，并记进「已退出」—— 之后引用要报错）。
+
+        ⚠️ 记的是 `_块引入`（**只**含外层本来没有的名字），不是 `_块内绑定`
+        （那里面还有「外层已有的循环变量」—— 它们循环外照样该能读）。
+        """
+        if self.块栈:
+            self.块栈.pop()
+        self.已退出块 |= getattr(st, "_块引入", set())
+
+    def 发新建单元(self, st: A.Node) -> None:
+        """**M231**：循环体开头「重建单元」—— 让这一轮造出来的闭包抓到自己那份。
+
+        只对**被闭包捕获的**（`cellvars` 里的）发：没被捕获的变量在槽位里每轮
+        覆盖，行为本来就对，多发一条指令纯浪费。
+        """
+        scope = self.scope
+        for 名 in sorted(getattr(st, "_块内绑定", set())):
+            if 名 in scope.cellvars:
+                self.emit(O.Op.NEW_CELL, st, scope.cell_index(名))
+
     def _c_for(self, st: A.For):
         self.compile_expr(st.iter)
         self.emit(O.Op.GET_ITER, st)
         setup = self.emit(O.Op.SETUP_LOOP, st)
         top = self.here()
         patch_top = self.emit(O.Op.FOR_ITER, st)
+        # 🔴 M231：**先重建单元，再存循环变量** —— 顺序反了就把这一轮的值
+        #    写进上一轮的 cell 里，闭包抓到的还是最后一轮（改了等于没改）。
+        self.发新建单元(st)
         self.store_name(st.target.id, st)
+        self.进块(st)
         self.compile_body(st.body)
+        self.出块(st)
         self.emit(O.Op.JUMP, st, top)
         # 迭代结束：FOR_ITER 已弹出迭代器
         exit_iter = self.here()
@@ -555,7 +675,11 @@ class _Emitter:
         self.emit(O.Op.LOAD_CONST, st, self.const_idx(0))
         self.emit(O.Op.COMPARE, st, O.CmpOp.GT)
         to_exit = self.emit(O.Op.POP_JUMP_IF_FALSE, st)
+        # M231：每轮开头重建被捕获变量的单元
+        self.发新建单元(st)
+        self.进块(st)
         self.compile_body(st.body)
+        self.出块(st)
         cont = self.here()
         self.emit(O.Op.LOAD_FAST, st, slot)
         self.emit(O.Op.LOAD_CONST, st, self.const_idx(1))
@@ -574,7 +698,11 @@ class _Emitter:
         top = self.here()
         self.compile_expr(st.test)
         to_exit = self.emit(O.Op.POP_JUMP_IF_FALSE, st)
+        # M231：同 _c_loop
+        self.发新建单元(st)
+        self.进块(st)
         self.compile_body(st.body)
+        self.出块(st)
         self.emit(O.Op.JUMP, st, top)
         exit_at = self.here()
         self.emit(O.Op.POP_BLOCK, st)
@@ -615,6 +743,9 @@ class _Emitter:
 
         # 进入函数体继续发射
         saved_code, saved_scope = self.code, self.scope
+        # M231：函数是一个**新的块边界** —— 里面/外面的「已退出块」互不相干
+        saved_块栈, saved_已退出 = self.块栈, self.已退出块
+        self.块栈, self.已退出块 = [], set()
         self.code, self.scope = code, sub_scope
         self._c_check_annotations(st)
         self.compile_body(st.body)
@@ -623,6 +754,7 @@ class _Emitter:
         self.emit(O.Op.LOAD_CONST, st, self.const_idx(None))
         self.emit(O.Op.RETURN, st)
         self.code, self.scope = saved_code, saved_scope
+        self.块栈, self.已退出块 = saved_块栈, saved_已退出
 
     def _c_funcdef(self, st: A.FuncDef):
         self._emit_function_object(st)
@@ -679,6 +811,8 @@ class _Emitter:
                 n_methods += 1
                 # 进入方法体继续发射
                 saved_code, saved_scope = self.code, self.scope
+                saved_块栈, saved_已退出 = self.块栈, self.已退出块
+                self.块栈, self.已退出块 = [], set()
                 self.code, self.scope = code, sub_scope
                 # 方法的类型标注校验（M24.3/M25）：方法与普通函数走的是两条
                 # 发射路径（这里为了把方法函数对象留在栈上待 BUILD_CLASS），
@@ -689,6 +823,7 @@ class _Emitter:
                 self.emit(O.Op.LOAD_CONST, node, self.const_idx(None))
                 self.emit(O.Op.RETURN, node)
                 self.code, self.scope = saved_code, saved_scope
+                self.块栈, self.已退出块 = saved_块栈, saved_已退出
                 self._mark_start(start, node)
 
         # 栈 [基类?, 方法..., 类名] → 类
@@ -1194,7 +1329,14 @@ def compile_program(program: A.Program, filename: str = "<输入>",
             sc.cellvars.difference_update(sc.globals)
     _resolve(root)
 
+    # 🔴 **M231**：模块级的 code 也要记单元表 —— 顶层循环体里被闭包捕获的名字
+    # （D1 的原例就是顶层循环）在这边是**单元**，不是全局。
+    # 以前这里不设（模块级默认全走 LOAD_GLOBAL），所以顶层闭包必然晚绑定。
+    main.cellvars = sorted(root.cellvars)
+    main.freevars = sorted(root.freevars)
+
     emit = _Emitter(cmod, func_scopes, root, fuse_method_call=fuse_method_call)
+    emit.source_lines = source_lines or []
     emit.code = main
     emit.compile_body(program.body)
     emit.emit(O.Op.HALT, None)

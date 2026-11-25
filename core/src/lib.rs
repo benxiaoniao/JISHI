@@ -388,6 +388,32 @@ fn to_py_module(py: Python<'_>, m: &compiler::Module) -> PyResult<Py<PyAny>> {
     Ok(ops.getattr("CompiledModule")?.call((), Some(&kwargs))?.unbind())
 }
 
+
+/// **M231**：编译期错误 → Python 异常。
+///
+/// 目前只有一种：「循环外读循环体里才引入的名字」。为什么现在才需要：
+/// 编译期以前**从不报错**（假定前端已校验），所以 `compile_program` 不返回
+/// Result —— 它把错误放在 `Module.errors` 里，这里翻成异常。
+///
+/// 走**与语法错同一个出口**（`_core.ParseError`，`码` 交给 Python 侧现查类）：
+/// `码 = E0301` 在那边还原成 `SemanticNameError`，与参考实现抛的是同一个类。
+fn 检查编译错误(py: Python<'_>, m: &compiler::Module) -> PyResult<()> {
+    let Some((名, 行, 列)) = m.errors.first() else { return Ok(()) };
+    let 提 = format!(
+        "「{名}」是在循环体里 `令` 的 —— 它只在循环体内有效（M231 块级作用域）。\
+         要在循环外用它，就在循环**之前**先 `令 {名} = …` 声明一下");
+    let err = ParseError::new_err(format!("找不到名字「{名}」"));
+    let v = err.value(py);
+    let _ = v.setattr("码", "E0301");
+    let _ = v.setattr("消息", format!("找不到名字「{名}」"));
+    let _ = v.setattr("行", *行);
+    let _ = v.setattr("列", *列);
+    let _ = v.setattr("提示", 提);
+    let _ = v.setattr("下划线", py.None());
+    let _ = v.setattr("修正", py.None());
+    Err(err)
+}
+
 /// 源码 → **字节码 JSON 文本**（R5 的契约产物；全程原生，不经 Python 对象）。
 #[pyfunction]
 #[pyo3(signature = (source, filename="<输入>", lib_dir=None,
@@ -399,6 +425,7 @@ fn compile(py: Python<'_>, source: &str, filename: &str,
     let prog = localpkg::expand_at(&prog, base.as_deref())
         .map_err(|e| to_pkg_err(py, e))?;
     let m = compiler::compile_program(&prog, filename, lib_dir, fuse_method_call);
+    检查编译错误(py, &m)?;
     Ok(serialize::dump_json(&m))
 }
 
@@ -414,6 +441,7 @@ fn compile_module(py: Python<'_>, source: &str, filename: &str,
     let prog = localpkg::expand_at(&prog, base.as_deref())
         .map_err(|e| to_pkg_err(py, e))?;
     let m = compiler::compile_program(&prog, filename, lib_dir, fuse_method_call);
+    检查编译错误(py, &m)?;
     to_py_module(py, &m)
 }
 

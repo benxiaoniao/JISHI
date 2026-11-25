@@ -20,7 +20,8 @@ from typing import Any
 from . import opcodes as O
 
 #: 序列化格式版本号。格式变更（增删字段、改编码）时 +1，宿主据此拒绝不兼容产物。
-FORMAT_VERSION = 3   # 3: R6.6 起 Code 增加 local_hints（按槽位的「赋值前读局部」提示）
+FORMAT_VERSION = 4   # 4: M231 起新增 `NEW_CELL` 指令（循环体每轮重建闭包单元）
+#                       3: R6.6 起 Code 增加 local_hints（按槽位的「赋值前读局部」提示）
 #                    2: M25 起 Code 增加 param_kind（形参种类），且 UNPACK 的 b 表示星号位置
 
 #: JavaScript 的安全整数上界（2^53 - 1）。宿主侧的 JSON 解析只能精确表示到这个数，

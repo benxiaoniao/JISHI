@@ -199,7 +199,9 @@ def test_字节码里带着local_hints():
     """`local_hints` 必须进 JSON（v3）—— 这是「宿主给得出那句具体提示」的唯一来源。"""
     src = _REGISTERED_CASES["赋值前读局部"]
     body = json.loads(compile_to_json(src, "x.jsh"))
-    assert body["version"] == serialize.FORMAT_VERSION == 3, body["version"]
+    # v4 = M231 加了 NEW_CELL；这条判据只关心「local_hints 进 JSON」，
+    # 所以跟着常量走，别再写死（以前写死 3，改版本时白红一次）
+    assert body["version"] == serialize.FORMAT_VERSION >= 3, body["version"]
     codes = {c["name"]: c for c in body["payload"]["codes"]}
     assert "读" in codes, list(codes)
     hints = codes["读"]["local_hints"]

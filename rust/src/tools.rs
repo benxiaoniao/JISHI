@@ -573,6 +573,10 @@ fn run_one(名: &str) -> Result<(), Option<String>> {
     };
     let module = jishi_frontend::compiler::compile_program_embedded(
         &prog, 名, crate::内嵌库模块(), false);
+    if let Some((坏名, 行, 列)) = module.errors.first() {
+        eprintln!("  ⚠️ 找不到名字「{坏名}」（第 {行} 行第 {列} 列）—— 它只在循环体内有效");
+        return Err(None);
+    }
     let bytecode = jishi_frontend::serialize::dump_json(&module);
     crate::set_args(Vec::new());
     let mut vm = match crate::load_module(&bytecode) {

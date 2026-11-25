@@ -99,6 +99,31 @@ class Environment:
         return False
 
     def set(self, name: str, value: Any) -> None:
+        """写一个名字。
+
+        📌 **M231（块级作用域）**：分两种层，语义**故意不一样**：
+
+        - **函数层 / 模块层**：只写本层（「函数内赋值即局部」，`全局` 声明才有意义）；
+        - **块层**（`decl_globals is None`，M231 新增的循环体层）：**有就改最近那层**，
+          否则本层新建。
+
+        为什么块层要「有就改最近」：`令 总 = 总 + 1` 是**累加**的常见写法（自测脚本、
+        业务代码到处都是，全仓扫出 122 处）。块层若一律「只写本层」，这种写法会
+        静默变成「块内新变量」，循环外还是 0 —— 那是最坏的一种错（不报错、看着对）。
+        所以块层口径是：**外层有这个名字就是在改它；没有才是「块内新变量」**。
+        """
+        if self.decl_globals is None:        # 块层
+            env: Optional["Environment"] = self
+            while env is not None:
+                # 🔴 **跳过「未赋值」哨兵**：函数入口会把本函数赋过值的名字预先
+                # 占成 `_Unbound`（M40「赋值即局部」，用于「赋值之前读它」报错）。
+                # 那个占位**不算真值** —— 块层的 `令 i` 不能因为撞上它就改成
+                # 函数层那个哨兵（否则循环变量跑出块层、循环外读得到，
+                # 与「块级作用域」直接冲突；`test_m40_scope` 就是这么炸的）。
+                if name in env.vars and not isinstance(env.vars[name], _Unbound):
+                    env.vars[name] = value
+                    return
+                env = env.parent
         self.vars[name] = value
 
 
@@ -233,7 +258,12 @@ class UserFunction:
             _collect_stmts(self.body, scope, {})
             # M210 / A2：`全局` 声明过的**不是**局部（否则会被种上「未赋值」
             # 哨兵，读它就报「赋值之前被用到了」）。
-            cached = frozenset(scope.bound - scope.globals)
+            # 🔴 **M231**：循环体里引入的名字（`scope.块绑定`）**不算**函数局部 ——
+            # 它们只在块里有效，函数入口不该给它们种「未赋值」哨兵。
+            # 不排除的话，块层的 `令 i` 会撞上函数层那个哨兵（见 `set` 里的说明），
+            # 循环变量跑出块层、循环外照样读得到 —— `test_m40_scope` / `test_m80`
+            # 的语料 25 都是这么炸的。
+            cached = frozenset(scope.bound - scope.globals - scope.块绑定)
             self._assigned = cached
         return cached
 
@@ -282,10 +312,159 @@ class _ReturnSignal(Exception):
 _NO_VALUE = object()
 
 
+
+def _检查块作用域(program, filename: str, lines) -> None:
+    """**M231**：解释器没有「编译期」，但「块越界引用」必须在**执行前**报。
+
+    不预检会怎样：树遍历跑完循环、打印一堆东西，然后才在 `返回 i` 那儿报错；
+    字节码宿主是编译期直接报 —— 两边输出就一半有一半没有（`test_m80` 的
+    语料 25 / `test_m40_scope` 都撞过）。
+
+    ⚠️ 规则**复用编译器的收集器**（`_collect_stmts` 给的 `_块内绑定` /
+    `_块引入`），不另写一遍 —— 两份规则迟早会漂，而漂了就是「同一个程序在
+    不同执行器里行为不同」。
+    """
+    import dataclasses
+
+    from .compiler import MODULE_SCOPE, _Scope, _collect_stmts
+    from .errors import SemanticNameError
+
+    scopes: dict = {}
+    root = _Scope(MODULE_SCOPE, "<模块>")
+    _collect_stmts(program.body, root, scopes)
+
+    活跃: list = []           # 当前活跃的循环体块（每层一组名字）
+    已退出: set = set()       # 已经走完的循环体**引入**过的名字
+
+    def 查名字(n) -> None:
+        if n.id in 已退出 and not any(n.id in s for s in 活跃):
+            raise SemanticNameError(
+                f"找不到名字「{n.id}」",
+                line=getattr(n, "line", 1), col=getattr(n, "col", 1),
+                filename=filename,
+                hint=(f"「{n.id}」是在循环体里 `令` 的 —— 它只在循环体内有效"
+                      f"（M231 块级作用域）。要在循环外用它，就在循环**之前**先 "
+                      f"`令 {n.id} = …` 声明一下"),
+            ).with_source(lines or [])
+
+    def 查表达式(e) -> None:
+        if e is None:
+            return
+        if isinstance(e, list):
+            for x in e:
+                查表达式(x)
+            return
+        if isinstance(e, A.Name):
+            查名字(e)
+            return
+        # 🔴 **M231**：匿名函数也是**自己的作用域** —— 它的形参（`函数(名)：名`）
+        # 与循环体里的同名变量毫无关系。不开边界的话，参数名撞上「已退出」就误报
+        # （`数据库.jsh` 的 `排序按(函数(名)：名)` 撞过）。
+        if isinstance(e, A.Lambda):
+            存活, 存退 = list(活跃), set(已退出)
+            活跃.clear()
+            已退出.clear()
+            try:
+                查表达式(getattr(e, "body", None))
+            finally:
+                活跃[:] = 存活
+                已退出.clear()
+                已退出.update(存退)
+            return
+        # 🔴 **M231**：推导式是**自己的作用域**（`[行[0] 遍历 行 在 有效]`）——
+        # `行` 只在那对方括号里有效，撞上外层「已退出」的 `行` 不是错。
+        # 这里开一次边界，与 `遍历` 语句对齐（`examples/projects/日志统计` 撞过）。
+        if isinstance(e, A.Comprehension):
+            存活, 存退 = list(活跃), set(已退出)
+            活跃.clear()
+            已退出.clear()
+            try:
+                for 名 in ("elt", "key", "value", "iter", "target", "condition"):
+                    查表达式(getattr(e, 名, None))
+            finally:
+                活跃[:] = 存活
+                已退出.clear()
+                已退出.update(存退)
+            return
+        if not dataclasses.is_dataclass(e):
+            return
+        for f in dataclasses.fields(e):
+            值 = getattr(e, f.name, None)
+            if isinstance(值, (A.Node, list)):
+                查表达式(值)
+
+    def 走语句们(stmts, 边界: bool = False) -> None:
+        if 边界:                       # 函数 / 类体是新的块边界
+            存活跃, 存退出 = list(活跃), set(已退出)
+            活跃.clear()
+            已退出.clear()
+        for st in stmts:
+            走语句(st)
+        if 边界:
+            活跃[:] = 存活跃
+            已退出.clear()
+            已退出.update(存退出)
+
+    def 走语句(st) -> None:
+        if isinstance(st, (A.FuncDef, A.ClassDef)):
+            for d in (getattr(st, "defaults", None) or []):   # 默认值在外层求值
+                查表达式(d)
+            走语句们(st.body, 边界=True)
+            return
+        if isinstance(st, (A.For, A.Loop, A.While)):
+            for 名 in ("iter", "times", "test"):
+                查表达式(getattr(st, 名, None))
+            # ⚠️ **不查循环变量本身**：它是**本块引入**的，`遍历 i` 连着写两次
+            #    （第二段的 `i` 撞上第一段的「已退出」）会被误判 —— 与编译器那边
+            #    `store_name` 先「摘掉已退出」是同一个道理。
+            活跃.append(getattr(st, "_块内绑定", set()))
+            走语句们(st.body)
+            活跃.pop()
+            已退出.update(getattr(st, "_块引入", set()))
+            return
+        if isinstance(st, A.Assign):
+            查表达式(st.value)
+            if isinstance(st.target, A.Name):
+                # 复合赋值（`+=`）要先读旧值 → 那时才查；
+                # 普通 `令 x = v` 是**重新声明**，直接把它从「已退出」摘掉
+                # （与编译器 `store_name` 里的 `discard` 逐条对应）。
+                if st.op != "=":
+                    查名字(st.target)
+                已退出.discard(st.target.id)
+            else:
+                查表达式(st.target)
+            return
+        if isinstance(st, A.If):
+            for 测, 体 in st.branches:
+                查表达式(测)
+                走语句们(体)
+            if st.orelse:
+                走语句们(st.orelse)
+            return
+        if isinstance(st, A.Try):
+            走语句们(st.body)
+            for h in st.handlers:
+                查表达式(getattr(h, "type", None))
+                if getattr(h, "name", None):
+                    已退出.discard(h.name)     # 捕获名是这次重新绑定的
+                走语句们(h.body)
+            if getattr(st, "finalbody", None):
+                走语句们(st.finalbody)
+            return
+        for f in dataclasses.fields(st):       # 其余语句：表达式部分通用走
+            值 = getattr(st, f.name, None)
+            if isinstance(值, (A.Node, list)):
+                查表达式(值)
+
+    走语句们(program.body)
+
+
 class Interpreter:
-    def __init__(self, filename: str = "<输入>"):
+    def __init__(self, filename: str = "<输入>", source_lines=None):
         self.globals = Environment()
         self.filename = filename      # 出错时渲染「文件:行:列」用
+        #: **M231**：源码行 —— 块越界的预检报错要画「第几行 + `^`」，与字节码同形
+        self.source_lines = source_lines
         self._last_value = _NO_VALUE  # 最近一次顶层表达式语句的值（REPL 回显用）
         #: 最近一次「非直接调用」的调用点（M39）：方法调用 / Python 高阶函数
         #: 回调要拿它当调试器帧的调用点（见 `UserFunction.__call__`）。
@@ -315,6 +494,11 @@ class Interpreter:
     # -- 顶层执行 -----------------------------------------------------------
 
     def run(self, program: A.Program) -> None:
+        # 🔴 **M231**：块作用域的越界引用要在**执行前**报（解释器没有编译期，
+        #    见 `_检查块作用域` 的说明）。放在最前面 —— 必须在任何 `打印` 之前。
+        _检查块作用域(program, self.filename,
+                      getattr(program, "_source_lines", None) or self.source_lines)
+
         # M52：先把「用基石写的标准库」展开进本程序（`导入 统计` →
         # `统计 = __基石库_统计__()`）。没用到基石库时这一步是零开销的
         # （`expand` 先探一遍，没命中就直接返回传入的对象）。见 `jishilib.py`。
@@ -499,9 +683,17 @@ class Interpreter:
                     raise iter_size_changed(
                         line=stmt.line, col=stmt.col,
                         filename=self.filename) from None
-                env.set(stmt.target.id, item)
+                # 🔴 **M231：每轮一个新块层**（D1 晚绑定的治本）。
+                #   · 块层里 `令 新名字` 落在块层 ⇒ 每轮一个新格子，
+                #     所以 `遍历 i 在 …：令 j = i` 之后，每轮那个闭包抓到的
+                #     `j` 是各自的（以前全是最后一轮的）；
+                #   · 循环变量走 `set`（**块层语义：外层有就改它，没有才新建**）
+                #     —— 这样与字节码 VM 的「共享槽位」逐条对齐：外层本来就有
+                #     `i` 时，循环后读到的是最后一轮（两边一样）。
+                轮 = Environment(parent=env)
+                轮.set(stmt.target.id, item)
                 try:
-                    self.exec_block(stmt.body, env)
+                    self.exec_block(stmt.body, 轮)
                 except RunContinue:
                     continue
                 except RunBreak:
@@ -550,7 +742,8 @@ class Interpreter:
                                line=stmt.line, col=stmt.col, filename=self.filename)
         for _ in range(n):
             try:
-                self.exec_block(stmt.body, env)
+                # M231：每轮一个新块层（循环体内 `令 新名字` 每轮独立）
+                self.exec_block(stmt.body, Environment(parent=env))
             except RunContinue:
                 continue
             except RunBreak:
@@ -559,7 +752,11 @@ class Interpreter:
     def _do_while(self, stmt: A.While, env: Environment) -> None:
         while truthy(self.eval_expr(stmt.test, env)):
             try:
-                self.exec_block(stmt.body, env)
+                # M231：同 `_do_loop` —— 每轮新块层。
+                # ⚠️ 条件 `stmt.test` 仍在**外层** env 求值，所以
+                #    `令 i = 0` + `当 i < 10：i = i + 1` 照旧能停：
+                #    块层的 `i = …` 会「改最近那层」（见 `Environment.set`）。
+                self.exec_block(stmt.body, Environment(parent=env))
             except RunContinue:
                 continue
             except RunBreak:

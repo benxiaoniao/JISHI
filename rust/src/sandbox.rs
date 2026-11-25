@@ -299,6 +299,23 @@ pub fn compile_source(text: &str, filename: &str) -> Result<String, JishiError> 
     // 行为与「展开了基石库层」的 Python 侧一致（M52 立的规矩，对拍盯着）。
     let m = jishi_frontend::compiler::compile_program_embedded(
         &prog, filename, crate::内嵌库模块(), false);
+    // M231：编译期错误（见 `run.rs` 同一段的说明）
+    if let Some((名, 行, 列)) = m.errors.first() {
+        return Err(crate::JishiError {
+            type_name: "找不到这个名字".to_string(),
+            code: Some("E0301".to_string()),
+            message: format!("找不到名字「{名}」"),
+            hint: Some(format!(
+                "「{名}」是在循环体里 `令` 的 —— 它只在循环体内有效（M231 块级作用域）。要在循环外用它，就在循环**之前**先 `令 {名} = …` 声明一下")),
+            line: Some(*行),
+            col: Some(*列),
+            underline: None,
+            fix: None,
+            trace: Vec::new(),
+            file: None,
+            cause: None,
+        });
+    }
     Ok(jishi_frontend::serialize::dump_json(&m))
 }
 

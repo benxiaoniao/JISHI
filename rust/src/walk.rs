@@ -154,22 +154,71 @@ impl WalkFn {
 
 static NEXT_FN_ID: AtomicUsize = AtomicUsize::new(1);
 
-/// 词法作用域链（模块 → 函数 → …）。
+/// 词法作用域链（模块 → 函数 → 循环体）。
 ///
 /// ⚠️ 与字节码 VM 的「按名字预分配槽位 + 单元表」是**两套做法**：树遍历手里
 /// 只有 AST，没有编译器算好的槽位。这里的规矩是 —— **读沿链往上找、写只写
 /// 当前作用域**。这正是 Python 侧 `Environment`（`jishi/interpreter.py`）那套
 /// 语义，也是「赋值即局部」的实现方式；两边跑同一段源码必须一样。
+///
+/// 📌 **M231（块级作用域）**：多了 `block` 一种层 —— 循环体每轮开一个
+/// **块层**，它的写语义与函数层**故意不一样**（见 `Scope::set` 的说明）。
 pub(crate) struct Scope {
     vars: HashMap<String, Val>,
     parent: Option<Rc<RefCell<Scope>>>,
+    /// 这块是**循环体**吗（M231）。函数层 / 模块层是假。
+    block: bool,
 }
 
 impl Scope {
     /// 开一个子作用域（父 = 定义处的作用域 → 闭包）。
     fn child(parent: Rc<RefCell<Scope>>) -> Rc<RefCell<Scope>> {
-        Rc::new(RefCell::new(Scope { vars: HashMap::new(), parent: Some(parent) }))
+        Rc::new(RefCell::new(Scope {
+            vars: HashMap::new(),
+            parent: Some(parent),
+            block: false,
+        }))
     }
+
+    /// **M231**：开一个**块层**（循环体每轮一个新）。
+    fn block_child(parent: Rc<RefCell<Scope>>) -> Rc<RefCell<Scope>> {
+        Rc::new(RefCell::new(Scope {
+            vars: HashMap::new(),
+            parent: Some(parent),
+            block: true,
+        }))
+    }
+
+    /// 写一个名字。**块层与函数层语义不同**（与 Python 侧 `Environment.set` 逐条对齐）：
+    ///
+    /// - **函数层 / 模块层**：只写本层（「赋值即局部」，`全局` 声明才有意义）；
+    /// - **块层**（循环体）：**有就改最近那层**，否则本层新建。
+    ///
+    /// 为什么块层要「有就改最近」：`令 总 = 总 + 1` 是最常见的累加写法（全仓 122 处，
+    /// 自测脚本自己就有）。块层若一律「只写本层」，这种写法会静默变成「块内新变量」，
+    /// 循环外还是 0 —— 不报错、看着对的错最难查。
+    fn set(this: &Rc<RefCell<Scope>>, name: &str, value: Val) {
+        if this.borrow().block {
+            // 先找「最近一个已经有这个名字的层」（找到再写，避免在循环里 move `value`）
+            let mut 靶层: Option<Rc<RefCell<Scope>>> = None;
+            let mut cur = Some(this.clone());
+            while let Some(s) = cur {
+                let 命中 = s.borrow().vars.contains_key(name);
+                if 命中 {
+                    靶层 = Some(s.clone());
+                    break;
+                }
+                let 上一层 = s.borrow().parent.clone();
+                cur = 上一层;
+            }
+            if let Some(层) = 靶层 {
+                层.borrow_mut().vars.insert(name.to_string(), value);
+                return;
+            }
+        }
+        this.borrow_mut().vars.insert(name.to_string(), value);
+    }
+
     /// 沿链取值（**先看自己**）。
     fn lookup(&self, name: &str) -> Option<Val> {
         if let Some(v) = self.vars.get(name) {
@@ -313,7 +362,11 @@ pub(crate) trait DebugHooks {
 
 impl Walker {
     pub(crate) fn new() -> Walker {
-        let globals = Rc::new(RefCell::new(Scope { vars: HashMap::new(), parent: None }));
+        let globals = Rc::new(RefCell::new(Scope {
+            vars: HashMap::new(),
+            parent: None,
+            block: false,
+        }));
         Walker {
             env: Rc::clone(&globals),
             globals,
@@ -569,7 +622,14 @@ impl Walker {
         let test = field(n, "test")?;
         let body = stmts_of(n, "body")?;
         while truthy(self.eval(test)?) {
-            match self.exec_body(body)? {
+            // M231：同 `exec_loop`。⚠️ 条件 `test` 仍在**外层**求值，
+            // 所以 `令 i = 0` + `当 i < 10：i = i + 1` 照旧能停 ——
+            // 块层的 `i = …` 会「改最近那层」（见 `Scope::set`）。
+            let 轮 = Scope::block_child(self.env.clone());
+            let 旧 = std::mem::replace(&mut self.env, 轮);
+            let 结果 = self.exec_body(body);
+            self.env = 旧;
+            match 结果? {
                 Flow::Break => break,
                 Flow::Normal | Flow::Continue => {}
                 // ⚠️ `返回` 要**穿过循环**往外传 —— 只有函数体能接住它。
@@ -590,8 +650,28 @@ impl Walker {
         // —— 与字节码 VM 的 `GET_ITER` 同一条路，不能自己另写一套。
         let mut it = self.make_iter(iterable)?;
         while let Some(v) = iter_next(&mut it)? {
-            self.assign_to(target, v)?;
-            match self.exec_body(body)? {
+            // 🔴 **M231：每轮一个新块层**（D1 晚绑定的治本）。
+            //   · 循环变量**强制**落在块层（不走 `Scope::set` —— 免得被外层同名吸走）；
+            //   · 块层里 `令 新名字` 也落在块层 ⇒ 每轮一个新格子，
+            //     所以每轮造的闭包抓到的是各自那一轮的值。
+            let 轮 = Scope::block_child(self.env.clone());
+            let 旧 = std::mem::replace(&mut self.env, 轮.clone());
+            let 结果 = (|| -> Result<Flow, JishiError> {
+                match kind(target) {
+                    "Name" => {
+                        let id = field(target, "id")?.as_str().unwrap_or("").to_string();
+                        // ⚠️ **走 `Scope::set`**（块层语义：外层有就改它，没有才新建）
+                        // —— 这样与字节码 VM 的「共享槽位」逐条对齐：外层本来就有
+                        // `i` 时，循环后读到的是最后一轮（两边一样）。
+                        Scope::set(&轮, &id, v);
+                    }
+                    // `遍历 a, b 在 …` 那种解包：走共用的 `assign_to`
+                    _ => self.assign_to(target, v)?,
+                }
+                self.exec_body(body)
+            })();
+            self.env = 旧;
+            match 结果? {
                 Flow::Break => break,
                 Flow::Normal | Flow::Continue => {}
                 // ⚠️ `返回` 要**穿过循环**往外传 —— 只有函数体能接住它。
@@ -611,7 +691,12 @@ impl Walker {
         let mut i: i128 = 0;
         while i < count {
             i += 1;
-            match self.exec_body(body)? {
+            // M231：每轮一个新块层（循环体内 `令 新名字` 每轮独立）
+            let 轮 = Scope::block_child(self.env.clone());
+            let 旧 = std::mem::replace(&mut self.env, 轮);
+            let 结果 = self.exec_body(body);
+            self.env = 旧;
+            match 结果? {
                 Flow::Break => break,
                 Flow::Normal | Flow::Continue => {}
                 // ⚠️ `返回` 要**穿过循环**往外传 —— 只有函数体能接住它。
@@ -888,7 +973,8 @@ impl Walker {
                     .ok_or_else(|| self.bad("Name 没有 id", target))?;
                 // ⚠️ 写**当前**作用域（模块级 → 模块作用域；函数里 → 那个函数的
                 // 局部）—— 「赋值即局部」。链上的外层同名变量**不动**。
-                self.env.borrow_mut().vars.insert(id.to_string(), value);
+                // 📌 M231：块层是例外，走 `Scope::set`（「有就改最近那层」，理由见那里）。
+                Scope::set(&self.env, id, value);
                 Ok(())
             }
             "TargetList" => {
@@ -996,8 +1082,24 @@ impl Walker {
         // 放错顺序的症状很隐蔽：`令 甲 = 1` + 函数里先读 `甲` 再赋 `甲 = 2`
         // → 会**静默拿到外层的 1**（不报错、答案是错的）。
         if self.locals.as_ref().is_some_and(|s| s.contains(id)) {
-            if let Some(v) = self.env.borrow().vars.get(id) {
-                return Ok(v.clone());
+            // 🔴 **M231**：`env` 可能是**块层**（循环体）—— `计 = 计 + 1` 这种
+            // 累加要在块层找不到时**继续走到函数层**，不能当场判「赋值之前被用到」。
+            // 只走到「非块层」为止：过了函数层还找不到，那才是真的没赋值。
+            {
+                let mut cur = Some(self.env.clone());
+                while let Some(s) = cur {
+                    let (值, 是块, 上) = {
+                        let b = s.borrow();
+                        (b.vars.get(id).cloned(), b.block, b.parent.clone())
+                    };
+                    if let Some(v) = 值 {
+                        return Ok(v);
+                    }
+                    if !是块 {
+                        break;
+                    }
+                    cur = 上;
+                }
             }
             // 还没轮到那次赋值 → 报「赋值之前被用到了」。
             // 树遍历没有字节码的 `local_hints`，所以**自己判断**外层有没有同名

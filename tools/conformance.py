@@ -77,7 +77,7 @@ MANIFEST = CONF_DIR / "MANIFEST.json"
 #: | 1 | R0 起：tokens / ast / bytecode / diagnostics（六个事实字段） |
 #: | **2** | **R4**：`diagnostics` 补 `下划线` / `修正` / `渲染` —— 见下表 |
 #: | **3** | **R6.6**：`bytecode` 的 `Code` 补 `local_hints`（字节码内部版本 2→3） |
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
 
 #: 语料来源：`(类别, 相对 glob)`。顺序即报告顺序。
 #:

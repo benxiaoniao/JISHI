@@ -129,7 +129,10 @@ def dump_ast(program, indent: int = 0) -> str:
     name = type(program).__name__
     fields = []
     for k, v in vars(program).items():
-        if k in ("line", "col"):
+        # ⚠️ 下划线开头的是**内部附属信息**（M231 起  会挂 
+        # 给解释器的块越界预检用），不是 AST 的一部分 —— 打出来会让 
+        # 与 Rust 侧不再是逐字节相同（ 的 super 那条就是这么炸的）。
+        if k in ("line", "col") or (k.startswith("_") and k != "_super_ok"):
             continue
         if isinstance(v, (list, tuple)):
             items = "\n".join(dump_ast(x, indent + 1) for x in v)
