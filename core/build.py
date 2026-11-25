@@ -54,15 +54,30 @@ PKG = ROOT / "oracle" / "jishi"
 EXT_SUFFIX = ".pyd" if os.name == "nt" else ".so"
 EXT_DST = PKG / f"_core{EXT_SUFFIX}"
 
-#: Windows 上 gcc/dlltool 不一定在 PATH（与 `cvm/build.py` 同一套候选位置）
+#: Windows 上 gcc/dlltool 不一定在 PATH（与 `cvm/build.py` 同一套候选位置）。
+#:
+#: 🔴 **个人环境的路径不写在这里**（2026-11-25）：仓库是公开的，写死某个 IDE
+#: 自带的 MinGW 路径既暴露别人的机器布局，也让发布前终检必须专门去「刮掉那些
+#: 行」。本机需要额外候选就设 `JISHI_MINGW`，或写在同目录的
+#: `.mingw-paths.txt`（一行一个，已在 `.git/info/exclude` 里）。
 MINGW_CANDIDATES = [
-    r"D:\CLion\CLion 2026.2.1\bin\mingw\bin",
-    r"D:\CLion\CLion 2025.3.4\bin\mingw\bin",
     r"C:\msys64\ucrt64\bin",
     r"C:\msys64\mingw64\bin",
     r"C:\mingw64\bin",
     r"C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin",
 ]
+
+
+def _本机额外候选() -> "list[str]":
+    """本机专属的 mingw 目录（从 `.mingw-paths.txt` 读；`JISHI_MINGW` 另算）。"""
+    候选: "list[str]" = []
+    路 = Path(__file__).with_name(".mingw-paths.txt")
+    if 路.is_file():
+        for 行 in 路.read_text(encoding="utf-8").splitlines():
+            行 = 行.strip()
+            if 行 and not 行.startswith("#"):
+                候选.append(行)
+    return 候选
 
 
 def find_mingw() -> "Path | None":
@@ -74,7 +89,7 @@ def find_mingw() -> "Path | None":
         return Path(env)
     if shutil.which("dlltool"):
         return None                      # 已经在 PATH 里，不用额外加
-    for cand in MINGW_CANDIDATES:
+    for cand in MINGW_CANDIDATES + _本机额外候选():
         if (Path(cand) / "dlltool.exe").is_file():
             return Path(cand)
     return None

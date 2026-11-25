@@ -1,38 +1,45 @@
 # -*- coding: utf-8 -*-
-"""发布公开快照到 GitHub（单次干净提交，force 覆盖）。
+"""把仓库推到 GitHub（**标准 `git push`**，2026-11-25 起）。
 
 **这是本项目唯一的发布通道**（2026-09-20 起 Gitee 已弃用，相关脚本与配置
 一并删除）。
 
-为什么要「快照 + 屏蔽」而不是直接 push 本仓库：本地 git 历史里有早期交接
-文档、工作日志等隐私文件，公开仓库只应收到**当前状态的屏蔽版快照**。
-本脚本因此不改动本地仓库 —— 它在临时目录里重新 `git init` 并造一个
-**孤儿提交**，再 force push 到远端。副作用是远端 master 与本地 master
-**不是同一个提交哈希**（设计如此，不是问题）。
+## 2026-11-25 改了什么，为什么
 
-用法：
-    python tools/publish_github.py             # 导出 + 屏蔽 + 推送
-    python tools/publish_github.py --dry-run   # 只导出 + 屏蔽 + 本地提交，不推送
+以前是「导出快照 → 造孤儿提交 → `force push`」，因为**本地 git 历史里
+committed 过 `docs/内部运维.md`**（服务器 IP / SSH 路径 / 三把 AI key），
+直接 push 会把凭据永久写进公开历史。
+
+那个补丁的代价是：**远端只有一个孤儿提交**，看不到任何演进，也用不了
+GitHub CLI / IDE / PR / blame。
+
+2026-11-25 把历史洗了一遍（`git filter-branch` 抹掉该文件在全部 538 个提交里
+的存在），并把该文件改成「只留磁盘 + `.git/info/exclude`」，然后 `force push`
+一次真实历史 —— 之后就是**普通 `git push`**。
+
+⚠️ 快照机制**没有全删**：它现在只当**发布前的终检沙盒**用（导出 HEAD →
+扫隐私串 → 中止/放行），推上去的是**本地仓库**。这样终检还在，历史也是真的。
+
+## 用法
+
+    python tools/publish_github.py             # 终检 + push
+    python tools/publish_github.py --dry-run   # 只导出 + 终检，不推送
     python tools/publish_github.py --tag v0.2.0
-                                               # 同步并在快照上打 tag（触发
+                                               # push 并打 tag（触发
                                                # .github/workflows/release.yml
                                                # 构建三平台发行包 + 建 Release）
-    python tools/publish_github.py -m "自定义提交信息"   # 覆盖默认提交信息
+    python tools/publish_github.py -m "自定义提交信息"   # 仅在快照模式下有意义
 
-自动屏蔽项（隐私界定，2026-09-04 与作者确认；2026-09-23 / 2026-11-07 更新）：
-- `cvm/build.py` / `docs/设计决策.md` / `README.md`：个人机器路径（CLion 等）
-  按行屏蔽或通用化；
-- 令牌等敏感串绝不入库；
-- **`docs/内部运维.md` 整个不上传**（2026-11-07 作者定）：自建站点的实例 ID、
-  公网地址、私钥路径、部署权限都在里面。**文件直接删掉**，其余文档里指向它的
-  引用抹成中性表述（否则公开仓库里全是死链）。
-- ✅ **`docs/路线图*.md` 现在会公开上传**（2026-11-07 改）：以前因为混着服务器地址
-  整份不上传，代价是所有指向路线图的链接都成死链、新开发者看不到规划。现在把
-  隐私挪进 `docs/内部运维.md`、路线图里模糊化，**规划本身对开发者有价值，就该公开**。
-- 终检：快照里若仍出现 `CLion` / 个人路径片段 / 令牌环境变量名 / 服务器地址，直接中止发布。
-  ➕ **2026-11-08 起还多一层**：`docs/内部运维.md` 里那几把 AI 跑分密钥（行首是
-  `API Key：` / `API 地址：` / `密钥：` 的长串）会被刮出来当隐私模式，
-  **哪份文件里出现了它就中止** —— 密钥只有一个合法住处（那份不上传的文件）。
+## 隐私怎么保证（**三道，不靠这个脚本兜底**）
+
+1. `.git/info/exclude` 里挡着 `docs/内部运维.md` —— 它不进仓库、不进入历史；
+2. 发布前**终检**扫一遍（导出 HEAD 的快照，扫 `lhins-` / `111.229.` / 私钥路径
+   之类；命中就中止）；
+3. AI 跑分密钥（`内部运维.md` 里那几行）当隐私模式：**哪份文件出现它就中止**。
+
+⚠️ 以前还有一步「按行刮掉 `build.py` 里的个人 gcc 路径」—— 2026-11-25 起
+不需要了：那些路径搬进了 `cvm/.gcc-paths.txt` / `core/.mingw-paths.txt`
+（本地文件，同样在 `.git/info/exclude` 里），仓库里干干净净。
 
 🔴 **改这个文件之后必须跑那三条判据**（2026-11-07 用血换的教训）：
 
@@ -114,6 +121,15 @@ INTERNAL_DOCS = (
 )
 AUTHOR_NAME = "陈柏林"
 AUTHOR_EMAIL = "benxiaoniao@outlook.com"
+
+#: 「IDE 自带的编译器路径」的**形状** —— 2026-11-25 起用它取代字面量 `CLion`。
+#:
+#: 为什么要换：以前只要文件里出现 `CLion` 这三个字就中止发布，于是
+#: 「为什么不要把 IDE 自带路径写进仓库」这种**正当注释**也会被拦，只能靠
+#: 发布脚本去刮行（给脏数据打补丁）。现在个人路径已经搬进本地的
+#: `.gcc-paths.txt` / `.mingw-paths.txt`，仓库里不再有它们；
+#: 这条正则只拦「盘符 + 路径 + CLion」的真实路径，**兜底**用。
+_CLION_PATH = re.compile(r"[A-Za-z]:[\\/][^\n]{0,80}?CLion")
 
 #: 内部运维文档里「这一行是密钥」的行首标记。
 #:
@@ -545,10 +561,17 @@ def _sanitize(snapshot: Path) -> None:
         # `内部运维.md` 里那几样：实例 ID / 公网地址 / 私钥所在目录。
         # ⚠️ 只加 `私人文件` 这个**词组**，不加裸 `.pem` —— 文档里有
         #    `JISHI_SSH_KEY=/path/key.pem` 这种**示例**，加裸后缀会误伤。
-        for pat in ("17719", "CLion", "GITEE_TOKEN", "gitee.com",
+        for pat in ("17719", "GITEE_TOKEN", "gitee.com",
                     "lhins-", "111.229.", "私人文件"):
             if pat in text:
                 bad.append(f"{f} 含 {pat!r}")
+        # 📌 2026-11-25：**IDE 名不再当字面量拦**。以前拦 `CLion` 这三个字，
+        #    于是「为什么不要把 IDE 自带路径写进仓库」这种**注释**也会被拦 ——
+        #    判据误伤正当内容，只能靠发布脚本去刮行。现在改成拦**路径形状**：
+        #    「盘符 + 某段 + CLion」（`D:\CLion\2026.2.1\bin\gcc.exe` 这种）。
+        #    根因已经消掉（路径搬进了本地的 `.gcc-paths.txt`），这条只当兜底。
+        if _CLION_PATH.search(text):
+            bad.append(f"{f} 含 IDE 自带的编译器路径（应改成 JISHI_GCC / 本地覆盖文件）")
         for 前缀, 值 in 密钥们:
             if 值 in text:
                 bad.append(f"{f} 里有一把密钥（{前缀}）—— 它只该待在 "
@@ -797,7 +820,20 @@ def main() -> int:
             raise SystemExit("--tag 后面要跟版本号，例如：--tag v0.2.0")
 
     snapshot = Path(tempfile.mkdtemp(prefix="jishi-github-"))
-    print(f"[1/4] 导出快照 → {snapshot}")
+
+    # ⓪ 先提醒一句：推的是 **HEAD**，工作区里的改动不会上去。
+    #    这个提示是必要的 —— 以前推快照时是 `git archive HEAD`，同样不含工作区；
+    #    换成 `git push` 之后行为没变，但「刚改完就发布、结果改动没上去」更容易发生。
+    _st = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT,
+                         capture_output=True, text=True,
+                         encoding="utf-8", errors="replace")
+    if _st.stdout.strip():
+        print("⚠️ 工作区有未提交改动 —— 它们**不会**被推上去（推的是 HEAD）：")
+        for _行 in _st.stdout.strip().splitlines()[:8]:
+            print("   ", _行.strip())
+        print()
+
+    print(f"[1/3] 导出 HEAD 快照 → {snapshot}（**只用来终检**，不推送）")
     r = subprocess.run(["git", "archive", "HEAD", "--format=tar"],
                        cwd=ROOT, capture_output=True)
     if r.returncode != 0:
@@ -805,52 +841,42 @@ def main() -> int:
     with tarfile.open(fileobj=io.BytesIO(r.stdout)) as tf:
         tf.extractall(snapshot, filter="data")  # 自家 git archive 产物
 
-    print("[1.5/4] 导出包索引与 zip → packages/（GitHub 兜底要用）")
-    _export_packages(snapshot)
-
-    print("[2/4] 隐私屏蔽 + 终检")
+    print("[2/3] 终检（隐私串 / 内部文档 / 远端 workflow 对账）")
+    # ⚠️ 2026-11-25 起 `_sanitize` 在这里基本是**空操作**：个人 gcc 路径搬进了
+    #    本地的 `.gcc-paths.txt`、`docs/内部运维.md` 也不再被跟踪 —— 快照来自
+    #    `git archive HEAD`，天然没有它们。留着它是**双保险**：哪天有人又把
+    #    个人路径写回源码，这里的「删行 + 终检」还能兜住。
     _sanitize(snapshot)
-
-    print("[2.5/4] 对账远端 workflow（全量推送会删掉远端多出来的）")
     _检查工作流(snapshot)
 
-    print("[3/4] 快照内初始化提交")
-    commit_msg = cli_message(sys.argv) or default_commit_msg(
-        tag.lstrip("v") if tag else None)
-    print(f"   提交信息：{commit_msg}")
-    _git("init", "-q", "-b", BRANCH, cwd=snapshot)
-    _git("add", "-A", cwd=snapshot)
-    _git("-c", f"user.name={AUTHOR_NAME}", "-c", f"user.email={AUTHOR_EMAIL}",
-         "commit", "-q", "-m", commit_msg, cwd=snapshot)
-
     if dry_run:
-        if tag:
-            _git("tag", "-f", tag, cwd=snapshot)
-            print(f"   （dry-run 也已在快照内打 tag {tag}，但未推送）")
-        print(f"\n--dry-run：快照保留在 {snapshot}")
-        print("   已做：导出 + 屏蔽 + 终检 + 本地提交（未推送）")
+        print(f"\n--dry-run：终检通过。快照留在 {snapshot}（可以自己翻一眼）")
+        print("   真跑时推的是**本地仓库**（标准 `git push`），不是这个快照。")
         return 0
 
     _notify_push()
-    print(f"[4/4] force push 到 GitHub（{REPO_HTTPS}）")
+    # 🔴 **2026-11-25 起：推本地仓库，不再 force**。
+    #    历史已经洗过（`docs/内部运维.md` 从全部提交里抹掉），凭据从没上过远端，
+    #    所以普通 push 是安全的；远端从此有真实历史（`git log` 538 条）。
+    print(f"[3/3] push 到 GitHub（{REPO_HTTPS}）")
     _setup_git_transport()
     if _insecure():
         print("⚠️ JISHI_GIT_INSECURE=1：本次**关掉了 git 的证书校验**"
-              "（代理做 TLS 中转时的应急手段；不影响快照与屏蔽逻辑）")
+              "（代理做 TLS 中转时的应急手段）")
     r = subprocess.run(
-        ["git", "push", "-f", _push_url(), f"{BRANCH}:{BRANCH}"],
-        cwd=snapshot, capture_output=True, text=True,
+        ["git", "push", _push_url(), f"{BRANCH}:{BRANCH}"],
+        cwd=ROOT, capture_output=True, text=True,
         encoding="utf-8", errors="replace", env=_git_env())
     if r.returncode != 0:
         raise SystemExit(f"推送失败：\n{r.stderr}{_push_hint(r.stderr)}")
-    print("    ✓ 代码已同步")
+    print("    ✓ 已推送（真实历史，不再是孤儿提交）")
 
-    # 可选：在屏蔽版快照的孤儿提交上打 tag，触发 Release 工作流
+    # 可选：在本地 HEAD 上打 tag，触发 Release 工作流
     if tag:
-        _git("tag", "-f", tag, cwd=snapshot)
+        _git("tag", "-f", tag, cwd=ROOT)
         r = subprocess.run(
             ["git", "push", "-f", _push_url(), f"refs/tags/{tag}"],
-            cwd=snapshot, capture_output=True, text=True,
+            cwd=ROOT, capture_output=True, text=True,
             encoding="utf-8", errors="replace", env=_git_env())
         if r.returncode != 0:
             raise SystemExit(f"推送 tag 失败：\n{r.stderr}"
@@ -860,7 +886,7 @@ def main() -> int:
     import shutil
     shutil.rmtree(snapshot, ignore_errors=True)
     _stop_relay()
-    print("✓ 已同步（含屏蔽）并清理临时快照")
+    print("✓ 已推送并清理终检快照")
 
     # 打完 tag 才等（清理临时快照是本地动作，不该被网络阻塞）
     if tag and "--等发布" in sys.argv:

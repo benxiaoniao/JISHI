@@ -11,6 +11,7 @@ cvm/include/opcodes.h 由本脚本生成，两侧永远同步。
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -34,11 +35,15 @@ INCLUDE = CVM / "include"
 SRC = CVM / "src"
 BIN = CVM / "bin"
 
-#: Windows 下 gcc 不一定在 PATH，给出常见安装位置
+#: Windows 下 gcc 不一定在 PATH，给出常见安装位置。
+#:
+#: 🔴 **个人环境的编译器路径不写在这里**（2026-11-25）：仓库是公开的，
+#: 写死某个 IDE 自带的 MinGW 路径既暴露别人的机器布局，也让发布前的隐私终检
+#: 必须专门去「刮掉那些行」—— 那是给脏数据打补丁。
+#: 本机需要额外候选就写在**同目录的 `.gcc-paths.txt`**（一行一个，`#` 是注释，
+#: 该文件在 `.git/info/exclude` 里、不进仓库），或者设环境变量 `JISHI_GCC`。
 GCC_CANDIDATES = [
     "gcc",
-    r"D:\CLion\CLion 2026.2.1\bin\mingw\bin\gcc.exe",
-    r"D:\CLion\CLion 2025.3.4\bin\mingw\bin\gcc.exe",
     r"C:\msys64\ucrt64\bin\gcc.exe",
     r"C:\msys64\mingw64\bin\gcc.exe",
     r"C:\mingw64\bin\gcc.exe",
@@ -46,6 +51,25 @@ GCC_CANDIDATES = [
     r"C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\gcc.exe",
     r"C:\ProgramData\chocolatey\bin\gcc.exe",
 ]
+
+
+def _本机额外候选() -> "list[str]":
+    """本机专属的 gcc 路径（从 `JISHI_GCC` 与 `.gcc-paths.txt` 读）。
+
+    为什么要有它：见 `GCC_CANDIDATES` 上面那段 —— 个人路径不进仓库，
+    但本机构建照样要能找到编译器。
+    """
+    候选: "list[str]" = []
+    环境 = os.environ.get("JISHI_GCC")
+    if 环境:
+        候选.append(环境)
+    路 = Path(__file__).with_name(".gcc-paths.txt")
+    if 路.is_file():
+        for 行 in 路.read_text(encoding="utf-8").splitlines():
+            行 = 行.strip()
+            if 行 and not 行.startswith("#"):
+                候选.append(行)
+    return 候选
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +141,7 @@ def gen_header() -> Path:
 # ---------------------------------------------------------------------------
 
 def find_gcc() -> str:
-    for cand in GCC_CANDIDATES:
+    for cand in GCC_CANDIDATES + _本机额外候选():
         if cand == "gcc":
             if shutil.which("gcc"):
                 return "gcc"
@@ -128,8 +152,8 @@ def find_gcc() -> str:
         if Path(cand).exists():
             return cand
     raise SystemExit(
-        "找不到 gcc。请安装 MinGW-w64（或修改 cvm/build.py 里的 "
-        "GCC_CANDIDATES 指向你的 gcc 路径）。")
+        "找不到 gcc。请安装 MinGW-w64；本机的 gcc 在别处就设环境变量 "
+        "`JISHI_GCC=<gcc 的完整路径>`，或写在 cvm/.gcc-paths.txt 里（一行一个）。")
 
 
 def build(out_dir: Path = BIN) -> Path:
