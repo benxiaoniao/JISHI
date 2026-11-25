@@ -29,16 +29,34 @@
 //!
 //! ## 平台
 //!
-//! | 平台 | 状态 |
+//! | 平台 | 怎么做的 |
 //! |---|---|
-//! | Windows | ✅ 裸 Win32（`CreateFileW` + `SetCommState` + `SetCommTimeouts`），**零第三方依赖** |
-//! | Linux / macOS | ❌ **这一版没做**，调用报一句明确的中文错 |
-//! | wasm（浏览器/页面） | ❌ 物理上不存在，报平台错 |
+//! | Windows | 裸 Win32（`CreateFileW` + `SetCommState` + `SetCommTimeouts`），零第三方依赖 |
+//! | Linux | 裸 termios（`open` + `ioctl(TCGETS/TCSETS)` + `poll`），零第三方依赖 |
+//! | macOS | 裸 termios（`TIOCGETA/TIOCSETA`），零第三方依赖 |
+//! | wasm（浏览器/页面） | 物理上不存在，报平台错 |
 //!
-//! 📌 **Linux/mac 故意留白，不是忘了**：termios 的 `struct termios` 布局在
-//! Linux 与 macOS 上**不一样**（字段顺序、`c_cflag` 里的位定义都不同），
-//! 而本机只有 Windows —— 写一份**没法验证**的 FFI 属于「假装做了」，
-//! 真出问题用户只看到「打开失败」四个字。等有 Linux 机器能实测再说。
+//! 🔴 **POSIX 两端看着像、其实到处不一样**，所以常量全部按 `target_os` 分开写，
+//! 一行都不共用（写错的表现是「能打开、收到乱码」或者「静默用默认参数」）：
+//!
+//! | 东西 | Linux | macOS |
+//! |---|---|---|
+//! | `struct termios` | 4×u32 + `c_line` + `c_cc[32]` + 两个 u32（60 字节） | 4×u64 + `c_cc[20]` + 两个 u64（72 字节） |
+//! | 取/设设置 | `ioctl(TCGETS/TCSETS)` 0x5401 / 0x5402 | `ioctl(TIOCGETA/TIOCSETA)` 0x40487413 / 0x80487414 |
+//! | 波特率放哪 | **`c_cflag` 里的位**（`CBAUD` 段） | **`c_ispeed`/`c_ospeed` 两个字段** |
+//! | 波特率常量 | `B9600 = 13`、`B115200 = 0x1002`（**不是数字本身**） | `B9600 = 9600`、`B115200 = 115200`（就是数字本身） |
+//! | `CSIZE` / `CS8` | 0o60 / 0o60 | 0x300 / 0x300 |
+//! | `CREAD` / `CSTOPB` | 0o200 / 0o100 | 0x800 / 0x400 |
+//! | `PARENB` / `PARODD` | 0o400 / 0o1000 | 0x1000 / 0x2000 |
+//! | `O_NOCTTY` / `O_NONBLOCK` | 0o400 / 0o4000 | 0x20000 / 0x4 |
+//! | `EAGAIN` | 11 | **35** |
+//! | `FIONREAD` | 0x541B | 0x4004667F |
+//!
+//! 还有一条**不是常量表能提醒的**：macOS 上要打开 `/dev/cu.*`（callout），
+//! **不要 `/dev/tty.*`** —— `tty.*` 会等 DCD 载波，插拔时读会直接挂住。
+//!
+//! 📌 共用的口径（三平台一致）：`读行` 到点给 `空`（超时不是错误）、
+//! `关闭()` 幂等、句柄一次独占、参数写错**当场**报且列出可用写法。
 
 #[allow(unused_imports)]
 use std::collections::HashMap;
@@ -67,7 +85,8 @@ pub(crate) fn module() -> HashMap<String, Val> {
 
 /// 句柄的状态（活在 `NativeObj.state` 里）。
 pub(crate) struct 串口状态 {
-    /// Win32 的 `HANDLE`（`isize`）；非 Windows 上恒为 -1。
+    /// 平台句柄：Windows 是 `HANDLE`（`isize`），POSIX 是 `fd`（`i32` 塞进 `isize`）。
+    /// 已关闭时恒为 -1。
     句柄: isize,
     已关: bool,
     /// 按行读时的**跨次残留**：一次 `ReadFile` 常常读到好几行（甚至半行）。
@@ -94,20 +113,6 @@ fn 借改(对象: &std::rc::Rc<crate::NativeObj>) -> std::cell::RefMut<'_, 串�
     std::cell::RefMut::map(对象.state.borrow_mut(), |s| {
         s.downcast_mut::<串口状态>().expect("NativeObj 应是串口")
     })
-}
-
-/// 从 `Val` 里认出句柄（不是句柄就报一句**可操作**的错）。
-fn 句柄(v: &Val, 名: &str) -> Result<std::rc::Rc<crate::NativeObj>, JishiError> {
-    match v {
-        Val::Native(o) if o.type_name == 类型名 => Ok(o.clone()),
-        _ => Err(err(
-            "类型错误",
-            format!(
-                "「{名}」要传 `串口.打开` 拿到的句柄（现在是「{}」）",
-                crate::type_label(v)
-            ),
-        )),
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -185,11 +190,6 @@ fn 设备路径(口: &str) -> Vec<u16> {
     带前缀.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-#[cfg(not(windows))]
-fn 设备路径(_口: &str) -> Vec<u16> {
-    Vec::new()
-}
-
 // ---------------------------------------------------------------------------
 // 串口.列出
 // ---------------------------------------------------------------------------
@@ -199,7 +199,11 @@ fn 列出() -> Result<Val, JishiError> {
     {
         return win32::列出();
     }
-    #[cfg(not(windows))]
+    #[cfg(all(unix, any(target_os = "linux", target_os = "macos")))]
+    {
+        return posix::列出();
+    }
+    #[cfg(not(any(windows, all(unix, any(target_os = "linux", target_os = "macos")))))]
     {
         Err(平台未实现("列出"))
     }
@@ -241,10 +245,11 @@ fn 打开(args: &[Val]) -> Result<Val, JishiError> {
         None | Some(Val::None_) => 1u8,
         Some(v) => {
             let n = 整数(v, "打开")?;
+            // 原样带下去（1 / 2 / 3），**每个平台自己翻** —— Win32 的 1.5 位是
+            // `ONE5STOPBITS = 0`，POSIX 干脆没有 1.5 位。在这里折成 0 会让
+            // POSIX 侧把「1.5 位」当成「1 位」**静默接受**。
             match n {
-                1 => 1,                          // ONESTOPBIT
-                2 => 2,                          // TWOSTOPBITS
-                3 => 0,                          // ONE5STOPBITS（1.5 位，DCB 里是 0）
+                1..=3 => n as u8,
                 _ => return Err(err("值错误", format!("停止位只能是 1 / 2 / 3（3 = 1.5 位），给的是 {n}"))),
             }
         }
@@ -258,7 +263,11 @@ fn 打开(args: &[Val]) -> Result<Val, JishiError> {
     {
         return win32::打开(&口, 波特率, 数据位, 停止位, 校验);
     }
-    #[cfg(not(windows))]
+    #[cfg(all(unix, any(target_os = "linux", target_os = "macos")))]
+    {
+        return posix::打开(&口, 波特率, 数据位, 停止位, 校验);
+    }
+    #[cfg(not(any(windows, all(unix, any(target_os = "linux", target_os = "macos")))))]
     {
         let _ = (口, 波特率, 数据位, 停止位, 校验);
         Err(平台未实现("打开"))
@@ -324,7 +333,12 @@ fn 写原始(对象: &std::rc::Rc<crate::NativeObj>, 数据: &[u8]) -> Result<Va
         win32::写(句, 数据)?;
         return Ok(Val::Int(crate::jint::JInt::new(数据.len() as i128)));
     }
-    #[cfg(not(windows))]
+    #[cfg(all(unix, any(target_os = "linux", target_os = "macos")))]
+    {
+        posix::写(句 as i32, 数据)?;
+        return Ok(Val::Int(crate::jint::JInt::new(数据.len() as i128)));
+    }
+    #[cfg(not(any(windows, all(unix, any(target_os = "linux", target_os = "macos")))))]
     {
         let _ = (句, 数据);
         Err(平台未实现("写文本"))
@@ -398,7 +412,16 @@ fn 读一段(对象: &std::rc::Rc<crate::NativeObj>, 超时毫秒: u32) -> Resul
         }
         Ok(n)
     }
-    #[cfg(not(windows))]
+    #[cfg(all(unix, any(target_os = "linux", target_os = "macos")))]
+    {
+        let 片 = posix::读(句 as i32, 超时毫秒)?;
+        let n = 片.len();
+        if n > 0 {
+            借改(对象).缓冲.extend_from_slice(&片);
+        }
+        Ok(n)
+    }
+    #[cfg(not(any(windows, all(unix, any(target_os = "linux", target_os = "macos")))))]
     {
         let _ = (句, 超时毫秒);
         Err(平台未实现("读行"))
@@ -416,6 +439,12 @@ fn 关闭(对象: &std::rc::Rc<crate::NativeObj>, _args: &[Val], _vm: &mut dyn c
             win32::关闭(st.句柄);
         }
     }
+    #[cfg(all(unix, any(target_os = "linux", target_os = "macos")))]
+    {
+        if st.句柄 >= 0 {
+            posix::关闭(st.句柄 as i32);
+        }
+    }
     st.句柄 = -1;
     st.已关 = true;
     st.缓冲.clear();
@@ -431,12 +460,17 @@ static 方法们: &[(&str, crate::NativeFn)] = &[
     ("关闭", 关闭),
 ];
 
+/// 只剩 **wasm（浏览器/页面）** 走这里 —— 物理上没有串口。
+///
+/// 📌 Windows / Linux / macOS 现在**都有实现**（M232 收尾：原来 Linux/mac 是
+/// 「故意留白」，2026-11-25 用户定「补上，免得少一部分东西」）。
+#[cfg(not(any(windows, all(unix, any(target_os = "linux", target_os = "macos")))))]
 fn 平台未实现(操作: &str) -> JishiError {
     err_with_hint(
         "运行期错误",
-        format!("`串口.{操作}` 在这个平台上还没实现（M232 只做了 Windows）"),
-        "Linux / macOS 的 termios 那一套见 `docs/路线图-0.3.x.md` M232 —— \
-         这一版故意留白：本机只有 Windows，写一份验证不了的 FFI 等于假装做了"
+        format!("`串口.{操作}` 在浏览器里用不了（网页上没有串口设备）"),
+        "串口要跑在桌面宿主（Windows / Linux / macOS 的 Rust 发行版）上；\
+         页面上连硬件的正规做法是 Web Serial API，不是这个模块"
             .into(),
     )
 }
@@ -620,7 +654,13 @@ mod win32 {
             dcb.baud_rate = 波特率;
             dcb.byte_size = 数据位;
             dcb.parity = 校验;
-            dcb.stop_bits = 停止位;
+            // 用户口径 1 / 2 / 3（3 = 1.5 位）→ DCB 口径 `ONESTOPBIT=0` /
+            // `ONE5STOPBITS=1` / `TWOSTOPBITS=2`。**翻译只在这一层做**。
+            dcb.stop_bits = match 停止位 {
+                2 => 2,
+                3 => 1,
+                _ => 0,
+            };
             // ⚠️ **在原有 flags 上改**，不要 `from_bits(0)` 重头造 ——
             //    有些驱动依赖 `fBinary` 之类的默认值，抹掉会出现「能打开但不收数据」。
             dcb.flags |= F_BINARY | F_DTR_ENABLE | F_RTS_ENABLE;
@@ -798,5 +838,767 @@ mod win32 {
     #[allow(dead_code)]
     pub(super) fn 说明() -> &'static str {
         "Windows 串口：CreateFileW + SetCommState + SetCommTimeouts（全同步，超时三条一起设）"
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POSIX（Linux / macOS）裸 termios
+// ---------------------------------------------------------------------------
+//
+// 🔴 **两平台的常量在这里一律分写**，共用一行都不行 —— 见文件头那张对照表。
+// 这里的数值全部来自 `asm-generic/termbits.h`（Linux）与 `sys/termios.h`
+// （Darwin），不是猜的；改动前先对照头文件。
+
+#[cfg(all(unix, any(target_os = "linux", target_os = "macos")))]
+mod posix {
+    use super::*;
+
+    type Fd = i32;
+
+    // ---- 平台常量 ---------------------------------------------------------
+    //
+    // Linux（asm-generic/termbits.h）：
+    //   CSIZE=0o60 CS6=0o20 CS7=0o40 CS8=0o60 CSTOPB=0o100 CREAD=0o200
+    //   PARENB=0o400 PARODD=0o1000 CLOCAL=0o4000 CMSPAR=0o100000000 CBAUD=0o10017
+    // macOS（sys/termios.h，tcflag_t 是 unsigned long）：
+    //   CSIZE=0x300 CS6=0x100 CS7=0x200 CS8=0x300 CSTOPB=0x400 CREAD=0x800
+    //   PARENB=0x1000 PARODD=0x2000 CLOCAL=0x8000
+
+    #[cfg(target_os = "linux")]
+    mod 位 {
+        pub const CSIZE: u32 = 0o60;
+        pub const CS5: u32 = 0;
+        pub const CS6: u32 = 0o20;
+        pub const CS7: u32 = 0o40;
+        pub const CS8: u32 = 0o60;
+        pub const CSTOPB: u32 = 0o100;
+        pub const CREAD: u32 = 0o200;
+        pub const PARENB: u32 = 0o400;
+        pub const PARODD: u32 = 0o1000;
+        pub const CLOCAL: u32 = 0o4000;
+        /// `CMSPAR`（mark/space 校验）
+        pub const CMSPAR: u32 = 0o100_000_000;
+        /// `CBAUD`：`c_cflag` 里放波特率的那一段
+        pub const CBAUD: u32 = 0o10017;
+        /// `CRTSCTS`：硬流控（我们不开 —— 与 Win32 侧 `fRtsControl=ENABLE` 同口径）。
+        /// 不显式清掉的话，设备默认开着它，`write` 会在对方不拉 CTS 时**卡住**。
+        pub const CRTSCTS: u32 = 0o200_0000_0000;
+        pub const BOTHER: u32 = 0o10000;
+    }
+
+    #[cfg(target_os = "macos")]
+    mod 位 {
+        pub const CSIZE: u64 = 0x300;
+        pub const CS5: u64 = 0;
+        pub const CS6: u64 = 0x100;
+        pub const CS7: u64 = 0x200;
+        pub const CS8: u64 = 0x300;
+        pub const CSTOPB: u64 = 0x400;
+        pub const CREAD: u64 = 0x800;
+        pub const PARENB: u64 = 0x1000;
+        pub const PARODD: u64 = 0x2000;
+        pub const CLOCAL: u64 = 0x8000;
+        /// 硬流控（RTS/CTS 两个方向）—— 同 Linux，我们不开
+        pub const CCTS_OFLOW: u64 = 0x1_0000;
+        pub const CRTS_IFLOW: u64 = 0x2_0000;
+    }
+
+    /// `open(2)` 的标志位。🔴 **两平台不同**：Linux 的 `O_NOCTTY=0o400`，
+    /// Darwin 是 `0x20000`；`O_NONBLOCK` 是 0o4000 vs 0x4。
+    #[cfg(target_os = "linux")]
+    const O_RDWR: i32 = 2;
+    #[cfg(target_os = "linux")]
+    const O_NOCTTY: i32 = 0o400;
+    #[cfg(target_os = "linux")]
+    const O_NONBLOCK: i32 = 0o4000;
+    #[cfg(target_os = "linux")]
+    const O_CLOEXEC: i32 = 0o2_000_000;
+
+    #[cfg(target_os = "macos")]
+    const O_RDWR: i32 = 2;
+    #[cfg(target_os = "macos")]
+    const O_NOCTTY: i32 = 0x20000;
+    #[cfg(target_os = "macos")]
+    const O_NONBLOCK: i32 = 0x4;
+    #[cfg(target_os = "macos")]
+    const O_CLOEXEC: i32 = 0x100_0000;
+
+    /// `ioctl` 的请求号（`_IOR`/`_IOW` 算出来的，不是随手编的数）。
+    #[cfg(target_os = "linux")]
+    const TCGETS: u64 = 0x5401;
+    #[cfg(target_os = "linux")]
+    const TCSETS: u64 = 0x5402;
+    #[cfg(target_os = "linux")]
+    const TCSETS2: u64 = 0x402C_542A;
+    #[cfg(target_os = "linux")]
+    const TIOCEXCL: u64 = 0x540C;
+
+    #[cfg(target_os = "macos")]
+    const TIOCGETA: u64 = 0x4048_7413;
+    #[cfg(target_os = "macos")]
+    const TIOCSETA: u64 = 0x8048_7414;
+    #[cfg(target_os = "macos")]
+    const TIOCEXCL: u64 = 0x2000_740D;
+
+    /// `poll(2)` 的 `nfds_t`：Linux `unsigned long`(u64)，Darwin `unsigned int`(u32)。
+    #[cfg(target_os = "linux")]
+    type Nfds = u64;
+    #[cfg(target_os = "macos")]
+    type Nfds = u32;
+
+    const POLLIN: i16 = 1;
+    const POLLOUT: i16 = 4;
+    const POLLERR: i16 = 8;
+    const POLLHUP: i16 = 16;
+    const POLLNVAL: i16 = 32;
+
+    /// `tcflush(fd, TCIOFLUSH)`
+    const TCIOFLUSH: i32 = 2;
+
+    /// `errno`。🔴 `EAGAIN` 两平台**不一样**（11 / 35）。
+    const EINTR: i32 = 4;
+    #[cfg(target_os = "linux")]
+    const EAGAIN: i32 = 11;
+    #[cfg(target_os = "macos")]
+    const EAGAIN: i32 = 35;
+    /// `EACCES`：没权限（Linux 上多半是当前用户不在 dialout 组）
+    const EACCES: i32 = 13;
+    /// `EBUSY`：被占（我们自己开的时候设了 `TIOCEXCL`，第二次打开就撞它）
+    const EBUSY: i32 = 16;
+    /// `ENODEV`：设备没了（USB 转串口被拔）
+    const ENODEV: i32 = 19;
+
+    #[repr(C)]
+    struct PollFd {
+        fd: i32,
+        events: i16,
+        revents: i16,
+    }
+
+    /// `struct termios` —— **手写布局，逐字段对应平台的 `<termios.h>`**。
+    ///
+    /// 📌 错一个字段/一个位宽，`TCGETS` 拿回来的东西就是乱的，而且**不会报错**，
+    /// 表现是「能打开、收到乱码」或者「参数根本没生效」。
+    #[cfg(target_os = "linux")]
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct Termios {
+        c_iflag: u32,
+        c_oflag: u32,
+        c_cflag: u32,
+        c_lflag: u32,
+        c_line: u8,
+        c_cc: [u8; 32],
+        c_ispeed: u32,
+        c_ospeed: u32,
+    }
+
+    #[cfg(target_os = "macos")]
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct Termios {
+        c_iflag: u64,
+        c_oflag: u64,
+        c_cflag: u64,
+        c_lflag: u64,
+        c_cc: [u8; 20],
+        c_ispeed: u64,
+        c_ospeed: u64,
+    }
+
+    /// `struct termios2`（只有 Linux 有）：**能设任意波特率**（`BOTHER`）。
+    /// `c_cc` 在这里是 **19** 个（不是 32）—— 这是内核真正的内部结构。
+    #[cfg(target_os = "linux")]
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct Termios2 {
+        c_iflag: u32,
+        c_oflag: u32,
+        c_cflag: u32,
+        c_lflag: u32,
+        c_line: u8,
+        c_cc: [u8; 19],
+        c_ispeed: u32,
+        c_ospeed: u32,
+    }
+
+    // 🔴 **编译期断言**：手写布局最容易错的地方（字段顺序 / 位宽 / 对齐）
+    // 在这里全部钉死 —— 一旦有人改错结构体，**交叉编译就过不去**，
+    // 不用等真机上表现成「能打开、收到乱码」。
+    //
+    // 参照值（C 侧 `sizeof(struct termios)`）：
+    //   Linux x86_64 / aarch64 = **60**；macOS (Darwin 64 位) = **72**；
+    //   Linux `struct termios2` = **44**（`c_cc` 只有 19 个）。
+    #[cfg(target_os = "linux")]
+    const _: () = {
+        use std::mem::{offset_of, size_of};
+        assert!(size_of::<Termios>() == 60, "struct termios 布局与 Linux 头文件不符");
+        assert!(offset_of!(Termios, c_iflag) == 0);
+        assert!(offset_of!(Termios, c_oflag) == 4);
+        assert!(offset_of!(Termios, c_cflag) == 8);
+        assert!(offset_of!(Termios, c_lflag) == 12);
+        assert!(offset_of!(Termios, c_line) == 16);
+        assert!(offset_of!(Termios, c_cc) == 17);
+        assert!(offset_of!(Termios, c_ispeed) == 52);
+        assert!(offset_of!(Termios, c_ospeed) == 56);
+
+        assert!(size_of::<Termios2>() == 44, "struct termios2 布局与内核头文件不符");
+        assert!(offset_of!(Termios2, c_cc) == 17);
+        assert!(offset_of!(Termios2, c_ispeed) == 36);
+        assert!(offset_of!(Termios2, c_ospeed) == 40);
+
+        assert!(size_of::<PollFd>() == 8);
+    };
+
+    #[cfg(target_os = "macos")]
+    const _: () = {
+        use std::mem::{offset_of, size_of};
+        assert!(size_of::<Termios>() == 72, "struct termios 布局与 Darwin <termios.h> 不符");
+        assert!(offset_of!(Termios, c_iflag) == 0);
+        assert!(offset_of!(Termios, c_oflag) == 8);
+        assert!(offset_of!(Termios, c_cflag) == 16);
+        assert!(offset_of!(Termios, c_lflag) == 24);
+        assert!(offset_of!(Termios, c_cc) == 32);
+        assert!(offset_of!(Termios, c_ispeed) == 56);
+        assert!(offset_of!(Termios, c_ospeed) == 64);
+
+        assert!(size_of::<PollFd>() == 8);
+    };
+
+    extern "C" {
+        fn open(路径: *const u8, 标志: i32, 模式: u32) -> i32;
+        fn close(fd: i32) -> i32;
+        fn read(fd: i32, 缓冲: *mut u8, 要读: usize) -> isize;
+        fn write(fd: i32, 数据: *const u8, 要写: usize) -> isize;
+        fn poll(fds: *mut PollFd, 个数: Nfds, 等毫秒: i32) -> i32;
+        fn ioctl(fd: i32, 请求: u64, ...) -> i32;
+        fn tcflush(fd: i32, 队列: i32) -> i32;
+    }
+
+    fn 最后错误() -> i32 {
+        std::io::Error::last_os_error().raw_os_error().unwrap_or(0)
+    }
+
+    /// 波特率 → `Bxxx` 码。
+    ///
+    /// 🔴 **Linux 的码不是数字本身**（`B9600 = 13`、`B115200 = 0x1002`），
+    /// 而 **macOS 就是数字本身**（`B9600 = 9600`）。抄错的后果是设了个
+    /// 完全不相干的速率，表现为「收到乱码」—— 比报错难查得多。
+    #[cfg(target_os = "linux")]
+    fn 波特率码(率: u32) -> Option<u32> {
+        Some(match 率 {
+            50 => 1,
+            75 => 2,
+            110 => 3,
+            134 => 4,
+            150 => 5,
+            200 => 6,
+            300 => 7,
+            600 => 8,
+            1200 => 9,
+            1800 => 10,
+            2400 => 11,
+            4800 => 12,
+            9600 => 13,
+            19200 => 14,
+            38400 => 15,
+            57600 => 0o10_001,
+            115200 => 0o10_002,
+            230400 => 0o10_003,
+            460800 => 0o10_004,
+            500000 => 0o10_005,
+            576000 => 0o10_006,
+            921600 => 0o10_007,
+            1_000_000 => 0o10_010,
+            1_152_000 => 0o10_011,
+            1_500_000 => 0o10_012,
+            2_000_000 => 0o10_013,
+            2_500_000 => 0o10_014,
+            3_000_000 => 0o10_015,
+            3_500_000 => 0o10_016,
+            4_000_000 => 0o10_017,
+            _ => return None,
+        })
+    }
+
+    #[cfg(target_os = "macos")]
+    fn 波特率码(率: u32) -> Option<u32> {
+        Some(match 率 {
+            50 | 75 | 110 | 134 | 150 | 200 | 300 | 600 | 1200 | 1800 | 2400 | 4800 | 7200
+            | 9600 | 14400 | 19200 | 28800 | 38400 | 57600 | 76800 | 115200 | 230400 => 率,
+            _ => return None,
+        })
+    }
+
+    /// 打开失败 → **人话**（与 Win32 侧同一个教训：**先看路径在不在**，别猜错误码）。
+    fn 打开错误(口: &str, 码: i32) -> JishiError {
+        if !std::path::Path::new(口).exists() {
+            return err_with_hint(
+                "运行期错误",
+                format!("没有这个串口「{口}」（路径不存在）"),
+                if cfg!(target_os = "linux") {
+                    "先 `打印(串口.列出())` 看看有哪些口；Linux 上通常是 /dev/ttyUSB0（CH340 之类）\
+                     或 /dev/ttyACM0（板子自带 USB）；插上设备要等驱动认出来（/dev 下出现节点）"
+                } else {
+                    "先 `打印(串口.列出())` 看看有哪些口；macOS 上要写 /dev/cu.*（**不要 /dev/tty.***）"
+                }
+                .into(),
+            );
+        }
+        match 码 {
+            EACCES => err_with_hint(
+                "运行期错误",
+                format!("没有权限打开串口「{口}」"),
+                if cfg!(target_os = "linux") {
+                    "把当前用户加进串口组，然后**重新登录**（组权限要重登才生效）：\
+                     ① Debian/Ubuntu：`sudo usermod -aG dialout $USER`；\
+                     ② Arch：`sudo usermod -aG uucp $USER`；\
+                     ③ 临时验证可以用 `sudo`（但别在正式脚本里这么干）"
+                        .to_string()
+                } else {
+                    format!("检查 /dev 节点的属主与权限（`ls -l {口}`），也别用 sudo 跑过一次紧接着普通跑")
+                },
+            ),
+            EBUSY => err_with_hint(
+                "运行期错误",
+                format!("串口「{口}」打不开 —— 被别的程序占着（也可能是上一次没 `关闭()`）"),
+                "串口是**一次只能一个程序打开**的（这里打开时会设 TIOCEXCL 独占）：\
+                 关掉串口助手 / 上次跑的程序，再试"
+                    .into(),
+            ),
+            ENODEV => err_with_hint(
+                "运行期错误",
+                format!("串口「{口}」已经不在了（设备被拔掉或驱动卸载）"),
+                "USB 转串口重新插一下，再 `打印(串口.列出())` 确认口名（有时候会换号）".into(),
+            ),
+            _ => {
+                let 系统 = std::io::Error::from_raw_os_error(码);
+                err_with_hint(
+                    "运行期错误",
+                    format!("打开串口「{口}」失败：{系统}（系统错误码 {码}）"),
+                    "Linux/macOS 上串口是**设备文件**，路径要写全（/dev/ttyUSB0、/dev/cu.usbserial-1410）".into(),
+                )
+            }
+        }
+    }
+
+    // ---- 打开 -------------------------------------------------------------
+
+    pub(super) fn 打开(
+        口: &str,
+        波特率: u32,
+        数据位: u8,
+        停止位: u8,
+        校验: u8,
+    ) -> Result<Val, JishiError> {
+        let 净 = 口.trim();
+        let 路径 = std::ffi::CString::new(净)
+            .map_err(|_| err("值错误", format!("口名里不能有 0 字节：「{口}」")))?;
+        // ⚠️ `O_NONBLOCK` 是**必须的**：不设的话 `open` 会等 DCD 载波，
+        //    macOS 的 /dev/tty.* 上就是「插着板子也打不开、一拔就返回」。
+        //    读的超时不用 termios 的 VMIN/VTIME，改用 `poll` 自己控（更好预测）。
+        let fd = unsafe {
+            open(
+                路径.as_ptr() as *const u8,
+                O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC,
+                0,
+            )
+        };
+        if fd < 0 {
+            return Err(打开错误(净, 最后错误()));
+        }
+        // 独占标记：第二次打开撞 `EBUSY` —— 与 Windows 的「共享模式 0」对齐。
+        // 失败不要紧（有些驱动不认），所以不检查返回值。
+        unsafe {
+            ioctl(fd, TIOCEXCL);
+        }
+        if let Err(e) = 设参数(fd, 波特率, 数据位, 停止位, 校验) {
+            unsafe {
+                close(fd);
+            }
+            return Err(e);
+        }
+        unsafe {
+            tcflush(fd, TCIOFLUSH);            // 丢掉驱动里可能残留的旧字节
+        }
+        Ok(crate::native_obj(
+            类型名,
+            super::方法们,
+            std::rc::Rc::new(std::cell::RefCell::new(super::串口状态 {
+                句柄: fd as isize,
+                已关: false,
+                缓冲: Vec::new(),
+            })),
+        ))
+    }
+
+    // ---- 设参数 -----------------------------------------------------------
+
+    /// 数据位 / 停止位 / 校验 → 校验位组合（两平台位值不同，**翻译各写一份**）。
+    #[cfg(target_os = "linux")]
+    fn 校验位(校验: u8) -> Result<u32, JishiError> {
+        Ok(match 校验 {
+            0 => 0,
+            1 => 位::PARENB | 位::PARODD,          // 奇
+            2 => 位::PARENB,                        // 偶
+            3 => 位::PARENB | 位::PARODD | 位::CMSPAR,  // 标记
+            4 => 位::PARENB | 位::CMSPAR,           // 空格
+            _ => 0,
+        })
+    }
+
+    #[cfg(target_os = "macos")]
+    fn 校验位(校验: u8) -> Result<u64, JishiError> {
+        Ok(match 校验 {
+            0 => 0,
+            1 => 位::PARENB | 位::PARODD,          // 奇
+            2 => 位::PARENB,                        // 偶
+            3 => 位::PARENB | 位::PARODD,           // 标记（Darwin 就靠 PARODD 表达）
+            4 => {
+                return Err(err_with_hint(
+                    "值错误",
+                    "macOS 的 termios 没有「空格」校验".to_string(),
+                    "改用「无」/「奇」/「偶」/「标记」；或者换 Windows / Linux".into(),
+                ))
+            }
+            _ => 0,
+        })
+    }
+
+    /// 通用校验：停止位 1.5 位 POSIX 没有（那是 Windows 的 `ONE5STOPBITS`）。
+    fn 查停止位(停止位: u8) -> Result<(), JishiError> {
+        if 停止位 == 3 {
+            return Err(err_with_hint(
+                "值错误",
+                "Linux / macOS 的 termios 没有「1.5 位」停止位（那是 Windows 专有的）",
+                "改用 1 或 2；1.5 位只在极老的设备上才需要".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// 数据位 → `CSx`（🔴 两平台的位值不同：Linux `CS8=0o60`，macOS `CS8=0x300`）。
+    #[cfg(target_os = "linux")]
+    fn 数据位标志(数据位: u8) -> u32 {
+        match 数据位 {
+            5 => 位::CS5,
+            6 => 位::CS6,
+            7 => 位::CS7,
+            _ => 位::CS8,
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn 数据位标志(数据位: u8) -> u64 {
+        match 数据位 {
+            5 => 位::CS5,
+            6 => 位::CS6,
+            7 => 位::CS7,
+            _ => 位::CS8,
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn 设参数(fd: Fd, 率: u32, 数据位: u8, 停止位: u8, 校验: u8) -> Result<(), JishiError> {
+        查停止位(停止位)?;
+        let mut t: Termios = unsafe { std::mem::zeroed() };
+        if unsafe { ioctl(fd, TCGETS, &mut t as *mut Termios) } != 0 {
+            let 码 = 最后错误();
+            return Err(err_with_hint(
+                "运行期错误",
+                format!("读串口当前设置失败（系统错误码 {码}）"),
+                "这个设备可能根本不是串口 —— 拿普通文件 / 管道 / 终端来打开就会出现这个".into(),
+            ));
+        }
+        // **原始模式**：关掉所有字符加工（回显 / 行缓冲 / 换行翻译 / 信号键）。
+        // 不关的话设备发来的 0x03 会被当成 Ctrl-C、0x0D 会被翻成 0x0A。
+        t.c_iflag = 0;
+        t.c_oflag = 0;
+        t.c_lflag = 0;
+        t.c_cflag &= !(位::CSIZE | 位::CSTOPB | 位::PARENB | 位::PARODD | 位::CMSPAR | 位::CRTSCTS);
+        t.c_cflag |= 位::CLOCAL | 位::CREAD;       // 忽略调制解调器控制线
+        t.c_cflag |= 数据位标志(数据位);
+        if 停止位 == 2 {
+            t.c_cflag |= 位::CSTOPB;
+        }
+        t.c_cflag |= 校验位(校验)?;
+
+        match 波特率码(率) {
+            Some(码) => {
+                t.c_cflag = (t.c_cflag & !位::CBAUD) | 码;
+                if unsafe { ioctl(fd, TCSETS, &t as *const Termios) } != 0 {
+                    let 码 = 最后错误();
+                    return Err(err("运行期错误", format!(
+                        "串口不接受这套参数（波特率 {率} / 数据位 {数据位} / 停止位 {停止位}）：系统错误码 {码}")));
+                }
+                Ok(())
+            }
+            None => {
+                // 非标准速率（74880 / 31250 这类）走 `termios2` + `BOTHER`。
+                // 这条路比标准表脆一点，所以失败时**明确说**是「任意波特率」这一步不支持。
+                let mut t2 = Termios2 {
+                    c_iflag: t.c_iflag,
+                    c_oflag: t.c_oflag,
+                    c_cflag: (t.c_cflag & !位::CBAUD) | 位::BOTHER,
+                    c_lflag: t.c_lflag,
+                    c_line: 0,
+                    c_cc: [0u8; 19],
+                    c_ispeed: 率,
+                    c_ospeed: 率,
+                };
+                t2.c_cc.copy_from_slice(&t.c_cc[..19]);
+                if unsafe { ioctl(fd, TCSETS2, &t2 as *const Termios2) } != 0 {
+                    let 码 = 最后错误();
+                    return Err(err_with_hint(
+                        "运行期错误",
+                        format!("这个串口（或驱动）不支持 {率} 这个波特率：系统错误码 {码}"),
+                        "标准速率（9600 / 19200 / 38400 / 57600 / 115200 / 230400 / 460800 / 921600）\
+                         走的是老路，最稳；非标准速率要驱动也支持 `BOTHER` —— CH340 之类的常见 \
+                         USB 转串口多数支持，板载 UART 不一定"
+                            .into(),
+                    ));
+                }
+                Ok(())
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn 设参数(fd: Fd, 率: u32, 数据位: u8, 停止位: u8, 校验: u8) -> Result<(), JishiError> {
+        查停止位(停止位)?;
+        let mut t: Termios = unsafe { std::mem::zeroed() };
+        if unsafe { ioctl(fd, TIOCGETA, &mut t as *mut Termios) } != 0 {
+            let 码 = 最后错误();
+            return Err(err_with_hint(
+                "运行期错误",
+                format!("读串口当前设置失败（系统错误码 {码}）"),
+                "这个设备可能根本不是串口 —— 拿普通文件 / 管道 / 终端来打开就会出现这个".into(),
+            ));
+        }
+        t.c_iflag = 0;
+        t.c_oflag = 0;
+        t.c_lflag = 0;
+        t.c_cflag &= !(位::CSIZE | 位::CSTOPB | 位::PARENB | 位::PARODD
+            | 位::CCTS_OFLOW | 位::CRTS_IFLOW);
+        t.c_cflag |= 位::CLOCAL | 位::CREAD;
+        t.c_cflag |= 数据位标志(数据位);
+        if 停止位 == 2 {
+            t.c_cflag |= 位::CSTOPB;
+        }
+        t.c_cflag |= 校验位(校验)?;
+
+        // 🔴 macOS 的速率在**两个独立字段**里（值就是数字本身），不在 `c_cflag`。
+        let 码 = match 波特率码(率) {
+            Some(码) => 码,
+            None => {
+                return Err(err_with_hint(
+                    "值错误",
+                    format!("macOS 这一版只认标准波特率，{率} 不在里面"),
+                    "可用的：50 / 75 / 110 / 134 / 150 / 200 / 300 / 600 / 1200 / 1800 / 2400 / \
+                     4800 / 7200 / 9600 / 14400 / 19200 / 28800 / 38400 / 57600 / 76800 / \
+                     115200 / 230400。要别的速率得上 `IOSSIOSPEED`（本版没做，见路线图）"
+                        .into(),
+                ))
+            }
+        };
+        t.c_ispeed = 码 as u64;
+        t.c_ospeed = 码 as u64;
+
+        if unsafe { ioctl(fd, TIOCSETA, &t as *const Termios) } != 0 {
+            let 码 = 最后错误();
+            return Err(err("运行期错误", format!(
+                "串口不接受这套参数（波特率 {率} / 数据位 {数据位} / 停止位 {停止位}）：系统错误码 {码}")));
+        }
+        Ok(())
+    }
+
+    // ---- 读 / 写 ----------------------------------------------------------
+
+    /// 等 fd 就绪。返回 `false` = 等超时了（**不是错误**）。
+    fn 等就绪(fd: Fd, 事件: i16, 等毫秒: u32) -> Result<bool, JishiError> {
+        let mut p = PollFd {
+            fd,
+            events: 事件,
+            revents: 0,
+        };
+        loop {
+            let rc = unsafe { poll(&mut p, 1, 等毫秒.min(i32::MAX as u32) as i32) };
+            if rc < 0 {
+                let 码 = 最后错误();
+                if 码 == EINTR {
+                    continue;
+                }
+                return Err(err("运行期错误", format!("等串口数据失败（系统错误码 {码}）")));
+            }
+            if rc == 0 {
+                return Ok(false);
+            }
+            if p.revents & POLLNVAL != 0 {
+                return Err(err("运行期错误", "串口句柄已经失效（可能被关了）"));
+            }
+            if p.revents & (POLLERR | POLLHUP) != 0 && p.revents & 事件 == 0 {
+                return Err(err_with_hint(
+                    "运行期错误",
+                    "串口出错了（设备断开或线被拔）",
+                    "USB 转串口重新插一下；有的驱动拔线时只会给 POLLHUP，读不到具体原因".into(),
+                ));
+            }
+            return Ok(true);
+        }
+    }
+
+    pub(super) fn 读(fd: Fd, 等毫秒: u32) -> Result<Vec<u8>, JishiError> {
+        if 等毫秒 > 0 && !等就绪(fd, POLLIN, 等毫秒)? {
+            return Ok(Vec::new());                 // 超时 = 这一拍没数据，不是错误
+        }
+        let mut 片 = vec![0u8; 8192];
+        let n = unsafe { read(fd, 片.as_mut_ptr(), 片.len()) };
+        if n < 0 {
+            let 码 = 最后错误();
+            // `EINTR`（被信号打断）/ `EAGAIN`（非阻塞下没数据）都不算错
+            if 码 == EINTR || 码 == EAGAIN {
+                return Ok(Vec::new());
+            }
+            return Err(err_with_hint(
+                "运行期错误",
+                format!("从串口读失败（系统错误码 {码}）"),
+                "最常见的两种：① 设备被拔了（EBADF/EIO）；② 是 pty 的对端关掉了".into(),
+            ));
+        }
+        片.truncate(n as usize);
+        Ok(片)
+    }
+
+    pub(super) fn 写(fd: Fd, 数据: &[u8]) -> Result<(), JishiError> {
+        if 数据.is_empty() {
+            return Ok(());
+        }
+        let 截止 = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut 已写 = 0usize;
+        while 已写 < 数据.len() {
+            let n = unsafe { write(fd, 数据[已写..].as_ptr(), 数据.len() - 已写) };
+            if n > 0 {
+                已写 += n as usize;
+                continue;
+            }
+            let 码 = 最后错误();
+            if 码 == EINTR {
+                continue;
+            }
+            if 码 == EAGAIN {
+                let 剩 = 截止.saturating_duration_since(std::time::Instant::now());
+                if 剩.is_zero() {
+                    return Err(err_with_hint(
+                        "运行期错误",
+                        "往串口写等太久了（5 秒还没写出去）",
+                        "对方可能没在收（硬流控没接、线接反了、或者对端程序卡住）".into(),
+                    ));
+                }
+                // 等一小片可写再重试（不给满 5 秒，好让循环能再看一次截止时间）
+                等就绪(fd, POLLOUT, 剩.as_millis().min(500) as u32)?;
+                continue;
+            }
+            return Err(err("运行期错误", format!("往串口写失败（系统错误码 {码}）")));
+        }
+        Ok(())
+    }
+
+    pub(super) fn 关闭(fd: Fd) {
+        unsafe {
+            close(fd);
+        }
+    }
+
+    // ---- 列出 -------------------------------------------------------------
+
+    /// Linux：扫 `/sys/class/tty`，**只留挂了驱动的**。
+    ///
+    /// `/sys/class/tty` 里头还有 `tty0`…`tty63`（虚拟控制台）、`ttyprintk` 之类，
+    /// 它们全都不是串口 —— 判据是 `device/driver` 这个符号链接在不在。
+    /// `描述` 给**驱动名**（`ch341-uart` / `ftdi_sio` / `pl2303` / `serial8250`），
+    /// 这是真拿得到的信息，而且「两个 CH340 分不清」时正好用它。
+    #[cfg(target_os = "linux")]
+    fn 口们() -> Vec<(String, String, String)> {
+        let mut 出: Vec<(String, String, String)> = Vec::new();
+        let 目录 = match std::fs::read_dir("/sys/class/tty") {
+            Ok(d) => d,
+            Err(_) => return 出,                    // 没有 sysfs（极端环境）→ 空列表，不报错
+        };
+        for 项 in 目录.flatten() {
+            let 名 = 项.file_name().to_string_lossy().to_string();
+            let 设备 = 项.path().join("device");
+            let 驱动 = 设备.join("driver");
+            if !驱动.exists() {
+                continue;                           // 没驱动 = 不是真串口（虚拟终端在这里被滤掉）
+            }
+            // 🔴 `serial8250` 驱动会给**所有**传统串口（ttyS0…ttyS31）都挂上
+            // `device/driver`，哪怕机器上一个物理口都没有。`type` 文件是驱动
+            // 自己报的端口类型，**0 = PORT_UNKNOWN = 没硬件**，靠它把幽灵口滤掉。
+            // （没有 `type` 文件的驱动＝USB 转串口那类，一律保留。）
+            let 类型 = std::fs::read_to_string(项.path().join("type")).ok();
+            if let Some(文) = 类型 {
+                if 文.trim() == "0" {
+                    continue;
+                }
+            }
+            let 驱动名 = std::fs::read_link(&驱动)
+                .ok()
+                .and_then(|p| p.file_name().map(|s| s.to_string_lossy().to_string()))
+                .unwrap_or_default();
+            let 真实 = std::fs::canonicalize(&设备)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+            出.push((format!("/dev/{名}"), 驱动名, 真实));
+        }
+        出.sort();
+        出
+    }
+
+    /// macOS：扫 `/dev` 里 `cu.*` 的条目。
+    ///
+    /// 🔴 **只要 `cu.*`（callout），不要 `tty.*`**：`tty.*` 打开后会等 DCD 载波，
+    /// 板子没上电 / 拔线时 `open` 和 `read` 都会**挂住**，用户看到的是「程序卡死」。
+    /// `cu.*` 不等载波，插拔时行为可预测。
+    ///
+    /// `描述` 给空文本 —— 友好名（「USB-Serial CH340」）要 IOKit 的属性查询，
+    /// **如实**表示这个平台这一版拿不到，而不是把口名抄一遍冒充。
+    #[cfg(target_os = "macos")]
+    fn 口们() -> Vec<(String, String, String)> {
+        let mut 出: Vec<(String, String, String)> = Vec::new();
+        if let Ok(目录) = std::fs::read_dir("/dev") {
+            for 项 in 目录.flatten() {
+                let 名 = 项.file_name().to_string_lossy().to_string();
+                if !名.starts_with("cu.") {
+                    continue;
+                }
+                let 路 = format!("/dev/{名}");
+                出.push((路.clone(), String::new(), 路));
+            }
+        }
+        出.sort();
+        出
+    }
+
+    pub(super) fn 列出() -> Result<Val, JishiError> {
+        let 项们: Vec<Val> = 口们()
+            .into_iter()
+            .map(|(口, 描述, 设备)| {
+                crate::dict_new(vec![
+                    (Val::Str("口".into()), Val::Str(口.into())),
+                    (Val::Str("描述".into()), Val::Str(描述.into())),
+                    (Val::Str("设备".into()), Val::Str(设备.into())),
+                ])
+            })
+            .collect();
+        Ok(Val::List(std::rc::Rc::new(std::cell::RefCell::new(项们))))
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn 说明() -> &'static str {
+        if cfg!(target_os = "linux") {
+            "Linux 串口：open + ioctl(TCGETS/TCSETS) + poll（非标准速率走 termios2/BOTHER）"
+        } else {
+            "macOS 串口：open(/dev/cu.*) + ioctl(TIOCGETA/TIOCSETA) + poll"
+        }
     }
 }

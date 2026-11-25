@@ -11422,21 +11422,41 @@ M231 第一版为此给 Python 解释器加了「预检」（复用编译器的�
 「被占用」。判据两面对钉：`test_打开不存在的口要说清楚` +
 `test_打开不存在的口不会说成被占用`（后者是**反面对照**，防这条回归）。
 
-**平台：只有 Windows**
+**平台：三端都做**（同日追加，D133）
 
 | 平台 | 状态 |
 |---|---|
-| Windows | ✅ 裸 Win32（`CreateFileW` + `GetCommState`/`SetCommState` + `SetCommTimeouts` + `PurgeComm`），**零第三方依赖** |
-| Linux / macOS | ❌ **明确报「这个平台还没实现」** |
+| Windows | ✅ 裸 Win32（`CreateFileW` + `SetCommState` + `SetCommTimeouts` + `PurgeComm`），零第三方依赖 |
+| Linux | ✅ 裸 termios（`open` + `ioctl(TCGETS/TCSETS)` + `poll`），零第三方依赖；非标准速率走 `termios2` + `BOTHER` |
+| macOS | ✅ 裸 termios（`TIOCGETA/TIOCSETA`，`/dev/cu.*` + `poll`），零第三方依赖 |
 | wasm（页面） | ❌ 物理上不存在，报平台错 |
 | Python 宿主 | ❌ **故意不做**（要引 `pyserial`；本项目第三方依赖 0.3.5 收口时已清零） |
 
-📌 **Linux/mac 留白是「选择」不是「忘了」**：`struct termios` 的布局在 Linux 与 macOS
-上不一样（字段顺序、`c_cflag` 的位定义都不同），而本机只有 Windows —— 写一份**没法
-验证**的 FFI 属于「假装做了」，真出问题用户只看到「打开失败」四个字。等有 Linux 机器
-能实测再说（路线图里记着）。
+口名写法：Windows `COM3`（自动补 `\\.\` 前缀）· Linux `/dev/ttyUSB0` ·
+macOS `/dev/cu.*`（**不要 `/dev/tty.*`** —— 会等载波，插拔时挂住）。
+`列出()` 的 `描述`：Windows 空 · Linux 驱动名（`ch341-uart` / `ftdi_sio`）· macOS 空。
 
-**判据** `tests/test_m232_serial.py`（13 条 + 2 跳过）
+🔴 **POSIX 两端"看着像、其实到处不一样"**，常量全部按 `target_os` 分写：
+`struct termios` 60 字节（Linux）vs 72 字节（macOS）、波特率在 `c_cflag` 位里 vs
+两个独立字段、`B9600` 是 `13` vs `9600`、`EAGAIN` 是 `11` vs `35`……逐条对照表见
+`docs/设计决策.md` D133 与 `serial.rs` 文件头。
+
+**怎么"验证"的（如实说）**：
+
+| 层 | 结果 |
+|---|---|
+| 结构体布局 | ✅ **编译期断言**：`size_of::<Termios>() == 60/72`、`termios2 == 44`，关键字段偏移逐个钉死（故意改错 `c_cc` 长度 → `error[E0080]`，断言真的会拦） |
+| 代码能不能编 | ✅ `cargo check --target aarch64-unknown-linux-gnu` / `aarch64-apple-darwin` 都过 |
+| **真机收发** | ❌ **未验证** —— 作者没有 Linux/macOS 机器，也没有回环线。算法就是 `open → 设 termios → poll → read/write`，但**没在真设备上跑过就是没跑过** |
+
+⚠️ 两处平台差异会**当场报错**而不是静默降级：`停止位 3`（1.5 位）在 Linux/macOS 没有；
+校验 `"空格"` 在 macOS 没有（Darwin 的 termios 只到 mark）。
+
+🔒 **沙箱里拒**：`--sandbox`（页面 / playground）下 `导入 串口` → `E2000`「沙箱不允许
+导入模块」。**故意的** —— 放行等于让网页直连用户机器的串口设备。两个宿主口径一致，
+判据 `test_沙箱里导入串口被拒` 守着。
+
+**判据** `tests/test_m232_serial.py`（20 条，含三平台同口径；3 条按环境跳过）
 
 | 层 | 条数 | 验什么 |
 |---|---|---|
@@ -11447,12 +11467,14 @@ M231 第一版为此给 Python 解释器加了「预检」（复用编译器的�
 | **真往返** | 1 | 发一行读回来 —— **默认 skip**（要 `JISHI_SERIAL_PORT`） |
 
 ⚠️ **两处如实说的空白**：
-- **真串口往返没有被验证过** —— 作者本机没有串口/虚拟串口对，CI 更没有。算法很简单
-  （打开 → 写 → 读行），但**没验过就是没验过**。有回环线的机器上短接 TX/RX、设
-  `JISHI_SERIAL_PORT=COM3` 就能跑。
-- `描述` 字段**恒为空文本**：注册表方案拿不到「USB-SERIAL CH340 (COM3)」那种友好名，
-  要它得上 SetupAPI（几十个常量 + 设备集生命周期）。给空**如实**表示拿不到，
-  而不是把口名再抄一遍冒充。
+- **真串口往返没有被验证过** —— 作者本机没有串口/虚拟串口对，CI 更没有；Linux / macOS
+  连"编译之外"的验证都没有（无机器、无回环线）。算法很简单（打开 → 设参数 → 写 → 读行），
+  但**没验过就是没验过**。有回环线的机器上短接 TX/RX、设 `JISHI_SERIAL_PORT=COM3`
+  （或 `/dev/ttyUSB0`）就能跑。
+- `描述` 字段 Windows / macOS **恒为空文本**：注册表（Windows）拿不到「USB-SERIAL
+  CH340 (COM3)」那种友好名，要它得上 SetupAPI（几十个常量 + 设备集生命周期）；
+  macOS 同理要 IOKit 属性查询。Linux 给**驱动名**（真拿得到，且"两个 CH340 分不清"
+  时正好用）。给空**如实**表示拿不到，而不是把口名再抄一遍冒充。
 
 **计数**：**53 模块 / 611 函数**（+1 模块 `串口`、+2 函数）。
 
