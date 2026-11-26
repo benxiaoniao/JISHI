@@ -112,12 +112,15 @@ def test_增改删都能收到(tmp_path):
     子.mkdir(exist_ok=True)
     time.sleep(1.5)                                   # 等后台线程把 watch 挂上
 
+    # ⚠️ 每步之间 **1 秒**：macOS 的 FSEvents 有 0.1s 延迟合并，写得快了三步会被
+    #    合并成一条（2026-11-26 macOS CI 上就是这样只剩一条「增」的）。
+    #    这里要验的是「三种动作各自都能报出来」，不是「引擎抗合并」。
     (子 / "甲.txt").write_text("1", encoding="utf-8")
-    time.sleep(0.4)
+    time.sleep(1.0)
     (子 / "甲.txt").write_text("22", encoding="utf-8")
-    time.sleep(0.4)
+    time.sleep(1.0)
     (子 / "甲.txt").unlink()
-    time.sleep(0.4)
+    time.sleep(1.0)
 
     事件, 码, 全文 = _收工(tmp_path, 进程)
     assert 码 == 0, f"引擎异常退出：\n{全文[:800]}"
