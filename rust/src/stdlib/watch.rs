@@ -954,7 +954,7 @@ mod plat {
         递归: bool,
     }
 
-    #[link(name = "CoreFoundation")]
+    #[link(name = "CoreFoundation", kind = "framework")]
     extern "C" {
         fn CFStringCreateWithCString(alloc: *const std::ffi::c_void, s: *const u8, enc: u32)
             -> *const std::ffi::c_void;
@@ -973,7 +973,7 @@ mod plat {
         static kCFTypeArrayCallBacks: u8;
     }
 
-    #[link(name = "CoreServices")]
+    #[link(name = "CoreServices", kind = "framework")]
     extern "C" {
         fn FSEventStreamCreate(
             alloc: *const std::ffi::c_void,

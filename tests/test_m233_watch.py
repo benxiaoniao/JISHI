@@ -26,6 +26,7 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -322,3 +323,38 @@ def test_两处超时换算都走as_num():
         assert "as_num" in 段, (
             f"{名} 的 超时毫秒 没走 `as_num` —— 整数会被当成毫秒"
             "（2026-11-26 那个 bug 的复发点）")
+
+
+# ---------------------------------------------------------------------------
+# ⑧ 静态护栏：不许自己声明 libc 的「运行时符号」
+# ---------------------------------------------------------------------------
+
+@_需要引擎
+def test_不自己声明libc运行时符号():
+    """`rust/src` 里不许出现 `fn open/read/write/close(..)` 这种 extern 声明。
+
+    🔴 2026-11-26 用**三轮 CI** 换来的教训：unix 上 rustc 把 `open` / `read` /
+    `write` / `close` 当成「标准库运行时自己那份」，crate 里再声明同名符号
+    ⇒ `read`/`write` 是警告、**`open` 直接是 error**（`invalid definition of the
+    runtime 'open' symbol`），Windows 上完全看不出来（那边是 kernel32，不冲突）。
+
+    正确做法：走 std —— `OpenOptions` 打开、`File` 包裸 fd 读写、`File` 析构关闭。
+    （`poll` / `ioctl` / `tcflush` / `inotify_*` 不在这个保护名单里，可以声明。）
+
+    📌 这是**静态检查**（扫源码），因为要真验得在 unix 上链接一次 —— 那正是 CI 干的活。
+    """
+    根 = ROOT / "rust" / "src"
+    危险 = re.compile(r"\bfn\s+(open|read|write|close)\s*\(")
+    坏 = []
+    for f in 根.rglob("*.rs"):
+        for 号, 行 in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            去 = 行.strip()
+            if 去.startswith("//"):
+                continue                     # 注释里举反例是允许的
+            if "&self" in 行 or "&mut self" in 行:
+                continue                     # `impl Read for X` 的 `fn read(&mut self)` 不算
+            if 危险.search(行):
+                坏.append(f"{f.relative_to(ROOT)}:{号}: {去[:80]}")
+    assert not 坏, (
+        "自己声明了 libc 运行时符号（unix 上会编译失败）：\n  "
+        + "\n  ".join(坏[:6]))

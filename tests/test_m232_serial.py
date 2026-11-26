@@ -34,6 +34,7 @@ Linux/macOS（查路径）的判定方式完全不同，但给用户的错必须
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -291,17 +292,28 @@ def test_pty_假串口真往返(tmp_path):
     主, 从 = os.openpty()
     try:
         从名 = os.ttyname(从)
-        # 先从主端发一行（pty 会把它缓冲住），引擎打开后 `读行` 就能读到
-        os.write(主, "PING\n".encode())
-        # 引擎会自己 `串口.打开(从名)`；我们手里这个 fd 是给主端用的
-        rc, 出 = _跑(
+        # ⚠️ **不能先写再打开**：`串口.打开` 会 `tcflush(TCIOFLUSH)` 清掉驱动里
+        #    残留的旧字节（那是防"上一次会话的脏数据"的必要动作），提前写的会一起被丢掉。
+        #    所以先起进程，等它打开并设好参数，再从主端发一行。
+        脚本 = (
             f"导入 串口\n"
             f"令 板 = 串口.打开(\"{从名}\", 115200)\n"
-            f"令 行 = 板.读行(5)\n"
+            f"打印(\"opened\")\n"
+            f"令 行 = 板.读行(8)\n"
             f"打印(\"读到: \" + 行)\n"
             f"板.写文本(\"PONG\\n\")\n"
-            f"板.关闭()\n",
-            tmp_path)
+            f"板.关闭()\n"
+        )
+        文件 = tmp_path / f"pty_{os.getpid()}.jsh"
+        文件.write_text(脚本, encoding="utf-8", newline="\n")
+        进程 = subprocess.Popen([str(EXE), str(文件)],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # 等它打开 + 设完参数（固定 1.2 秒；`open` 在 pty 上是毫秒级的，足够）
+        time.sleep(1.2)
+        os.write(主, "PING\n".encode())
+        输出, _ = 进程.communicate(timeout=30)
+        rc = 进程.returncode
+        出 = 输出.decode("utf-8", "replace")
         assert rc == 0, f"PTY 上打开/读/写真失败了：\n{出[:600]}"
         assert "读到: PING" in 出, f"引擎没从「串口」读到我们发的那行：\n{出[:600]}"
 

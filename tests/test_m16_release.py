@@ -66,7 +66,14 @@ def _run_cli(argv):
 
 
 def test_cmd_doctor():
-    code, out = _run_cli(["医生"])
+    """`jishi 医生` 在**离线**下也要说「环境正常」。
+
+    🔴 判据不许依赖公网（AGENTS §1）：原来这里直接跑 `医生`，它会去探两个包索引源。
+    CI 上两个源都不通（GitHub 那个自从 `packages/` 不再进仓库就 404 了），
+    于是 `ok=False`、退出码 1，本机却被网照得「正常」—— 典型的假红/假绿混在一起。
+    现在显式 `--no-net`：这条判据只管「本地环境检查」，不管网络。
+    """
+    code, out = _run_cli(["医生", "--no-net"])
     assert code == 0
     assert f"版本：{_ver.VERSION}" in out
     assert "C VM" in out
