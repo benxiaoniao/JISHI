@@ -11535,9 +11535,12 @@ macOS `/dev/cu.*`（**不要 `/dev/tty.*`** —— 会等载波，插拔时挂�
 | 单位 | 2 | `等事件(表, 1)` 真的等 ~1 秒（计时）+ 两处 `超时毫秒` 都走 `as_num` |
 | 参数与沙箱 | 6 | 目录不存在 / 给的是文件 / 回调不是函数 / 递归给文本 / 选项给整数 / `--sandbox` 拒 `导入 路径` |
 
-⚠️ **如实说的边界**：macOS / Linux 的实现只做了**交叉编译校验**（`cargo check
---target aarch64-apple-darwin` / `aarch64-unknown-linux-gnu`），**没有在真机上跑过**；
-判据会在 CI 的 mac/linux job 上真跑（那才是第一次真验证）。Windows 侧本机实测通过。
+✅ **三平台都真的跑过了**：判据在 CI 的 windows / ubuntu / macos 三个 job 上全绿 ——
+Linux 走 `inotify`、macOS 走 `FSEvents`（UseCFTypes + 文件级事件），建/改/删/递归/改名
+都是真系统事件。Windows 侧另有本机实测。
+
+📌 顺带一提：M232 那条 `test_pty_假串口真往返`（用 PTY 从端当串口）也在 Linux CI 上
+**第一次真跑通了** —— 串口的 POSIX 实现至此不再是「只编译过」。
 
 **计数**：**53 模块 / 614 函数**（`路径` +3：`监视` / `等事件` / `停止监视`）。
 
