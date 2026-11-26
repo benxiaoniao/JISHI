@@ -11540,3 +11540,23 @@ macOS `/dev/cu.*`（**不要 `/dev/tty.*`** —— 会等载波，插拔时挂�
 判据会在 CI 的 mac/linux job 上真跑（那才是第一次真验证）。Windows 侧本机实测通过。
 
 **计数**：**53 模块 / 614 函数**（`路径` +3：`监视` / `等事件` / `停止监视`）。
+
+**🔴 这一站在 CI 上修了四轮（都是「本机看不出来」的那类）**
+
+| 轮次 | 现象 | 根因 | 改法 |
+|---|---|---|---|
+| 1 | mac/ubuntu 在「构建 Rust 宿主」红（exit 101） | `extern "C" { fn read/write(..) }` 与 **std 运行时符号**撞名（警告） | `#[link_name]` 改名 |
+| 2 | 同上，仍未过 | 改名不够 —— 符号名还是 `read`/`write` | 改用 std 的 `File` 包裸 fd（`ManuallyDrop` 防误关） |
+| 3 | 同上，但错误变成 `invalid definition of the runtime 'open' symbol` | **`open` 是硬错误**（`read`/`write` 只是警告）；`close` 同理 | 打开改 `OpenOptions` + `custom_flags`，关 fd 用 `File` 析构 |
+| 4 | macOS 链接失败 `ld: library 'CoreFoundation' not found` | CoreFoundation / CoreServices 是 **framework**，不是普通库 | `#[link(..., kind = "framework")]` |
+
+📌 **一条总教训**：交叉编译只能 `cargo check`（不链接、而且我跑的是
+`--no-default-features`），这几类问题**只有 CI 的真构建**能发现 ——
+所以「推完必须看 CI」在这类平台代码上是硬要求，不是流程洁癖。
+另外补了两条判据把坑钉住：`test_不自己声明libc运行时符号`（静态扫源码）。
+
+**顺手修的两条旧判据**（都不是 M233 引入的，但挡了绿灯）：
+- `test_m188_games` 的「最高分进存档」断言正好 `== 10`，而撞墙前吃到几个食物取决于
+  帧时序（CI 上吃到两个就是 20）⇒ 改成「≥10 且是 10 的倍数」；
+- `test_cmd_doctor` 直接跑「医生」会探两个包索引源（CI 上都不通 ⇒ 退出码 1 假红）
+  ⇒ 改成 `--no-net`（判据不许依赖公网，AGENTS §1）。

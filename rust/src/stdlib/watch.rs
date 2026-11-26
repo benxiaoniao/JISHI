@@ -926,8 +926,14 @@ mod plat {
     }
 
     const UTF8: u32 = 0x0800_0100;
-    /// `kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer`
-    const 标志: u32 = 0x10 | 0x2;
+    /// `kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagNoDefer
+    /// | kFSEventStreamCreateFlagFileEvents`
+    ///
+    /// 🔴 **`UseCFTypes`(0x1) 不能少**：不开它，回调里的 `eventPaths` 是
+    /// `char **`（C 字符串数组），而我们是按 `CFArray` 取元素的 ——
+    /// 取第一个就把引擎**直接 SIGSEGV**（2026-11-26 macOS CI 上就是这样崩的，
+    /// 而且崩得没输出，只剩 exit -11）。
+    const 标志: u32 = 0x1 | 0x2 | 0x10;
     /// `kFSEventStreamEventIdSinceNow`
     const 从此刻: u64 = u64::MAX;
     const 延迟: f64 = 0.1;
@@ -1076,11 +1082,16 @@ mod plat {
         let 就绪 = Arc::new((Mutex::new(false), Condvar::new()));
         let 就绪2 = 就绪.clone();
         let 线程 = std::thread::spawn(move || {
-            let mut 现场 = Box::new(现场 { 队: 队2, 根, 递归 });
-            let 信息 = (&mut *现场) as *mut 现场 as *mut std::ffi::c_void;
+            // 🔴 上下文**故意不释放**（`Box::into_raw` 之后再也不 free）：
+            //    FSEvents 在 `FSEventStreamInvalidate/Release` 期间**仍可能回调**，
+            //    而那时我们已经在收尾线程上了 —— 释放了就是悬垂指针（崩在回调里，
+            //    没有任何错误信息）。一个监视句柄泄漏几十字节，换掉一整类崩溃，值。
+            let 现场 = Box::into_raw(Box::new(现场 { 队: 队2, 根, 递归 }));
+            let 信息 = 现场 as *mut std::ffi::c_void;
             let mut 结果: Result<控制, JishiError> =
                 Err(err("运行期错误", "FSEvents 没起来（不知道是哪一步）"));
-            if let Ok(c) = std::ffi::CString::new(现场.根.clone()) {
+            let 根文 = unsafe { (*现场).根.clone() };
+            if let Ok(c) = std::ffi::CString::new(根文) {
                 unsafe {
                     let cf = CFStringCreateWithCString(std::ptr::null(), c.as_ptr() as *const u8, UTF8);
                     if !cf.is_null() {
@@ -1136,7 +1147,7 @@ mod plat {
                 return;
             }
             unsafe { CFRunLoopRun() };       // 跑到 `叫醒` 里 CFRunLoopStop
-            drop(现场);
+            // 现场**不 drop**（见上面 `Box::into_raw` 那段说明）
         });
         // 等流建好（最多 5 秒）
         {
