@@ -958,6 +958,8 @@ mod plat {
         队: 队列,
         根: String,
         递归: bool,
+        /// 见过的路径（判断「增」还是「改」用 —— FSEvents 的 flags 不可靠）
+        见过: std::cell::RefCell<std::collections::HashSet<String>>,
     }
 
     #[link(name = "CoreFoundation", kind = "framework")]
@@ -1015,16 +1017,21 @@ mod plat {
         for i in 0..事件数 as i64 {
             let 路径 = unsafe { 取文本(CFArrayGetValueAtIndex(路径们, i)) };
             let f = unsafe { *flags.add(i as usize) };
-            let 动作 = if f & 项新建 != 0 {
-                "增"
-            } else if f & 项移除 != 0 {
+            // 🔴 **不能只信 flags**（2026-11-26 macOS CI 实测）：FSEvents 对同一个路径
+            //    的**建 / 改 / 删三条事件都可能带 `ItemCreated`** —— 于是全都报成「增」，
+            //    用户看到的是一串莫名其妙的"新建"。
+            //    改成用**存在性 + 首次见到**判定：不存在 → 删；存在且第一次见 → 增；
+            //    存在且见过 → 改；带改名标记 → 改名（旧路径 FSEvents 常常不给）。
+            let 存在 = std::path::Path::new(&路径).exists();
+            let 动作 = if !存在 {
+                现场.见过.borrow_mut().remove(&路径);
                 "删"
             } else if f & 项改名 != 0 {
                 "改名"
-            } else if f & 项修改 != 0 {
-                "改"
+            } else if 现场.见过.borrow_mut().insert(路径.clone()) {
+                "增"
             } else {
-                continue;
+                "改"
             };
             if !现场.递归 && 相对深度(&现场.根, &路径) > 1 {
                 continue;                                  // 非递归：只报第一层
@@ -1086,7 +1093,12 @@ mod plat {
             //    FSEvents 在 `FSEventStreamInvalidate/Release` 期间**仍可能回调**，
             //    而那时我们已经在收尾线程上了 —— 释放了就是悬垂指针（崩在回调里，
             //    没有任何错误信息）。一个监视句柄泄漏几十字节，换掉一整类崩溃，值。
-            let 现场 = Box::into_raw(Box::new(现场 { 队: 队2, 根, 递归 }));
+            let 现场 = Box::into_raw(Box::new(现场 {
+                队: 队2,
+                根,
+                递归,
+                见过: std::cell::RefCell::new(std::collections::HashSet::new()),
+            }));
             let 信息 = 现场 as *mut std::ffi::c_void;
             let mut 结果: Result<控制, JishiError> =
                 Err(err("运行期错误", "FSEvents 没起来（不知道是哪一步）"));
