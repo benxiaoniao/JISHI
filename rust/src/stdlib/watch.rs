@@ -718,7 +718,15 @@ mod plat {
         fn inotify_init1(标志: i32) -> i32;
         fn inotify_add_watch(fd: i32, 路径: *const u8, 掩码: u32) -> i32;
         fn poll(fds: *mut PollFd, 个数: u64, 等毫秒: i32) -> i32;
-        fn close(fd: i32) -> i32;
+    }
+
+    /// 关掉裸 fd（**不声明 `close` 符号** —— unix 上它是 std 运行时符号，
+    /// 自己定义会直接报错；让 `File` 的析构去关）。
+    fn 关闭fd(fd: i32) {
+        use std::os::unix::io::FromRawFd;
+        unsafe {
+            drop(std::fs::File::from_raw_fd(fd));
+        }
     }
 
     /// 用 std 的 `File` 包一层裸 fd 来读 —— **不自己声明 `read` 这个符号**
@@ -750,9 +758,7 @@ mod plat {
         }
         let mut 表: std::collections::HashMap<i32, String> = std::collections::HashMap::new();
         if 加一层(fd, 目录, &mut 表).is_err() {
-            unsafe {
-                close(fd);
-            }
+            关闭fd(fd);
             return Err(err_with_hint(
                 "文件错误",
                 format!("加不上监视「{目录}」"),
@@ -810,9 +816,7 @@ mod plat {
         let mut 待改: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
         loop {
             if 停.load(Ordering::Relaxed) {
-                unsafe {
-                    close(fd);                    // fd 由线程自己关（见 `叫醒` 的说明）
-                }
+                关闭fd(fd);                       // fd 由线程自己关（见 `叫醒` 的说明）
                 return;
             }
             let mut p = PollFd { fd, events: POLLIN, revents: 0 };
@@ -821,7 +825,7 @@ mod plat {
                 if 最后错误() == 4 {
                     continue;                                  // EINTR
                 }
-                unsafe { close(fd) };
+                关闭fd(fd);
                 return;
             }
             if rc == 0 {
@@ -835,7 +839,7 @@ mod plat {
                 if 码 == 11 || 码 == 4 {
                     continue;                                  // EAGAIN / EINTR
                 }
-                unsafe { close(fd) };
+                关闭fd(fd);
                 return;                                        // fd 坏了（被外面关了）
             }
             let 长 = n as usize;

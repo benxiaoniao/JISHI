@@ -1074,11 +1074,36 @@ mod posix {
     };
 
     extern "C" {
-        fn open(路径: *const u8, 标志: i32, 模式: u32) -> i32;
-        fn close(fd: i32) -> i32;
         fn poll(fds: *mut PollFd, 个数: Nfds, 等毫秒: i32) -> i32;
         fn ioctl(fd: i32, 请求: u64, ...) -> i32;
         fn tcflush(fd: i32, 队列: i32) -> i32;
+    }
+
+    /// 打开设备文件 → 裸 fd。**不自己声明 `open` 这个符号**。
+    ///
+    /// 🔴 unix 上 `extern "C" { fn open(..) }` 是**硬错误**：
+    /// 「invalid definition of the runtime `open` symbol used by the standard
+    /// library」（2026-11-26 CI 上红了两次才发现 —— `read`/`write` 只是警告，
+    /// `open` 直接是 error）。用 std 的 `OpenOptions` 其实更省事：
+    /// `O_CLOEXEC` std 默认就给，`O_NOCTTY`/`O_NONBLOCK` 走 `custom_flags`。
+    fn 打开设备(路径: &str) -> std::io::Result<i32> {
+        use std::os::unix::fs::OpenOptionsExt;
+        use std::os::unix::io::IntoRawFd;
+        let fd = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .custom_flags(O_NOCTTY | O_NONBLOCK | O_CLOEXEC)
+            .open(路径)?
+            .into_raw_fd();
+        Ok(fd)
+    }
+
+    /// 关掉裸 fd（**不声明 `close` 符号**，让 `File` 的析构去关）。
+    fn 关闭fd(fd: Fd) {
+        use std::os::unix::io::FromRawFd;
+        unsafe {
+            drop(std::fs::File::from_raw_fd(fd));
+        }
     }
 
     /// 用 std 的 `File` 包一层裸 fd 来读 —— **不自己声明 `read` 这个符号**。
@@ -1223,30 +1248,20 @@ mod posix {
         校验: u8,
     ) -> Result<Val, JishiError> {
         let 净 = 口.trim();
-        let 路径 = std::ffi::CString::new(净)
-            .map_err(|_| err("值错误", format!("口名里不能有 0 字节：「{口}」")))?;
         // ⚠️ `O_NONBLOCK` 是**必须的**：不设的话 `open` 会等 DCD 载波，
         //    macOS 的 /dev/tty.* 上就是「插着板子也打不开、一拔就返回」。
         //    读的超时不用 termios 的 VMIN/VTIME，改用 `poll` 自己控（更好预测）。
-        let fd = unsafe {
-            open(
-                路径.as_ptr() as *const u8,
-                O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC,
-                0,
-            )
+        let fd = match 打开设备(净) {
+            Ok(fd) => fd,
+            Err(e) => return Err(打开错误(净, e.raw_os_error().unwrap_or(0))),
         };
-        if fd < 0 {
-            return Err(打开错误(净, 最后错误()));
-        }
         // 独占标记：第二次打开撞 `EBUSY` —— 与 Windows 的「共享模式 0」对齐。
         // 失败不要紧（有些驱动不认），所以不检查返回值。
         unsafe {
             ioctl(fd, TIOCEXCL);
         }
         if let Err(e) = 设参数(fd, 波特率, 数据位, 停止位, 校验) {
-            unsafe {
-                close(fd);
-            }
+            关闭fd(fd);
             return Err(e);
         }
         unsafe {
@@ -1539,9 +1554,7 @@ mod posix {
     }
 
     pub(super) fn 关闭(fd: Fd) {
-        unsafe {
-            close(fd);
-        }
+        关闭fd(fd);
     }
 
     // ---- 列出 -------------------------------------------------------------
