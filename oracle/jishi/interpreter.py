@@ -545,6 +545,8 @@ class Interpreter:
         from . import jishilib
 
         program = jishilib.expand(program)
+        from . import runtime as _R
+        _R.进入执行器(self)        # M237：`包.加载` 要用它把包编进**本解释器**
         try:
             self.exec_block(program.body, self.globals)
         except JishiError as e:
@@ -560,6 +562,20 @@ class Interpreter:
                 filename=self.filename)
             err.trace = list(self._call_stack) if self._call_stack else None
             raise err
+        finally:
+            _R.离开执行器()
+
+    def 跑源码(self, 源码: str, 文件名: str) -> None:
+        """在**本解释器的全局作用域**里跑一段源码（M237 运行期加载包用）。
+
+        与 `run` 的区别：不做块作用域预检、不展开基石库、不进执行器栈
+        （调用方已经在里面了）。包的外壳函数自己会返回门面字典，
+        所以这里只负责「跑」，返回值由调用方从全局里取。
+        """
+        from .parser import parse_source
+
+        program = parse_source(源码, 文件名)
+        self.exec_block(program.body, self.globals)
 
     def exec_block(self, stmts: list[A.Node], env: Environment) -> Any:
         """顺序执行语句块；返回 Return 信号值（函数体用）。"""

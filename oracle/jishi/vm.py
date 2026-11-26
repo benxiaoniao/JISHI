@@ -220,10 +220,37 @@ class VM:
         frame = _Frame(main, 0, 0, [_UNSET] * main.nlocals,
                        [Cell() for _ in range(main.ncells)])
         self.frames.append(frame)
+        R.进入执行器(self)          # M237：`包.加载` 要用它把自己编进**本 VM** 的表
         try:
             self._execute(stop_at=None)
         finally:
+            R.离开执行器()
             self.frames.clear()
+        return self.last_value
+
+    def 跑子模块(self, 子模块) -> Any:
+        """把另一个模块**编进本 VM** 并执行它的主代码（M237 运行期加载包）。
+
+        步骤：`O.合并模块` 把子模块的四张表追加到本模块（并给它的每个 Code
+        设基址）→ 拿它的 main 建一个帧 → 跑。
+
+        🔴 为什么必须「编进来」而不是「另起一个 VM 跑完再把函数搬过来」：
+        函数对象 `VmFunction` 的 `code` 里的常量/名字下标都是**相对本模块**的，
+        搬过去就会取到别的常量 —— 那是**静默算错**，比报错难查得多（M145 老坑）。
+        合并之后子模块的 Code 带着基址，取表时加一下就对了。
+        """
+        main_idx = O.合并模块(self.cmod, 子模块)
+        # ⚠️ `self.consts` 等是 `cmod.consts` 的**同一个 list 对象**，
+        #    所以 extend 之后这边自动就能取到（不要再赋一次值）。
+        code = self.codes[main_idx]
+        frame = _Frame(code, 0, 0, [_UNSET] * code.nlocals,
+                       [Cell() for _ in range(code.ncells)])
+        self.frames.append(frame)
+        try:
+            self._execute(stop_at=frame)
+        finally:
+            if self.frames and self.frames[-1] is frame:
+                self.frames.pop()
         return self.last_value
 
     def call_function(self, fn: VmFunction, args: list,
@@ -398,6 +425,7 @@ class VM:
     def _execute(self, stop_at: Optional[_Frame]) -> None:
         stack = self.stack
         frames = self.frames
+        # 🔴 M237：**基址在帧循环里取**（见下），所以这里不再预先绑死三张表。
         consts = self.consts
         names = self.names
         kw_names = self.kw_names
@@ -410,6 +438,14 @@ class VM:
             frame = frames[-1]
             code = frame.code
             instrs = code.instrs
+            # 🔴 M237：**本帧的四张表基址**。单模块时全是 0（行为与以前相同）；
+            # 运行期加载包之后，包里的 Code 基址非 0 —— 所有「取表」的地方都要加它。
+            # 放在帧循环里（不是函数头）是必须的：`call` 一条指令就换帧，
+            # 换了帧就是换了模块。
+            cbase = code.consts_base
+            nbase = code.names_base
+            kbase = code.kw_base
+            gbase = code.codes_base
             frame_locals = frame.locals
             frame_cells = frame.cells
             base = frame.base
@@ -444,7 +480,7 @@ class VM:
                                 hint=code.local_hints.get(ins.a))
                         stack.append(v)
                     elif op == Op.LOAD_CONST:
-                        stack.append(consts[ins.a])
+                        stack.append(consts[cbase + ins.a])
                     elif op == Op.STORE_FAST:
                         frame_locals[ins.a] = stack.pop()
                     elif op == Op.BIN_OP:
@@ -472,7 +508,7 @@ class VM:
 
                     # === 全局名字 ===
                     elif op == Op.LOAD_GLOBAL:
-                        name = names[ins.a]
+                        name = names[nbase + ins.a]
                         try:
                             stack.append(globs[name])
                         except KeyError:
@@ -481,7 +517,7 @@ class VM:
                                                 col=ins.col,
                                                 filename=filename)
                     elif op == Op.STORE_GLOBAL:
-                        globs[names[ins.a]] = stack.pop()
+                        globs[names[nbase + ins.a]] = stack.pop()
 
                     # === 闭包 ===
                     elif op == Op.LOAD_DEREF:
@@ -531,7 +567,7 @@ class VM:
                         nargs = ins.a
                         kwi = ins.b
                         if kwi >= 0:
-                            knames = kw_names[kwi]
+                            knames = kw_names[kbase + kwi]
                         else:
                             knames = ()
                         nkw = len(knames)
@@ -575,8 +611,8 @@ class VM:
                             del stack[-ncells:]
                         else:
                             cells = []
-                        stack.append(VmFunction(codes[ins.a].name,
-                                                codes[ins.a], cells, self,
+                        stack.append(VmFunction(codes[gbase + ins.a].name,
+                                                codes[gbase + ins.a], cells, self,
                                                 defaults=defaults))
 
                     # === 类定义（M5b）===

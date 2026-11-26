@@ -1,0 +1,236 @@
+# -*- coding: utf-8 -*-
+"""M237 · `包`（运行期加载本地包）—— **本轮只在 Python 侧落地**。
+
+## 这一站做了什么、没做什么（先看这里）
+
+| 执行器 | 状态 |
+|---|---|
+| 树遍历 `Interpreter` | ✅ 真跑（`跑源码` 共用 `self.globals`，同一条调用栈） |
+| Python `VM` | ✅ 真跑（`O.合并模块` 把新模块四张表追加进来，`Code` 记基址） |
+| Rust 宿主 | ⚠️ **明确报错**（不是静默错），原因见 `rust/src/stdlib/pkgload.rs` 文件头 |
+| C VM | ⚠️ 同 Rust（它更进一步：`consts`/`instrs` 是宿主持有的扁平数组） |
+
+**为什么 Rust/C 没做**（一句话）：`包.加载` 要**改正在跑的那个模块的表**，
+而 Rust 的 `execute_frame` 为了让几千行的指令循环能长期借用 `instrs`，把
+`module` 提升成 `Rc<Module>` 并一直借着；C 侧的表是宿主持有的定长数组。
+两边都要么动**最热的循环**（有性能代价，得重量基线），要么改**跨语言字节码契约** ——
+那是单独一轮的事，不在收口前顺手改。
+
+📌 这与 `串口` / `路径.监视` 在 **Python 侧**的处理是同一个口径：
+「另一个宿主暂时没有，就把话说清楚」，而不是静默给假值。
+
+## 实现要点
+
+- **必须编进调用者的执行器**：包的导出是**函数**，函数绑定在创建它的执行器上
+  （`Code` 里的常量/名字下标都是相对本模块的）。换一个执行器代劳 ⇒
+  「拿到错误的常量表」（M145 老坑，`localpkg.rs` 文件头记着）。
+- **表基址**（`consts_base` / `names_base` / `kw_base` / `codes_base`）：
+  合并时给新模块的每个 `Code` 记一个起点，取表处加一次加法。
+  🔴 **不重写指令里的下标** —— 那需要一张「每条指令的 a/b/c 哪个是下标」的语义表，
+  没人维护它，漏一个就是**静默取错常量**。
+- **命名空间隔离**：包被包在一个外壳函数里跑（与编译期 `导入` 展开同一套），
+  顶层名字出函数就没了，只有导出的进字典。
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from tests.conftest import rust_exe_path  # noqa: E402
+
+RUST_EXE = rust_exe_path()
+_需要引擎 = pytest.mark.skipif(not RUST_EXE.is_file(),
+                              reason="没有 Rust 发行版（cargo build --release）")
+
+
+def _建包(tmp: Path, 包名: str, 文件们: dict, 元: dict | None = None) -> None:
+    目录 = tmp / ".jishi" / "packages" / 包名
+    目录.mkdir(parents=True, exist_ok=True)
+    import json
+    (目录 / "包.json").write_text(
+        json.dumps(元 or {"名字": 包名, "版本": "0.1.0"}, ensure_ascii=False),
+        encoding="utf-8")
+    for 名, 内容 in 文件们.items():
+        (目录 / 名).write_text(内容, encoding="utf-8", newline="\n")
+
+
+def _跑树遍历(源: str, tmp: Path, 名: str) -> str:
+    文件 = tmp / f"{名}-{os.getpid()}.jsh"
+    文件.write_text(源, encoding="utf-8", newline="\n")
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(文件)],
+                       cwd=str(ROOT), capture_output=True, text=True,
+                       encoding="utf-8", timeout=180)
+    assert r.returncode == 0, (r.stdout or "") + (r.stderr or "")
+    return (r.stdout or "").replace("\r\n", "\n")
+
+
+def _跑VM(源: str, tmp: Path, 名: str) -> str:
+    """Python 字节码 VM（不经 CLI 的树遍历）。"""
+    文件 = tmp / f"{名}-vm-{os.getpid()}.jsh"
+    文件.write_text(源, encoding="utf-8", newline="\n")
+    码 = (
+        "import sys, io, contextlib\n"
+        f"sys.path.insert(0, {str(ROOT)!r})\n"
+        "from oracle.jishi.compiler import compile_source\n"
+        "from oracle.jishi.vm import VM\n"
+        f"src = open({str(文件)!r}, encoding='utf-8').read()\n"
+        f"cmod = compile_source(src, {str(文件)!r})\n"
+        f"vm = VM(cmod, {str(文件)!r})\n"
+        "vm.run()\n"
+    )
+    r = subprocess.run([sys.executable, "-c", 码], cwd=str(tmp),
+                       capture_output=True, text=True, encoding="utf-8", timeout=180)
+    assert r.returncode == 0, (r.stdout or "") + (r.stderr or "")
+    return (r.stdout or "").replace("\r\n", "\n")
+
+
+# ---------------------------------------------------------------------------
+# 一、两条 Python 路径都要真跑，而且逐字一致
+# ---------------------------------------------------------------------------
+
+def test_树遍历能运行期加载包(tmp_path):
+    _建包(tmp_path, "插件", {
+        "主.jsh": ('令 前缀 = "处理结果："\n'
+                   '函数 处理(输入)：\n    返回 前缀 + 输入\n'
+                   '函数 加和(a, b)：\n    返回 a + b\n'),
+    })
+    源 = '''导入 包
+令 插件 = 包.加载("插件")
+打印(类型(插件), 插件["处理"]("甲"), 插件["加和"](3, 4))
+令 再 = 包.加载("插件")
+打印("同一份", 再 == 插件)
+'''
+    出 = _跑树遍历(源, tmp_path, "pkgload")
+    assert 出.strip().splitlines() == ["字典 处理结果：甲 7", "同一份 真"], 出
+
+
+def test_字节码VM也一致(tmp_path):
+    """同样的程序走 Python 字节码 VM —— 输出必须**逐字**相同。
+
+    🔴 这条是「合并模块 + Code 基址」方案的真正验收：VM 里包的函数是用
+    **合并后的表**建出来的，调用时靠 `consts_base` 才算对常量。
+    基址算错的话，`前缀` 会取到别的常量（不报错、结果错）。
+    """
+    _建包(tmp_path, "插件", {
+        "主.jsh": ('令 前缀 = "处理结果："\n'
+                   '函数 处理(输入)：\n    返回 前缀 + 输入\n'
+                   '函数 加和(a, b)：\n    返回 a + b\n'),
+    })
+    源 = '''导入 包
+令 插件 = 包.加载("插件")
+打印(类型(插件), 插件["处理"]("甲"), 插件["加和"](3, 4))
+令 再 = 包.加载("插件")
+打印("同一份", 再 == 插件)
+'''
+    甲 = _跑树遍历(源, tmp_path, "pkgload")
+    乙 = _跑VM(源, tmp_path, "pkgload")
+    assert 甲 == 乙, f"树遍历与 VM 不一致：\n--- 树遍历 ---\n{甲}\n--- VM ---\n{乙}"
+
+
+def test_包内顶层名字不污染主程序(tmp_path):
+    """包里的 `令 内部 = …` 出了包就没了（外壳函数隔离，与编译期导入同一套规则）。"""
+    _建包(tmp_path, "隔离", {
+        "主.jsh": '令 内部 = 42\n函数 取值()：\n    返回 内部\n',
+    })
+    源 = '''导入 包
+令 m = 包.加载("隔离")
+打印(m["取值"]())
+尝试：
+    打印(内部)
+捕获 异常 为 e：
+    打印("主程序看不到", e.类型)
+'''
+    出 = _跑树遍历(源, tmp_path, "isolation")
+    assert 出.strip().splitlines() == ["42", "主程序看不到 找不到这个名字"], 出
+
+
+def test_包内多文件也按依赖排序(tmp_path):
+    """M235 的 `_按依赖排序` 在运行期这条路上同样生效（不是只修了编译期）。"""
+    _建包(tmp_path, "多文件", {
+        "甲.jsh": "令 基数 = 100\n",
+        "乙.jsh": '令 加倍 = 基数 * 2\n函数 取()：\n    返回 加倍\n',
+    })
+    源 = '''导入 包
+令 m = 包.加载("多文件")
+打印(m["取"]())
+'''
+    assert _跑树遍历(源, tmp_path, "order").strip() == "200"
+
+
+# ---------------------------------------------------------------------------
+# 二、错误路径：说清、不崩
+# ---------------------------------------------------------------------------
+
+def test_包不存在时列出已装清单(tmp_path):
+    _建包(tmp_path, "真有的包", {"主.jsh": "函数 f()：\n    返回 1\n"})
+    源 = '''导入 包
+尝试：
+    包.加载("根本不存在的包")
+捕获 异常 为 e：
+    打印(e.类型)
+'''
+    文件 = tmp_path / f"miss-{os.getpid()}.jsh"
+    文件.write_text(源, encoding="utf-8", newline="\n")
+    r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(文件)],
+                       cwd=str(tmp_path), capture_output=True, text=True,
+                       encoding="utf-8", timeout=180)
+    assert r.returncode == 0, (r.stdout or "") + (r.stderr or "")
+    assert "值错误" in r.stdout, r.stdout
+
+
+def test_带依赖的包明确报错而不是静默少东西(tmp_path):
+    """`包.json` 里有 `依赖` ⇒ 明确说「运行期加载不支持」，指向编译期那条路。
+
+    🔴 这条是「不许留半成品」的具体落点：如果悄悄忽略依赖，包里用到依赖的
+    那一行会在**深处**报「找不到名字」，用户根本想不到是依赖没加载。
+    """
+    _建包(tmp_path, "带依赖", {"主.jsh": "函数 f()：\n    返回 1\n"},
+          元={"名字": "带依赖", "版本": "0.1.0", "依赖": {"别的包": "^1.0"}})
+    源 = '''导入 包
+尝试：
+    包.加载("带依赖")
+    打印("居然通过了")
+捕获 异常 为 e：
+    打印("拒绝", e.类型)
+'''
+    出 = _跑树遍历(源, tmp_path, "deps")
+    assert 出.strip() == "拒绝 值错误", 出
+
+
+@_需要引擎
+def test_Rust宿主明确报错而不是找不到模块(tmp_path):
+    """Rust 宿主上 `导入 包` **要能成功**（模块在表里），`调用` 时才说清不支持。
+
+    与 `串口` / `监视` 同一口径：「宿主暂时没有」要说得清，而不是让用户
+    看到「没有找到标准库模块」去怀疑自己拼错了。
+    """
+    文件 = tmp_path / f"rust-{os.getpid()}.jsh"
+    文件.write_text('导入 包\n打印(1)\n', encoding="utf-8", newline="\n")
+    r = subprocess.run([str(RUST_EXE), str(文件)], cwd=str(tmp_path),
+                       capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, f"`导入 包` 在 Rust 宿主上就失败了：{r.stderr[:300]}"
+
+    文件2 = tmp_path / f"rust2-{os.getpid()}.jsh"
+    文件2.write_text('导入 包\n包.加载("随便")\n', encoding="utf-8", newline="\n")
+    r2 = subprocess.run([str(RUST_EXE), str(文件2)], cwd=str(tmp_path),
+                        capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r2.returncode != 0, "Rust 宿主居然没报错"
+    assert "还不支持 `包.加载`" in r2.stderr, r2.stderr[:400]
+    assert "从 本地包" in r2.stderr, "报错里没给替代方案（编译期导入）"
+
+
+def test_模块与函数在表里():
+    """`包` 与 `加载` 都在语言事实里（Python 侧是契约来源）。"""
+    from oracle.jishi.ai import build_lang_spec
+
+    规格 = build_lang_spec()
+    模块 = {m["module"]: m for m in 规格["stdlib"]}
+    assert "包" in 模块, "`包` 没注册进标准库表"
+    assert any(f["name"] == "加载" for f in 模块["包"]["functions"]), 模块["包"]

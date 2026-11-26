@@ -311,6 +311,18 @@ class Code:
     src_file: str = ""
     #: 该文件在「包内拼接源码」里的起始行（1 起）；0 = 不换算。
     src_start: int = 0
+    #: **表基址**（M237）：这段代码所属模块的 `consts` / `names` / `kw_names` /
+    #: `codes` 在**合并后**的总表里的起点。单模块时全是 0（行为与以前逐字节相同）。
+    #:
+    #: 🔴 为什么用「基址」而不是「重写指令里的下标」：运行期加载包时要把新模块的
+    #: 四张表**追加**到当前执行器的表后面，如果重写指令就得知道「每条指令的
+    #: a/b/c 里哪个是下标」—— 那张语义表没人维护，改错一个就是静默取错常量。
+    #: 记基址只在**取表的那几处**加一次加法，指令一个字节都不用动，
+    #: 字节码格式（跨语言契约）也不用变。
+    consts_base: int = 0
+    names_base: int = 0
+    kw_base: int = 0
+    codes_base: int = 0
 
     @property
     def stmt_marks(self) -> list[int]:
@@ -340,6 +352,37 @@ class CompiledModule:
     codes: list[Code] = field(default_factory=list)
     main: int = 0
     filename: str = "<输入>"
+
+
+def 合并模块(主: "CompiledModule", 新: "CompiledModule") -> int:
+    """把 `新` 的四张表**追加**到 `主` 后面，返回 `新` 的 main 在合并后的下标（M237）。
+
+    这是「运行期加载包」的地基：一个执行器的全局作用域只能有一份主代码，
+    但可以持有**多份**模块的表 —— 只要每份 `Code` 记得自己的表从哪开始
+    （`consts_base` 等四个字段），取值时加上基址就取对了。
+
+    🔴 为什么**不重写指令里的下标**：那需要一张「每条指令的 a/b/c 里哪个是
+    常量/名字/代码下标」的语义表，而那张表没有任何东西在维护它 —— 漏一个就是
+    **静默取到别的常量**（不报错、结果错）。记基址只在取表处加一次加法，
+    指令一个字节都不动，跨语言字节码格式（公开契约）也不用变。
+
+    ⚠️ 合并后 `主.filename` / `主.main` 保持原样：主程序的入口不变，
+    新模块的入口由返回值给出（调用方拿它建一个帧跑）。
+    """
+    consts_base = len(主.consts)
+    主.consts.extend(新.consts)
+    names_base = len(主.names)
+    主.names.extend(新.names)
+    kw_base = len(主.kw_names)
+    主.kw_names.extend(新.kw_names)
+    codes_base = len(主.codes)
+    for 码 in 新.codes:
+        码.consts_base = consts_base
+        码.names_base = names_base
+        码.kw_base = kw_base
+        码.codes_base = codes_base
+    主.codes.extend(新.codes)
+    return codes_base + 新.main
 
 
 # ---------------------------------------------------------------------------

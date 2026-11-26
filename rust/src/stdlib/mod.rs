@@ -59,6 +59,9 @@ mod watch;
 // M236：`外部`（LoadLibrary/GetProcAddress 与 dlopen/dlsym）—— 主路径的逃生口。
 // 沙箱与页面上降级成「假 + 说明」，不是报错了事（D130 / D137）。
 mod external;
+// M237：`包`（运行期加载本地包）。⚠️ 本轮只在 Python 侧落地，Rust 侧明确报错 ——
+// 卡在热循环的借用结构上，原因写在 pkgload.rs 文件头（不是漏了）。
+mod pkgload;
 pub(crate) mod tables;
 pub(crate) mod word;
 pub(crate) mod pdf;
@@ -157,6 +160,8 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         ("串口", serial::module),
         // M236：外部调用（LoadLibraryW+GetProcAddress / dlopen+dlsym）
         ("外部", external::module),
+        // M237：运行期加载包（本轮 Python 侧可用，Rust 侧明确报错）
+        ("包", pkgload::module),
         ("加密", crate::crypto::module),
         ("压缩", crate::zip::module),
         ("表格", tables::module),

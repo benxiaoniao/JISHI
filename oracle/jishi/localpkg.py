@@ -621,3 +621,80 @@ def expand(program, filename: str = "<输入>"):
                 头部.append(d)
     新程序.body = 头部 + 新程序.body
     return 新程序
+
+
+# ---------------------------------------------------------------------------
+# 运行期加载（M237）：同一套规则，产物是**源码**
+# ---------------------------------------------------------------------------
+
+def 运行期外壳源码(名字: str, 脚本目录: Optional[str] = None,
+                   filename: str = "<输入>") -> tuple:
+    """把包拼成「一个外壳函数」的**源码**，返回 `(源码, 外壳函数名)`。
+
+    与编译期展开（`shell_def`）**同一套规则**：同一份 `module_files`、
+    同一个 `_按依赖排序`、同样包在一个函数里（⇒ 包内顶层名字**隔离**，
+    与 `导入 X 从 本地包` 一致）。区别只有产物形态：那边给 AST，这边给源码 ——
+    因为运行期要靠**当前执行器**自己编译它（不能用别的执行器代劳，那会
+    「拿到错误的常量表」，M145 的老坑）。
+
+    ⚠️ **两条暂不支持的**（都明确报错，不静默）：
+    ① 包在 `包.json` 里声明了 `依赖` —— 依赖注入靠 AST 里插 `$造模块`，
+       源码形态写不出那个内部名；
+    ② 包体里写了 `导入 X 从 本地包` —— 同上。
+    这两种情况请用编译期的 `导入 名字 从 本地包`（那条路全支持）。
+    """
+    from .errors import RunValueError
+
+    def 失败(消息: str, 提示: str):
+        raise RunValueError(消息, filename=filename, hint=提示)
+
+    pkg_dir = find_pkg_dir(名字, 脚本目录)
+    if pkg_dir is None:
+        找过 = "\n".join("  · " + d for d in sorted(package_dirs(脚本目录)))
+        失败(f"没有找到本地包「{名字}」",
+             f"找过这些目录（放 <目录>/{名字}/，含 包.json 与 .jsh 模块）：\n{找过}")
+
+    import json as _json
+    try:
+        with open(os.path.join(pkg_dir, "包.json"), encoding="utf-8") as f:
+            元 = _json.load(f)
+    except (OSError, ValueError) as e:
+        失败(f"本地包「{名字}」的 包.json 读不了：{e}", "修好那个文件再试")
+
+    if 元.get("依赖"):
+        失败(f"运行期加载暂不支持带「依赖」的包（「{名字}」声明了 "
+             f"{'、'.join(元['依赖'])}）",
+             "改用编译期的 `导入 " + 名字 + " 从 本地包` —— 那条路支持依赖链")
+
+    files = module_files(pkg_dir, 名字, 元, None, filename)
+    片段 = []
+    for fn in files:
+        路径 = os.path.join(pkg_dir, fn)
+        try:
+            with open(路径, encoding="utf-8") as f:
+                片段.append((路径, f.read()))
+        except OSError as e:
+            失败(f"本地包「{名字}」的模块「{fn}」读不了：{e}", "检查文件权限")
+    片段 = _按依赖排序(片段)
+
+    源码 = "".join(内容.replace("\r\n", "\n").replace("\r", "\n") + "\n"
+                   for _, 内容 in 片段)
+    if "从 本地包" in 源码:
+        失败(f"包「{名字}」里又写了 `导入 … 从 本地包`，运行期加载暂不支持",
+             "改用编译期的 `导入 " + 名字 + " 从 本地包`；或者在包体里只引用包.json 的依赖")
+
+    from .jishilib import _export_names
+    from .parser import parse_source
+    导出 = _export_names(parse_source(源码, 片段[0][0]))
+    正文 = [("    " + line) if line.strip() else "" for line in 源码.split("\n")]
+    pairs = ", ".join(f'"{out}": {src}' for out, src in 导出)
+    壳名 = f"__运行期包_{名字}__"
+    # 跑完**直接调一次**，把门面落到一个内部全局名上 —— 调用方取那个名字就行。
+    # 为什么不去「取函数再调」：那要按执行器各自的调用 API 走一遍（树遍历用
+    # `call_function`、VM 用 `call_function`），而让**源码自己调用**只有一条路。
+    # 名字带两层下划线，用户不会撞上；它也不进导出（`_export_names` 跳过 `_` 开头）。
+    结果名 = f"__运行期门面_{名字}__"
+    壳源码 = (f"函数 {壳名}()：\n" + "\n".join(正文)
+              + f"\n    返回 {{{pairs}}}\n"
+              + f"{结果名} = {壳名}()\n")
+    return 壳源码, 结果名
