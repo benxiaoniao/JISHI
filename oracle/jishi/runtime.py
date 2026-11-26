@@ -2091,6 +2091,13 @@ def get_attr(obj, attr, *, line=None, col=None, filename="<输入>"):
     if table is not None:
         hint = f"可用的方法：{'、'.join(sorted(table))}"
         title = f"「{type_name(obj)}」没有方法「{attr}」"
+        # 🔴 M235（D10）：`.` 在基石里是**方法引用**，不是属性读取 —— 所以
+        # `字典.甲` 一定落到这条报错。不补这句提示的话，用户（写框架的尤其多）
+        # 只会看到「没有方法「甲」」，以为是拼写问题，永远想不到该用下标。
+        # ⚠️ 与 Rust 侧 `dict_method` 的 hint **逐字相同**（`test_m235` 对拍盯着）。
+        if isinstance(obj, dict):
+            hint += ("。`.` 在这里是方法不是字段：读字段用下标 `字典[\"键\"]`；"
+                     "不确定键在不在就用 `字典.获取(键, 默认值)`（读）或 `.包含(键)`（判）")
     else:
         hint = _attr_hint(obj, attr)
         title = f"「{type_name(obj)}」没有属性「{attr}」"
@@ -2739,6 +2746,13 @@ def _import_local_package(name: str, *, line=None, col=None,
         path = os.path.join(pkg_dir, fn)
         with open(path, encoding="utf-8") as f:
             片段.append((path, f.read()))
+    # 🔴 M235 / D8：**按顶层依赖重排**（与 `localpkg._按依赖排序` 同一套规则）。
+    # 原来这里是纯 `sorted(os.listdir)` —— 于是「文件名序 = 依赖序」成了隐含要求：
+    # `乙.jsh`（U+4E59）排在 `甲.jsh`（U+7532）前面，`乙` 顶层用 `甲` 的常量就报
+    # 「找不到这个名字」，而提示（「被赋过值所以它是局部变量」）指向完全错误的方向。
+    # ⚠️ 这里与 `localpkg` 那条路必须**同一口径**，否则「解释执行」与「编译执行」
+    # 对同一个包给出不同结果 —— 那正是 M199 之前两条路分叉的老毛病。
+    片段 = _lp._按依赖排序(片段)
     源码 = "".join(
         t.replace("\r\n", "\n").replace("\r", "\n") + "\n" for _, t in 片段
     )

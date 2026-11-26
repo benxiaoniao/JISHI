@@ -201,9 +201,37 @@ def _头对们(头) -> list:
         if 键.lower() in _自填:
             raise RunValueError(
                 f"「{键}」由框架自己填，不要在「头」里再写一遍")
-        if not 键.isascii() or not 值.isascii():
-            raise RunTypeError(f"请求头「{键}」的名字与值只能是 ASCII（英文数字）")
+        # 🔴 M235（W18）：头名仍限 ASCII token，**头值放开成 UTF-8**。
+        # 原来这里是 `键.isascii() and 值.isascii()`，两个问题：
+        #   ① 中文头值报 E2002（真实项目要回中文提示头，绕不过）；
+        #   ② `isascii()` 拦不住 `\r\n`（它们本身是 ASCII）⇒ 头值注入。
+        # 详细理由见 `rust/src/stdlib/server.rs` 同名注释（两侧必须同一口径）。
+        if not _是头名(键):
+            raise RunValueError(
+                f"响应头名「{键}」不合法",
+                hint="头名只能是 ASCII 字母数字与 `!#$%&'*+-.^_`|~`（不能有空格/冒号/中文）；"
+                     "中文请放在头值里",
+            )
+        if not _是头值(值):
+            raise RunValueError(
+                f"响应头「{键}」的值里有换行或控制字符",
+                hint="头值可以是中文（按 UTF-8 发），但不能含 `\\r` / `\\n` / NUL —— "
+                     "那会造出额外的响应头",
+            )
     return 对们
+
+
+def _是头名(s: str) -> bool:
+    """头名是不是合法的 RFC 7230 token（`tchar`）。"""
+    if not s:
+        return False
+    允 = set("!#$%&'*+-.^_`|~")
+    return all(c.isascii() and (c.isalnum() or c in 允) for c in s)
+
+
+def _是头值(s: str) -> bool:
+    """头值是否安全：允许任意 UTF-8，但**不许控制字符**（`\\t` 除外）。"""
+    return all(c == "\t" or (ord(c) >= 0x20 and ord(c) != 0x7F) for c in s)
 
 
 def 构造响应(状态: int = 200, 正文="",
@@ -241,7 +269,7 @@ def 构造响应(状态: int = 200, 正文="",
     行们.extend(f"{键}: {值}" for 键, 值 in 自定义)
     行们.append(f"Content-Length: {len(数据)}")
     行们.append("Connection: close")
-    头字节 = ("\r\n".join(行们) + "\r\n\r\n").encode("ascii")
+    头字节 = ("\r\n".join(行们) + "\r\n\r\n").encode("utf-8")
     出 = 头字节 + 数据
     return JishiBytes(出) if 字节正文 else 出.decode("utf-8", "replace")
 

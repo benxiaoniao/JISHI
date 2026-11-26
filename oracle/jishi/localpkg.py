@@ -183,7 +183,12 @@ def _read_meta(pkg_dir: str, name: str, node, filename: str) -> dict:
 
 
 def module_files(pkg_dir: str, name: str, meta: dict, node, filename: str) -> list:
-    """要编进来的 `.jsh`：有「入口」只编入口，否则按文件名排序全编。"""
+    """要编进来的 `.jsh`：有「入口」只编入口，否则按文件名排序全编。
+
+    ⚠️ 这里的顺序只是**起点**：真正的拼接顺序由 `_按依赖排序` 决定（M235 / D8）——
+    按文件名序拼会让「文件名序 = 依赖序」变成隐含要求（`乙.jsh` 在码点序上
+    排在 `甲.jsh` 前面，于是 `乙` 顶层用 `甲` 的常量就断）。
+    """
     files = sorted(f for f in os.listdir(pkg_dir) if f.endswith(".jsh"))
     entry = str(meta.get("入口") or "").strip()
     if entry:
@@ -196,6 +201,106 @@ def module_files(pkg_dir: str, name: str, meta: dict, node, filename: str) -> li
     if not files:
         _fail(f"本地包「{name}」里没有 .jsh 模块文件", node, filename)
     return files
+
+
+def _顶层名字(程序) -> tuple:
+    """(这个文件**定义**的名字, 这个文件**顶层语句**引用到的名字)。
+
+    🔴 关键口径（M235 / D8）：**不深入函数体 / 类体**。
+    函数体是**延迟求值**的 —— `乙.jsh` 里 `函数 丁()：返回 丙()` 不要求
+    `丙` 的定义文件排在前面（调用点永远在包加载之后）。只有「顶层就要求值」的
+    引用（`令 加倍 = 基数 * 2`）才真的构成跨文件顺序约束。
+
+    保守地把函数体也算进来会**平白造出环**（两个文件互相调用函数），
+    于是拓扑排序失败、退回文件名序 —— 那等于什么都没改。所以必须精确。
+
+    ⚠️ `如果` / `循环` / `尝试` 里的语句**仍是**顶层（都是立即求值的），
+    所以递归时**保持**上下文；唯一的边界是 `函数` / `类` 的**体**。
+    """
+    import dataclasses
+
+    定义: set = set()
+    引用: set = set()
+
+    def 扫(节点) -> None:
+        if isinstance(节点, A.FuncDef):
+            定义.add(节点.name)
+            # ⚠️ **默认值是定义时求值的**，所以要扫；函数体不扫
+            for d in (节点.defaults or []):
+                if isinstance(d, A.Node):
+                    扫(d)
+            return
+        if isinstance(节点, A.ClassDef):
+            定义.add(节点.name)
+            return
+        if isinstance(节点, A.Import):
+            定义.add(节点.alias or 节点.name)
+            return
+        if isinstance(节点, A.Assign):
+            # 写入目标不算「引用」——`令 甲 = 1` 不依赖别人的 `甲`
+            if isinstance(节点.target, A.Name):
+                定义.add(节点.target.id)
+            else:
+                扫(节点.target)          # `甲[0] = …` 里的 `甲` 是读
+            扫(节点.value)
+            return
+        if isinstance(节点, A.Name):
+            引用.add(节点.id)
+            return
+        for f in dataclasses.fields(节点):
+            v = getattr(节点, f.name, None)
+            if isinstance(v, A.Node):
+                扫(v)
+            elif isinstance(v, list):
+                for x in v:
+                    if isinstance(x, A.Node):
+                        扫(x)
+
+    扫(程序)
+    return 定义, 引用
+
+
+def _按依赖排序(片段: list) -> list:
+    """按「顶层跨文件引用」重排模块，让定义文件排在用到它的文件前面（M235 / D8）。
+
+    原来的顺序是纯**文件名码点序**，于是「文件名序 = 依赖序」成了隐含要求 ——
+    `乙.jsh`（U+4E59）排在 `甲.jsh`（U+7532）**前面**，`乙` 顶层用 `甲` 的常量
+    就报「找不到这个名字」；而那个报错的提示（「被赋过值所以是局部变量」）
+    会把用户带到完全错误的方向。
+
+    - **稳定**：同一层里仍按文件名序（输入序），所以没依赖关系的包顺序不变；
+    - **环**（顶层互相引用）⇒ **原样返回**，不报错：那本来就是错的，交给
+      编译/运行期报具体位置，比在这里猜一句「有循环依赖」有用。
+    """
+    if len(片段) <= 1:
+        return 片段
+    from .parser import parse_source
+
+    定义们, 引用们 = [], []
+    for 路径, 内容 in 片段:
+        d, r = _顶层名字(parse_source(内容, 路径))
+        定义们.append(d)
+        引用们.append(r)
+
+    n = len(片段)
+    边 = [set() for _ in range(n)]          # 边[i] = 「必须排在我前面」的文件下标
+    for i in range(n):
+        for j in range(n):
+            if i != j and (引用们[i] & 定义们[j]):
+                边[i].add(j)
+
+    剩余 = list(range(n))
+    顺序: list = []
+    while 剩余:
+        就绪 = [i for i in 剩余 if not 边[i]]
+        if not 就绪:
+            return 片段                     # 环：原样返回（见 docstring）
+        i = 就绪[0]                          # 输入序里最靠前的那个（稳定）
+        顺序.append(i)
+        剩余.remove(i)
+        for k in 剩余:
+            边[k].discard(i)
+    return [片段[i] for i in 顺序]
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +422,9 @@ def shell_def(name: str, node, filename: str, stack: Optional[list] = None,
                 片段.append((path, f.read()))
         except OSError as e:
             _fail(f"本地包「{name}」的模块「{fn}」读不了：{e}", node, filename)
+
+    # M235 / D8：**按顶层依赖重排**，别让「文件名序 = 依赖序」成为隐含要求
+    片段 = _按依赖排序([(p, c) for p, c in 片段])
 
     from .parser import parse_source
     from .jishilib import _export_names

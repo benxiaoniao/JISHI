@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+X-Tip: 余额不足
+Content-Length: 3
+Connection: close
+
+好

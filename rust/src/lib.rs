@@ -6803,7 +6803,7 @@ const DEC_METHOD_NAMES: &[&str] = &["舍入", "绝对值", "转文本"];
 /// 里记着）。以前只有 集合/文件/小数 三个有这道门，列表/字典/文本 是**到调用时**
 /// 才由 `call_builtin_method` 的兜底报「方法调用未实现」—— M54 统一了。
 fn gated_method(names: &[&str], kind: &str, name: &str, receiver: Val,
-                line: i64, col: i64)
+                line: i64, col: i64, 补充: Option<&str>)
     -> Result<Val, JishiError> {
     if !names.contains(&name) {
         // 文案与提示都照 Python 的 `runtime.get_attr`：
@@ -6811,10 +6811,15 @@ fn gated_method(names: &[&str], kind: &str, name: &str, receiver: Val,
         // 拼错方法名是最常见的错，提示里直接列出可用方法最省事（R6.3 对齐）。
         let mut avail: Vec<&str> = names.to_vec();
         avail.sort_unstable();
+        let mut hint = format!("可用的方法：{}", avail.join("、"));
+        if let Some(补) = 补充 {
+            hint.push_str("。");
+            hint.push_str(补);
+        }
         return Err(err_with_hint(
             "类型错误",
             format!("「{kind}」没有方法「{name}」"),
-            format!("可用的方法：{}", avail.join("、"))));
+            hint));
     }
     let bm = BoundMethod::Builtin {
         name: name.to_string(), receiver: Box::new(receiver), line, col };
@@ -6822,19 +6827,24 @@ fn gated_method(names: &[&str], kind: &str, name: &str, receiver: Val,
 }
 
 fn str_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
-    gated_method(STR_METHOD_NAMES, "文本", name, receiver, line, col)
+    gated_method(STR_METHOD_NAMES, "文本", name, receiver, line, col, None)
 }
 fn list_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
-    gated_method(LIST_METHOD_NAMES, "列表", name, receiver, line, col)
+    gated_method(LIST_METHOD_NAMES, "列表", name, receiver, line, col, None)
 }
 fn dict_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
-    gated_method(DICT_METHOD_NAMES, "字典", name, receiver, line, col)
+    // 🔴 M235（D10）：`.` 在基石里是**方法引用**，不是属性读取 —— 所以
+    // `字典.甲` 一定落进这条报错。不补这句提示的话，用户（写框架的尤其多）
+    // 只会看到「没有方法「甲」」，然后以为是拼写问题，永远想不到该用下标。
+    gated_method(DICT_METHOD_NAMES, "字典", name, receiver, line, col,
+                 Some("`.` 在这里是方法不是字段：读字段用下标 `字典[\"键\"]`；\
+                       不确定键在不在就用 `字典.获取(键, 默认值)`（读）或 `.包含(键)`（判）"))
 }
 fn set_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
-    gated_method(SET_METHOD_NAMES, "集合", name, receiver, line, col)
+    gated_method(SET_METHOD_NAMES, "集合", name, receiver, line, col, None)
 }
 fn file_method(name: &str, receiver: Val, line: i64, col: i64) -> Result<Val, JishiError> {
-    gated_method(FILE_METHOD_NAMES, "文件", name, receiver, line, col)
+    gated_method(FILE_METHOD_NAMES, "文件", name, receiver, line, col, None)
 }
 
 /// 宿主对象的方法分派（M165d）。
@@ -6870,7 +6880,7 @@ fn native_call(name: &str, obj: Rc<NativeObj>, host: &mut dyn BuiltinHost, args:
     }
 }
 fn dec_method(name: &str, d: Rc<Dec>, line: i64, col: i64) -> Result<Val, JishiError> {
-    gated_method(DEC_METHOD_NAMES, "精确小数", name, Val::Dec(d), line, col)
+    gated_method(DEC_METHOD_NAMES, "精确小数", name, Val::Dec(d), line, col, None)
 }
 
 /// `--dump-methods`：本宿主**实际带的「对象方法」**，打成 JSON（M54）。

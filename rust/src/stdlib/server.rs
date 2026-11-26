@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 
 use super::{as_text, need, need_range, table, R};
-use crate::{dict_items, dict_new, err, list_new, BuiltinHost, JishiError, Val};
+use crate::{dict_items, dict_new, err, err_with_hint, list_new, BuiltinHost, JishiError, Val};
 
 /// 状态码 → 原因短语。**认不得的状态码留空**（不硬编一个假的英文短语）。
 fn 原因(码: i128) -> &'static str {
@@ -283,14 +283,54 @@ fn 头们(v: Option<&Val>) -> Result<Vec<(String, String)>, JishiError> {
                 format!("「{名}」由框架自己填，不要在「头」里再写一遍"),
             ));
         }
-        if !名.is_ascii() || !值.is_ascii() {
-            return Err(err(
-                "类型错误",
-                format!("请求头「{名}」的名字与值只能是 ASCII（英文数字）"),
+        // 🔴 M235（W18）：**头名仍是 ASCII token，头值放开成 UTF-8**。
+        //
+        // 原来这一句是 `!名.is_ascii() || !值.is_ascii()`，两个问题：
+        //   ① **中文头值直接报 E2002** —— 真实项目要给前端回一句中文提示头
+        //      （`X-提示: 余额不足`），绕不过去，只能塞进正文再让前端拆（W18）；
+        //   ② **`is_ascii()` 拦不住 `\r\n`**（它们本身就在 ASCII 范围里）⇒
+        //      值里塞 `"好\r\nSet-Cookie: 偷来的=1"` 就能**伪造任意响应头**，
+        //      这是响应头注入，是个真安全洞 —— 这次一并堵。
+        //
+        // 口径（HTTP 规范 + 实用主义）：
+        //   · 头名必须是 RFC 7230 的 token（ASCII 字母数字 + `!#$%&'*+-.^_`|~`）——
+        //     名字上放松没有好处，只有解析歧义；
+        //   · 头值允许任意 UTF-8（**中文可用**），但**不许控制字符**
+        //     （`\t` 除外）—— 换行会造头注入，NUL 会被截断。
+        //     ⚠️ 严格按 RFC 7230，头值只该是 visible ASCII + obs-text，发 UTF-8 是
+        //     「不合规但主流浏览器都按 UTF-8 显示」的实用取舍，写进文档。
+        if !是头名(名) {
+            return Err(err_with_hint(
+                "值错误",
+                format!("响应头名「{名}」不合法"),
+                "头名只能是 ASCII 字母数字与 `!#$%&'*+-.^_`|~`（不能有空格/冒号/中文）；\
+                 中文请放在头值里".into(),
+            ));
+        }
+        if !是头值(值) {
+            return Err(err_with_hint(
+                "值错误",
+                format!("响应头「{名}」的值里有换行或控制字符"),
+                "头值可以是中文（按 UTF-8 发），但不能含 `\\r` / `\\n` / NUL —— \
+                 那会造出额外的响应头".into(),
             ));
         }
     }
     Ok(出)
+}
+
+/// 头名是不是合法的 RFC 7230 token（`tchar`）。
+fn 是头名(s: &str) -> bool {
+    !s.is_empty()
+        && s.bytes().all(|b| {
+            b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b)
+        })
+}
+
+/// 头值是否安全：允许任意 UTF-8，但**不许控制字符**（`\t` 除外）。
+fn 是头值(s: &str) -> bool {
+    // UTF-8 的多字节字节都 ≥ 0x80，不会误伤中文
+    s.bytes().all(|b| b == b'\t' || (b >= 0x20 && b != 0x7f))
 }
 
 /// 「状态 + 正文（字节）+ 头」→ 完整响应**字节**。`Content-Length` 按**字节**算。

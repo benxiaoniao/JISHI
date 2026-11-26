@@ -629,6 +629,171 @@ fn module_files(pkg_dir: &str, name: &str, meta: &MJ, line: i64, col: i64)
 }
 
 // ---------------------------------------------------------------------------
+// 包内模块的顺序（M235 / D8）
+// ---------------------------------------------------------------------------
+
+/// 一个文件「顶层定义的名字」与「**顶层语句**引用到的名字」。
+///
+/// 🔴 关键口径（M235 / D8）：**不深入 `函数` / `类` 的体**。
+/// 函数体是**延迟求值**的 —— `乙.jsh` 里 `函数 丁()：返回 丙()` 不要求
+/// `丙` 的定义文件排在前面（调用点永远在包加载之后）。只有「顶层就要求值」的
+/// 引用（`令 加倍 = 基数 * 2`）才真的构成跨文件顺序约束。
+///
+/// 保守地把函数体也算进来会**平白造出环**（两个文件互相调用函数），
+/// 于是拓扑排序失败、退回文件名序 —— 那等于什么都没改。所以必须精确。
+///
+/// ⚠️ `如果` / `循环` / `尝试` 里的语句**仍是**顶层（都是立即求值的），
+/// 所以递归时保持上下文；唯一的边界是 `函数` / `类` 的**体**。
+fn 顶层名字(程序: &Node) -> (std::collections::HashSet<String>,
+                            std::collections::HashSet<String>) {
+    let mut 定义 = std::collections::HashSet::new();
+    let mut 引用 = std::collections::HashSet::new();
+    扫名字(程序, &mut 定义, &mut 引用);
+    (定义, 引用)
+}
+
+fn 扫名字(n: &Node, 定义: &mut std::collections::HashSet<String>,
+          引用: &mut std::collections::HashSet<String>) {
+    match n.kind {
+        "FuncDef" => {
+            if let Some(J::Str(s)) = n.get("name") {
+                定义.insert(s.clone());
+            }
+            // ⚠️ **默认值是定义时求值的**，所以要扫；函数体（`body`）不扫
+            if let Some(J::List(ds)) = n.get("defaults") {
+                for d in ds {
+                    if let J::Node(x) = d {
+                        扫名字(x, 定义, 引用);
+                    }
+                }
+            }
+            return;
+        }
+        "ClassDef" => {
+            if let Some(J::Str(s)) = n.get("name") {
+                定义.insert(s.clone());
+            }
+            return;
+        }
+        "Import" => {
+            let 名 = match n.get("alias") {
+                Some(J::Str(s)) if !s.is_empty() => Some(s.clone()),
+                _ => match n.get("name") {
+                    Some(J::Str(s)) => Some(s.clone()),
+                    _ => None,
+                },
+            };
+            if let Some(s) = 名 {
+                定义.insert(s);
+            }
+            return;
+        }
+        "Assign" => {
+            // 写入目标不算「引用」——`令 甲 = 1` 不依赖别人的 `甲`
+            match n.get("target") {
+                Some(J::Node(t)) if t.kind == "Name" => {
+                    if let Some(J::Str(s)) = t.get("id") {
+                        定义.insert(s.clone());
+                    }
+                }
+                Some(J::Node(t)) => 扫名字(t, 定义, 引用),   // `甲[0] = …` 里的 `甲` 是读
+                _ => {}
+            }
+            if let Some(J::Node(v)) = n.get("value") {
+                扫名字(v, 定义, 引用);
+            }
+            return;
+        }
+        "Name" => {
+            if let Some(J::Str(s)) = n.get("id") {
+                引用.insert(s.clone());
+            }
+            return;
+        }
+        _ => {}
+    }
+    for (_, v) in &n.fields {
+        扫值(v, 定义, 引用);
+    }
+}
+
+fn 扫值(v: &J, 定义: &mut std::collections::HashSet<String>,
+         引用: &mut std::collections::HashSet<String>) {
+    match v {
+        J::Node(n) => 扫名字(n, 定义, 引用),
+        J::List(xs) => {
+            for x in xs {
+                扫值(x, 定义, 引用);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// 按「顶层跨文件引用」重排模块，让定义文件排在用到它的文件前面（M235 / D8）。
+///
+/// 原来的顺序是纯**文件名码点序**，于是「文件名序 = 依赖序」成了隐含要求 ——
+/// `乙.jsh`（U+4E59）排在 `甲.jsh`（U+7532）**前面**，`乙` 顶层用 `甲` 的常量
+/// 就报「找不到这个名字」；而那句报错的提示（「被赋过值所以它是局部变量，函数一
+/// 进来它还没值」）会把用户带到完全错误的方向（真实项目就是这么被绊住的）。
+///
+/// - **稳定**：同一层里仍按文件名序（输入序），所以没依赖关系的包顺序不变；
+/// - **环**（顶层互相引用）⇒ **原样返回**，不报错：那本来就是错的，交给
+///   后面的解析/求值报具体位置，比在这里猜一句「有循环依赖」有用；
+/// - **解析不了的文件**（语法错）⇒ 当作「没有任何名字」，顺序上不参与 ——
+///   真正的语法错由后面的 `parse` 报，位置更准。
+fn 按依赖排序(片段: Vec<(PathBuf, String)>) -> Vec<(PathBuf, String)> {
+    if 片段.len() <= 1 {
+        return 片段;
+    }
+    let mut 定义们 = Vec::with_capacity(片段.len());
+    let mut 引用们 = Vec::with_capacity(片段.len());
+    for (p, 内容) in 片段.iter() {
+        let 名 = p.to_string_lossy().to_string();
+        match parse(内容, &名) {
+            Ok(prog) => {
+                let (d, r) = 顶层名字(&prog);
+                定义们.push(d);
+                引用们.push(r);
+            }
+            Err(_) => {
+                定义们.push(std::collections::HashSet::new());
+                引用们.push(std::collections::HashSet::new());
+            }
+        }
+    }
+    let n = 片段.len();
+    // 边[i] = 「必须排在我前面」的文件下标
+    let mut 边: Vec<std::collections::HashSet<usize>> =
+        (0..n).map(|_| std::collections::HashSet::new()).collect();
+    for i in 0..n {
+        for j in 0..n {
+            if i != j && 引用们[i].iter().any(|x| 定义们[j].contains(x)) {
+                边[i].insert(j);
+            }
+        }
+    }
+    let mut 剩余: Vec<usize> = (0..n).collect();
+    let mut 顺序: Vec<usize> = Vec::with_capacity(n);
+    while !剩余.is_empty() {
+        // 输入序里最靠前的「就绪」那个（稳定）
+        let 就绪 = 剩余.iter().copied().find(|&i| 边[i].is_empty());
+        match 就绪 {
+            Some(i) => {
+                顺序.push(i);
+                剩余.retain(|&x| x != i);
+                for k in 剩余.iter() {
+                    边[*k].remove(&i);
+                }
+            }
+            None => return 片段,          // 环：原样返回（见 docstring）
+        }
+    }
+    let mut 池: Vec<Option<(PathBuf, String)>> = 片段.into_iter().map(Some).collect();
+    顺序.into_iter().filter_map(|i| 池[i].take()).collect()
+}
+
+// ---------------------------------------------------------------------------
 // 包 → 外壳函数
 // ---------------------------------------------------------------------------
 
@@ -695,12 +860,19 @@ fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>,
     //: M199 / E5：**段表** —— 每个模块在拼接源码里的起始行 → 它的真实路径。
     //: 报错要显示「乙.jsh:4」就靠它（原来是「入口.jsh:7」，第 7 行还是拼出来的）。
     let mut 段表: Vec<(i64, String)> = Vec::new();
+    // 先全部读进来，再**按顶层依赖重排**（M235 / D8，见 `按依赖排序`）
+    let mut 片段: Vec<(PathBuf, String)> = Vec::new();
     for f in module_files(&pkg_dir, name, &meta, line, col)?.iter() {
         let path = Path::new(&pkg_dir).join(f);
         let text = std::fs::read_to_string(&path).map_err(|e| {
             bad(format!("本地包「{name}」的模块「{f}」读不了：{e}"), line, col)
         })?;
         let norm = text.replace("\r\n", "\n").replace('\r', "\n");
+        片段.push((path, norm));
+    }
+    // M235 / D8：**按顶层依赖重排**，别让「文件名序 = 依赖序」成为隐含要求
+    let 片段 = 按依赖排序(片段);
+    for (path, norm) in 片段 {
         // 路径归一成**绝对**：Python 侧也这么做，否则同一个包在两边显示成
         // 「build\…\乙.jsh」与「D://…//乙.jsh」，对拍时是两串不同的字。
         段表.push((源码.matches('\n').count() as i64 + 1,

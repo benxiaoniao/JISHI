@@ -787,8 +787,8 @@
     },
     {
       "id": "tests__cases__55_二进制响应",
-      "产物哈希": "sha256:8e6676e5a1fd8660",
-      "内容哈希": "sha256:a71589cb0e6e640e",
+      "产物哈希": "sha256:9d7ef4be838bc6c2",
+      "内容哈希": "sha256:efc39439456232ef",
       "类别": "lang",
       "路径": "tests/cases/55_二进制响应.jsh"
     },
@@ -1228,8 +1228,8 @@
     },
     {
       "id": "tests__error_cases__62_服务端_头要ASCII",
-      "产物哈希": "sha256:8c2ee6794eec76d0",
-      "内容哈希": "sha256:91bf90bbb78d5b8e",
+      "产物哈希": "sha256:e3ffc341ec90c9f5",
+      "内容哈希": "sha256:72af924547c7cf6e",
       "类别": "lang",
       "路径": "tests/error_cases/62_服务端_头要ASCII.jsh"
     },
