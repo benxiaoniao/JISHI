@@ -128,6 +128,15 @@ def _make_guard(opts: SandboxOpts):
                         line=line, col=col, filename=filename,
                         hint="如需系统访问，请显式开启 allow_network")
                 return
+            if name == "外部":
+                # 🔴 M236：**永远拒**，没有开关能放行 —— FFI 能调任意动态库，
+                # 那是「绕过沙箱一切限制」的总闸（读文件/连网/执行命令都能绕）。
+                # 所以它不属于「给个开关」那一类，而是「这条路径上不存在」。
+                raise RunError(
+                    "沙箱禁止导入「外部」（能调用任意动态库，绕过沙箱的全部限制）",
+                    line=line, col=col, filename=filename,
+                    hint="`外部` 只在主路径（命令行 / 桌面 / 服务）可用；"
+                         "沙箱里要调原生能力请走宿主提供的具体模块")
             if name in ("浏览器", "图形", "声音", "精灵", "瓦片", "地图", "存档", "场景",
                         "操控", "粒子", "物理"):
                 # 🔴 M167：**沙箱不该拦它** —— 拦了 playground 就永远用不了交互

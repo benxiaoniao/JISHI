@@ -56,6 +56,9 @@ mod serial;
 // M233：`路径.监视`（三平台原生文件监视：Windows ReadDirectoryChangesW /
 // Linux inotify / macOS FSEvents）。函数挂在 `路径` 模块上，句柄方法在这里。
 mod watch;
+// M236：`外部`（LoadLibrary/GetProcAddress 与 dlopen/dlsym）—— 主路径的逃生口。
+// 沙箱与页面上降级成「假 + 说明」，不是报错了事（D130 / D137）。
+mod external;
 pub(crate) mod tables;
 pub(crate) mod word;
 pub(crate) mod pdf;
@@ -152,6 +155,8 @@ pub(crate) fn all_modules() -> &'static [(&'static str, fn() -> HashMap<String, 
         ("进程", process::module),
         // M232：串口（Windows 裸 Win32；别的平台调用时报一句明确的中文错）
         ("串口", serial::module),
+        // M236：外部调用（LoadLibraryW+GetProcAddress / dlopen+dlsym）
+        ("外部", external::module),
         ("加密", crate::crypto::module),
         ("压缩", crate::zip::module),
         ("表格", tables::module),
