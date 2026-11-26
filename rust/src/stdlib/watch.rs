@@ -717,7 +717,8 @@ mod plat {
     extern "C" {
         fn inotify_init1(标志: i32) -> i32;
         fn inotify_add_watch(fd: i32, 路径: *const u8, 掩码: u32) -> i32;
-        fn read(fd: i32, 缓冲: *mut u8, 要读: usize) -> isize;
+        #[link_name = "read"]
+        fn 系统读(fd: i32, 缓冲: *mut u8, 要读: usize) -> isize;
         fn poll(fds: *mut PollFd, 个数: u64, 等毫秒: i32) -> i32;
         fn close(fd: i32) -> i32;
     }
@@ -817,7 +818,7 @@ mod plat {
             if rc == 0 {
                 continue;                                      // 200ms 没动静，继续等
             }
-            let n = unsafe { read(fd, 缓冲.as_mut_ptr(), 缓冲.len()) };
+            let n = unsafe { 系统读(fd, 缓冲.as_mut_ptr(), 缓冲.len()) };
             if n <= 0 {
                 let 码 = 最后错误();
                 if 码 == 11 || 码 == 4 {

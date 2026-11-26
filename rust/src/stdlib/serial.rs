@@ -1076,8 +1076,10 @@ mod posix {
     extern "C" {
         fn open(路径: *const u8, 标志: i32, 模式: u32) -> i32;
         fn close(fd: i32) -> i32;
-        fn read(fd: i32, 缓冲: *mut u8, 要读: usize) -> isize;
-        fn write(fd: i32, 数据: *const u8, 要写: usize) -> isize;
+        #[link_name = "read"]
+        fn 系统读(fd: i32, 缓冲: *mut u8, 要读: usize) -> isize;
+        #[link_name = "write"]
+        fn 系统写(fd: i32, 数据: *const u8, 要写: usize) -> isize;
         fn poll(fds: *mut PollFd, 个数: Nfds, 等毫秒: i32) -> i32;
         fn ioctl(fd: i32, 请求: u64, ...) -> i32;
         fn tcflush(fd: i32, 队列: i32) -> i32;
@@ -1460,7 +1462,7 @@ mod posix {
             return Ok(Vec::new());                 // 超时 = 这一拍没数据，不是错误
         }
         let mut 片 = vec![0u8; 8192];
-        let n = unsafe { read(fd, 片.as_mut_ptr(), 片.len()) };
+        let n = unsafe { 系统读(fd, 片.as_mut_ptr(), 片.len()) };
         if n < 0 {
             let 码 = 最后错误();
             // `EINTR`（被信号打断）/ `EAGAIN`（非阻塞下没数据）都不算错
@@ -1484,7 +1486,7 @@ mod posix {
         let 截止 = std::time::Instant::now() + std::time::Duration::from_secs(5);
         let mut 已写 = 0usize;
         while 已写 < 数据.len() {
-            let n = unsafe { write(fd, 数据[已写..].as_ptr(), 数据.len() - 已写) };
+            let n = unsafe { 系统写(fd, 数据[已写..].as_ptr(), 数据.len() - 已写) };
             if n > 0 {
                 已写 += n as usize;
                 continue;
