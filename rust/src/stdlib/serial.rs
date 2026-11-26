@@ -1076,13 +1076,34 @@ mod posix {
     extern "C" {
         fn open(路径: *const u8, 标志: i32, 模式: u32) -> i32;
         fn close(fd: i32) -> i32;
-        #[link_name = "read"]
-        fn 系统读(fd: i32, 缓冲: *mut u8, 要读: usize) -> isize;
-        #[link_name = "write"]
-        fn 系统写(fd: i32, 数据: *const u8, 要写: usize) -> isize;
         fn poll(fds: *mut PollFd, 个数: Nfds, 等毫秒: i32) -> i32;
         fn ioctl(fd: i32, 请求: u64, ...) -> i32;
         fn tcflush(fd: i32, 队列: i32) -> i32;
+    }
+
+    /// 用 std 的 `File` 包一层裸 fd 来读 —— **不自己声明 `read` 这个符号**。
+    ///
+    /// 🔴 为什么不直接 `extern "C" { fn read(..) }`：unix 上 rustc 会认为这等于
+    /// 「重新定义了标准库运行时自己那份 `read`」而直接报错（2026-11-26 CI 上
+    /// 就是这么红的，Windows 侧看不出来）。`ManuallyDrop` 保证 `File` 析构
+    /// **不会**把我们的 fd 关掉 —— 关闭只归 `关闭()` 管。
+    fn 读字节(fd: Fd, 缓冲: &mut [u8]) -> std::io::Result<usize> {
+        use std::io::Read;
+        use std::mem::ManuallyDrop;
+        use std::os::unix::io::FromRawFd;
+        let 文件 = ManuallyDrop::new(unsafe { std::fs::File::from_raw_fd(fd) });
+        let mut 借: &std::fs::File = &文件;
+        借.read(缓冲)
+    }
+
+    /// 同上，写。
+    fn 写字节(fd: Fd, 数据: &[u8]) -> std::io::Result<usize> {
+        use std::io::Write;
+        use std::mem::ManuallyDrop;
+        use std::os::unix::io::FromRawFd;
+        let 文件 = ManuallyDrop::new(unsafe { std::fs::File::from_raw_fd(fd) });
+        let mut 借: &std::fs::File = &文件;
+        借.write(数据)
     }
 
     fn 最后错误() -> i32 {
@@ -1462,9 +1483,11 @@ mod posix {
             return Ok(Vec::new());                 // 超时 = 这一拍没数据，不是错误
         }
         let mut 片 = vec![0u8; 8192];
-        let n = unsafe { 系统读(fd, 片.as_mut_ptr(), 片.len()) };
+        let (n, 码) = match 读字节(fd, &mut 片) {
+            Ok(n) => (n as isize, 0),
+            Err(e) => (-1, e.raw_os_error().unwrap_or(0)),
+        };
         if n < 0 {
-            let 码 = 最后错误();
             // `EINTR`（被信号打断）/ `EAGAIN`（非阻塞下没数据）都不算错
             if 码 == EINTR || 码 == EAGAIN {
                 return Ok(Vec::new());
@@ -1486,12 +1509,14 @@ mod posix {
         let 截止 = std::time::Instant::now() + std::time::Duration::from_secs(5);
         let mut 已写 = 0usize;
         while 已写 < 数据.len() {
-            let n = unsafe { 系统写(fd, 数据[已写..].as_ptr(), 数据.len() - 已写) };
+            let (n, 码) = match 写字节(fd, &数据[已写..]) {
+                Ok(n) => (n as isize, 0),
+                Err(e) => (-1, e.raw_os_error().unwrap_or(0)),
+            };
             if n > 0 {
                 已写 += n as usize;
                 continue;
             }
-            let 码 = 最后错误();
             if 码 == EINTR {
                 continue;
             }

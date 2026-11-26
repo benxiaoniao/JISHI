@@ -717,10 +717,19 @@ mod plat {
     extern "C" {
         fn inotify_init1(标志: i32) -> i32;
         fn inotify_add_watch(fd: i32, 路径: *const u8, 掩码: u32) -> i32;
-        #[link_name = "read"]
-        fn 系统读(fd: i32, 缓冲: *mut u8, 要读: usize) -> isize;
         fn poll(fds: *mut PollFd, 个数: u64, 等毫秒: i32) -> i32;
         fn close(fd: i32) -> i32;
+    }
+
+    /// 用 std 的 `File` 包一层裸 fd 来读 —— **不自己声明 `read` 这个符号**
+    /// （unix 上会撞标准库运行时那份，CI 直接报错；见 `串口` 里同一段注释）。
+    fn 读字节(fd: i32, 缓冲: &mut [u8]) -> std::io::Result<usize> {
+        use std::io::Read;
+        use std::mem::ManuallyDrop;
+        use std::os::unix::io::FromRawFd;
+        let 文件 = ManuallyDrop::new(unsafe { std::fs::File::from_raw_fd(fd) });
+        let mut 借: &std::fs::File = &文件;
+        借.read(缓冲)
     }
 
     pub(crate) fn 叫醒(_fd: &控制) {
@@ -818,9 +827,11 @@ mod plat {
             if rc == 0 {
                 continue;                                      // 200ms 没动静，继续等
             }
-            let n = unsafe { 系统读(fd, 缓冲.as_mut_ptr(), 缓冲.len()) };
+            let (n, 码) = match 读字节(fd, &mut 缓冲) {
+                Ok(n) => (n as isize, 0),
+                Err(e) => (-1, e.raw_os_error().unwrap_or(0)),
+            };
             if n <= 0 {
-                let 码 = 最后错误();
                 if 码 == 11 || 码 == 4 {
                     continue;                                  // EAGAIN / EINTR
                 }
