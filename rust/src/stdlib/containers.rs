@@ -12,7 +12,7 @@ use crate::BuiltinHost;
 use std::collections::HashMap;
 
 use super::{as_intish, need_range, table, to_vec, R};
-use crate::{dict_new, display, err, list_new, Val};
+use crate::{dict_get, dict_new, dict_set, display, err, list_new, Dict, Val};
 
 /// 计数：返回 [[元素, 次数], …]，按首次出现的先后排。
 fn count_pairs(items: &[Val]) -> Vec<(Val, i128)> {
@@ -136,23 +136,40 @@ pub(crate) fn module() -> HashMap<String, Val> {
             need_range("分组", args, 2, 2)?;
             let items = to_vec(&args[0])?;
             let f = args[1].clone();
-            let mut keys: Vec<Val> = Vec::new();
             let mut groups: Vec<Vec<Val>> = Vec::new();
+            // 键 → `groups` 里的下标。
+            //
+            // 🔴 M234：原来这里是
+            //     `keys.iter().position(|e| display(e) == kk)`
+            // 也就是每来一个元素，都把**已有的全部键重新 `display()` 一遍**做等值
+            // 比较 —— 1 万行 / 1 万种键实测 **3.04 秒**（O(n²)）；100 种键只要 0.035s
+            // （只有 100 次比较）。这就是「数据库 1 万行分组 3.2s」的全部原因。
+            //
+            // 换成字典索引是 O(1)，而且**键的等价规则跟最终返回的字典完全一致**
+            // （`1` 与 `"1"` 是不同键、列表/字典这类不可哈希键走线性回退）——
+            // 按 `display` 拼串判等反而会把它们并错，那是个语义 bug，不只是慢。
+            let mut 索引 = Dict::new();
             for x in items {
                 let k = vm.call_value(f.clone(), vec![x.clone()])?;
-                let kk = display(&k);
-                match keys.iter().position(|e| display(e) == kk) {
-                    Some(i) => groups[i].push(x),
-                    None => {
-                        keys.push(k);
+                match dict_get(&索引, &k) {
+                    Some(Val::Int(i)) => {
+                        let i = i.get() as usize;
+                        groups[i].push(x);
+                    }
+                    _ => {
+                        let i = groups.len();
                         groups.push(vec![x]);
+                        dict_set(&mut 索引, k, Val::Int(i.into()));
                     }
                 }
             }
+            // `into_items()` 是**插入顺序**（= 键首次出现的顺序），与 Python 口径一致
             Ok(dict_new(
-                keys.into_iter()
+                索引
+                    .into_items()
+                    .into_iter()
                     .zip(groups)
-                    .map(|(k, g)| (k, list_new(g)))
+                    .map(|((k, _), g)| (k, list_new(g)))
                     .collect(),
             ))
         },
