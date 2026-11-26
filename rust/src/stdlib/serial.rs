@@ -139,18 +139,26 @@ fn 整数(v: &Val, 名: &str) -> Result<i128, JishiError> {
     }
 }
 
-/// 超时（秒）→ 毫秒。`空` = 一直等（返回 `None`）。
+/// 超时（**秒**，整数/小数都行）→ 毫秒。`空` = 一直等（返回 `None`）。
 ///
-/// ⚠️ 与 `进程.读行` 同一个口径：**超时不是错误**，到了就给 `空`。
+/// 🔴 **整数字面量也是秒**：`等事件(表, 5)` 是 5 **秒**，不是 5 毫秒。
+/// （2026-11-26 踩过：这里曾把整数当毫秒、小数乘 1000，于是 `等事件(表, 5)`
+///   只等 5ms 就返回 `空` —— 表现为「跨进程事件一条都收不到」，查了半天。）
 fn 超时毫秒(v: Option<&Val>) -> Result<Option<u32>, JishiError> {
     match v {
         None | Some(Val::None_) => Ok(None),
-        Some(Val::Float(f)) => Ok(Some(((*f).max(0.0) * 1000.0) as u32)),
-        Some(Val::Int(i)) => Ok(Some((i.get().max(0) as u64).min(u32::MAX as u64) as u32)),
-        Some(other) => Err(err(
-            "类型错误",
-            format!("超时要传数字（秒，`空` = 一直等）；现在是「{}」", crate::type_label(other)),
-        )),
+        Some(值) => {
+            let 秒 = crate::stdlib::as_num(值)
+                .map_err(|_| err("类型错误", "超时要给秒数（省略或给 `空` = 一直等）"))?;
+            if 秒 < 0.0 {
+                return Err(err_with_hint(
+                    "值错误",
+                    format!("超时不能是负数（给的是 {秒}）"),
+                    "要「马上看一眼」就给 0；要一直等就省略这个参数".into(),
+                ));
+            }
+            Ok(Some((秒 * 1000.0).min(u32::MAX as f64) as u32))
+        }
     }
 }
 

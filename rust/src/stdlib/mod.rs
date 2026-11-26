@@ -53,6 +53,9 @@ mod system;
 mod process;
 // M232：`串口`（Windows 裸 Win32；Linux/mac 这一版明确未实现 —— 见 serial.rs 文件头）
 mod serial;
+// M233：`路径.监视`（三平台原生文件监视：Windows ReadDirectoryChangesW /
+// Linux inotify / macOS FSEvents）。函数挂在 `路径` 模块上，句柄方法在这里。
+mod watch;
 pub(crate) mod tables;
 pub(crate) mod word;
 pub(crate) mod pdf;

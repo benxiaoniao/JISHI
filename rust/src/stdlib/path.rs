@@ -273,6 +273,17 @@ pub(crate) fn module() -> HashMap<String, Val> {
                 .map_err(|e| err("值错误", format!("「{p}」转不成绝对路径：{e}")))?;
             Ok(Val::Str(norm_sep(&abs).into()))
         },
+
+        // ── M233：文件监视（三平台原生 API，见 `stdlib/watch.rs`）─────────────
+        "监视" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            crate::stdlib::watch::监视(args, vm)
+        },
+        "等事件" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            crate::stdlib::watch::模块等事件(args, vm)
+        },
+        "停止监视" => |args: &[Val], vm: &mut dyn BuiltinHost| -> R {
+            crate::stdlib::watch::模块停止(args, vm)
+        },
         "父目录" => |args: &[Val], _vm: &mut dyn BuiltinHost| -> R {
             need("父目录", args, 1)?;
             let p = as_text(&args[0]);

@@ -500,7 +500,7 @@ def test_签名表覆盖所有模块():
     名们 = [m["module"] for m in 表]
     assert len(名们) == len(set(名们)), "模块重复"
     assert len(名们) >= 50, f"只有 {len(名们)} 个模块"
-    assert sum(len(m["functions"]) for m in 表) == 611, "函数总数变了（签名表过期？）"  # M232：+2
+    assert sum(len(m["functions"]) for m in 表) == 614, "函数总数变了（签名表过期？）"  # M233：+3
 
 
 @pytest.mark.计时

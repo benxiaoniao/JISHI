@@ -61,7 +61,7 @@ def test_dump_stdlib报的是真实能力():
     assert 码 == 0
     d = json.loads(出)
     assert len(d) == 53, f"应当是 53 个模块，实际 {len(d)}"
-    assert sum(len(v) for v in d.values()) == 611   # M232：串口 +2（53 模块）
+    assert sum(len(v) for v in d.values()) == 614   # M233：路径监视 +3（53 模块）
     assert "数据库" in d, "内嵌库模块 `数据库` 没报上来"
 
 
