@@ -295,6 +295,38 @@ JSVM_API int jsvm_load_module(
     int32_t *kw_flat, int32_t *kw_off, int nkw,
     int main_idx);
 
+/* **运行期追加一个模块**（M237：`包.加载`）。
+ *
+ * 🔴 这是「运行期加载包」在 C 侧的全部难点，三条契约必须守住：
+ *
+ * 1. **数组由宿主重新分配并传新指针**（长度已含旧内容 + 新模块）。C 侧只换
+ *    `vm->consts` / `vm->instrs` / `vm->globals` / `vm->code_params` 等指针与长度，
+ *    不拷贝内容。
+ * 2. 🔴 **旧数组必须继续存活**（宿主持有引用，不能 free）。原因：正在执行的帧把
+ *    `instrs` 缓存成了局部指针（`jsvm.c` 的 exec 循环里 `int32_t *instrs =
+ *    vm->instrs + …`），换指针后它们仍在读**旧数组** —— 而新数组的前半部分正是
+ *    旧内容的拷贝，所以读到的指令完全一致，只是不能让它变成悬垂指针。
+ * 3. `codes` 是 **C 自己 realloc** 的（`JsCode` 数组），追加的那几项带上基址。
+ *
+ * `consts_base` / `names_base` / `kw_base` / `codes_base` = 新模块四张表在
+ * 合并后总表里的起点（宿主算：旧的各表长度）。单模块时全是 0。
+ *
+ * 返回 0 成功 / -1 失败（realloc 失败）。**跑新模块**由宿主调
+ * `jsvm_run_code(vm, codes_base + main)`（见下）。 */
+JSVM_API int jsvm_append_module(
+    JsVm *vm,
+    JVal *consts, int nconsts,
+    int nnames, JVal *globals_in,
+    int32_t *instrs,
+    int32_t *code_meta, int ncodes_new,
+    int32_t *code_params,
+    int32_t *kw_flat, int32_t *kw_off, int nkw,
+    int consts_base, int names_base, int kw_base, int codes_base);
+
+/* 跑指定代码块（M237）：`jsvm_run` 跑的是 `vm->main_idx`，这个跑任意一块 ——
+ * 运行期加载包跑的是**包的主代码**。与原 `jsvm_run` 同一套帧与错误处理。 */
+JSVM_API int jsvm_run_code(JsVm *vm, int code_idx);
+
 /* 运行 main 代码对象，返回 0 成功 / -1 出错（异常经宿主回调抛出） */
 JSVM_API int jsvm_run(JsVm *vm);
 JSVM_API void jsvm_get_last(JsVm *vm, JVal *out);

@@ -161,6 +161,14 @@ typedef struct {
     int nfreevars;    /* 引用外层 */
     int nparams;
     int params_off;   /* 在 code_params 里的起始（3*nparams 个 int32） */
+    /* M237：**表基址**。运行期加载包（`包.加载`）把新模块的四张表追加到
+     * 宿主持有的数组后面，取表时加上这个起点。单模块时全是 0（行为不变）。
+     * 🔴 用基址而不是重写指令里的下标：那要一张「每条指令 a/b/c 哪个是下标」
+     * 的语义表，没人维护它 —— 漏一个就是静默取到别的常量。 */
+    int consts_base;
+    int names_base;
+    int kw_base;
+    int codes_base;
 } JsCode;
 
 /* ------------------------------------------------------------------ */
@@ -207,6 +215,13 @@ typedef struct {
     int code_idx;
     int ip;
     int base;              /* 帧在值栈上的栈底 */
+    /* M237：本帧的四张表基址（建帧时从 `vm->codes[code_idx]` 抄一份）。
+     * 缓存在帧里是**为了热路径**：`LOAD_CONST` / `LOAD_GLOBAL` 每步都要用，
+     * 现查 `vm->codes[f->code_idx].consts_base` 就是每步一次索引 + 一次乘法。 */
+    int consts_base;
+    int names_base;
+    int kw_base;
+    int codes_base;
     JVal *locals;
     int nlocals;
     JsCell **cells;        /* cellvars 部分自建，freevars 部分借用（各自持引用） */
@@ -781,6 +796,15 @@ static int push_frame(JsVm *vm, int code_idx, int base,
     JsFrame *f = &vm->frames[vm->nframes++];
     memset(f, 0, sizeof *f);
     f->code_idx = code_idx;
+    /* M237：把基址抄进帧（单模块全 0） */
+    f->consts_base = (code_idx >= 0 && code_idx < vm->ncodes)
+                     ? vm->codes[code_idx].consts_base : 0;
+    f->names_base  = (code_idx >= 0 && code_idx < vm->ncodes)
+                     ? vm->codes[code_idx].names_base : 0;
+    f->kw_base     = (code_idx >= 0 && code_idx < vm->ncodes)
+                     ? vm->codes[code_idx].kw_base : 0;
+    f->codes_base  = (code_idx >= 0 && code_idx < vm->ncodes)
+                     ? vm->codes[code_idx].codes_base : 0;
     f->ip = 0;
     f->base = base;
     f->locals = locals;
@@ -1378,8 +1402,8 @@ static int run_loop(JsVm *vm) {
             switch (op) {
             case JS_OP_LOAD_CONST:
                 /* 常量槽是共享的：压栈前必须 retain（HOST/FUNC/CELL） */
-                retain_val(vm, vm->consts[a]);
-                PUSH(vm, vm->consts[a]);
+                retain_val(vm, vm->consts[f->consts_base + a]);
+                PUSH(vm, vm->consts[f->consts_base + a]);
                 break;
 
             case JS_OP_LOAD_FAST: {
@@ -1403,7 +1427,7 @@ static int run_loop(JsVm *vm) {
             }
 
             case JS_OP_LOAD_GLOBAL: {
-                JVal v = vm->globals[a];
+                JVal v = vm->globals[f->names_base + a];
                 if (v.tag == JS_TAG_UNSET) {
                     SAVE_IP();
                     HC(vm, raise_name)(a, line, col);
@@ -1416,9 +1440,9 @@ static int run_loop(JsVm *vm) {
 
             case JS_OP_STORE_GLOBAL: {
                 JVal v = POP(vm);
-                if (vm->globals[a].tag != JS_TAG_UNSET)
-                    release_val(vm, vm->globals[a]);
-                vm->globals[a] = v;
+                if (vm->globals[f->names_base + a].tag != JS_TAG_UNSET)
+                    release_val(vm, vm->globals[f->names_base + a]);
+                vm->globals[f->names_base + a] = v;
                 break;
             }
 
@@ -1790,7 +1814,7 @@ static int run_loop(JsVm *vm) {
                 int ndefaults = c;
                 JsFunc *jfn = (JsFunc *)malloc(sizeof *jfn);
                 if (!jfn) { HC(vm, raise_internal)("内存不足"); return -1; }
-                jfn->code_idx = a;
+                jfn->code_idx = f->codes_base + a;
                 jfn->ncells = ncells;
                 jfn->ndefaults = ndefaults;
                 /* 默认值在栈顶（后压），先弹出（所有权转移，M7） */
@@ -2411,6 +2435,104 @@ JSVM_API int jsvm_dump_globals(JsVm *vm) {
         if (HC(vm, debug_local)(i, 2, i, &vm->globals[i]) != 0) return -1;
     }
     return 0;
+}
+
+/* M237：运行期追加一个模块（`包.加载`）。契约见 jsvm.h 的注释 ——
+ * 三条要点：数组由宿主重分配并传新指针；**旧数组必须继续存活**（正在跑的帧把
+ * instrs 缓存成了局部指针）；codes 由 C 自己 realloc。 */
+JSVM_API int jsvm_append_module(
+    JsVm *vm,
+    JVal *consts, int nconsts,
+    int nnames, JVal *globals_in,
+    int32_t *instrs,
+    int32_t *code_meta, int ncodes_new,
+    int32_t *code_params,
+    int32_t *kw_flat, int32_t *kw_off, int nkw,
+    int consts_base, int names_base, int kw_base, int codes_base) {
+    if (!vm || !code_meta || ncodes_new <= 0) return -1;
+
+    int 旧数 = vm->ncodes;
+    JsCode *p = (JsCode *)realloc(vm->codes,
+                                  (size_t)(旧数 + ncodes_new) * sizeof(JsCode));
+    if (!p) return -1;
+    vm->codes = p;
+
+    for (int i = 0; i < ncodes_new; i++) {
+        const int32_t *m = code_meta + (size_t)i * 6;
+        JsCode *c = &vm->codes[旧数 + i];
+        c->instr_off  = m[0];
+        c->ninstrs    = m[1];
+        c->nlocals    = m[2];
+        c->ncellvars  = m[3];
+        c->nparams    = m[4];
+        c->params_off = m[5];
+        /* 新模块的代码都带上同一个基址 —— 取 const/name/code/kw 时加它 */
+        c->consts_base = consts_base;
+        c->names_base  = names_base;
+        c->kw_base     = kw_base;
+        c->codes_base  = codes_base;
+    }
+    vm->ncodes = 旧数 + ncodes_new;
+
+    /* 换表指针（宿主保证新数组的前面部分是旧内容的拷贝） */
+    if (consts) { vm->consts = consts; vm->nconsts = nconsts; }
+    if (globals_in) { vm->globals = globals_in; vm->nnames = nnames; }
+    if (instrs) vm->instrs = instrs;
+    if (code_params) vm->code_params = code_params;
+    if (kw_flat) vm->kw_flat = kw_flat;
+    if (kw_off) vm->kw_off = kw_off;
+    if (nkw >= 0) vm->nkw = nkw;
+    return 0;
+}
+
+/* M237：跑指定代码块（运行期加载包跑的是**包的主代码**）。
+ *
+ * 🔴 **可以重入**：`run_loop` 的停止条件是 `vm->nframes > vm->stop_depth`，
+ * 所以这里把 `stop_depth` 临时抬到「当前帧数」—— 跑完包的主帧就返回，
+ * 不会把外层（正在跑的宿主程序）也带走。跑完恢复原值。
+ * 所有局部状态（instrs/ip/f）都在 `run_loop` 的栈上，递归调用各有一份。 */
+JSVM_API int jsvm_run_code(JsVm *vm, int code_idx) {
+    if (!vm || vm->halted) return 0;
+    if (code_idx < 0 || code_idx >= vm->ncodes) return -1;
+    JsCode *code = &vm->codes[code_idx];
+    JVal *locals = (JVal *)malloc(
+        (size_t)(code->nlocals > 0 ? code->nlocals : 1) * sizeof(JVal));
+    if (!locals) return -1;
+    for (int i = 0; i < code->nlocals; i++) locals[i] = make_unset();
+
+    int ncellvars = code->ncellvars;
+    JsCell **cells = NULL;
+    if (ncellvars > 0) {
+        cells = (JsCell **)malloc((size_t)ncellvars * sizeof(JsCell *));
+        if (!cells) { free(locals); return -1; }
+        for (int i = 0; i < ncellvars; i++) {
+            cells[i] = (JsCell *)malloc(sizeof(JsCell));
+            if (!cells[i]) {
+                free(locals);
+                for (int j = 0; j < i; j++) free(cells[j]);
+                free(cells);
+                return -1;
+            }
+            cells[i]->v = make_unset();
+            cells[i]->refcnt = 1;
+        }
+    }
+
+    int 旧stop = vm->stop_depth;
+    vm->stop_depth = vm->nframes;      /* 只跑到「这一帧返回」 */
+    if (push_frame(vm, code_idx, 0, locals, code->nlocals, 0, 0) != 0) {
+        vm->stop_depth = 旧stop;
+        free(locals);
+        for (int i = 0; i < ncellvars; i++) free(cells[i]);
+        free(cells);
+        return -1;
+    }
+    JsFrame *f = &vm->frames[vm->nframes - 1];
+    f->cells = cells;
+    f->ncells = ncellvars;
+    int rc = run_loop(vm);
+    vm->stop_depth = 旧stop;
+    return rc;
 }
 
 JSVM_API int jsvm_run(JsVm *vm) {
