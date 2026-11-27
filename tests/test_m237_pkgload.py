@@ -233,6 +233,19 @@ def test_Rust发行版也能加载包且与Python逐字一致(tmp_path):
     assert 出 == 甲, f"Rust 与树遍历不一致：\n--- Rust ---\n{出}\n--- 树遍历 ---\n{甲}"
 
 
+def _C可用() -> bool:
+    try:
+        from oracle.jishi import cvm_bind
+        cvm_bind.load_lib()
+        return True
+    except Exception:
+        return False
+
+
+_HAS_CVM = _C可用()
+
+
+@pytest.mark.skipif(not _HAS_CVM, reason="C 虚拟机动态库不可用（先跑 python cvm/build.py）")
 def test_C字节码VM也一致(tmp_path):
     """C VM（`cvm/bin/jsvm.dll`）也真跑，且与树遍历逐字相同。
 
