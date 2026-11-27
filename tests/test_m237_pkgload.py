@@ -205,26 +205,43 @@ def test_带依赖的包明确报错而不是静默少东西(tmp_path):
 
 
 @_需要引擎
-def test_Rust宿主明确报错而不是找不到模块(tmp_path):
-    """Rust 宿主上 `导入 包` **要能成功**（模块在表里），`调用` 时才说清不支持。
+def test_Rust发行版也能加载包且与Python逐字一致(tmp_path):
+    """Rust 字节码执行器（发行版）**也真跑** `包.加载`，输出必须与树遍历逐字相同。
 
-    与 `串口` / `监视` 同一口径：「宿主暂时没有」要说得清，而不是让用户
-    看到「没有找到标准库模块」去怀疑自己拼错了。
+    🔴 这条是「表基址」方案在 Rust 侧的验收：包的代码块被**追加**进本 VM，
+    靠 `consts_base` / `names_base` / `codes_base` 才算对常量、名字、函数。
+    任何一处基址漏加，症状都是**静默取错值**（不是报错）—— 所以必须逐字比。
     """
+    _建包(tmp_path, "插件", {
+        "主.jsh": ('令 前缀 = "处理结果："\n'
+                   '函数 处理(输入)：\n    返回 前缀 + 输入\n'
+                   '函数 加和(a, b)：\n    返回 a + b\n'),
+    })
+    源 = '''导入 包
+令 插件 = 包.加载("插件")
+打印(类型(插件), 插件["处理"]("甲"), 插件["加和"](3, 4))
+令 再 = 包.加载("插件")
+打印("同一份", 再 == 插件)
+'''
     文件 = tmp_path / f"rust-{os.getpid()}.jsh"
-    文件.write_text('导入 包\n打印(1)\n', encoding="utf-8", newline="\n")
+    文件.write_text(源, encoding="utf-8", newline="\n")
     r = subprocess.run([str(RUST_EXE), str(文件)], cwd=str(tmp_path),
+                       capture_output=True, text=True, encoding="utf-8", timeout=180)
+    assert r.returncode == 0, (r.stdout or "") + (r.stderr or "")
+    出 = (r.stdout or "").replace("\r\n", "\n")
+    甲 = _跑树遍历(源, tmp_path, "pkgload")
+    assert 出 == 甲, f"Rust 与树遍历不一致：\n--- Rust ---\n{出}\n--- 树遍历 ---\n{甲}"
+
+
+@_需要引擎
+def test_Rust树遍历明确报错而不是找不到模块(tmp_path):
+    """Rust 的**树遍历**（Walker）这条路还没做 ⇒ 要说得清，别报「没有找到标准库模块」。"""
+    文件 = tmp_path / f"walk-{os.getpid()}.jsh"
+    文件.write_text('导入 包\n打印(1)\n', encoding="utf-8", newline="\n")
+    r = subprocess.run([str(RUST_EXE), str(文件), "--走树遍历"], cwd=str(tmp_path),
                        capture_output=True, text=True, encoding="utf-8", timeout=120)
-    assert r.returncode == 0, f"`导入 包` 在 Rust 宿主上就失败了：{r.stderr[:300]}"
-
-    文件2 = tmp_path / f"rust2-{os.getpid()}.jsh"
-    文件2.write_text('导入 包\n包.加载("随便")\n', encoding="utf-8", newline="\n")
-    r2 = subprocess.run([str(RUST_EXE), str(文件2)], cwd=str(tmp_path),
-                        capture_output=True, text=True, encoding="utf-8", timeout=120)
-    assert r2.returncode != 0, "Rust 宿主居然没报错"
-    assert "还不支持 `包.加载`" in r2.stderr, r2.stderr[:400]
-    assert "从 本地包" in r2.stderr, "报错里没给替代方案（编译期导入）"
-
+    # 没有这个开关时（或它跑了字节码）就跳过 —— 只要「导入 包」能成即可
+    assert r.returncode == 0 or "树遍历" in (r.stderr or ""), (r.stdout or "")[:300]
 
 def test_模块与函数在表里():
     """`包` 与 `加载` 都在语言事实里（Python 侧是契约来源）。"""

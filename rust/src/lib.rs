@@ -3213,15 +3213,20 @@ impl VM {
         // 帧就一次堆分配 + 拷贝）。`module` 是 `Rc`，克隆一次只是引用计数 +1，
         // 于是能在**不借用 `self`** 的前提下长期借用 `instrs` —— 循环体里到处
         // 是 `self.xxx()`（要 `&mut self`），直接借用 `self.module` 会打架。
-        let module = Rc::clone(&self.module);
-        let mut instrs: Rc<[Instr]> = 取指令(&module.codes[code_idx]);
+        // 🔴 M237：**不再长期持有 `module` 的 Rc 克隆**。
+        // 原来克隆是为了让 `instrs: &[Instr]` 不借 `self`（M163 的优化）；现在
+        // `instrs` 是独立的 `Rc<[Instr]>`，克隆就没必要了 —— 而它**必须**去掉：
+        // 运行期加载包要 `Rc::make_mut(&mut self.module)` 原地追加，一旦这里的
+        // 引用计数 ≥2，`make_mut` 就会深拷贝，正在跑的循环便看不到新追加的代码块
+        // （症状：`index out of bounds: len is 1 but index is 3`）。
+        let mut instrs: Rc<[Instr]> = 取指令(&self.module.codes[code_idx]);
         // 🔴 M237：本帧的表基址。单模块全是 0（行为与以前逐字节相同）；
         // 运行期加载包之后包里的 Code 基址非 0 —— 取表处必须加它，否则会
         // 取到主程序的常量/名字（症状是「静默取错值」，比报错难查得多）。
-        let mut cbase = module.codes[code_idx].consts_base;
-        let mut nbase = module.codes[code_idx].names_base;
-        let mut kbase = module.codes[code_idx].kw_base;
-        let mut gbase = module.codes[code_idx].codes_base;
+        let mut cbase = self.module.codes[code_idx].consts_base;
+        let mut nbase = self.module.codes[code_idx].names_base;
+        let mut kbase = self.module.codes[code_idx].kw_base;
+        let mut gbase = self.module.codes[code_idx].codes_base;
 
         // R8.1：**步数预算** —— 「一步」= **回跳一次**（循环走完一圈）。
         //
@@ -3322,15 +3327,19 @@ impl VM {
                 }
                 op::STORE_GLOBAL => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    if let Some(cell) = self.globals.get_mut(ins.a as usize) {
+                    // 🔴 M237：与 `LOAD_GLOBAL` **必须同一个基址**。
+                    // 少了 `nbase` 就是「写 slot 3、读 slot 9」——包里的名字永远读不到
+                    // （症状：加载包时报「找不到名字 __本地包_X__」，而指令看着完全正常）。
+                    if let Some(cell) = self.globals.get_mut(nbase + ins.a as usize) {
                         *cell = Some(v);
                     }
                 }
                 op::LOAD_FAST => {
                     // 与 Python / Node 对齐：没赋过值就读 → 报「找不到名字」，
                     // **不许静默给 `空`**（M54）。`空` 是合法值，两者必须分得开。
+                    // 🔴 局部槽**不加** `nbase` —— 槽位是**帧的**局部数组，与模块的名字表无关。
                     let f = &self.frames[fi];
-                    let slot = nbase + ins.a as usize;
+                    let slot = ins.a as usize;
                     if !f.locals_set.get(slot).copied().unwrap_or(false) {
                         let code = &self.module.codes[f.code_idx];
                         let name = code.local_names.get(slot)
@@ -3352,7 +3361,8 @@ impl VM {
                 }
                 op::STORE_FAST => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    let slot = nbase + ins.a as usize;
+                    // 🔴 同上：局部槽不加基址
+                    let slot = ins.a as usize;
                     self.frames[fi].locals[slot] = v;
                     self.frames[fi].locals_set[slot] = true;
                 }
@@ -3428,7 +3438,14 @@ impl VM {
                     // 已经 `ip += 1` 了），抬头就是它跳回去的地方。
                     #[cfg(feature = "jit")]
                     if t < ip && self.jit.开着() && self.jit.记一步(code_idx, ip - 1) {
-                        if let Some(新ip) = self.试jit(fi, code_idx, t, ip - 1, &module)? {
+                        if let Some(新ip) = {
+                            // 借一下 module 再交出去：`试jit` 要 `&Module` 而外层要
+                            // `&mut self`。用一个**局部 Rc** 中转（只活这一句，
+                            // 不会影响 `包.加载` 时的 `make_mut` 原地追加 ——
+                            // JIT 只编译、不执行，期间不会触发加载）。
+                            let 模 = Rc::clone(&self.module);
+                            self.试jit(fi, code_idx, t, ip - 1, &模)?
+                        } {
                             ip = 新ip;
                             continue;
                         }
@@ -3540,11 +3557,11 @@ impl VM {
                             code_idx = self.frames[fi].code_idx;
                             ip = self.frames[fi].ip;
                             base = self.frames[fi].base;
-                            instrs = 取指令(&module.codes[code_idx]);
-                            cbase = module.codes[code_idx].consts_base;
-                            nbase = module.codes[code_idx].names_base;
-                            kbase = module.codes[code_idx].kw_base;
-                            gbase = module.codes[code_idx].codes_base;
+                            instrs = 取指令(&self.module.codes[code_idx]);
+                            cbase = self.module.codes[code_idx].consts_base;
+                            nbase = self.module.codes[code_idx].names_base;
+                            kbase = self.module.codes[code_idx].kw_base;
+                            gbase = self.module.codes[code_idx].codes_base;
                             continue;
                         }
                         Val::Builtin(bd) => {
@@ -3586,15 +3603,15 @@ impl VM {
                                     code_idx = self.frames[fi].code_idx;
                                     ip = self.frames[fi].ip;
                                     base = self.frames[fi].base;
-                                    instrs = 取指令(&module.codes[code_idx]);
-                                    cbase = module.codes[code_idx].consts_base;
-                                    nbase = module.codes[code_idx].names_base;
-                                    kbase = module.codes[code_idx].kw_base;
-                                    gbase = module.codes[code_idx].codes_base;
-                            cbase = module.codes[code_idx].consts_base;
-                            nbase = module.codes[code_idx].names_base;
-                            kbase = module.codes[code_idx].kw_base;
-                            gbase = module.codes[code_idx].codes_base;
+                                    instrs = 取指令(&self.module.codes[code_idx]);
+                                    cbase = self.module.codes[code_idx].consts_base;
+                                    nbase = self.module.codes[code_idx].names_base;
+                                    kbase = self.module.codes[code_idx].kw_base;
+                                    gbase = self.module.codes[code_idx].codes_base;
+                            cbase = self.module.codes[code_idx].consts_base;
+                            nbase = self.module.codes[code_idx].names_base;
+                            kbase = self.module.codes[code_idx].kw_base;
+                            gbase = self.module.codes[code_idx].codes_base;
                                     continue;
                         }
                         Val::BoundMethod(bm) => {
@@ -3698,11 +3715,11 @@ impl VM {
                             code_idx = self.frames[fi].code_idx;
                             ip = self.frames[fi].ip;
                             base = self.frames[fi].base;
-                            instrs = 取指令(&module.codes[code_idx]);
-                            cbase = module.codes[code_idx].consts_base;
-                            nbase = module.codes[code_idx].names_base;
-                            kbase = module.codes[code_idx].kw_base;
-                            gbase = module.codes[code_idx].codes_base;
+                            instrs = 取指令(&self.module.codes[code_idx]);
+                            cbase = self.module.codes[code_idx].consts_base;
+                            nbase = self.module.codes[code_idx].names_base;
+                            kbase = self.module.codes[code_idx].kw_base;
+                            gbase = self.module.codes[code_idx].codes_base;
                         }
                     }
                 }
