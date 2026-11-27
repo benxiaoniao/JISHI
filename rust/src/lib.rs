@@ -1749,6 +1749,35 @@ struct Code {
     src_file: String,
     /// 该文件在「包内拼接源码」里的起始行（1 起）；0 = 不换算。
     src_start: i64,
+    /// **执行期的指令数组**（M237）：`Rc<[Instr]>` 让指令循环持有**独立的**
+    /// 引用计数，不借 `Module` —— 运行期加载包（`包.加载`）要追加模块，
+    /// 追加就会和「循环长期借 module」冲突。有了它，追加模块时热循环不用动。
+    ///
+    /// `None` = 还没填（只有 `load_module` 会填，编译路径不执行）。
+    instrs_rc: Option<Rc<[Instr]>>,
+    /// **表基址**（M237）：这段代码所属模块的四张表在**合并后**的总表里的起点。
+    /// 单模块全是 0（行为与以前逐字节相同）；运行期加载包之后包里的是非 0。
+    ///
+    /// 🔴 用基址而不是重写指令下表：那要一张「每条指令 a/b/c 哪个是下标」的
+    /// 语义表，没人维护它 —— 漏一个就是**静默取到别的常量**。
+    consts_base: usize,
+    names_base: usize,
+    kw_base: usize,
+    codes_base: usize,
+}
+
+/// 取这段代码的指令数组（M237）：**引用计数 +1**，不借 `Module`。
+///
+/// 🔴 这是「运行期加载包」能做的前提：指令循环持有一个独立的 `Rc<[Instr]>`，
+/// 于是即便 `Rc::make_mut(&mut self.module)` 为了追加模块而**深拷贝整个 Module**，
+/// 正在跑的那份指令堆也还活着（引用计数保证的）。没有它，追加 = 让循环里的
+/// `&[Instr]` 悬垂。
+fn 取指令(code: &Code) -> Rc<[Instr]> {
+    match &code.instrs_rc {
+        Some(rc) => Rc::clone(rc),
+        // 兜底：`core/` 编译路径不填缓存（它不执行），真跑到这里就现拷一份。
+        None => Rc::from(code.instrs.as_slice()),
+    }
 }
 
 #[derive(Clone)]
@@ -1756,7 +1785,9 @@ struct Module {
     consts: Vec<Val>,
     names: Vec<String>,
     kw_names: Vec<Vec<String>>,
-    codes: Vec<Code>,
+    /// **M237**：`Rc<Code>` —— 帧里克隆一份，指令数组借那份克隆指向的堆。
+    /// 这样追加模块时不会撞「循环长期借 `Module`」的借用冲突。
+    codes: Vec<Rc<Code>>,
     main: usize,
     /// 源文件名（R6.3）：报错渲染要 `  ┌─ 文件:行:列`，还要**按它去读源文件**
     /// 才能画出源码行与 `^`。字节码里一直带着（payload.filename），
@@ -3128,7 +3159,7 @@ impl VM {
         // 于是能在**不借用 `self`** 的前提下长期借用 `instrs` —— 循环体里到处
         // 是 `self.xxx()`（要 `&mut self`），直接借用 `self.module` 会打架。
         let module = Rc::clone(&self.module);
-        let mut instrs = &module.codes[code_idx].instrs;
+        let mut instrs: Rc<[Instr]> = 取指令(&module.codes[code_idx]);
 
         // R8.1：**步数预算** —— 「一步」= **回跳一次**（循环走完一圈）。
         //
@@ -3447,7 +3478,7 @@ impl VM {
                             code_idx = self.frames[fi].code_idx;
                             ip = self.frames[fi].ip;
                             base = self.frames[fi].base;
-                            instrs = &module.codes[code_idx].instrs;
+                            instrs = 取指令(&module.codes[code_idx]);
                             continue;
                         }
                         Val::Builtin(bd) => {
@@ -3489,7 +3520,7 @@ impl VM {
                                     code_idx = self.frames[fi].code_idx;
                                     ip = self.frames[fi].ip;
                                     base = self.frames[fi].base;
-                                    instrs = &module.codes[code_idx].instrs;
+                                    instrs = 取指令(&module.codes[code_idx]);
                                     continue;
                         }
                         Val::BoundMethod(bm) => {
@@ -3593,7 +3624,7 @@ impl VM {
                             code_idx = self.frames[fi].code_idx;
                             ip = self.frames[fi].ip;
                             base = self.frames[fi].base;
-                            instrs = &module.codes[code_idx].instrs;
+                            instrs = 取指令(&module.codes[code_idx]);
                         }
                     }
                 }
@@ -8219,6 +8250,12 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
             // M199 / E5：老字节码没有这两个键 ⇒ 空/0，行为与以前完全一样
             src_file: cd.get("src_file").and_then(|v| v.as_str()).unwrap_or("").to_string(),
             src_start: cd.get("src_start").and_then(|v| v.as_i64()).unwrap_or(0),
+            // M237：执行期缓存与基址 —— 都由加载器填，**不在字节码 JSON 里**
+            instrs_rc: None,
+            consts_base: 0,
+            names_base: 0,
+            kw_base: 0,
+            codes_base: 0,
         });
     }
 
@@ -8242,6 +8279,14 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
     }
     let filename = payload.get("filename").and_then(|v| v.as_str())
         .unwrap_or("<输入>").to_string();
+    // 🔴 M237：给每个 Code 填一份**独立的** `Rc<[Instr]>`（启动时一次）。
+    // 之后指令循环借的是它，不借 `Module` —— 运行期加载包追加模块时才不会撞借用。
+    for c in codes.iter_mut() {
+        let 一份: std::rc::Rc<[Instr]> = std::rc::Rc::from(c.instrs.as_slice());
+        c.instrs_rc = Some(一份);
+    }
+    let codes: Vec<std::rc::Rc<Code>> =
+        codes.into_iter().map(std::rc::Rc::new).collect();
     Ok(VM::new(Module { consts, names, kw_names, codes, main, filename }))
 }
 
