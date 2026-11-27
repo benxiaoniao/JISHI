@@ -798,8 +798,13 @@ fn 按依赖排序(片段: Vec<(PathBuf, String)>) -> Vec<(PathBuf, String)> {
 // ---------------------------------------------------------------------------
 
 /// 生成 `[(外壳名, FuncDef)]`：**依赖的在前**，可直接插到程序顶部。
-fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>,
-              base: Option<&str>)
+/// 生成 `[(外壳名, FuncDef)]`：**依赖的在前**，可直接插到程序顶部。
+///
+/// 📌 M237 起对 `rust` crate 公开：**运行期加载包**（`包.加载`）直接复用它 ——
+/// 那套逻辑（找包、读 `包.json`、多文件按依赖排序、依赖链递归、`$造模块` 注入）
+/// 已经在编译期验证过，运行期再写一遍只会多一处漂移。
+pub fn shell_defs(name: &str, line: i64, col: i64, stack: &mut Vec<String>,
+                  base: Option<&str>)
     -> Result<Vec<(String, Node)>, PkgErr>
 {
     if stack.iter().any(|x| x == name) {

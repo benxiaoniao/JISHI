@@ -1804,6 +1804,20 @@ impl BuiltinHost for Walker {
     fn filename(&self) -> &str {
         &self.filename
     }
+    /// M237：`包.加载` 在**树遍历**上还不支持。
+    ///
+    /// 树遍历本来是最容易做的（直接 `exec` 生成的 AST、共用 globals）——
+    /// 这一步留到下一段，与 C VM 一起做。先把它**说清楚**：
+    /// 让用户看到「这个执行器不支持」，而不是「找不到这个函数」。
+    fn 加载本地包(&mut self, 名字: &str, _门面名: &str) -> Result<Val, JishiError> {
+        Err(crate::err_with_hint(
+            "运行期错误",
+            format!("`包.加载` 在 Rust 的**树遍历**执行器上还没做（试的是「{名字}」）"),
+            "用发行版跑（`jishi-rs.exe` 走字节码执行器，已支持）；\
+             树遍历这条留到下一段与 C VM 一起做 —— 见 docs/设计决策.md D138"
+                .into(),
+        ))
+    }
     fn write_stderr(&mut self, s: &str) {
         self.output_err.push_str(s);
         if let Some(sink) = self.output_sink.as_mut() {

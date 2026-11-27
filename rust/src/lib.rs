@@ -2478,6 +2478,26 @@ impl VM {
 
     pub fn run(&mut self) -> Result<(), JishiError> {
         let main_idx = self.module.main;
+        self.建主帧(main_idx);
+        // ⚠️ **主程序必须跑到底**（`execute(None)`）。`跑入口` 用的是
+        // `execute(Some(fi))`（跑到那一帧返回就交回调用者）—— 那是给
+        // 「运行期加载包」用的。两者不能混：混了之后主程序里「异常被捕获后
+        // 继续执行」的那部分会被提前截断（M237 踩过，`test_m80_walk_exceptions` 抓到）。
+        self.execute(None)
+    }
+
+    /// 跑指定代码块（M237：运行期加载包跑的是**包的主代码**，不是本模块的）。
+    ///
+    /// ⚠️ 与原来 `run` 的唯一区别就是 `main_idx` 由调用方给。用 `execute(Some(fi))`
+    /// 而不是 `execute(None)` —— 后者会一路跑到**所有帧都空**（把正在跑的主程序
+    /// 外层也带走），而这里必须「跑到包的 main 返回就交回调用者」。
+    pub(crate) fn 跑入口(&mut self, main_idx: usize) -> Result<(), JishiError> {
+        let fi = self.建主帧(main_idx);
+        self.execute(Some(fi))
+    }
+
+    /// 按代码块号建一个「模块级帧」并压栈，返回它的帧下标。
+    fn 建主帧(&mut self, main_idx: usize) -> usize {
         let main = &self.module.codes[main_idx];
         let nlocals = main.nlocals;
         let ncells = main.cellvars.len() + main.freevars.len();
@@ -2499,8 +2519,43 @@ impl VM {
             block_seq: 0,
             bind_buf: Vec::new(),
         };
+        let fi = self.frames.len();
         self.frames.push(frame);
-        self.execute(None)
+        fi
+    }
+
+    /// **M237**：把一个模块编进本 VM（追加四张表 + 铺全局槽位），返回它的 main 下标。
+    ///
+    /// 🔴 为什么必须「编进来」而不是另起一个 VM：函数对象里的常量/名字下标都是
+    /// **相对本模块**的，搬过去就取错（M145 老坑）。
+    ///
+    /// ⚠️ `Rc::make_mut` 在引用计数 >1 时会**深拷贝整个 Module** —— 这正是可接受
+    /// 的做法：正在跑的指令循环持有独立的 `Rc<[Instr]>`，深拷贝只是给它 +1，
+    /// 旧指令堆因此活着。加载包是罕见操作，一次深拷贝不值一提。
+    pub(crate) fn 追加模块(&mut self, 新: Module) -> usize {
+        let builtins = new_builtins();
+        let 主 = Rc::make_mut(&mut self.module);
+        let cb = 主.consts.len();
+        主.consts.extend(新.consts);
+        let nb = 主.names.len();
+        主.names.extend(新.names.iter().cloned());
+        let kb = 主.kw_names.len();
+        主.kw_names.extend(新.kw_names);
+        let gb = 主.codes.len();
+        for 一 in 新.codes {
+            let mut 码 = 一;
+            {
+                let c = Rc::make_mut(&mut 码);
+                c.consts_base = cb;
+                c.names_base = nb;
+                c.kw_base = kb;
+                c.codes_base = gb;
+            }
+            主.codes.push(码);
+        }
+        // 全局槽位：新模块的 names 追加在后面（`LOAD_GLOBAL` 用 `ins.a` 当槽位）
+        self.globals.extend(新.names.iter().map(|n| builtins.get(n).cloned()));
+        gb + 新.main
     }
 
     fn execute(&mut self, stop_at: Option<usize>) -> Result<(), JishiError> {
@@ -3160,6 +3215,13 @@ impl VM {
         // 是 `self.xxx()`（要 `&mut self`），直接借用 `self.module` 会打架。
         let module = Rc::clone(&self.module);
         let mut instrs: Rc<[Instr]> = 取指令(&module.codes[code_idx]);
+        // 🔴 M237：本帧的表基址。单模块全是 0（行为与以前逐字节相同）；
+        // 运行期加载包之后包里的 Code 基址非 0 —— 取表处必须加它，否则会
+        // 取到主程序的常量/名字（症状是「静默取错值」，比报错难查得多）。
+        let mut cbase = module.codes[code_idx].consts_base;
+        let mut nbase = module.codes[code_idx].names_base;
+        let mut kbase = module.codes[code_idx].kw_base;
+        let mut gbase = module.codes[code_idx].codes_base;
 
         // R8.1：**步数预算** —— 「一步」= **回跳一次**（循环走完一圈）。
         //
@@ -3214,7 +3276,7 @@ impl VM {
                 op::LOAD_CONST => {
                     // M161：**边界检查**（不再直接下标）。一份被改过的字节码可以让
                     // `a` 指到常量池外面 —— 以前这里直接 panic，现在给中文报错。
-                    let c = match self.module.consts.get(ins.a as usize) {
+                    let c = match self.module.consts.get(cbase + ins.a as usize) {
                         Some(v) => v.clone(),
                         None => return Err(err(
                             "运行期错误",
@@ -3228,7 +3290,7 @@ impl VM {
                     // 名字**已经在加载时**按 `ins.a` 铺成槽位了（见 `globals`），
                     // 所以正常路径是「一次数组索引 + 一次 clone」——
                     // 不再分配 String、不再哈希查找。
-                    let slot = ins.a as usize;
+                    let slot = nbase + ins.a as usize;
                     match self.globals.get(slot).and_then(|v| v.as_ref()).cloned() {
                         Some(v) => self.stack.push(v),
                         None => {
@@ -3268,7 +3330,7 @@ impl VM {
                     // 与 Python / Node 对齐：没赋过值就读 → 报「找不到名字」，
                     // **不许静默给 `空`**（M54）。`空` 是合法值，两者必须分得开。
                     let f = &self.frames[fi];
-                    let slot = ins.a as usize;
+                    let slot = nbase + ins.a as usize;
                     if !f.locals_set.get(slot).copied().unwrap_or(false) {
                         let code = &self.module.codes[f.code_idx];
                         let name = code.local_names.get(slot)
@@ -3290,7 +3352,7 @@ impl VM {
                 }
                 op::STORE_FAST => {
                     let v = self.stack.pop().unwrap_or(Val::None_);
-                    let slot = ins.a as usize;
+                    let slot = nbase + ins.a as usize;
                     self.frames[fi].locals[slot] = v;
                     self.frames[fi].locals_set[slot] = true;
                 }
@@ -3427,7 +3489,7 @@ impl VM {
                 op::CALL => {
                     let nargs = ins.a as usize;
                     let kwi = ins.b;
-                    let knames: Vec<String> = if kwi >= 0 { self.module.kw_names[kwi as usize].clone() } else { Vec::new() };
+                    let knames: Vec<String> = if kwi >= 0 { self.module.kw_names[kbase + kwi as usize].clone() } else { Vec::new() };
                     let nkw = knames.len();
                     let fn_base = self.stack.len() - (1 + nargs + nkw);
                     // 🔴 M179：实参拷进**复用缓冲**，不再每次 `to_vec()`。
@@ -3479,6 +3541,10 @@ impl VM {
                             ip = self.frames[fi].ip;
                             base = self.frames[fi].base;
                             instrs = 取指令(&module.codes[code_idx]);
+                            cbase = module.codes[code_idx].consts_base;
+                            nbase = module.codes[code_idx].names_base;
+                            kbase = module.codes[code_idx].kw_base;
+                            gbase = module.codes[code_idx].codes_base;
                             continue;
                         }
                         Val::Builtin(bd) => {
@@ -3521,6 +3587,14 @@ impl VM {
                                     ip = self.frames[fi].ip;
                                     base = self.frames[fi].base;
                                     instrs = 取指令(&module.codes[code_idx]);
+                                    cbase = module.codes[code_idx].consts_base;
+                                    nbase = module.codes[code_idx].names_base;
+                                    kbase = module.codes[code_idx].kw_base;
+                                    gbase = module.codes[code_idx].codes_base;
+                            cbase = module.codes[code_idx].consts_base;
+                            nbase = module.codes[code_idx].names_base;
+                            kbase = module.codes[code_idx].kw_base;
+                            gbase = module.codes[code_idx].codes_base;
                                     continue;
                         }
                         Val::BoundMethod(bm) => {
@@ -3625,11 +3699,15 @@ impl VM {
                             ip = self.frames[fi].ip;
                             base = self.frames[fi].base;
                             instrs = 取指令(&module.codes[code_idx]);
+                            cbase = module.codes[code_idx].consts_base;
+                            nbase = module.codes[code_idx].names_base;
+                            kbase = module.codes[code_idx].kw_base;
+                            gbase = module.codes[code_idx].codes_base;
                         }
                     }
                 }
                 op::MAKE_FUNCTION => {
-                    let code_idx = ins.a as usize;
+                    let code_idx = gbase + ins.a as usize;
                     let ncells = ins.b as usize;
                     let ndefaults = ins.c as usize;
                     let defaults = if ndefaults > 0 {
@@ -4379,6 +4457,13 @@ pub(crate) trait BuiltinHost {
     /// 只能在「造的那一刻」记住；而 `测试.抛出` 是**内建回调**里捕获错误，
     /// 手里只有 `&mut dyn BuiltinHost`。
     fn filename(&self) -> &str;
+    /// **运行期加载本地包**（M237）：把一个已装的包编进**本执行器**并跑它的顶层，
+    /// 返回它的门面值。
+    ///
+    /// 🔴 为什么必须在宿主的 trait 上、而不是写成 `stdlib` 里的普通函数：包导出的是
+    /// **函数**，而函数绑定在创建它的执行器上（`Code` 里的常量/名字下标都相对本模块）。
+    /// 换一个执行器代劳就会「拿到错误的常量表」（M145 踩过）。
+    fn 加载本地包(&mut self, 名字: &str, 门面名: &str) -> Result<Val, JishiError>;
 }
 
 /// 格式化一个值 —— **与宿主无关的那部分**（容器递归 + 标量显示）。
@@ -4469,6 +4554,75 @@ impl BuiltinHost for VM {
     }
     fn filename(&self) -> &str {
         &self.module.filename
+    }
+
+    /// M237：运行期加载本地包 —— **复用编译期那套 `shell_defs`**。
+    ///
+    /// 那套逻辑（找包、读 `包.json`、多文件按顶层依赖排序、依赖链递归、
+    /// `$造模块` 注入）已经在编译期被验证过；运行期再写一遍只会多一处漂移。
+    /// 这里要做的只有三步：拿 AST → 编译成本模块的字节码 → **追加进本 VM 再跑**。
+    fn 加载本地包(&mut self, 名字: &str, 门面名: &str) -> Result<Val, JishiError> {
+        use jishi_frontend::parser::{J as FJ, Node as FNode};
+
+        let 转 = |e: jishi_frontend::localpkg::PkgErr| JishiError {
+            type_name: "运行期错误".to_string(),
+            code: e.code.map(|c| c.to_string()),
+            message: e.message,
+            hint: e.hint,
+            line: Some(e.line),
+            col: Some(e.col),
+            underline: e.underline.map(|(a, b)| (a as i64, b as i64)),
+            fix: e.fix,
+            trace: Vec::new(),
+            file: e.file,
+            cause: None,
+        };
+
+        let mut stack: Vec<String> = Vec::new();
+        let defs = jishi_frontend::localpkg::shell_defs(名字, 1, 1, &mut stack, None)
+            .map_err(转)?;
+        let 本包 = defs.last().map(|(n, _)| n.clone()).ok_or_else(|| {
+            err("运行期错误", format!("包「{名字}」没有生成出外壳函数"))
+        })?;
+
+        // 造一个 Program：所有外壳函数（依赖在前）+ `门面名 = 本包()`
+        let mut body: Vec<FJ> = defs.into_iter().map(|(_, n)| n.boxed()).collect();
+        let 调用 = FNode::new("Call", 1, 1)
+            .f("func", FNode::new("Name", 1, 1).f("id", FJ::Str(本包)).boxed())
+            .f("args", FJ::List(Vec::new()))
+            .f("keywords", FJ::List(Vec::new()));
+        let 赋值 = FNode::new("Assign", 1, 1)
+            .f("target",
+               FNode::new("Name", 1, 1).f("id", FJ::Str(门面名.to_string())).boxed())
+            .f("op", FJ::Str("=".to_string()))
+            .f("value", 调用.boxed());
+        body.push(赋值.boxed());
+        let 程序 = FNode::new("Program", 1, 1).f("body", FJ::List(body));
+
+        let 假名 = format!("<包:{名字}>");
+        let cmod = jishi_frontend::compiler::compile_program_embedded(
+            &程序, &假名, crate::内嵌库模块(), false);
+        if let Some((n, 行, 列)) = cmod.errors.first() {
+            return Err(JishiError {
+                type_name: "找不到这个名字".to_string(),
+                code: Some("E0301".to_string()),
+                message: format!("找不到名字「{n}」"),
+                hint: Some(format!("「{n}」是在块里 `令` 的，出了那个块就没了（M231）")),
+                line: Some(*行), col: Some(*列),
+                underline: None, fix: None, trace: Vec::new(),
+                file: Some(假名), cause: None,
+            });
+        }
+        let json = jishi_frontend::serialize::dump_json(&cmod);
+        let 模块 = crate::解析字节码(&json).map_err(|e| err("运行期错误", e))?;
+        let idx = self.追加模块(模块);
+        self.跑入口(idx)?;
+
+        // 门面：跑完直接从全局按名字取（`门面名 = 本包()` 那行已经填好）
+        let i = self.module.names.iter().position(|n| n == 门面名)
+            .ok_or_else(|| err("运行期错误", "加载包后找不到门面名（内部错误）".to_string()))?;
+        self.globals.get(i).and_then(|v| v.clone())
+            .ok_or_else(|| err("运行期错误", "包的门面是空的（内部错误）".to_string()))
     }
 }
 
@@ -8166,6 +8320,14 @@ pub fn run_walk(ast_text: &str, source_path: Option<&str>) -> Result<String, (St
 }
 
 pub fn load_module(json_text: &str) -> Result<VM, String> {
+    解析字节码(json_text).map(VM::new)
+}
+
+/// 字节码 JSON → **执行期的 `Module`**（M237：运行期加载包要它，而不只是 VM）。
+///
+/// 与 `load_module` 是同一套解析与结构自检 —— 拆出来只是为了让「追加模块」
+/// 拿得到 `Module`（`load_module` 直接把它吞进 `VM` 了）。
+pub(crate) fn 解析字节码(json_text: &str) -> Result<Module, String> {
     let body = json::parse(json_text)?;
     if body.get("format").and_then(|v| v.as_str()) != Some("jishi-bytecode") {
         return Err("不是基石字节码格式".to_string());
@@ -8287,7 +8449,7 @@ pub fn load_module(json_text: &str) -> Result<VM, String> {
     }
     let codes: Vec<std::rc::Rc<Code>> =
         codes.into_iter().map(std::rc::Rc::new).collect();
-    Ok(VM::new(Module { consts, names, kw_names, codes, main, filename }))
+    Ok(Module { consts, names, kw_names, codes, main, filename })
 }
 
 /// 设 stdout 上限（字符数；沙箱用，`None` = 不限）。
