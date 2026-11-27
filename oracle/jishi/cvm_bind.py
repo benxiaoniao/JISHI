@@ -133,6 +133,22 @@ def load_lib() -> ctypes.CDLL:
     ]
     lib.jsvm_run.restype = c_int
     lib.jsvm_run.argtypes = [c_void_p]
+    # M237：运行期追加模块 + 跑指定代码块
+    # ⚠️ **必须声明 argtypes** —— 不声明时 ctypes 把指针当 32 位 int，
+    #    传进去就 OverflowError（我第一版就栽在这儿）。
+    lib.jsvm_append_module.restype = c_int
+    lib.jsvm_append_module.argtypes = [
+        c_void_p,
+        JPV, c_int,          # consts, nconsts
+        c_int, JPV,          # nnames, globals_in
+        POINTER(c_int32),    # instrs（无 ninstrs：由 code_meta 的 instr_off 决定）
+        POINTER(c_int32), c_int,   # code_meta（新模块的）, ncodes_new
+        POINTER(c_int32),          # code_params
+        POINTER(c_int32), POINTER(c_int32), c_int,  # kw_flat, kw_off, nkw
+        c_int, c_int, c_int, c_int,  # consts_base, names_base, kw_base, codes_base
+    ]
+    lib.jsvm_run_code.restype = c_int
+    lib.jsvm_run_code.argtypes = [c_void_p, c_int]
     lib.jsvm_get_last.argtypes = [c_void_p, JPV]
     # 调试支持（M40）：语句起始表 + 语句钩子
     lib.jsvm_set_stmt_marks.argtypes = [c_void_p, POINTER(c_int32), c_int]
@@ -1847,6 +1863,9 @@ class CvmRunner:
                     names.append(k)
         self.host = CvmHost(cmod, self.filename, names)
         self._keep = []          # 防 GC：所有传给 C 的数组保活
+        # M237：**累计**的代码块数（`self.cmod.codes` 是初始那份，不随追加变），
+        # 追加模块时 `codes_base` 要用它 —— 否则第二次追加会覆盖第一次的 code 下标。
+        self._codes总数 = len(cmod.codes)
         self._name_index = name_index
         self._load()
 
@@ -1947,10 +1966,15 @@ class CvmRunner:
 
     def run(self) -> Any:
         """执行模块主代码；出错时抛出与树遍历一致的中文异常。"""
+        from . import runtime as _R
+        # M237：`包.加载` 要把包编进**调用者自己的**执行器 ⇒ 得让人认得出「当前是谁」
+        _R.进入执行器(self)
         try:
             rc = self.host.lib.jsvm_run(self.host.vm)
         except BaseException:
             raise
+        finally:
+            _R.离开执行器()
         if rc != 0:
             # 优先取回 C 侧无人接住的异常对象；退回 Python 侧 pending
             err = JVal()
@@ -1963,6 +1987,151 @@ class CvmRunner:
         if out.tag == O.T_UNSET:
             return None
         return self.host._take(out)
+
+    # -- 运行期加载包（M237）--------------------------------------------------
+
+    def 加载本地包(self, 名字: str, 门面名: str):
+        """把一个包**追加进这个 C VM** 并跑它的顶层，返回门面（M237）。
+
+        与 Rust 侧同一套做法（见 `jsvm.h` 里 `jsvm_append_module` 的三条契约）：
+        摊平新模块 → 复制旧表 + 拼成更大的数组 → `jsvm_append_module`
+        → `jsvm_run_code`（它把 stop_depth 抬到当前帧数，跑完包的主帧就回来）。
+
+        🔴 **旧数组必须留着**：C 的 exec 循环把 `instrs` 缓存成局部指针，
+        换指针后正在跑的帧还在读旧数组。所以旧 ctypes 数组继续挂在 `self._keep`。
+
+        🔴 **两条坐标最容易错**（都按「全局下标」传）：
+        ① `code_meta` 里的 `instr_off` / `params_off` 是**全局**的扁平下标，
+           摊平新模块时要加上「旧的指令条数 / 旧参数条数」；
+        ② 子模块的 `names` 从旧名字表末尾开始（`names_base`），而**新补的
+           关键字名**排在子模块 names **之后** —— 补名时下标要按 `names_base +
+           子名数 + i` 算，不能按「补了几个」算。
+        """
+        from .localpkg import 运行期外壳源码
+        from .compiler import compile_source
+
+        壳源码, _结果名 = 运行期外壳源码(名字, None, self.filename)
+        子 = compile_source(壳源码, f"<包:{名字}>", fuse_method_call=True)
+
+        lib = self.host.lib
+        旧consts, 旧globals, 旧instrs, 旧meta, 旧params, 旧kf, 旧ko = self._keep[:7]
+        旧常量数 = len(旧consts)
+        旧名单数 = len(旧globals)
+        旧指令数 = len(旧instrs) // 6
+        旧参数数 = len(旧params) // 4
+        旧kf数 = len(旧kf)
+
+        # ---- 名字表：子模块 names 接在旧表末尾；新补的 kw 名再接在它们之后 ----
+        names_base = 旧名单数
+        子名数 = len(子.names)
+        补名: list[str] = []
+        for kwl in 子.kw_names:
+            for k in kwl:
+                if k not in self._name_index:
+                    self._name_index[k] = names_base + 子名数 + len(补名)
+                    补名.append(k)
+        新名 = list(self.host.names)[:旧名单数] + list(子.names) + 补名
+        # 子模块的名字也要登记进 `_name_index` —— 否则后面按名字找门面找不到
+        # （`__运行期门面_X__` 就是这么来的）。
+        for i, n in enumerate(子.names):
+            if n not in self._name_index:
+                self._name_index[n] = names_base + i
+
+        # ---- 摊平（每条指令 6 个 int32；每参数 4 个 int32）----
+        instrs: list[int] = []
+        code_meta: list[int] = []
+        code_params: list[int] = []
+        for code in 子.codes:
+            code_meta.extend([
+                旧指令数 + len(instrs) // 6,      # instr_off（全局）
+                len(code.instrs), code.nlocals,
+                len(code.cellvars), len(code.params),
+                旧参数数 + len(code_params),      # params_off（全局）
+            ])
+            for ins in code.instrs:
+                instrs.extend(ins.as_tuple())
+            kinds = code.param_kind or [0] * len(code.params)
+            for i in range(len(code.params)):
+                code_params.extend([
+                    code.param_idx[i], code.param_local[i], code.param_cell[i],
+                    kinds[i] if i < len(kinds) else 0,
+                ])
+
+        kw_flat: list[int] = []
+        kw_off: list[int] = []
+        for kwl in 子.kw_names:
+            for k in kwl:
+                kw_flat.append(self._name_index[k])
+            kw_off.append(len(kw_flat))
+
+        # ---- 常量：旧 + 新 ----
+        新consts = (JVal * max(旧常量数 + len(子.consts), 1))()
+        for i in range(旧常量数):
+            新consts[i] = 旧consts[i]
+        for i, c in enumerate(子.consts):
+            v = self.host.py2c(c)
+            新consts[旧常量数 + i] = v
+            if type(c) is str:
+                self.host.pin_str(v, c)
+
+        # ---- 全局槽：旧 + 新增的名字槽 ----
+        新globals = (JVal * max(len(新名), 1))()
+        for i in range(旧名单数):
+            新globals[i] = 旧globals[i]
+        for i, name in enumerate(新名[旧名单数:], start=旧名单数):
+            新globals[i] = (self.host.py2c(self.host.globals[name])
+                            if name in self.host.globals else JVal())
+
+        # ---- 指令 / 元数据 / 参数 / kw（全部拼接）----
+        新instrs = (c_int32 * max(旧指令数 * 6 + len(instrs), 1))(
+            *[旧instrs[i] for i in range(旧指令数 * 6)] + instrs)
+        新meta = (c_int32 * max(len(code_meta), 1))(*code_meta)   # 只传子模块的
+        新params = (c_int32 * max(旧参数数 * 4 + len(code_params), 1))(
+            *[旧params[i] for i in range(旧参数数 * 4)] + code_params)
+        新kf = (c_int32 * max(旧kf数 + len(kw_flat), 1))(
+            *[旧kf[i] for i in range(旧kf数)] + kw_flat)
+        旧kfoff = len(self.cmod.kw_names)
+        新ko = (c_int32 * max(旧kfoff + len(kw_off), 1))(
+            *[旧ko[i] for i in range(旧kfoff)] + kw_off)
+
+        codes_base = self._codes总数
+        rc = lib.jsvm_append_module(
+            self.host.vm,
+            新consts, 旧常量数 + len(子.consts),
+            len(新名), 新globals,
+            新instrs,
+            新meta, len(子.codes),
+            新params, 新kf, 新ko, 旧kfoff + len(子.kw_names),
+            旧常量数, names_base, 旧kfoff, codes_base)
+        if rc != 0:
+            raise RunError("内部错误：追加模块失败（C 侧 realloc 失败）")
+
+        # 旧数组继续保活（见 docstring），新数组也挂上
+        self._keep.extend([新consts, 新globals, 新instrs, 新meta,
+                           新params, 新kf, 新ko])
+        self._codes总数 = codes_base + len(子.codes)
+        # 让后续追加看到的是新表
+        for i, 数组 in enumerate([新consts, 新globals, 新instrs, 新meta,
+                                  新params, 新kf, 新ko]):
+            if i < 7:
+                self._keep[i] = 数组
+        self.host.names = 新名
+
+        rc = lib.jsvm_run_code(self.host.vm, codes_base + 子.main)
+        if rc != 0:
+            err = JVal()
+            lib.jsvm_take_pending_err(self.host.vm, byref(err))
+            if err.tag != O.T_UNSET:
+                raise self.host._take(err)
+            raise self.host._pop_pending()
+
+        gi = self._name_index.get(门面名)
+        if gi is None or gi >= len(新globals):
+            raise RunError("内部错误：加载包后找不到门面名")
+        v = 新globals[gi]
+        if v.tag == O.T_UNSET:
+            raise RunError("内部错误：包的门面是空的")
+        return self.host._take(v)
 
     def close(self):
         self.host.destroy()

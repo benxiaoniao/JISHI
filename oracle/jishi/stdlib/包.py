@@ -48,6 +48,14 @@ from ..errors import RunTypeError, RunValueError
 __all__ = ["加载"]
 
 
+def _走C(执行器, 名, 结果名):
+    """C VM 分支：`CvmRunner.加载本地包` 已含缓存外的全部逻辑。
+
+    缓存由调用方（`加载`）负责 —— 这里只负责「把包追加进这个 C VM 并跑」。
+    """
+    return 执行器.加载本地包(名, 结果名)
+
+
 def 加载(名字):
     """`包.加载(名字)` → 门面字典 `{导出名: 值, …}`。名字是**字符串**（可以来自变量）。"""
     from .. import localpkg as LP
@@ -93,17 +101,24 @@ def 加载(名字):
         执行器.跑源码(壳源码, 假名)
         门面 = 执行器.globals.vars.get(结果名)
     else:
-        # 字节码 VM：编成独立的 cmod，再**合并进本 VM** 的表（Code 带基址）
         from ..compiler import compile_source
         from ..vm import VM
+        from ..cvm_bind import CvmRunner
 
-        if not isinstance(执行器, VM):
+        if isinstance(执行器, CvmRunner):
+            # C 字节码 VM：摊平 → `jsvm_append_module` → `jsvm_run_code`。
+            # 它内部自己生成外壳源码（同一套 `运行期外壳源码`），所以这里不传源码。
+            # ⚠️ 别在这里 `return` 就算完 —— 缓存也要写，否则同名重复加载会**再追加一份**
+            #（C 侧 codes_base 是累计的，第二份不会覆盖第一份，但白费且门面会指向新的那份）。
+            门面 = _走C(执行器, 名, 结果名)
+        elif not isinstance(执行器, VM):
             raise RunValueError(
                 f"「包.加载」不认识这个执行器（{type(执行器).__name__}）",
-                hint="这是内部错误：执行器栈里应该是 Interpreter 或 VM")
-        cmod = compile_source(壳源码, 假名)
-        执行器.跑子模块(cmod)
-        门面 = 执行器.globals.get(结果名)
+                hint="这是内部错误：执行器栈里应该是 Interpreter / VM / CvmRunner")
+        else:
+            cmod = compile_source(壳源码, 假名)
+            执行器.跑子模块(cmod)
+            门面 = 执行器.globals.get(结果名)
 
     if 门面 is None:
         raise RunValueError(

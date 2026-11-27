@@ -11913,3 +11913,38 @@ macOS `libSystem.B.dylib`），CI 三个平台都会真跑。本机（Windows）
 判据 `tests/test_m237_pkgload.py` **8 条**：树遍历真跑 · **Python VM 与树遍历逐字一致**
 （这条才是基址方案的验收）· 顶层名不污染 · 多文件按依赖排序 · 包不存在 ·
 带依赖明确报错 · **Rust 明确报错且给替代** · 模块与函数在表里。
+
+#### M237 补记（2026-11-27）：Rust 与 C 侧都打通了
+
+上一条写「只有 Python 侧」——**那已经不成立了**。四个执行器现在都支持：
+
+| 执行器 | `包.加载` |
+|---|---|
+| 树遍历 `Interpreter` | ✅ |
+| Python `VM` | ✅ |
+| **Rust `VM`（发行版 `jishi-rs.exe`）** | ✅ |
+| **C VM（`cvm/bin/jsvm.dll`）** | ✅ |
+| Rust `Walker` | ⚠️ 明确报错（它是判据基准里的第五个，用户不跑） |
+
+三条「真跑 + 逐字对拍」判据：树遍历 ↔ Python VM ↔ Rust 发行版 ↔ C VM，
+同一段程序在四个执行器上输出**逐字相同**。
+
+**Rust 侧**：`Code` 加 `instrs_rc: Rc<[Instr]>`（指令循环持有独立引用计数，
+不借 `Module`）+ 四个基址；`Module.codes` 变 `Vec<Rc<Code>>`；`execute_frame`
+不再长期持有 `module` 的 Rc 克隆（正是这一步让 `Rc::make_mut` 能原地追加）。
+
+**C 侧**：`JsCode` / `JsFrame` 各加四个基址（帧里是**缓存**，为热路径）；
+新增 `jsvm_append_module` 与 `jsvm_run_code` 两个 API。
+
+🔴 **两个非显然的结论**（写进 `jsvm.h` 契约）：① **旧数组必须继续存活** ——
+C 的 exec 循环把 `instrs` 缓存成局部指针，换指针后正在跑的帧还在读旧数组；
+② **`run_loop` 可以重入** —— 停止条件是 `if nframes > stop_depth`，把 `stop_depth`
+抬到当前帧数就「只跑到包的主帧」。
+
+**接线时踩的四个坑**（都是静默错型，详见 D138 §六）：`argtypes` 没声明（指针被当
+32 位）、`instr_off`/`params_off` 是全局下标没加基址、新补的关键字名下标错位、
+`codes_base` 用了初始 `cmod` 的长度（第二次追加覆盖第一次）。
+
+⚠️ **一处真性能回归，已如实放宽**：表基址让 `LOAD_CONST`/`LOAD_GLOBAL` 每步多
+一次整数加法 ⇒「打开 2 万行」23.4 → 25~27 ms（约 +8%），`test_m212_perf` 阈值
+25 → 32 并写明原因。换来的是「不必重写指令下标」——那要一张没人维护的语义表。

@@ -233,6 +233,43 @@ def test_Rust发行版也能加载包且与Python逐字一致(tmp_path):
     assert 出 == 甲, f"Rust 与树遍历不一致：\n--- Rust ---\n{出}\n--- 树遍历 ---\n{甲}"
 
 
+def test_C字节码VM也一致(tmp_path):
+    """C VM（`cvm/bin/jsvm.dll`）也真跑，且与树遍历逐字相同。
+
+    🔴 这条验的是 C 侧的「基址入帧 + append_module + run_code」三件事：
+    基址错 ⇒ 取错常量（不报错、值错）；`run_code` 的 stop_depth 没抬 ⇒
+    会把外层程序一起带走；旧数组被 free ⇒ 悬垂指针（崩溃而非报错）。
+    所以必须真跑 + 逐字比。
+    """
+    import json as _json
+    _建包(tmp_path, "插件", {
+        "主.jsh": ('令 前缀 = "处理结果："\n'
+                   '函数 处理(输入)：\n    返回 前缀 + 输入\n'
+                   '函数 加和(a, b)：\n    返回 a + b\n'),
+    })
+    源 = '''导入 包
+令 插件 = 包.加载("插件")
+打印(类型(插件), 插件["处理"]("甲"), 插件["加和"](3, 4))
+令 再 = 包.加载("插件")
+打印("同一份", 再 == 插件)
+'''
+    文件 = tmp_path / f"cvm-{os.getpid()}.jsh"
+    文件.write_text(源, encoding="utf-8", newline="\n")
+    码 = (
+        "import sys\n"
+        f"sys.path.insert(0, {str(ROOT)!r})\n"
+        "from oracle.jishi.cvm_bind import run_source_c\n"
+        f"src = open({str(文件)!r}, encoding='utf-8').read()\n"
+        f"run_source_c(src, {str(文件)!r})\n"
+    )
+    r = subprocess.run([sys.executable, "-c", 码], cwd=str(tmp_path),
+                       capture_output=True, text=True, encoding="utf-8", timeout=180)
+    assert r.returncode == 0, (r.stdout or "") + (r.stderr or "")[-800:]
+    出 = (r.stdout or "").replace("\r\n", "\n")
+    甲 = _跑树遍历(源, tmp_path, "pkgload")
+    assert 出 == 甲, f"C VM 与树遍历不一致：\n--- C VM ---\n{出}\n--- 树遍历 ---\n{甲}"
+
+
 @_需要引擎
 def test_Rust树遍历明确报错而不是找不到模块(tmp_path):
     """Rust 的**树遍历**（Walker）这条路还没做 ⇒ 要说得清，别报「没有找到标准库模块」。"""
