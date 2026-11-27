@@ -1862,7 +1862,12 @@ class CvmRunner:
                     name_index[k] = len(names)
                     names.append(k)
         self.host = CvmHost(cmod, self.filename, names)
-        self._keep = []          # 防 GC：所有传给 C 的数组保活
+        # 防 GC：所有传给 C 的数组保活（**只追加，从不覆盖**）。
+        # 🔴 M237：追加模块后「当前在用的七张表」另用 `_当前表` 记 —— 与这里分开是
+        # 必须的：旧数组 C 侧还在读（exec 循环缓存了 instrs 指针），覆盖掉 Python
+        # 引用就会被 GC ⇒ 悬垂（症状：输出空白或崩；Windows 侥幸不崩、macOS 崩，CI 抓到的）。
+        self._keep = []
+        self._当前表 = None
         # M237：**累计**的代码块数（`self.cmod.codes` 是初始那份，不随追加变），
         # 追加模块时 `codes_base` 要用它 —— 否则第二次追加会覆盖第一次的 code 下标。
         self._codes总数 = len(cmod.codes)
@@ -2014,7 +2019,9 @@ class CvmRunner:
         子 = compile_source(壳源码, f"<包:{名字}>", fuse_method_call=True)
 
         lib = self.host.lib
-        旧consts, 旧globals, 旧instrs, 旧meta, 旧params, 旧kf, 旧ko = self._keep[:7]
+        if self._当前表 is None:
+            self._当前表 = list(self._keep[:7])
+        旧consts, 旧globals, 旧instrs, 旧meta, 旧params, 旧kf, 旧ko = self._当前表
         旧常量数 = len(旧consts)
         旧名单数 = len(旧globals)
         旧指令数 = len(旧instrs) // 6
@@ -2110,11 +2117,9 @@ class CvmRunner:
         self._keep.extend([新consts, 新globals, 新instrs, 新meta,
                            新params, 新kf, 新ko])
         self._codes总数 = codes_base + len(子.codes)
-        # 让后续追加看到的是新表
-        for i, 数组 in enumerate([新consts, 新globals, 新instrs, 新meta,
-                                  新params, 新kf, 新ko]):
-            if i < 7:
-                self._keep[i] = 数组
+        # 「当前在用的表」另存（**不覆盖 `_keep`** —— 旧数组要一直活着）
+        self._当前表 = [新consts, 新globals, 新instrs, 新meta,
+                       新params, 新kf, 新ko]
         self.host.names = 新名
 
         rc = lib.jsvm_run_code(self.host.vm, codes_base + 子.main)
