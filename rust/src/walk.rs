@@ -1809,14 +1809,45 @@ impl BuiltinHost for Walker {
     /// 树遍历本来是最容易做的（直接 `exec` 生成的 AST、共用 globals）——
     /// 这一步留到下一段，与 C VM 一起做。先把它**说清楚**：
     /// 让用户看到「这个执行器不支持」，而不是「找不到这个函数」。
+    /// M239（G1）：树遍历也支持 `包.加载` —— 与字节码 VM **同一套 `shell_defs`**。
+    ///
+    /// 这里比 VM 那边简单得多：树遍历本来就是「执行 AST」，所以拿到外壳函数节点
+    /// 直接 `exec_stmt` 就把函数定义进 `globals` 了，不存在「追加模块」的事。
+    /// 两条通路共用同一份 `shell_defs`（找包、读包.json、多文件排序、依赖链、
+    /// `$造模块` 注入），所以**不会漂**。
     fn 加载本地包(&mut self, 名字: &str, _门面名: &str) -> Result<Val, JishiError> {
-        Err(crate::err_with_hint(
-            "运行期错误",
-            format!("`包.加载` 在 Rust 的**树遍历**执行器上还没做（试的是「{名字}」）"),
-            "用发行版跑（`jishi-rs.exe` 走字节码执行器，已支持）；\
-             树遍历这条留到下一段与 C VM 一起做 —— 见 docs/设计决策.md D138"
-                .into(),
-        ))
+        let 转 = |e: jishi_frontend::localpkg::PkgErr| JishiError {
+            type_name: "运行期错误".to_string(),
+            code: e.code.map(|c| c.to_string()),
+            message: e.message,
+            hint: e.hint,
+            line: Some(e.line),
+            col: Some(e.col),
+            underline: e.underline.map(|(a, b)| (a as i64, b as i64)),
+            fix: e.fix,
+            trace: Vec::new(),
+            file: e.file,
+            cause: None,
+        };
+
+        let mut stack: Vec<String> = Vec::new();
+        let defs = jishi_frontend::localpkg::shell_defs(名字, 1, 1, &mut stack, None)
+            .map_err(转)?;
+        let 本包 = defs.last().map(|(n, _)| n.clone()).ok_or_else(|| {
+            crate::err("运行期错误", format!("包「{名字}」没有生成出外壳函数"))
+        })?;
+
+        // 外壳函数**依赖在前**，按顺序定义进当前（模块级）作用域
+        for (_, node) in defs.iter() {
+            let 节点 = crate::ast_node_to_json(node);
+            let _ = self.exec_stmt(&节点)?;
+        }
+
+        // 取本包的外壳函数并调用 —— 返回值就是门面
+        let 函数 = self.globals.borrow().vars.get(&本包).cloned().ok_or_else(|| {
+            crate::err("运行期错误", format!("包「{名字}」的外壳函数没建出来"))
+        })?;
+        self.call_value(函数, Vec::new())
     }
     fn write_stderr(&mut self, s: &str) {
         self.output_err.push_str(s);
