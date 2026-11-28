@@ -921,16 +921,22 @@ impl<'a> Emitter<'a> {
         // ⚠️ 两条都要满足：① 它在某个**已退出**的块里引入过；② 它**不在**当前
         //    任何活跃块里，也**不是**外层本来就有的（`bound - 块绑定`）。
         if self.已退出块.contains(name) {
-            let (非块绑定, 活跃) = {
+            let (非块绑定, 活跃, 是全局) = {
                 let sc = &self.scopes[self.scope];
                 (
                     sc.bound
                         .iter()
                         .any(|n| n == name && !sc.块绑定.contains(n)),
                     self.块栈.iter().any(|s| s.contains(name)),
+                    // 🔴 **M240**：`全局 X` 声明过的名字**不是**「块内引入」。
+                    // `Global` 语句会把名字记进 `scopes[scope].globals` 并从 `bound`
+                    // 摘掉 —— 于是块内 `X = …` 被当成「块新引入的名」，出块后
+                    // `返回 X` 就撞成 E0301。真实项目（桌面营造）撞到过，
+                    // 而 `test_m231` 里 `全局` 出现 0 次（判据有洞）。
+                    sc.globals.contains(name),
                 )
             };
-            if !非块绑定 && !活跃 {
+            if !非块绑定 && !活跃 && !是全局 {
                 // 记一条编译期错误（`Module.errors`），字节码照样发 `LOAD_GLOBAL`
                 // —— 编出来的东西是完整的，只是调用方在看到 errors 时会先报错。
                 let (line, col) = match node {

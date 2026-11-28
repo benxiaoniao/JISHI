@@ -471,7 +471,12 @@ class _Emitter:
             # 只有「**只**由循环体引入」的名字才管 —— 外层本来就有同名变量的，
             # 那是「改外层」，循环外读到它天经地义（A2 口径）。
             非块绑定 = scope.bound - scope.块绑定
-            if name not in 非块绑定 and not any(name in s for s in self.块栈):
+            # 🔴 **M240**：`全局 X` 声明过的名字**不是**「块内引入」——
+            # `Global` 语句会把名字记进 `scope.globals` 并从 `bound` 摘掉，
+            # 于是块内 `X = …` 被当成「块新引入」，出块后 `返回 X` 就撞成 E0301。
+            # （真实项目「桌面营造」撞到；Rust 侧 `load_name` 同步修。）
+            if (name not in 非块绑定 and name not in scope.globals
+                    and not any(name in s for s in self.块栈)):
                 # 编译期就报（Rust 侧同样在 `Module.errors` 里记一条）——
                 # 运行期报不了：模块级的变量在全局里有个格子，`LOAD_GLOBAL`
                 # 照样读得到，报不出「找不到这个名字」。
