@@ -284,14 +284,68 @@ def test_C字节码VM也一致(tmp_path):
 
 
 @_需要引擎
-def test_Rust树遍历明确报错而不是找不到模块(tmp_path):
-    """Rust 的**树遍历**（Walker）这条路还没做 ⇒ 要说得清，别报「没有找到标准库模块」。"""
-    文件 = tmp_path / f"walk-{os.getpid()}.jsh"
-    文件.write_text('导入 包\n打印(1)\n', encoding="utf-8", newline="\n")
-    r = subprocess.run([str(RUST_EXE), str(文件), "--走树遍历"], cwd=str(tmp_path),
+def test_Rust树遍历Walker也一致(tmp_path):
+    """Rust 的**树遍历**（`--walk AST.json`）也真跑，且与发行版逐字相同（M239 G1）。
+
+    Walker 的入口要 **AST JSON**（不是源码）。这里用 `tools/conformance.jsonable`
+    把 AST 转成 JSON —— 这也是「源码 → AST JSON」唯一现成的通道
+    （正式 CLI 开关 `--ast --format json` 归 0.3.8 的 H3/M241 补）。
+
+    🔴 这条同时钉住两件事：① `包.加载` 在 Walker 上不再报错；
+    ② **同名只建一次**（`包.py` 的缓存口径）—— 不缓存的话两次会各建一份门面，
+    而字典里的值是函数、函数按**身份**比较，`再 == 插件` 会得「假」。
+    """
+    import json as _json
+    sys.path.insert(0, str(ROOT / "tools"))
+    import conformance as _C                      # noqa: PLC0415
+    from oracle.jishi.parser import parse_source  # noqa: PLC0415
+
+    _建包(tmp_path, "插件", {
+        "主.jsh": ('令 前缀 = "处理结果："\n'
+                   '函数 处理(输入)：\n    返回 前缀 + 输入\n'
+                   '函数 加和(a, b)：\n    返回 a + b\n'),
+    })
+    源 = '''导入 包
+令 插件 = 包.加载("插件")
+打印(类型(插件), 插件["处理"]("甲"), 插件["加和"](3, 4))
+令 再 = 包.加载("插件")
+打印("同名同一份", 再 == 插件)
+'''
+    ast = _C.jsonable(parse_source(源, "主.jsh"))
+    ast文件 = tmp_path / f"ast-{os.getpid()}.json"
+    ast文件.write_text(_json.dumps(ast, ensure_ascii=False), encoding="utf-8")
+
+    r = subprocess.run([str(RUST_EXE), "--walk", str(ast文件)], cwd=str(tmp_path),
+                       capture_output=True, text=True, encoding="utf-8", timeout=180)
+    assert r.returncode == 0, (r.stdout or "") + (r.stderr or "")
+    出 = (r.stdout or "").replace("\r\n", "\n")
+
+    # 与同一条源码走发行版（字节码 VM）的结果比 —— 两棵树必须逐字相同
+    源文件 = tmp_path / f"vm-{os.getpid()}.jsh"
+    源文件.write_text(源, encoding="utf-8", newline="\n")
+    r2 = subprocess.run([str(RUST_EXE), str(源文件)], cwd=str(tmp_path),
+                        capture_output=True, text=True, encoding="utf-8", timeout=180)
+    assert r2.returncode == 0, (r2.stdout or "") + (r2.stderr or "")
+    assert 出 == (r2.stdout or "").replace("\r\n", "\n"), (
+        f"Walker 与字节码 VM 不一致：\n--- Walker ---\n{出}\n--- VM ---\n{r2.stdout}")
+
+
+@_需要引擎
+def test_包加载不再报不支持(tmp_path):
+    """M239 G1 之后，Rust 侧两条路（VM / Walker）都**不再**报「不支持 `包.加载`」。
+
+    这条留着当**反向守卫**：如果哪天有人把实现回退成桩（或者条件编译把它排除掉），
+    那句明确报错会重新出现 —— 那时应该看 `test_Rust树遍历Walker也一致` 红在哪。
+    """
+    _建包(tmp_path, "插件", {"主.jsh": '函数 加和(a, b)：\n    返回 a + b\n'})
+    源 = '导入 包\n令 插件 = 包.加载("插件")\n打印(插件["加和"](1, 2))\n'
+    文件 = tmp_path / f"nostub-{os.getpid()}.jsh"
+    文件.write_text(源, encoding="utf-8", newline="\n")
+    r = subprocess.run([str(RUST_EXE), str(文件)], cwd=str(tmp_path),
                        capture_output=True, text=True, encoding="utf-8", timeout=120)
-    # 没有这个开关时（或它跑了字节码）就跳过 —— 只要「导入 包」能成即可
-    assert r.returncode == 0 or "树遍历" in (r.stderr or ""), (r.stdout or "")[:300]
+    全 = (r.stdout or "") + (r.stderr or "")
+    assert "不支持" not in 全, 全
+    assert r.returncode == 0, 全
 
 def test_模块与函数在表里():
     """`包` 与 `加载` 都在语言事实里（Python 侧是契约来源）。"""

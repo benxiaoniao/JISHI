@@ -322,6 +322,12 @@ pub(crate) struct Walker {
     /// 的值**就是 `空`**」。两者**必须分得开** —— Python 当年用 `None` 一个值同时
     /// 表示这两件事，导致输入 `空` 不回显（M27 修的就是它）。
     last_value: Option<Val>,
+    /// M239（G1）：运行期加载过的包 —— **同名只建一次**（与 `包.py` 的缓存同口径）。
+    ///
+    /// 不缓存的话，两次 `包.加载("x")` 会各建一份门面字典；而字典里的值是**函数**，
+    /// 函数按**身份**比较（W17）⇒ 两份字典 `==` 得「假」。别的执行器都缓存，
+    /// 所以那边是「真」—— 这条差异是判据抓出来的。
+    包缓存: HashMap<String, Val>,
     pub(crate) output: String,
     /// 错误流缓冲（与字节码 VM 同构；目前只有 `测试.汇总` 往里写）。
     pub(crate) output_err: String,
@@ -389,6 +395,7 @@ impl Walker {
             call_stack: Vec::new(),
             filename: "<AST>".to_string(),
             last_value: None,
+            包缓存: HashMap::new(),
             output: String::new(),
             output_err: String::new(),
             output_sink: None,
@@ -1830,6 +1837,11 @@ impl BuiltinHost for Walker {
             cause: None,
         };
 
+        // 同名只建一次（与 `包.py` 的缓存同口径）
+        if let Some(已建) = self.包缓存.get(名字) {
+            return Ok(已建.clone());
+        }
+
         let mut stack: Vec<String> = Vec::new();
         let defs = jishi_frontend::localpkg::shell_defs(名字, 1, 1, &mut stack, None)
             .map_err(转)?;
@@ -1847,7 +1859,9 @@ impl BuiltinHost for Walker {
         let 函数 = self.globals.borrow().vars.get(&本包).cloned().ok_or_else(|| {
             crate::err("运行期错误", format!("包「{名字}」的外壳函数没建出来"))
         })?;
-        self.call_value(函数, Vec::new())
+        let 门面 = self.call_value(函数, Vec::new())?;
+        self.包缓存.insert(名字.to_string(), 门面.clone());
+        Ok(门面)
     }
     fn write_stderr(&mut self, s: &str) {
         self.output_err.push_str(s);
