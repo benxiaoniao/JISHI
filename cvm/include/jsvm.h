@@ -331,6 +331,10 @@ JSVM_API int jsvm_run_code(JsVm *vm, int code_idx);
 JSVM_API int jsvm_run(JsVm *vm);
 JSVM_API void jsvm_get_last(JsVm *vm, JVal *out);
 
+/* M240 / W7：函数值有几个形参；不是函数返回 -1。
+ * 见 `jsvm.c` 里同名函数的注释（为什么非得由 C 侧给）。 */
+JSVM_API int jsvm_function_nparams(JsVm *vm, JVal fn);
+
 /* 语句起始表（M40）：与 instrs 等长，第 i 项是「第 i 条指令所属语句的行号」，
  * 0 表示它不是语句的第一条。调试器靠它认出「语句边界」——栈机没有这种事件，
  * 但编译器知道。

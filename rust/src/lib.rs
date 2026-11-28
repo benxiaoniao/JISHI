@@ -4474,6 +4474,16 @@ pub(crate) trait BuiltinHost {
     /// 只能在「造的那一刻」记住；而 `测试.抛出` 是**内建回调**里捕获错误，
     /// 手里只有 `&mut dyn BuiltinHost`。
     fn filename(&self) -> &str;
+    /// **这个值如果是函数，它有几个形参**（M240 / W7）。
+    ///
+    /// 📌 为什么要这条能力：`二分查找` / `二分插入点` 的第 5 参是**取键函数**
+    /// （收 1 个元素），但清单里常被写成「比较函数」，于是用户传 `比较(a, b)` ——
+    /// 报出来的是「函数「比较」缺少参数：b」，看着像函数本身缺参数。
+    /// 要**在调用之前**说清「这里要的是取键函数」，就得知道它有几个形参，
+    /// 而内建在 `&mut dyn BuiltinHost` 里看不到 `module` —— 只能问宿主。
+    ///
+    /// 返回 `None` = 不是函数（内建 / 类 / 普通值）。
+    fn 函数形参数(&self, v: &Val) -> Option<usize>;
     /// **运行期加载本地包**（M237）：把一个已装的包编进**本执行器**并跑它的顶层，
     /// 返回它的门面值。
     ///
@@ -4571,6 +4581,15 @@ impl BuiltinHost for VM {
     }
     fn filename(&self) -> &str {
         &self.module.filename
+    }
+
+    fn 函数形参数(&self, v: &Val) -> Option<usize> {
+        match v {
+            Val::Func(f) => Some(self.module.codes[f.code_idx].params.len()),
+            // `WalkFn` 不会出现在字节码 VM 里，但对称为妙（宿主之间不打架）
+            Val::WalkFn(f) => Some(f.形参数()),
+            _ => None,
+        }
     }
 
     /// M237：运行期加载本地包 —— **复用编译期那套 `shell_defs`**。
@@ -5802,6 +5821,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     //    写进说明里，比悄悄多花一个数量级更诚实。
     m.insert("二分查找".to_string(), crate::builtin("二分查找", |args, vm| {
         let (l, 目标, 起, 终, 键) = 二分参数("二分查找", args)?;
+        检查取键函数("二分查找", 键.as_ref(), vm)?;
         // M228（N5）：给了键函数就按「键(元素)」比，列表要按这个键升序
         if let Some(键) = 键 {
             // ⚠️ **目标不取键**：目标本身就是「键值」（`bisect(key=…)` 的口径）——
@@ -5831,6 +5851,7 @@ pub(crate) fn new_builtins() -> HashMap<String, Val> {
     }));
     m.insert("二分插入点".to_string(), crate::builtin("二分插入点", |args, vm| {
         let (l, 目标, 起, 终, 键) = 二分参数("二分插入点", args)?;
+        检查取键函数("二分插入点", 键.as_ref(), vm)?;
         if let Some(键) = 键 {
             let 目标键 = 目标;      // 同上：目标是键值，不取键
             let i = 二分左界带键(&l, &目标键, 起, 终, &键, vm)?;
@@ -7987,6 +8008,27 @@ fn 二分左界(项: &[Val], 目标: &Val, 起点: usize, 终点: usize)
 /// 全在第 4 个参数都给了才算「给了终点」—— `空` 也算没给（`终点=空` 是默认值）。
 /// 📌 M228（N5）：第 5 个参数 `键` 是**取键函数**（`键(元素)` → 可比较的值），
 /// 列表必须按**这个键**升序。不写就是拿元素本身比（老行为）。
+/// M240 / W7：`二分查找` / `二分插入点` 的第 5 参是**取键函数**（收 1 个元素），
+/// 但清单里常被写成「比较函数」⇒ 用户传 `比较(a, b)`，报的是
+/// 「函数「比较」缺少参数：b」，看着像函数自己缺参数。这里把话说在前面。
+///
+/// ⚠️ 文案与 `oracle/jishi/runtime.py::_二分参数` **逐字一致**（四执行器对拍）。
+fn 检查取键函数(name: &str, 键: Option<&Val>, vm: &mut dyn BuiltinHost)
+    -> Result<(), JishiError> {
+    let Some(k) = 键 else { return Ok(()) };
+    let Some(n) = vm.函数形参数(k) else { return Ok(()) };
+    if n == 1 {
+        return Ok(());
+    }
+    Err(err_with_hint(
+        "类型错误",
+        format!("「{name}」的第 5 个参数「键」要的是**取键函数**（收 1 个元素、\
+                 返回可比较的值），不是比较器 —— 给的函数有 {n} 个形参"),
+        "按某个字段查，写 `键 = 函数(元素)：返回 元素[\"字段\"]`；\
+         要比较两个值那是排序比较器，这里用不上".into(),
+    ))
+}
+
 fn 二分参数(name: &str, args: &[Val])
     -> Result<(JList, Val, usize, usize, Option<Val>), JishiError> {
     if args.len() < 2 || args.len() > 5 {

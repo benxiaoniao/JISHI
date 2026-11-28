@@ -106,6 +106,14 @@ enum Flow {
 ///
 /// ⚠️ **为什么不能复用 `Val::Func`**：那里面装的是字节码的 `code_idx`，
 /// 而树遍历手里是 AST、根本没有字节码 —— 「不经过字节码」正是它存在的理由。
+impl WalkFn {
+    /// 形参个数（M240 / W7）—— `二分查找` 那类内建要「在调用前」判断参数个数，
+    /// 而 `def` 是私有的，给个访问器比把字段放开干净。
+    pub(crate) fn 形参数(&self) -> usize {
+        self.def.params.len()
+    }
+}
+
 pub(crate) struct WalkFn {
     /// 创建序号 —— 判**同一性**（`是` / 放进集合）用，思路与 `Func.id` 同源。
     pub(crate) id: usize,
@@ -1810,6 +1818,16 @@ impl BuiltinHost for Walker {
     }
     fn filename(&self) -> &str {
         &self.filename
+    }
+
+    /// M240 / W7：树遍历的函数值是 `Val::WalkFn`（AST 那套），形参在 `FnDef` 上。
+    fn 函数形参数(&self, v: &Val) -> Option<usize> {
+        match v {
+            Val::WalkFn(f) => Some(f.形参数()),
+            // `Func`（字节码那套）不会出现在树遍历里，同样对称为妙
+            Val::Func(_) => None,
+            _ => None,
+        }
     }
     /// M237：`包.加载` 在**树遍历**上还不支持。
     ///

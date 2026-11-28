@@ -150,6 +150,9 @@ def load_lib() -> ctypes.CDLL:
     lib.jsvm_run_code.restype = c_int
     lib.jsvm_run_code.argtypes = [c_void_p, c_int]
     lib.jsvm_get_last.argtypes = [c_void_p, JPV]
+    # M240 / W7：形参数（不是函数返回 -1，所以 restype 是 c_int 不是指针）
+    lib.jsvm_function_nparams.restype = c_int
+    lib.jsvm_function_nparams.argtypes = [c_void_p, JVal]
     # 调试支持（M40）：语句起始表 + 语句钩子
     lib.jsvm_set_stmt_marks.argtypes = [c_void_p, POINTER(c_int32), c_int]
     lib.jsvm_set_stmt_hook.argtypes = [c_void_p, c_void_p, c_void_p]
@@ -472,10 +475,23 @@ class CvmFunction:
     调用时经 ``jsvm_call_function`` 重入 C VM。
     """
 
-    __slots__ = ("_host", "_raw")
+    __slots__ = ("_host", "_raw", "_nparams")
+
+    @property
+    def nparams(self) -> int:
+        """形参个数（M240 / W7）—— C 侧给，因为结构对宿主不可见。
+
+        用途与 `UserFunction.params` 同：`二分查找` 的第 5 参要「取键函数」，
+        内建要在调用前判断参数个数。返回 -1 = 不是函数。
+        """
+        if self._nparams is None:
+            self._nparams = self._host.lib.jsvm_function_nparams(
+                self._host.vm, self._raw)
+        return self._nparams
 
     def __init__(self, host: "CvmHost", raw: JVal):
         self._host = host
+        self._nparams = None
         self._raw = _jfunc_copy(raw)
         host.lib.jsvm_func_retain(host.vm, byref(self._raw))
 

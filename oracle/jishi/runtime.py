@@ -973,6 +973,22 @@ def _二分参数(name, args):
     起 = 夹(args[2]) if len(args) >= 3 else 0
     终 = n if len(args) < 4 or args[3] is None else 夹(args[3])
     键 = args[4] if len(args) >= 5 and args[4] is not None else None
+    # 🔴 **M240 / W7**：第 5 参是**取键函数**（收 1 个元素），不是比较器。
+    # 清单里常写成「比较函数」⇒ 用户传 `比较(a, b)`，报的是
+    # 「函数「比较」缺少参数：b」，看着像函数自己缺参数。这里把话说在前面。
+    # ⚠️ 文案与 Rust 侧 `检查取键函数` **逐字一致**（四执行器对拍）。
+    # ⚠️ 四个执行器的函数对象长得不一样：树遍历/Python VM 是 `params` 列表，
+    #    C VM 的 `CvmFunction` 只能问 C 侧要个数（`nparams`）。两条都试一遍。
+    形参 = getattr(键, "params", None)
+    if 形参 is None:
+        形参 = getattr(键, "nparams", None)
+    n形参 = (len(形参) if isinstance(形参, (list, tuple)) else 形参)
+    if isinstance(n形参, int) and n形参 >= 0 and n形参 != 1:
+        raise RunTypeError(
+            f"「{name}」的第 5 个参数「键」要的是**取键函数**（收 1 个元素、"
+            f"返回可比较的值），不是比较器 —— 给的函数有 {n形参} 个形参",
+            hint=('按某个字段查，写 `键 = 函数(元素)：返回 元素["字段"]`；'
+                  '要比较两个值那是排序比较器，这里用不上'))
     return seq, args[1], 起, 终, 键
 
 

@@ -2575,6 +2575,17 @@ JSVM_API int jsvm_run(JsVm *vm) {
 
 JSVM_API void jsvm_get_last(JsVm *vm, JVal *out) { *out = vm->last_value; }
 
+/* M240 / W7：这个函数值有几个形参（不是函数就返回 -1）。
+ * 用途：`二分查找` 的第 5 参要「取键函数」（收 1 个元素），而清单里常写成
+ * 「比较函数」⇒ 用户传 `比较(a, b)`。宿主侧要在**调用前**说清，
+ * 但 `CvmFunction` 在 Python 侧只有一个 C 句柄 —— 形参数只能由 C 侧给。 */
+JSVM_API int jsvm_function_nparams(JsVm *vm, JVal fn) {
+    if (!vm || fn.tag != JS_TAG_FUNC) return -1;
+    int ci = ((JsFunc *)(uintptr_t)fn.v.u)->code_idx;
+    if (ci < 0 || ci >= vm->ncodes) return -1;
+    return vm->codes[ci].nparams;
+}
+
 /* 基石函数回流：Python 侧持有/释放 */
 JSVM_API int jsvm_func_retain(JsVm *vm, JVal *fv) {
     (void)vm;

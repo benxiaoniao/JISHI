@@ -115,6 +115,24 @@ def _跑单宿主(源: str, tmp: Path, 名: str) -> str:
     return (r.stdout or "").replace("\r\n", "\n")
 
 
+def _跑单宿主_可失败(源: str, tmp: Path, 名: str) -> tuple[str, str]:
+    """与 `_跑单宿主` 同一条路，但**不断言成功** —— 返回 `(stdout, stderr)`。
+
+    M240 / W7 要用它：那条判据验的是「**报错**该说什么」，天然 rc != 0。
+    """
+    文件 = tmp / f"{名}-{os.getpid()}.jsh"
+    文件.write_text(源, encoding="utf-8", newline="\n")
+    if RUST_EXE.is_file():
+        r = subprocess.run([str(RUST_EXE), str(文件)], capture_output=True,
+                           text=True, encoding="utf-8", timeout=300)
+    else:
+        r = subprocess.run([sys.executable, "-m", "oracle.jishi.cli", str(文件)],
+                           capture_output=True, text=True, encoding="utf-8",
+                           timeout=300, cwd=str(ROOT))
+    return ((r.stdout or "").replace("\r\n", "\n"),
+            (r.stderr or "").replace("\r\n", "\n"))
+
+
 def _首行错误(stderr: str) -> str:
     for 行 in stderr.splitlines():
         if 行.startswith("错误"):
@@ -419,3 +437,26 @@ def test_分组一万行仍然很快(tmp_path):
     毫秒 = float(出[1])
     assert 毫秒 < 1000, f"1 万行分组要 {毫秒} ms —— 又退回去了"
 
+
+
+def test_二分第五参是取键函数_传比较器给明确提示(tmp_path):
+    """M240 / W7：第 5 参「键」是**取键函数**（1 个形参），不是比较器。
+
+    基石数据库的清单写成「比较函数」，于是大家按 `比较(a, b)` 传 —— 原来报的是
+    「函数「比较」缺少参数：b」，看着像函数本身缺参数，其实是**用法不对**。
+
+    🔴 这条要四个执行器**逐字相同**：树遍历/Python VM 从 `params` 拿形参数，
+    C VM 的 `CvmFunction` 只能问 C 侧（`jsvm_function_nparams`），
+    Rust 侧靠 `BuiltinHost::函数形参数` —— 少一条路就会有一个执行器给旧文案。
+    """
+    # ① 取键函数（1 个形参）照常工作
+    对 = _跑单宿主(
+        '令 数 = [1, 3, 5, 7]\n函数 取号(x)：\n    返回 x\n'
+        '打印(二分查找(数, 5, 0, 空, 取号))\n', tmp_path, "bisect-ok")
+    assert 对.strip() == "2", 对
+
+    # ② 比较器（2 个形参）要报「要的是取键函数，不是比较器」
+    _出, 错 = _跑单宿主_可失败(
+        '令 数 = [1, 3, 5, 7]\n函数 比较(a, b)：\n    返回 整数(a - b)\n'
+        '打印(二分查找(数, 5, 0, 空, 比较))\n', tmp_path, "bisect-bad")
+    assert "取键函数" in 错 and "不是比较器" in 错, 错
