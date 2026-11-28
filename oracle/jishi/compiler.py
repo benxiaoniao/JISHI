@@ -120,6 +120,10 @@ def _collect_stmt(st: A.Node, scope: _Scope,
             体内 = set()
             _collect_stmts(body, scope, func_scopes, 体内)
             体内 -= 进如果前          # 段里 `令` 外层已有的：那是「改外层」
+            # 🔴 **M240**：`全局 X` 声明过的名字**也不是**块局部 —— 块内 `X = …`
+            # 是「改全局」。`Global` 会把名字从 `bound` 摘掉，所以上面那句减不到它，
+            # 这里必须再减一次。真实项目（桌面营造）撞的就是这个。
+            体内 -= scope.globals
             体块们.append((体内, set(体内)))
             scope.块绑定 |= 体内
             if 块内 is not None:

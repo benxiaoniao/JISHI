@@ -363,7 +363,11 @@ def _检查块作用域(program, filename: str, lines) -> None:
     已退出: set = set()       # 已经走完的循环体**引入**过的名字
 
     def 查名字(n) -> None:
-        if n.id in 已退出 and not any(n.id in s for s in 活跃):
+        # 🔴 **M240**：`全局 X` 声明过的名字**不是**「块内引入的」。
+        # 树遍历有**自己的一套**块检查（不走编译器那套 `已退出块`），所以修编译器
+        # 那边不管用 —— 真实项目（桌面营造）撞的就是这里。
+        是全局名 = any(n.id in sc.globals for sc in scopes.values())
+        if n.id in 已退出 and not 是全局名 and not any(n.id in s for s in 活跃):
             raise SemanticNameError(
                 f"找不到名字「{n.id}」",
                 line=getattr(n, "line", 1), col=getattr(n, "col", 1),
