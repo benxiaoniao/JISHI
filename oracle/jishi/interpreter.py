@@ -652,7 +652,16 @@ class Interpreter:
         STORE_GLOBAL」，这边就是「写 self.globals」。两边由 `test_m210_global`
         拿同一段程序在四个引擎上对拍。
         """
-        if env.decl_globals and name in env.decl_globals:
+        # 🔴 **M240**：`decl_globals` 只挂在**函数帧**上，而块（`如果`/循环/`尝试`）
+        # 用的是**块环境**（`decl_globals` 是 `None`）。不沿链找的话，块内的
+        # `全局 X` 赋值会写进**块环境** —— 出块就丢，而且外面读到的还是旧值
+        # （症状：`计数 = 计数 + 1` 每次都是 1，全局永远是 0）。
+        声明 = env.decl_globals
+        e = env
+        while 声明 is None and e is not None:
+            e = e.parent
+            声明 = getattr(e, "decl_globals", None) if e is not None else None
+        if 声明 and name in 声明:
             self.globals.set(name, value)
         else:
             env.set(name, value)
