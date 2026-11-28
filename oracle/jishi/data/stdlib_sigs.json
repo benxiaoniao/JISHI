@@ -29,7 +29,7 @@
   "stdlib/托盘.py": "f0dbdc251eddd132",
   "stdlib/操控.py": "0d8e87b99a348489",
   "stdlib/数学.py": "1c8b1297f5eaa509",
-  "stdlib/文件.py": "ebfa163ef2ccdfd5",
+  "stdlib/文件.py": "0f2c0462d15aed09",
   "stdlib/文本.py": "eaeb10c61d1ce7a7",
   "stdlib/日志.py": "0a9ac2513501a6bb",
   "stdlib/日期.py": "1e6c35e5d4031ac6",
@@ -50,7 +50,7 @@
   "stdlib/编码.py": "0b5f510cb365bed5",
   "stdlib/网络.py": "78603b74fb256c23",
   "stdlib/表格.py": "57ac9ff4c40816c1",
-  "stdlib/路径.py": "96af13d7a78fc150",
+  "stdlib/路径.py": "058a882d5ac1e7b8",
   "stdlib/进程.py": "23b89f161c828f31",
   "stdlib/迭代.py": "c58a89de2c78c065",
   "stdlib/通知.py": "ee0e8701af077a5b",
@@ -1559,7 +1559,7 @@
     {
      "name": "删除文件",
      "sig": "删除文件(路径)",
-     "doc": "删除文件。"
+     "doc": "删除文件。**文件不存在会报错**（「必须删掉」的语义）。"
     },
     {
      "name": "复制",
@@ -3129,7 +3129,7 @@
     {
      "name": "删除",
      "sig": "删除(路径)",
-     "doc": "删除文件或空目录，成功返回真；不存在返回假。"
+     "doc": "删除文件或空目录，成功返回真；不存在返回假（**幂等**）。"
     },
     {
      "name": "递归删除",
